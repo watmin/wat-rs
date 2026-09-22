@@ -56,3 +56,7 @@ bootstrap/
 # arc 278 — vigilia recast scratch (run dirs + probe output). The LOOP doctrine is
 # tracked at docs/VIGILIA-LOOP.md; only its run output is scratch.
 /tmp/
+
+# 255.12 — scripts/replay/delta.sh conversion-delta captures (orig/conv copies +
+# results.tsv). The SCRIPT is tracked; its captures are not.
+/.delta/

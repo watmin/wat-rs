@@ -1,0 +1,21 @@
+;; ⭐ Stone 255.12, site 2 — the ACTUAL shape of `wat/holon/Ngram.wat`'s
+;; conversion failure, and the row that says why 255.12 REPORTED it instead of
+;; curing it.
+;;
+;; Two registrations of one macro, identical but for the dialect — AND the
+;; quasiquoted TEMPLATE carries a `fn` whose annotation markers the codemod
+;; rewrites `<-` → `:-` and `->` → `:-`. Those are SYMBOL `<-` / `->` against
+;; KEYWORD `:-`: three different tokens, not three spellings of one name.
+;; `canonical_identity("<-")` is `"<-"` and `canonical_identity(":-")` is `":-"`,
+;; so NO identity door equates them and `is_reference()` never gets a say.
+;;
+;; Curing this would mean teaching a blind structural walker that the retired
+;; arrow grammar and the current one are interchangeable INSIDE A TEMPLATE —
+;; and, because the codemod folds BOTH arrows onto one marker, that `<-` ≡ `->`.
+;; Two templates that emit different surface forms would become one macro. That
+;; is a grammar-migration question (8d-ii converts the baked sources too), not an
+;; identity question, and it is the builder's call.
+(:wat::core::defmacro :p255_12::MA [x <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ y ~x)))
+(:wat::core::defmacro :p255_12::MA [x <- wat/WatAST] :- wat/WatAST
+  `(wat.core/fn [y :- wat.core/i64] :- wat.core/i64 (wat.i64/+ y ~x)))

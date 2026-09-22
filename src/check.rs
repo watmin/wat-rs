@@ -18153,11 +18153,12 @@ pub(crate) fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> Type
 /// use at parse (`type_denotation`). A `wat.type/i64` argument then prints
 /// as `:wat::core::i64`, matching a `wat.type/Vector` head. Infer is a
 /// marker — keep its wat.type spelling.
+/// Stone 255.12 — the rule itself moved to `types::denoted_type_path`, which is
+/// now the ONE home for "denote a type path, but keep the `Infer` marker". It used
+/// to live here, in a RENDERER, while every other consumer of `type_denotation`
+/// collapsed `Infer` silently. Behaviour here is unchanged.
 fn format_type_path(p: &str) -> String {
-    if crate::edn::render::canonical_identity(p) == crate::types::INFER_TYPE_PATH {
-        return crate::types::INFER_TYPE_PATH.to_string();
-    }
-    crate::edn::render::type_denotation(p)
+    crate::types::denoted_type_path(p)
 }
 
 pub fn format_type(t: &TypeExpr) -> String {

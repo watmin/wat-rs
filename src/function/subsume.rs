@@ -125,7 +125,16 @@ pub(in crate::function) fn value_matches_type_by_name(
                 _ => {
                     // Map the value's runtime type to its canonical type-keyword path.
                     let val_type = val_type_path(val);
-                    if p.as_str() == val_type {
+                    // Stone 255.12 — through the denotation door, not the spelling.
+                    // `val_type_path` always answers a `:wat::core::…` path; a clause
+                    // declared `[x <- wat.type/i64]` stores `:wat::type::i64`, so the raw
+                    // `==` refused a plain `42` with the self-contradicting
+                    // `NoMatchingClause … expected :wat::core::i64, got wat::core::i64`
+                    // (`format_type` denotes on the way out; the comparison did not).
+                    if p.as_str() == val_type
+                        || crate::types::denoted_type_path(p)
+                            == crate::types::denoted_type_path(val_type)
+                    {
                         return true;
                     }
                     // Strike 2, the MONOMORPHIC half: a surface with no type params (e.g.

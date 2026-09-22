@@ -1,0 +1,6 @@
+;; Stone 255.12 NON-VACUITY — a DIVERGENT re-declaration is still refused.
+;; Same name, same field name, DIFFERENT field type. `type_denotation` does not
+;; collapse `i64` and `String`, so `type_defs_same` answers false and the gate
+;; still raises `DuplicateType`.
+(:wat::core::defrecord :p255_12::Div [n <- :wat::core::i64])
+(:wat::core::defrecord :p255_12::Div [n <- :wat::type::String])

@@ -1,0 +1,4 @@
+;; Stone 255.12 NON-VACUITY — the divergence is a FIELD NAME, which is a String
+;; inside the `fields` vector and is never denoted. Still refused.
+(:wat::core::defrecord :p255_12::Fld [n <- :wat::core::i64])
+(:wat::core::defrecord :p255_12::Fld [m <- :wat::type::i64])

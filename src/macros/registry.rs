@@ -157,3 +157,69 @@ fn ast_same_identity(a: &crate::ast::WatAST, b: &crate::ast::WatAST) -> bool {
         _ => a == b,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::WatAST;
+    use crate::scope::Identifier;
+
+    fn sym(s: &str) -> WatAST {
+        WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!())
+    }
+    fn kw(s: &str) -> WatAST {
+        WatAST::Keyword(s.to_string(), crate::rust_caller_span!())
+    }
+
+    /// Stone 255.12 — the POSITIVE control for the cross-spelling arm.
+    /// A reference symbol and the keyword of its identity ARE the same node, and
+    /// they already were before 255.12.
+    #[test]
+    fn a_reference_symbol_and_its_keyword_are_one_node() {
+        assert!(ast_same_identity(&sym("wat.core/mapv"), &kw(":wat::core::mapv")));
+        assert!(ast_same_identity(
+            &WatAST::List(vec![sym("wat.i64/+"), sym("wat.core/x")], crate::rust_caller_span!()),
+            &WatAST::List(vec![kw(":wat::i64::+"), kw(":wat::core::x")], crate::rust_caller_span!()),
+        ));
+    }
+
+    /// ⭐ Stone 255.12 — the MEASURED REFUTATION of the brief's site-2 lead.
+    ///
+    /// The lead: `wat/holon/Ngram.wat` fails to re-register under conversion
+    /// because this arm requires `id.is_reference()`, which `<-` and `->` are
+    /// not. The `is_reference()` observation is TRUE and IRRELEVANT — the arm
+    /// compares `canonical_identity` of both sides, and `<-`, `->` and `:-` are
+    /// three DIFFERENT identities. Relaxing `is_reference()` could not have
+    /// equated them; nothing in the identity family can.
+    ///
+    /// What the codemod does to a quasiquoted template is a GRAMMAR flip
+    /// (`<-`/`->` → `:-`), not a namespace re-spelling, so site 2 was REPORTED
+    /// rather than cured. See `tests/macros/probe_arc255_12_macro_*` for the
+    /// behavioural half.
+    #[test]
+    fn the_annotation_markers_are_three_identities_not_one_name() {
+        use crate::edn::render::canonical_identity;
+        assert_eq!(canonical_identity("<-"), "<-");
+        assert_eq!(canonical_identity("->"), "->");
+        assert_eq!(canonical_identity(":-"), ":-");
+        assert!(
+            !ast_same_identity(&sym("<-"), &kw(":-")),
+            "⛔ if the arrow ever equated to the annotation keyword, two macro \
+             templates that emit DIFFERENT surface forms would count as one macro"
+        );
+        assert!(
+            !ast_same_identity(&sym("<-"), &sym("->")),
+            "⛔ the codemod folds BOTH arrows onto `:-`; equating them would make a \
+             parameter annotation and a return annotation the same node"
+        );
+    }
+
+    /// Stone 255.12 — and why `is_reference()` must STAY. A let-binder symbol
+    /// `v` is not a reference, so it must not equate to the keyword `:v`.
+    /// Relaxing the guard — the cure the brief proposed for site 2 — would
+    /// collapse them.
+    #[test]
+    fn a_binder_is_not_the_keyword_of_its_name() {
+        assert!(!ast_same_identity(&sym("v"), &kw(":v")));
+    }
+}

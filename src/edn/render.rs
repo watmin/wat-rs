@@ -2514,7 +2514,23 @@ fn edn_to_typed_value_inner(
     }
     match target {
         // ── Path-form: primitive scalars + user struct / enum (by name) ──
-        TypeExpr::Path(p) => match p.as_str() {
+        //
+        // Stone 255.12 — the literal table below is keyed on the `:wat::core::` DENOTATION,
+        // so it is matched against `type_denotation(p)`, not the raw spelling. A
+        // `wat.type/i64` annotation stores `:wat::type::i64` (`parse_type_inner` keeps the
+        // IDENTITY; denotation is the read-site door), which matched no arm and fell through
+        // to the registry lookup, where `i64` has membership but no `TypeDef` — so a
+        // perfectly well-typed value was refused with a diagnostic that contradicted itself:
+        //   (:wat::edn::validate 42 :wat::type::i64)
+        //     → #wat.edn/Validation.Invalid {:expected ":wat::core::i64" :got "Integer"}
+        // (`format_type` denotes on the way OUT, so the message claimed a comparison that
+        // was never made). This is the 8d-ii STOP.
+        //
+        // ⛔ The `_` arms below deliberately keep using `p`, NOT the denotation:
+        // `is_type_var_path` is a shape test on the written form, and `TypeEnv::get` is
+        // already denotation-aware (`types.rs`'s `get`), so denoting again there would
+        // only hide which spelling arrived.
+        TypeExpr::Path(p) => match crate::types::denoted_type_path(p).as_str() {
             ":wat::core::i64" => match edn {
                 Edn::Integer(n) => Ok(Value::i64(*n)),
                 other => Err(mismatch(target, other)),
@@ -2682,7 +2698,18 @@ fn edn_to_typed_value_inner(
         },
 
         // ── Parametric: Vector<T>, Option<T>, Result<T,E>, ... ──
-        TypeExpr::Parametric { head, args } => match head.as_str() {
+        //
+        // Stone 255.12 — same move as the Path table above, one storage convention over:
+        // a parametric head is stored WITHOUT its leading colon, so it goes through
+        // `parametric_head_fqdn` before the denotation door and comes back stripped. The
+        // `_` arm keeps using the raw `head` — it already routes through
+        // `parametric_head_fqdn` + the denotation-aware `TypeEnv::get`.
+        TypeExpr::Parametric { head, args } => match crate::types::denoted_type_path(
+            &crate::types::parametric_head_fqdn(head),
+        )
+        .strip_prefix(':')
+        .unwrap_or_default()
+        {
             "wat::core::Vector" => {
                 let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
                 match edn {

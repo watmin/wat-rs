@@ -1,0 +1,7 @@
+;; Stone 255.12 NON-VACUITY — the divergence is in a field `type_defs_same`
+;; does NOT denote: `AggregateDef.nature`. A record and a struct with identical
+;; fields are two declarations, not one. This is the row that would go green if
+;; the comparator had been written as a hand-rolled field walk that forgot a
+;; field — which is exactly why it is "normalize the TypeExprs, then `==`".
+(:wat::core::defrecord :p255_12::Nat [n <- :wat::core::i64])
+(:wat::core::defstruct :p255_12::Nat [n <- :wat::type::i64])

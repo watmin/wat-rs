@@ -172,6 +172,161 @@ fn field_shapes_same(a: &[(String, TypeExpr)], b: &[(String, TypeExpr)]) -> bool
             .all(|((n1, t1), (n2, t2))| n1 == n2 && type_exprs_same(t1, t2))
 }
 
+/// The denotation door for a type PATH, with the one carve-out the substrate
+/// already makes: `:wat::type::Infer` is a MARKER, not a `wat.type` member, and
+/// there is no `:wat::core::Infer` for it to denote to (declaring a field of that
+/// type is `UnknownNamedType`). `type_denotation` is a blind prefix rewrite and
+/// collapses it anyway.
+///
+/// ⛔ **This carve-out was NOT new in 255.12 — it was already written down, once,
+/// inside `check::format_type_path`, which is a RENDERER.** Every other consumer of
+/// `type_denotation` was silently collapsing `Infer`, and the cost only became
+/// visible when 255.12 pointed an EQUALITY at the same door: two `defrecord`s
+/// differing exactly by `:wat::type::Infer` vs `:wat::core::Infer` — the second of
+/// which is ILLEGAL ON ITS OWN — were called equivalent, so the illegal declaration
+/// was swallowed as a benign no-op. Found by the brief's mandatory adversarial
+/// row ("construct a divergence `type_denotation` might COLLAPSE"), not by review.
+/// `check::format_type_path` now routes here, so the rule has ONE home.
+pub(crate) fn denoted_type_path(p: &str) -> String {
+    if crate::edn::render::canonical_identity(p) == INFER_TYPE_PATH {
+        return INFER_TYPE_PATH.to_string();
+    }
+    crate::edn::render::type_denotation(p)
+}
+
+/// Every `TypeExpr` in the tree, rewritten through the denotation door —
+/// the SAME `edn::render::type_denotation` [`type_exprs_same`] consults,
+/// via [`denoted_type_path`]. Nothing else changes.
+pub(crate) fn type_expr_denoted(t: &TypeExpr) -> TypeExpr {
+    match t {
+        TypeExpr::Path(p) => TypeExpr::Path(denoted_type_path(p)),
+        TypeExpr::Parametric { head, args } => {
+            // Heads are stored WITHOUT the leading colon (see `parametric_head_fqdn`);
+            // denote through the colon form, then put the storage convention back so a
+            // denoted def is still a legal `TypeDef` and not a second spelling of one.
+            let denoted = denoted_type_path(&parametric_head_fqdn(head));
+            TypeExpr::Parametric {
+                head: denoted.strip_prefix(':').unwrap_or(&denoted).to_string(),
+                args: args.iter().map(type_expr_denoted).collect(),
+            }
+        }
+        TypeExpr::Fn { args, ret } => TypeExpr::Fn {
+            args: args.iter().map(type_expr_denoted).collect(),
+            ret: Box::new(type_expr_denoted(ret)),
+        },
+        TypeExpr::Tuple(xs) => TypeExpr::Tuple(xs.iter().map(type_expr_denoted).collect()),
+        TypeExpr::Var(i) => TypeExpr::Var(*i),
+    }
+}
+
+fn argspec_denoted(a: &crate::argspec::ArgSpec) -> crate::argspec::ArgSpec {
+    crate::argspec::ArgSpec {
+        fixed_params: a
+            .fixed_params
+            .iter()
+            .map(|(n, t)| (n.clone(), type_expr_denoted(t)))
+            .collect(),
+        rest_param: a
+            .rest_param
+            .as_ref()
+            .map(|(n, t)| (n.clone(), type_expr_denoted(t))),
+    }
+}
+
+fn fields_denoted(f: &[(String, TypeExpr)]) -> Vec<(String, TypeExpr)> {
+    f.iter()
+        .map(|(n, t)| (n.clone(), type_expr_denoted(t)))
+        .collect()
+}
+
+/// A whole declaration with every `TypeExpr` inside it put through the
+/// denotation door, and **nothing else touched**.
+fn type_def_denoted(d: &TypeDef) -> TypeDef {
+    match d {
+        TypeDef::Aggregate(a) => TypeDef::Aggregate(AggregateDef {
+            fields: fields_denoted(&a.fields),
+            ..a.clone()
+        }),
+        TypeDef::Enum(e) => TypeDef::Enum(EnumDef {
+            variants: e
+                .variants
+                .iter()
+                .map(|v| match v {
+                    EnumVariant::Unit(n) => EnumVariant::Unit(n.clone()),
+                    EnumVariant::Tagged { name, fields } => EnumVariant::Tagged {
+                        name: name.clone(),
+                        fields: fields_denoted(fields),
+                    },
+                })
+                .collect(),
+            ..e.clone()
+        }),
+        TypeDef::Newtype(n) => TypeDef::Newtype(NewtypeDef {
+            inner: type_expr_denoted(&n.inner),
+            ..n.clone()
+        }),
+        TypeDef::Alias(a) => TypeDef::Alias(AliasDef {
+            expr: type_expr_denoted(&a.expr),
+            ..a.clone()
+        }),
+        TypeDef::Union(u) => TypeDef::Union(UnionDef {
+            members: u.members.iter().map(type_expr_denoted).collect(),
+            ..u.clone()
+        }),
+        TypeDef::Surface(s) => TypeDef::Surface(SurfaceDef {
+            members: s
+                .members
+                .iter()
+                .map(|m| match m {
+                    SurfaceMember::Field { name, ty } => SurfaceMember::Field {
+                        name: name.clone(),
+                        ty: type_expr_denoted(ty),
+                    },
+                    SurfaceMember::Method {
+                        name,
+                        args,
+                        ret,
+                        type_params,
+                        max_request_bytes,
+                        max_request_bytes_explicit,
+                    } => SurfaceMember::Method {
+                        name: name.clone(),
+                        args: Box::new(argspec_denoted(args)),
+                        ret: type_expr_denoted(ret),
+                        type_params: type_params.clone(),
+                        max_request_bytes: *max_request_bytes,
+                        max_request_bytes_explicit: *max_request_bytes_explicit,
+                    },
+                })
+                .collect(),
+            ..s.clone()
+        }),
+    }
+}
+
+/// Declaration equivalence for the registration gate — `==`, asked of the
+/// DENOTATION rather than the SPELLING.
+///
+/// ⛔ **This relation is deliberately built as "normalize, then `==`", not as a
+/// hand-written field-by-field walk.** It is the only comparator in the arc that
+/// runs in the PERMISSIVE direction (it makes `register_validated` accept
+/// re-declarations it used to refuse), so the risk is not that it is too strict
+/// but that a hand-written walk silently omits a field — `nature`, `purity`,
+/// `restrictions`, `type_params`, `max_request_bytes`, a variant's name — and
+/// thereby calls two genuinely DIVERGENT declarations equivalent. Normalizing
+/// only the `TypeExpr` leaves and then deferring to the derived `PartialEq`
+/// makes that class unrepresentable: every field this comparator does not
+/// explicitly denote is still compared byte-for-byte by `==`.
+///
+/// The denotation door is `edn::render::type_denotation` (`wat.type/X` and
+/// `wat.core/X` are one type — 255.8), the same door `type_exprs_same` and
+/// `parametric_heads_unify` already consult. Nothing NEW is equated here;
+/// the registration gate is simply asked the question the checker already
+/// answers this way.
+pub(crate) fn type_defs_same(a: &TypeDef, b: &TypeDef) -> bool {
+    a == b || type_def_denoted(a) == type_def_denoted(b)
+}
+
 /// A colon-joined Type::member (`:ns::Type::method`). 255.4 retired this
 /// spelling; the live registry uses `/`. Nested type *names*
 /// (`:wat::cache::Cache::GetRequest`) stay `::` — their last segment is
@@ -990,9 +1145,20 @@ impl TypeEnv {
         // The ONE gate (resolve::registration). Equivalence is `==` (a byte-equivalent
         // re-declaration is a no-op — Arc 054, e.g. an in-crate shim delivered both via
         // wat_sources() and on-disk, OR a forked child re-baking a stdlib form it holds).
+        //
+        // Stone 255.12 — asked of the DENOTATION, not the spelling. The re-declaration
+        // that motivates it is the same one arc 054 names: `wat/source.wat` is baked into
+        // the binary by `include_str!` AND read off disk, so the two copies meet here. Once
+        // the on-disk copy is converted, its `path <- wat.core/String` field reads
+        // `wat.type/String` and stores `:wat::type::String` while the baked copy still holds
+        // `:wat::core::String` — ONE type, TWO spellings, and raw `==` called it a duplicate
+        // declaration. `type_defs_same` is `==` over the denotation-normalized defs, so every
+        // field it does not denote is still compared byte-for-byte: a DIVERGENT
+        // re-declaration (`i64` vs `String`, a changed nature, a changed variant) is still
+        // `Divergent` and still raises `DuplicateType`.
         let existing = match self.types.get(&name) {
             None => crate::resolve::Existing::Absent,
-            Some(e) if e == &def => crate::resolve::Existing::Equivalent,
+            Some(e) if type_defs_same(e, &def) => crate::resolve::Existing::Equivalent,
             Some(_) => crate::resolve::Existing::Divergent,
         };
         crate::resolve::register(
@@ -4109,7 +4275,13 @@ pub fn register_stdlib_types_replacing(
         &|env, def, span| {
             let name = def.name().to_string();
             if let Some(existing) = env.get(&name) {
-                if existing != &def {
+                // Stone 255.12 — the SAME identity question `register_validated` asks,
+                // through the same door. Not in the 255.12 brief's four-site table: found
+                // by grepping the registration gate's own equivalence sites rather than the
+                // table. Leaving it raw would mean a merely RE-SPELLED stdlib declaration
+                // gets retracted and replaced (the file's spelling silently wins) where
+                // `register_validated` now correctly calls it a no-op.
+                if !type_defs_same(existing, &def) {
                     env.retract_for_door_replace(&name);
                 }
             }

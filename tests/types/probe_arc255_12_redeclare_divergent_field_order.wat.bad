@@ -1,0 +1,9 @@
+;; Stone 255.12 NON-VACUITY — same field names, same field types, different
+;; ORDER. `fields` is a Vec and `==` is order-sensitive; normalizing the
+;; TypeExprs does not sort it. Still refused.
+(:wat::core::defrecord :p255_12::Ord
+  [a <- :wat::core::i64
+   b <- :wat::core::String])
+(:wat::core::defrecord :p255_12::Ord
+  [b <- :wat::type::String
+   a <- :wat::type::i64])

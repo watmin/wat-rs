@@ -1,0 +1,18 @@
+;; ⭐ Stone 255.12 THE ADVERSARIAL ROW — a divergence `type_denotation` DOES
+;; collapse, which must STILL be refused.
+;;
+;; `:wat::type::Infer` is a MARKER, not a `wat.type` member: there is no
+;; `:wat::core::Infer`, and a field declared with it is `UnknownNamedType` on its
+;; own. `edn::render::type_denotation` is a blind prefix rewrite and collapses it
+;; regardless — so the first draft of 255.12's cure called these two declarations
+;; equivalent, silently SWALLOWED the second (illegal) one as a benign no-op, and
+;; this file checked CLEAN. Measured, not reviewed.
+;;
+;; The cure is `types::denoted_type_path`, which carries the same `Infer`
+;; carve-out `check::format_type_path` had already written down in a RENDERER —
+;; and which every other consumer of `type_denotation` was missing.
+;;
+;; ⛔ If this file ever starts freezing OK, the identity door has been widened
+;; past what the substrate itself says the `Infer` marker means.
+(:wat::core::defrecord :p255_12::Inf [n <- :wat::type::Infer])
+(:wat::core::defrecord :p255_12::Inf [n <- :wat::core::Infer])

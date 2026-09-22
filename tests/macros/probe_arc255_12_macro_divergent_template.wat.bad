@@ -1,0 +1,7 @@
+;; Stone 255.12 NON-VACUITY, macro registry — a DIVERGENT re-declaration in the
+;; other spelling is still `DuplicateMacro`. Identical to the positive sibling
+;; except the template adds 2 instead of 1.
+(:wat::core::defmacro :p255_12::MD [x <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::i64::+ ~x 1))
+(:wat::core::defmacro :p255_12::MD [x <- wat/WatAST] :- wat/WatAST
+  `(wat.i64/+ ~x 2))

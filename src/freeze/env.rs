@@ -403,6 +403,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //     that check out of `build_env` entirely (see the note beside step 6.97, below) —
     //     this fn now only DERIVES the name set and carries it out on `EnvBundle` for the
     //     caller to thread to `register_runtime_defs`, the check's new (and only) home.
+    crate::freeze::pass_order::record("3b-extract-rete-defn-names");
     let declared_rete_defns = extract_rete_defn_names(&user_forms);
     let user_forms = rewrite_rete_defn_heads(user_forms);
 
@@ -410,7 +411,9 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //    first; user defmacros layer on top and can shadow (subject
     //    to the reserved-prefix gate) or reference stdlib forms.
     let mut macros = MacroRegistry::new();
+    crate::freeze::pass_order::record("4-register-stdlib-defmacros");
     let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
+    crate::freeze::pass_order::record("4-register-defmacros");
     let post_macro_reg = register_defmacros(user_forms, &mut macros)?;
 
     // Arc 294 item 9a — class closure: an aggregate registered directly in Rust
@@ -463,6 +466,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         &macro_sym,
         crate::resolve::Privilege::Stdlib,
     )?;
+    crate::freeze::pass_order::record("4-expand-all");
     let expanded_user = expand_all(
         post_macro_reg,
         &mut macros,
@@ -490,11 +494,13 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // 5. Type declarations. Seeded with built-in types before stdlib
     //    and user source land.
     let mut types = TypeEnv::with_builtins();
+    crate::freeze::pass_order::record("5-register-stdlib-types");
     let stdlib_post_types = register_stdlib_types(expanded_stdlib, &mut types)?;
     // Thread the namespace-scoped acronym registry (populated by `preregister_acronyms`
     // above, BEFORE macro expansion) into type registration so a `:satisfies` surface's
     // S1 protocol synthesis restores acronym casing on its `::Op`/`::Reply` variants
     // identically to how `defservice :impls` does at expand time.
+    crate::freeze::pass_order::record("5-register-types");
     let post_types =
         register_types_with_acronyms(expanded_user, &mut types, &macro_sym.acronym_registry)?;
     // Arc 293.W — containment rule: after BOTH stdlib and user types are fully
@@ -528,6 +534,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     }
     // Stone 237.8b — capture stdlib residue so defclause forms reach
     // register_runtime_defs.
+    crate::freeze::pass_order::record("6-register-stdlib-defines");
     let stdlib_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
     // (a) Pre-register defclause stubs into sym.functions so the checker
     //     sees them as callable names (e.g. :wat::kernel::spawn-program).
@@ -557,6 +564,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             )
         })
         .collect();
+    crate::freeze::pass_order::record("6-register-defines");
     let mut residue = register_defines(post_types, &mut symbols)?;
     // User-source `use!` only. Seeded into TypeEnv so `is-type?` agrees
     // with resolve for names THIS program declared (P-2 prereq). Not
@@ -649,7 +657,9 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // 7. Name resolution.
     // Stone 251.1b — normalize before resolve so rewritten AST flows
     // through check + eval with keyword heads.
+    crate::freeze::pass_order::record("7-normalize-symbol-refs");
     residue = normalize_symbol_refs(residue, &symbols, &macros)?;
+    crate::freeze::pass_order::record("7-normalize-stored-function-bodies");
     // Stone 251.8c — check_program type-checks FunctionBody snapshots from
     // register_defines, not this residue. Normalize those copies too so a
     // namespaced Symbol call head is a Keyword before infer_list.
@@ -657,6 +667,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // DEFERRED, not swallowed: an unresolved reference is very often the SYMPTOM of a
     // malformed definition that failed to register. Running `check_program` first lets the
     // located cause be reported; if check is clean, this error is re-raised unchanged.
+    crate::freeze::pass_order::record("7-resolve-references");
     let deferred_resolve = resolve_references(&residue, &symbols, &macros).err();
 
     // 7.6. Stone 237.8b (+ arc 209 host-parity-4a) — register stdlib
@@ -691,6 +702,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         preregister_extend_type_in_do_let(form, &mut symbols)
             .map_err(|e| StartupError::Runtime(Box::new(e)))?;
     }
+    crate::freeze::pass_order::record("7.7-normalize-stored-function-bodies");
     // extend-type / defclause bodies are stored from the pre-normalize
     // capture. The pass above only saw functions registered before it.
     normalize_stored_function_bodies(&mut symbols, &macros)?;

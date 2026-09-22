@@ -1,0 +1,12 @@
+;; Stone 255.12 NON-VACUITY, macro registry — why `ast_same_identity`'s
+;; `is_reference()` requirement must NOT be relaxed.
+;;
+;; The two templates differ only in `v` (a LET BINDER symbol) vs `:v` (a keyword).
+;; A binder is not a reference, so the cross-spelling arm refuses to equate them
+;; and these stay two macros. Relaxing `is_reference()` — the cure the 255.12
+;; brief proposed for site 2 — would make this file freeze CLEAN and silently
+;; discard the second template.
+(:wat::core::defmacro :p255_12::MB [x <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::core::let [v ~x] v))
+(:wat::core::defmacro :p255_12::MB [x <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::core::let [v ~x] :v))

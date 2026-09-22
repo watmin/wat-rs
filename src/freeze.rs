@@ -50,6 +50,10 @@
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
 pub(crate) mod env;
+// Stone 255.12 instrument debt B — the startup pipeline's pass ORDER, announced by
+// the passes themselves and pinned by a gate. A no-op (and zero state) outside the
+// crate's own test build. Read its module doc for what it CANNOT see.
+pub(crate) mod pass_order;
 // Arc 109 Stone 4c — the `:wat::kernel::StopFailure`/`StopFailed` diagnostic
 // vocabulary (`docs/arc/2026/04/109-kill-std/`), a genuinely internal builder
 // like `env`.
@@ -1225,6 +1229,7 @@ pub fn startup_from_forms(
     loader: Arc<dyn SourceLoader>,
 ) -> Result<FrozenWorld, StartupError> {
     // 2. Config pass + entry-file discipline.
+    crate::freeze::pass_order::record("2-collect-entry-file");
     let (config, post_config) = collect_entry_file(entry_forms)?;
     startup_from_forms_post_config(config, post_config, base_canonical, loader, None)
 }
@@ -1277,6 +1282,7 @@ fn startup_from_forms_post_config(
     // 3. Recursive load resolution. The loader survives into the
     //    runtime as well — see step 9 — so `resolve_loads` borrows
     //    via `&*loader` (Arc deref) rather than owning.
+    crate::freeze::pass_order::record("3-resolve-loads");
     let loaded = resolve_loads(post_config, base_canonical, &*loader)?;
 
     // 3a–7.6. Build the full registered environment (macros + types +
@@ -1304,6 +1310,7 @@ fn startup_from_forms_post_config(
     // The resolve error is NOT swallowed: if the check is clean it is re-raised unchanged,
     // so a genuine unresolved reference (a real typo, a missing import) reports exactly as
     // before. Only the case where a located cause EXISTS changes.
+    crate::freeze::pass_order::record("8-check-program");
     let check_result = check_program(&bundle.residue, &bundle.symbols, &bundle.types);
     match (check_result, bundle.deferred_resolve.take()) {
         (Err(check_err), Some(resolve_err)) => {
