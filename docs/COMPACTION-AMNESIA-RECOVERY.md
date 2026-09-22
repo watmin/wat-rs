@@ -125,28 +125,38 @@ log over the file. (A one-commit, docs-only gap is normal: the commit that WRITE
 the stamp necessarily lands after it, so the stamp names its own parent. Confirm
 that is what you are looking at; anything more is stale.)
 
-**The WORK LIST — the live open list, and the only place a row's status lives — is
-`docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/WORK-LIST.md`** (81 L1 + 97 L2 from the
-19-ward cast at HEAD `21530efab`). Read its CLASS A block first: several wards independently found
-instances of ONE class, and working the list top-to-bottom as 178 items misses it. That
-directory also holds the 19 ward returns **verbatim** in `reports/` — the 2026-08-30 cast lost
-all nineteen of its own, which is why they now go to disk before any synthesis.
+⛔ **THERE IS NO LIVE OPEN WORK LIST. Do not go looking for one.** Every vigilia cast against arc
+278 is **CLOSED**, and each closed cast's rows are *a record of where someone looked*, never a queue:
 
-⛔ **SUPERSEDED 2026-09-07 — A NEW VIGILIA IS MID-FLIGHT.** The live work is
-`docs/arc/2026/06/278-rules-engine/vigilia-2026-09-07-rete/`. Its `README.md` § "HOW TO RESUME THIS
-CAST" is MANDATORY before touching arc 278: ten of fourteen wards have returned for target 1, four
-are uncast, and the casting procedure exists nowhere else. `FINDINGS.md` there is the ONLY status
-home. The 2026-09-05 cast's rete scope is worked to completion — history, not open rows.
+| cast | state |
+|---|---|
+| `vigilia-2026-09-07-rete/` | ✅ **CLOSED 2026-09-09**, and it is the one that carries an `INSCRIPTION.md`: four targets, **61 ward casts, 138 rows, 27 driven**, nine strikes. Its `README.md` § "HOW TO RESUME THIS CAST" holds the casting procedure, which **exists nowhere else** — read it before casting anything new, not to find open work |
+| `vigilia-2026-09-05/` | history (81 L1 + 97 L2 at `21530efab`). ⚠ **No `INSCRIPTION.md`** — its rete scope was worked to completion into the breadcrumb, never inscribed. *Absence of an inscription here does NOT mean open.* |
+| `VIGILIA-2026-08-30-WORK-LIST.md` | history (41 L1 + 70 L2 at `78b1fad56`) |
 
-**And the previous subset was `vigilia-2026-09-05/RETE-BOARD.md`** — builder's ruling
-2026-09-05: this branch works rete only, main owns the cross-codebase cleanup. That file names
-what is out of scope. Start there, not at the full list.
+**Still live from the 09-05 cast — a SCOPE ruling, not a list:** `vigilia-2026-09-05/RETE-BOARD.md`
+records the builder's ruling of 2026-09-05 — **this branch works rete only; `main` owns the
+cross-codebase cleanup.** That file names what is out of scope, and that ruling still binds.
 
-Superseded: `VIGILIA-2026-08-30-WORK-LIST.md` (41 L1 + 70 L2 at `78b1fad56`) — history, not open
-rows. **⛔ When a new vigilia is cast, THIS paragraph is what you change** — the pointer rotted
-once already (it named the 08-30 list for a day after the 09-05 cast superseded it), and a stale
-work-list pointer fails exactly the way the breadcrumb pointer did below: the ledger ticks, the
-file is wrong.
+⛔ **`vigilia-2026-09-07-rete/FINDINGS.md` reads "112 OPEN". THAT IS NOT A DEFECT COUNT AND MAY NOT
+BE QUOTED AS ONE** — it counts rows in a doc measured against code that has since moved hundreds of
+commits, and 39 were ward-reported and never re-derived. Its own `INSCRIPTION.md` says it: *"the
+surveyed rows are evidence of where someone looked, not of what is true there."* The builder's
+correction, verbatim: ***"i do not give any shits about what the docs say — the docs are not
+evaluated at run time."*** Audit against the tree, or say nothing.
+
+**State of the world lives in the live breadcrumb above — not in any list here.**
+
+⛔ **THIS BLOCK ROTS EVERY TIME A CAST CHANGES STATE, AND HAS ROTTED TWICE.** It named the 08-30
+list for a day after 09-05 superseded it; then it declared the 09-07 cast *"MID-FLIGHT — ten of
+fourteen wards returned for target 1, four uncast"* and **stood that way for thirteen days after
+that cast was inscribed closed** (found 2026-09-22 by a recovery that opened the `INSCRIPTION.md`
+this paragraph never mentioned). A stale work-list pointer fails exactly the way the breadcrumb
+pointer did below: **the ledger ticks and the file is wrong.** When a cast opens or closes, THIS
+block is what you change. Enumerate the casts with `ls -d
+docs/arc/2026/06/278-rules-engine/vigilia-*/` and confirm **every** dir has a row above —
+⚠ **do not test for `INSCRIPTION.md`**, because `vigilia-2026-09-05/` is closed and has none, so
+that check reads a closed cast as open.
 
 Its predecessor, `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md`, holds the
 theater hunt, the closing tally, and the TRACKED DECISIONS rows — historical reasoning plus two
