@@ -68,54 +68,54 @@
 ;;      a later `get` miss (both services' gates prove this).
 ;; Full reasoning: docs/arc/2026/06/278-rules-engine/BRIEF-cache-batch-surface.md.
 
-(:wat::core::use! :rust::cache::Lru)
+(wat.core/use! rust.cache/Lru)
 
 ;; ─── the opaque handle — the wat-native name over the :rust:: opaque type ────────────────────
 ;; unify's alias expansion walks through at every use site, so `(:wat::cache::Lru :- [K V])` and the
 ;; backing `(:rust::cache::Lru :- [K V])` are interchangeable.
-(:wat::core::typealias :wat::cache::Lru :- [K V] (:rust::cache::Lru :- [K V]))
+(wat.core/typealias wat.cache/Lru :- [K V] (rust.cache/Lru :- [K V]))
 
 ;; ─── Entry — a displaced key/value pair, named ───────────────────────────────────────────────
-(:wat::core::defrecord :wat::cache::Entry :- [K V]
-  [key   <- :K
-   value <- :V])
+(wat.core/defrecord wat.cache/Entry :- [K V]
+  [key   :- K
+   value :- V])
 
 ;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
 ;; `capacity` is the hard bound on entry count; it must be positive.
-(:wat::core::defn :wat::cache::Lru/new :- [K V]
-  [capacity <- :wat::core::i64]
-  -> (:wat::cache::Lru :- [K V])
-  (:rust::cache::Lru/new capacity))
+(wat.core/defn wat.cache.Lru/new :- [K V]
+  [capacity :- wat.type/i64]
+  :- (wat.cache/Lru :- [K V])
+  (rust.cache.Lru/new capacity))
 
 ;; ─── put ─────────────────────────────────────────────────────────────────────────────────────
 ;; Insert or update, bumping `k` to MRU. Returns the DISPLACED entry — the least-recently-used
 ;; one when the insert pushed past capacity, or `k`'s previous binding when `k` was already
 ;; present — and `:wat::core::None` when nothing was displaced.
-(:wat::core::defn :wat::cache::Lru/put :- [K V]
-  [cache <- (:wat::cache::Lru :- [K V])
-   k     <- :K
-   v     <- :V]
-  -> (:wat::core::Option :- [(:wat::cache::Entry :- [K V])])
-  (:wat::core::match (:rust::cache::Lru/put cache k v)
-    [:wat::core::Option.Some {:value pair}
-      (:wat::core::Option.Some
-        {:value (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair))})]
-    [:wat::core::Option.None {} :wat::core::Option.None]))
+(wat.core/defn wat.cache.Lru/put :- [K V]
+  [cache :- (wat.cache/Lru :- [K V])
+   k     :- K
+   v     :- V]
+  :- (wat.core/Option :- [(wat.cache/Entry :- [K V])])
+  (wat.core/match (rust.cache.Lru/put cache k v)
+    [wat.core/Option.Some {:value pair}
+      (wat.core/Option.Some
+        {:value (wat.cache/Entry :key (wat.core/first pair) :value (wat.core/second pair))})]
+    [wat.core/Option.None {} wat.core/Option.None]))
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
 ;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss.
-(:wat::core::defn :wat::cache::Lru/get :- [K V]
-  [cache <- (:wat::cache::Lru :- [K V])
-   k     <- :K]
-  -> (:wat::core::Option :- [V])
-  (:rust::cache::Lru/get cache k))
+(wat.core/defn wat.cache.Lru/get :- [K V]
+  [cache :- (wat.cache/Lru :- [K V])
+   k     :- K]
+  :- (wat.core/Option :- [V])
+  (rust.cache.Lru/get cache k))
 
 ;; ─── len ─────────────────────────────────────────────────────────────────────────────────────
 ;; Current entry count (never above capacity). Read-only — does not touch LRU order.
-(:wat::core::defn :wat::cache::Lru/len :- [K V]
-  [cache <- (:wat::cache::Lru :- [K V])]
-  -> :wat::core::i64
-  (:rust::cache::Lru/len cache))
+(wat.core/defn wat.cache.Lru/len :- [K V]
+  [cache :- (wat.cache/Lru :- [K V])]
+  :- wat.type/i64
+  (rust.cache.Lru/len cache))
 
 ;; ═══ Stone 2 — :wat::cache::Cache :- [K V], the MULTI-CLIENT `defservice` form ══════════════
 ;;
@@ -174,41 +174,41 @@
 ;; `2048` on both ops fits a realistic ~16-entry HolonAST-keyed put batch (the worst case) with
 ;; room to spare, well above what either gate actually sends, and well above the old single-key
 ;; `1024` cap, which a multi-item HolonAST batch trips immediately by construction.
-(:wat::core::defsurface :wat::cache::Cache :- [K V] :nature :wat::kernel::Peer
+(wat.core/defsurface wat.cache/Cache :- [K V] :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat::cache::Cache::GetRequest :- [K] [probes <- (:wat::core::Vector :- [K])])
-   (:wat::core::defenum :wat::cache::Cache::GetResult :- [V] :wat::enum::Pure
-     :Hit  [value <- :V]
+  [(wat.core/defrecord wat.cache.Cache/GetRequest :- [K] [probes :- (wat.core/Vector :- [K])])
+   (wat.core/defenum wat.cache.Cache/GetResult :- [V] wat.enum/Pure
+     :Hit  [value :- V]
      :Miss [])
-   (:wat::core::defenum :wat::cache::Cache::GetResponse :- [V] :wat::enum::Pure
-     :Ok               [results <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+   (wat.core/defenum wat.cache.Cache/GetResponse :- [V] wat.enum/Pure
+     :Ok               [results :- (wat.core/Vector :- [(wat.cache.Cache/GetResult :- [V])])]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.core/Vector :- [wat.core/String])  expected :- wat.type/String  got :- wat.type/String])
    ;; `(Entry :- [K V])` reuses Stone 1's record — a `:wat::`-prefixed type defined earlier in THIS file
    ;; (before this defsurface), so the S4c `:messages`-completeness wall does not require it
    ;; re-declared here (it is not a message minted BY this surface — it is the shared
    ;; cache-primitive vocabulary, same standing the old single-key `PutResponse`'s `displaced`
    ;; field gave it).
-   (:wat::core::defrecord :wat::cache::Cache::PutRequest :- [K V] [entries <- (:wat::core::Vector :- [(:wat::cache::Entry :- [K V])])])
-   (:wat::core::defenum :wat::cache::Cache::PutResponse :wat::enum::Pure
+   (wat.core/defrecord wat.cache.Cache/PutRequest :- [K V] [entries :- (wat.core/Vector :- [(wat.cache/Entry :- [K V])])])
+   (wat.core/defenum wat.cache.Cache/PutResponse wat.enum/Pure
      :Ok               []
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.core/Vector :- [wat.core/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(get [self <- (:wat::cache::Cache :- [K V])  req <- (:wat::cache::Cache::GetRequest :- [K])]
-     -> (:wat::cache::Cache::GetResponse :- [V]) :max-request-bytes 2048)
-   (put [self <- (:wat::cache::Cache :- [K V])  req <- (:wat::cache::Cache::PutRequest :- [K V])]
-     -> :wat::cache::Cache::PutResponse :max-request-bytes 2048)])
+  [(get [self :- (wat.cache/Cache :- [K V])  req :- (wat.cache.Cache/GetRequest :- [K])]
+     :- (wat.cache.Cache/GetResponse :- [V]) :max-request-bytes 2048)
+   (put [self :- (wat.cache/Cache :- [K V])  req :- (wat.cache.Cache/PutRequest :- [K V])]
+     :- wat.cache.Cache/PutResponse :max-request-bytes 2048)])
 
-(:wat::service::defservice :wat::cache::lru-svc :- [K V]
-  :satisfies (:wat::cache::Cache :- [K V])
-  :durable   [capacity <- :wat::core::i64]
-  :ephemeral [cache <- (:wat::cache::Lru :- [K V])]
-  :init (:wat::core::fn [record <- (:wat::cache::lru-svc::Record :- [K V])]
-          -> (:wat::cache::lru-svc::State :- [K V])
-          (:wat::cache::lru-svc::State
+(wat.service/defservice wat.cache/lru-svc :- [K V]
+  :satisfies (wat.cache/Cache :- [K V])
+  :durable   [capacity :- wat.type/i64]
+  :ephemeral [cache :- (wat.cache/Lru :- [K V])]
+  :init (wat.core/fn [record :- (wat.cache.lru-svc/Record :- [K V])]
+          :- (wat.cache.lru-svc/State :- [K V])
+          (wat.cache.lru-svc/State
             :durable record
-            :cache (:wat::cache::Lru/new (:wat::cache::lru-svc::Record/capacity record))))
+            :cache (wat.cache.Lru/new (wat.cache.lru-svc.Record/capacity record))))
   :impls
   ;; Both ops FOLD over the request Vector — `s` is UNCHANGED on Reply either way; the mutation is
   ;; inside the opaque `Lru` handle via `Lru::get`/`Lru::put`, not in State (mirrors
@@ -218,32 +218,32 @@
   ;; `nil` accumulator, mirrors `wat/bracket.wat`'s per-item fan-out folds) — `PutResponse` carries
   ;; nothing back (file-header departure note).
   [(get [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat::cache::Cache::GetResponse.Ok
-         {:results (:wat::core::foldl
-           (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
-                            k   <- :K]
-             -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
-             (:wat::core::conj acc
-               (:wat::core::match (:wat::cache::Lru/get (:wat::cache::lru-svc::State/cache s) k)
-                 [:wat::core::Option.Some {:value v} (:wat::cache::Cache::GetResult.Hit {:value v})]
-                 [:wat::core::Option.None {} (:wat::cache::Cache::GetResult.Miss {})])))
-           (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
-           (:wat::cache::Cache::GetRequest/probes req))})}))
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat.cache.Cache/GetResponse.Ok
+         {:results (wat.core/foldl
+           (wat.core/fn [acc :- (wat.core/Vector :- [(wat.cache.Cache/GetResult :- [V])])
+                            k   :- K]
+             :- (wat.core/Vector :- [(wat.cache.Cache/GetResult :- [V])])
+             (wat.core/conj acc
+               (wat.core/match (wat.cache.Lru/get (wat.cache.lru-svc.State/cache s) k)
+                 [wat.core/Option.Some {:value v} (wat.cache.Cache/GetResult.Hit {:value v})]
+                 [wat.core/Option.None {} (wat.cache.Cache/GetResult.Miss {})])))
+           (wat.core/Vector :- [(wat.cache.Cache/GetResult :- [V])])
+           (wat.cache.Cache.GetRequest/probes req))})}))
    (put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat::core::let
-         [_ (:wat::core::foldl
-              (:wat::core::fn [_acc <- :wat::core::nil
-                               e    <- (:wat::cache::Entry :- [K V])]
-                -> :wat::core::nil
-                (:wat::core::let
-                  [_ (:wat::cache::Lru/put (:wat::cache::lru-svc::State/cache s)
-                       (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))]
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat.core/let
+         [_ (wat.core/foldl
+              (wat.core/fn [_acc :- wat.type/nil
+                               e    :- (wat.cache/Entry :- [K V])]
+                :- wat.type/nil
+                (wat.core/let
+                  [_ (wat.cache.Lru/put (wat.cache.lru-svc.State/cache s)
+                       (wat.cache.Entry/key e) (wat.cache.Entry/value e))]
                   nil))
               nil
-              (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse.Ok {}))}))])
+              (wat.cache.Cache.PutRequest/entries req))]
+         (wat.cache.Cache/PutResponse.Ok {}))}))])
 
 ;; ═══ Stone 3 — :wat::cache::HolographicLru, the SIMILARITY-KEYED composite ═══════════════════
 ;;
@@ -278,21 +278,21 @@
 ;; flavours (`Lru | HolographicLru`), and wat forbids two `defn`s sharing an FQDN. Taking them
 ;; here would block that stone.
 
-(:wat::core::defstruct :wat::cache::HolographicLru
-  [hologram <- :wat::holon::Hologram
-   lru      <- (:wat::cache::Lru :- [:wat::holon::HolonAST :wat::core::nil])])
+(wat.core/defstruct wat.cache/HolographicLru
+  [hologram :- wat.holon/Hologram
+   lru      :- (wat.cache/Lru :- [wat.holon/HolonAST wat.core/nil])])
 
 ;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
 ;; `filter` gates `Hologram/find` hits (bind `:wat::holon::filter-coincident` /
 ;; `filter-present` / `filter-accept-any`, or a caller-supplied closure). `capacity` is the LRU's
 ;; hard bound on entry count — the same guard Stone 1's `Lru::new` carries (must be positive).
-(:wat::core::defn :wat::cache::HolographicLru/new
-  [filter   <- [:wat::core::f64 :-> :wat::core::bool]
-   capacity <- :wat::core::i64]
-  -> :wat::cache::HolographicLru
-  (:wat::cache::HolographicLru
-    :hologram (:wat::holon::Hologram/make filter)
-    :lru (:wat::cache::Lru/new capacity)))
+(wat.core/defn wat.cache.HolographicLru/new
+  [filter   :- [wat.core/f64 :-> wat.core/bool]
+   capacity :- wat.type/i64]
+  :- wat.cache/HolographicLru
+  (wat.cache/HolographicLru
+    :hologram (wat.holon.Hologram/make filter)
+    :lru (wat.cache.Lru/new capacity)))
 
 ;; ─── put — insert into the Hologram + bump/bound via the LRU, dual-evicting on overflow ───────
 ;; 1. Insert (key, val) into the Hologram (slot routing is internal).
@@ -300,22 +300,22 @@
 ;; 3. If step 2 displaced an entry (over capacity), remove ITS key from the Hologram too — the
 ;;    dual-eviction invariant. Without this the Hologram keeps growing after the LRU claims it
 ;;    dropped something.
-(:wat::core::defn :wat::cache::HolographicLru/put
-  [store <- :wat::cache::HolographicLru
-   key   <- :wat::holon::HolonAST
-   val   <- :wat::holon::HolonAST]
-  -> :wat::core::nil
-  (:wat::core::let
-    [hologram (:wat::cache::HolographicLru/hologram store)
-     lru (:wat::cache::HolographicLru/lru store)
-     _ (:wat::holon::Hologram/put hologram key val)
-     evicted (:wat::cache::Lru/put lru key nil)]
-    (:wat::core::match evicted
-      [:wat::core::Option.Some {:value entry}
-        (:wat::core::let
-          [_ (:wat::holon::Hologram/remove hologram (:wat::cache::Entry/key entry))]
+(wat.core/defn wat.cache.HolographicLru/put
+  [store :- wat.cache/HolographicLru
+   key   :- wat.holon/HolonAST
+   val   :- wat.holon/HolonAST]
+  :- wat.type/nil
+  (wat.core/let
+    [hologram (wat.cache.HolographicLru/hologram store)
+     lru (wat.cache.HolographicLru/lru store)
+     _ (wat.holon.Hologram/put hologram key val)
+     evicted (wat.cache.Lru/put lru key nil)]
+    (wat.core/match evicted
+      [wat.core/Option.Some {:value entry}
+        (wat.core/let
+          [_ (wat.holon.Hologram/remove hologram (wat.cache.Entry/key entry))]
           nil)]
-      [:wat::core::Option.None {} nil])))
+      [wat.core/Option.None {} nil])))
 
 ;; ─── get — similarity lookup + LRU bump on hit ─────────────────────────────────────────────────
 ;; `Hologram/find`
@@ -324,27 +324,27 @@
 ;; matched key in the LRU (`Lru::put` on an already-present key updates its recency without
 ;; displacing anything) and return `Some val`. `None` on a miss (filter rejected, or nothing
 ;; coincident).
-(:wat::core::defn :wat::cache::HolographicLru/get
-  [store <- :wat::cache::HolographicLru
-   probe <- :wat::holon::HolonAST]
-  -> (:wat::core::Option :- [:wat::holon::HolonAST])
-  (:wat::core::let
-    [hologram (:wat::cache::HolographicLru/hologram store)
-     lru (:wat::cache::HolographicLru/lru store)]
-    (:wat::core::match (:wat::holon::Hologram/find hologram probe)
-      [:wat::core::Option.Some {:value m}
-        (:wat::core::let
-          [matched-key (:wat::holon::Match/key m)
-           val (:wat::holon::Match/value m)
-           _ (:wat::cache::Lru/put lru matched-key nil)]
-          (:wat::core::Option.Some {:value val}))]
-      [:wat::core::Option.None {} :wat::core::Option.None])))
+(wat.core/defn wat.cache.HolographicLru/get
+  [store :- wat.cache/HolographicLru
+   probe :- wat.holon/HolonAST]
+  :- (wat.core/Option :- [wat.holon/HolonAST])
+  (wat.core/let
+    [hologram (wat.cache.HolographicLru/hologram store)
+     lru (wat.cache.HolographicLru/lru store)]
+    (wat.core/match (wat.holon.Hologram/find hologram probe)
+      [wat.core/Option.Some {:value m}
+        (wat.core/let
+          [matched-key (wat.holon.Match/key m)
+           val (wat.holon.Match/value m)
+           _ (wat.cache.Lru/put lru matched-key nil)]
+          (wat.core/Option.Some {:value val}))]
+      [wat.core/Option.None {} wat.core/Option.None])))
 
 ;; ─── len — total entries, read via the Hologram (the value-holding half) ──────────────────────
-(:wat::core::defn :wat::cache::HolographicLru/len
-  [store <- :wat::cache::HolographicLru]
-  -> :wat::core::i64
-  (:wat::holon::Hologram/len (:wat::cache::HolographicLru/hologram store)))
+(wat.core/defn wat.cache.HolographicLru/len
+  [store :- wat.cache/HolographicLru]
+  :- wat.type/i64
+  (wat.holon.Hologram/len (wat.cache.HolographicLru/hologram store)))
 
 ;; ═══ Stone 4 — :wat::cache::hologram-svc, the SIMILARITY cache as a SERVICE ═══════════════════
 ;;
@@ -384,26 +384,26 @@
 ;; a bare-keyword-or-String encoding is honest about only by hoping nobody typos). Good UX — the
 ;; caller writes `:filter (:wat::cache::HologramFilterKind::Coincident)` and the compiler rejects
 ;; anything else; a `:wat::cache::hologram-svc::Record` literal is self-describing at the call site.
-(:wat::core::defenum :wat::cache::HologramFilterKind :wat::enum::Pure
+(wat.core/defenum wat.cache/HologramFilterKind wat.enum/Pure
   :Coincident []
   :Present    []
   :AcceptAny  [])
 
-(:wat::service::defservice :wat::cache::hologram-svc
-  :satisfies (:wat::cache::Cache :- [:wat::holon::HolonAST :wat::holon::HolonAST])
-  :durable   [capacity <- :wat::core::i64
-              filter   <- :wat::cache::HologramFilterKind]
-  :ephemeral [cache <- :wat::cache::HolographicLru]
-  :init (:wat::core::fn [record <- :wat::cache::hologram-svc::Record]
-          -> :wat::cache::hologram-svc::State
-          (:wat::cache::hologram-svc::State
+(wat.service/defservice wat.cache/hologram-svc
+  :satisfies (wat.cache/Cache :- [wat.holon/HolonAST wat.holon/HolonAST])
+  :durable   [capacity :- wat.type/i64
+              filter   :- wat.cache/HologramFilterKind]
+  :ephemeral [cache :- wat.cache/HolographicLru]
+  :init (wat.core/fn [record :- wat.cache.hologram-svc/Record]
+          :- wat.cache.hologram-svc/State
+          (wat.cache.hologram-svc/State
             :durable record
-            :cache (:wat::cache::HolographicLru/new
-                     (:wat::core::match (:wat::cache::hologram-svc::Record/filter record)
-                       [:wat::cache::HologramFilterKind.Coincident {} (:wat::holon::filter-coincident)]
-                       [:wat::cache::HologramFilterKind.Present {}    (:wat::holon::filter-present)]
-                       [:wat::cache::HologramFilterKind.AcceptAny {}  (:wat::holon::filter-accept-any)])
-                     (:wat::cache::hologram-svc::Record/capacity record))))
+            :cache (wat.cache.HolographicLru/new
+                     (wat.core/match (wat.cache.hologram-svc.Record/filter record)
+                       [wat.cache/HologramFilterKind.Coincident {} (wat.holon/filter-coincident)]
+                       [wat.cache/HologramFilterKind.Present {}    (wat.holon/filter-present)]
+                       [wat.cache/HologramFilterKind.AcceptAny {}  (wat.holon/filter-accept-any)])
+                     (wat.cache.hologram-svc.Record/capacity record))))
   :impls
   ;; Batch folds, same discipline as `lru-svc` above. `HolographicLru::put` returns `nil` (Stone 3
   ;; header above), unlike `Lru::put` — the dual-eviction chain removes the displaced key from the
@@ -412,29 +412,29 @@
   ;; the whole-batch level instead of a per-entry `Option`. Eviction is still OBSERVABLE through
   ;; the service — just via a later `get` miss, exactly as the gate proves.
   [(get [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat::cache::Cache::GetResponse.Ok
-         {:results (:wat::core::foldl
-           (:wat::core::fn [acc   <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
-                            probe <- :wat::holon::HolonAST]
-             -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
-             (:wat::core::conj acc
-               (:wat::core::match (:wat::cache::HolographicLru/get (:wat::cache::hologram-svc::State/cache s) probe)
-                 [:wat::core::Option.Some {:value v} (:wat::cache::Cache::GetResult.Hit {:value v})]
-                 [:wat::core::Option.None {} (:wat::cache::Cache::GetResult.Miss {})])))
-           (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
-           (:wat::cache::Cache::GetRequest/probes req))})}))
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat.cache.Cache/GetResponse.Ok
+         {:results (wat.core/foldl
+           (wat.core/fn [acc   :- (wat.core/Vector :- [(wat.cache.Cache/GetResult :- [wat.holon/HolonAST])])
+                            probe :- wat.holon/HolonAST]
+             :- (wat.core/Vector :- [(wat.cache.Cache/GetResult :- [wat.holon/HolonAST])])
+             (wat.core/conj acc
+               (wat.core/match (wat.cache.HolographicLru/get (wat.cache.hologram-svc.State/cache s) probe)
+                 [wat.core/Option.Some {:value v} (wat.cache.Cache/GetResult.Hit {:value v})]
+                 [wat.core/Option.None {} (wat.cache.Cache/GetResult.Miss {})])))
+           (wat.core/Vector :- [(wat.cache.Cache/GetResult :- [wat.holon/HolonAST])])
+           (wat.cache.Cache.GetRequest/probes req))})}))
    (put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat::core::let
-         [_ (:wat::core::foldl
-              (:wat::core::fn [_acc <- :wat::core::nil
-                               e    <- (:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
-                -> :wat::core::nil
-                (:wat::core::let
-                  [_ (:wat::cache::HolographicLru/put (:wat::cache::hologram-svc::State/cache s)
-                       (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))]
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat.core/let
+         [_ (wat.core/foldl
+              (wat.core/fn [_acc :- wat.type/nil
+                               e    :- (wat.cache/Entry :- [wat.holon/HolonAST wat.holon/HolonAST])]
+                :- wat.type/nil
+                (wat.core/let
+                  [_ (wat.cache.HolographicLru/put (wat.cache.hologram-svc.State/cache s)
+                       (wat.cache.Entry/key e) (wat.cache.Entry/value e))]
                   nil))
               nil
-              (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse.Ok {}))}))])
+              (wat.cache.Cache.PutRequest/entries req))]
+         (wat.cache.Cache/PutResponse.Ok {}))}))])
