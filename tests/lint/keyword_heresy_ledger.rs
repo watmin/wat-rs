@@ -99,6 +99,14 @@
 //! (**shape B**), and pass C carries that provenance into `intrinsic_meta` and
 //! `effectful_by_prefix`, whose tables are keyword-keyed. That is the `wat.core/<` failure.
 //!
+//! ⭐ **CURED, 2026-09-22, arc 251 stone 251.8d-ii FIFTH draw — and the ledger is the receipt.**
+//! `classify_expr`'s Symbol arm now takes `edn::render::canonical_identity`; the Keyword arm is
+//! byte-identical (THE DUAL-ARM RULE: the keyword payload IS the internal identity). The ledger
+//! read **232 → 229**, and the shape mix is the louder half of that number: `intrinsic_meta`
+//! **3 [Bx3] → 0**, `effectful_by_prefix` **8 [Bx8] → 8 [Ax8]** — same count, better class, which
+//! is why this test now freezes the MIX as well as the count. Crate-wide shape **B: 14 → 3**
+//! (`rete/kernel/arm.rs` ×2, `rete/purity.rs::walk_rete_defn_callees` ×1).
+//!
 //! Exemption form for a site that is genuinely not heresy: a per-offense
 //! `// rune:lint(keyword-heresy) — <reason>` on the offending line or the one above, mirroring
 //! `no_inlined_edn`'s per-offense marker. `ALLOWLIST` below is the frozen, reasoned list.
@@ -750,7 +758,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 232;
+const LEDGER_TOTAL: usize = 229;
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -847,8 +855,17 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/rete/kernel/stratify.rs", "body_constructs_computed", 3, "Ax3"),
     ("src/rete/kernel/stratify.rs", "domain_cardinality", 1, "Ex1"),
     ("src/rete/purity.rs", "classify_expr", 3, "Ax3"),
-    ("src/rete/purity.rs", "effectful_by_prefix", 8, "Bx8"),
-    ("src/rete/purity.rs", "intrinsic_meta", 3, "Bx3"),
+    // ⭐ 251.8d-ii FIFTH: Bx8 → Ax8. The COUNT did not move; the SHAPE did, and it is the
+    // whole point of this row. `classify_expr` now hands `head_ok` a canonical identity, so
+    // the dual-raw provenance is gone from this path; what is left is
+    // `runtime.rs::step_list`, which reads a `WatAST::Keyword` payload ONLY (its Symbol arm
+    // returns `NoStepRule` before the purity test) and reaches here through
+    // `is_effectful_op`. Keyword-only = shape A. 8d-iii or later owns the A→0 cut.
+    ("src/rete/purity.rs", "effectful_by_prefix", 8, "Ax8"),
+    // `intrinsic_meta` is GONE (was 3 [Bx3]) — arc 251 stone 251.8d-ii FIFTH draw. Its only
+    // non-canonical caller was `head_ok`, fed by `classify_expr`'s raw head read; that read
+    // now takes `canonical_identity` on its Symbol arm. The calibration row that used to
+    // pin it as shape B moved to `rete/kernel/arm.rs::compile_acc_fold` (still Bx1).
     ("src/rete/purity.rs", "is_declaration_derived_construction", 2, "Ax2"),
     ("src/rete/purity.rs", "walk_rete_defn_callees", 1, "Bx1"),
     ("src/runtime.rs", "conforms_check", 4, "Ex4"),
@@ -1008,6 +1025,7 @@ fn the_discriminator_separates_the_cured_from_the_open() {
         ("src/check.rs", "is_type_equatable", ":wat::core::i64", "255.12 — the equatable table matched against `denoted`"),
         ("src/check.rs", "is_type_orderable", ":wat::core::i64", "255.12 — the orderable table matched against `denoted`"),
         ("src/check.rs", "walk_for_restricted_call", "", "255.11 — the capability wall reads both spellings and holds NO keyword literal comparison at all, so it must produce no site whatsoever"),
+        ("src/rete/purity.rs", "intrinsic_meta", ":wat::core::+", "251.8d-ii FIFTH — classify_expr's Symbol arm takes canonical_identity, so the only head this table can be handed is an identity"),
     ];
     let mut wrongly_flagged = Vec::new();
     for (f, n, lit, why) in CURED {
@@ -1047,8 +1065,7 @@ fn the_discriminator_separates_the_cured_from_the_open() {
     // that provenance reaches `intrinsic_meta` and `effectful_by_prefix`, whose tables are
     // keyword-keyed.
     const OPEN: &[(&str, &str, &str)] = &[
-        ("src/rete/purity.rs", "intrinsic_meta", "the purity/determinism table, keyword-keyed, fed a raw dual-spelling head — THE 251.8d-ii FOURTH DRAW'S DEFECT"),
-        ("src/rete/purity.rs", "effectful_by_prefix", "the effect-namespace prefix test, same raw head"),
+        ("src/rete/purity.rs", "effectful_by_prefix", "the effect-namespace prefix test — still open, but now shape A: its remaining raw feed is runtime.rs::step_list's keyword-only head, not classify_expr"),
         ("src/rete/purity.rs", "classify_expr", "the quote/quasiquote/holon-literal data guard, keyword-only"),
         ("src/function/subsume.rs", "value_matches_type_by_name", "the Aggregate arm 255.12 §6.4 left raw and declared 'a reading, not a probe'"),
     ];
@@ -1065,23 +1082,29 @@ fn the_discriminator_separates_the_cured_from_the_open() {
         missed.join("\n")
     );
 
-    // ⭐ And the SHAPE matters, not just the presence: `intrinsic_meta` must be B (dual-raw), the
-    // strictly-worse class, because that is the mechanism — it SEES the symbol spelling and keys
-    // on the keyword. If it ever downgrades to A, pass C has stopped carrying provenance across
-    // the call graph and the 8d-ii defect has become invisible again.
+    // ⭐ And the SHAPE matters, not just the presence: the instrument must still be able to SEE
+    // shape B — a symbol payload reaching a keyword-keyed decision — or every "cured" verdict it
+    // hands out is worthless. 255.13 anchored this row on `rete::purity::intrinsic_meta`, which
+    // 251.8d-ii's FIFTH draw then CURED (it is in the CURED table above now). ⛔ The row is
+    // RE-ANCHORED rather than deleted: deleting it would have retired the instrument's only proof
+    // that pass C still carries provenance across the call graph, at exactly the moment the cure
+    // made that proof matter most. The new anchor is 255.13 §4.3's own find —
+    // `rete/kernel/arm.rs::compile_acc_fold`, the accumulator lowering that reads both payloads
+    // raw and then matches `head` against `":wat::rete::acc::count"`. 255.9 dispositioned it
+    // *"no (already both) — fine"*; reading both spellings is HALF the cure, and this row is the
+    // standing reminder that the other half is the door.
     let (n, mix) = map
-        .get(&("src/rete/purity.rs".to_string(), "intrinsic_meta".to_string()))
-        .expect("checked above");
+        .get(&("src/rete/kernel/arm.rs".to_string(), "compile_acc_fold".to_string()))
+        .expect("compile_acc_fold must be in the ledger — it is the shape-B calibration anchor");
     // rune:lint(loose-assert) — a targeted PRESENCE check over a shape-MIX summary, deliberately
-    // independent of the count. The exact mix ("Bx3") is already pinned byte-for-byte by
-    // FROZEN_LEDGER two tests over; this row asserts only that the CLASS survives, so a cure that
-    // takes intrinsic_meta from 3 B sites to 1 still keeps the calibration meaningful instead of
-    // going red for the wrong reason.
+    // independent of the count. The exact mix ("Bx1") is already pinned byte-for-byte by
+    // FROZEN_LEDGER two tests over; this row asserts only that the CLASS is still detectable.
     assert!(
         mix.contains('B'),
-        "`rete::purity::intrinsic_meta` is in the ledger as {n} site(s) [{mix}], but NOT as shape B. \
-         Shape B is the claim that a SYMBOL-spelled head reaches a keyword-keyed table — the exact \
-         mechanism of the `wat.core/<` failure. Without it the row proves nothing about that defect."
+        "`rete::kernel::arm::compile_acc_fold` is in the ledger as {n} site(s) [{mix}], but NOT as \
+         shape B. Shape B is the claim that a SYMBOL-spelled head reaches a keyword-keyed table — \
+         the exact mechanism of the `wat.core/<` failure. If no row can carry it, the \
+         discriminator has stopped distinguishing the dangerous class from the blind one."
     );
 }
 
@@ -1210,6 +1233,7 @@ fn the_heresy_ledger_matches_its_frozen_census() {
     let mut grew = Vec::new();
     let mut shrank = Vec::new();
     let mut vanished = Vec::new();
+    let mut shape_moved = Vec::new();
     for (k, (n, mix)) in &map {
         match frozen.get(k) {
             None => appeared.push(format!("  + {}  fn {}  {n} site(s) [{mix}]", k.0, k.1)),
@@ -1219,6 +1243,19 @@ fn the_heresy_ledger_matches_its_frozen_census() {
             Some((fz, fmix)) if n < fz => {
                 shrank.push(format!("  ↓ {}  fn {}  {fz} [{fmix}] → {n} [{mix}]", k.0, k.1))
             }
+            // ⭐ 251.8d-ii FIFTH — THE SHAPE IS PART OF THE FREEZE, not decoration.
+            //
+            // ⛔ This arm did not exist and its absence was a hole in BOTH directions. A row whose
+            // COUNT is unchanged while its SHAPE moves was invisible: `effectful_by_prefix` went
+            // Bx8 → Ax8 under this stone's cure and the ratchet said nothing, and the same silence
+            // would have covered Ax8 → Bx8 — a site SILENTLY ACQUIRING the strictly-worse
+            // dual-raw class, which is the defect this whole ledger exists to count. 255.13 §7
+            // says it outright: *"each row's shape tag IS its reason for being in the ledger"*.
+            // A freeze that does not check the reason freezes a number.
+            Some((fz, fmix)) if fmix != mix => shape_moved.push(format!(
+                "  ⇄ {}  fn {}  {fz} site(s) [{fmix}] → [{mix}]  (count unchanged)",
+                k.0, k.1
+            )),
             _ => {}
         }
     }
@@ -1256,6 +1293,17 @@ fn the_heresy_ledger_matches_its_frozen_census() {
         if appeared.is_empty() { "  (none)".into() } else { appeared.join("\n") },
         if grew.is_empty() { "  (none)".into() } else { grew.join("\n") },
         lines.join("\n"),
+    );
+
+    assert!(
+        shape_moved.is_empty(),
+        "\n\n⇄⇄ A LEDGER ROW CHANGED SHAPE WITHOUT CHANGING COUNT.\n\
+         The shape tag is the row's REASON for being in the ledger (A = keyword-only dispatch,\n\
+         B = dual-raw — it SEES the symbol spelling and keys on the keyword anyway, the strictly\n\
+         worse class; E = a type path without the denotation door). A → B is a regression the\n\
+         count can never show; B → A is real progress the count can never show either. Re-freeze\n\
+         the mix in FROZEN_LEDGER, and say in the commit which direction it moved.\n\n{}\n",
+        shape_moved.join("\n")
     );
 
     let improved = !shrank.is_empty() || !vanished.is_empty();

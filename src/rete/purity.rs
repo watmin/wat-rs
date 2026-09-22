@@ -1342,12 +1342,47 @@ fn classify_expr(
         }
 
         // General list: head decision + recurse into args (same axis).
+        //
+        // ⭐⭐ ARC 251 STONE 251.8d-ii (FIFTH DRAW) — THE IDENTITY DOOR, AND IT IS THE ONLY ONE.
+        //
+        // ⛔ THE DEFECT, measured before the cure on an UNCONVERTED tree (no `.wat` touched):
+        //
+        //     (:wat::rete::pure? '(:wat::core::< 1 2))   -> true
+        //     (:wat::rete::pure? '(wat.core/< 1 2))      -> FALSE      ← one verb, two spellings
+        //
+        // Everything below this read is keyed on the INTERNAL identity — `intrinsic_meta`'s
+        // table, `effectful_by_prefix`'s prefixes, `rete_op_for`'s rows, `sym.has_function`'s
+        // registration keys. This read handed them the WRITTEN spelling. Reading both payloads
+        // raw is 255.13's shape **B** — *dual-raw* — and its ledger calls it strictly worse than
+        // a keyword-only read: the walk SEES the symbol and then MIS-KEYS it, so a proven-pure
+        // verb reads as unproven and the default-deny fires on a verb that is in the table.
+        // 12 of the crate's 14 shape-B sites are in this file and they are all downstream of
+        // HERE, which is why the cure is one door at the read and not a second arm per table.
+        //
+        // ⛔⛔ THIS RUNS IN THE PERMISSIVE DIRECTION. A purity gate is DEFAULT-DENY, so teaching
+        // it a spelling makes it accept MORE. What bounds it is that `canonical_identity` is a
+        // pure RE-SPELLING of a `(namespace, name)` pair — it maps `wat.core/<` onto
+        // `:wat::core::<` and NOTHING else. It cannot invent membership: an impure head keeps
+        // its impure identity (`wat.kernel/println` → `:wat::kernel::println`, which
+        // `effectful_by_prefix` still refuses — and now refuses for the RIGHT reason instead of
+        // by falling off the end of the table), and an unknown head keeps its unknown identity
+        // (`not.a.real/op` → `:not::a::real::op`, still in no table, still denied).
+        // `tests/rete/probe_arc251_8d_purity_head_identity.rs` pins all three directions.
+        //
+        // THE DUAL-ARM RULE (255.13 §2.2): the `Keyword` payload IS the internal identity —
+        // keyword-spelled by construction — so that arm is left BYTE-IDENTICAL. Only the
+        // `Symbol` arm takes the door. That is exactly the shape the heresy ledger's own
+        // synthetic fixture asserts reads `cured`, and it is why nothing on the keyword side
+        // can move (including a leading-colon head with no `::`, e.g. an accessor on a
+        // single-segment type, which `canonical_identity` WOULD re-spell).
         WatAST::List(items, _) => {
             let head_node = items.first();
-            let head = match head_node {
+            let head: std::borrow::Cow<'_, str> = match head_node {
                 None => return Ok(()), // empty list — no call
-                Some(WatAST::Keyword(k, _)) => k.as_str(),
-                Some(WatAST::Symbol(id, _)) => id.as_str(),
+                Some(WatAST::Keyword(k, _)) => std::borrow::Cow::Borrowed(k.as_str()),
+                Some(WatAST::Symbol(id, _)) => {
+                    std::borrow::Cow::Owned(crate::edn::render::canonical_identity(id.as_str()))
+                }
                 // non-keyword/symbol head — unknown → deny, naming the offending node's own span.
                 Some(other) => {
                     return Err(AxisViolation::at(
@@ -1361,7 +1396,7 @@ fn classify_expr(
             for &axis in axes {
                 let mut axis_seen = seen.clone();
                 let mut axis_closure_seen = closure_seen.clone();
-                head_ok(head, axis, sym, &mut axis_seen, &mut axis_closure_seen, &at, ctx)?;
+                head_ok(&head, axis, sym, &mut axis_seen, &mut axis_closure_seen, &at, ctx)?;
             }
             for a in &items[1..] {
                 classify_expr(a, axes, sym, seen, closure_seen, ctx)?;
@@ -1561,6 +1596,163 @@ mod axis_name_round_trip_tests {
                 axis.variant_name(),
             );
         }
+    }
+}
+
+/// ⭐ ARC 251 STONE 251.8d-ii (FIFTH DRAW) — THE LOCATED HALF of the identity-door rows.
+///
+/// The wat-surface fixture (`tests/rete/probe_arc251_8d_purity_head_identity.{wat,rs}`) can only
+/// ask `:wat::rete::pure?` & friends, which answer a BOOL. The brief's adversarial row is about
+/// the **located reason**: a genuinely impure comparator must be refused in both spellings *with
+/// the same reason*, not merely refused. `AxisViolation` carries that reason (`head` + `axis` +
+/// `span`), it is `pub(crate)`, and `tests/` cannot see it — so the rows live here, beside the
+/// door, and they are asserted on the STRUCT FIELDS, never on a rendered string.
+///
+/// ⛔ Why the span is asserted too: the door replaces the head STRING; if it ever started
+/// replacing the head NODE the refusal would point at the wrong source text while still naming
+/// the right verb, and a `head`-only assertion could not tell those apart.
+#[cfg(test)]
+mod purity_head_identity_tests {
+    use super::*;
+    use crate::scope::Identifier;
+
+    fn span() -> Span {
+        crate::rust_caller_span!()
+    }
+    fn kw(s: &str) -> WatAST {
+        WatAST::Keyword(s.into(), span())
+    }
+    fn sym_node(s: &str) -> WatAST {
+        WatAST::Symbol(Identifier::bare(s), span())
+    }
+    /// `(head 1)` — one integer argument, so nothing but the HEAD can decide the outcome.
+    fn call(head: WatAST) -> WatAST {
+        WatAST::List(vec![head, WatAST::IntLit(1, span())], span())
+    }
+
+    /// The refusal a spelling produces: `Some(head)` names the identity the gate refused,
+    /// `None` means admitted.
+    fn refusal(node: WatAST, axis: Axis) -> Option<String> {
+        let table = SymbolTable::new();
+        let form = call(node);
+        let v = find_axis_violation(&form, axis, &table)?;
+        // The violation must point at the HEAD NODE's own span, not the list's.
+        let head_span = match &form {
+            WatAST::List(items, _) => items[0].span().clone(),
+            _ => unreachable!("call() builds a List"),
+        };
+        assert_eq!(
+            (v.span.file.as_str(), v.span.line, v.span.col),
+            (head_span.file.as_str(), head_span.line, head_span.col),
+            "the refusal must be located at the head node",
+        );
+        assert_eq!(v.axis.variant_name(), axis.variant_name());
+        Some(v.head)
+    }
+
+    /// ⭐ THE ADVERSARIAL ROW. A genuinely IMPURE head is refused in BOTH spellings, and the
+    /// located reason is now BYTE-IDENTICAL — which is the point: two spellings of one verb are
+    /// one verb, so they owe one reason. Pre-cure the symbol spelling was refused too, but for
+    /// the WRONG reason (it fell off the end of the table as an unknown name); the cure routes
+    /// it to `effectful_by_prefix`, the guard that exists for exactly this namespace.
+    #[test]
+    fn an_impure_head_is_refused_in_both_spellings_with_the_same_located_reason() {
+        let by_keyword = refusal(kw(":wat::kernel::println"), Axis::Pure);
+        let by_symbol = refusal(sym_node("wat.kernel/println"), Axis::Pure);
+        // ⭐ THE WALL — green on BOTH binaries (measured): refusal is not something the cure
+        // bought. Stated as its own assertion so a future edit cannot let the equality below
+        // be satisfied by two spellings that are both silently ADMITTED.
+        assert!(
+            by_keyword.is_some() && by_symbol.is_some(),
+            "an effectful head must be refused in both spellings: keyword {by_keyword:?}, \
+             symbol {by_symbol:?}",
+        );
+        assert_eq!(by_keyword.as_deref(), Some(":wat::kernel::println"));
+        // ⭐ THE CURE — the two refusals now carry ONE reason. Pre-cure this read
+        // `Some("wat.kernel/println")` vs `Some(":wat::kernel::println")`: refused, but as an
+        // unknown name rather than by the effectful-namespace guard that exists for it.
+        assert_eq!(
+            by_symbol, by_keyword,
+            "wat.kernel/println and :wat::kernel::println are ONE effectful verb — the purity \
+             gate owes them one refusal, with one reason",
+        );
+    }
+
+    /// The same, one namespace over, so the row is not one prefix wide.
+    #[test]
+    fn a_second_effectful_namespace_is_refused_in_both_spellings() {
+        assert_eq!(refusal(kw(":wat::io::read-file"), Axis::Pure).as_deref(), Some(":wat::io::read-file"));
+        assert_eq!(refusal(sym_node("wat.io/read-file"), Axis::Pure).as_deref(), Some(":wat::io::read-file"));
+    }
+
+    /// ⭐ AN UNKNOWN HEAD STAYS UNKNOWN. The door re-spells a `(namespace, name)` pair; it
+    /// cannot mint table membership, so a name in no table is refused in both spellings and the
+    /// reason names the identity, not a shrug.
+    #[test]
+    fn an_unknown_head_is_refused_in_both_spellings() {
+        let by_symbol = refusal(sym_node("not.a.real/op"), Axis::Pure);
+        // THE WALL first — green on both binaries.
+        assert!(by_symbol.is_some(), "a head in no table must stay refused: {by_symbol:?}");
+        assert_eq!(refusal(kw(":not::a::real::op"), Axis::Pure).as_deref(), Some(":not::a::real::op"));
+        assert_eq!(by_symbol.as_deref(), Some(":not::a::real::op"));
+    }
+
+    /// A BARE symbol (no namespace) is left byte-identical by the door — it is a local binder's
+    /// shape, and `head_ok`'s `ClassifyCtx::Runtime` door looks such a name up in the
+    /// environment by its WRITTEN text. Re-spelling one would break that lookup silently.
+    #[test]
+    fn a_bare_symbol_head_keeps_its_written_text() {
+        assert_eq!(refusal(sym_node("nope"), Axis::Pure).as_deref(), Some("nope"));
+    }
+
+    /// ⭐ THE CURE, at the struct level: a proven-pure verb is ADMITTED in both spellings.
+    /// Without this row every assertion above would pass on a gate that refuses everything.
+    #[test]
+    fn a_proven_pure_head_is_admitted_in_both_spellings() {
+        assert_eq!(refusal(kw(":wat::core::<"), Axis::Pure), None);
+        assert_eq!(refusal(sym_node("wat.core/<"), Axis::Pure), None);
+    }
+
+    /// ⭐ THE AXES DO NOT COLLAPSE. `Uuid/v4` is pure AND non-deterministic; the symbol spelling
+    /// must inherit BOTH halves, not just the permissive one.
+    #[test]
+    fn the_door_re_spells_a_name_it_does_not_hand_out_a_blanket_yes() {
+        assert_eq!(refusal(sym_node("wat.uuid/v4"), Axis::Pure), None);
+        assert_eq!(
+            refusal(sym_node("wat.uuid/v4"), Axis::Deterministic).as_deref(),
+            Some(":wat::uuid::v4"),
+            "v4 is random — the Deterministic axis must still refuse the symbol spelling",
+        );
+        assert_eq!(refusal(kw(":wat::uuid::v4"), Axis::Deterministic).as_deref(), Some(":wat::uuid::v4"));
+    }
+
+    /// ⭐ LAW A IS NOT LOOSENED. A core-spelled op is not a rete primitive in EITHER spelling —
+    /// the sharpest edge of the permissive direction, since the cure's whole mechanism is to
+    /// make a symbol head resolve like a keyword one.
+    #[test]
+    fn law_a_still_refuses_a_core_spelled_head_in_both_spellings() {
+        let by_symbol = refusal(sym_node("wat.core/<"), Axis::RetePrimitive);
+        // THE WALL first — green on both binaries. `<` IS pure, deterministic and total, and
+        // law A refuses it anyway; that is the axis's whole reason to exist.
+        assert!(by_symbol.is_some(), "law A must refuse a core-spelled head: {by_symbol:?}");
+        assert_eq!(
+            refusal(kw(":wat::core::<"), Axis::RetePrimitive).as_deref(),
+            Some(":wat::core::<"),
+        );
+        assert_eq!(by_symbol.as_deref(), Some(":wat::core::<"));
+    }
+
+    /// A head that is neither Keyword nor Symbol is still refused by name — the arm the door
+    /// sits beside, unchanged.
+    #[test]
+    fn a_non_name_head_is_still_refused() {
+        let table = SymbolTable::new();
+        let form = WatAST::List(
+            vec![WatAST::IntLit(7, span()), WatAST::IntLit(1, span())],
+            span(),
+        );
+        let v = find_axis_violation(&form, Axis::Pure, &table).expect("a literal head is not a call");
+        assert_eq!(v.head, "<non-keyword/symbol head>");
     }
 }
 
