@@ -207,6 +207,60 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.11 LANDED 2026-09-22 — the wall audit. ⛔⛔ **A LIVE CAPABILITY ESCAPE WAS FOUND AND CLOSED**
+
+Floor **5968/5968** (no red), clippy 0, census `no STOP-8` (212 = 212), delta **4 = 4**, RECOVERY 0,
+**0 live `.wat`**. **26 walls · 5 FAIL-OPEN · 4 cured · 1 reported.**
+
+⛔⛔ **THE ORCHESTRATOR'S OWN FINDING WAS WRONG AND ITS INSTRUCTION WAS DANGEROUS.** It said
+`✅ :restricted-to — INTACT` / `⛔ Do not re-litigate`. **Had that been obeyed the escape would still
+be in the tree.** Now retracted: `FINDING-RETRACTED-the-whitelists-were-NOT-intact.md`.
+
+```
+PRE-CURE  (:wat::core::quote (:my::kernel::restricted-fn 7))  → rc=1  DefRestrictedCallerNotAllowed
+PRE-CURE  (:wat::core::quote (my.kernel/restricted-fn   7))  → rc=0  ⛔⛔ ESCAPED
+POST-CURE both spellings                                      → rc=1, same error
+POST-CURE a PERMITTED caller, symbol mention                  → rc=0  ✅ not over-restricted
+```
+
+⭐ **WHY THE FOUR EARLIER PROBES PASSED: A BACKSTOP, NOT THE WALL.** `normalize_symbol_refs` (step 7)
+canonicalizes **CODE** positions, so a symbol *call head* arrived already rewritten. ⛔ **A DATA
+position is never normalized**, and **arc 198's own ruling: a restriction governs MENTION, not head
+position.** ⛔⛔ **The Rust-side `#[restricted_to(…)]` fences drain into the SAME
+`binding_metadata` map read by the SAME walker** — pre-cure, from `:user::` code:
+`wat.io.IOWriter/from-fd` **rc=0**, `wat.kernel/close` **rc=0**. All verified by the orchestrator on
+two binaries.
+
+⭐ **Cured:** `check.rs::walk_for_restricted_call` (both joins, via `other_join_spelling`) · both
+mutation walls (`runtime.rs`, `freeze.rs`) · hygiene Gate E — ⚠ **which needed TWO sites**, because
+curing `quasiquote_inner` alone left the wall silent.
+⛔ **Reported, NOT cured — `is_quasiquote_form` is a ROUTER**: teaching it symbols would let a
+symbol-spelled qq body **skip BOTH** the hygiene check and the F5 gate. **Residual asymmetry (the
+KEYWORD path is now the weaker one) is the BUILDER'S CALL.**
+
+⭐⭐ **"A GATE THAT CANNOT MOVE IS NOT EVIDENCE THE DIFF IS SAFE."** Delta 4→4 and census 212→212
+prove **nothing** here — no sample file mentions a restricted binding in a data position, hands a
+mutation form to `eval-ast!`, or nests an explicit quasiquote. **The evidence is the hand-written
+probes and the two-binary pairs.**
+
+⛔ **CORRECTED: 255.9's mutation disposition** ("no mutation head escapes both walls" — **two do**:
+`set-redef!`, `set-eval-redef!`; blast radius nil TODAY, ⭐ *"currently harmless is not a
+disposition"*) · **255.10's quasiquote row** (LOUD → **SILENT**) · **the orchestrator's seed list**
+(counts four NON-walls — three are `#[test]` fns — and ⛔ **MISSED `walk_for_restricted_call`, the
+wall that mattered, because it is not named `refuse_*`/`validate_*`. A NAME GREP CANNOT ENUMERATE
+WALLS.**)
+
+⛔⛔ **THE DEEPEST FINDING — 255.9 AND 255.10 BOTH WROTE THE PIPELINE RULE AND APPLIED ONLY ITS FIRST
+HALF.** *"Post-step-7 ⇒ unreachable"* is true only of the **CODE** half of a wall's input. The
+capability wall is a stage-8 site **both stones would have marked UNREACHABLE — and it was live.**
+
+### ⛔ TWO INSTRUMENT DEBTS, NOW THREE STONES OLD
+
+1. **RECOVERY (fail→clean) as a standing column** — printed by hand three stones running. *"One
+   `awk` clause; belongs in `scripts/`."*
+2. **A GATE ON PASS ORDERING** — recommended three times. ⭐ **Its absence is exactly what let two
+   consecutive stones mark a live capability wall unreachable.**
+
 ### ✅ 255.10 LANDED 2026-09-22 — ⭐ **DELTA 18 → 4**, and ⛔⛔ **A DEFAULT-DENY SECURITY GATE WAS OPEN**
 
 Floor **5963/5963** (×3, no red), clippy 0, census `no STOP-8` (212 = 212, 0 rc changes),
