@@ -207,6 +207,67 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.12 LANDED 2026-09-22 — ⭐ **THE 8d-ii BLOCKER IS CURED.** Delta 4 → 3
+
+Floor **5986/5986** (after a captured RED), clippy 0, census `no STOP-8`, **RECOVERY 0**, 0 live
+`.wat`. **Sites: 3 of 4 cured + 1 found outside the brief; site 2 REFUTED and reported.**
+
+⛔⛔ **THIS STONE CURED IN THE *PERMISSIVE* DIRECTION** — the first since 255.9 to do so. Denotation-
+aware equality makes walls **accept more**. ⭐ **The adversarial row was the whole stone and IT CAUGHT
+THE CURE'S FIRST DRAFT.** Orchestrator proved the guard load-bearing by deleting the carve-out:
+
+```
+carve-out DELETED  → (defrecord :p::Inf [n <- :wat::type::Infer]) + [n <- :wat::core::Infer] → rc=0 ⛔⛔ ACCEPTED
+carve-out RESTORED →                                                                            rc=1 DuplicateType
+legitimate cross-spelling case                                                                  rc=0 ✅ still passes
+```
+
+⭐ **The carve-out already existed inside `check::format_type_path` — A RENDERER.** Every other
+consumer of `type_denotation` was collapsing `Infer` silently. ⭐ **`type_defs_same` is `==` over
+DENOTATION-NORMALIZED defs, not a field walk**, so `nature`/`purity`/`restrictions`/`type_params`/
+variant names/field order stay byte-compared — **that shape is what makes the permissive direction
+survivable.**
+
+⭐⭐ **SITE 3 = THE 8d-ii STOP, PROVEN ON TWO BINARIES, WITHOUT CONVERTING THE STDLIB:**
+`(:wat::edn::validate 42 :wat::type::i64)` was `Invalid {:expected ":wat::core::i64" :got "Integer"}`
+— ⛔ **a self-contradicting refusal** — now `Valid`, while a String is ⭐ **still `Invalid`**.
+⚠ **Neither state is visible to `--check`.**
+
+⛔ **SITE 2 (`Ngram`) REFUTED, NOT CURED.** The blocker is **not** `is_reference()` — the cross arm
+compares `canonical_identity` and `"<-"` ≠ `":-"`, returning false first. **The orchestrator's lead
+was wrong**, refuted three ways. The collision is the `include_str!`-baked copy meeting the converted
+on-disk one (**path-independent, proved**). Curing it = teaching a blind walker `<-` ≡ `->` ≡ `:-`
+inside a template ⇒ **two macros emitting different surface forms become one.** ⭐ **Correctly
+refused — 8d-ii's job / BUILDER'S CALL.**
+
+⛔ **THE FLOOR RED — arm 2 is a FINDING, NOT A FLAKE.** `harvest_cost.rs:337` is a **wall-clock
+apportionment bound** and ⭐ **the test's own comment concedes it**: *"wall clocks on a shared
+runner."* Not this diff (timed path = `PVec::iter`/inline closure/`PMap::from_pairs`/`Value::clone`,
+none of the 8 changed files; last touched by a different stone). ⛔ **"Timing" is NOT a disposition
+here:** a ratio over single-iteration wall clocks sampled during a 5,986-test parallel floor **cannot
+be a gate. IT WILL FIRE AGAIN — it needs a stone.**
+`[[feedback_a_wall_clock_ratio_is_not_a_gate]]`.
+
+### ⭐⭐ BOTH INSTRUMENT DEBTS CLOSED — after three stones
+
+- **`scripts/replay/delta.sh`** — RECOVERY standing, non-zero **exits 9**. ⭐⭐ **It caught a defect
+  in ITSELF on run 1:** `wat` reads stdin, so a `while read … < LIST` loop was eaten after **10 of
+  179** files **and printed a plausible delta.** Now `xargs` + `/dev/null` stdin, and it **refuses to
+  report a partial measurement.**
+- **`src/freeze/pass_order.rs`** — 14 passes announce themselves; a unit test pins the order. ⭐ **It
+  has FAILED once** (moving `resolve_references` ahead of normalize reds it — **and the mutated
+  program still froze clean**). Carries its own non-vacuity (`expand < normalize < check`) and
+  ⭐⭐ **the instruction that makes it a gate: do NOT re-order the array to match the code until you
+  have re-read every "post-step-7 ⇒ unreachable" disposition.** Corrected the documented pipeline:
+  `normalize_stored_function_bodies` runs **twice**.
+  ⛔ **It pins ORDER, not the CODE-vs-DATA half that actually misled 255.9/255.10** — that needs a
+  **post-normalize residue census. A STONE.**
+
+⭐ **`Infer`'s uniqueness, narrowed by the orchestrator:** 4 other candidate markers (`Seq`,
+`Stream`, `HolonAST`, `Thermometer`) are **refused by the ANNOTATION WALL before the comparator
+runs**. ⭐ **`Infer` is dangerous because it PASSES that wall with no `core` counterpart**;
+`INFER_TYPE_PATH` is the only such constant (4 carve-out sites). ⛔ **A narrowing, not a proof.**
+
 ### ✅ 255.11 LANDED 2026-09-22 — the wall audit. ⛔⛔ **A LIVE CAPABILITY ESCAPE WAS FOUND AND CLOSED**
 
 Floor **5968/5968** (no red), clippy 0, census `no STOP-8` (212 = 212), delta **4 = 4**, RECOVERY 0,
