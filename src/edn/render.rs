@@ -1493,6 +1493,15 @@ pub fn eval_keyword_node(
             reason: crate::declare::typevar::angle_minted_name_reason(&s),
         }));
     }
+    // 255.10 — the argument is a NAME, so it is read through the identity door: a
+    // faithful-Clojure `wat.kernel/Address` mints the SAME keyword node as the rust-scheme
+    // `:wat::kernel::Address`. A macro that rebuilds a node from `ast-name` (core.wat's
+    // `kwargs-type-slot-swap-head`, gen.wat's `ctor`) reads whichever spelling the source
+    // wears; requiring one of them is the defect, not the guard. `canonical_identity` is a
+    // no-op on a `:`-prefixed name, so the keyword spelling is bit-for-bit unchanged — and a
+    // string that is not a name at all (`"foo"`, `"hello world"`) is still refused below,
+    // because canonicalization leaves it without a leading `:`.
+    let s = canonical_identity(&s);
     if !s.starts_with(':') {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),

@@ -739,17 +739,19 @@ fn extract_rete_defn_names(forms: &[WatAST]) -> std::collections::BTreeSet<Strin
         let WatAST::List(items, _) = form else {
             continue;
         };
-        let Some(WatAST::Keyword(k, _)) = items.first() else {
+        // 255.10 — head and slot-1 are both NAMES, read through the identity door so
+        // `wat.rete.core/defn` is the same declaration as `:wat::rete::core::defn`.
+        let Some(k) = items.first().and_then(crate::form_match::canonical_identity_of) else {
             continue;
         };
         if k != ":wat::rete::core::defn" {
             continue;
         }
-        if let Some(WatAST::Keyword(name_kw, _)) = items.get(1) {
+        if let Some(name_kw) = items.get(1).and_then(crate::form_match::canonical_identity_of) {
             // STONE reap-the-angle-machinery (arc 109) — `name_kw` used to be run through
             // `split_name_and_type_params` to strip a `<T,...>` suffix. Angle syntax is
             // unexpressible now, so the name can never carry one; insert it directly.
-            declared.insert(name_kw.clone());
+            declared.insert(name_kw);
         }
     }
     declared
@@ -766,9 +768,13 @@ fn rewrite_rete_defn_heads(forms: Vec<WatAST>) -> Vec<WatAST> {
         .into_iter()
         .map(|form| match form {
             WatAST::List(mut items, span) => {
-                if let Some(WatAST::Keyword(k, kspan)) = items.first() {
+                // 255.10 — the head is a NAME: read both spellings through the identity
+                // door. The REWRITE still emits the keyword, which is what the rest of the
+                // pipeline (expand_all → register_defines → check) already expects.
+                if let Some(k) = items.first().and_then(crate::form_match::canonical_identity_of) {
                     if k == ":wat::rete::core::defn" {
-                        items[0] = WatAST::Keyword(":wat::core::defn".to_string(), kspan.clone());
+                        let kspan = items[0].span().clone();
+                        items[0] = WatAST::Keyword(":wat::core::defn".to_string(), kspan);
                     }
                 }
                 WatAST::List(items, span)

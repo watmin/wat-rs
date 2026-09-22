@@ -2052,18 +2052,36 @@ fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
     }
 }
 
-/// Returns `true` if `form` is a `WatAST::List` whose first element is a
-/// `WatAST::Keyword` — the arc-143 discriminant for "evaluate at expand-time"
-/// vs "treat as already-substituted literal data".
+/// Returns `true` if `form` is a `WatAST::List` whose first element is a CALLABLE
+/// NAME — the arc-143 discriminant for "evaluate at expand-time" vs "treat as
+/// already-substituted literal data".
 ///
-/// WatAST::List is the only carrier; a Keyword head is the eval-vs-data
-/// discriminant by arc-143 design (no separate computed-unquote AST variant).
-/// Used by both `unquote_argument` and `splice_argument` to share the heuristic.
+/// WatAST::List is the only carrier. A callable name is a `WatAST::Keyword` head OR
+/// (255.10) a NAMESPACED `WatAST::Symbol` head — the same two spellings
+/// `runtime::eval_list` dispatches as a call. Used by both `unquote_argument` and
+/// `splice_argument` to share the heuristic.
 fn is_callable_form(form: &WatAST) -> bool {
-    matches!(
-        form,
-        WatAST::List(items, _) if items.first().map(|h| matches!(h, WatAST::Keyword(_, _))).unwrap_or(false)
-    )
+    // 255.10 — the head is a NAME, and this predicate decides whether a computed
+    // unquote is CODE or DATA. Reading only the keyword spelling made
+    // `` `~(wat.kernel/macro-call-site) `` silently become literal data: the form was
+    // spliced un-evaluated into the expansion, so an expand-time-only verb surfaced as
+    // a runtime error and the macro's result typed as the raw form instead of what the
+    // computation produces (`tests/macros/probe_arc278_macro_call_site.wat`). The
+    // executor this routes to (`runtime::eval_list`) has always dispatched a REFERENCE
+    // symbol head exactly like a keyword head, so the discriminant must agree with it.
+    // BARE symbols stay data — a `,,X` outer-pass substitution and a nested data list
+    // keep the arc-029/arc-143 behaviour unchanged.
+    matches!(form, WatAST::List(items, _) if items.first().is_some_and(head_is_callable_name))
+}
+
+/// Keyword head, or a NAMESPACED reference symbol head (`wat.core/foo`). A bare
+/// symbol is NOT a callable name here — it is a local binding or substituted data.
+fn head_is_callable_name(h: &WatAST) -> bool {
+    match h {
+        WatAST::Keyword(_, _) => true,
+        WatAST::Symbol(id, _) => id.is_reference(),
+        _ => false,
+    }
 }
 
 /// Walk `form`, replacing every `WatAST::Symbol` whose name is a key

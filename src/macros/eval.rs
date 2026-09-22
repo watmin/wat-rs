@@ -151,8 +151,39 @@ pub(super) fn macro_eval_pre_validated(
 pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
     match form {
         WatAST::List(items, span) => {
+            // 255.10 — the head is a NAME, and this is the DEFAULT-DENY F5 gate. Reading
+            // only the keyword spelling meant a faithful-Clojure macro body dropped
+            // STRAIGHT THROUGH to the `None` arm below and was never checked against the
+            // allow-list at all: measured, `` `~(wat.kernel/println "…") `` returned rc 0
+            // while `` `~(:wat::kernel::println "…") `` was refused. The executor
+            // (`runtime::eval_list`) has always dispatched a REFERENCE symbol head exactly
+            // like a keyword head, so the gate must read the same two spellings the thing
+            // it guards will run. Restricted to `is_reference()` — a BARE symbol head is a
+            // local callable, not a namespaced verb, and keeps the old recurse behaviour.
+            //
+            // ⚠ The symbol form needs BOTH joins. `wat.core.Option/expect` is
+            // `:wat::core::Option/expect` (a Type/method surface op), not
+            // `:wat::core::Option::expect` — and which join is right depends on whether
+            // `Option` is a TYPE, a question this gate has no `TypeEnv` to ask. So it asks
+            // `other_join_spelling` (the substrate's existing second-join door) for the
+            // alternative rendering and consults the allow-list for BOTH. Default-deny
+            // survives: a head is legal only if SOME rendering of it is on the list, and
+            // the refusal names the primary. Measured — without this,
+            // `tests/macros/vector_splice_symmetry.wat` went clean → refused.
+            let mut head_candidates: Vec<String> = Vec::new();
             match items.first() {
-                Some(WatAST::Keyword(head, _)) => {
+                Some(WatAST::Keyword(k, _)) => head_candidates.push(k.clone()),
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                    let primary = crate::edn::render::canonical_identity(id.as_str());
+                    if let Some(alt) = crate::types::other_join_spelling(&primary) {
+                        head_candidates.push(alt);
+                    }
+                    head_candidates.insert(0, primary);
+                }
+                _ => {}
+            }
+            match head_candidates.first() {
+                Some(head) => {
                     // Pure literal data: skip entirely.
                     // Arc 294.b — `:wat::holon::literal` is also pure data; skip.
                     if head == ":wat::core::quote" || head == ":wat::holon::literal" {
@@ -168,7 +199,7 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
                         return Ok(());
                     }
                     // Check against the blessed allow-list.
-                    if is_expand_time_legal(head) {
+                    if head_candidates.iter().any(|c| is_expand_time_legal(c)) {
                         // BEWARE: `fn` forms are NOT blanket-opaque here. A fn in a
                         // program body can be INVOKED at expand time (blessed HOFs —
                         // map, foldl — take fns), so its body is expand-time code and
@@ -213,9 +244,10 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
                         })
                     }
                 }
-                // List with non-Keyword head (e.g. a nested list, or no head):
+                // List with no head, or a head that is neither a keyword nor a
+                // namespaced reference symbol (a nested list, a bare local callable):
                 // recurse into all children.
-                _ => {
+                None => {
                     for child in items {
                         validate_pure_total(child)?;
                     }

@@ -725,9 +725,16 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             // Each message is a type-decl `(<head> :Name …)`; slot-1 keyword is the name. Post
             // the arc-294 flip, defrecord/defstruct expand to a `(do (recordtype :Name …) …)`
             // companion, so unwrap a leading `do` to its declaration child first.
+            // 255.10 — slot 1 is a NAME, so it is read through the IDENTITY door, not a
+            // spelling test: `:p::Echo::Oops` and `p.Echo/Oops` are the same message. The
+            // REFERENCE side (`collect_user_type_paths`) already emits the canonical
+            // `:a::b::C` key, so canonicalizing here is what makes the two sides comparable
+            // — the "one side normalized and the other not" class this helper's own doc
+            // comment records twice. A keyword name canonicalizes to itself, so the
+            // keyword spelling is bit-for-bit unchanged.
             if let WatAST::List(mi, _) = unwrap_message_decl(m) {
-                if let Some(WatAST::Keyword(mn, _)) = mi.get(1) {
-                    message_names.push(mn.clone());
+                if let Some(mn) = mi.get(1).and_then(crate::form_match::canonical_identity_of) {
+                    message_names.push(mn);
                 }
             }
         }
@@ -1000,8 +1007,14 @@ fn collect_message_form_type_refs(form: &WatAST, out: &mut Vec<String>) {
     };
     for (i, child) in children.iter().enumerate() {
         if super::is_param_annotation_arrow(child) {
-            if let Some(WatAST::Keyword(k, _)) = children.get(i + 1) {
-                if let Ok(te) = super::parse_type_expr(k) {
+            // 255.10 — the post-arrow child is a TYPE, and the substrate already owns the
+            // one door that reads every spelling of one (`parse_type_node`: keyword,
+            // namespaced symbol, parametric form, `[arg… :-> ret]` bracket). The old
+            // `Some(WatAST::Keyword(k,_))` test silently stopped matching the moment an
+            // annotation was written as a symbol or a parametric form, and a transitive
+            // completeness check that collects NOTHING passes vacuously.
+            if let Some(node) = children.get(i + 1) {
+                if let Ok(te) = super::parse_type_node(node) {
                     collect_user_type_paths(&te, out);
                 }
             }
@@ -1116,6 +1129,24 @@ mod tests {
             TypeDef::Surface(s) => Ok(s),
             other => panic!("expected TypeDef::Surface, got {:?}", other),
         }
+    }
+
+    /// The resolved type path of a surface method's REQUEST parameter (`args[1]`; `args[0]`
+    /// is `self`). Rendered through the TypeExpr the parser stored, so the two spellings are
+    /// compared on identity, never on source text.
+    fn surface_request_type(surf: &SurfaceDef, name: &str) -> String {
+        surf.members
+            .iter()
+            .find_map(|m| match m {
+                SurfaceMember::Method { name: n, args, .. } if n == name => {
+                    Some(match args.fixed_params.get(1) {
+                        Some((_, TypeExpr::Path(p))) => p.clone(),
+                        other => panic!("request param of {name:?} is a Path; got {other:?}"),
+                    })
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no method member named {name:?}"))
     }
 
     fn method_budget(surf: &SurfaceDef, name: &str) -> i64 {
@@ -1288,6 +1319,154 @@ mod tests {
                 );
             }
             other => panic!("expected a MalformedDecl for an undeclared message; got {other:?}"),
+        }
+    }
+
+    /// STONE 255.10 — the keyword REQUIREMENT is the defect, and both halves are pinned here.
+    ///
+    /// The builder's ruling: a slot expecting a **NAME** reads both spellings through the
+    /// identity door; a slot expecting a **MARKER** is untouched. A cure that lets
+    /// `:messages` be read as a name would be worse than the defect, so the marker row is
+    /// asserted in the same test as the name row — they cannot drift apart.
+    ///
+    /// ⛔ The brief's fourth row is the important one: this stone must not turn a FALSE RED
+    /// into a FALSE GREEN. The `:messages` transitive-completeness wall must still fire on a
+    /// genuinely undeclared type, in BOTH spellings, with the SAME located reason.
+    ///
+    /// (The brief's third row — "a variant tag is still data" — was STRUCK by the builder
+    /// mid-stone: a variant tag in a `defenum` declaration mints a `Type.Variant` NAME, and
+    /// the codemod does not convert one today. Nothing is asserted about variant tags here,
+    /// in either direction.)
+    #[test]
+    fn a_name_slot_reads_both_spellings_a_marker_slot_reads_one_and_the_wall_still_fires() {
+        // ── ROW 1 — a NAME slot accepts both spellings and produces the SAME identity. ──
+        // Same surface, twice: `:messages` names + feature type refs in rust-scheme, then in
+        // faithful Clojure. Both must parse, and the request parameter's resolved type path
+        // must be byte-identical — that IS the identity claim.
+        let kw = parse_surface(
+            "(:wat::core::defsurface :t::Echo :nature :wat::kernel::Peer \
+               :messages \
+               [(:wat::core::recordtype :t::Echo::Oops [why <- :wat::core::String]) \
+                (:wat::core::recordtype :t::Echo::Req [msg <- :wat::core::String  meta <- :t::Echo::Oops])] \
+               :features \
+               [(echo [self <- :t::Echo  req <- :t::Echo::Req] -> :wat::core::String \
+                  :max-request-bytes 1024)])",
+        )
+        .expect("the rust-scheme spelling must parse");
+        let sym = parse_surface(
+            "(wat.core/defsurface t/Echo :nature wat.kernel/Peer \
+               :messages \
+               [(wat.core/recordtype t.Echo/Oops [why :- wat.core/String]) \
+                (wat.core/recordtype t.Echo/Req [msg :- wat.core/String  meta :- t.Echo/Oops])] \
+               :features \
+               [(echo [self :- t/Echo  req :- t.Echo/Req] :- wat.core/String \
+                  :max-request-bytes 1024)])",
+        )
+        .expect(
+            "the faithful-Clojure spelling must parse: every `:messages` name and every type \
+             reference is a NAME, and a name slot reads both spellings (255.10)",
+        );
+        assert_eq!(
+            surface_request_type(&kw, "echo"),
+            ":t::Echo::Req",
+            "the rust-scheme spelling resolves the request type to its canonical identity"
+        );
+        assert_eq!(
+            surface_request_type(&sym, "echo"),
+            surface_request_type(&kw, "echo"),
+            "SAME IDENTITY: the two spellings are one name, not two"
+        );
+
+        // ── ROW 2 — `:messages` / `:features` / `:nature` are MARKERS, not names. ──
+        const MARKER_MESSAGES_REASON: &str =
+            "a :nature :Peer surface must declare :messages (its own request/response protocol \
+             records/enums) so a :satisfies service ships them across a process fork; surface \
+             :t::M1 has no :messages";
+        const MARKER_FEATURES_REASON: &str =
+            "expected :features clause after :nature (and optional :messages) — \
+             (:wat::core::defsurface :Name :nature :<kw> [:messages [msgs]] :features [members])";
+        const MARKER_NATURE_REASON: &str = "expected `:nature :<kw>` after the surface name";
+        // A surface that spells a marker as a SYMBOL is still refused: the clause is simply
+        // not there. This is the half a careless cure would destroy.
+        for (marker_src, expected_reason) in [
+            // `:messages` as a bare symbol → a Peer surface with no protocol at all.
+            (
+                "(:wat::core::defsurface :t::M1 :nature :wat::kernel::Peer \
+                   messages [(:wat::core::recordtype :t::M1::Req [msg <- :wat::core::String])] \
+                   :features [(echo [self <- :t::M1  req <- :t::M1::Req] -> :wat::core::String \
+                     :max-request-bytes 1024)])",
+                MARKER_MESSAGES_REASON,
+            ),
+            // `:features` as a namespaced symbol → no features clause.
+            (
+                "(:wat::core::defsurface :t::M2 :nature :wat::core::Struct \
+                   wat.core/features [(echo [self <- :t::M2] -> :wat::core::String)])",
+                MARKER_FEATURES_REASON,
+            ),
+            // `:nature` as a bare symbol → the mandatory nature clause is missing.
+            (
+                "(:wat::core::defsurface :t::M3 nature :wat::core::Struct \
+                   :features [(echo [self <- :t::M3] -> :wat::core::String)])",
+                MARKER_NATURE_REASON,
+            ),
+        ] {
+            let err = parse_surface(marker_src).expect_err(
+                "a MARKER spelled as a symbol must NOT be read as a marker — 255.10 opens the \
+                 NAME slots only, and a cure that let `:messages` be read as a name would be \
+                 worse than the defect it fixes",
+            );
+            match err.kind() {
+                // The REASON is asserted, not merely the kind: the row must fail because the
+                // CLAUSE IS MISSING, never because something else in the fixture is malformed.
+                TypeErrorKind::MalformedDecl { head, reason } => {
+                    assert_eq!(head, HEAD);
+                    assert_eq!(reason, expected_reason);
+                }
+                other => panic!("expected a MalformedDecl for a symbol-spelled marker; got {other:?}"),
+            }
+        }
+
+        // ── ROW 4 — the wall still FIRES on a genuinely undeclared type, in BOTH spellings. ──
+        // `:t::Echo::Oops` is reachable from a `:messages` record's field and is NOT declared
+        // in `:messages`. The transitive-completeness wall must refuse it either way, with a
+        // byte-identical reason — the converted form must not report a DIFFERENT (already
+        // declared) type, which is exactly the false red that hid the true one before 255.10.
+        const UNDECLARED_REASON: &str =
+            "surface :t::Bad :messages type references :t::Bad::Oops which is not declared in \
+             this surface's :messages — a peer surface that owns :messages must declare EVERY \
+             non-stdlib type reachable from its protocol records/enums (a response enum's \
+             variant payload record, a request record's non-primitive field type, …), so a \
+             :satisfies service ships them ALL across a process fork (arc 278 S4c). Add a \
+             (defrecord :t::Bad::Oops …) to :messages, or remove the reference.";
+        for undeclared_src in [
+            "(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer \
+               :messages \
+               [(:wat::core::recordtype :t::Bad::Req [msg <- :wat::core::String  meta <- :t::Bad::Oops])] \
+               :features \
+               [(echo [self <- :t::Bad  req <- :t::Bad::Req] -> :wat::core::String \
+                  :max-request-bytes 1024)])",
+            "(wat.core/defsurface t/Bad :nature wat.kernel/Peer \
+               :messages \
+               [(wat.core/recordtype t.Bad/Req [msg :- wat.core/String  meta :- t.Bad/Oops])] \
+               :features \
+               [(echo [self :- t/Bad  req :- t.Bad/Req] :- wat.core/String \
+                  :max-request-bytes 1024)])",
+        ] {
+            let err = parse_surface(undeclared_src).expect_err(
+                "a type reachable from :messages but absent from it is a located error in \
+                 EITHER spelling — 255.10 must not turn a false red into a false green",
+            );
+            match err.kind() {
+                TypeErrorKind::MalformedDecl { head, reason } => {
+                    assert_eq!(head, HEAD);
+                    assert_eq!(
+                        reason, UNDECLARED_REASON,
+                        "the wall must name the TRUE undeclared type, byte for byte, in both \
+                         spellings — naming a correctly-declared type instead is the defect"
+                    );
+                }
+                other => panic!("expected MalformedDecl naming the undeclared type; got {other:?}"),
+            }
         }
     }
 }
