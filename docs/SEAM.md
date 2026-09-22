@@ -207,6 +207,61 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.10 LANDED 2026-09-22 — ⭐ **DELTA 18 → 4**, and ⛔⛔ **A DEFAULT-DENY SECURITY GATE WAS OPEN**
+
+Floor **5963/5963** (×3, no red), clippy 0, census `no STOP-8` (212 = 212, 0 rc changes),
+**0 live `.wat`**. 5 `src/` files. Arc: **104 → … → 49 → 18 → 4.**
+⭐ **RECOVERY (fail→clean) = 0** — no forged green.
+
+⛔⛔ **THE F5 EXPAND-TIME PURITY GATE WAS BYPASSED BY THE SYMBOL SPELLING.** Orchestrator built
+**both** binaries and measured:
+
+```
+PRE-CURE   (:wat::kernel::println …) in a macro body → rc=1  "default-deny F5 gate, arc 249"
+PRE-CURE   (wat.kernel/println   …) in a macro body → rc=0  ⛔⛔ CLEAN — the macro was DEFINED
+POST-CURE  both spellings                            → rc=1, BYTE-IDENTICAL refusal
+```
+
+⛔ Arc 249 stone O's property — *"fails at definition, not silently at first use"* — **was
+spelling-dependent**, and 8d-iii would have made the bypass the DEFAULT spelling. ⭐ **Found by
+following a failing FILE, not by the census frame** — the argument for the evidence gate over a count.
+
+**Six cures, each with a file that changed state:** `surface.rs:729` `:messages` NAME (**8 files**) ·
+`surface.rs:1003` post-arrow TYPE (⛔ without it the wall goes **SILENT** — proven by targeted
+revert) · `freeze/env.rs` rete `defn` head (**4 files**) · `edn/render.rs` `keyword-node` input
+(**1+2**) · `macros/eval.rs` the F5 gate · `macros/expand.rs` `is_callable_form` (**1**).
+
+⭐⭐ **THE TEST IS THE BEST IN THE ARC.** Row 1 asserts a **byte-identical identity path**, not "both
+parse". Row 2 pins **full reasons** for three markers. Row 4 pins the wall naming the **TRUE**
+undeclared type in **both** spellings — ⛔ **so the stone provably cannot trade a false red for a
+false green.** The guard **has failed twice** under targeted revert.
+
+⛔ **IT CORRECTED 255.9's CENSUS** — `validate_pure_total` was classified LOUD; it is **SILENT**
+(confirmed by the pre-cure `rc=0`). **The frame both briefs used (`grep "Some(WatAST::Keyword"`)
+cannot see a `matches!` in a closure or a bare `starts_with(':')` string test. Two of six cures were
+outside it.** Re-framed by requirement SHAPE: A=83 · B(`matches!`)=32 · C(bare arm)=122 · D(`starts_with`)=24.
+⛔ **A shape-B/D sweep is real remaining exposure.**
+
+⭐ **The committed delta list paid for itself:** it caught the rider's OWN regression
+(`vector_splice_symmetry.wat`, cure 5's first version broke `Option/expect`'s member join).
+
+**The 4 survivors, reported not cured:** 2 arc-170 probes (a `::`-spelled **substring** searched in a
+converted name — ⭐ **a `.wat`-level fix needing `:wat::keyword::canonical-identity`, which does not
+exist**) · `wat/source.wat` + `wat/holon/Ngram.wat` (⛔ **NOT this class** — the `wat.type`
+denotation gap in `TypeEnv::register_validated`'s raw `Some(e) if e == &def`).
+
+### ⭐ THE NEXT STONE IS BIGGER AND BETTER-DEFINED THAN "B"
+
+`register_validated` and the two runtime tables that stopped 8d-ii (`edn/render.rs:2508`,
+`function/subsume.rs`) are **the SAME `wat.type` denotation gap**. ⭐ **ONE stone: wire type
+denotation into every type-identity comparison.** It closes the **8d-ii blocker AND the last 2 delta
+files**. ⚠ It makes a **duplicate-declaration wall more permissive** (red → false-green direction) —
+**needs a row proving a genuine duplicate is still refused.**
+
+**Then:** the 416-test rete remainder · the shape-B/D sweep · mint `:wat::keyword::canonical-identity` ·
+⛔ **RECOVERY as a standing gate** (recommended twice, still not done) · ⛔ **a gate on the step-7
+ordering** (recommended twice) · 255.8's wrong-join hole · 8d-ii (4th draw) · 8d-iii.
+
 ### ⭐⭐ RULING 2026-09-22 — THE KEYWORD REQUIREMENT IS THE DEFECT
 
 > **Builder:** *"all of the conversions you detailed are correct — we need to break off of the
