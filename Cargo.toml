@@ -149,6 +149,23 @@ lru = "0.12"
 
 [dev-dependencies]
 
+# syn — a REAL Rust parser for `tests/lint/`, arc 255 stone 255.13 (the heresy ledger).
+#
+# ⛔ It is here because the alternative was a regex, and this repo has paid for that
+# instrument twice inside this very arc: 255.9's ±3-line proximity window returned 3 false
+# positives in 14, and 255.11's name grep counted three `#[test]` fns and one error
+# CONSTRUCTOR as capability walls while MISSING `walk_for_restricted_call`, which turned out
+# to be a live capability escape. The heresy ledger's whole difficulty is a DATA-FLOW
+# question — "did this name pass through the identity door before it was compared?" — and a
+# line window cannot answer it at any distance. `syn` gives the lint the real expression
+# tree: the actual `match` scrutinee, the actual binary operands, the actual `let` initializer
+# chain, and the actual enclosing `fn`.
+#
+# Already in Cargo.lock (proc-macro path, via wat-macros et al.); this adds the `full`+`visit`
+# feature set the lint needs. dev-only — no shipped binary links it.
+syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+
 # ─── Integration tests organized to mirror src/ ──────────────────────────────
 # Convention (started 2026-05-19 with arc 214 Slice 3): tests/<module>/
 # mirrors src/<module>/. Each module group registers via ONE `[[test]]` entry
