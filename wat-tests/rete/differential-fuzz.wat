@@ -414,11 +414,21 @@
 ;; pinning: the `$oracle` is slow-but-correct by design, carries no perf
 ;; requirement, and gets passively faster as wat stops being interpreted — so any
 ;; multiple against it shrinks on its own, and the generator's SHARE grows.
-;; 90s, not 60s: the measured loaded cost is ~41s, and 60s left only 1.46x of margin once
-;; retraction doubled the space. 90s keeps ~2.2x AND stays BELOW nextest's 120s kill — the
-;; ordering matters, because a wat-side time-limit failure names the test and the budget, while a
-;; SIGTERM at the harness level names neither.
-(:wat::test::time-limit "90s")
+;; ⛔ THIS NUMBER IS HALF A PAIR. It must EQUAL the nextest period for the
+;; `deftest_wat_tests_rete_fuzz` override in `.config/nextest.toml`, so the wat harness fails
+;; FIRST and names the test and the budget, while nextest's 2x kill is only the backstop — a
+;; SIGTERM at the harness level names neither. Change one and you must change the other.
+;;
+;; 60s -> 90s (2026-08-27): loaded cost ~41s, then 52.064s as the space grew; 60s left 1.46x.
+;; 90s -> 300s (2026-09-22): the limit FIRED at 90.065s on `.floor/2026-09-22T23-21-28Z`,
+;;   working as designed. ⚠ >90s is a LOWER BOUND, not a duration — the run was stopped, not
+;;   finished, so the true loaded cost at this space size is UNMEASURED. Raised to see it finish.
+;;
+;; ⛔ AND THE LINE THIS REPLACES WAS FALSE ABOUT THE OTHER HALF: it read "stays BELOW nextest's
+;; 120s kill". The override was `period = "90s", terminate-after = 2` — a **180s** kill, not 120s.
+;; A claim here about a number in ANOTHER file is unverifiable from here and rots unread; state
+;; the INVARIANT (equal to the period) rather than a copy of the value.
+(:wat::test::time-limit "300s")
 (:wat::test::deftest :wat-tests::rete::fuzz::test-native-matches-oracle
   (:wat::core::match
     (:wat::gen::check (:wat-tests::rete::fuzz::space) :wat-tests::rete::fuzz::prop)

@@ -83,9 +83,33 @@ fail-fast = false
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
 
+#   2026-09-22:  300s/600s -> 1500s/3000s.  It TIMED OUT at the 600s kill.
+#
+# ⛔ THE THIRD RAISE, AND THE CORPUS RATIO IS THE WHOLE ARGUMENT — this one is NOT contention.
+# The 300s/600s budget above was set on 2026-08-16 against **327** `.wat` under `wat-scripts/`.
+# Measured 2026-09-22: **769**. The corpus is **2.35x** the size the budget was written for, and
+# the comment above predicted exactly this — "600s buys months, not years." It bought five weeks.
+#
+# ⭐ MEASURED 2026-09-22 ON A QUIET BOX (load 0.45): **425.736s ISOLATED**, PASS. That is the
+# number every earlier observation at this corpus size lacked — all of them were SIGKILLs, and a
+# kill is a lower bound, not a duration.
+#
+# ⛔ AND THE FIRST RAISE OF THIS SESSION WAS NOT ENOUGH — caught by arithmetic, not by a re-run.
+# Applying THIS FILE'S OWN recorded contention band (3.5x-4.4x, and 3.49x measured for this very
+# test at 327 files: 62.8s isolated -> 219.097s loaded):
+#     425.736s x 3.5 = 1490s        425.736s x 4.4 = 1873s
+# A 1800s kill is EXCEEDED at the top of the band — the raise would have bought one more red.
+# 1500s/3000s puts the 4.4x case at 62% of the kill, under the 69% this file already calls "a
+# timeout flake waiting to happen, and there is no such thing as a known flake".
+#
+# ⛔⛔ THE CONSEQUENCE IS A ~25-MINUTE FLOOR, AND THAT IS THE REAL FINDING. This block already
+# records "THE GATE IS 98% OF THE FLOOR'S WALL-CLOCK". At 769 files the floor's wall-clock is now
+# this one test. Splitting the gate per-directory (fixes/ - scratch-pad/ - probes/ - perf/) has
+# stopped being the tidy option and is now the difference between an 8-minute floor and a
+# 25-minute one. THAT is the strike; this number is the stopgap that buys time to draw it.
 [[profile.default.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
+slow-timeout = { period = "1500s", terminate-after = 2 }  # warn 1500s, kill 3000s
 priority = 100                                            # schedule first
 
 # ⏱ retirement_table_is_fully_reachable — STARTUP-bound, and the ARC GROWS ITS INPUT.
@@ -114,6 +138,34 @@ priority = 100                                            # schedule first
 # So the real fix is OPEN, not merely undone. Whatever it is must keep the gate's three-way
 # discrimination — inert / diagnosed-at-runtime (door 2) / diagnosed-at-check (door 1) — which
 # is why it runs the program rather than `--check`ing it.
+# ⏱ no_broken_intra_doc_link_outside_the_frozen_ledger — HAD NO OVERRIDE AT ALL.
+#
+# It ran on the DEFAULT 15s/30s and TIMED OUT at 30.015s on `.floor/2026-09-22T23-21-28Z`.
+# Anchor: it PASSED at 10.06s on `.floor/2026-09-22T06-58-19Z` (5526 tests) — 3x headroom, which
+# is inside the 3.5x-4.4x contention band this file records for CPU-heavy gates, so the default
+# was never a budget for it, only a bet that the box stayed quiet.
+#
+# ⚠ Its completion time on the 5994-test floor is UNMEASURED — the only observation is the kill.
+# Same rule as the wat-scripts gate above: raised to SEE IT FINISH, then tighten to the number.
+[[profile.default.overrides]]
+filter = 'test(no_broken_intra_doc_link_outside_the_frozen_ledger)'
+slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
+
+# ⭐ MEASURED 2026-09-22 on a quiet box: **7.066s ISOLATED**, PASS. x4.4 (the top of this file's
+# contention band) = 31s, which is why the 30s default kill caught it. 240s leaves it at 13%.
+#
+# ⛔ AND IT NEEDS A COPY IN EVERY PROFILE, because overrides do NOT inherit — the duplicated
+# `every_wat_scripts_file_loads` blocks under `[profile.ci]` and `[profile.slow]` exist for
+# exactly that reason, and say so: "a deadline that only the dev profile can meet is not a
+# deadline." The same wall is hit by the same corpus whichever profile runs it.
+[[profile.ci.overrides]]
+filter = 'test(no_broken_intra_doc_link_outside_the_frozen_ledger)'
+slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
+
+[[profile.slow.overrides]]
+filter = 'test(no_broken_intra_doc_link_outside_the_frozen_ledger)'
+slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
+
 [[profile.default.overrides]]
 filter = 'test(retirement_table_is_fully_reachable)'
 slow-timeout = { period = "120s", terminate-after = 2 }
@@ -335,7 +387,23 @@ priority = 99                                             # just below the scrip
 # need it and does not suffer from it.
 [[profile.default.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
-slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+#
+# BUDGET RAISED 90s -> 300s, 2026-09-22. The wat-side limit fired at 90.065s on
+# `.floor/2026-09-22T23-21-28Z` — WORKING AS DESIGNED: it named the test and the budget
+# (`differential-fuzz.wat:422`) where a harness SIGTERM would have named neither. Loaded cost has
+# gone 17.165s -> 52.064s -> >90s across three recorded points as the space grew.
+#
+# ⛔ THE ORDERING IS LOAD-BEARING AND BOTH NUMBERS MOVE TOGETHER. The wat-side
+# `(:wat::test::time-limit ...)` in `wat-tests/rete/differential-fuzz.wat` MUST equal this period,
+# so the wat harness fails first and nextest's 2x kill is the backstop behind it. Raising one
+# alone re-creates the exact defect this block already records: "a wat-side budget the runner
+# kills through is not a budget." Both were set to 300s in the same commit.
+#
+# ⭐ MEASURED 2026-09-22 on a quiet box: **57.092s ISOLATED**, PASS. (>90s loaded was a lower
+# bound, not a duration.) 57.092 x 3.5 = 200s, x 4.4 = 251s — so a 180s period would FIRE the
+# wat-side limit under ordinary contention, and 360s put the 4.4x case at 70% of the kill, just
+# over this file's own 69% flake line. Set to 300s/600s: the 4.4x case lands at 42%.
+slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 98                                             # just below the lint binary
 
 # Arc 278, C20 — the two check-error source-order regression tests
@@ -382,7 +450,7 @@ slow-timeout = { period = "60s", terminate-after = 2 }
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 # raised with [profile.default] 2026-08-16 — CI and --profile slow hit the same 327-file
 # corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
-slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
+slow-timeout = { period = "1500s", terminate-after = 2 }  # 2026-09-22: 300s->1500s WITH profile.default — 425.736s isolated, 769 files
 priority = 100
 
 # C19 — raised with [profile.default]; CI runs the same corpus on the same wall. A deadline only
@@ -407,7 +475,7 @@ priority = 99
 # scripts gate's ci override records).
 [[profile.ci.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
-slow-timeout = { period = "90s", terminate-after = 2 }
+slow-timeout = { period = "300s", terminate-after = 2 }   # 2026-09-22: 90s->300s WITH profile.default — 57.092s isolated
 priority = 98
 
 # raised with [profile.default] — CI runs the same 48 process spawns on the same box; a deadline
@@ -437,7 +505,7 @@ default-filter = 'all() - test(diag_first_over_form) - test(diag_first_over_vect
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 # raised with [profile.default] 2026-08-16 — CI and --profile slow hit the same 327-file
 # corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
-slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
+slow-timeout = { period = "1500s", terminate-after = 2 }  # 2026-09-22: 300s->1500s WITH profile.default — 425.736s isolated, 769 files
 priority = 100
 
 # C19 — raised with [profile.default]; same corpus, same box, same argument. MUST stay above the
@@ -459,7 +527,7 @@ priority = 99
 # raised with [profile.default] 2026-08-17 — same cohort, same box, same argument.
 [[profile.slow.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
-slow-timeout = { period = "90s", terminate-after = 2 }
+slow-timeout = { period = "300s", terminate-after = 2 }   # 2026-09-22: 90s->300s WITH profile.default — 57.092s isolated
 priority = 98
 
 # raised with [profile.default] — same tests, same box, same argument.
