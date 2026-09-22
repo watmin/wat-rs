@@ -81,6 +81,24 @@ builder's call to merge, since an arc-vs-excursus ruling is the builder's by con
 
 ## Contents
 
+⛔ **NUMBERS MAY COLLIDE ACROSS BRANCHES; THE SLUG IS THE IDENTITY.** Builder's ruling
+2026-09-22: *"we can just make a new excursus that won't collide with what sns-sqs is doing —
+the slug names disambiguate any number collisions."* Two branches may both mint `003`; they are
+different excursus, told apart by slug. Do not renumber to avoid a collision, and do not read a
+number as unique.
+
+⚠ **THIS LIST IS THE TREE ACROSS ALL BRANCHES, NOT THIS CHECKOUT.** Derive what is actually here
+before trusting a row — `find docs/excursus -maxdepth 3 -mindepth 3 -type d`. On a
+`main`-descended branch most of these are absent, because `docs/excursus/` is not on `main`.
+
+- **`2026/09/003-the-little-wat-findings/`** *(branch `reason/little-wat-findings`)* — wat-rs
+  answers the sibling repo `the-little-wat`: 172 findings from 97 book chapters, re-measured at
+  HEAD rather than inherited from its `a3218644d` snapshot. Stone 003.1 is the findings board,
+  a table-driven gate over the `(check rc, run rc)` pair. Read `DESIGN.md` first — it holds the
+  measured table, the one contract decision (the driver is the BINARY, twice), and what the
+  instrument cannot see.
+- **`2026/08/002-handle-lifetime-wall/`** *(branch `sns-sqs`)* — not on this branch.
+
 - **`2026/08/001-sns-sqs/`** — SNS in userland; `:wat::query::Store` gains `delete`; the
   mem-vs-sqlite differentials; `#inst` at constant nanosecond width. Findings on the record
   accessor's receiver type, mem's `put` semantics, and journal's key collision.
