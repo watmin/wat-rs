@@ -1780,21 +1780,44 @@ fn check_quasiquote_for_literal_binders(
                     }
                 }
             } else if head == ":wat::core::fn" {
-                // args[0] is the params vector: [name <- :T name <- :T ...]
-                // Scan every position; a Symbol that is not a `->`/`<-`/`&`
-                // marker is a param name being introduced. (Stepping by 1 +
-                // marker-exclusion handles the `&`-rest case, which breaks the
-                // positional triple-cadence.)
+                // args[0] is the params vector: `[name <- :T name <- :T …]`, or, in the
+                // faithful-Clojure spelling, `[name :- T name :- T …]`.
+                //
+                // ⛔ 251.8d-ii — A TYPE IS NOT A BINDER. This arm used to step by 1 and refuse
+                // EVERY Symbol that was not a `->`/`<-`/`&` marker. That was only ever safe
+                // because in the keyword spelling a type is a `Keyword` (`:wat::core::i64`),
+                // which this scan never looked at. In the symbol spelling a type is a `Symbol`
+                // (`wat.gen/Coord`), so the wall read the ANNOTATION as a binder name and
+                // refused `wat/gen.wat`'s `record` macro at definition — one site, 5 286 floor
+                // failures, the whole converted stdlib blocked.
+                //
+                // The cure restores the cadence this gate's OWN header already documents
+                // ("param names at positions 0, 3, 6, … (argspec triples)"): a param-annotation
+                // arrow (`<-` or `:-`, asked through the ONE door `is_param_annotation_arrow`,
+                // the same predicate `argspec::parse_triple` uses) means the NEXT item is a
+                // TYPE — skip it. It does NOT loosen what the gate inspects: every Symbol in a
+                // NAME position is still a literal binder and still refused, in BOTH spellings
+                // (non-vacuity fixtures: `tests/macros/probe_arc251_8d_hygiene_fn_binder_*`).
+                //
+                // Note `<-` is no longer in the string exclusion below — it is consumed by the
+                // arrow arm above it. `->` and `&` stay: neither introduces a name and neither
+                // is followed by a type.
+                //
                 // Non-Vector params arm (items.get(1) is not a Vector): CORRECT pass-through —
                 // a non-Vector params form introduces no names at this level; malformed fn forms
                 // get eval's own diagnostics when the expansion is evaluated.
                 if let Some(WatAST::Vector(param_items, _)) = items.get(1) {
                     let mut i = 0;
                     while i < param_items.len() {
+                        if crate::types::is_param_annotation_arrow(&param_items[i]) {
+                            // The next item is the TYPE this annotation introduces, never a name.
+                            i += 2;
+                            continue;
+                        }
                         if let WatAST::Symbol(ident, _) = &param_items[i] {
                             let s = ident.as_str();
-                            // Exclude `->` and `<-` and `&` markers.
-                            if s != "->" && s != "<-" && s != "&" {
+                            // Exclude the `->` return arrow and the `&` rest marker.
+                            if s != "->" && s != "&" {
                                 return Err(MacroError {
                                     span: call_site_span.clone(),
                                     kind: MacroErrorKind::ProgramBodyIntroducesName {

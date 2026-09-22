@@ -176,3 +176,59 @@ fn a_symbol_spelled_quasiquote_without_a_literal_binder_still_expands() {
     let result = compute_from_file("tests/macros/probe_arc255_11_hygiene_symbol_control.wat");
     assert_eq!(result, Value::bool(true));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E3 — 251.8d-ii: A TYPE IN A PARAM VECTOR IS NOT A BINDER NAME.
+//
+// Gate E's `fn` arm used to walk the params vector one item at a time and refuse EVERY
+// Symbol that was not a `->`/`<-`/`&` marker. That is only safe while a type is spelled
+// as a Keyword (`:wat::core::i64`). In the faithful-Clojure spelling a type is a SYMBOL
+// (`wat.gen/Coord`), so the gate read the ANNOTATION as a literal binder and refused
+// `wat/gen.wat`'s `record` macro at definition — ONE site, 5 286 failing tests, the whole
+// converted stdlib blocked (`SCORE-STONE-251.8d-ii-FOURTH-the-bootstrap.md`).
+//
+// The cure asks `types::is_param_annotation_arrow` (the same door `argspec::parse_triple`
+// uses) and skips the item AFTER an arrow, restoring the triple cadence this gate's own
+// header already documented. E3-a/E3-b are the NON-VACUITY rows: a genuine literal binder
+// is still refused, in BOTH spellings, with the same located binder. E3-c is the positive
+// control — the shape that was wrongly refused.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// CASE E3-a — ⛔ NON-VACUITY, keyword spelling: a template `fn` that introduces the real
+/// literal binder `y` is still refused.
+#[test]
+fn hygiene_bound_still_fires_on_a_keyword_spelled_fn_binder() {
+    let result =
+        startup_from_file("tests/macros/probe_arc251_8d_hygiene_fn_binder_keyword.wat.bad");
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyIntroducesName { macro_name, binder },
+            ..
+        }) if macro_name == ":my::capturing-param" && binder == "y"
+    );
+}
+
+/// CASE E3-b — ⛔ NON-VACUITY, symbol spelling: the SAME violation written in the
+/// faithful-Clojure spelling is refused by the SAME gate with the SAME binder. If this
+/// goes green, the type-skip has eaten the binder scan.
+#[test]
+fn hygiene_bound_still_fires_on_a_symbol_spelled_fn_binder() {
+    let result = startup_from_file("tests/macros/probe_arc251_8d_hygiene_fn_binder_symbol.wat.bad");
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyIntroducesName { macro_name, binder },
+            ..
+        }) if macro_name == ":my::capturing-param" && binder == "y"
+    );
+}
+
+/// CASE E3-c — ⛔ THE POSITIVE CONTROL: `wat/gen.wat`'s `record` shape in miniature — a
+/// `let`-bodied macro whose template is a `fn` with a `~`-spliced hygienic binder and a
+/// SYMBOL-spelled type. It must register, expand and compute. Without the cure this is
+/// refused with `binder == "wat.core/i64"` — the type read as a name.
+#[test]
+fn a_symbol_spelled_type_annotation_is_not_a_binder() {
+    let result =
+        compute_from_file("tests/macros/probe_arc251_8d_hygiene_fn_type_is_not_a_binder.wat");
+    assert_eq!(result, Value::bool(true));
+}

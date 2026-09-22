@@ -1,0 +1,23 @@
+;; Arc 251 stone 251.8d-ii — ⛔ GATE E NON-VACUITY, KEYWORD SPELLING.
+;;
+;; 251.8d-ii taught the Gate E binder scan that a param ANNOTATION's type is not a
+;; binder name (`[~cv :- wat.gen/Coord]`). This file is the row that proves the cure
+;; did NOT loosen what the gate inspects: a template that introduces a REAL literal
+;; name in `fn` binder position is still refused, with the located binder `y`.
+;;
+;; Its symbol-spelled twin is `probe_arc251_8d_hygiene_fn_binder_symbol.wat.bad`;
+;; the two files differ ONLY in the spelling of the fn head, the annotation arrows
+;; and the type. Both must be refused, with the SAME binder.
+;;
+;; The body is an `if`, not a bare quasiquote, because `is_quasiquote_form` routes a
+;; bare-quasiquote macro body PAST `validate_macro_definition` entirely (255.11 §4(a)
+;; — the router is deliberately keyword-only). A quasiquote NESTED in a program body
+;; is the reachable position for this gate.
+(:wat::core::defmacro :my::capturing-param
+  [x <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::if (:wat::core::= 1 1)
+    `((:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64 y) ~x)
+    `~x))
+(:wat::core::defn :user::probe [n <- :wat::core::i64]
+  -> :wat::core::i64 (:my::capturing-param n))

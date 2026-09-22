@@ -1,0 +1,17 @@
+;; Arc 251 stone 251.8d-ii — ⛔ GATE E NON-VACUITY, SYMBOL (faithful-Clojure) SPELLING.
+;;
+;; The twin of `probe_arc251_8d_hygiene_fn_binder_keyword.wat.bad`, differing ONLY in
+;; the spelling of the fn head, the annotation arrows and the type. `y` is a REAL
+;; literal binder — the cure must still refuse it, with the same located binder.
+;;
+;; ⛔ Do not "fix" this file to make it load. It is the negative control for the
+;; 251.8d-ii cure: if it ever goes rc 0, the type-skip has eaten the binder scan and
+;; a symbol-spelled capturing macro loads silently.
+(:wat::core::defmacro :my::capturing-param
+  [x <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::if (:wat::core::= 1 1)
+    `((wat.core/fn [y :- wat.core/i64] :- wat.core/i64 y) ~x)
+    `~x))
+(:wat::core::defn :user::probe [n <- :wat::core::i64]
+  -> :wat::core::i64 (:my::capturing-param n))
