@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 223;
+const LEDGER_TOTAL: usize = 220;
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -846,7 +846,14 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/resolve/boundary.rs", "is_where_form", 1, "Ax1"),
     ("src/resolve/walk.rs", "is_resolvable_call_head", 1, "Ax1"),
     ("src/rete/collect.rs", "eval_collect_rules", 1, "Ex1"),
-    ("src/rete/expr_ir/mod.rs", "lower_list", 1, "Ax1"),
+    // ⭐ 251.8d-ii SEVENTH — `lower_list` was 1 [Ax1] → 0. THE ONE EXPRESSION CORE's dispatcher
+    // read its head as a `WatAST::Keyword` payload only and refused every other node as *"call
+    // head must be a keyword"*. Nothing downstream of that read was keyword-only —
+    // `resolve_core_name(head)` is the very next line and `rete_op_index(head)` keys THE ONE
+    // TABLE — so the refusal was not a wall, only a blindness: the fence could ADMIT a
+    // symbol-spelled constructor that the lowering then refused one frame lower. Cured with
+    // `canonical_identity` on the Symbol arm (Keyword arm borrows, byte-identical), plus the same
+    // door on the constructor's type argument.
     ("src/rete/kernel/stratify.rs", "body_constructs_computed", 3, "Ax3"),
     ("src/rete/kernel/stratify.rs", "domain_cardinality", 1, "Ex1"),
     ("src/rete/purity.rs", "classify_expr", 3, "Ax3"),
@@ -861,7 +868,13 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     // non-canonical caller was `head_ok`, fed by `classify_expr`'s raw head read; that read
     // now takes `canonical_identity` on its Symbol arm. The calibration row that used to
     // pin it as shape B moved to `rete/kernel/arm.rs::compile_acc_fold` (still Bx1).
-    ("src/rete/purity.rs", "is_declaration_derived_construction", 2, "Ax2"),
+    // ⭐ 251.8d-ii SEVENTH — `is_declaration_derived_construction` was 2 [Ax2] → 0. Both reads
+    // (the `kwargs-construct`/`aggregate-new` VERB and the TYPE in argument 0) were keyword-only,
+    // so `wat/Record.wat`'s converted constructor template — `` `(wat.core/kwargs-construct
+    // ~_kc-type ~@call-args) `` — missed the declaration-derived door and law A refused it. ⛔ The
+    // refusal NAMED the keyword spelling anyway (`classify_expr`'s general arm re-spells a Symbol
+    // head before building the `AxisViolation`), which is why three briefs read a symbol-spelled
+    // refusal as a keyword-spelled one. Both reads now take `canonical_identity_of`.
     // ⭐ 251.8d-ii SIXTH — SIX ROWS GONE, one language fact and one door.
     //   `src/macros/expand.rs`   expand_make_rule_when / expand_make_rule_then   1 [Ax1] → 0
     //   `src/resolve/normalize.rs` normalize_make_rule_when                      1 [Ax1] → 0
@@ -1038,6 +1051,9 @@ fn the_discriminator_separates_the_cured_from_the_open() {
         ("src/resolve/walk.rs", "check_make_rule_when", ":wat::core::quote", "251.8d-ii SIXTH — the same boundary, the same door"),
         ("src/macros/expand.rs", "expand_make_rule_when", ":wat::core::quote", "251.8d-ii SIXTH — read through canonical_identity_of, the door expand_form already uses for the make-rule head"),
         ("src/macros/expand.rs", "expand_make_rule_then", ":wat::core::quote", "251.8d-ii SIXTH — the RHS twin of the row above"),
+        ("src/rete/purity.rs", "is_declaration_derived_construction", ":wat::core::kwargs-construct", "251.8d-ii SEVENTH — the declaration-derived door's VERB read through canonical_identity_of"),
+        ("src/rete/purity.rs", "is_declaration_derived_construction", ":wat::core::aggregate-new", "251.8d-ii SEVENTH — the positional twin of the row above, same door, same edit"),
+        ("src/rete/expr_ir/mod.rs", "lower_list", ":wat::holon::literal", "251.8d-ii SEVENTH — the ONE expression core's head read takes canonical_identity, so every literal below it can only be handed an identity"),
     ];
     let mut wrongly_flagged = Vec::new();
     for (f, n, lit, why) in CURED {

@@ -7257,17 +7257,38 @@ fn walk_quasiquote(
 
 /// Pattern-match `(:wat::core::quasiquote X)` or
 /// `(:wat::core::unquote X)` — return Some(X) when items has exactly
-/// 2 entries and items[0] is the expected keyword.
+/// 2 entries and items[0] NAMES the expected marker, in EITHER spelling.
+///
+/// ⭐ Arc 251 stone 251.8d-ii SEVENTH — the marker is an IDENTITY, not a written text.
+/// This used to read a `WatAST::Keyword` payload only (255.13 shape A), which made
+/// `walk_quasiquote` blind to the faithful-clojure spelling of its own two markers:
+/// `(wat.core/unquote E)` inside a `` ` `` template was not an unquote, so the template kept
+/// the sub-list VERBATIM and the surrounding form was built with a LIST where a head belonged.
+///
+/// Measured, and it is the whole of the seventh draw's single-file address: converting
+/// `wat/rete/compile.wat` alone turns the accumulator fence's
+/// `` `((~acc-hd) __acc__) `` into `(wat.core/quasiquote ((wat.core/unquote acc-hd) __acc__))`,
+/// the unquote never fires, and `rete/purity.rs`'s walk refuses the fence-call on its FIRST
+/// axis naming `'<non-keyword/symbol head>'` — eight `binary(rete)` tests, from ONE token.
+/// Re-spelling that one `unquote` back to the keyword (leaving the whole rest of the converted
+/// file in place) returns 522/522.
+///
+/// ⛔ The `Keyword` arm is byte-identical (255.13's DUAL-ARM RULE): a `Keyword` payload IS the
+/// internal identity, so only the `Symbol` arm needs the door, and it takes
+/// `canonical_identity` — one of 255.13's two door SEEDS, not a comparator minted here.
 fn match_qq_head<'a>(items: &'a [WatAST], head: &str) -> Option<&'a WatAST> {
     if items.len() != 2 {
         return None;
     }
-    if let WatAST::Keyword(k, _) = &items[0] {
-        if k == head {
-            return Some(&items[1]);
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == head => Some(&items[1]),
+        WatAST::Symbol(id, _)
+            if crate::edn::render::canonical_identity(id.as_str()) == head =>
+        {
+            Some(&items[1])
         }
+        _ => None,
     }
-    None
 }
 
 /// Pattern-match a `WatAST` node as `(<head> X)` — return Some(&X) when the

@@ -663,12 +663,41 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 /// `TypeDef::Aggregate`, the identical test `constructor_meta` applies to a head. A bare
 /// `(:wat::core::kwargs-construct x 1)` over an undeclared name stays refused, and the gate proves
 /// that direction too. Without it this door would admit anything wearing the verb.
+/// ⭐ Arc 251 stone 251.8d-ii SEVENTH — BOTH reads take the identity door now. Both used to be
+/// keyword-only (255.13 shape A, `Ax2`), and the consequence was measured, not argued:
+///
+/// ```text
+/// (:wat::rete::primitive? '(:wat::core::kwargs-construct :p7::R :x 1))   -> true
+/// (:wat::rete::primitive? '(wat.core/kwargs-construct   :p7::R :x 1))   -> FALSE   ← the verb
+/// (:wat::rete::primitive? '(:wat::core::kwargs-construct p7/R   :x 1))   -> FALSE   ← the type
+/// ```
+///
+/// ⛔ AND THE REFUSAL NAMES THE CANONICAL SPELLING EITHER WAY. When this door declines, the walk
+/// falls to `classify_expr`'s general list arm, which already re-spells a `Symbol` head through
+/// `canonical_identity` before building the `AxisViolation` — so a `:then` item written
+/// `(wat.core/kwargs-construct …)` is refused with the message *"':wat::core::kwargs-construct'
+/// is not a rete primitive"*. The keyword spelling in that text is the ERROR's, not the SOURCE's,
+/// and reading it as the source's is what made a converted-tree refusal look like a fence that
+/// had changed its mind about a keyword-spelled form.
+///
+/// `wat/Record.wat:207`/`:296` and `wat/core.wat:2078` are the three templates that emit this
+/// verb (`` `(:wat::core::kwargs-construct ~_kc-type ~@call-args) ``); converted, all three emit
+/// a `Symbol` head, which is why every `:then` holding a nested constructor joined the fence
+/// class at once.
+///
+/// ⛔ TIGHTNESS IS UNCHANGED — this widens the SPELLING, never the population. Argument 0 must
+/// still resolve to a declared `TypeDef::Aggregate`, in either spelling, and the gate proves that
+/// direction too (`…_an_undeclared_type_is_still_refused_in_both_spellings`).
 fn is_declaration_derived_construction(items: &[WatAST], sym: &SymbolTable) -> bool {
-    let Some(WatAST::Keyword(head, _)) = items.first() else { return false };
+    let Some(head) = items.first().and_then(crate::form_match::canonical_identity_of) else {
+        return false;
+    };
     if head != ":wat::core::kwargs-construct" && head != ":wat::core::aggregate-new" {
         return false;
     }
-    let Some(WatAST::Keyword(type_name, _)) = items.get(1) else { return false };
+    let Some(type_name) = items.get(1).and_then(crate::form_match::canonical_identity_of) else {
+        return false;
+    };
     let Some(types) = sym.types_deref() else { return false };
     matches!(types.get(type_name.as_str()), Some(crate::types::TypeDef::Aggregate(_)))
 }
@@ -3060,5 +3089,127 @@ mod completeness_gate {
             stale.len(),
             stale.iter().map(|v| format!("  {v}")).collect::<Vec<_>>().join("\n"),
         );
+    }
+}
+
+/// ⭐ Arc 251 stone 251.8d-ii SEVENTH — THE TIGHTNESS ROWS FOR THE DECLARATION-DERIVED DOOR.
+///
+/// ⛔ These live HERE, not at the wat surface, and the reason is measured: an UNDECLARED type in
+/// a `:then` operand never reaches this door at all. `rete/validate` refuses it first, at FREEZE,
+/// with `#wat.rete/RhsOperandTypeMismatch` — which kills the whole fixture rather than one row, so
+/// a wat-surface table cannot hold the row and be read. Verbatim, from the fixture that tried:
+///
+/// ```text
+/// defrule `t7::r`: `:then` insert of `:t7::Out` field `:inner` is declared `:t7::Inner`;
+///   operand is `:t7::NotAType`
+/// ```
+///
+/// ⭐ Note the second half of that message: the SYMBOL-spelled twin (`wat.core/kwargs-construct`
+/// over `t8/NotAType`) was refused under the canonical name `:t8::NotAType` too — `rete/validate`
+/// already reads both spellings, which is part of why this door's blindness was invisible.
+///
+/// The rows are the two directions the door's own doc claims: the verb alone is NOT enough, and
+/// the type must RESOLVE — in either spelling, identically.
+#[cfg(test)]
+mod declaration_derived_identity_tests {
+    use super::is_declaration_derived_construction;
+    use crate::ast::WatAST;
+    use crate::load::loader::InMemoryLoader;
+    use crate::runtime::SymbolTable;
+    use std::sync::Arc;
+
+    const WORLD: &str = "(:wat::core::defrecord :dd::R [x <- :wat::core::i64])\n";
+
+    fn span() -> crate::span::Span {
+        crate::rust_caller_span!()
+    }
+    fn kw(s: &str) -> WatAST {
+        WatAST::Keyword(s.into(), span())
+    }
+    fn sym(s: &str) -> WatAST {
+        WatAST::Symbol(crate::scope::Identifier::bare(s), span())
+    }
+
+    fn with_world<R>(f: impl FnOnce(&SymbolTable) -> R) -> R {
+        let world = crate::freeze::startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("the one-record world must freeze");
+        f(world.symbols())
+    }
+
+    /// One test, both directions — a door that admitted everything would pass the first three
+    /// rows, and a door that admitted nothing would pass the last four.
+    #[test]
+    fn the_declaration_derived_door_reads_identities_and_still_refuses_an_undeclared_type() {
+        with_world(|symbols| {
+            let rows: &[(&str, Vec<WatAST>, bool)] = &[
+                // ── ADMIT: a declared aggregate, in every spelling of verb and type ──────────
+                (
+                    "control — keyword verb, keyword type",
+                    vec![kw(":wat::core::kwargs-construct"), kw(":dd::R"), kw(":x")],
+                    true,
+                ),
+                (
+                    "THE CURE — symbol verb",
+                    vec![sym("wat.core/kwargs-construct"), kw(":dd::R"), kw(":x")],
+                    true,
+                ),
+                (
+                    "THE CURE — symbol type",
+                    vec![kw(":wat::core::kwargs-construct"), sym("dd/R"), kw(":x")],
+                    true,
+                ),
+                (
+                    "THE CURE — both, and `aggregate-new` takes the same door",
+                    vec![sym("wat.core/aggregate-new"), sym("dd/R")],
+                    true,
+                ),
+                // ── REFUSE: the verb alone is not enough, in either spelling ─────────────────
+                (
+                    "TIGHTNESS — an undeclared type, keyword",
+                    vec![kw(":wat::core::kwargs-construct"), kw(":dd::NotAType"), kw(":x")],
+                    false,
+                ),
+                (
+                    "TIGHTNESS — an undeclared type, symbol",
+                    vec![sym("wat.core/kwargs-construct"), sym("dd/NotAType"), kw(":x")],
+                    false,
+                ),
+                (
+                    "TIGHTNESS — a NEAR-MISS verb over a real type, keyword",
+                    vec![kw(":wat::core::kwargs-constructx"), kw(":dd::R"), kw(":x")],
+                    false,
+                ),
+                (
+                    "TIGHTNESS — a NEAR-MISS verb over a real type, symbol",
+                    vec![sym("wat.core/kwargs-constructx"), kw(":dd::R"), kw(":x")],
+                    false,
+                ),
+                (
+                    "TIGHTNESS — no type argument at all",
+                    vec![sym("wat.core/kwargs-construct")],
+                    false,
+                ),
+                (
+                    "TIGHTNESS — argument 0 is not a name",
+                    vec![sym("wat.core/kwargs-construct"), WatAST::IntLit(1, span())],
+                    false,
+                ),
+            ];
+
+            let wrong: Vec<String> = rows
+                .iter()
+                .filter_map(|(why, items, want)| {
+                    let got = is_declaration_derived_construction(items, symbols);
+                    (got != *want).then(|| format!("  {why}: got {got}, want {want}"))
+                })
+                .collect();
+
+            assert!(
+                wrong.is_empty(),
+                "the declaration-derived door answered wrongly on {} row(s):\n{}",
+                wrong.len(),
+                wrong.join("\n")
+            );
+        });
     }
 }

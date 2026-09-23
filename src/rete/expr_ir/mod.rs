@@ -549,8 +549,28 @@ fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> 
 /// invariant). Adding a form means adding it here, not adding an arm to `exec`.
 fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     cx.deeper(span)?;
-    let head = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
+    // ⭐ Arc 251 stone 251.8d-ii SEVENTH — THE HEAD IS AN IDENTITY, NOT A WRITTEN TEXT.
+    //
+    // This read used to be `Some(WatAST::Keyword(k, _)) => k.as_str()` with every other node
+    // refused as *"call head must be a keyword"* (255.13 shape A, the `lower_list` row). ⛔ That
+    // refusal is not a wall — nothing downstream of it is keyword-only. The very next line is
+    // `resolve_core_name(head)`, and `rete_op_index(head)` keys THE ONE TABLE: both want the
+    // internal identity, and a `Symbol` head carries exactly the same identity written the other
+    // way. The keyword-only read simply made the faithful-clojure spelling of an ADMITTED form
+    // unreachable — measured: with `is_declaration_derived_construction` cured so the fence
+    // ADMITS `(wat.core/kwargs-construct :T …)`, the very same item then died one frame lower
+    // with `malformed :wat::rete::lower form: call head must be a keyword`. The fence and the
+    // lowering have to agree about what a head IS or the `:then` surface has two answers.
+    //
+    // ⛔ Nothing is admitted that the keyword spelling does not already admit: a head that no
+    // arm claims still falls through to the table's own by-name refusal at the end of this fn.
+    // The `Keyword` arm is byte-identical (255.13's DUAL-ARM RULE) — it borrows, so not one
+    // keyword-spelled program allocates or changes.
+    let head_identity: std::borrow::Cow<'_, str> = match items.first() {
+        Some(WatAST::Keyword(k, _)) => std::borrow::Cow::Borrowed(k.as_str()),
+        Some(WatAST::Symbol(s, _)) => {
+            std::borrow::Cow::Owned(crate::edn::render::canonical_identity(s.as_str()))
+        }
         Some(other) => {
             return Err(LowerError::unsupported(other.span().clone(), "call head must be a keyword".into()));
         }
@@ -558,6 +578,7 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
             return Err(LowerError::unsupported(span.clone(), "empty list".into()));
         }
     };
+    let head: &str = head_identity.as_ref();
     // ── `#holon <form>` IS A LITERAL, and is folded like one ──────────────────────────────────
     //
     // The reader desugars `#holon [1 2 3]` to `(:wat::holon::literal [1 2 3])`, so it arrives here
@@ -625,12 +646,23 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
         return Err(LowerError::unsupported(span.clone(), "quote is data, not a where expression".into()));
     }
     if core == ":wat::core::kwargs-construct" || core == ":wat::core::aggregate-new" {
-        let type_kw = match items.get(1) {
-            Some(WatAST::Keyword(k, _)) => k.as_str(),
+        // ⭐ Arc 251 stone 251.8d-ii SEVENTH — argument 0 is a TYPE NAME, read as an identity for
+        // the same reason the head above is, and through the same door. `lower_construct` looks
+        // the name up in the type registry, whose keys are canonical, so a `Symbol` type
+        // (`t3/Inner`) resolved to nothing and was reported as a SHAPE error
+        // (*"constructor needs a type keyword"*) rather than as the unknown-aggregate it was not.
+        // Keyword arm byte-identical; an unknown name still falls to the `unknown aggregate`
+        // refusal below, naming the identity.
+        let type_identity: std::borrow::Cow<'_, str> = match items.get(1) {
+            Some(WatAST::Keyword(k, _)) => std::borrow::Cow::Borrowed(k.as_str()),
+            Some(WatAST::Symbol(s, _)) => {
+                std::borrow::Cow::Owned(crate::edn::render::canonical_identity(s.as_str()))
+            }
             _ => {
                 return Err(LowerError::unsupported(span.clone(), "constructor needs a type keyword".into()));
             }
         };
+        let type_kw: &str = type_identity.as_ref();
         return lower_construct(type_kw, &items[1..], span, cx)?
             .ok_or_else(|| LowerError::unsupported(span.clone(), format!("unknown aggregate {type_kw}")));
     }
