@@ -21,7 +21,7 @@
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-similarity-not-equality
   (:wat::core::let
     [store
-      (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10)
+      (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k (:wat::holon::Thermometer 50.0 0.0 100.0)
      v (:wat::holon::leaf :answer-for-fifty)
      _ (:wat::cache::HolographicLru/put store k v)
@@ -36,7 +36,7 @@
 ;; and `:c` must still be present.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-dual-eviction
   (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2)
+    [store (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2) ":wat::cache::Lru/new refused the capacity: it must be positive")
      a (:wat::holon::leaf :a)
      b (:wat::holon::leaf :b)
      c (:wat::holon::leaf :c)
@@ -56,7 +56,7 @@
 ;; `Hologram/find`'s matched-key return actually drives the LRU bump inside `get`.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-get-bumps-recency
   (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2)
+    [store (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2) ":wat::cache::Lru/new refused the capacity: it must be positive")
      a (:wat::holon::leaf :a)
      b (:wat::holon::leaf :b)
      c (:wat::holon::leaf :c)
@@ -81,7 +81,7 @@
 ;; the reason the record exists. Targets `Hologram/find` directly.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-find-returns-match-record
   (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10)
+    [store (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k (:wat::holon::Thermometer 50.0 0.0 100.0)
      v (:wat::holon::leaf :answer-for-fifty)
      _ (:wat::cache::HolographicLru/put store k v)
@@ -103,7 +103,7 @@
 ;; count.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-len-agrees-with-bound
   (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 3)
+    [store (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 3) ":wat::cache::Lru/new refused the capacity: it must be positive")
      _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k1) (:wat::holon::leaf :v1))
      _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k2) (:wat::holon::leaf :v2))
      _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k3) (:wat::holon::leaf :v3))

@@ -30,15 +30,19 @@
 ;; The lift is the ONE place the positional form is touched.
 ;;
 ;; ─── failure surface ─────────────────────────────────────────────────────────────────────────
-;; Unlike `:wat::sqlite::*` (every verb errors-as-values), the two guards on this primitive
-;; PANIC: a non-positive `capacity` and a non-hashable (opaque-handle) key. That is deliberate
-;; behaviour-parity with the STUDY oracle for this stone (see `src/rust_deps/cache.rs`'s module
-;; doc — and note the crate itself is gone, annihilated by Stone 5). These are the two
-;; programming-error inputs, and the checker already rejects an opaque-typed key at most call
-;; sites. Whether the no-hidden-failures law should reach them is an OPEN decision, tracked as
-;; a row in docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md ("exigere — the cache
-;; panic conversion"); the reason Stone 1 gave for deferring it has since expired. The full
-;; account is src/rust_deps/cache.rs's module doc. Converting moves BOTH files together.
+;; `Lru/new` is errors-as-values like `:wat::sqlite::*`: a non-positive `capacity` returns
+;; `(Result.Err {:error (:wat::cache::Fault …)})`, never a panic. It PANICKED until 2026-09-22
+;; (excursus 003 stone A, curing the-little-wat F-084) — a wat program that passed `0` got a Rust
+;; backtrace note, the internal `:rust::cache::Lru/new` name, and no span at all. The mandate:
+;; *a refusal must arrive as a wat value*, which is not a total-vs-partial question —
+;; `:wat::i64::/` is `@Totality Partial` and refuses inside the language anyway.
+;;
+;; ⛔ `put`/`get` STILL PANIC on a non-hashable (opaque-handle) key, and that is RULED, not
+;; pending: docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md
+;; rules LEAVE for both and warns in as many words against converting all three for symmetry.
+;; The key is a caller bug that never crosses a serialization boundary, and the checker rejects
+;; an opaque-typed key at most call sites. Re-opening it is a separate ruling, not a tidy-up.
+;; The full account is src/rust_deps/cache.rs's module doc.
 ;;
 ;; Loads after wat/core.wat (typealias/defrecord/defn + Option are core builtins) and after
 ;; wat/Record.wat is NOT required — `defrecord` is a defmacro, registered in the order-free
@@ -80,12 +84,41 @@
   [key   <- :K
    value <- :V])
 
+;; ─── the error channel — one record, because there is exactly one failure ────────────────────
+;; `:rust::cache::Lru/new` hands back sqlite's raw `(code, diagnostic, message)` 3-tuple
+;; (src/rust_deps/cache.rs); this record is that tuple, named. `diagnostic` carries the
+;; USER-FACING verb name (`:wat::cache::Lru/new`), never the `:rust::` shim — naming the shim is
+;; half of what the-little-wat F-084 reports.
+;;
+;; ⚠ NOT an enum, and no `classify` sibling to `wat/sqlite.wat`'s. sqlite needs
+;; Transient/Constraint/Fatal because the CATEGORY changes what the caller does (retry, surface,
+;; abort); a cache capacity has no such fork — the only refusal is a non-positive capacity, and
+;; the only honest response is to stop. A three-variant enum here would claim a taxonomy this
+;; surface does not have. ⚠ `code` is `0` at the one site that mints one: see the Rust doc for
+;; why the column is carried anyway.
+(:wat::core::defrecord :wat::cache::Fault
+  [code       <- :wat::core::i64
+   diagnostic <- :wat::core::String
+   message    <- :wat::core::String])
+
 ;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
-;; `capacity` is the hard bound on entry count; it must be positive.
+;; `capacity` is the hard bound on entry count; it must be positive — and a non-positive one is
+;; an `Err`, not a death. Excursus 003 stone A (the-little-wat F-084): a `panic!` here gave a wat
+;; program a Rust backtrace note, the internal `:rust::` name, and NO span. `:wat::i64::/` is
+;; `@Totality Partial` and still refuses inside the language; partiality never licensed a panic.
+;; The lift is inline rather than a `classify` helper because there is one verb and one fault —
+;; a helper with one call site would only add a name to chase.
 (:wat::core::defn :wat::cache::Lru/new :- [K V]
   [capacity <- :wat::core::i64]
-  -> (:wat::cache::Lru :- [K V])
-  (:rust::cache::Lru/new capacity))
+  -> (:wat::core::Result :- [(:wat::cache::Lru :- [K V]) :wat::cache::Fault])
+  (:wat::core::match (:rust::cache::Lru/new capacity)
+    [:wat::core::Result.Ok {:value cache} (:wat::core::Result.Ok {:value cache})]
+    [:wat::core::Result.Err {:error raw}
+      (:wat::core::Result.Err
+        {:error (:wat::cache::Fault
+                  :code       (:wat::core::first raw)
+                  :diagnostic (:wat::core::second raw)
+                  :message    (:wat::core::third raw))})]))
 
 ;; ─── put ─────────────────────────────────────────────────────────────────────────────────────
 ;; Insert or update, bumping `k` to MRU. Returns the DISPLACED entry — the least-recently-used
@@ -208,7 +241,18 @@
           -> (:wat::cache::lru-svc::State :- [K V])
           (:wat::cache::lru-svc::State
             :durable record
-            :cache (:wat::cache::Lru/new (:wat::cache::lru-svc::Record/capacity record))))
+            ;; ⚠ THE RESULT STOPS HERE, AS A RAISE — and that is the surface's limit, not a swallow.
+            ;; `defservice`'s `:init` is typed `Record -> State`: the generated `dispatch-admin`
+            ;; (wat/service.wat, `Admin::Init seed -> (<fqdn>::init seed)`) consumes a State, so an
+            ;; `:init` CANNOT return a `Result`. What it can do is die — the substrate has
+            ;; startup-crash parity for exactly this (`:init` runs BEFORE `Status::Started`, so the
+            ;; parent sees the death). `Result/expect` converts the value-level refusal into a wat
+            ;; raise carrying a location and frames; nothing is discarded and no capacity is
+            ;; invented. PRECEDENT, identical situation, same tree: `wat/query/sqlite-store.wat`'s
+            ;; `:init` `Result/expect`s `:wat::sqlite::open`.
+            :cache (:wat::core::Result/expect
+                     (:wat::cache::Lru/new (:wat::cache::lru-svc::Record/capacity record))
+                     ":wat::cache::Lru/new refused lru-svc's durable capacity: it must be positive")))
   :impls
   ;; Both ops FOLD over the request Vector — `s` is UNCHANGED on Reply either way; the mutation is
   ;; inside the opaque `Lru` handle via `Lru::get`/`Lru::put`, not in State (mirrors
@@ -285,14 +329,27 @@
 ;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
 ;; `filter` gates `Hologram/find` hits (bind `:wat::holon::filter-coincident` /
 ;; `filter-present` / `filter-accept-any`, or a caller-supplied closure). `capacity` is the LRU's
-;; hard bound on entry count — the same guard Stone 1's `Lru::new` carries (must be positive).
+;; hard bound on entry count — the same guard Stone 1's `Lru/new` carries (must be positive).
+;;
+;; ⚠ THE `Result` PROPAGATES; this verb adds NO guard of its own. It has never had one — the
+;; refusal is `Lru/new`'s, and there is exactly one of it, so `HolographicLru/new` re-wraps the
+;; SAME `:wat::cache::Fault` rather than minting a second. Swallowing it here (expect/clamp)
+;; would re-create F-084 one level up: a caller passing `0` would be back to a death with no span.
+;; Excursus 003 stone A's one contract decision.
+;;
+;; Note the ORDER: `Hologram/make` now runs only on the happy path. A refused capacity builds
+;; nothing.
 (:wat::core::defn :wat::cache::HolographicLru/new
   [filter   <- [:wat::core::f64 :-> :wat::core::bool]
    capacity <- :wat::core::i64]
-  -> :wat::cache::HolographicLru
-  (:wat::cache::HolographicLru
-    :hologram (:wat::holon::Hologram/make filter)
-    :lru (:wat::cache::Lru/new capacity)))
+  -> (:wat::core::Result :- [:wat::cache::HolographicLru :wat::cache::Fault])
+  (:wat::core::match (:wat::cache::Lru/new capacity)
+    [:wat::core::Result.Ok {:value lru}
+      (:wat::core::Result.Ok
+        {:value (:wat::cache::HolographicLru
+                  :hologram (:wat::holon::Hologram/make filter)
+                  :lru lru)})]
+    [:wat::core::Result.Err {:error fault} (:wat::core::Result.Err {:error fault})]))
 
 ;; ─── put — insert into the Hologram + bump/bound via the LRU, dual-evicting on overflow ───────
 ;; 1. Insert (key, val) into the Hologram (slot routing is internal).
@@ -398,12 +455,16 @@
           -> :wat::cache::hologram-svc::State
           (:wat::cache::hologram-svc::State
             :durable record
-            :cache (:wat::cache::HolographicLru/new
-                     (:wat::core::match (:wat::cache::hologram-svc::Record/filter record)
-                       [:wat::cache::HologramFilterKind.Coincident {} (:wat::holon::filter-coincident)]
-                       [:wat::cache::HologramFilterKind.Present {}    (:wat::holon::filter-present)]
-                       [:wat::cache::HologramFilterKind.AcceptAny {}  (:wat::holon::filter-accept-any)])
-                     (:wat::cache::hologram-svc::Record/capacity record))))
+            ;; `Result/expect` for the same reason `lru-svc`'s `:init` uses it — see the comment
+            ;; there: a `defservice` `:init` is typed `Record -> State` and cannot return a Result.
+            :cache (:wat::core::Result/expect
+                     (:wat::cache::HolographicLru/new
+                       (:wat::core::match (:wat::cache::hologram-svc::Record/filter record)
+                         [:wat::cache::HologramFilterKind.Coincident {} (:wat::holon::filter-coincident)]
+                         [:wat::cache::HologramFilterKind.Present {}    (:wat::holon::filter-present)]
+                         [:wat::cache::HologramFilterKind.AcceptAny {}  (:wat::holon::filter-accept-any)])
+                       (:wat::cache::hologram-svc::Record/capacity record))
+                     ":wat::cache::Lru/new refused hologram-svc's durable capacity: it must be positive")))
   :impls
   ;; Batch folds, same discipline as `lru-svc` above. `HolographicLru::put` returns `nil` (Stone 3
   ;; header above), unlike `Lru::put` — the dual-eviction chain removes the displaced key from the

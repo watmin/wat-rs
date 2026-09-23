@@ -3,8 +3,42 @@
 **Filed:** 2026-08-28, by the grok-rete agent, at the builder's direction
 (*"the cache lru… make a note on this… drop it into arc 109… this is unrelated to rete/278"*).
 **Home:** arc 109, because `src/rust_deps/` is its territory and the cache is not rete.
-**Status:** RULED ON THE MERITS (below), awaiting **MANDATE**. Nothing here is started.
+**Status:** ⛔ **MANDATE GIVEN AND THE `Lru::new` HALF SHIPPED, 2026-09-22.** `put`/`get` stay as
+ruled. This note no longer asks for a decision; it is the record of one.
 **Ground:** `grok-rete` @ `f1e112562`. Every citation re-checked against the tree on the day.
+
+---
+
+## ⭐ MANDATE — 2026-09-22, and it SUPERSEDED this note's AXIS
+
+Builder: *"is my mandate logical at this point? something i said 5 months ago likely needs to be
+challenged. wat's end state is totality, panics are likely to be removed"* … *"lru-new can return
+a result - panic inducing behavior is bad"*.
+
+The note below splits the panics on **programming-error vs fallible input**. That axis is not the
+one the substrate uses, and the measurement says so: `:wat::i64::/` is annotated `@Totality
+Partial` and ruled so — a divide-by-zero is a caller bug by any reading — and it *still* refuses
+INSIDE the language, with the user's span. Partiality never licensed a panic. The line is
+**a refusal must arrive as a wat value**.
+
+The note's *recommendation* survives that correction intact (convert `new`, leave `put`/`get`) —
+it reached the right disposition for a reason that does not hold. The reason it gives for LEAVING
+`put`/`get` is weakened by the same measurement, and re-opening that is a separate ruling; ⛔ the
+standing instruction *"do not convert all three for symmetry"* is NOT lifted by this mandate.
+
+**What shipped** (excursus 003 stone A, `docs/excursus/2026/09/003-the-little-wat-findings/`,
+curing the-little-wat F-084):
+
+| where | what |
+|---|---|
+| `src/rust_deps/cache.rs` | `new` → `Result<Self, (i64, String, String)>`; the false "macro cannot yet marshal" comment is gone |
+| `wat/cache.wat` | `:wat::cache::Fault` record; `Lru/new` and `HolographicLru/new` both return a `Result` — it PROPAGATES, it is not swallowed at the composite |
+| `wat/cache.wat` `lru-svc` / `hologram-svc` `:init` | `Result/expect` — a `defservice` `:init` is typed `Record -> State` and cannot return a Result; the refusal becomes a wat raise naming `:wat::cache::Lru/new`, with the caller's span, never a Rust panic. Precedent: `wat/query/sqlite-store.wat`'s `:init` |
+| 12 call sites, 4 files | migrated by `wat-scripts/fixes/wrap-cache-new-in-result-expect.wat` |
+| gate | `tests/diagnostics/probe_ex003_lru_new_refuses_as_a_value.rs` |
+
+⚠ **The line numbers in the tables below are pre-strike and no longer resolve.** They are kept
+because they are what was measured on the day; read them as a record, not as addresses.
 
 ---
 

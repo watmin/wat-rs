@@ -1,0 +1,11 @@
+# ORACLE for wrap-cache-new-in-result-expect — HISTORY or header spec, never the tool.
+
+# spec: this codemod ships WITH the surface change it migrates for (excursus 003 stone A), so
+# there is no prior commit in which the after-shape exists. The oracle is the header's SPEC line.
+spec   (:wat::core::let [c (:wat::core::Result/expect (:wat::cache::Lru/new 4) ":wat::cache::Lru/new refused the capacity: it must be positive")] (:wat::cache::Lru/len c))) :: becomes that call wrapped as `(:wat::core::Result/expect <call> ":wat::cache::Lru/new refused the capacity: it must be positive")`.
+
+spec   (:wat::core::let [s (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-accept-any) 4) ":wat::cache::Lru/new refused the capacity: it must be positive")] (:wat::cache::HolographicLru/len s))) :: a call to `:wat::cache::Lru/new` or `:wat::cache::HolographicLru/new` becomes that call wrapped as
+
+spec-before   (:wat::core::let [c (:wat::cache::Lru/new 4)] (:wat::cache::Lru/len c))) :: a call to `:wat::cache::Lru/new` or `:wat::cache::HolographicLru/new` becomes that call wrapped as
+
+spec-before   (:wat::core::let [s (:wat::cache::HolographicLru/new (:wat::holon::filter-accept-any) 4)] (:wat::cache::HolographicLru/len s))) :: a call to `:wat::cache::Lru/new` or `:wat::cache::HolographicLru/new` becomes that call wrapped as

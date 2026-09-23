@@ -12,7 +12,7 @@
 
 (:wat::test::deftest :user::cache_lru
   (:wat::core::let
-    [cache (:wat::cache::Lru/new 2)
+    [cache (:wat::core::Result/expect (:wat::cache::Lru/new 2) ":wat::cache::Lru/new refused the capacity: it must be positive")
      e1    (:wat::cache::Lru/put cache :a 1)   ;; under cap  -> None
      e2    (:wat::cache::Lru/put cache :b 2)   ;; at cap     -> None
      e3    (:wat::cache::Lru/put cache :c 3)   ;; over cap   -> Some Entry{:a 1}
@@ -39,7 +39,7 @@
 ;; assertions are that the SECOND value wins on `get`, and `len` stays 1 — no duplicate slot.
 (:wat::test::deftest :user::cache_lru_put_overwrites
   (:wat::core::let
-    [cache (:wat::cache::Lru/new 16)
+    [cache (:wat::core::Result/expect (:wat::cache::Lru/new 16) ":wat::cache::Lru/new refused the capacity: it must be positive")
      e1    (:wat::cache::Lru/put cache :k 1)   ;; first write -> None (nothing displaced)
      e2    (:wat::cache::Lru/put cache :k 99)  ;; overwrite   -> Some Entry{:key :k :value 1}
      got   (:wat::cache::Lru/get cache :k)
@@ -67,7 +67,7 @@
 ;; round-trip — put a holon key + value, get back the value.
 (:wat::test::deftest :user::cache_lru_holon_key_roundtrip
   (:wat::core::let
-    [cache (:wat::cache::Lru/new 16)
+    [cache (:wat::core::Result/expect (:wat::cache::Lru/new 16) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k     (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :the-form)))
      _put  (:wat::cache::Lru/put cache k 42)
      got   (:wat::cache::Lru/get cache k)]
@@ -77,7 +77,7 @@
 ;; positives): storing under k1 and probing k2 must miss.
 (:wat::test::deftest :user::cache_lru_holon_key_distinguishes
   (:wat::core::let
-    [cache (:wat::cache::Lru/new 16)
+    [cache (:wat::core::Result/expect (:wat::cache::Lru/new 16) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k1    (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :a)))
      k2    (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :b)))
      _put  (:wat::cache::Lru/put cache k1 1)
@@ -90,7 +90,7 @@
 ;; k1 would never be visible under k2.
 (:wat::test::deftest :user::cache_lru_holon_key_structural_equal
   (:wat::core::let
-    [cache (:wat::cache::Lru/new 16)
+    [cache (:wat::core::Result/expect (:wat::cache::Lru/new 16) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k1
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :role)))

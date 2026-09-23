@@ -41,36 +41,51 @@
 //! makes the macro wrap the `Self` return in that cell before opaquing and
 //! route every `&self`/`&mut self` method through `with_ref`/`with_mut`.
 //!
-//! # Failure surface (INHERITED from the oracle — see the Stone 1 report)
+//! # Failure surface
 //!
-//! Two guards `panic!` rather than returning a value: a non-positive
-//! `capacity` (the backing `LruCache` requires a `NonZeroUsize`) and a
-//! non-hashable key (an opaque handle — `impl Hash for Value` is
-//! `unreachable!()` there, so the guard turns a substrate `unreachable!` into
-//! a legible message). Unlike sqlite's fallible verbs, these are the two
-//! *programming-error* inputs, and the checker already rejects an opaque-typed
-//! key at most call sites.
+//! `new` returns `Result<Self, (i64, String, String)>` — sqlite's `RawFault`
+//! shape, `(code, diagnostic, message)`, so ONE raw-fault shape reads across
+//! every `:rust::` shim. A non-positive `capacity` is an `Err` value, never a
+//! panic. ⚠ `code` is `0`: unlike sqlite there is no external result-code
+//! space here — `new` has exactly one failure mode — and the column is carried
+//! rather than dropped so this is not a second, cache-only tuple arity with
+//! its own lift (precedent for `0` = "not an external error code":
+//! `sqlite.rs::param_to_tosql`). The type is spelled as the literal tuple, not
+//! a `RawFault` alias, because the macro's `rust_type_to_type_expr_tokens`
+//! matches the UNRESOLVED type and an alias name is not in its known-type list
+//! — every `sqlite.rs` method spells it out for the same reason.
 //!
-//! **The reason Stone 1 gave for deferring the conversion has EXPIRED, and the
-//! decision is OPEN — it is tracked, not promised.** Stone 1's brief
-//! (`BRIEF-cache-stone-1-primitive.md`) surfaced these panics as a question and
-//! left them to "a later stone", on the ground that the dispatch macro could
-//! not yet marshal a method-internal error back to wat. That is no longer true
-//! at this HEAD: `#[wat_dispatch]` marshals `Result<T, E>` natively via the
+//! `put`/`get` still `panic!` on a non-hashable key
+//! (an opaque handle — `impl Hash for Value` is `unreachable!()` there, so the
+//! guard turns a substrate `unreachable!` into a legible message).
+//!
+//! **`new`'s conversion landed 2026-09-22** (excursus 003 stone A, curing
+//! the-little-wat F-084). The mandate is recorded in
+//! `docs/excursus/2026/09/003-the-little-wat-findings/DESIGN-stone-A-lru-new-returns-a-result.md`
+//! and it SUPERSEDED the arc-109 note's axis: the line is not
+//! total-vs-partial and not whose-fault-is-the-input — **a refusal must arrive
+//! as a wat value.** `:wat::i64::/` is annotated `@Totality Partial` (a
+//! divide-by-zero is a caller bug by any reading) and still refuses INSIDE the
+//! language, with the user's span; a `panic!` here gave a wat program a Rust
+//! backtrace note, the internal `:rust::` name, and no span at all.
+//!
+//! The mechanism is `src/rust_deps/sqlite.rs`'s "Errors-as-values — the exact
+//! mechanism": `#[wat_dispatch]` marshals `Result<T, E>` natively via the
 //! blanket `ToWat`/`FromWat` impls, INCLUDING `Result<Self, E>` for a
-//! constructor like `Lru::new` — see `src/rust_deps/sqlite.rs`'s "Errors-as-values
-//! — the exact mechanism". So the conversion is now MECHANICALLY available and
-//! what remains is a genuine design call: does the no-hidden-failures law reach
-//! a programming-error input, or stop at a fallible one? Converting changes a
-//! SHIPPED public surface (`:wat::cache::Lru/new` would return a Result every
-//! caller must match) and must move `wat/cache.wat` in the same breath.
+//! constructor, through `emit_return_marshal`'s `result_ok_is_self` arm. Zero
+//! macro changes were needed.
+//!
+//! ⛔ **`put`/`get` are NOT converted, and that is a ruling, not an oversight.**
+//! The arc-109 NOTE rules LEAVE for both and warns explicitly against
+//! converting all three for symmetry; the builder's totality framing weakens
+//! that defence but does not overturn it. Re-opening it is a separate ruling.
 //!
 //! Tracked as a NOTE in arc 109, which owns `src/rust_deps/`:
 //! `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`
 //! — RULED ON THE MERITS (convert `Lru::new`, whose capacity crosses a
-//! serialization boundary; LEAVE `put`/`get`, whose key is a caller bug),
-//! awaiting mandate. Do not re-defer it in prose here; that note is the only
-//! honest home for it.
+//! serialization boundary; LEAVE `put`/`get`, whose key is a caller bug), and
+//! the `Lru::new` half has now SHIPPED. Do not re-open it in prose here; that
+//! note is the only honest home for it.
 
 use lru::LruCache;
 use std::num::NonZeroUsize;
@@ -95,17 +110,29 @@ impl WatCacheLru {
     /// entries. The returned value is a `ThreadOwnedCell<WatCacheLru>` inside a
     /// `Value::RustOpaque`; the cell binds to the calling thread.
     ///
-    /// `capacity <= 0` panics — the backing `LruCache` takes a `NonZeroUsize`
-    /// and the dispatch macro cannot yet marshal a method-internal error back
-    /// to wat as a `RuntimeError`. See the module doc's failure-surface note.
-    pub fn new(capacity: i64) -> Self {
+    /// `capacity <= 0` is an `Err` `(code, diagnostic, message)` tuple, never a panic — the backing
+    /// `LruCache` takes a `NonZeroUsize`, and a wat caller must be able to see
+    /// that refusal as a wat value carrying its own span. See the module doc's
+    /// failure-surface note for the mandate.
+    ///
+    /// ⭐ The `diagnostic` column names the **user-facing** verb
+    /// `:wat::cache::Lru/new`, never this internal `:rust::` shim: naming the
+    /// shim is half of what the-little-wat F-084 reports. `wat/cache.wat`'s
+    /// `:wat::cache::Lru/new` lifts this tuple into `:wat::cache::Fault`
+    /// verbatim — it does not re-word it — so this string IS what a wat
+    /// program reads.
+    pub fn new(capacity: i64) -> Result<Self, (i64, String, String)> {
         if capacity <= 0 {
-            panic!(":rust::cache::Lru/new: capacity must be positive; got {capacity}");
+            return Err((
+                0,
+                ":wat::cache::Lru/new".to_string(),
+                format!("capacity must be positive; got {capacity}"),
+            ));
         }
         let cap = NonZeroUsize::new(capacity as usize).expect("capacity > 0 checked above");
-        WatCacheLru {
+        Ok(WatCacheLru {
             inner: LruCache::new(cap),
-        }
+        })
     }
 
     /// `:rust::cache::Lru/put cache k v` — insert or update, bumping `k` to

@@ -43,7 +43,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [b     (:u::Box :cache (:wat::cache::Lru/new 8) :tag 42)
+    [b     (:u::Box :cache (:wat::core::Result/expect (:wat::cache::Lru/new 8) ":wat::cache::Lru/new refused the capacity: it must be positive") :tag 42)
      t1    (:wat::core::struct-field b 1)
      t2    (:wat::core::struct-field b 1)
      hA    (:wat::core::struct-field b 0)          ;; read BEFORE any mutation

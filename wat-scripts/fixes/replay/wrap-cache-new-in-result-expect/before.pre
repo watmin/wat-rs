@@ -1,0 +1,7 @@
+; near-miss: Lru/put is not a constructor and must NOT be wrapped (prefix exactness)
+(:wat::core::defn :u::keep [c <- (:wat::cache::Lru :- [:wat::core::keyword :wat::core::i64])] -> :wat::core::nil
+  (:wat::core::let [_ (:wat::cache::Lru/put c :a 1)] nil))
+(:wat::core::defn :u::hit [] -> :wat::core::i64
+  (:wat::core::let [c (:wat::cache::Lru/new 4)] (:wat::cache::Lru/len c)))
+(:wat::core::defn :u::hit2 [] -> :wat::core::i64
+  (:wat::core::let [s (:wat::cache::HolographicLru/new (:wat::holon::filter-accept-any) 4)] (:wat::cache::HolographicLru/len s)))
