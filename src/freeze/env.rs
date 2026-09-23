@@ -951,3 +951,213 @@ mod rete_wall_probe {
         );
     }
 }
+
+
+/// ⭐ ARC 251.8d-ii (EIGHTH DRAW) — **THE FAITHFUL-SURFACE ROUND-TRIP GATE.**
+///
+/// The 8d campaign's premise is ONE canonical spelling: a `.wat` file rewritten by
+/// `wat-scripts/fixes/to-faithful-clojure.wat` must declare the SAME names it declared
+/// before. For a DECLARATION NAME that is a round trip through machinery that already
+/// exists, in both directions, and is the declared grammar:
+///
+/// - forward — [`crate::edn::render::wat_keyword_to_clojure_symbol`]: strip the `:`,
+///   split on `::`, fold a `Type/method` leaf's `Type` INTO the namespace, join with `.`.
+///   This is what the codemod writes.
+/// - back — the name slot of `declare::parse` / `macros::parse`, which is
+///   [`crate::edn::render::ns_to_wat_path`] and writes `::` ALWAYS; then, for a FUNCTION
+///   only, [`rekey_type_member_functions`] above, which restores the `/` member join iff
+///   the parent segment names a TYPE (255.4: a member join is `/`, always).
+///
+/// ⛔ **The two are not inverses.** A faithful symbol carries exactly ONE `/` and it is
+/// the namespace/name split, so `wat.spawn.process/post-spawn` is the image of BOTH
+/// `:wat::spawn::process/post-spawn` and `:wat::spawn::process::post-spawn`. The rekey
+/// pass is the only thing that can tell them apart and it can only answer when the parent
+/// is a type. **When the parent is NOT a type, the `/` join is UNSPELLABLE in the faithful
+/// surface**: the declaration registers under `::`, every keyword-spelled caller still
+/// asks for `/`, and the name is simply gone. That is the eighth draw's address — measured
+/// by converting `wat/spawn.wat` alone, which turns the ONE deliberate unresolved
+/// reference in `probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat` into TWO.
+///
+/// ⭐ A MACRO is on the list for a DIFFERENT reason, and `:wat::core::Fault/of` is the
+/// only one: macros are registered and expanded at steps 4–5, before the `TypeEnv` exists
+/// at step 6.97, so `rekey_type_member_functions` cannot reach them at all — not even when
+/// the parent IS a type, as `Fault` is. Its rescue is at the CONSULT instead: the keyword
+/// arm of `macros::expand`'s macro-call dispatch asks `other_join_spelling` when the
+/// primary key misses, the same second question its Symbol arm already asked. ⛔ This gate
+/// deliberately does NOT model that rescue — a gate that models a cure passes whether or
+/// not the cure is there. The rescue is proven behaviourally, on two binaries, by
+/// `tests/macros/probe_arc251_8d_macro_member_join.rs`.
+///
+/// ⭐ DERIVED, not a hand-list: every top-level declaration name in every baked stdlib
+/// file is asked the same question. ⛔ The frozen list is the ANSWER, re-frozen by hand,
+/// so the class can never grow silently.
+///
+/// ⛔⛔ **THIS GATE GOES RED ON A 8d-CONVERTED STDLIB, BY DESIGN AND BY MEASUREMENT.** Once
+/// the corpus is faithful-spelled there is no keyword surface left to round-TRIP from:
+/// every declaration name arrives as a `Symbol`, `ns_to_wat_path` writes `::`, and the
+/// `/`-joined population this gate discriminates on collapses to ONE. Measured — the
+/// eighth draw's converted floor fires the `slash_joined` floor with
+/// `only 1 stdlib declaration names carry a `/` member join`, which is a SECOND,
+/// whole-corpus confirmation that the conversion destroys the join. The floor is not a
+/// bug to tune away: a conditional skip here could not tell "clean" from "never ran"
+/// (`[[feedback_a_conditional_probe_cannot_tell_clean_from_never_ran]]`). **When 8d-iii
+/// lands, this gate is RETIRED or RE-AIMED at the converted surface — it is not
+/// loosened.**
+///
+/// ⛔ **The frozen seven are a SURFACE question, not a defect this pass may cure.** They
+/// are `wat/spawn.wat`'s documented per-env builder constructors — `(thread/init f)`,
+/// `(process/post-spawn f)`, `(process/runner-count n)`, … — spelled out in that file's
+/// own header at lines 90–98 and written across 26 more live files. Curing them
+/// means RESPELLING a documented public API across the corpus, which is the builder's
+/// ruling and 255.8's already-scheduled *"stone for the wrong-join acceptance BEFORE
+/// 8d-iii"*, not a rider's. This gate exists so that stone has an exact, derived,
+/// non-growing list to work from.
+#[cfg(test)]
+mod faithful_surface_round_trip {
+    use super::*;
+
+    /// Every stdlib declaration name that does NOT survive the round trip through the
+    /// faithful-Clojure surface. A name JOINING this list is a new hole in 8d's surface;
+    /// a name LEAVING it is a cure, and the SCORE must say which side of the join moved.
+    const UNSPELLABLE_IN_THE_FAITHFUL_SURFACE: &[&str] = &[
+        // ⛔ UNREACHABLE once `wat/spawn.wat` is converted: the parent segment
+        // (`process` / `thread`) is not a TYPE, so nothing can restore the `/`, and
+        // every keyword-spelled caller keeps asking for a key that no longer exists.
+        // This is the eighth draw's measured address. Curing it means RESPELLING a
+        // documented public API (see this module's doc) — the builder's ruling.
+        ":wat::core::Fault/of",
+        ":wat::spawn::process/env",
+        ":wat::spawn::process/max-message-bytes",
+        ":wat::spawn::process/post-spawn",
+        ":wat::spawn::process/runner-count",
+        ":wat::spawn::thread/init",
+        ":wat::spawn::thread/post-spawn",
+        ":wat::spawn::thread/runner-count",
+    ];
+
+    /// The declaration heads whose item 1 is a NAME. `defservice`/`defrule` mint their
+    /// members by string concatenation from this same name, so covering the declaration
+    /// covers them; a minted name is never written in a source file and is therefore not
+    /// something the codemod can rewrite.
+    fn is_named_declaration(head: &str) -> bool {
+        matches!(
+            head,
+            ":wat::core::defn"
+                | ":wat::core::def"
+                | ":wat::core::defmacro"
+                | ":wat::core::defclause"
+                | ":wat::core::defrecord"
+                | ":wat::core::defstruct"
+                | ":wat::core::defenum"
+                | ":wat::core::defsurface"
+                | ":wat::core::defservice"
+                | ":wat::core::typealias"
+                | ":wat::holon::defrecord"
+        )
+    }
+
+    #[test]
+    fn every_stdlib_declaration_name_survives_the_faithful_surface() {
+        let (_symbols, _macros, types) = stdlib_snapshot();
+
+        let mut measured = 0usize;
+        let mut slash_joined = 0usize;
+        let mut offenders: Vec<String> = Vec::new();
+
+        for src in crate::load::stdlib::stdlib_files() {
+            let forms = crate::parser::parse_all_with_file(src.source, src.path)
+                .unwrap_or_else(|e| panic!("stdlib file {} must parse: {e:?}", src.path));
+            for form in &forms {
+                let WatAST::List(items, _) = form else {
+                    continue;
+                };
+                let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) else {
+                    continue;
+                };
+                if !is_named_declaration(head.as_ref()) {
+                    continue;
+                }
+                let is_macro = head.as_ref() == ":wat::core::defmacro";
+                let name = match items.get(1) {
+                    Some(WatAST::Keyword(k, _)) => k.clone(),
+                    Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                        crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                    }
+                    _ => continue,
+                };
+                // Not a call-head-shaped name: nothing for the codemod to rewrite.
+                let Some(clj) = crate::edn::render::wat_keyword_to_clojure_symbol(&name) else {
+                    continue;
+                };
+                // rune:lint(one-variant-separator, namespace) — a faithful symbol's ONE `/`
+                // is its namespace/name split; no enum/variant is involved.
+                if !clj.contains('/') {
+                    continue;
+                }
+                measured += 1;
+                // rune:lint(one-variant-separator, namespace) — the leaf's member join
+                if name.contains('/') {
+                    slash_joined += 1;
+                }
+
+                // What `declare::parse` / `macros::parse` would register for the CONVERTED
+                // declaration: `ns_to_wat_path`, which writes `::` always.
+                let stored = crate::edn::render::ns_to_wat_path(
+                    wat_reader::identifier::receiver(&clj),
+                    wat_reader::identifier::method(&clj),
+                );
+                // ⛔ ONE question, asked of the LIVE `TypeEnv`, never modelled: would
+                // `rekey_type_member_functions` put this join back? That is
+                // `reconstruct_call_path`, the same door the rekey pass itself calls.
+                //
+                // ⛔ AND THE REKEY PASS WALKS `sym.functions_iter()` ONLY — a MACRO is
+                // never rekeyed, whatever its parent is. That is a fact about the code
+                // above, not a model of any cure: a `defmacro` registers at step 4 and
+                // expands at step 5, both before the `TypeEnv` is attached at step 6.97.
+                let survives = stored == name
+                    || (!is_macro
+                        && crate::types::reconstruct_call_path(
+                            wat_reader::identifier::receiver(&clj),
+                            wat_reader::identifier::method(&clj),
+                            types,
+                        ) == name);
+                if !survives {
+                    offenders.push(name);
+                }
+            }
+        }
+        offenders.sort();
+        offenders.dedup();
+
+        // ⛔ NON-VACUITY, on two axes. A census that parsed nothing and a census whose
+        // discriminating population is empty both read exactly like a clean one
+        // (`[[feedback_a_green_test_can_prove_nothing]]`).
+        assert!(
+            measured > 500,
+            "the declaration census measured only {measured} names — the stdlib list or the \
+             forward map changed shape; this green is worthless"
+        );
+        assert!(
+            slash_joined >= 16,
+            "only {slash_joined} stdlib declaration names carry a `/` member join — the \
+             population this gate discriminates ON has vanished, so a pass proves nothing"
+        );
+
+        let want: Vec<String> = UNSPELLABLE_IN_THE_FAITHFUL_SURFACE
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        assert_eq!(
+            offenders, want,
+            "\n🔥 THE FAITHFUL-SURFACE DECLARATION ROUND TRIP CHANGED \
+             ({measured} names measured, {slash_joined} of them `/`-joined).\n\
+             A name here converts to a faithful-Clojure symbol that registers under a \
+             DIFFERENT key, so every keyword-spelled caller loses it the moment its \
+             declaring file is converted.\n\
+             If you ADDED one: the `/` join means Type/member (255.4) — use `::` unless the \
+             segment before the `/` is a declared TYPE.\n\
+             If you CURED one: re-freeze the list above and say, in the SCORE, which side of \
+             the join moved."
+        );
+    }
+}

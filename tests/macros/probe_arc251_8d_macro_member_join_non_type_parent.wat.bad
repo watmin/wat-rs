@@ -1,0 +1,8 @@
+;; Arc 251.8d-ii (EIGHTH DRAW) — WALL row 3 (NEGATIVE, must fail startup).
+;; A NON-type parent, a member that was never declared. The consult is join-symmetric
+;; and needs no type, so this row proves the wall is on the NAME, not on the parent's
+;; kind: an unknown member is refused whether or not the parent names a type.
+(wat.core/defmacro user.helper/of [n :- wat/WatAST] :- wat/WatAST
+  `(:wat::core::+ ~n 1))
+(:wat::core::defn :user::entry [] -> :wat::core::i64
+  (:user::helper/nope 7))

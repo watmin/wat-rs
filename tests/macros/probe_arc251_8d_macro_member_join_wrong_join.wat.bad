@@ -1,0 +1,17 @@
+;; Arc 251.8d-ii (EIGHTH DRAW) — WALL row 2 (NEGATIVE, must fail startup).
+;;
+;; THE DIRECTION CONTROL. A KEYWORD author writing the OTHER join against a correctly
+;; stored `/` name must stay REFUSED — 255.8's WEIGH ruled that the wrong-join
+;; acceptance is the thing to close, not to spread. The cure flips `/` -> `::` only,
+;; never `::` -> `/`.
+;;
+;; ⛔ The parent is LOWER-CASE on purpose. Written with a PascalCase parent this row
+;; would spell `:user::Box::of` — the colon-joined Type::member that 255.4 RETIRED, and
+;; `tests/lint/one_member_join.rs` refuses that text in any tracked `.wat`, `.wat.bad`
+;; included. (It caught the first draft of this file, which is its own corroboration:
+;; the direction this stone declines to implement is already corpus-illegal.) A
+;; lower-case parent tests the same direction without writing a retired spelling.
+(:wat::core::defmacro :user::helper/of [n <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::core::+ ~n 1))
+(:wat::core::defn :user::entry [] -> :wat::core::i64
+  (:user::helper::of 7))

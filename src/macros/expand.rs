@@ -613,12 +613,46 @@ pub(super) fn expand_form(
             if let Some(WatAST::Keyword(head, head_span)) = items.first() {
                 let (type_args, rest_after_marker) = crate::types::peel_param_spec(&items[1..]);
                 let is_type_reference = type_args.is_some() && rest_after_marker.is_empty();
-                if registry.contains(head) && !is_type_reference {
+                // Arc 251.8d-ii (EIGHTH) — THE OTHER HALF OF THE SYMBOL ARM BELOW.
+                //
+                // A `defmacro` name is stored with `ns_to_wat_path`, which writes `::`
+                // ALWAYS (`src/macros/parse.rs`'s name slot). So `(:wat::core::defmacro
+                // :wat::core::Fault/of …)` registers under `:wat::core::Fault/of` —
+                // verbatim, the `/` survives, because a Keyword payload IS the identity —
+                // but its FAITHFUL-CLOJURE twin `(wat.core/defmacro wat.core.Fault/of …)`
+                // registers under `:wat::core::Fault::of`: `ns_to_wat_path` cannot tell
+                // `Parent/member` from `ns/name`, and writes the namespace join.
+                //
+                // `freeze::env::rekey_type_member_functions` is the compensating pass that
+                // asks the TypeEnv which join a stored name meant — and it walks
+                // `sym.functions_iter()` ONLY. The MacroRegistry has no counterpart, and
+                // cannot get one at the same point: macros are registered and EXPANDED at
+                // step 4/5, before the TypeEnv exists (step 6.97). So the question has to
+                // be asked HERE, at the consult, exactly as the Symbol arm below already
+                // asks it: the registry says which spelling it holds.
+                //
+                // ⛔ ONE DIRECTION ONLY, and the guard is what makes it one: `/` → `::`,
+                // i.e. "the stored key lost the member join under conversion". The reverse
+                // (`::` → `/`) is a keyword author writing the WRONG join against a
+                // correctly-stored name, which 255.8's WEIGH ruled must stay REFUSED. The
+                // `head.contains('/')` guard also keeps the allocation off the hot path:
+                // every keyword-headed list in every program reaches this line.
+                let joined_alt = if registry.contains(head) || !head.contains('/') {
+                    None
+                } else {
+                    crate::types::other_join_spelling(head).filter(|alt| registry.contains(alt))
+                };
+                let macro_key: Option<&str> = if registry.contains(head) {
+                    Some(head.as_str())
+                } else {
+                    joined_alt.as_deref()
+                };
+                if let (Some(macro_key), false) = (macro_key, is_type_reference) {
                     let head_span = head_span.clone();
                     let args = rest_after_marker.to_vec();
                     let expanded = {
                         let def = registry
-                            .get(head)
+                            .get(macro_key)
                             .expect("contains checked immediately above");
                         expand_macro_call(def, args, list_span.clone(), head_span, env, sym)?
                     };
