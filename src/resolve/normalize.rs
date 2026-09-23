@@ -517,8 +517,37 @@ fn normalize_make_rule(
     if let Some(when_arg) = iter.next() {
         out.push(normalize_make_rule_when(when_arg, sym, macros, errors));
     }
-    out.extend(iter); // :then vector + any trailing args: data, as-is
+    // :then vector + any trailing args: DATA — contents untouched. 251.8d-ii SIXTH:
+    // the quote HEAD is not data, it is the boundary marker, and `check.rs::infer_list`
+    // only recognizes the keyword node. A symbol-spelled `(wat.core/quote …)` left here
+    // is type-checked as an ordinary call and its fact vector walked as code.
+    for rest in iter {
+        out.push(normalize_quote_head_only(rest, sym, macros, errors));
+    }
     out
+}
+
+/// Rewrite a `(wat.core/quote …)` boundary head to `:wat::core::quote` and leave every
+/// argument byte-identical. Used for `make-rule`'s `:then` argument, which is pure data
+/// under the [`Boundary::MakeRule`] contract — only the marker is re-spelled.
+fn normalize_quote_head_only(
+    node: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    let WatAST::List(qitems, qspan) = node else { return node };
+    let is_quote = matches!(
+        qitems
+            .first()
+            .and_then(crate::declare::parse::head_fqdn)
+            .as_deref(),
+        Some(":wat::core::quote")
+    );
+    if !is_quote {
+        return WatAST::List(qitems, qspan);
+    }
+    WatAST::List(rewrite_boundary_head(qitems, sym, macros, errors), qspan)
 }
 
 /// Normalize a `make-rule` call's `:when` argument. Expected shape
@@ -534,13 +563,29 @@ fn normalize_make_rule_when(
     errors: &mut Vec<UnresolvedReference>,
 ) -> WatAST {
     let WatAST::List(qitems, qspan) = when_arg else { return when_arg };
-    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    // 251.8d-ii SIXTH — the quote head is read through `head_fqdn`, the same door
+    // `normalize_form` uses one frame up, so `(wat.core/quote …)` — what a
+    // faithful-Clojure `defrule` template emits — is the same boundary as
+    // `(:wat::core::quote …)`. The Keyword arm of that door is byte-identical.
+    let is_quote = matches!(
+        qitems
+            .first()
+            .and_then(crate::declare::parse::head_fqdn)
+            .as_deref(),
+        Some(":wat::core::quote")
+    );
     if !is_quote {
         return WatAST::List(qitems, qspan);
     }
+    // ⛔ And the head must be REWRITTEN, not merely recognized: `make-rule`'s
+    // `:when` argument never reaches `normalize_form`'s generic boundary path
+    // (this fn intercepts it), and `check.rs::infer_list` matches the KEYWORD
+    // node — a surviving `wat.core/quote` symbol head is type-checked as an
+    // ordinary call, which walks the quoted condition vector as CODE.
+    let qitems = rewrite_boundary_head(qitems, sym, macros, errors);
     let mut qiter = qitems.into_iter();
     let mut new_q = Vec::with_capacity(2);
-    new_q.extend(qiter.next()); // quote head, as-is
+    new_q.extend(qiter.next()); // quote head, already normalized above
     if let Some(vec_node) = qiter.next() {
         new_q.push(normalize_make_rule_conditions(vec_node, sym, macros, errors));
     }

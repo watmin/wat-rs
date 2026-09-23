@@ -233,7 +233,15 @@ fn check_make_rule_when(
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
     let WatAST::List(qitems, _) = when_arg else { return };
-    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    // 251.8d-ii SIXTH — through `head_fqdn`, the shared door, so a faithful-Clojure
+    // `(wat.core/quote …)` head opens the same boundary. Keyword arm byte-identical.
+    let is_quote = matches!(
+        qitems
+            .first()
+            .and_then(crate::declare::parse::head_fqdn)
+            .as_deref(),
+        Some(":wat::core::quote")
+    );
     if !is_quote {
         return;
     }

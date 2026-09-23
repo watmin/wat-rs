@@ -247,9 +247,17 @@ pub(crate) fn compile_acc_fold(
             .into());
         }
     };
-    let head = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        Some(WatAST::Symbol(s, _)) => s.as_str(),
+    // 251.8d-ii SIXTH — ONE DOOR on the Symbol arm. The acc-form lives inside a rule's
+    // QUOTED `:when` vector, which `resolve::normalize` deliberately never rewrites, so a
+    // faithful-Clojure `(wat.rete.acc/count)` arrives here as a raw `Symbol` and the
+    // keyword-keyed table below would mis-key it as a USER fold. `canonical_identity` is
+    // 255.13's derived door for a bare name string; the `Keyword` arm is byte-identical
+    // because that payload IS the internal identity (255.13 §2.2, the DUAL-ARM RULE).
+    let head_identity: std::borrow::Cow<'_, str> = match items.first() {
+        Some(WatAST::Keyword(k, _)) => std::borrow::Cow::Borrowed(k.as_str()),
+        Some(WatAST::Symbol(s, _)) => {
+            std::borrow::Cow::Owned(crate::edn::render::canonical_identity(s.as_str()))
+        }
         _ => {
             return Err(RuntimeError::new(
                 acc_form.span().clone(),
@@ -261,6 +269,7 @@ pub(crate) fn compile_acc_fold(
             .into());
         }
     };
+    let head: &str = head_identity.as_ref();
     let var_key = || -> Result<Value, EvalBreak> {
         let name = match items.get(1) {
             Some(WatAST::Symbol(s, _)) => s.as_str().to_string(),
@@ -421,11 +430,19 @@ pub(crate) fn compile_user_fold_programs(
             WatAST::List(items, _) => items.as_slice(),
             _ => continue,
         };
-        let head = match items.first() {
-            Some(WatAST::Keyword(k, _)) => k.as_str(),
-            Some(WatAST::Symbol(s, _)) => s.as_str(),
+        // 251.8d-ii SIXTH — the SAME door as `compile_acc_fold`'s head read, and it must be
+        // the same or the two disagree about which heads are builtin: this fn skips the
+        // builtins by prefix and compiles everything else as a user fold, while
+        // `compile_acc_fold` keys the builtin table. A symbol-spelled `wat.rete.acc/count`
+        // read raw here would be sent to `lower_named_rete_fn` as a user rete-defn.
+        let head_identity: std::borrow::Cow<'_, str> = match items.first() {
+            Some(WatAST::Keyword(k, _)) => std::borrow::Cow::Borrowed(k.as_str()),
+            Some(WatAST::Symbol(s, _)) => {
+                std::borrow::Cow::Owned(crate::edn::render::canonical_identity(s.as_str()))
+            }
             _ => continue,
         };
+        let head: &str = head_identity.as_ref();
         if head.starts_with(":wat::rete::acc::") {
             continue;
         }
@@ -1489,5 +1506,200 @@ pub(crate) fn eval_adopt_session_lease(
             },
         )
         .into()),
+    }
+}
+
+// ─── 251.8d-ii SIXTH DRAW — the acc-fold head identity door ──────────────────────────────
+//
+// The four NON-VACUITY rows the stone is about, asserted beside the door they guard.
+// `#[cfg(test)]`, so the keyword-heresy ledger (a `src/` instrument that excludes test
+// modules) does not count them.
+//
+// ⛔ Every row asserts on the STRUCT — the `AccFold` variant and the `RuntimeErrorKind`
+// fields — never on a rendered string, and the two refusal rows assert the WALL
+// (`is_err()`) before the identity, so an equality can never be satisfied by two spellings
+// that are both silently admitted.
+#[cfg(test)]
+mod acc_fold_head_identity_tests {
+    use super::*;
+    use crate::scope::Identifier;
+
+    fn span() -> crate::span::Span {
+        crate::rust_caller_span!()
+    }
+
+    fn kw(s: &str) -> WatAST {
+        WatAST::Keyword(s.into(), span())
+    }
+
+    fn sym(s: &str) -> WatAST {
+        WatAST::Symbol(Identifier::bare(s), span())
+    }
+
+    /// The variant name — `AccFold` carries `Value`/`Arc<Program>` payloads and derives no
+    /// `Debug`; a failure message needs the ARM that fired, which is exactly this.
+    fn tag(f: &AccFold) -> &'static str {
+        match f {
+            AccFold::Count => "Count",
+            AccFold::Sum(_) => "Sum",
+            AccFold::Min(_) => "Min",
+            AccFold::Max(_) => "Max",
+            AccFold::Mean(_) => "Mean",
+            AccFold::Distinct(_) => "Distinct",
+            AccFold::All => "All",
+            AccFold::GroupBy(_) => "GroupBy",
+            AccFold::User { .. } => "User",
+        }
+    }
+
+    fn acc_form(items: Vec<WatAST>) -> WatAST {
+        WatAST::List(items, span())
+    }
+
+    /// A minimal `Program` — the thing a USER fold must have and an unknown head must not.
+    fn a_program() -> Arc<crate::rete::expr_ir::Program> {
+        Arc::new(crate::rete::expr_ir::Program {
+            frame_len: 1,
+            root: crate::rete::expr_ir::Expr::Lit(crate::runtime::Value::i64(0)),
+            reads: Arc::from(Vec::new()),
+            params: Box::new([0u16]),
+            names: Box::new([]),
+            span: span(),
+        })
+    }
+
+    /// The `MalformedForm` head + reason a refusal carries, or `None` if it was admitted.
+    fn refusal(form: &WatAST, prog: Option<Arc<crate::rete::expr_ir::Program>>) -> Option<(String, String)> {
+        match compile_acc_fold(form, prog) {
+            Ok(_) => None,
+            Err(EvalBreak::Diagnostic(e)) => match e.kind() {
+                RuntimeErrorKind::MalformedForm { head, reason } => {
+                    Some((head.to_string(), reason.to_string()))
+                }
+                other => panic!("expected MalformedForm, got {other:?}"),
+            },
+            Err(other) => panic!("expected a Raise, got {other:?}"),
+        }
+    }
+
+    /// ROW 1 — THE CURE. A zero-arg builtin fold in the faithful-Clojure spelling compiles to
+    /// the SAME `AccFold` variant as the keyword spelling. Pre-cure the symbol arm fell to the
+    /// `_` arm and was compiled as a USER fold.
+    #[test]
+    fn a_builtin_acc_head_compiles_the_same_in_both_spellings() {
+        let kw_fold = compile_acc_fold(&acc_form(vec![kw(":wat::rete::acc::count")]), None)
+            .expect("the keyword spelling is a builtin");
+        let sym_fold = compile_acc_fold(&acc_form(vec![sym("wat.rete.acc/count")]), None)
+            .expect("THE CURE: the symbol spelling is the same builtin");
+        assert!(matches!(kw_fold, AccFold::Count), "control moved: {}", tag(&kw_fold));
+        assert!(matches!(sym_fold, AccFold::Count), "THE CURE: {}", tag(&sym_fold));
+        // `all` is the second zero-arg verb — so the row is not one-verb wide.
+        assert!(matches!(
+            compile_acc_fold(&acc_form(vec![sym("wat.rete.acc/all")]), None).expect("all"),
+            AccFold::All
+        ));
+    }
+
+    /// ROW 4 — `var_key`'s site. A `?var` argument resolves to the SAME binding key in both
+    /// spellings of the HEAD, and in both spellings (`Symbol` / `Keyword`) of the ARG itself.
+    /// ⭐ MEASURED, not assumed: `?v` carries no namespace, so `canonical_identity` is the
+    /// identity function on it and `var_key` needs NO door.
+    #[test]
+    fn the_var_key_is_identical_in_both_spellings() {
+        let want = crate::runtime::Value::String(Arc::new("?v".to_string()));
+        for head in [":wat::rete::acc::sum", ":wat::rete::acc::max"] {
+            // Through the ONE door — `identifier::leaf` is the sanctioned reader for "the last
+            // `::` segment" (STONE-one-name-grammar). rune:lint(one-variant-separator, namespace)
+            // — a namespace/leaf split of an op path, not an enum/variant split.
+            let leaf = wat_reader::identifier::leaf(head);
+            let kw_fold = compile_acc_fold(&acc_form(vec![kw(head), sym("?v")]), None).expect("kw");
+            let sym_fold =
+                compile_acc_fold(&acc_form(vec![sym(&format!("wat.rete.acc/{leaf}")), sym("?v")]), None)
+                    .expect("THE CURE: the symbol spelling is the same builtin");
+            assert_eq!(kw_fold.operand_keys(), vec![want.clone()], "kw {head}");
+            assert_eq!(sym_fold.operand_keys(), vec![want.clone()], "sym {head}");
+        }
+        // The `?var` may also be written as a keyword — unchanged by this stone, asserted so a
+        // future door on `var_key` cannot move it silently.
+        let as_kw = compile_acc_fold(&acc_form(vec![sym("wat.rete.acc/sum"), kw(":v")]), None)
+            .expect("keyword var arg");
+        assert_eq!(
+            as_kw.operand_keys(),
+            vec![crate::runtime::Value::String(Arc::new(":v".to_string()))]
+        );
+    }
+
+    /// ROW 2 — ⛔ THE ADVERSARIAL ROW. A GENUINE USER FOLD IS STILL A USER FOLD. The cure
+    /// re-spells a head; it must not make one MEMBER of the builtin table. Driven in BOTH
+    /// spellings, because a re-spelling that reached the table would show up here first.
+    #[test]
+    fn a_genuine_user_fold_is_not_swallowed_by_a_builtin_arm() {
+        for head in [
+            kw(":user::my-fold"),
+            sym("user.app/my-fold"),
+            // ⭐ The nastiest one: a name that is a NEIGHBOUR of the builtin namespace but not
+            // a member of the table. `canonical_identity` maps it to `:wat::rete::acc2::count`
+            // — still in no arm.
+            sym("wat.rete.acc2/count"),
+            // ⭐ And one that canonicalizes INTO the builtin namespace but is not a listed verb.
+            sym("wat.rete.acc/median"),
+        ] {
+            let form = acc_form(vec![head.clone(), sym("?v")]);
+            let fold = compile_acc_fold(&form, Some(a_program()))
+                .unwrap_or_else(|e| panic!("user fold {head:?} was refused: {e:?}"));
+            assert!(
+                matches!(fold, AccFold::User { .. }),
+                "⛔ a user fold was swallowed by a builtin arm: {head:?} → {}",
+                tag(&fold)
+            );
+            assert_eq!(
+                fold.operand_keys(),
+                vec![crate::runtime::Value::String(Arc::new("?v".to_string()))]
+            );
+        }
+    }
+
+    /// ROW 3 — ⛔ AN UNKNOWN HEAD WITH NO COMPILED PROGRAM IS STILL REFUSED, with the same
+    /// located reason in both spellings. THE WALL is asserted first (`is_some()`), so the
+    /// identity comparison below cannot be satisfied by two silently-admitted spellings.
+    #[test]
+    fn an_unknown_head_with_no_program_is_refused_in_both_spellings() {
+        let kw_refusal = refusal(&acc_form(vec![kw(":not::a::real::fold"), sym("?v")]), None);
+        let sym_refusal = refusal(&acc_form(vec![sym("not.a.real/fold"), sym("?v")]), None);
+        // THE WALL — green on both binaries.
+        let (kw_head, kw_reason) = kw_refusal.expect("⛔ an unknown keyword head was ADMITTED");
+        let (sym_head, sym_reason) = sym_refusal.expect("⛔ an unknown symbol head was ADMITTED");
+        assert_eq!(
+            kw_reason, "user acc fold has no compiled Program — setup should have refused",
+            "the located reason changed"
+        );
+        // THE CURE — one verb, one reason: post-cure both spellings name the same identity.
+        assert_eq!(kw_reason, sym_reason);
+        assert_eq!(kw_head, ":not::a::real::fold");
+        assert_eq!(
+            sym_head, ":not::a::real::fold",
+            "THE CURE: the refusal names the IDENTITY, not the written text"
+        );
+        // A builtin head is NOT reached by this path — the positive control that keeps the two
+        // refusal rows from passing on a door that refuses everything.
+        assert!(refusal(&acc_form(vec![sym("wat.rete.acc/count")]), None).is_none());
+    }
+
+    /// ⛔ The shape arms are untouched: a non-list acc-form and an empty one keep their own
+    /// distinct diagnoses (the doc above `compile_acc_fold` says why they are separate).
+    #[test]
+    fn the_malformed_shape_arms_are_unchanged() {
+        assert_eq!(
+            refusal(&kw(":not::a::list"), None).map(|(_, r)| r),
+            Some("accumulate acc-form is not a list".to_string())
+        );
+        assert_eq!(
+            refusal(&acc_form(vec![]), None).map(|(_, r)| r),
+            Some("accumulate acc-form has no head".to_string())
+        );
+        assert_eq!(
+            refusal(&acc_form(vec![WatAST::IntLit(1, span())]), None).map(|(_, r)| r),
+            Some("accumulate acc-form has no head".to_string())
+        );
     }
 }

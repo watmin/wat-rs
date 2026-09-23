@@ -873,8 +873,14 @@ fn expand_make_rule_then(
     let WatAST::List(qitems, qspan) = then_arg else {
         return Ok(then_arg);
     };
-    let is_quote =
-        matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    // 251.8d-ii SIXTH — read through `canonical_identity_of`, the same door
+    // `expand_form` already uses for the `make-rule` head itself, so a
+    // faithful-Clojure `(wat.core/quote …)` opens the same boundary. The Keyword
+    // arm of that door returns its payload unchanged.
+    let is_quote = matches!(
+        qitems.first().and_then(crate::form_match::canonical_identity_of).as_deref(),
+        Some(":wat::core::quote")
+    );
     if !is_quote {
         return Ok(WatAST::List(qitems, qspan));
     }
@@ -991,8 +997,14 @@ fn expand_make_rule_when(
     let WatAST::List(qitems, qspan) = when_arg else {
         return Ok(when_arg);
     };
-    let is_quote =
-        matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    // 251.8d-ii SIXTH — read through `canonical_identity_of`, the same door
+    // `expand_form` already uses for the `make-rule` head itself, so a
+    // faithful-Clojure `(wat.core/quote …)` opens the same boundary. The Keyword
+    // arm of that door returns its payload unchanged.
+    let is_quote = matches!(
+        qitems.first().and_then(crate::form_match::canonical_identity_of).as_deref(),
+        Some(":wat::core::quote")
+    );
     if !is_quote {
         return Ok(WatAST::List(qitems, qspan));
     }

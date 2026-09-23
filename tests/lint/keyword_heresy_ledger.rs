@@ -105,7 +105,8 @@
 //! read **232 → 229**, and the shape mix is the louder half of that number: `intrinsic_meta`
 //! **3 [Bx3] → 0**, `effectful_by_prefix` **8 [Bx8] → 8 [Ax8]** — same count, better class, which
 //! is why this test now freezes the MIX as well as the count. Crate-wide shape **B: 14 → 3**
-//! (`rete/kernel/arm.rs` ×2, `rete/purity.rs::walk_rete_defn_callees` ×1).
+//! (`rete/purity.rs::walk_rete_defn_callees` ×1 — `rete/kernel/arm.rs`'s two were cured by
+//! 251.8d-ii's SIXTH draw).
 //!
 //! Exemption form for a site that is genuinely not heresy: a per-offense
 //! `// rune:lint(keyword-heresy) — <reason>` on the offending line or the one above, mirroring
@@ -758,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 229;
+const LEDGER_TOTAL: usize = 223;
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -836,8 +837,6 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/lower.rs", "lower_call", 1, "Ax1"),
     ("src/macros/eval.rs", "validate_pure_total", 1, "Ax1"),
     ("src/macros/eval.rs", "validate_quasiquote_template", 3, "Ax3"),
-    ("src/macros/expand.rs", "expand_make_rule_then", 1, "Ax1"),
-    ("src/macros/expand.rs", "expand_make_rule_when", 1, "Ax1"),
     ("src/macros/expand.rs", "is_quasiquote_form", 1, "Ax1"),
     ("src/macros/parse.rs", "is_watast", 1, "Ex1"),
     ("src/macros/parse.rs", "is_watast_vec", 1, "Ex1"),
@@ -845,13 +844,9 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/match_arm.rs", "builtin_variant", 1, "Ax1"),
     ("src/resolve/boundary.rs", "is_unquote_escape", 2, "Ax2"),
     ("src/resolve/boundary.rs", "is_where_form", 1, "Ax1"),
-    ("src/resolve/normalize.rs", "normalize_make_rule_when", 1, "Ax1"),
-    ("src/resolve/walk.rs", "check_make_rule_when", 1, "Ax1"),
     ("src/resolve/walk.rs", "is_resolvable_call_head", 1, "Ax1"),
     ("src/rete/collect.rs", "eval_collect_rules", 1, "Ex1"),
     ("src/rete/expr_ir/mod.rs", "lower_list", 1, "Ax1"),
-    ("src/rete/kernel/arm.rs", "compile_acc_fold", 1, "Bx1"),
-    ("src/rete/kernel/arm.rs", "compile_user_fold_programs", 1, "Bx1"),
     ("src/rete/kernel/stratify.rs", "body_constructs_computed", 3, "Ax3"),
     ("src/rete/kernel/stratify.rs", "domain_cardinality", 1, "Ex1"),
     ("src/rete/purity.rs", "classify_expr", 3, "Ax3"),
@@ -867,6 +862,17 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     // now takes `canonical_identity` on its Symbol arm. The calibration row that used to
     // pin it as shape B moved to `rete/kernel/arm.rs::compile_acc_fold` (still Bx1).
     ("src/rete/purity.rs", "is_declaration_derived_construction", 2, "Ax2"),
+    // ⭐ 251.8d-ii SIXTH — SIX ROWS GONE, one language fact and one door.
+    //   `src/macros/expand.rs`   expand_make_rule_when / expand_make_rule_then   1 [Ax1] → 0
+    //   `src/resolve/normalize.rs` normalize_make_rule_when                      1 [Ax1] → 0
+    //   `src/resolve/walk.rs`    check_make_rule_when                            1 [Ax1] → 0
+    //   `src/rete/kernel/arm.rs` compile_acc_fold / compile_user_fold_programs   1 [Bx1] → 0
+    // The four `make-rule` descents each tested their `:when`/`:then` argument's quote head with
+    // a keyword-only `matches!`; each now reads it through the door the enclosing pass already
+    // uses (`head_fqdn` in resolve, `canonical_identity_of` in expand). The two `arm.rs` sites
+    // are 255.13 §4.3's own find, the accumulator lowering's dual-raw head, cured with
+    // `canonical_identity` on the Symbol arm only. ⭐ CRATE-WIDE SHAPE B: 3 → 1 — the last one
+    // is `rete/purity.rs::walk_rete_defn_callees`, which now carries the calibration anchor.
     ("src/rete/purity.rs", "walk_rete_defn_callees", 1, "Bx1"),
     ("src/runtime.rs", "conforms_check", 4, "Ex4"),
     ("src/runtime.rs", "dispatch_keyword_head", 1, "Ax1"),
@@ -1026,6 +1032,12 @@ fn the_discriminator_separates_the_cured_from_the_open() {
         ("src/check.rs", "is_type_orderable", ":wat::core::i64", "255.12 — the orderable table matched against `denoted`"),
         ("src/check.rs", "walk_for_restricted_call", "", "255.11 — the capability wall reads both spellings and holds NO keyword literal comparison at all, so it must produce no site whatsoever"),
         ("src/rete/purity.rs", "intrinsic_meta", ":wat::core::+", "251.8d-ii FIFTH — classify_expr's Symbol arm takes canonical_identity, so the only head this table can be handed is an identity"),
+        ("src/rete/kernel/arm.rs", "compile_acc_fold", ":wat::rete::acc::count", "251.8d-ii SIXTH — the acc-form head's Symbol arm takes canonical_identity; the builtin table can only be handed an identity"),
+        ("src/rete/kernel/arm.rs", "compile_user_fold_programs", ":wat::rete::acc::", "251.8d-ii SIXTH — the same door, because the two must agree about which heads are builtin"),
+        ("src/resolve/normalize.rs", "normalize_make_rule_when", ":wat::core::quote", "251.8d-ii SIXTH — the make-rule :when quote head read through head_fqdn and re-spelled"),
+        ("src/resolve/walk.rs", "check_make_rule_when", ":wat::core::quote", "251.8d-ii SIXTH — the same boundary, the same door"),
+        ("src/macros/expand.rs", "expand_make_rule_when", ":wat::core::quote", "251.8d-ii SIXTH — read through canonical_identity_of, the door expand_form already uses for the make-rule head"),
+        ("src/macros/expand.rs", "expand_make_rule_then", ":wat::core::quote", "251.8d-ii SIXTH — the RHS twin of the row above"),
     ];
     let mut wrongly_flagged = Vec::new();
     for (f, n, lit, why) in CURED {
@@ -1088,14 +1100,24 @@ fn the_discriminator_separates_the_cured_from_the_open() {
     // 251.8d-ii's FIFTH draw then CURED (it is in the CURED table above now). ⛔ The row is
     // RE-ANCHORED rather than deleted: deleting it would have retired the instrument's only proof
     // that pass C still carries provenance across the call graph, at exactly the moment the cure
-    // made that proof matter most. The new anchor is 255.13 §4.3's own find —
-    // `rete/kernel/arm.rs::compile_acc_fold`, the accumulator lowering that reads both payloads
-    // raw and then matches `head` against `":wat::rete::acc::count"`. 255.9 dispositioned it
-    // *"no (already both) — fine"*; reading both spellings is HALF the cure, and this row is the
-    // standing reminder that the other half is the door.
+    // made that proof matter most. 255.13 §4.3's find, `rete/kernel/arm.rs::compile_acc_fold`,
+    // carried the anchor next and is CURED by 251.8d-ii's SIXTH draw (it is in the CURED table
+    // above now). ⛔ RE-ANCHORED AGAIN, NOT DELETED — onto the LAST shape-B site left in the
+    // crate: `rete/purity.rs::walk_rete_defn_callees`, the rete-defn cycle detector, whose
+    // one-line dual-raw head read the FIFTH draw named and deliberately did not cure (curing it
+    // widens what a cycle detector recurses into, unfixtured, in the permissive direction).
+    // ⛔ When THAT one is cured, shape B is zero and this row cannot be re-anchored — at which
+    // point the honest move is a SYNTHETIC anchor in
+    // `the_discriminator_convicts_a_synthetic_heretic_and_clears_its_cure`, which already
+    // constructs one shape-B heretic, and NOT the deletion of this assertion.
     let (n, mix) = map
-        .get(&("src/rete/kernel/arm.rs".to_string(), "compile_acc_fold".to_string()))
-        .expect("compile_acc_fold must be in the ledger — it is the shape-B calibration anchor");
+        .get(&(
+            "src/rete/purity.rs".to_string(),
+            "walk_rete_defn_callees".to_string(),
+        ))
+        .expect(
+            "walk_rete_defn_callees must be in the ledger — it is the shape-B calibration anchor",
+        );
     // rune:lint(loose-assert) — a targeted PRESENCE check over a shape-MIX summary, deliberately
     // independent of the count. The exact mix ("Bx1") is already pinned byte-for-byte by
     // FROZEN_LEDGER two tests over; this row asserts only that the CLASS is still detectable.
