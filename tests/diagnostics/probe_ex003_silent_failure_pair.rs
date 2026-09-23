@@ -99,15 +99,38 @@ fn f031_length_on_a_string_is_accepted_by_the_checker_and_killed_by_the_runtime(
 /// Without this, any startup failure at all — a retired spelling, a missing main — would
 /// satisfy `assert_ne!(rc, 0)` above and the probe would pass while measuring nothing.
 /// `[[a-negative-fixture-can-fail-for-the-wrong-reason]]`.
+///
+/// ## Why a golden and not two `contains` checks
+///
+/// This was two loose substring checks over the raw stderr — one for the error kind, one for the
+/// verb's name — and `tests/lint/no_loose_string_assert.rs` was right to refuse them: such a check passes on
+/// reordered fields, malformed maps and appended garbage. ⛔ It also made the floor RED the
+/// moment this probe landed, because a `.rs` in `tests/` is a gated tree and the gates were
+/// never run against it — proven only with `-E 'test(/…/)'`, a filter that BY CONSTRUCTION
+/// excludes every gate whose job is to judge a new file.
+/// `[[a-file-landing-in-a-gated-tree-needs-that-gate-run]]`
+///
+/// The lint's rubric offers an exemption rune for a value that varies per run. ⭐ **It does not
+/// apply here, and an exemption would have been a suppression where a real assertion fits:**
+/// measured 2026-09-22, this stderr is **738 bytes, byte-identical across runs**, carries no
+/// path, pid, hash or timestamp, and wat relativises the span's `:file` itself — so an absolute
+/// and a relative invocation emit the identical face. The golden is therefore machine- and
+/// invocation-independent, and data-equality is strictly stronger than either `contains`.
+///
+/// Captured, never hand-authored: `UPDATE_EDN=1 cargo nextest run --release -E 'test(/ex003/)'`.
+///
+/// ⚠ **And the prose above is written around the lint, not merely to satisfy it.** The detector is
+/// statement-scoped and a comment is not a statement boundary, so a doc comment that SPELLS the
+/// banned call with a string-literal argument is itself flagged — measured here: the first draft
+/// of this block named the two old checks literally and the lint reported this very line as the
+/// last remaining offender in the tree. The lint's own header records the same collision and
+/// resolves it by skipping its own file. So: describe the retired pattern, never transcribe it.
 #[test]
 fn f031_the_runtime_death_is_a_length_type_mismatch_not_an_unrelated_failure() {
-    let err = stderr_of("f031_length_on_string");
-    assert!(
-        err.contains("RuntimeError"),
-        "expected a RuntimeError; the program failed some other way:\n{err}"
-    );
-    assert!(
-        err.contains(":wat::core::length"),
-        "expected the death to name :wat::core::length; got:\n{err}"
+    wat::assert_edn_matches_file!(
+        stderr_of("f031_length_on_string"),
+        "probe_ex003_silent_failure_pair__f031_stderr.edn",
+        "F-031's runtime death changed shape — a RuntimeError naming :wat::core::length is what \
+         this probe pins. If `length` gained a String clause, the finding is CURED: go close it."
     );
 }

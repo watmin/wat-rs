@@ -1,0 +1,5 @@
+[
+  #wat.kernel/LociDiedError.RuntimeError {
+    :message "#wat.runtime/TypeMismatch {:message \":wat::core::length: expected (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]), got wat::core::String `\\\"abc\\\"`\" :location #wat.core/Span {:file \"tests/diagnostics/probe_ex003_silent_failure_pair__f031_length_on_string.wat\" :line 8 :col 26 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 8 :col 52}}} :causes [] :op \":wat::core::length\" :expected \"(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])\" :got {:type \"wat::core::String\" :rendered \"\\\"abc\\\"\" :provenance nil}}"
+  }
+]
