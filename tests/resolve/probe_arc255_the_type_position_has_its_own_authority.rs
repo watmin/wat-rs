@@ -92,6 +92,28 @@
 //! this stone. It is pinned here: ONE golden serves all six rows, so the day the diagnostic
 //! learns the user's span, all six go red and whoever fixes it must split the golden.
 //!
+//! ### ⭐ THE ALARM FIRED — 2026-09-23, excursus 003 stone B
+//!
+//! `TypeEnv` now retains the declaration span arc 138 already threaded into
+//! `register_validated`, and `validate_named_type_annotations` reads it. All six rows went red
+//! in one floor, exactly as written above, and the golden has been SPLIT: five per-case files
+//! under `__unknown_named_type__<case>.edn`, plus the keyword row's own
+//! `__unknown_named_type_core.edn`. Each now records its OWN fixture path and position:
+//!
+//! ```text
+//!   bogus_in_head            … __bogus_in_head.wat            :line 2 :col 89
+//!   bogus_in_arg             … __bogus_in_arg.wat             :line 2 :col 91
+//!   bogus_in_return          … __bogus_in_return.wat          :line 2 :col 72
+//!   bogus_in_defstruct_field … __bogus_in_defstruct_field.wat :line 2 :col 1
+//!   bogus_in_defenum_field   … __bogus_in_defenum_field.wat   :line 2 :col 1
+//! ```
+//!
+//! ⚠ **Half the complaint remains, and the split makes it visible rather than fixing it.** The
+//! three `defn` rows carry the FUNCTION BODY's span (that arm has no `TypeEnv` row to read) and
+//! the two declaration rows carry the whole `defstruct`/`defenum` form's span — neither
+//! underlines the offending `wat.type/Bogus` token, because `TypeExpr` carries no span at all.
+//! Two bad annotations in ONE declaration are still one indistinguishable diagnostic.
+//!
 //! ## The rows
 //!
 //! Six RED (the wall must not move) · two GREEN (the fix must not narrow). Every row runs
@@ -142,14 +164,22 @@ fn check_output(case: &str) -> String {
 /// exit code, which any error at all satisfies (including the resolve refusal this stone
 /// removes).
 ///
-/// ⛔ ONE golden serves all six rows, and that is a FINDING, not a shortcut: see the file
-/// header. When the diagnostic learns the user's span, these rows go red and the golden must
-/// SPLIT — which is exactly the alarm wanted.
+/// ⭐ **THE GOLDEN IS NOW SPLIT, PER CASE — the alarm this probe armed has fired.** One golden
+/// served all five rows until excursus 003 stone B taught `UnknownNamedType` the declaration's
+/// span; all five went red together, and the header's instruction was to split. Each row now
+/// owns a golden naming ITS fixture at ITS position, which is the property the old shared file
+/// could not express: five distinct declaration forms no longer produce one indistinguishable
+/// diagnostic.
+///
+/// ⚠ The span is the DECLARATION's, not the offending annotation token's — `TypeExpr` carries
+/// no span. Two bad annotations in ONE declaration are still indistinguishable; two bad
+/// declarations no longer are. That remaining half is stated in stone B's DESIGN and is not
+/// this probe's to close.
 fn refused_as_unknown_named_type(case: &str) {
     assert_eq!(check(case), 1, "{case}: expected the type wall to refuse");
     wat::assert_edn_matches_file!(
         check_output(case),
-        "probe_arc255_the_type_position_has_its_own_authority__unknown_named_type.edn"
+        format!("probe_arc255_the_type_position_has_its_own_authority__unknown_named_type__{case}.edn")
     );
 }
 

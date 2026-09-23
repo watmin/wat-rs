@@ -1,0 +1,16 @@
+#wat.type/UnknownNamedType {
+  :message "not a member of wat.type: :wat::type::Bogus"
+  :location #wat.core/Span {
+    :file "tests/resolve/probe_arc255_the_type_position_has_its_own_authority__bogus_in_defenum_field.wat"
+    :line 2
+    :col 1
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 3
+        :col 51
+      }
+    }
+  }
+  :causes []
+  :path ":wat::type::Bogus"
+}

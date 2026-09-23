@@ -846,6 +846,33 @@ pub struct TypeEnv {
     /// synthesized `derived` defs (backing records / `::Op` / `::Reply`) have
     /// no user form and fall back to reconstruction.
     source_forms: HashMap<String, WatAST>,
+    /// Excursus 003 stone B — the DECLARATION SPAN for each registered type.
+    ///
+    /// Arc 138 slice 2 already threads the decl's name-keyword span into
+    /// [`Self::register_validated`], where it is used for the three
+    /// *registration-time* refusals (`ReservedPrefix` / `DuplicateType` /
+    /// `CyclicAlias`) and then dropped. Every refusal raised by a
+    /// POST-registration walk — `validate_aggregate_containment`,
+    /// `validate_named_type_annotations` — therefore had nothing to point at
+    /// and fell back to `rust_caller_span!()`, which is how the-little-wat's
+    /// F-006 and F-114 both ended up telling a wat author that the fault was
+    /// in `src/check.rs`. This table retains that span so those walks can name
+    /// the user's own declaration instead.
+    ///
+    /// ⚠ The span is the DECLARATION's, not the offending token's: `TypeExpr`
+    /// carries no span, so an annotation's own location does not survive into
+    /// the registry at all. The contract is "the right decl in the user's
+    /// file", deliberately not "underline the type name".
+    ///
+    /// ⚠ Builtins registered from Rust ([`Self::register`] with no span) store
+    /// a `rust_caller_span!()` here, because that IS where they are declared.
+    /// A refusal naming a builtin can still report a `.rs` location — it does
+    /// today, by another route — and this table does not change that.
+    ///
+    /// First declaration wins: the insert happens inside the `resolve::register`
+    /// closure, which arc 054's idempotency rule never runs for a byte-equivalent
+    /// re-declaration, so a re-registration cannot overwrite the original span.
+    decl_spans: HashMap<String, Span>,
 }
 
 /// One answer to "is this name a type?" — the stores `is_known_type` unions,
@@ -1017,10 +1044,15 @@ impl TypeEnv {
             self.types.remove(fqdn);
             self.subtype_edges.remove(fqdn);
             self.source_forms.remove(fqdn);
+            self.decl_spans.remove(fqdn);
         }
         self.types.remove(name);
         self.subtype_edges.remove(name);
         self.source_forms.remove(name);
+        // Excursus 003 stone B — retract the decl span with everything else it is
+        // keyed beside, or a door-replace would re-register under the ORIGINAL
+        // declaration's location and point every later refusal at the old form.
+        self.decl_spans.remove(name);
     }
 
     /// Register a name that has membership but no structure — a primitive, a
@@ -1060,6 +1092,26 @@ impl TypeEnv {
     /// Freeze/closure-extract prefers this over `type_def_to_ast` reconstruction.
     pub fn source_form(&self, name: &str) -> Option<&WatAST> {
         self.source_forms.get(name)
+    }
+
+    /// Excursus 003 stone B — the span of `name`'s own declaration, as threaded
+    /// into `register_validated` by arc 138 and retained in `decl_spans`.
+    ///
+    /// `None` means the name did not arrive through `register_validated` AND was
+    /// not given a span by another door: today that is exactly `register_builtin`
+    /// — Rust builtins, which have no wat declaration to name. (A variant
+    /// singleton also bypasses `register_validated`, but `register_variant_types`
+    /// gives it its parent enum's span; see the STOP-1 note there.) A caller with
+    /// nothing else to point at falls back to `crate::rust_caller_span!()`, which
+    /// is the honest answer for a name whose declaration really is in Rust.
+    ///
+    /// ⚠ Measured, not assumed: on a program declaring a record, an alias and a
+    /// two-variant enum, 943 registered names left 206 without a span — **all
+    /// 206 reserved-prefix Rust builtins** (`:wat::core::Bytes`,
+    /// `:wat::boot::Ack`, …), zero user types, and zero user types carrying a
+    /// `.rs` span.
+    pub(crate) fn decl_span(&self, name: &str) -> Option<&Span> {
+        self.decl_spans.get(name)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&String, &TypeDef)> {
@@ -1177,6 +1229,12 @@ impl TypeEnv {
                     validate_union_members(&name, &union.members, &span)?;
                     check_union_no_cycle(&name, &union.members, self, &span)?;
                 }
+                // Excursus 003 stone B — retain the decl span for the POST-registration
+                // walks. Placed after the fallible guards (so a rejected decl leaves no
+                // span behind) and before every `self.types.insert` arm below, of which
+                // there are three (Aggregate, Surface-of-Record-nature, and the general
+                // tail) — one insert here covers all three by construction.
+                self.decl_spans.insert(name.clone(), span.clone());
                 // Arc 293 inheritance annihilation — wire subtype edge derived from nature.
                 // parse_aggregate rejected any non-nature-root parent, so root_keyword() always
                 // names a registered builtin. No ":wat::core::Value" skip needed: every parsed
@@ -1530,6 +1588,28 @@ impl TypeEnv {
                         })
                     },
                 )?;
+                // Excursus 003 stone B — STOP-1, tripped and driven. `register_variant_type`
+                // is a SIBLING door: it inserts into `self.types` without passing through
+                // `register_validated`, so a variant singleton had NO row in `decl_spans`.
+                // That is not a cosmetic gap. `validate_named_type_annotations` and
+                // `validate_aggregate_containment` both walk `env.iter()`, which holds the
+                // singletons alongside their parents, and `HashMap` iteration order decides
+                // which of the two is reached first — so
+                //     (:wat::core::defenum :t::Shape :wat::enum::Pure :Circle [r <- :t::NoSuchType])
+                // reported the user's file on some runs and `src/check.rs` on others, 8 runs
+                // split 4/4 at `0ea721de5`+cure. A diagnostic that changes identity run to run
+                // is worse than one that is consistently wrong.
+                //
+                // The span that reaches this loop is `rust_caller_span!()` (a variant singleton
+                // is SYNTHESIZED — there is no source form for it), and storing that would put
+                // a `.rs` location on a user type. The parent's decl span is the honest answer:
+                // a variant's declaration IS its enum's declaration, which is the same text the
+                // author would be sent to. Written here rather than by widening the `span`
+                // argument, so `resolve::register_variant`'s own gate errors and the subtype
+                // edge keep the spans they already had.
+                if let Some(parent_span) = self.decl_spans.get(&e.name).cloned() {
+                    self.decl_spans.insert(fqdn.clone(), parent_span);
+                }
                 self.register_subtype(&fqdn, &e.name, span)?;
             }
         }

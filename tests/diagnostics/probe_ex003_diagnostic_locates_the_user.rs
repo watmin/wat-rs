@@ -3,14 +3,32 @@
 //! `the-little-wat` flagged this twice, a week apart, both by accident:
 //!
 //! - **F-006** — an unknown-type refusal carries `:file "src/check.rs"`. *"The user is told what
-//!   is wrong but not where."*
+//!   is wrong but not where."* **CURED** by excursus 003 stone B; the test below now pins the
+//!   cure, and `f114` and `variant_singleton` beside it pin the rest of that stone.
 //! - **F-091** — a lex error carries `:file "crates/wat-reader/src/parser.rs"` and gives no line
 //!   or column of the user's file at all, only a byte offset. It has a measured cost: finding
 //!   which of 532 files raised `lex error at byte 258` meant grepping all 532 OUTSIDE wat.
+//!   **STILL OPEN** — a different mechanism (the reader, not the checker), its own stone.
 //!
-//! Both reproduce at HEAD. ⭐ F-006's span has MOVED — their ledger records `src/check.rs:15141`,
-//! it is `15285` today. The line drifted; the defect did not. A stale line number in a ledger
-//! reads exactly like a fixed defect, which is why these are driven and not quoted.
+//! Both reproduced at HEAD when this probe was banked. ⭐ F-006's span had already MOVED — their
+//! ledger records `src/check.rs:15141`, it was `15285` the day it was driven. The line drifted;
+//! the defect did not. A stale line number in a ledger reads exactly like a fixed defect, which
+//! is why these are driven and not quoted.
+//!
+//! ## What stone B changed, and the boundary it does NOT cross
+//!
+//! `TypeEnv` now retains the declaration span arc 138 already threaded into
+//! `register_validated` (`decl_spans`), and the two post-registration walks read it instead of
+//! `rust_caller_span!()`. A `defn` has no `TypeEnv` row, so that arm uses the function body's own
+//! `WatAST` span.
+//!
+//! ⚠ **The contract is the DECLARATION, not the offending token.** `TypeExpr` carries no span,
+//! so the annotation's own location never reaches the registry; these tests therefore assert the
+//! control's shape — *no `.rs` file* — and deliberately do not pin a column.
+//!
+//! ⚠ **A diagnostic naming a BUILTIN can still name a `.rs` file**, because a builtin really is
+//! declared in Rust. These four fixtures all declare their own types in wat, so none of them can
+//! reach that arm.
 //!
 //! ## The root: the sentinel is a CONVENTION, NOT A SHAPE
 //!
@@ -35,11 +53,16 @@
 //! would survive into a captured golden today. Keying on the `.rs` suffix alone covers both
 //! without enumerating roots, and closes that hole by construction.
 //!
-//! ## ⛔ Two of these tests PIN KNOWN DEFECTS and go RED when cured. That is the point.
+//! ## ⛔ ONE of these tests STILL PINS A KNOWN DEFECT and goes RED when cured. That is the point.
 //!
-//! The third is a NEGATIVE CONTROL and must pass in both worlds: without it the detector could
-//! pass by flagging every diagnostic, and would stay green after a "cure" that broke user spans.
+//! `f091_*` asserts the defect. The other four assert the CURED shape, and the first of them is a
+//! NEGATIVE CONTROL that must pass in every world: without it the detector could pass by flagging
+//! every diagnostic, and would stay green after a "cure" that broke user spans.
 //! `[[a-resolver-whose-halves-overlap-proves-nothing]]`
+//!
+//! ⭐ The three cured tests are mutation-proved together: forcing `decl_span()` /
+//! `body_span()` back to `crate::rust_caller_span!()` in `src/check.rs` turns all three RED and
+//! leaves the control green. A gate that has never failed is not a gate.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -125,15 +148,68 @@ fn control_a_runtime_refusal_locates_the_users_own_file() {
     );
 }
 
-/// F-006 — the unknown-type refusal names wat-rs's checker instead of the user's program.
-#[test]
-fn f006_an_unknown_type_refusal_still_names_wat_rs_own_source() {
-    let err = stderr_of("f006_unknown_type", "wat");
-    let ours = our_own_source(&err);
+/// Assert one fixture's diagnostic locates the USER, in the control's shape.
+///
+/// NON-VACUITY is not optional here: `our_own_source` returning empty is ALSO what a diagnostic
+/// with no `:file` at all looks like, and what an unchanged `:message` format looks like, so the
+/// extractor is made to prove it found a location before its verdict is allowed to mean anything.
+/// `[[a-suite-notices-a-deleted-instrument-only-through-nonzero-assertions]]`
+fn assert_locates_the_user(case: &str, ext: &str, what: &str) {
+    let err = stderr_of(case, ext);
+    let files = span_files(&err);
     assert!(
-        !ours.is_empty(),
-        "F-006 is CURED — the unknown-type refusal no longer names a .rs file. Go close the \
-         finding and flip this assertion to the control's shape.\n{err}"
+        !files.is_empty(),
+        "{what}: the span extractor found NO :file at all — either the refusal stopped firing \
+         or the diagnostic format moved, and the verdict below would measure nothing.\n{err}"
+    );
+    assert_eq!(
+        our_own_source(&err),
+        Vec::<String>::new(),
+        "{what}: the refusal names wat-rs's own source instead of the user's declaration.\n\
+         files seen: {files:?}\n{err}"
+    );
+}
+
+/// F-006 — the unknown-type refusal, raised by `validate_named_type_annotations`'s
+/// `functions_iter()` arm (this program declares a `defn`, not a type), names the user's file.
+#[test]
+fn f006_an_unknown_type_refusal_names_the_users_own_file() {
+    assert_locates_the_user(
+        "f006_unknown_type",
+        "wat",
+        "F-006 (UnknownNamedType, function arm)",
+    );
+}
+
+/// F-114 — the containment-rule refusal, raised by `validate_aggregate_containment`'s
+/// `env.iter()` walk, names the user's `defrecord`.
+///
+/// ⚠ This pins F-114's LOCATION only. Its message still calls a function type an "impure
+/// (struct) type" and reasons entirely about structs, and it still carries no `:remedies` key.
+/// Those are message CONTENT and are a separate stone by design — bundling them here would hide
+/// which change fixed what.
+#[test]
+fn f114_an_impure_field_refusal_names_the_users_own_file() {
+    assert_locates_the_user(
+        "f114_impure_field",
+        "wat",
+        "F-114 (ImpureFieldInPureAggregate, type arm)",
+    );
+}
+
+/// STOP-1, found and driven while curing the two above: a VARIANT SINGLETON had no declaration
+/// span, because `register_variant_type` is a sibling door that bypasses `register_validated`.
+///
+/// This one is not merely wrong, it was UNSTABLE — the parent enum and its singleton sit side by
+/// side in `env.iter()`, so HashMap order decided which was refused first and the same program
+/// reported the user's file on some runs and `src/check.rs` on others (8 runs split 4/4). A
+/// singleton now inherits its enum's span, which is the declaration a reader would be sent to.
+#[test]
+fn variant_singleton_a_refusal_names_the_enums_declaration() {
+    assert_locates_the_user(
+        "variant_singleton",
+        "wat",
+        "variant singleton (UnknownNamedType via register_variant_type)",
     );
 }
 

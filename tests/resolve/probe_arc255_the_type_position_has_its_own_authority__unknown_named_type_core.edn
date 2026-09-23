@@ -1,10 +1,15 @@
 #wat.type/UnknownNamedType {
   :message "annotation names unknown type :wat::core::Bogus — not a declared type, not a type variable, and not a builtin"
   :location #wat.core/Span {
-    :file "src/check.rs"
-    :line 0
-    :col 13
-    :end #wat.core/Option.None {}
+    :file "tests/resolve/probe_arc255_the_type_position_has_its_own_authority__bogus_keyword_spelling.wat"
+    :line 3
+    :col 97
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 3
+        :col 98
+      }
+    }
   }
   :causes []
   :path ":wat::core::Bogus"

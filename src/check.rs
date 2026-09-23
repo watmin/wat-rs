@@ -15222,12 +15222,21 @@ pub(crate) fn validate_aggregate_containment(
 ) -> Result<(), TypeError> {
     use crate::types::{TypeDef, EnumVariant};
     for (name, def) in env.iter() {
+        // Excursus 003 stone B (F-114) — point at the USER'S declaration. The span arc 138
+        // threads into `register_validated` is retained in `TypeEnv::decl_spans`; `None` means
+        // the name has no wat declaration at all — measured, that is the Rust builtins and
+        // nothing else — and for those the Rust caller IS the honest location.
+        let decl_span = || {
+            env.decl_span(name)
+                .cloned()
+                .unwrap_or_else(|| crate::rust_caller_span!())
+        };
         match def {
             TypeDef::Aggregate(a) if a.nature.is_pure() => {
                 for (fname, fty) in &a.fields {
                     if !is_pure_type(fty, env) {
                         return Err(TypeError::new(
-                            crate::rust_caller_span!(),
+                            decl_span(),
                             TypeErrorKind::ImpureFieldInPureAggregate {
                                 aggregate: name.clone(),
                                 field: fname.clone(),
@@ -15245,7 +15254,7 @@ pub(crate) fn validate_aggregate_containment(
                         for (fname, fty) in fields {
                             if !is_pure_type(fty, env) {
                                 return Err(TypeError::new(
-                                    crate::rust_caller_span!(),
+                                    decl_span(),
                                     TypeErrorKind::ImpureVariantFieldInPureEnum {
                                         enum_name: name.clone(),
                                         variant: vname.clone(),
@@ -15280,9 +15289,17 @@ pub(crate) fn validate_named_type_annotations(
     use crate::declare::typevar::first_unknown_named_type;
     use crate::types::{EnumVariant, SurfaceMember, TypeDef};
 
-    let refuse = |path: String| {
+    // Excursus 003 stone B (F-006) — the refusal carries the span of the DECLARATION that
+    // named the unknown type, not the span of this checker. Each caller below is in a
+    // position to name one: the type walk from `TypeEnv::decl_spans`, the function walk
+    // from the function body's own AST node.
+    //
+    // ⚠ NOT the offending token's span. `TypeExpr` carries none, so `first_unknown_named_type`
+    // can return the bad PATH but never its location; the contract is "the right decl in the
+    // user's file". Widening that means spanning `TypeExpr`, which is a different change.
+    let refuse = |path: String, span: Span| {
         Err(TypeError::new(
-            crate::rust_caller_span!(),
+            span,
             TypeErrorKind::UnknownNamedType { path },
         ))
     };
@@ -15300,11 +15317,18 @@ pub(crate) fn validate_named_type_annotations(
 
     for (name, def) in env.iter() {
         let use_decls = scope_decls(name);
+        // Excursus 003 stone B — the declaration that wrote this annotation. See
+        // `validate_aggregate_containment` for what `None` means here.
+        let decl_span = || {
+            env.decl_span(name)
+                .cloned()
+                .unwrap_or_else(|| crate::rust_caller_span!())
+        };
         match def {
             TypeDef::Aggregate(a) => {
                 for (_fname, fty) in &a.fields {
                     if let Some(p) = first_unknown_named_type(fty, &a.type_params, env, use_decls) {
-                        return refuse(p);
+                        return refuse(p, decl_span());
                     }
                 }
             }
@@ -15313,7 +15337,7 @@ pub(crate) fn validate_named_type_annotations(
                     if let EnumVariant::Tagged { fields, .. } = variant {
                         for (_fname, fty) in fields {
                             if let Some(p) = first_unknown_named_type(fty, &e.type_params, env, use_decls) {
-                                return refuse(p);
+                                return refuse(p, decl_span());
                             }
                         }
                     }
@@ -15321,18 +15345,18 @@ pub(crate) fn validate_named_type_annotations(
             }
             TypeDef::Newtype(n) => {
                 if let Some(p) = first_unknown_named_type(&n.inner, &n.type_params, env, use_decls) {
-                    return refuse(p);
+                    return refuse(p, decl_span());
                 }
             }
             TypeDef::Alias(a) => {
                 if let Some(p) = first_unknown_named_type(&a.expr, &a.type_params, env, use_decls) {
-                    return refuse(p);
+                    return refuse(p, decl_span());
                 }
             }
             TypeDef::Union(u) => {
                 for m in &u.members {
                     if let Some(p) = first_unknown_named_type(m, &u.type_params, env, use_decls) {
-                        return refuse(p);
+                        return refuse(p, decl_span());
                     }
                 }
             }
@@ -15341,7 +15365,7 @@ pub(crate) fn validate_named_type_annotations(
                     match member {
                         SurfaceMember::Field { ty, .. } => {
                             if let Some(p) = first_unknown_named_type(ty, &s.type_params, env, use_decls) {
-                                return refuse(p);
+                                return refuse(p, decl_span());
                             }
                         }
                         SurfaceMember::Method { args, ret, type_params, .. } => {
@@ -15353,11 +15377,11 @@ pub(crate) fn validate_named_type_annotations(
                                 .collect();
                             for (_n, ty) in args.fixed_params.iter() {
                                 if let Some(p) = first_unknown_named_type(ty, &bound, env, use_decls) {
-                                    return refuse(p);
+                                    return refuse(p, decl_span());
                                 }
                             }
                             if let Some(p) = first_unknown_named_type(ret, &bound, env, use_decls) {
-                                return refuse(p);
+                                return refuse(p, decl_span());
                             }
                         }
                     }
@@ -15368,17 +15392,28 @@ pub(crate) fn validate_named_type_annotations(
 
     for (name, func) in symbols.functions_iter() {
         let use_decls = scope_decls(name);
+        // Excursus 003 stone B (F-006's actual arm) — a `defn` is not in `TypeEnv`, so there is
+        // no `decl_spans` row to read. `Function` carries no span of its own either, but
+        // `FunctionBody::Wat(Arc<WatAST>)` does: every AST node holds one, and the body's span
+        // is inside the declaration the user wrote.
+        //
+        // ⚠ `FunctionBody::Native` is a Rust builtin with no AST at all; the sentinel stays
+        // there, and that is the honest answer — its declaration IS in Rust.
+        let body_span = || match &func.body {
+            crate::value::FunctionBody::Wat(ast) => ast.span().clone(),
+            crate::value::FunctionBody::Native => crate::rust_caller_span!(),
+        };
         for ty in &func.param_types {
             if let Some(p) = first_unknown_named_type(ty, &func.type_params, env, use_decls) {
-                return refuse(p);
+                return refuse(p, body_span());
             }
         }
         if let Some(p) = first_unknown_named_type(&func.ret_type, &func.type_params, env, use_decls) {
-            return refuse(p);
+            return refuse(p, body_span());
         }
         if let Some(rest) = &func.rest_param_type {
             if let Some(p) = first_unknown_named_type(rest, &func.type_params, env, use_decls) {
-                return refuse(p);
+                return refuse(p, body_span());
             }
         }
     }
