@@ -44,17 +44,25 @@
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-fn fixture(case: &str) -> PathBuf {
+/// ⛔ `ext` is not decoration — a fixture that is DELIBERATELY unparseable must be named
+/// `.wat.bad`, or `tests/lint/every_tracked_wat_parses.rs` reds the floor over it.
+///
+/// ⚠ **That gate enumerates with `git ls-files`, so it CANNOT SEE AN UNSTAGED FILE.** This probe
+/// landed red at `f2e328ff6` after its author ran that very gate and watched it pass — the
+/// fixture was untracked at the time, became tracked at commit, and the gate only then had a
+/// subject. Running a tracked-corpus gate BEFORE `git add` proves nothing.
+/// `[[a-file-landing-in-a-gated-tree-needs-that-gate-run]]`
+fn fixture(case: &str, ext: &str) -> PathBuf {
     let p: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/diagnostics")
-        .join(format!("probe_ex003_diagnostic_locates_the_user__{case}.wat"));
+        .join(format!("probe_ex003_diagnostic_locates_the_user__{case}.{ext}"));
     assert!(p.exists(), "fixture missing: {}", p.display());
     p
 }
 
-fn stderr_of(case: &str) -> String {
+fn stderr_of(case: &str, ext: &str) -> String {
     let out = Command::new(env!("CARGO_BIN_EXE_wat"))
-        .arg(fixture(case))
+        .arg(fixture(case, ext))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -102,7 +110,7 @@ fn our_own_source(stderr: &str) -> Vec<String> {
 /// allowed to mean anything; an empty parse would make both of those pass by finding nothing.
 #[test]
 fn control_a_runtime_refusal_locates_the_users_own_file() {
-    let err = stderr_of("control_user_span");
+    let err = stderr_of("control_user_span", "wat");
     let files = span_files(&err);
     assert!(
         !files.is_empty(),
@@ -120,7 +128,7 @@ fn control_a_runtime_refusal_locates_the_users_own_file() {
 /// F-006 — the unknown-type refusal names wat-rs's checker instead of the user's program.
 #[test]
 fn f006_an_unknown_type_refusal_still_names_wat_rs_own_source() {
-    let err = stderr_of("f006_unknown_type");
+    let err = stderr_of("f006_unknown_type", "wat");
     let ours = our_own_source(&err);
     assert!(
         !ours.is_empty(),
@@ -132,7 +140,7 @@ fn f006_an_unknown_type_refusal_still_names_wat_rs_own_source() {
 /// F-091 — the lex error names wat-rs's reader, and gives no user line or column.
 #[test]
 fn f091_a_lex_error_still_names_wat_rs_own_reader() {
-    let err = stderr_of("f091_lex_error");
+    let err = stderr_of("f091_lex_error", "wat.bad");
     let ours = our_own_source(&err);
     assert!(
         !ours.is_empty(),
