@@ -207,6 +207,34 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ⭐⭐ RULING 2026-09-23 — EXACTLY ONE WAY TO DO THINGS
+
+> **Builder:** *"we need to have exactly one way to do things.. us having two write paths is clearly an
+> indicator of sloppy code"*
+
+⛔ **Two paths to the same thing is a defect in its own right**, not a style choice. It is the same
+instinct as the earlier EDN ruling (*"i strongly view this as a highlander... there must be only one
+source of truth"*), now stated generally.
+
+**What it settled immediately** (weighed with the four questions, `FINDINGS-INTUERI-the-name-families.md`):
+
+1. ⭐ **Service lifecycle → option E (generic).** One `wat.service/start` (and `stop`, `hibernate`, …)
+   dispatched on the service — the way `wat.spawn/Locus` is already dispatched via `extend-type`
+   (47 uses) — **not** a `svc/start` minted per service (option D = N copies of one path).
+   User operations own the service's namespace; everything the macro generates leaves it, so a user op
+   and a lifecycle method **cannot** share a name. ⚠ **E's Simple cell is UNMEASURED:** `start` is typed
+   per service (its state and handle types) — whether ONE generic `start` can carry them needs a probe
+   before E is drawn. ⛔ **The ruling also binds E itself: the per-service `svc/start` must be RETIRED,
+   never kept beside the generic one** — that would be the two paths this ruling forbids.
+2. ⭐ **One name per message type → keep `<S>/<Op>Request`** (e.g. `StdOut/WriteRequest`, the name the
+   checker already enforces, `types.rs:3647`) and **retire the alias `<S>::<op>/Request`**.
+   ⚠ The alias exists to re-attach the surface's type parameters (`types.rs:4137-4142`); retiring it
+   needs another way to do that — **unmeasured.**
+
+**What it implicates next** — every dual path in the tree is now a named defect: the dual
+keyword/symbol acceptance (the terminal cut), `/` vs `::` as two joins at one position, `ns_to_wat_path`
+vs `reconstruct_call_path` as two identity reconstructions (255.8's open hole).
+
 ### ✅ 255.12 LANDED 2026-09-22 — ⭐ **THE 8d-ii BLOCKER IS CURED.** Delta 4 → 3
 
 Floor **5986/5986** (after a captured RED), clippy 0, census `no STOP-8`, **RECOVERY 0**, 0 live
