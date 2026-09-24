@@ -1,0 +1,19 @@
+;; Stone 255.15 — infer a type variable from the implementor's extend-type binding.
+;; A parametric surface `Loc :- [T]` (the locus, T = its transport) and two implementors that
+;; bind DIFFERENT transports: `Th` binds `Shared`, `Pr` binds `Wire`.
+(:wat::core::defrecord :probe::Shared [a <- :wat::core::i64])
+(:wat::core::defrecord :probe::Wire [b <- :wat::core::String])
+(:wat::core::defsurface :probe::Loc :- [T] :nature :wat::core::Struct
+  :features [(transport [self <- (:probe::Loc :- [T])] -> :T)])
+(:wat::core::defrecord :probe::Th [x <- :wat::core::i64])
+(:wat::core::extend-type :probe::Th (:probe::Loc :- [:probe::Shared]) (transport [self] (:probe::Shared :a 1)))
+(:wat::core::defrecord :probe::Pr [y <- :wat::core::i64])
+(:wat::core::extend-type :probe::Pr (:probe::Loc :- [:probe::Wire]) (transport [self] (:probe::Wire :b "w")))
+;; REFUSED: Both extends Loc at TWO instantiations (the second bodiless — a method-bearing
+;; second extend-type is already a DuplicateDefine). T could be Shared or Wire; inference must
+;; refuse, never pick one.
+(:wat::core::defn :probe::start :- [T] [loc <- (:probe::Loc :- [T])] -> :T (:probe::Loc/transport loc))
+(:wat::core::defrecord :probe::Both [q <- :wat::core::i64])
+(:wat::core::extend-type :probe::Both (:probe::Loc :- [:probe::Shared]) (transport [self] (:probe::Shared :a 1)))
+(:wat::core::extend-type :probe::Both (:probe::Loc :- [:probe::Wire]))
+(:wat::core::defn :probe::u [] -> :probe::Shared (:probe::start (:probe::Both :q 1)))

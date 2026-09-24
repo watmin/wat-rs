@@ -846,6 +846,18 @@ pub struct TypeEnv {
     /// synthesized `derived` defs (backing records / `::Op` / `::Reply`) have
     /// no user form and fall back to reconstruction.
     source_forms: HashMap<String, WatAST>,
+    /// Stone 255.15 — the STRUCTURED target of every PARAMETRIC `extend-type` edge,
+    /// keyed by the child exactly as `subtype_edges` keys it. `subtype_edges` keeps the
+    /// target only as a rendered string (`"(:probe::Loc :- [:probe::Shared])"`), which
+    /// can answer "is this EXACT instantiation reachable?" and nothing else: a
+    /// type-variable expectation `(:probe::Loc :- [?7])` can never equal a string. This
+    /// is the same fact kept as the `TypeExpr` it was parsed from, so `assignable` can
+    /// UNIFY the edge's arguments against the expected ones and bind the variable —
+    /// structurally, never by rendering the expectation and looking it up.
+    /// Written only by [`Self::register_parametric_extension`], which writes the
+    /// string edge in the same call, so the two cannot be written apart; retracted
+    /// beside it in [`Self::retract_for_door_replace`].
+    parametric_extensions: HashMap<String, Vec<TypeExpr>>,
 }
 
 /// One answer to "is this name a type?" — the stores `is_known_type` unions,
@@ -1016,10 +1028,12 @@ impl TypeEnv {
         for fqdn in &variant_fqdns {
             self.types.remove(fqdn);
             self.subtype_edges.remove(fqdn);
+            self.parametric_extensions.remove(fqdn);
             self.source_forms.remove(fqdn);
         }
         self.types.remove(name);
         self.subtype_edges.remove(name);
+        self.parametric_extensions.remove(name);
         self.source_forms.remove(name);
     }
 
@@ -1338,6 +1352,28 @@ impl TypeEnv {
     /// Return the direct parent FQDNs of `name` in the `typesub` hierarchy.
     /// Returns `None` if `name` has no registered parent edges.
     /// Internal helper consumed by [`is_subtype`].
+    /// Stone 255.15 — register an `extend-type` edge whose target is a PARAMETRIC surface
+    /// instantiation. ONE door writes both halves of the fact: the rendered string edge
+    /// (`register_subtype`, which every exact-match consumer still reads) and the
+    /// structured target (`parametric_extensions`, which [`parametric_extensions_of`]
+    /// reads). The string is rendered HERE from the same `TypeExpr` that is stored, so
+    /// the two cannot disagree. A re-registration of the same target is not stored twice
+    /// (compared through `type_exprs_same`, the denotation door) — a duplicated identical
+    /// edge must never read as two candidate bindings.
+    pub(crate) fn register_parametric_extension(
+        &mut self,
+        child: &str,
+        target: &TypeExpr,
+        span: Span,
+    ) -> Result<(), TypeError> {
+        self.register_subtype(child, &crate::check::format_type(target), span)?;
+        let slot = self.parametric_extensions.entry(child.to_string()).or_default();
+        if !slot.iter().any(|t| type_exprs_same(t, target)) {
+            slot.push(target.clone());
+        }
+        Ok(())
+    }
+
     fn subtype_parents(&self, name: &str) -> Option<&[String]> {
         self.subtype_edges.get(name).map(|v| v.as_slice())
     }
@@ -1617,6 +1653,37 @@ pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
         }
     }
     false
+}
+
+/// Stone 255.15 — the STRUCTURED parametric `extend-type` targets `sub` itself DECLARED,
+/// whose head is `surface` (through [`parametric_heads_unify`], the head denotation door).
+///
+/// ⛔ DIRECT EDGES ONLY — deliberately NOT [`is_subtype`]'s transitive walk. Measured: a
+/// type that only `derive`s an implementor (`(derive :Th2 :Th)`) is accepted by the CONCRETE
+/// arm (`is_subtype` walks the chain) and then dies at run with `UnknownFunction` — dispatch
+/// is by the flat `<Type>/<method>` key and `:Th2/transport` was never registered. That hole
+/// predates this stone; an inference that walked the chain would widen it to every
+/// type-variable call site. The declaration that registers the edge here is the same
+/// declaration that registers (or, bodiless, reuses) `<sub>/<method>`, so a type this
+/// returns a candidate for has a method body under its own name.
+///
+/// The start key is `is_subtype`'s own (`type_denotation(sub)`). Candidates are already
+/// deduplicated at registration; the caller decides what more than one means (for
+/// inference: ambiguity, refused).
+pub(crate) fn parametric_extensions_of(sub: &str, surface: &str, env: &TypeEnv) -> Vec<TypeExpr> {
+    let key = crate::edn::render::type_denotation(sub);
+    env.parametric_extensions
+        .get(&key)
+        .map(|targets| {
+            targets
+                .iter()
+                .filter(|t| {
+                    matches!(t, TypeExpr::Parametric { head, .. } if parametric_heads_unify(head, surface))
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Seeds a fresh [`TypeEnv`] with wat-rs's own `:wat::*` declarations.
@@ -4463,8 +4530,15 @@ fn splice_type_decls(
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
                     crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
                 }
+                // Stone 255.15 — a PARAMETRIC target keeps its structure: the one door
+                // writes the rendered edge AND the `TypeExpr` it was rendered from.
                 Some(node @ WatAST::List(_, _)) => {
-                    crate::check::format_type(&parse_type_node(node)?)
+                    let target = parse_type_node(node)?;
+                    if matches!(target, TypeExpr::Parametric { .. }) {
+                        env.register_parametric_extension(&type_name, &target, decl_span)?;
+                        return Ok(WatAST::List(items, span));
+                    }
+                    crate::check::format_type(&target)
                 }
                 _ => {
                     return Err(TypeError::new(

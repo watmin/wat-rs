@@ -17378,13 +17378,52 @@ pub(crate) fn assignable(
     // untouched → falls through to the derive-graph / unify paths below (byte-identical). SOUND, not
     // permissive: `is_subtype` is an EXACT-string match on the parent, so `echo'::Handle` matches ONLY
     // `(Dialable :- [Echo::Op Echo::Reply])`, never `(Dialable :- [Kv::Op Kv::Reply])` — the swap-gate holds.
-    if let (TypeExpr::Path(ap), TypeExpr::Parametric { head, .. }) = (&a, &e) {
+    if let (TypeExpr::Path(ap), TypeExpr::Parametric { head, args: eargs }) = (&a, &e) {
         let surface_key = crate::types::parametric_head_fqdn(head);
         if let Some(crate::types::TypeDef::Surface(_)) = types.get(&surface_key) {
             if crate::types::is_subtype(ap, &format_type(&e), types) {
                 // Nature floor uses the BARE surface key (the full-args string is not a
                 // registered surface); mirrors the flipped branch's `nature_floor_ok(&a, ep, …)`.
                 return nature_floor_ok(&a, &surface_key, types);
+            }
+            // Stone 255.15 — the TYPE-VARIABLE case: `(defn start :- [T] [loc <- (Loc :- [T])] …)`
+            // given `Th` (`extend-type Th (Loc :- [Shared])`). The exact-string edge above can
+            // never match — `e` renders its fresh var (`(Loc :- [_])`), the edge was keyed by
+            // `(Loc :- [:probe::Shared])` — so the implementor's own binding never reached `T`.
+            // Instead take the STRUCTURED targets `Th` itself DECLARED at this surface's head (direct
+            // edges only — `types::parametric_extensions_of` says why a `derive` chain is not walked) and
+            // UNIFY each one's args with `eargs` — invariant, as every other surface-arg arm
+            // here — so the variable binds in `subst` from the implementor.
+            //
+            // ⛔ SOUNDNESS: each candidate is tried on a CLONED subst (a failed `unify` leaves
+            // partial bindings — the RELAND-4 lesson, further below), and only a UNIQUE solution is
+            // committed. Zero → not an implementor at this instantiation (the wrong transport,
+            // a non-implementor, a variable already pinned elsewhere to a different binding —
+            // all refused here). TWO OR MORE → a type that extends this surface at more than one
+            // instantiation compatible with the expectation: AMBIGUOUS, refused — never pick
+            // one. A pinned `T` makes `e` concrete, and a concrete `e` is decided by the exact
+            // edge above first; this arm only adds the case that edge cannot express.
+            let mut solutions: Vec<Subst> = Vec::new();
+            for target in crate::types::parametric_extensions_of(ap, &surface_key, types) {
+                if let TypeExpr::Parametric { args: targs, .. } = &target {
+                    if targs.len() != eargs.len() {
+                        continue;
+                    }
+                    let mut trial = subst.clone();
+                    if targs
+                        .iter()
+                        .zip(eargs.iter())
+                        .all(|(t, x)| unify(t, x, &mut trial, types).is_ok())
+                    {
+                        solutions.push(trial);
+                    }
+                }
+            }
+            if solutions.len() == 1 {
+                if let Some(solved) = solutions.pop() {
+                    *subst = solved;
+                    return nature_floor_ok(&a, &surface_key, types);
+                }
             }
         }
         // 293.W.2f — uninstantiated aggregate `Handle` (T unknown) accepts any

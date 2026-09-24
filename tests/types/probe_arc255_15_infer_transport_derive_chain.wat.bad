@@ -1,0 +1,17 @@
+;; Stone 255.15 — infer a type variable from the implementor's extend-type binding.
+;; REFUSED, deliberately: Th2 only DERIVES Th, and declares no extend-type of its own. The
+;; CONCRETE arm accepts it (is_subtype walks the chain) and it then dies at run with
+;; UnknownFunction — dispatch is by the flat :probe::Th2/transport key, never registered. That
+;; hole predates 255.15; inference reads DIRECT edges only so it does not widen it.
+(:wat::core::defrecord :probe::Shared [a <- :wat::core::i64])
+(:wat::core::defrecord :probe::Wire [b <- :wat::core::String])
+(:wat::core::defsurface :probe::Loc :- [T] :nature :wat::core::Struct
+  :features [(transport [self <- (:probe::Loc :- [T])] -> :T)])
+(:wat::core::defrecord :probe::Th [x <- :wat::core::i64])
+(:wat::core::extend-type :probe::Th (:probe::Loc :- [:probe::Shared]) (transport [self] (:probe::Shared :a 1)))
+(:wat::core::defrecord :probe::Pr [y <- :wat::core::i64])
+(:wat::core::extend-type :probe::Pr (:probe::Loc :- [:probe::Wire]) (transport [self] (:probe::Wire :b "w")))
+(:wat::core::defn :probe::start :- [T] [loc <- (:probe::Loc :- [T])] -> :T (:probe::Loc/transport loc))
+(:wat::core::defrecord :probe::Th2 [x <- :wat::core::i64])
+(:wat::core::derive :probe::Th2 :probe::Th)
+(:wat::core::defn :probe::c [] -> :probe::Shared (:probe::start (:probe::Th2 :x 3)))
