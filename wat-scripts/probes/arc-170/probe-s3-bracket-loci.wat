@@ -10,9 +10,9 @@
   (:wat::core::let
     [nums (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)
      ;; a thread pool of 2 (shared memory — runs the fn directly)
-     tr (:wat::bracket::map (:wat::spawn::thread/runner-count 2) nums :my::double)
+     tr (:wat::bracket::map (:wat::spawn::thread::runner-count 2) nums :my::double)
      ;; the SAME call on a process pool of 2 (not-shared — fn-forms the work, ships forms)
-     pr (:wat::bracket::map (:wat::spawn::process/runner-count 2) nums :my::double)]
+     pr (:wat::bracket::map (:wat::spawn::process::runner-count 2) nums :my::double)]
     (:wat::kernel::println
       (:wat::string::concat
         (:wat::edn::write tr)

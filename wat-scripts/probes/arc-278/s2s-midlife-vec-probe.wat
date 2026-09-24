@@ -65,7 +65,7 @@
      ea  (:probe::echo::Handle/addr eh)
      ;; caller1 — granted at boot via its post-spawn hook.
      ch1 (:probe::caller/start
-           :locus (:wat::spawn::process/post-spawn
+           :locus (:wat::spawn::process::post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:probe::echo/grant eh
                         (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
@@ -83,7 +83,7 @@
      _   (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] 900001 900002))
      ;; caller2 — granted post-boot (echo is mid-life) via the same grant verb in its post-spawn.
      ch2 (:probe::caller/start
-           :locus (:wat::spawn::process/post-spawn
+           :locus (:wat::spawn::process::post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:probe::echo/grant eh
                         (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))

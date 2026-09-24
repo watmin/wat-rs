@@ -81,7 +81,7 @@
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start
-             :locus (:wat::spawn::process/post-spawn
+             :locus (:wat::spawn::process::post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::query::mem-store/grant msh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
@@ -103,7 +103,7 @@
                idxs))
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
      sh    (:usr::my-sift'/start
-             :locus (:wat::spawn::process/post-spawn
+             :locus (:wat::spawn::process::post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
@@ -155,7 +155,7 @@
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start
-             :locus (:wat::spawn::process/post-spawn
+             :locus (:wat::spawn::process::post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::query::mem-store/grant msh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
@@ -172,7 +172,7 @@
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2)))
      sh    (:usr::my-sift'/start
-             :locus (:wat::spawn::process/post-spawn
+             :locus (:wat::spawn::process::post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))

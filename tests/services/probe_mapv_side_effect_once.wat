@@ -106,7 +106,7 @@
 (:wat::core::defn :probe::run-thread-kwargs [] -> :wat::core::i64
   (:wat::core::let
     [h (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
-     _ (:wat::bracket::map (:wat::spawn::thread/runner-count 1)
+     _ (:wat::bracket::map (:wat::spawn::thread::runner-count 1)
           (:wat::core::Vector :- [:wat::core::i64] 0 1 2 3)
           :probe::inc :counter h)]
     (:probe::read h)))

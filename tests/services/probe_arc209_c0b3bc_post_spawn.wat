@@ -26,7 +26,7 @@
              [:wat::kernel::AcceptOutcome.Failed {:cause _c}
                (:wat::kernel::assertion-failed! :message "accept': failed accepting the hook channel")])
      _proc (:wat::test::spawn-peer
-             (:wat::spawn::process/post-spawn
+             (:wat::spawn::process::post-spawn
                (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                  (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx (:wat::spawn::ProcessLaunch/pid launch)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
                    nil)))

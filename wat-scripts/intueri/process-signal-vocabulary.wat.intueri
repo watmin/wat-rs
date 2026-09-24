@@ -55,7 +55,7 @@
 ;;
 ;;   :wat::kernel::  — where every peer verb above lives; the raw IPC surface.
 ;;   :wat::spawn::   — where spawn-program / ProcessOpts / ProcessLaunch live; the LAUNCH surface.
-;;                     Note `:wat::spawn::process/post-spawn` already exists (a ProcessOpts builder),
+;;                     Note `:wat::spawn::process::post-spawn` already exists (a ProcessOpts builder),
 ;;                     so a `process/` segment here has precedent — but that precedent is for
 ;;                     OPTIONS BUILDERS, not for verbs acting on a live Process.
 ;;

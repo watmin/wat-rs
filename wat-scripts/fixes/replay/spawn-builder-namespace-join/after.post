@@ -1,0 +1,18 @@
+;; Replay fixture — arc 255 Stone 255.14, "a namespace is not a type".
+;; The SEVEN wat/spawn.wat builder constructors, plus four negative controls that the
+;; whole-name (exact) rename must leave byte-identical.
+(:wat::core::defn :wat::spawn::thread::init [] -> :wat::core::nil nil)
+(:wat::core::defn :wat::spawn::thread::post-spawn [] -> :wat::core::nil nil)
+(:wat::core::defn :wat::spawn::thread::runner-count [] -> :wat::core::nil nil)
+(:wat::core::defn :wat::spawn::process::post-spawn [] -> :wat::core::nil nil)
+(:wat::core::defn :wat::spawn::process::env [] -> :wat::core::nil nil)
+(:wat::core::defn :wat::spawn::process::max-message-bytes [] -> :wat::core::nil nil)
+(:wat::core::defn :wat::spawn::process::runner-count [] -> :wat::core::nil nil)
+;; CONTROL 1 — a legitimate Type/member join (TYPE parent): must NOT move.
+(:wat::core::defn :user::c1 [] -> :wat::core::nil (:wat::cache::Lru/get 1))
+;; CONTROL 2 — the RETIRED head :wat::spawn::process/grants: not in this class, must NOT move.
+(:wat::core::defn :user::c2 [] -> :wat::core::nil (:wat::spawn::process/grants 1))
+;; CONTROL 3 — a defservice-MINTED <svc>/<op> join: a separate question, must NOT move.
+(:wat::core::defn :user::c3 [] -> :wat::core::nil (:probe::echo/start 1))
+;; CONTROL 4 — the no-argument builders themselves: prefix siblings, must NOT move.
+(:wat::core::defn :user::c4 [] -> :wat::core::nil (:wat::spawn::process) (:wat::spawn::thread))

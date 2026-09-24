@@ -15,7 +15,7 @@
      saddr   (:wat::query::sqlite-store::Handle/addr sh)
      ;; journal' on a PROCESS; grant journal's child pid to sqlite-store's gate before :init dials.
      jh      (:wat::telemetry::journal/start
-               :locus (:wat::spawn::process/post-spawn
+               :locus (:wat::spawn::process::post-spawn
                         (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                           (:wat::query::sqlite-store/grant sh
                             (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))

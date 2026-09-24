@@ -72,7 +72,7 @@
      ea  (:probe::echo::Handle/addr eh)
      ;; caller1 — granted at boot via its post-spawn hook (UNCHANGED grant path).
      ch1 (:probe::caller/start
-           :locus (:wat::spawn::process/post-spawn
+           :locus (:wat::spawn::process::post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:probe::echo/grant eh
                         (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
@@ -101,7 +101,7 @@
      ;; main's :wat::kernel::connect' to caller2's OWN Handle addr should itself fail
      ;; (connection refused / peer never came up).
      ch2 (:probe::caller/start
-           :locus (:wat::spawn::process/post-spawn
+           :locus (:wat::spawn::process::post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::core::let
                         [pidv (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))

@@ -1,0 +1,17 @@
+# arc 255 Stone 255.14 — provenance is the codemod's own HEADER SPEC (the seven mappings),
+# not the tool under test. There is no `history` row: this migration lands in the same commit
+# as its fixture, so no prior commit carries the respelled text to cite.
+spec (:wat::core::defn :wat::spawn::thread::init [] -> :wat::core::nil nil) :: :wat::spawn::thread/init -> :wat::spawn::thread::init
+spec-before (:wat::core::defn :wat::spawn::thread/init [] -> :wat::core::nil nil) :: :wat::spawn::thread/init -> :wat::spawn::thread::init
+spec (:wat::core::defn :wat::spawn::thread::post-spawn [] -> :wat::core::nil nil) :: :wat::spawn::thread/post-spawn -> :wat::spawn::thread::post-spawn
+spec-before (:wat::core::defn :wat::spawn::thread/post-spawn [] -> :wat::core::nil nil) :: :wat::spawn::thread/post-spawn -> :wat::spawn::thread::post-spawn
+spec (:wat::core::defn :wat::spawn::thread::runner-count [] -> :wat::core::nil nil) :: :wat::spawn::thread/runner-count -> :wat::spawn::thread::runner-count
+spec-before (:wat::core::defn :wat::spawn::thread/runner-count [] -> :wat::core::nil nil) :: :wat::spawn::thread/runner-count -> :wat::spawn::thread::runner-count
+spec (:wat::core::defn :wat::spawn::process::post-spawn [] -> :wat::core::nil nil) :: :wat::spawn::process/post-spawn -> :wat::spawn::process::post-spawn
+spec-before (:wat::core::defn :wat::spawn::process/post-spawn [] -> :wat::core::nil nil) :: :wat::spawn::process/post-spawn -> :wat::spawn::process::post-spawn
+spec (:wat::core::defn :wat::spawn::process::env [] -> :wat::core::nil nil) :: :wat::spawn::process/env -> :wat::spawn::process::env
+spec-before (:wat::core::defn :wat::spawn::process/env [] -> :wat::core::nil nil) :: :wat::spawn::process/env -> :wat::spawn::process::env
+spec (:wat::core::defn :wat::spawn::process::max-message-bytes [] -> :wat::core::nil nil) :: :wat::spawn::process/max-message-bytes -> :wat::spawn::process::max-message-bytes
+spec-before (:wat::core::defn :wat::spawn::process/max-message-bytes [] -> :wat::core::nil nil) :: :wat::spawn::process/max-message-bytes -> :wat::spawn::process::max-message-bytes
+spec (:wat::core::defn :wat::spawn::process::runner-count [] -> :wat::core::nil nil) :: :wat::spawn::process/runner-count -> :wat::spawn::process::runner-count
+spec-before (:wat::core::defn :wat::spawn::process/runner-count [] -> :wat::core::nil nil) :: :wat::spawn::process/runner-count -> :wat::spawn::process::runner-count

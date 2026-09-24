@@ -2,5 +2,5 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [nums (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)
-     tr (:wat::bracket::map (:wat::spawn::thread/runner-count 2) nums :my::double)]
+     tr (:wat::bracket::map (:wat::spawn::thread::runner-count 2) nums :my::double)]
     (:wat::kernel::println (:wat::edn::write tr))))

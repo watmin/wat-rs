@@ -8,7 +8,7 @@
 (:wat::core::defn :probe::compute-init [] -> :wat::core::i64
   (:wat::core::let
     [peer (:wat::test::spawn-peer
-            (:wat::spawn::thread/init
+            (:wat::spawn::thread::init
               (:wat::core::fn [] -> :wat::core::Record (:user::MyEnv :port 8080)))
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
               (:wat::core::match
@@ -38,7 +38,7 @@
 (:wat::core::defn :probe::compute-error-init [] -> :wat::core::String
   (:wat::core::let
     [peer (:wat::test::spawn-peer
-            (:wat::spawn::thread/init
+            (:wat::spawn::thread::init
               (:wat::core::fn [] -> :wat::core::Record
                 (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv))))
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil

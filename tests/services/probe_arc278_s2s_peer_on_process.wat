@@ -79,7 +79,7 @@
     [eh  (:probe::echo/start   :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea  (:probe::echo::Handle/addr eh)
      ch  (:probe::caller/start
-           :locus (:wat::spawn::process/post-spawn
+           :locus (:wat::spawn::process::post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:probe::echo/grant eh
                         (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))

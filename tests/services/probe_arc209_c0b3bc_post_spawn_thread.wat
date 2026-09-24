@@ -24,7 +24,7 @@
              [:wat::kernel::AcceptOutcome.Failed {:cause _c}
                (:wat::kernel::assertion-failed! :message "accept': failed accepting the hook channel")])
      _thr  (:wat::test::spawn-peer
-             (:wat::spawn::thread/post-spawn
+             (:wat::spawn::thread::post-spawn
                (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil
                  (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx 777) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] nil)))
              (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil

@@ -12,7 +12,7 @@
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      saddr (:wat::query::mem-store::Handle/addr sh)
      jh    (:wat::telemetry::journal/start
-             :locus (:wat::spawn::process/post-spawn
+             :locus (:wat::spawn::process::post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                         (:wat::query::mem-store/grant sh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))

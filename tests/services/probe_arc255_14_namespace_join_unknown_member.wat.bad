@@ -1,0 +1,4 @@
+;; ⛔ THE WALL IS ON THE NAME, NOT THE SPELLING — a member the namespace does not declare
+;; is refused even in the new join. Arc 255 Stone 255.14.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do (:wat::spawn::process::nope 3) nil))

@@ -87,33 +87,52 @@
 (:wat::core::def :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES 524288)
 
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
-;; (thread)             — default init-fn + no-op post-spawn-fn; runner-count defaults to cpu-count.
-;; (thread/init f)      — init-fn is f; post-spawn-fn defaults to no-op; runner-count defaults to cpu-count.
-;; (thread/post-spawn g)— init-fn defaults to EmptyEnv; post-spawn-fn is g; runner-count defaults to cpu-count.
-;; (thread/runner-count n) — init-fn + post-spawn-fn default; runner-count is n.
-;; (process)            — no-op post-spawn-fn; env-fn defaults to EmptyEnv ctor; default budget; runner-count defaults to cpu-count.
-;; (process/post-spawn f)— post-spawn-fn is f; env-fn defaults to EmptyEnv ctor; default budget; runner-count defaults to cpu-count.
-;; (process/env s)       — env-fn is s; post-spawn-fn defaults to no-op; default budget; runner-count defaults to cpu-count.
-;; (process/max-message-bytes n) — budget is n; post-spawn-fn + env-fn default; runner-count defaults to cpu-count.
-;; (process/runner-count n) — post-spawn-fn/env-fn/max-message-bytes default; runner-count is n.
+;; ⭐ arc 255 Stone 255.14, "a namespace is not a type" — these members join with `::`, not `/`.
+;; `thread` and `process` are NAMESPACES (the per-env halves of this convention), not TYPES, and
+;; 255.4's rule is that a `/` member join means `Type/member`.  A `/` join at a NON-TYPE parent is
+;; UNSPELLABLE in the faithful-Clojure surface: `wat.spawn.process/post-spawn` is the image of BOTH
+;; `:wat::spawn::process/post-spawn` and `:wat::spawn::process::post-spawn`, and only
+;; `freeze::env::rekey_type_member_functions` can tell them apart — which it can do only when the
+;; parent is a type.  ⭐ THE FAITHFUL SPELLING BELOW DID NOT CHANGE; only the rust-scheme one did.
+;; Recorded migration: `wat-scripts/fixes/spawn-builder-namespace-join.wat`.
+;;
+;; rust scheme                              faithful Clojure
+;; (thread)                                 (wat.spawn/thread)
+;;   — default init-fn + no-op post-spawn-fn; runner-count defaults to cpu-count.
+;; (thread::init f)                         (wat.spawn.thread/init f)
+;;   — init-fn is f; post-spawn-fn defaults to no-op; runner-count defaults to cpu-count.
+;; (thread::post-spawn g)                   (wat.spawn.thread/post-spawn g)
+;;   — init-fn defaults to EmptyEnv; post-spawn-fn is g; runner-count defaults to cpu-count.
+;; (thread::runner-count n)                 (wat.spawn.thread/runner-count n)
+;;   — init-fn + post-spawn-fn default; runner-count is n.
+;; (process)                                (wat.spawn/process)
+;;   — no-op post-spawn-fn; env-fn defaults to EmptyEnv ctor; default budget; runner-count defaults to cpu-count.
+;; (process::post-spawn f)                  (wat.spawn.process/post-spawn f)
+;;   — post-spawn-fn is f; env-fn defaults to EmptyEnv ctor; default budget; runner-count defaults to cpu-count.
+;; (process::env s)                         (wat.spawn.process/env s)
+;;   — env-fn is s; post-spawn-fn defaults to no-op; default budget; runner-count defaults to cpu-count.
+;; (process::max-message-bytes n)           (wat.spawn.process/max-message-bytes n)
+;;   — budget is n; post-spawn-fn + env-fn default; runner-count defaults to cpu-count.
+;; (process::runner-count n)                (wat.spawn.process/runner-count n)
+;;   — post-spawn-fn/env-fn/max-message-bytes default; runner-count is n.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
     :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
     :runner-count (:wat::program::cpu-count)))
 
-(:wat::core::defn :wat::spawn::thread/init [f <- [:-> :wat::core::Record]] -> :wat::spawn::ThreadOpts
+(:wat::core::defn :wat::spawn::thread::init [f <- [:-> :wat::core::Record]] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts :init-fn f
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
     :runner-count (:wat::program::cpu-count)))
 
-(:wat::core::defn :wat::spawn::thread/post-spawn [g <- [:wat::spawn::ThreadLaunch :-> :wat::core::nil]] -> :wat::spawn::ThreadOpts
+(:wat::core::defn :wat::spawn::thread::post-spawn [g <- [:wat::spawn::ThreadLaunch :-> :wat::core::nil]] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
     :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
     :post-spawn-fn g
     :runner-count (:wat::program::cpu-count)))
 
-(:wat::core::defn :wat::spawn::thread/runner-count [n <- :wat::core::i64] -> :wat::spawn::ThreadOpts
+(:wat::core::defn :wat::spawn::thread::runner-count [n <- :wat::core::i64] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
     :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
@@ -127,10 +146,10 @@
     :runner-count (:wat::program::cpu-count)
     :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process/post-spawn [f <- [:wat::spawn::ProcessLaunch :-> :wat::core::nil]] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::post-spawn [f <- [:wat::spawn::ProcessLaunch :-> :wat::core::nil]] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES :runner-count (:wat::program::cpu-count) :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn s
@@ -138,7 +157,7 @@
     :runner-count (:wat::program::cpu-count)
     :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
@@ -146,7 +165,7 @@
     :runner-count (:wat::program::cpu-count)
     :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn "(:wat::program::EmptyEnv)"

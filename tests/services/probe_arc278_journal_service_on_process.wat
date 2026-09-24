@@ -17,7 +17,7 @@
      ;; journal' on a PROCESS; the post-spawn hook grants journal's child pid to mem-store's gate
      ;; BEFORE journal''s :init dials the store (grant-before-dial ordering).
      jh      (:wat::telemetry::journal/start
-               :locus (:wat::spawn::process/post-spawn
+               :locus (:wat::spawn::process::post-spawn
                         (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                           (:wat::query::mem-store/grant sh
                             (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))

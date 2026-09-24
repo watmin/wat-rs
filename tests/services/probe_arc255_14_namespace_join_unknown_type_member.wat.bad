@@ -1,0 +1,4 @@
+;; ⛔ THE TYPE-PARENT WALL IS UNTOUCHED — an unknown member on a TYPE parent is still
+;; refused, still under the `/` join. Arc 255 Stone 255.14.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do (:wat::spawn::ProcessOpts/nope (:wat::spawn::process)) nil))

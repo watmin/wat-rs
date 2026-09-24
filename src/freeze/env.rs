@@ -974,9 +974,14 @@ mod rete_wall_probe {
 /// pass is the only thing that can tell them apart and it can only answer when the parent
 /// is a type. **When the parent is NOT a type, the `/` join is UNSPELLABLE in the faithful
 /// surface**: the declaration registers under `::`, every keyword-spelled caller still
-/// asks for `/`, and the name is simply gone. That is the eighth draw's address — measured
-/// by converting `wat/spawn.wat` alone, which turns the ONE deliberate unresolved
-/// reference in `probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat` into TWO.
+/// asks for `/`, and the name is simply gone. That was the eighth draw's address — measured
+/// by converting `wat/spawn.wat` alone, which turned the ONE deliberate unresolved
+/// reference in `probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat` into TWO. ⭐ **255.14
+/// CURED it at the source**: `wat/spawn.wat` no longer declares a `/` join at a non-type
+/// parent, so that same conversion now leaves exactly the ONE deliberate reference again.
+/// The illustration above is kept because it is the MECHANISM, and the mechanism stands:
+/// it is still what makes `:wat::cache::lru-svc/start` and friends (defservice-MINTED, so
+/// no codemod reaches them) depend on the permissive symbol-call-head flip.
 ///
 /// ⭐ A MACRO is on the list for a DIFFERENT reason, and `:wat::core::Fault/of` is the
 /// only one: macros are registered and expanded at steps 4–5, before the `TypeEnv` exists
@@ -1004,14 +1009,28 @@ mod rete_wall_probe {
 /// lands, this gate is RETIRED or RE-AIMED at the converted surface — it is not
 /// loosened.**
 ///
-/// ⛔ **The frozen seven are a SURFACE question, not a defect this pass may cure.** They
-/// are `wat/spawn.wat`'s documented per-env builder constructors — `(thread/init f)`,
-/// `(process/post-spawn f)`, `(process/runner-count n)`, … — spelled out in that file's
-/// own header at lines 90–98 and written across 26 more live files. Curing them
-/// means RESPELLING a documented public API across the corpus, which is the builder's
-/// ruling and 255.8's already-scheduled *"stone for the wrong-join acceptance BEFORE
-/// 8d-iii"*, not a rider's. This gate exists so that stone has an exact, derived,
-/// non-growing list to work from.
+/// ⭐⭐ **THE FROZEN SEVEN ARE GONE — arc 255 Stone 255.14, the builder's ruling: *a non-type
+/// parent uses the NAMESPACE join; respell `/` → `::` in the declaration; the faithful form
+/// does not change*.** `wat/spawn.wat`'s per-env builder constructors are now
+/// `:wat::spawn::thread::init`, `:wat::spawn::process::post-spawn`, … Their faithful images
+/// (`wat.spawn.thread/init`, `wat.spawn.process/post-spawn`) are BYTE-IDENTICAL to what they
+/// were, because a faithful symbol's one `/` is its namespace/name split either way — which is
+/// exactly why the round trip is now the identity: `ns_to_wat_path` writes `::`, and `::` is
+/// what the declaration now says. The respelling was a recorded, replayed codemod
+/// (`wat-scripts/fixes/spawn-builder-namespace-join.wat`) over 24 tracked files.
+///
+/// ⛔ **This gate SHRANK; it was not loosened.** `:wat::core::Fault/of` is the one name left,
+/// and it is here for the OTHER reason (a macro is never rekeyed — see above), not for the
+/// join. **A name JOINING this list is a new hole in 8d's surface.**
+///
+/// ⛔ **The `slash_joined` non-vacuity floor moved 16 → 9 in the same commit, and it still
+/// discriminates.** The population it guards is the stdlib's `/`-joined DECLARATION names:
+/// 17 before, 10 after (the seven that moved are the whole difference). Those 10 are
+/// `wat/cache.wat`'s nine `Lru/*` + `HolographicLru/*` members — TYPE parents, restored by the
+/// rekey pass, the very rows that make a green here mean something — plus `Fault/of`. The floor
+/// is set one below the measured 10 for the same reason it was set one below 17: it catches the
+/// population VANISHING (an 8d-converted stdlib collapses it to 1 — measured), not a single row
+/// moving. It is NOT re-derived from the answer each time; when it moves, the SCORE says why.
 #[cfg(test)]
 mod faithful_surface_round_trip {
     use super::*;
@@ -1020,19 +1039,20 @@ mod faithful_surface_round_trip {
     /// faithful-Clojure surface. A name JOINING this list is a new hole in 8d's surface;
     /// a name LEAVING it is a cure, and the SCORE must say which side of the join moved.
     const UNSPELLABLE_IN_THE_FAITHFUL_SURFACE: &[&str] = &[
-        // ⛔ UNREACHABLE once `wat/spawn.wat` is converted: the parent segment
-        // (`process` / `thread`) is not a TYPE, so nothing can restore the `/`, and
-        // every keyword-spelled caller keeps asking for a key that no longer exists.
-        // This is the eighth draw's measured address. Curing it means RESPELLING a
-        // documented public API (see this module's doc) — the builder's ruling.
+        // ⛔ A `defmacro`, and that is the WHOLE reason it is here. `Fault` IS a type, so the
+        // `/` member join is legitimate (255.4) and `rekey_type_member_functions` would put it
+        // back — except that pass walks `sym.functions_iter()` and a macro registers at step 4,
+        // before the `TypeEnv` exists at step 6.97. Its rescue is behavioural, at the CONSULT
+        // (`macros::expand`'s keyword arm asking `other_join_spelling`), and this gate
+        // deliberately does not model it.
+        //
+        // ⭐ The seven `wat/spawn.wat` builder constructors that stood beside it LEFT this list
+        // at Stone 255.14: they were `/`-joined at a NON-TYPE parent (`process`, `thread`), and
+        // the codemod `wat-scripts/fixes/spawn-builder-namespace-join.wat` respelled the
+        // declaration `/` → `::` across the corpus. The faithful spelling of every one of them
+        // is unchanged; only the rust-scheme declaration moved, and now the round trip is the
+        // identity. That is a CURE, not a loosening — the SIDE that moved is the DECLARATION's.
         ":wat::core::Fault/of",
-        ":wat::spawn::process/env",
-        ":wat::spawn::process/max-message-bytes",
-        ":wat::spawn::process/post-spawn",
-        ":wat::spawn::process/runner-count",
-        ":wat::spawn::thread/init",
-        ":wat::spawn::thread/post-spawn",
-        ":wat::spawn::thread/runner-count",
     ];
 
     /// The declaration heads whose item 1 is a NAME. `defservice`/`defrule` mint their
@@ -1138,7 +1158,7 @@ mod faithful_surface_round_trip {
              forward map changed shape; this green is worthless"
         );
         assert!(
-            slash_joined >= 16,
+            slash_joined >= 9,
             "only {slash_joined} stdlib declaration names carry a `/` member join — the \
              population this gate discriminates ON has vanished, so a pass proves nothing"
         );
