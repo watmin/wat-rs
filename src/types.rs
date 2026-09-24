@@ -943,8 +943,9 @@ impl TypeEnv {
 
     /// ONE classifier: Declared (`get` is Some) then Builtin (`builtin_names` ∪
     /// `is_builtin_primitive`) then Marker (`is_subtype_parent`) then Unknown.
-    /// A name that is a `TypeDef` answers Declared even if a builtin store also
-    /// holds it (`:wat::core::Option`/`Result`).
+    /// Declared is asked first. No builtin name is in both stores (stone 255.26:
+    /// `:wat::core::Option`/`Result` were, until the head loop in
+    /// `register_builtin_types` stopped sending structured heads to the leaf door).
     pub(crate) fn classify<'b>(&'b self, kw: &str) -> TypeMembership<'b> {
         let canonical = crate::edn::render::canonical_identity(kw);
         let denoted = crate::edn::render::type_denotation(&canonical);
@@ -1315,6 +1316,13 @@ impl TypeEnv {
             !self.types.contains_key(&name),
             "built-in type {} registered twice",
             name
+        );
+        // Stone 255.26 — a builtin is STRUCTURED or a LEAF, never both. The leaf door
+        // (`register_builtin_leaf`) refuses a name this door already holds; this is the
+        // mirror, so the refusal does not depend on which door is asked first.
+        debug_assert!(
+            !self.builtin_names.contains(&name),
+            "built-in type {name} already registered as a builtin leaf"
         );
         // Arc 293.W.2b — register the nature-root subtype edge for Aggregate builtins,
         // mirroring what `register` does for user-defined aggregates (types.rs:525-532).
@@ -3339,8 +3347,22 @@ fn register_builtin_types(env: &mut TypeEnv) {
     for (_bare, fqdn) in crate::check::BARE_PRIMITIVES {
         env.register_builtin_leaf(*fqdn);
     }
+    //
+    // Stone 255.26 — a head WITH structure is not a leaf. `Option` and `Result` are
+    // enums with variants (`wat/core.wat`'s `defenum`s, registered above through
+    // `register_builtin`), so they belong to the structured door; the other heads
+    // (`Vector`, `HashMap`, …) have no `TypeDef` and are leaves. Deciding by what the
+    // head IS keeps this derived from the const rather than a transcribed exclusion
+    // list. From `10599eb36` until this stone every head was sent to the leaf door,
+    // `Option`/`Result` landed in BOTH stores, and the leaf door's `debug_assert!`
+    // panicked every debug build — invisible to the release floor, which compiles it
+    // out. `builtin_stores_are_disjoint` is the release-visible row for this class.
     for (_bare, fqdn) in crate::check::BARE_CONTAINER_HEADS {
-        env.register_builtin_leaf(format!(":{fqdn}"));
+        let head = format!(":{fqdn}");
+        if env.types.contains_key(&head) {
+            continue;
+        }
+        env.register_builtin_leaf(head);
     }
 
     // Group 3 — opaque capability/handle types and scalar/AST-leaf sentinels
@@ -8493,6 +8515,58 @@ mod tests {
             assert!(
                 env.contains(&colon_fqdn),
                 "BARE_CONTAINER_HEADS entry {bare:?} -> {fqdn:?} must be contains-true as {colon_fqdn:?}"
+            );
+        }
+    }
+
+    /// Stone 255.26 — a name is a STRUCTURED builtin or a LEAF, never both. The two
+    /// doors' `debug_assert!`s enforce this only in a debug build, and the floor runs
+    /// release, so from `10599eb36` to 255.26 `:wat::core::Option`/`Result` sat in both
+    /// stores with every debug build panicking and no floor able to see it. This row
+    /// asks the same question in release, over the builtins AND the stdlib-loaded world
+    /// (the snapshot every checker test starts from).
+    #[test]
+    fn builtin_stores_are_disjoint() {
+        let builtins = TypeEnv::with_builtins();
+        let (_, _, stdlib) = crate::freeze::env::stdlib_snapshot();
+        for (label, env) in [("with_builtins", &builtins), ("stdlib_snapshot", stdlib)] {
+            let mut both: Vec<&String> = env
+                .builtin_names
+                .iter()
+                .filter(|n| env.types.contains_key(*n))
+                .collect();
+            both.sort();
+            assert!(
+                both.is_empty(),
+                "{label}: names in BOTH the structured and the leaf store: {both:?}"
+            );
+        }
+    }
+
+    /// Stone 255.26 — which door each container head uses, decided by what it is.
+    /// `Option`/`Result` are enums (structure: `get` is `Some(Enum)`); every other head
+    /// has no `TypeDef` and is a leaf. Both answer the membership door either way.
+    #[test]
+    fn a_structured_container_head_is_not_a_leaf() {
+        let env = TypeEnv::with_builtins();
+        for head in [":wat::core::Option", ":wat::core::Result"] {
+            assert!(
+                matches!(env.get(head), Some(TypeDef::Enum(_))),
+                "{head} must be a structured builtin (an enum)"
+            );
+            assert!(
+                !env.builtin_names.contains(head),
+                "{head} must not also be a builtin leaf"
+            );
+            assert!(env.contains(head), "{head} must still answer the membership door");
+        }
+        for (_bare, fqdn) in crate::check::BARE_CONTAINER_HEADS {
+            let head = format!(":{fqdn}");
+            let structured = env.types.contains_key(&head);
+            let leaf = env.builtin_names.contains(&head);
+            assert!(
+                structured ^ leaf,
+                "{head}: exactly one door (structured={structured}, leaf={leaf})"
             );
         }
     }
