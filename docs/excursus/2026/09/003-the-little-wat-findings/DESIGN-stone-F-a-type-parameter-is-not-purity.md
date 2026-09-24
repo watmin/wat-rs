@@ -1,0 +1,56 @@
+# DESIGN — STONE F: a type parameter does not launder impurity into a pure aggregate
+
+**Drawn 2026-09-24.** Found by stone E's executor; reproduced independently here.
+
+## The defect, driven
+
+```
+(defrecord :t::Box [x <- (Lru :- [i64 i64])])      check=1  ImpureFieldInPureAggregate   ✓ refused
+(defrecord :t::Box :- [T] [x <- T]) + (Box :- [Lru]) {:x h}   check=0 run=0              ⛔ accepted
+the same, T INFERRED — (:t::Box {:x h})                       check=0 run=0              ⛔ accepted
+(:wat::edn::write b)  →  #t/Box {:x {:x #rust.cache/Lru nil}}                            ⛔ SILENT DATA LOSS
+```
+
+⛔ **The last row is why this matters.** The purity rule exists so a record can cross a boundary
+and come back whole. This one crosses and comes back with its handle turned into `nil`, and nothing
+anywhere reports it. Stone E's executor also measured a **generic `:Pure` enum** getting past the
+check the same way — reproduce that case yourself first (the fixture shape is in stone E's probe).
+
+## The root
+
+`is_pure_type` (`src/check.rs:15035`) ends its `Path` arm in `None => true`, commented *"unknown
+path ⇒ a formal type parameter ⇒ portable by convention."* So a declared `T` is PURE BY ASSUMPTION
+at declaration, and **nothing re-checks the assumption when `T` is filled in** — annotated or
+inferred. `validate_aggregate_containment` runs once, over declarations, where `T` is still `T`.
+
+## The invariant — handed down as the goal, not a mechanism
+
+⛔ **A `Pure` aggregate or `Pure` enum never holds an impure value — at any instantiation, written
+or inferred.**
+
+## The shape — two layers, the same shape stone E used
+
+1. **Check time, where the type is known:** when a pure aggregate/enum is instantiated with concrete
+   type arguments (an annotation `(Box :- [X])`, or a constructor call whose field types infer
+   concretely), every argument bound to a parameter that reaches a field must satisfy
+   `is_pure_type`. This catches both the annotated and the inferred rows above.
+2. **Runtime, for what the checker cannot see:** a constructor inside a GENERIC function builds
+   `Box<T>` with `T` still a variable. Refusing there at check time would outlaw a truth — a generic
+   fn that builds `Box<T>` for a pure `T` is legal. So the pure constructor itself checks its field
+   VALUES deeply for an impure value, and refuses as a **wat runtime error carrying the user's span**
+   (constructors are evaluated in the runtime, not the dispatch macro, so a raise with a span is
+   available there — as `i64::/` does it).
+
+## The ONE contract decision
+
+**Refuse, never coerce.** The EDN writer turning a handle into `nil` is the failure mode, not an
+option. A pure aggregate that would hold an impure value is refused at the earliest layer that can
+see it.
+
+## Out of scope — REJECTED, but recorded
+
+- **`:wat::edn::write` of a bare opaque handle emits `#rust.cache/Lru nil`.** After this stone a
+  pure record cannot carry one, but writing a handle directly is its own lossy path. Separate stone.
+- Type-parameter BOUNDS as a language feature (`T : Pure`). A real design, and the builder's call —
+  this stone enforces the invariant without adding syntax.
+- Where raised errors report their location (the F-006 family) — separate stone.
