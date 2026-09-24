@@ -3,11 +3,35 @@
 **Filed:** 2026-08-28, by the grok-rete agent, at the builder's direction
 (*"the cache lru… make a note on this… drop it into arc 109… this is unrelated to rete/278"*).
 **Home:** arc 109, because `src/rust_deps/` is its territory and the cache is not rete.
-**Status:** ⛔ **MANDATE GIVEN AND THE `Lru::new` HALF SHIPPED, 2026-09-22.** `put`/`get` stay as
-ruled. This note no longer asks for a decision; it is the record of one.
+**Status:** ⛔ **SECOND MANDATE 2026-09-23 — `put`/`get` CONVERT TOO.** `Lru::new` shipped
+2026-09-22 (`70f8e2cd5`). The "LEAVE `put`/`get`" ruling below is **SUPERSEDED** — read the ruling
+section first, then treat the merits section as history.
 **Ground:** `grok-rete` @ `f1e112562`. Every citation re-checked against the tree on the day.
 
 ---
+
+## ⛔⛔ RULING — 2026-09-23: "the least amount of panics possible"
+
+Builder: *"i want the least amount of panics possible (which may be zero; or when we have a
+compiler, it may be able to panic on bad exprs.... we'll see)"*
+
+**`put`/`get` convert.** The merits section's defence of leaving them was that the key is a caller
+bug and *"the checker already rejects an opaque-typed key at most call sites."* **Measured
+2026-09-23, that is false for both shapes tried:**
+
+```
+an Lru handle as the key, direct        check=0  run=2  panicked at … YES
+the same, laundered through a generic K  check=0  run=2  panicked at … YES
+```
+
+⭐ **And the substrate already has the design; the cache is the one exception to it.** HashSet /
+HashMap call the SAME shared `value_is_hashable` predicate (`src/runtime.rs:6735-6760`) and return
+a user-visible `TypeMismatch`; `is_atomizable` (`src/check.rs:3623`) is *"the static guarantee"*
+and the runtime guard *"defence-in-depth for inferred types."* `Lru/put`/`get` call that predicate
+and then `panic!`. The cure is to make the cache match its siblings, in both layers.
+
+⚠ **The carve-out the builder left open is a FUTURE COMPILER**, which may legitimately panic on
+a bad expr. That is not this runtime, and it licenses nothing here.
 
 ## ⭐ MANDATE — 2026-09-22, and it SUPERSEDED this note's AXIS
 
