@@ -14,7 +14,9 @@ the same, T INFERRED — (:t::Box {:x h})                       check=0 run=0   
 ⛔ **The last row is why this matters — and the writer is NOT the defect.** An opaque has no EDN
 representation by design: `src/edn/render.rs` renders a live handle as `opaque_nil`, *"only
 genuinely-opaque LIVE values nil"* (builder, 2026-09-24: *"opaques are meant to produce nil - they
-have no edn repr"*). The purity rule is what promises a `Pure` record contains NONE, so that
+have no edn repr"*). The doctrine is arc 294's, `BRIEF-294.i-opaque-the-death-warrant.md:15`: *"A resource has
+**no EDN representation**. The tag says what it was; the `nil` body says you learn nothing more.
+That is correct and final — do not write encoders for anything."* The purity rule is what promises a `Pure` record contains NONE, so that
 writing it is whole. The defect is that the promise is false here; `nil` is the writer correctly
 declining to serialize something the record should never have held. Stone E's executor also measured a **generic `:Pure` enum** getting past the
 check the same way — reproduce that case yourself first (the fixture shape is in stone E's probe).
