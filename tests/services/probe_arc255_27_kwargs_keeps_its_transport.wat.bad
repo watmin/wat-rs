@@ -1,14 +1,15 @@
-;; wat-scripts/scratch-pad/255-21-kwargs-transport-lost-at-impl.wat — stone 255.21 (C-b1b), STOP.
+;; tests/services/probe_arc255_27_kwargs_keeps_its_transport.wat.bad — stone 255.27 (C-b5).
 ;;
-;; WITNESS of the hole 255.21 could not close inside the kwargs macro. The generated
-;; `::kwargs-check` now DECLARES a transport param per service field (`T0` here), and its
-;; `::Kwargs` constructor binds it from the handle (measured: `(Kwargs' h)` on a thread handle is
-;; `(… ::Kwargs :- [:wat::kernel::Shared])`). But the call then goes through `$impl`, whose param is
-;; `(Kwargs :- [T0])`, and `assignable`'s transport-slot arm (`transport_param_instantiates`,
-;; check.rs, C-b5 ground) ADMITS `Shared` against the fresh variable without BINDING it. The
-;; result `(GrantHandles :- [_])` has a free transport, so BOTH defns below type-check (rc=0).
-;; When `:probe::kwargs-thread-handle-claimed-wire` stops type-checking, the hole is closed — move
-;; it to a .wat.bad row beside tests/services/probe_arc255_21_coord_claims_either_transport.wat.bad.
+;; Was `wat-scripts/scratch-pad/255-21-kwargs-transport-lost-at-impl.wat`, 255.21's WITNESS of the
+;; kwargs-transport hole. The generated `::kwargs-check` declares a transport param per service
+;; field (`T0` here) and its `::Kwargs` constructor binds it from the handle; the call then goes
+;; through `$impl`, whose param is `(Kwargs :- [T0])`. `assignable`'s transport-slot arm
+;; (`transport_param_instantiates`) admitted `Transport.Shared` against that fresh variable
+;; WITHOUT binding it, so `(GrantHandles :- [_])` came out with a free transport and a thread
+;; handle's coord type-checked as a Wire address (rc=0 on the pre-stone binary). 255.27 deleted
+;; the arm: the variable binds, and the claim below is refused. Its accepted twin is
+;; `probe_arc255_27_kwargs_keeps_its_transport.wat`; driven by
+;; `probe_arc255_27_kwargs_keeps_its_transport.rs`.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
@@ -32,13 +33,6 @@
 
 (:wat::core::defn :probe::kwargs-thread-handle-claimed-wire []
   -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire])
-  (:wat::core::let
-    [h    (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))
-     pair (:probe::work::kwargs-check :echo h)]
-    (:wat::capability::TypedCapability/coord (:probe::work::GrantHandles/echo (:wat::core::second pair)))))
-
-(:wat::core::defn :probe::kwargs-thread-handle-claimed-shared []
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Shared])
   (:wat::core::let
     [h    (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))
      pair (:probe::work::kwargs-check :echo h)]

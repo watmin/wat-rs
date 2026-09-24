@@ -1,0 +1,6 @@
+;; Stone 255.17 — the last type argument of a parametric annotation is not forgotten (arc 255).
+;; REFUSED — the runtime reproducer: before 255.17, --check rc=0 and the run failed with TypeMismatch.
+(:wat::core::defn :probe::k :- [T] [o <- (:wat::core::Option :- [T])] -> :wat::core::i64
+  (:wat::core::match o [:wat::core::Option.Some {:value v} v] [_ 0]))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println (:wat::i64::+ 1 (:probe::k (:wat::core::Option.Some {:value "hello"})))))

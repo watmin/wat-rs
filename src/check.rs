@@ -10580,34 +10580,6 @@ fn satisfier_method_keys(recv: &TypeExpr, method_name: &str) -> Vec<String> {
     keys
 }
 
-/// T (type-param / var) instantiates to Shared or Wire. Not Shared↔Wire.
-fn transport_param_instantiates(actual: &TypeExpr, expected: &TypeExpr) -> bool {
-    if is_type_param_letter(actual) && (is_shared_marker(expected) || is_wire_marker(expected) || is_type_param_letter(expected))
-    {
-        return true;
-    }
-    if is_type_param_letter(expected) && (is_shared_marker(actual) || is_wire_marker(actual)) {
-        return true;
-    }
-    false
-}
-
-/// 293.W.2f — the extra T slot of Address/Bound/Handle/Launched: Shared, Wire,
-/// a unification var, or a single-letter type param (`T`).
-fn is_transport_slot(ty: &TypeExpr) -> bool {
-    match ty {
-        TypeExpr::Var(_) => true,
-        TypeExpr::Path(p) => {
-            if is_shared_marker(ty) || is_wire_marker(ty) {
-                return true;
-            }
-            let bare = p.trim_start_matches(':');
-            bare == "Xt"
-                || (bare.len() == 1 && bare.chars().all(|c| c.is_ascii_uppercase()))
-        }
-        _ => false,
-    }
-}
 
 
 /// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect addr)` → `(Peer' :- [S R])`.
@@ -10654,7 +10626,9 @@ fn infer_connect_prime(
     let addr_reduced = reduce(&apply_subst(&addr_ty, subst), subst, env.types());
     let s = fresh.fresh();
     let r = fresh.fresh();
-    let expected = TypeExpr::Parametric { head: "wat::kernel::Address".into(), args: vec![s.clone(), r.clone()] };
+    // Stone 255.27 (C-b5) — the address's transport is an ordinary third parameter; connect is
+    // transport-agnostic, so it is a fresh variable (was the 2-arg missing-slot shorthand).
+    let expected = TypeExpr::Parametric { head: "wat::kernel::Address".into(), args: vec![s.clone(), r.clone(), fresh.fresh()] };
     match unify(&addr_reduced, &expected, subst, env.types()) {
         Ok(_) => {
             // Arc 209 C0b.2e-iii — unified (Address' :- [S R]) → (Peer' :- [S R]) (both tiers).
@@ -10676,7 +10650,7 @@ fn infer_connect_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "addr".into(),
-                expected: "(Address :- [S R])".into(),
+                expected: "(Address :- [S R T])".into(),
                 got: format_type(&addr_reduced),
             } });
             let s2 = fresh.fresh();
@@ -12018,9 +11992,10 @@ fn infer_address_wire(
     let addr_reduced = reduce(&apply_subst(&addr_ty, subst), subst, env.types());
     let s = fresh.fresh();
     let r = fresh.fresh();
+    // Stone 255.27 (C-b5) — the transport is the third parameter, a fresh variable here.
     let expected = TypeExpr::Parametric {
         head: "wat::kernel::Address".into(),
-        args: vec![s, r],
+        args: vec![s, r, fresh.fresh()],
     };
     match unify(&addr_reduced, &expected, subst, env.types()) {
         Ok(_) => {
@@ -12037,7 +12012,7 @@ fn infer_address_wire(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "addr".into(),
-                    expected: "(Address :- [S R])".into(),
+                    expected: "(Address :- [S R T])".into(),
                     got: format_type(&addr_reduced),
                 },
             });
@@ -16727,6 +16702,12 @@ pub(crate) fn unify(
         }
         // 293.W.2f — bare `Status` (T unknown) unifies with `(Status :- [T])` /
         // `(Status :- [Shared])`. Same residual as 2-arg Address.
+        //
+        // Stone 255.27 (C-b5) SURVIVOR — this is also the abstract-`Locus` arm (a bare `Locus`
+        // is admitted as any `(Locus :- [T])`), but it is not a transport arm: the checker
+        // itself types every generic variant constructor's body as the BARE variant path, and
+        // the PersistentMap/PersistentVector builtins return the bare family. Deleting it
+        // refused the stdlib (212 errors). It goes when those produce their instantiation.
         (TypeExpr::Path(p), TypeExpr::Parametric { head, args })
             if crate::types::parametric_heads_unify(head, p) && !args.is_empty() =>
         {
@@ -16746,9 +16727,15 @@ pub(crate) fn unify(
             TypeExpr::Parametric { head: h2, args: a2 },
         ) => {
             // 293.W.2f — (Address :- [S R]) (T unknown) unifies with (Address :- [S R T]);
-            // (Bound :- [S R]) unifies with (Bound :- [S R T]); (Launched :- [S R Sh Lu]) unifies
-            // with (Launched :- [S R Sh Lu T]). Same-head n vs n+1 also covers
-            // (Handle :- [K V]) ↔ (Handle :- [K V T]) when the extra slot is the transport.
+            // (Bound :- [S R]) with (Bound :- [S R T]); (Launched :- [S R Sh Lu]) with
+            // (Launched :- [S R Sh Lu T]).
+            //
+            // Stone 255.27 (C-b5) SURVIVOR — the head-named missing-slot arm. The generic
+            // `is_transport_slot` n vs n+1 arms that followed it are deleted. This one stays:
+            // a 2-argument `Address` is a live "either transport" spelling (defservice `:init`
+            // params, the kwargs `Coords` record, stdio's connect helpers, `PoolMsg`), and
+            // deleting the arm refused 59 files + 6 stdlib files (STOP 1). It goes when those
+            // sites can declare their transport.
             if h1 == h2 || crate::types::parametric_heads_unify(h1, h2) {
                 let n_fixed = match h1.as_str() {
                     "wat::kernel::Address" | "wat::spawn::Bound" => Some(2),
@@ -16767,18 +16754,6 @@ pub(crate) fn unify(
                         }
                         return Ok(());
                     }
-                }
-                if a1.len() + 1 == a2.len() && is_transport_slot(&a2[a2.len() - 1]) {
-                    for i in 0..a1.len() {
-                        unify(&a1[i], &a2[i], subst, types)?;
-                    }
-                    return Ok(());
-                }
-                if a2.len() + 1 == a1.len() && is_transport_slot(&a1[a1.len() - 1]) {
-                    for i in 0..a2.len() {
-                        unify(&a1[i], &a2[i], subst, types)?;
-                    }
-                    return Ok(());
                 }
             }
             if !crate::types::parametric_heads_unify(h1, h2) || a1.len() != a2.len() {
@@ -17392,25 +17367,9 @@ pub(crate) fn assignable(
                 }
             }
         }
-        // 293.W.2f — uninstantiated aggregate `Handle` (T unknown) accepts any
-        // `(Handle :- [Shared])` / `(Handle :- [Wire])` instantiation, and the reverse.
-        if surface_key == *ap {
-            if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ap) {
-                if !agg.type_params.is_empty() {
-                    return true;
-                }
-            }
-        }
-    }
-    if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
-        let key = crate::types::parametric_head_fqdn(head);
-        if key == *ep {
-            if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ep) {
-                if !agg.type_params.is_empty() {
-                    return true;
-                }
-            }
-        }
+        // Stone 255.27 (C-b5) — the 293.W.2f arm "uninstantiated aggregate `Handle` (T unknown)
+        // accepts any instantiation, and the reverse" is deleted: a bare family type is not
+        // any instantiation of it.
     }
     // Arc 291 3a-ii-β — a parametric type satisfies a parametric bound iff its head DERIVES
     // the expected head (the derive graph — N-loci-general: Thread'/Process'/<future remote>
@@ -17477,27 +17436,6 @@ pub(crate) fn assignable(
                     *subst = solved;
                     return nature_floor_ok(&a, &bare, types);
                 }
-            }
-        }
-        // (Handle :- [K V]) ↔ (Handle :- [K V T]) (missing transport slot).
-        if ah == eh
-            && (aargs.len() + 1 == eargs.len() || eargs.len() + 1 == aargs.len())
-            && unify(&a, &e, subst, types).is_ok()
-        {
-            return true;
-        }
-        // (Handle :- [T]) → (Handle :- [Shared])/(Handle :- [Wire]): T is a type-param letter
-        // (not a unification var). Prefix args unify; the transport slot
-        // instantiates. Shared ↛ Wire stays rejected.
-        if ah == eh && aargs.len() == eargs.len() && !aargs.is_empty() {
-            let last = aargs.len() - 1;
-            if transport_param_instantiates(&aargs[last], &eargs[last])
-                && aargs[..last]
-                    .iter()
-                    .zip(eargs[..last].iter())
-                    .all(|(x, y)| unify(x, y, subst, types).is_ok())
-            {
-                return true;
             }
         }
         if ah != eh

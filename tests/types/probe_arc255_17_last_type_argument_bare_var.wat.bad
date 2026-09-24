@@ -1,0 +1,3 @@
+;; Stone 255.17 — the last type argument of a parametric annotation is not forgotten (arc 255).
+;; REFUSED — CONTROL: a bare type variable, not inside an argument list.
+(:wat::core::defn :probe::k :- [T] [o <- :T] -> :wat::core::i64 o)

@@ -1,0 +1,4 @@
+;; Stone 255.27 (C-b5) — a transport is an ordinary type parameter (arc 255).
+;; REFUSED — a declared letter T is not Transport.Shared (was rc=0: transport_param_instantiates).
+(:wat::core::defrecord :probe::R :- [X] [v <- :X])
+(:wat::core::defn :probe::k :- [T] [r <- (:probe::R :- [T])] -> (:probe::R :- [:wat::kernel::Transport.Shared]) r)

@@ -2405,6 +2405,14 @@
      ;; `launch-head-kw`'s call sites), never name-embedded.
      launch-head-kw :wat::spawn::Locus/launch
      launch-tp-ann  `[~proto-op-ty-ann ~proto-reply-ty-ann ~state-ty-ann ~admin-ty-ann ~status-ty-ann]
+     ;; 255.27 (C-b5) — the per-locus copies (`start$impl-thread`/`-process`, and resume's) declare
+     ;; no transport letter (their transport is concrete), so their launch names it: Shared on
+     ;; the thread copy, Wire on the process copy. While `transport_param_instantiates` stood,
+     ;; the free `T` these copies spliced was admitted against either marker; it is gone.
+     launch-tp-ann-thread  `[~proto-op-ty-ann ~proto-reply-ty-ann ~state-ty-ann ~admin-ty-ann
+                             (~status-base-kw :- [~@handle-shared-tp-syms])]
+     launch-tp-ann-process `[~proto-op-ty-ann ~proto-reply-ty-ann ~state-ty-ann ~admin-ty-ann
+                             (~status-base-kw :- [~@handle-wire-tp-syms])]
 
      ;; ── arc 272 6b-ii-β: transport-agnostic service-forms ────────────────────────
      ;; service-forms-kw must be defined before start-body (which splices ~service-forms-kw).
@@ -2658,7 +2666,7 @@
                       ~start-handle-expr)
      start-body-thread `(:wat::core::let
                           [~origin-sym (:wat::kernel::call-site)
-                           ~lr-sym (~launch-head-kw :- ~launch-tp-ann
+                           ~lr-sym (~launch-head-kw :- ~launch-tp-ann-thread
                                      (:wat::spawn::Locus/with-label ~locus-sym
                                        (:wat::process::Service
                                          :name (:wat::keyword::from-string ~fqdn-base)
@@ -2673,7 +2681,7 @@
                           (:wat::core::ann-form ~start-handle-expr ~handle-shared-name))
      start-body-process `(:wat::core::let
                            [~origin-sym (:wat::kernel::call-site)
-                            ~lr-sym (~launch-head-kw :- ~launch-tp-ann
+                            ~lr-sym (~launch-head-kw :- ~launch-tp-ann-process
                                       (:wat::spawn::Locus/with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::keyword::from-string ~fqdn-base)
@@ -2788,7 +2796,7 @@
                        ~start-handle-expr)
      resume-body-thread `(:wat::core::let
                            [~origin-sym (:wat::kernel::call-site)
-                            ~lr-sym (~launch-head-kw :- ~launch-tp-ann
+                            ~lr-sym (~launch-head-kw :- ~launch-tp-ann-thread
                                       (:wat::spawn::Locus/with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::keyword::from-string ~fqdn-base)
@@ -2803,7 +2811,7 @@
                            (:wat::core::ann-form ~start-handle-expr ~handle-shared-name))
      resume-body-process `(:wat::core::let
                             [~origin-sym (:wat::kernel::call-site)
-                             ~lr-sym (~launch-head-kw :- ~launch-tp-ann
+                             ~lr-sym (~launch-head-kw :- ~launch-tp-ann-process
                                        (:wat::spawn::Locus/with-label ~locus-sym
                                          (:wat::process::Service
                                            :name (:wat::keyword::from-string ~fqdn-base)

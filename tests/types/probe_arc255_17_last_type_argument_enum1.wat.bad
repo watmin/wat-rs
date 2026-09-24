@@ -1,0 +1,5 @@
+;; Stone 255.17 — the last type argument of a parametric annotation is not forgotten (arc 255).
+;; REFUSED — user enum, only arg T (was rc=0).
+(:wat::core::defenum :probe::E :- [X] :wat::enum::Pure :A [v <- :X] :B [])
+(:wat::core::defn :probe::k :- [T] [e <- (:probe::E :- [T])] -> :wat::core::i64
+  (:wat::core::match e [:probe::E.A {:v v} v] [_ 0]))

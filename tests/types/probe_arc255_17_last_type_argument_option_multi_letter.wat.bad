@@ -1,0 +1,4 @@
+;; Stone 255.17 — the last type argument of a parametric annotation is not forgotten (arc 255).
+;; REFUSED — CONTROL: a multi-letter variable was already refused before 255.17 (the hole keyed on a one-letter NAME).
+(:wat::core::defn :probe::k :- [Elem] [o <- (:wat::core::Option :- [Elem])] -> :wat::core::i64
+  (:wat::core::match o [:wat::core::Option.Some {:value v} v] [_ 0]))

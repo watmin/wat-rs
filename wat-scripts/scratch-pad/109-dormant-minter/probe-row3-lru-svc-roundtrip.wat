@@ -7,7 +7,7 @@
     [h (:wat::core::ann-form
          (:wat::cache::lru-svc/start :locus (:wat::spawn::thread)
            :record (:wat::cache::lru-svc::Record :capacity 4))
-         (:wat::cache::lru-svc::Handle :- [:wat::core::String :wat::core::i64]))
+         (:wat::cache::lru-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Transport.Shared]))
      c (:wat::core::match (:wat::kernel::connect (:wat::cache::lru-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
          [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]

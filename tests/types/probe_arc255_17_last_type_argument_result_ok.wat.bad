@@ -1,0 +1,4 @@
+;; Stone 255.17 — the last type argument of a parametric annotation is not forgotten (arc 255).
+;; REFUSED — Result Ok (first arg T) returned as i64.
+(:wat::core::defn :probe::k :- [T E] [o <- (:wat::core::Result :- [T E])] -> :wat::core::i64
+  (:wat::core::match o [:wat::core::Result.Ok {:value v} v] [_ 0]))

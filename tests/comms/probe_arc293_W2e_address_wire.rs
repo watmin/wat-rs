@@ -32,7 +32,8 @@ fn address_wire_is_false_on_thread_true_on_process() {
     }
 }
 
-/// Negative control: `address-wire?` on an i64 is a TypeMismatch naming `(Address :- [S R])`.
+/// Negative control: `address-wire?` on an i64 is a TypeMismatch naming `(Address :- [S R T])`
+/// (stone 255.27: the transport is the address's ordinary third parameter).
 ///
 /// cargo nextest run --release -E 'test(address_wire)'
 #[test]
@@ -51,5 +52,5 @@ fn address_wire_non_address_is_type_mismatch() {
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, callee, .. }
             if callee == ":wat::kernel::address-wire?"
-            && expected.contains("(Address :- [S R])"));
+            && expected.contains("(Address :- [S R T])"));
 }

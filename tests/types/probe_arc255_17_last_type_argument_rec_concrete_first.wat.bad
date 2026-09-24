@@ -1,0 +1,4 @@
+;; Stone 255.17 — the last type argument of a parametric annotation is not forgotten (arc 255).
+;; REFUSED — (R :- [String T]), field w = LAST arg T (was rc=0).
+(:wat::core::defrecord :probe::R :- [X Y] [v <- :X w <- :Y])
+(:wat::core::defn :probe::k :- [T] [r <- (:probe::R :- [:wat::core::String T])] -> :wat::core::i64 (:probe::R/w r))

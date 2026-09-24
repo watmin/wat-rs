@@ -1,0 +1,5 @@
+;; Stone 255.27 (C-b5) — a transport is an ordinary type parameter (arc 255).
+;; REFUSED — a record one argument short is not the full instantiation (was rc=0: is_transport_slot arm).
+(:wat::core::defrecord :probe::R :- [X Y] [x <- :X y <- :Y])
+(:wat::core::defn :probe::k [r <- (:probe::R :- [:wat::core::i64])]
+  -> (:probe::R :- [:wat::core::i64 :wat::kernel::Transport.Wire]) r)

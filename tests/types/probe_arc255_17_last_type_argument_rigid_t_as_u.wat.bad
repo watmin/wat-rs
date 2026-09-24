@@ -1,0 +1,4 @@
+;; Stone 255.17 — the last type argument of a parametric annotation is not forgotten (arc 255).
+;; REFUSED — a rigid T is not a rigid U in the last slot (was rc=0, same site).
+(:wat::core::defrecord :probe::R :- [X] [v <- :X])
+(:wat::core::defn :probe::k :- [T U] [r <- (:probe::R :- [T])] -> (:probe::R :- [U]) r)
