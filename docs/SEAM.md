@@ -207,6 +207,27 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ⭐⭐ RULING 2026-09-23 — THE LOCUS IS A NARROW WAIST
+
+> **Builder:** *"i am expecting us to rapidly add unix domain socket via file system, loopback tcp,
+> loopback udp, loopback http, loopback https, loopback dtls, loopback quic, loopback mtls, loopback
+> mtls+https and similar for remote hosts as soon as we add networking to wat (likely thread vs proc
+> distinction for what kind of remote compute to run in).... remote loci should be viewed as open but
+> discrete.... we will know all kinds of loci we support at all times, adding a new one is a language
+> update... make sure we are keeping this capability readily available for extension with the least
+> amount of friction... we engineering the locus management as a narrow waist... ensure it stays this way"*
+
+⭐ **Loci are OPEN BUT DISCRETE** — finite and fully known at each version; adding one is a *language
+update*, not user code. ⭐ **The locus layer is a NARROW WAIST**: services × loci meet at one interface,
+**N + M, never N × M.** ⛔ **It must stay narrow STRUCTURALLY** — a wall, not care.
+
+⛔ **Measured today — `FINDING-the-locus-waist-is-three-layers-wide.md`:** adding one locus touches the
+service macro (a `start$impl-<locus>` and `resume$impl-<locus>` in EVERY service — N × M), its routing
+(string-prefix branches in two places) and the type checker (transport set hardcoded to Shared and
+Wire). ⛔⛔ **The routing fails OPEN**: a new locus silently takes the unstamped path, and **after 8d-iii
+every thread/process `start` does too** — `ast-name` returns the raw symbol, so the keyword-prefix match
+is `false` (measured). **A latent 8d-iii blocker, invisible to the heresy ledger** (it reads only `src/`).
+
 ### ⭐⭐ RULING 2026-09-23 — EXACTLY ONE WAY TO DO THINGS
 
 > **Builder:** *"we need to have exactly one way to do things.. us having two write paths is clearly an
