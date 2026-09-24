@@ -1366,6 +1366,42 @@ impl TypeEnv {
         target: &TypeExpr,
         span: Span,
     ) -> Result<(), TypeError> {
+        // Stone 255.16 — ONE TYPE BINDS A PARAMETRIC SURFACE ONCE. Dispatch is keyed on the
+        // flat `<Type>/<method>`, so a type can carry exactly one body per surface method: a
+        // second binding at a DIFFERENT instantiation (`(S :- [A])` then `(S :- [B])`, A ≠ B)
+        // could only ever run the first binding's body under the second's type — measured
+        // (WEIGH-STONE-255.15, "The hole it found"): a `Shared` transport passed as `Wire`.
+        // Refused here, BEFORE either half of the fact is written, whether or not either
+        // form carries a body (the body is not this door's input — only the binding is), and
+        // in either order (whichever arrives second is refused). The IDENTICAL binding is
+        // not a second binding (`type_exprs_same`, the denotation door) and stays legal:
+        // door-replace and a duplicated form re-register it. This is the one door every
+        // parametric `extend-type` target reaches (`splice_type_decls`' extend-type arm is its
+        // only caller), so it sees every binding a type makes. The child is compared by
+        // denotation — the key `parametric_extensions_of` reads — so two spellings of one type
+        // cannot hold two bindings in two slots.
+        if let TypeExpr::Parametric { head, .. } = target {
+            let child_key = crate::edn::render::type_denotation(child);
+            let prior = self
+                .parametric_extensions
+                .iter()
+                .filter(|(k, _)| k.as_str() == child || crate::edn::render::type_denotation(k) == child_key)
+                .flat_map(|(_, ts)| ts.iter())
+                .find(|t| {
+                    matches!(t, TypeExpr::Parametric { head: h, .. } if parametric_heads_unify(h, head))
+                        && !type_exprs_same(t, target)
+                });
+            if let Some(existing) = prior {
+                return Err(TypeError::new(
+                    span,
+                    TypeErrorKind::ParametricSurfaceBoundTwice {
+                        ty: child.to_string(),
+                        existing: crate::check::format_type(existing),
+                        second: crate::check::format_type(target),
+                    },
+                ));
+            }
+        }
         self.register_subtype(child, &crate::check::format_type(target), span)?;
         let slot = self.parametric_extensions.entry(child.to_string()).or_default();
         if !slot.iter().any(|t| type_exprs_same(t, target)) {

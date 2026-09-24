@@ -12,6 +12,8 @@
 ;; REFUSED: Both extends Loc at TWO instantiations (the second bodiless — a method-bearing
 ;; second extend-type is already a DuplicateDefine). T could be Shared or Wire; inference must
 ;; refuse, never pick one.
+;; Stone 255.16 — now refused EARLIER, at registration: the second `extend-type` below is a
+;; `ParametricSurfaceBoundTwice` (a type binds a parametric surface once).
 (:wat::core::defn :probe::start :- [T] [loc <- (:probe::Loc :- [T])] -> :T (:probe::Loc/transport loc))
 (:wat::core::defrecord :probe::Both [q <- :wat::core::i64])
 (:wat::core::extend-type :probe::Both (:probe::Loc :- [:probe::Shared]) (transport [self] (:probe::Shared :a 1)))

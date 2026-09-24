@@ -205,6 +205,21 @@ pub enum TypeErrorKind {
     /// The span is the caller-supplied declaration span, not a baked-in unknown.
     CyclicSubtype { child: String, parent: String },
 
+    /// Stone 255.16 — a type `extend-type`d one parametric surface at a SECOND, different
+    /// instantiation (`(extend-type T (S :- [A]))` then `(extend-type T (S :- [B]))`, A ≠ B).
+    /// Dispatch keys on the flat `<Type>/<method>`, so the one body would serve both bindings
+    /// — a runtime type lie (a `Shared` transport passing as `Wire`). Refused at registration
+    /// (`TypeEnv::register_parametric_extension`), body or no body, either order. The
+    /// identical binding re-registered is not a second binding and is not refused.
+    ParametricSurfaceBoundTwice {
+        /// The implementing type, as the `extend-type` form spelled it.
+        ty: String,
+        /// The binding already registered, rendered (`(:probe::Loc :- [:probe::Shared])`).
+        existing: String,
+        /// The refused second binding, rendered.
+        second: String,
+    },
+
     // ─── Arc 293.W — containment rule ──────────────────────────────────────
     /// A portable aggregate (Record | HolonRecord) declared a field whose type
     /// is non-portable (e.g. a Struct). Such a field cannot be reconstructed
@@ -391,6 +406,12 @@ impl fmt::Display for TypeErrorKind {
                 "register_subtype({child:?}, {parent:?}) would close a cycle in the typesub \
                  hierarchy — {parent:?} is already a transitive subtype of {child:?}; \
                  refused at registration time so `is_subtype` cannot loop"
+            ),
+            TypeErrorKind::ParametricSurfaceBoundTwice { ty, existing, second } => write!(
+                f,
+                "{ty} already binds {existing}; a type binds a parametric surface once — \
+                 refused second binding {second} (dispatch is keyed on `<Type>/<method>`, so one \
+                 body would serve both bindings)"
             ),
             TypeErrorKind::ImpureFieldInPureAggregate { aggregate, field, field_ty } => write!(
                 f,

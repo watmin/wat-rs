@@ -15,7 +15,9 @@
 //! - `conflicting_bindings` — one T given `Th` (Shared) and `Pr` (Wire) → refused at param #2.
 //! - `non_implementor` — no edge at all → `TypeMismatch`.
 //! - `ambiguous` — one type extends `Loc` at TWO instantiations → refused, never picked.
-//!   (Proven load-bearing: a mutation committing the first of several solutions accepts it.)
+//!   (Proven load-bearing under 255.15: a mutation committing the first of several solutions
+//!   accepted it.) Stone 255.16 refuses it earlier, at REGISTRATION —
+//!   `TypeErrorKind::ParametricSurfaceBoundTwice` — a type binds a parametric surface once.
 //! - `nested_mismatch` — `(Loc :- [(Vector :- [U])])` given `Th` → refused (Shared ≠ Vector).
 //! - `derive_chain` — a type that only `derive`s an implementor is NOT inferred (direct edges
 //!   only; the concrete arm accepts it and it then fails at run — a hole this stone does not widen).
@@ -26,6 +28,7 @@ use std::process::{Command, Stdio};
 
 use wat::check::error::{CheckErrorKind, CheckErrors};
 use wat::freeze::{startup_from_file, StartupError};
+use wat::types::error::TypeErrorKind;
 
 const DIR: &str = "tests/types/probe_arc255_15_infer_transport";
 
@@ -74,9 +77,10 @@ fn wrong_transport_is_a_return_type_mismatch() {
             if function == ":probe::f" && expected == ":probe::Wire" && got == ":probe::Shared");
 }
 
-// rune:lint(no-inlined-wat) — the two `"(:probe::Loc :- [:probe::Shared])"` literals in this file
-// are golden COMPARISON text for a TypeMismatch's rendered `expected` field (the checker renders
-// a parametric type as a real `(Head :- [args])` form, so the reader happens to parse it); nothing
+// rune:lint(no-inlined-wat) — every `"(:probe::Loc :- [...])"` literal in this file is golden
+// COMPARISON text for a rendered type field (a TypeMismatch's `expected`; 255.16's
+// ParametricSurfaceBoundTwice `existing`/`second`) — the checker renders a parametric type as a
+// real `(Head :- [args])` form, so the reader happens to parse it; nothing
 // here builds, evals, or runs a wat program from a string — every program is a `.wat` fixture.
 #[test]
 fn conflicting_bindings_of_one_t_are_refused() {
@@ -97,13 +101,24 @@ fn a_non_implementor_is_refused() {
             if param == "#1" && got == ":probe::NotLoc");
 }
 
+/// Stone 255.16 — this fixture is now refused EARLIER, at registration: a type binds a
+/// parametric surface once, so `Both`'s second (bodiless) binding `(Loc :- [Wire])` is a
+/// `ParametricSurfaceBoundTwice` naming the type and both bindings — the ambiguity inference
+/// used to refuse can no longer be declared. Kept as 255.16's own negative row.
 #[test]
 fn an_ambiguous_implementor_is_refused_not_picked() {
-    let errs = check_errors("ambiguous");
-    assert_eq!(errs.len(), 1, "{errs:?}");
-    wat::assert_check_error_present!(errs,
-        CheckErrorKind::TypeMismatch { param, got, .. }
-            if param == "#1" && got == ":probe::Both");
+    let path = format!("{DIR}_ambiguous.wat.bad");
+    let err = startup_from_file(&path).expect_err(&format!("{path} must be refused"));
+    let StartupError::Type(e) = err else {
+        panic!("{path}: expected a registration-time type error, got {err:?}");
+    };
+    assert!(
+        matches!(e.kind(), TypeErrorKind::ParametricSurfaceBoundTwice { ty, existing, second }
+            if ty == ":probe::Both"
+                && existing == "(:probe::Loc :- [:probe::Shared])"
+                && second == "(:probe::Loc :- [:probe::Wire])"),
+        "{e:?}"
+    );
 }
 
 #[test]

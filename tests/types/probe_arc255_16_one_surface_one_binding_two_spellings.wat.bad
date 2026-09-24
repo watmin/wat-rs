@@ -1,0 +1,10 @@
+;; Stone 255.16 — a type binds a parametric surface once (arc 255).
+(:wat::core::defrecord :probe::Shared [a <- :wat::core::i64])
+(:wat::core::defrecord :probe::Wire [b <- :wat::core::String])
+(:wat::core::defsurface :probe::Loc :- [T] :nature :wat::core::Struct
+  :features [(transport [self <- (:probe::Loc :- [T])] -> :T)])
+(:wat::core::defrecord :probe::Both [q <- :wat::core::i64])
+;; REFUSED at registration — the second binding spells the type (and surface) as symbol
+;; references; one type under two spellings is still one type, compared by denotation.
+(:wat::core::extend-type :probe::Both (:probe::Loc :- [:probe::Shared]) (transport [self] (:probe::Shared :a 1)))
+(:wat::core::extend-type probe/Both (probe/Loc :- [probe/Wire]))

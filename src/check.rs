@@ -17371,7 +17371,10 @@ pub(crate) fn assignable(
     }
     // Arc 170 C2 Gap 1 — a CONCRETE type satisfies a PARAMETRIC-SURFACE param iff its FULL-ARGS
     // extend-type edge exists (e.g. `echo'::Handle <: (Dialable :- [Echo::Op Echo::Reply])`, keyed by the
-    // full parametric string — types.rs:2151 stores the extend-type target keyword VERBATIM) AND the
+    // full parametric string — `types::splice_type_decls`' `:wat::core::extend-type` arm parses the
+    // target form and `TypeEnv::register_parametric_extension` stores it as the edge rendered by
+    // `format_type`, the same renderer `format_type(&e)` below uses; stone 255.16 corrected a stale
+    // `types.rs:<line>` citation here — a line number in a comment rots) AND the
     // edge clears the surface's nature floor. This is the (Path actual, Parametric expected) case the
     // branch above (Parametric actual, Path expected) never covered — roles flipped. Guarded on the
     // expected head naming a `Surface`, so a parametric NON-surface bound (e.g. `(Vector :- [T])`) is
@@ -17470,7 +17473,9 @@ pub(crate) fn assignable(
         // still carry an unbound unification VAR (e.g. a fresh `?454` from an uninstantiated
         // generic fn's own type param — `count-of :- [T] [s <- (Seqable :- [T])]`): `format_type(&e)`
         // renders the fresh var, but the registered `extend-type` edge is keyed by the
-        // SURFACE's own declared param name, verbatim (`(:sq::Seqable :- [T])`, types.rs:2151) —
+        // SURFACE's own declared param name, verbatim (`(:sq::Seqable :- [T])` — rendered by
+        // `format_type` in `TypeEnv::register_parametric_extension`, reached from
+        // `types::splice_type_decls`' `:wat::core::extend-type` arm) —
         // "[?454]" != "[T]", always. Bind instead of string-match: confirm `eh` resolves to a
         // registered SURFACE by its BARE key (`parametric_head_fqdn` — the same lookup arm 3,
         // 14800-14812, already uses), confirm the actual's family really does extend-type it
