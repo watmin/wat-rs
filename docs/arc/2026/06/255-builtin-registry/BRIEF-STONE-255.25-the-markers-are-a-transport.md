@@ -101,3 +101,32 @@ Runtime prediction: 2–4 hours.
 
 Deleting the transport special cases and landing D2 (C-b5), moving Address+Shared impurity to a
 declaration (C-b5), C-c, step 3.
+
+---
+
+## ADDENDUM — 2026-09-24, resume on `main` @ `8ec19bd24`
+
+The first strike stopped at **STOP-3**, with nothing committed. A `Pure` enum variant in an `extend-type`
+target was refused at stdlib startup (`EdgeFreeTypeName`), because variant singletons were registered in
+a later pass than the edge wall. **255.25a closed it:** a variant is a type the moment its enum is
+(`WEIGH-STONE-255.25a-…`). 255.26 then cured the debug-build startup panic (`WEIGH-STONE-255.26-…`).
+
+**Resume from the saved work** in `scratchpad/s25/`:
+
+- `255.25-stopped.patch` is the full tracked diff (29 files): the codemod applied, the `src/` helpers
+  respelled as constants compared by denotation, `:10591` routed through them, 17 `tests/*.rs` mentions,
+  the child main's `Wire`, and the `spawn.wat` comment.
+- `untracked/transport-markers-to-family.wat` is the codemod: dry-run verified, idempotent, 34 lines out
+  and 35 in across 19 files.
+
+The first executor's census corrects the brief: **36 lines in 19 files**, not 37 in 20. Two recorded
+migrations (`address-transport-arity.wat`, `unstamp-transport-wire.wat`) are survivors by design, because
+a tool is never its own input.
+
+**Measure whether the patch still applies** to `8ec19bd24`. `src/types.rs` moved in 255.25a and 255.26,
+and `src/check.rs` did not. If it does not apply cleanly, **re-run the codemod** on the current tree and
+re-apply the `src/`/`tests/` hunks by hand. Never splice a stale patch over moved code.
+
+The rest of the brief stands: the purity rows, the child main saying `Wire` with the 57 process-child
+tests as rows, the D2 measurement (applied, measured, reverted), a replay fixture for the codemod, and
+all gates. ⚠ The release floor now reads 6065, and the delta baseline is NEW 2.
