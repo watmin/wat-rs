@@ -21,53 +21,59 @@ ls -dt docs/arc/2026/*/*/ | head -6      # which arcs moved most recently
 git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # the ignore ledger, live
 ```
 
-**Stamp: written against HEAD `74410c56f` (2026-09-24).** `main` == `origin/main` at that commit.
-Floor at `a25c9b2b9`: **6037 passed / 22 skipped**, clippy 0, census `no STOP-8`, delta NEW 3 / RECOVERY 0.
-⚠ 255.20's executor may have committed on top, locally and unweighed. **Do not push it before weighing.**
+**Stamp: written against HEAD `12c9fde89` (2026-09-24, late).** `main` == `origin/main` at that commit.
+Release floor at `12c9fde89`: **6094 passed / 22 skipped**, clippy 0, census 215 non-zero, delta NEW 2 / RECOVERY 0, ledger 211.
+⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
 ---
 
-## ⭐ WHERE THE WORK STANDS — 2026-09-24 (arc 255, stones 255.14 → 255.20)
+## ⭐ WHERE THE WORK STANDS — 2026-09-24, late (arc 255, the locus waist; stones 255.14 → 255.27)
 
-The live thread is **the locus waist** (rulings below: *LOCUS IS A NARROW WAIST*, *EXACTLY ONE WAY*).
-Every stone's brief, SCORE and WEIGH is in `docs/arc/2026/06/255-builtin-registry/`; read the newest
-WEIGH first. ⛔ **Read the files. The table below only says where to look.**
+Every stone's BRIEF / SCORE / WEIGH is in `docs/arc/2026/06/255-builtin-registry/`. **Read the newest
+WEIGH first** (`WEIGH-STONE-255.27-…`). ⛔ This section is a map, not the state: run `git log` yourself.
 
-| stone | state | the doc to read |
-|---|---|---|
-| 255.15 transport inferred from the locus | ✅ | `WEIGH-STONE-255.15-…` |
-| 255.16 a type binds a parametric surface once | ✅ (closed Shared-as-Wire) | `WEIGH-STONE-255.16-…` |
-| 255.17 D2 (the last type argument lost) | ⛔ STOPPED; narrow fix **parked** in the session scratchpad `park-255.17/`, lands in C-b5 | `BRIEF-STONE-255.17-…`, `FINDING-a-matched-field-forgets-its-type-argument.md` |
-| 255.17a the child main says Wire | ⛔ STOPPED; the brief was wrong (Wire is a `defstruct`, so it reads impure) | `SCORE-STONE-255.17a-…` |
-| S5 measurement | ✅ **no failure needs a transport slot** | `FINDING-S5-no-failure-needs-a-transport-slot.md` |
-| 255.18 (C-b1a) `Locus :- [T]` | ✅ partial | `WEIGH-STONE-255.18-…` |
-| 255.19 locus behaviour on the surface | ✅ | `WEIGH-STONE-255.19-…` |
-| 255.20 a name nothing declares does not check | ⏳ **in flight** | `BRIEF-STONE-255.20-…` |
+⭐ **THE ROOT (four-questions, 2026-09-24):** the checker **knew by spelling what it should know by
+declaration.** The C-a → C-b → C-c cure is now mostly landed:
 
-⭐ **THE ROOT under all of it (four-questions, 2026-09-24):** the checker **knows by spelling what it
-should know by declaration**. A one-letter name counts as a type parameter (`is_type_param_letter`), the
-last letter-spelled argument counts as the transport slot, an unregistered name counts as pure, and a
-scheme-less `:wat::` head is accepted by its prefix. **C-a → C-b → C-c** is the ruled cure. The
-remaining queue, from the S5 finding and the 255.18/.19 WEIGHs:
+| landed | what |
+|---|---|
+| 255.16 | a type binds a parametric surface once |
+| 255.18/.19 | `Locus :- [T]`; per-locus behaviour is on the surface |
+| 255.20 | a name nothing declares does not type-check |
+| 255.21 | `Dialable`/`TypedCapability :- [S R T]`; **the coord Shared-as-Wire hole closed**; the kwargs macro stops reading names |
+| 255.22 | ⭐ `extend-type :- [T] …` declares its parameters (builder: *"greet needs to accept an instance of a Greets who holds some type T"*) |
+| 255.23 | one method path through the receiver's edge |
+| 255.24 | defservice declares the letters it emits |
+| 255.25a | a variant is a type the moment its enum is |
+| 255.25 | `:wat::kernel::Transport` Pure enum `{Shared, Wire}` (ruled); the child main says `Wire` |
+| 255.26 | a builtin is structured OR a leaf (**the debug build had been red since `10599eb36`**) |
+| 255.27 | the transport special cases are deleted and **D2 lands**; the kwargs hole is closed |
 
-1. **255.20** (in flight): an undeclared call head is `UnknownCallee`.
-2. **C-b1b**: `Dialable`/`TypedCapability :- [S R T]` (X1 ruled; 68 annotations in 24 files).
-3. **C-b2**: defservice declares its transport `T` in every emitted generic defn.
-4. **C-b3**: a generic `extend-type` edge is matched by unification, not by string.
-5. **C-b4**: `Transport` becomes a `Pure` enum (`Shared`/`Wire` variants). ⚠ **The names are the
-   builder's to rule.** The child main then says Wire.
-6. **C-b5**: delete the transport special cases, land the parked D2 patch, refuse a bare `Locus` / an
-   uninstantiated `Handle` as any instantiation, and re-floor.
-7. **C-c**: a type parameter is known from its declared `type_params` (fixes `:- [Elem]` being refused
-   by `=`, and `is_pure_type`'s *unknown ⇒ type param* arm).
-8. **Step 3**: one generic `start`/`resume` (option E), retiring the per-locus copies and their string
-   routing, plus the waist wall.
+**THE QUEUE, from the WEIGHs:**
 
-Also open: `spawn-program`/`test::spawn-peer` are per-locus defclauses with per-locus types · the
-alias probe's candidate 2 waits on D2 · ⚠ `cargo wat` in `~/.cargo/bin` is a **stale Aug-29 binary**;
-executors run codemods with `./target/release/wat` (the CLAUDE.md instruction names `cargo wat`; the
-builder's call) · stale `types.rs:<line>` citations in comments rot (`:1402`, `:1987` unchecked).
+1. ⛔ **255.27 survivor 1: what IS a transport-agnostic sink address?** The 2-argument `(Address :- [S R])`
+   means "either transport" at 6 stdlib sites and about 56 corpus files. Some of them (`:init` params,
+   `Coords`/`PoolMsg` fields) have nowhere to declare a letter. **This is a language question for the
+   builder** (four questions pending).
+2. **255.27 survivor 2:** `unify`'s bare-family arm. The checker types generic variant constructor bodies
+   as the bare variant path, and `PersistentMap`/`Vector` builtins return the bare family.
+3. The `Address+Shared` impurity as a declaration: `Address` has no wat declaration, and no form expresses
+   argument-dependent purity.
+4. `transport_marker` (a `Var`-in-last-arg guess for `require-wire-address`).
+5. **C-c:** a type parameter is known from its declaration. `defn` binders are not enforced (`[x <- :K]`
+   with `K` undeclared checks clean), `:- [Elem]` is refused by `=`, and `is_pure_type` has an
+   "unknown ⇒ param" arm.
+6. **Step 3:** one generic `start`/`resume` (E), retiring the per-locus copies and their string routing,
+   plus the waist wall.
+7. **Debug arms (255.26):** A, depth guards that lose to the stack (a **real defect**); B/C, time limits
+   calibrated to release. ⚠ **The builder's ruling is pending** on a `release-dbg` / `floor.sh --asserts`
+   mode.
+8. Carried: the 3rd silent door (`unresolved_accessor_placeholder`) and resolve's single-segment rung
+   (255.20); `spawn-program`/`spawn-peer` per-locus types; the alias candidate 2 (D2 is now closed).
+
+Standing notes: codemods run with `./target/release/wat` (`cargo wat` is a stale Aug-29 binary; CLAUDE.md
+still names it, and that is the builder's call). Capture `rc=$?` on the next statement.
 
 ---
 
