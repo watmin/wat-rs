@@ -1,0 +1,5 @@
+;; Stone 255.20 — the 255.19 weigh's reproducer. `Locus` is a surface and declares no member
+;; `bogus-xyz`. Pre-stone: `--check` rc=0 (the head fell through to the silent accept), then
+;; `UnknownFunction` at run time. Now: `UnknownCallee` naming `:wat::spawn::Locus/bogus-xyz`.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [x (:wat::spawn::Locus/bogus-xyz (:wat::spawn::process) 1 2 3)] nil))

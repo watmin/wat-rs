@@ -1,0 +1,5 @@
+;; Stone 255.20 — a scheme-less `:wat::kernel::` registry row now reaches the registry-arity
+;; door. `peer-pid` declares arity 1. Pre-stone: the `:wat::kernel::`/`:wat::std::` prefix arm
+;; returned a free type before that door, so this checked clean (rc=0) and failed at run time.
+(:wat::core::defn :probe::pid [] -> :wat::core::i64
+  (:wat::kernel::peer-pid 1 2 3))

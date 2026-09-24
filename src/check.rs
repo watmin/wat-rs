@@ -5160,47 +5160,15 @@ fn infer_list(
                 // HARVEST (236.2): silent-by-intent — config setter forms handled out-of-band.
                 return CheckResult::ok(fresh.fresh());
             }
-            _ if (k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::"))
-                && !k.starts_with(":wat::std::math::")
-                // Arc 255 Stone HOME-9 — `math` was already excluded (it kept a registered
-                // scheme until this stone retired it); `stat`/`list` need the SAME exclusion
-                // now that their old spellings are retired too, or a retired
-                // `:wat::std::stat::*`/`:wat::std::list::*` call would be silently
-                // accept-and-recursed HERE instead of reaching Door 1 (the retirement-table
-                // consult a few hundred lines down) — an inert-row regression
-                // `tests/cli/retirement_table_reachable.rs` measures directly. Found by this
-                // stone's own rider, not named in the brief's Rooms list.
-                && !k.starts_with(":wat::std::stat::")
-                && !k.starts_with(":wat::std::list::")
-                // 255.4 — retired Type::member (HandlePool::new) must reach Door 1
-                // below, same exclusion as stat/list. Not a second consult: this
-                // arm must not intercept so the existing door can teach.
-                && !crate::remedy::is_retired(k)
-                && env.get(k).is_none()
-                // Arc 259 S2c-ii-b — stdlib defclauses under :wat::kernel:: have no
-                // scheme (the stub is removed by register_stdlib_defclauses) but DO
-                // have a defclause registration. Must NOT intercept those here; fall
-                // through to the defclause dispatch below.
-                // STONE reap-the-angle-machinery (arc 109) — `k` used to be stripped via
-                // `canonical_callable_name`; angle syntax is unexpressible now, so a
-                // `:wat::kernel::*`/`:wat::std::*` head can never carry a suffix — look it
-                // up directly.
-                && env.get_defclause_clauses(k).is_none() =>
-            {
-                // Unknown kernel / std path with no registered scheme or defclause —
-                // accept and recurse. Math/stat/list (arc 255 Stone HOME-9's three retired
-                // families) are excluded so a retired call reaches Door 1 below instead of
-                // being silently waved through.
-                for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                }
-                // HARVEST (236.2): silent-by-intent — unknown substrate form; args recursed for side-effects.
-                if local_errors.is_empty() {
-                    return CheckResult::ok(fresh.fresh());
-                } else {
-                    return CheckResult::partial_with(fresh.fresh(), local_errors);
-                }
-            }
+            // ⛔ Arc 255 Stone 255.20 — the `:wat::kernel::` / `:wat::std::` PREFIX ARM IS GONE.
+            // It used to `return ok(fresh)` for every scheme-less head under those two prefixes:
+            // a name trusted because of its PREFIX, not because anything declared it. Measured
+            // before the cut (tripwire over the whole floor + `--check` of every tracked
+            // `.wat`/`.wat.bad`): its whole population was a registry row (`peer-pid`), three
+            // real surface members it was HIDING from the surface-method arm below
+            // (`StdOut/write`, `StdErr/write`, `StdIn/read-frame` — never type-checked), and
+            // phantoms already refused by resolve. Those heads now reach the one authority that
+            // owns each: the surface-method arm, the registry-arity door, or `UnknownCallee`.
             // Arc 160 — FQDN constructor arms hoisted into Region A so
             // that keyword-headed constructor calls (`(:wat::core::Ok 418)`)
             // are intercepted HERE instead of falling to `_ => {}` and
@@ -5853,6 +5821,25 @@ fn infer_list(
                     .iter()
                     .map(|arg| infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
                     .collect();
+                // Arc 255 Stone 255.20 — THE SURFACE-MEMBER MISS. `:S/name` where `S` is a
+                // `TypeDef::Surface`: the surface-method arm above returns whenever `S` HAS a
+                // member `name`, so reaching here with a Surface stem means it has none. That
+                // used to fall through every door below to the silent accept — `--check` rc=0,
+                // then `UnknownFunction` at run time (the 255.19 weigh's reproducer,
+                // `(:wat::spawn::Locus/bogus-xyz …)`). The surface is the declaring authority
+                // for its members, and it declares no such member. Checked BEFORE the 1-arg
+                // keyword-accessor narrowing below, which would otherwise hand a 1-arg miss on
+                // a user surface an unresolved-receiver placeholder.
+                if k.contains('/') {
+                    let surface = wat_reader::identifier::receiver(k);
+                    if let Some(crate::types::TypeDef::Surface(_)) = env.types().get(surface) {
+                        local_errors.push(CheckError {
+                            span: head_span.clone(),
+                            kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                        });
+                        return CheckResult::errs(local_errors);
+                    }
+                }
                 // Arc 234 Stone 234.3c.fix-narrow-fallthrough — narrow the
                 // polymorphic-T return to only fire when receiver type is
                 // record/struct/HashMap (or unresolved). Concrete types like
@@ -5990,14 +5977,14 @@ fn infer_list(
                     }
                 }
                 // Arc 255 STONE-retirement-table-becomes-mechanism — DOOR 1: consult the
-                // retirement table before falling into the silent-accept below. A
+                // retirement table before falling into the declaration check below (the silent accept until 255.20). A
                 // slash-form or nested `:wat::` name (e.g. `:wat::core::Uuid/v4`) never
                 // reaches one of the hand-written bare-primitive arms above; without this
                 // check it fell all the way through to a bare runtime `UnknownFunction`
                 // (door 2, src/value/signal.rs) with no help at all. `remedies_for` runs
                 // retirement lookup FIRST and an exact table hit always scores 0 (a typo
                 // is never < 1), so this fires ONLY on a genuine retirement — never on a
-                // merely-unregistered name falling through to the silent accept below.
+                // merely-unregistered name falling through to the declaration check below.
                 let retirement_remedies = crate::remedy::remedies_for(k, std::iter::empty());
                 if retirement_remedies.first().is_some_and(|r| r.score() == 0) {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
@@ -6008,7 +5995,7 @@ fn infer_list(
                     return CheckResult::errs(local_errors);
                 }
                 // Arc 255 STONE-the-checker-must-read-the-registry — DOOR 2: consult the
-                // registry's declared `arity` before falling into the silent accept below.
+                // registry's declared `arity` before falling into the declaration check below.
                 // `k` has no `TypeScheme` (we are inside `env.get(canonical_k) == None`) — but
                 // if it IS a registered row (`crate::intrinsic::registry()`), its `arity` is a
                 // REQUIRED, MACHINE-SNIFFED field (the `#[wat_intrinsic]` proc-macro reads it off
@@ -6016,19 +6003,11 @@ fn infer_list(
                 // already trusts the SAME field at eval time). Mirrors that predicate exactly —
                 // same `Arity::Exact(n)` guard, same `ArityMismatch` shape — so a call like
                 // `(:wat::linkedlist::length 1 2 3 4 5 6 7 8 9)` stops type-checking clean.
-                // ⛔ MEASURED COVERAGE — 48 of the 71 scheme-less rows, NOT all of them.
-                // The `_ if k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::")`
-                // guard EARLIER in this same dispatch (grep that predicate; do not trust a line
-                // number — the doc that sent me hunting cited a `check.rs:NNNN` that had drifted)
-                // returns `CheckResult::ok(fresh.fresh())` for every `:wat::kernel::`/`:wat::std::`
-                // head with no scheme, so 23 registered rows — the whole `:wat::kernel::` verb
-                // surface, `peer-pid`/`send`/`recv`/`select`/`poll`/`spawn-*`/… — never reach this
-                // branch and stay arity-checked at RUNTIME only (`runtime.rs`'s
-                // `dispatch_substrate_impl`, verified: `(:wat::kernel::peer-pid 1 … 9)` raises
-                // `ArityMismatch` when run, and type-checks clean). That prefix arm is a SECOND
-                // namespace-guess authority of the same class as `effectful_by_prefix`, and
-                // closing it is its own stone — the population it shadows is measured and listed
-                // in this stone's DESIGN rather than left to be rediscovered.
+                // Coverage: EVERY scheme-less row since 255.20. Until then a
+                // `:wat::kernel::`/`:wat::std::` prefix arm earlier in this dispatch returned
+                // `ok(fresh)` for every scheme-less head under those prefixes, so the kernel
+                // verb rows (`peer-pid`, …) never reached this door and were arity-checked at
+                // run time only. 255.20 deleted that arm; they arrive here now.
                 //
                 // `Arity::Variadic` imposes nothing (unchanged). A row that DOES carry a
                 // `TypeScheme` never reaches this branch at all (it took the `Some(s)` arm
@@ -6052,7 +6031,30 @@ fn infer_list(
                         }
                     }
                 }
-                // HARVEST (236.2): silent-by-intent — no scheme found for multi-arg form; accept and pass.
+                // ⛔ Arc 255 Stone 255.20 — A NAME NOTHING DECLARES DOES NOT CHECK. This used to be
+                // the silent accept ("no scheme found for multi-arg form; accept and pass"): a
+                // head that no `TypeScheme` named got `fresh()`, a type that unifies with anything,
+                // and the program died at run time with `UnknownFunction` instead. A scheme-less
+                // head is accepted now ONLY when a declaring authority names it:
+                //   · the intrinsic registry (`contains` = a full row, whose arity the door just
+                //     above already enforced, or a membership-only name — the rete vocabulary);
+                //   · the type environment (`is_known_type` — a type head such as a record's
+                //     constructor or a `(:wat::type::Vector :- [T])` type form, the same
+                //     authority resolve's `:wat::type::` rung asks);
+                //   · a `def`-bound value (`get_defined_value_type`).
+                // Anything else is `UnknownCallee`. Defclauses, surface members and enum
+                // constructors are dispatched by their own arms before this point.
+                // (The accepted cases still return `fresh()`: typing them is not this stone.)
+                let declared = crate::intrinsic::registry().contains(canonical_k)
+                    || env.types().is_known_type(canonical_k)
+                    || env.get_defined_value_type(canonical_k).is_some();
+                if !declared {
+                    local_errors.push(CheckError {
+                        span: head_span.clone(),
+                        kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                    });
+                    return CheckResult::errs(local_errors);
+                }
                 return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
             }
         };
@@ -24841,6 +24843,26 @@ pub(crate) mod tests {
     fn rust_unknown_symbol_rejected() {
         let err = check("(:rust::imaginary::Crate::method 1 2)").unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::UnknownCallee { .. }, .. })));
+    }
+
+    /// Stone 255.20: this `check` helper skips resolve, so it drives the checker's own
+    /// answer for a head nothing declares. Before the stone, `:wat::kernel::`/`:wat::std::`
+    /// heads hit the prefix arm and any other head hit the silent accept; both returned a
+    /// free type and `check` answered Ok. Each row is a head with no scheme, no registry row,
+    /// no type and no `def`.
+    #[test]
+    fn a_head_nothing_declares_is_an_unknown_callee() {
+        for (src, head) in [
+            ("(:wat::kernel::no-such-verb 1 2)", ":wat::kernel::no-such-verb"),
+            ("(:wat::std::no-such-verb 1)", ":wat::std::no-such-verb"),
+            ("(:user::no-such-fn 1 2)", ":user::no-such-fn"),
+        ] {
+            let err = check(src).expect_err(src);
+            assert!(
+                err.0.iter().any(|e| matches!(&e.kind, CheckErrorKind::UnknownCallee { callee } if callee == head)),
+                "{src}: want UnknownCallee {head}, got {err:?}"
+            );
+        }
     }
 
     // ─── User define signature checks ───────────────────────────────────

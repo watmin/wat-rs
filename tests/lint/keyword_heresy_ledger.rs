@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 220;
+const LEDGER_TOTAL: usize = 215; // 255.20: 220 → 215 — infer_list lost the `:wat::kernel::`/`:wat::std::` prefix arm (5 keyword compares).
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -780,7 +780,7 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "infer_defclause", 1, "Ax1"),
     ("src/check.rs", "infer_deny_prime", 1, "Ex1"),
     ("src/check.rs", "infer_holon_bundle", 1, "Ex1"),
-    ("src/check.rs", "infer_list", 11, "Ax8+Ex3"),
+    ("src/check.rs", "infer_list", 6, "Ax3+Ex3"),
     ("src/check.rs", "infer_match", 3, "Ax2+Ex1"),
     ("src/check.rs", "infer_nth", 1, "Ex1"),
     ("src/check.rs", "infer_option_try", 1, "Ex1"),

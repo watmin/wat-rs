@@ -29,4 +29,4 @@
   (:wat::core::let
     [reason (:probe::as-reason (:probe::B 1))
      result (:probe::describe reason)]
-    (:wat::kernel::println (:wat::core::string::concat "got: " result))))
+    (:wat::kernel::println (:wat::string::concat "got: " result))))
