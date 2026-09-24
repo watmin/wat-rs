@@ -10,7 +10,7 @@ use wat_macros::wat_special_form;
 /// **Category ground — ★★★ argued, not assumed, per Stone 1a-δ's own lesson, and NOT a copy of
 /// `extend-type`'s argument despite the shared shape.** `:Declaration`'s prose fits: the edge
 /// `env.register_subtype` writes is consulted by `is_subtype`'s exact-string lookup and
-/// `transport_edge_keys`/`transport_satisfier_heads` for the rest of the program — a
+/// `family_extends` for the rest of the program — a
 /// program-level entity, visible to everything after it.
 ///
 /// The contrast that rules out the other three, measured directly:

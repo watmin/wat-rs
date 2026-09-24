@@ -1,70 +1,36 @@
 ;; tests/types/probe_stone118_3b_seqable_parametric_satisfaction.wat — co-located fixture.
 ;;
-;; Stone 118.3-B — `src/check.rs`'s `(Parametric actual, Parametric expected)` arm (~14858)
-;; string-compared a registered `extend-type` edge (stored VERBATIM with the SURFACE's own
-;; declared param name, e.g. `:sq::Seqable<T>`) against the CALL SITE's rendered expected type
-;; (a fresh unification var, e.g. `:sq::Seqable<?454>`) — "<?454>" != "<T>", always, so a
-;; concrete container could never satisfy a PARAMETRIC surface bound. See
+;; Stone 118.3-B — a concrete container satisfies a PARAMETRIC surface bound. The checker's
+;; `(Parametric actual, Parametric expected)` arm string-compared a registered `extend-type` edge
+;; against the call site's rendered expected type (a fresh unification var, `(Seqable :- [?454])`)
+;; — never equal, so no concrete container could satisfy a parametric surface. See
 ;; docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/{BRIEF,EXPECTATIONS,MEASURED}-118.3-B*.md.
 ;;
-;; Two independent surfaces below, deliberately DIFFERENT base names so neither the registry nor
-;; this fixture can confuse the two arms under test:
-;;   `BareSeqable`  — NOT parametric. Goes through arm 3 (`(Parametric actual, Path expected)`,
-;;                    `parametric_head_fqdn` lookup). Must stay byte-identical (row 2 / STOP-3).
-;;   `Seqable :- [T]`   — parametric. Goes through the FIXED arm 5. All four containers extend it,
-;;                    matching `extract_lazyable_elem`'s hardcoded four-head set (row 1).
+;; Stone 255.22 — this fixture now tests the LANGUAGE's own `:wat::core::Seqable` (wat/seq.wat),
+;; not a private copy. Its old `:t118b::Seqable`/`:t118b::BareSeqable` surfaces and their
+;; `as-vec`/`as-vec-bare` methods were probe inventions standing in for `(:wat::core::into [] coll)`;
+;; results are read through `into` now. The four `wat/seq.wat` edges declare their parameter
+;; (`(extend-type :- [T] (Vector :- [T]) (Seqable :- [T]) …)`), and the checker matches each edge
+;; by that binder: the edge's child is pattern-matched against the actual, and the target is
+;; instantiated under what it bound.
 
-;; ─── bare (non-parametric) surface — arm 3, unchanged ──────────────────────────────
-;; NOTE: method name deliberately DISTINCT from the parametric surface's `as-vec` below —
-;; `extend-type` methods register as `<ConcreteType>/<method>` GLOBALLY (not scoped per
-;; surface), so both surfaces implementing `Vector` with the SAME method name collide as a
-;; `DuplicateDefine`. Not a stone-118.3-B concern; a pre-existing global-scheme constraint.
-(:wat::core::defsurface :t118b::BareSeqable
-  :nature :wat::core::Struct
-  :features [(as-vec-bare [self <- :t118b::BareSeqable] -> (:wat::core::Vector :- [:wat::core::i64]))])
+;; ─── a generic fn over ANY (Seqable :- [T]) — the parametric-satisfaction row ───────────────
+(:wat::core::defn :t118b::count-of :- [T] [s <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
+  (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
-(:wat::core::extend-type :wat::core::Vector :t118b::BareSeqable
-  (as-vec-bare [self] -> (:wat::core::Vector :- [:wat::core::i64]) self))
+;; ─── a CONCRETE (Seqable :- [i64]) bound — the instantiation row ────────────────────────────
+;; The edge's target, instantiated for the actual, must UNIFY with the concrete bound: a
+;; `(Vector :- [i64])` offers `(Seqable :- [i64])`. The element type reaches the body: `+` on each
+;; element type-checks only if `seq`'s result is `(Stream :- [i64])`.
+(:wat::core::defn :t118b::sum-of [s <- (:wat::core::Seqable :- [:wat::core::i64])] -> :wat::core::i64
+  (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                       (:wat::core::+ acc x))
+                     0
+                     (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
-(:wat::core::extend-type :wat::core::PersistentVector :t118b::BareSeqable
-  (as-vec-bare [self] -> (:wat::core::Vector :- [:wat::core::i64])
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) self)))
+;; ─── entry points, driven via call_beside_value ─────────────────────────────────────────────
 
-(:wat::core::defn :t118b::bare-count-of [s <- :t118b::BareSeqable] -> :wat::core::i64
-  (:wat::core::length (:t118b::BareSeqable/as-vec-bare s)))
-
-;; ─── parametric surface — arm 5, THE FIX ────────────────────────────────────────────
-(:wat::core::defsurface :t118b::Seqable :- [T] :nature :wat::core::Struct
-  :features [(as-vec [self <- (:t118b::Seqable :- [T])] -> (:wat::core::Vector :- [T]))])
-
-(:wat::core::extend-type :wat::core::Vector (:t118b::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T]) self))
-
-(:wat::core::extend-type :wat::core::PersistentVector (:t118b::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :- [:T]) self)))
-
-(:wat::core::extend-type :wat::core::List (:t118b::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T])
-    (:wat::core::foldl (:wat::core::fn [acc <- (:wat::core::Vector :- [T]) x <- :T] -> (:wat::core::Vector :- [T])
-                         (:wat::core::conj acc x))
-                       (:wat::core::Vector :- [:T]) self)))
-
-(:wat::core::extend-type :wat::stream::Stream (:t118b::Seqable :- [T])
-  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :- [:T]) self)))
-
-(:wat::core::defn :t118b::count-of :- [T] [s <- (:t118b::Seqable :- [T])] -> :wat::core::i64
-  (:wat::core::length (:t118b::Seqable/as-vec s)))
-
-;; ─── entry points, driven via call_beside_value ─────────────────────────────────────
-
-;; row 2 — bare-surface path untouched.
-(:wat::core::defn :t::bare-vector [] -> :wat::core::i64
-  (:t118b::bare-count-of (:wat::core::Vector :- [:wat::core::i64] 10 20 30)))
-
-(:wat::core::defn :t::bare-persistent-vector [] -> :wat::core::i64
-  (:t118b::bare-count-of (:wat::core::PersistentVector 1 2 3 4)))
-
-;; row 1 — all four containers dispatch through the parametric surface.
+;; row 1 — all four containers satisfy the parametric surface.
 (:wat::core::defn :t::param-vector [] -> :wat::core::i64
   (:t118b::count-of (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
 
@@ -79,3 +45,19 @@
                        (:wat::stream::lazy
                          (:wat::stream::cons 2
                            (:wat::stream::lazy (:wat::stream::empty)))))))
+
+;; row 2 — all four containers satisfy a CONCRETE instantiation of the surface.
+(:wat::core::defn :t::sum-vector [] -> :wat::core::i64
+  (:t118b::sum-of (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+
+(:wat::core::defn :t::sum-persistent-vector [] -> :wat::core::i64
+  (:t118b::sum-of (:wat::core::PersistentVector 1 2 3 4)))
+
+(:wat::core::defn :t::sum-list [] -> :wat::core::i64
+  (:t118b::sum-of (:wat::core::List 1 2 3 4 5)))
+
+(:wat::core::defn :t::sum-stream [] -> :wat::core::i64
+  (:t118b::sum-of (:wat::stream::cons 10
+                     (:wat::stream::lazy
+                       (:wat::stream::cons 20
+                         (:wat::stream::lazy (:wat::stream::empty)))))))

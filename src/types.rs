@@ -858,6 +858,27 @@ pub struct TypeEnv {
     /// string edge in the same call, so the two cannot be written apart; retracted
     /// beside it in [`Self::retract_for_door_replace`].
     parametric_extensions: HashMap<String, Vec<TypeExpr>>,
+    /// Stone 255.22 — every GENERIC `extend-type` edge (one whose form declares a binder,
+    /// `(extend-type :- [P…] <child> <target> …)`), kept STRUCTURED with the parameters the
+    /// binder declared, keyed by the child's HEAD (`:hello::Box`). The binder is what makes a
+    /// name a parameter of the edge — never its spelling. A consumer asks
+    /// [`generic_edge_targets`], which pattern-matches the child against an actual type,
+    /// binds the parameters, and hands back the target instantiated under those bindings.
+    /// Written only by [`Self::register_generic_edge`]; retracted beside the other edge
+    /// stores in [`Self::retract_for_door_replace`].
+    generic_edges: HashMap<String, Vec<GenericEdge>>,
+}
+
+/// Stone 255.22 — one generic `extend-type` edge: `(extend-type :- [params…] child target)`.
+/// `params` are BARE names (`"T"`, `"Elem"`), exactly as the binder spelled them; inside
+/// `child`/`target` each one appears as `TypeExpr::Path(":<name>")` (`parse_type_node`
+/// prepends the colon to a namespace-less symbol). The registration walls guarantee every
+/// param appears in `child`, so matching `child` against an actual binds all of them.
+#[derive(Debug, Clone)]
+pub(crate) struct GenericEdge {
+    pub(crate) params: Vec<String>,
+    pub(crate) child: TypeExpr,
+    pub(crate) target: TypeExpr,
 }
 
 /// One answer to "is this name a type?" — the stores `is_known_type` unions,
@@ -1034,6 +1055,7 @@ impl TypeEnv {
         self.types.remove(name);
         self.subtype_edges.remove(name);
         self.parametric_extensions.remove(name);
+        self.generic_edges.remove(name);
         self.source_forms.remove(name);
     }
 
@@ -1410,6 +1432,25 @@ impl TypeEnv {
         Ok(())
     }
 
+    /// Stone 255.22 — record a GENERIC edge (its form declared a non-empty binder). Keyed by
+    /// the child's head denotation so every spelling of one head finds it. The identical edge
+    /// re-registered (door-replace, a duplicated form) is not stored twice.
+    pub(crate) fn register_generic_edge(&mut self, params: Vec<String>, child: TypeExpr, target: TypeExpr) {
+        let key = match &child {
+            TypeExpr::Parametric { head, .. } => {
+                crate::edn::render::type_denotation(&parametric_head_fqdn(head))
+            }
+            TypeExpr::Path(p) => crate::edn::render::type_denotation(p),
+            _ => return,
+        };
+        let slot = self.generic_edges.entry(key).or_default();
+        if !slot.iter().any(|e| {
+            e.params == params && type_exprs_same(&e.child, &child) && type_exprs_same(&e.target, &target)
+        }) {
+            slot.push(GenericEdge { params, child, target });
+        }
+    }
+
     fn subtype_parents(&self, name: &str) -> Option<&[String]> {
         self.subtype_edges.get(name).map(|v| v.as_slice())
     }
@@ -1609,42 +1650,12 @@ impl TypeEnv {
     }
 }
 
-/// Heads to try for extend-type edges of a Handle-like parametric: bare `Handle`,
-/// `(Handle :- [:T])`, `(Handle :- [:Xt])`. STONE-defservice-emits-the-binder — these three
-/// strings are matched EXACT-string against `register_subtype`'s stored child key
-/// (`extend-type`'s target arg, rendered through `check::format_type` — types.rs's
-/// `:wat::core::extend-type` arm), so this guess MUST stay byte-identical to what
-/// `format_type` now emits for `Parametric { head, args: [Path(":T"|":Xt")] }` — the LEADING
-/// COLON is load-bearing: `parse_type_node`'s `WatAST::Symbol` arm prepends `:` to any
-/// namespace-less symbol before storing it as a `TypeExpr::Path` (a bare `T` binder symbol
-/// parses to `Path(":T")`, never `Path("T")`), so `format_type`'s Path arm — which returns
-/// the stored string unchanged — renders it WITH the colon. Measured: guessing `"T"` (no
-/// colon) here left `wat-scripts/probes/arc-170/probe-c1-clean-surface.wat` (and two
-/// siblings) unable to find `(Handle :- [Wire])`'s registered `(Handle :- [:T]) <:
-/// (TypedCapability :- […])` edge — `every_wat_scripts_file_loads` caught it.
-pub(crate) fn transport_satisfier_heads(head: &str) -> Vec<String> {
-    let fq = parametric_head_fqdn(head);
-    vec![
-        fq.clone(),
-        render_binder_ref(&fq, &[":T".to_string()]),
-        render_binder_ref(&fq, &[":Xt".to_string()]),
-    ]
-}
-
 /// Extract a RENDERED type string's base — the head before any parametric suffix.
 /// `check::format_type` has one surviving parametric spelling, `(Head :- [args])`
 /// (STONE-defservice-emits-the-binder); a non-parenthesized `s` has no suffix to strip.
 /// `family_extends`'s own base-extraction, below, is the ONE consumer that compares against a
 /// `check::format_type`-rendered string rather than a literal declared name, so it is the one
 /// taught the new form.
-///
-/// STONE reap-the-angle-machinery (arc 109) — this used to fall back to
-/// `crate::runtime::split_type_params_pub` for the legacy `Head<args>` spelling.
-/// `format_type` never renders that spelling any more (every `TypeExpr` arm emits either the
-/// `(Head :- [args])` form caught by the branch below, or a plain `<`-free string), and every
-/// `family_extends` caller passes a `sup`/`sub` that is itself always `<`-free (a
-/// `TypeExpr::Path` or `parametric_head_fqdn` output) — so a non-parenthesized `s` here was
-/// already bare; the strip was a no-op.
 fn base_of_rendered_type(s: &str) -> &str {
     if let Some(rest) = s.strip_prefix('(') {
         if let Some(sp) = rest.find(' ') {
@@ -1656,35 +1667,42 @@ fn base_of_rendered_type(s: &str) -> &str {
 
 /// Does `sub`'s FAMILY extend `sup`'s family — existence only, arguments ignored?
 ///
-/// The question the old deleted helper was asking with a `<`-suffixed string-prefix match:
-/// "is ANY instantiation of this surface reachable from this type?" Asking it by string
-/// prefix meant the code claimed a relation it never checked. This asks it directly: walk
-/// the `extend-type` edges from each of `sub`'s guessed keys ([`transport_satisfier_heads`]),
+/// `sub` is a type as a string: a bare name (`:wat::core::Vector`, what a runtime value's class
+/// answers) or a `format_type` rendering (`(:hello::Box :- [:wat::core::String])`). Walk the
+/// `extend-type` edges from `sub` itself, from its HEAD, and from every GENERIC edge declared on
+/// its head ([`generic_edge_targets`]'s store — the binder is what makes those edges generic),
 /// and at each parent compare its BASE name (via [`base_of_rendered_type`], just above)
-/// against `sup`'s base name — the same base-extraction door `TypeExpr::base_fqdn` uses
-/// elsewhere, not a second hand-rolled extraction.
+/// against `sup`'s base name.
 ///
-/// NOT a substitute for [`is_subtype`], which answers the EXACT question and whose exact-string
-/// compare is load-bearing for `assignable`'s transport fast path.
+/// Stone 255.22 — this used to start from GUESSED keys (`transport_satisfier_heads`: the bare
+/// head, `(Head :- [:T])`, `(Head :- [:Xt])`), so a generic edge was found iff its child
+/// spelled its parameter `T` or `Xt`: renaming a type parameter changed the verdict. The
+/// guess is deleted; a generic edge is found by its declared binder, whatever it spells.
+///
+/// NOT a substitute for [`is_subtype`], which answers the EXACT question.
 pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
     let sup_base = base_of_rendered_type(sup);
-    for key in transport_satisfier_heads(sub) {
-        if is_subtype(&key, sup, env) {
+    let head = base_of_rendered_type(sub);
+    if is_subtype(sub, sup, env) || is_subtype(head, sup, env) {
+        return true;
+    }
+    let mut stack: Vec<String> = Vec::new();
+    for key in [sub, head] {
+        if let Some(parents) = env.subtype_parents(key) {
+            stack.extend(parents.iter().cloned());
+        }
+    }
+    if let Some(edges) = env.generic_edges.get(&crate::edn::render::type_denotation(head)) {
+        stack.extend(edges.iter().map(|e| crate::check::format_type(&e.target)));
+    }
+    let mut visited = std::collections::HashSet::new();
+    while let Some(p) = stack.pop() {
+        if base_of_rendered_type(&p) == sup_base {
             return true;
         }
-        let mut visited = std::collections::HashSet::new();
-        let mut stack: Vec<String> = env
-            .subtype_parents(&key)
-            .map(|p| p.to_vec())
-            .unwrap_or_default();
-        while let Some(p) = stack.pop() {
-            if base_of_rendered_type(&p) == sup_base {
-                return true;
-            }
-            if visited.insert(p.clone()) {
-                if let Some(parents) = env.subtype_parents(&p) {
-                    stack.extend(parents.iter().cloned());
-                }
+        if visited.insert(p.clone()) {
+            if let Some(parents) = env.subtype_parents(&p) {
+                stack.extend(parents.iter().cloned());
             }
         }
     }
@@ -1720,6 +1738,99 @@ pub(crate) fn parametric_extensions_of(sub: &str, surface: &str, env: &TypeEnv) 
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Stone 255.22 — pattern-match a generic edge's CHILD against an actual type. A name the
+/// edge's binder declared (`params`, bare) binds to whatever sits in that position — once; a
+/// second occurrence must be the same type (`type_exprs_same`). Every other position must be
+/// the same type. The binder alone decides what is a parameter: no spelling is consulted.
+fn match_edge_child(
+    pattern: &TypeExpr,
+    actual: &TypeExpr,
+    params: &[String],
+    bindings: &mut HashMap<String, TypeExpr>,
+) -> bool {
+    if let TypeExpr::Path(p) = pattern {
+        let bare = p.strip_prefix(':').unwrap_or(p);
+        if params.iter().any(|n| n == bare) {
+            return match bindings.get(bare) {
+                Some(bound) => type_exprs_same(bound, actual),
+                None => {
+                    bindings.insert(bare.to_string(), actual.clone());
+                    true
+                }
+            };
+        }
+    }
+    match (pattern, actual) {
+        (
+            TypeExpr::Parametric { head: ph, args: pa },
+            TypeExpr::Parametric { head: ah, args: aa },
+        ) => {
+            parametric_heads_unify(ph, ah)
+                && pa.len() == aa.len()
+                && pa.iter().zip(aa).all(|(p, a)| match_edge_child(p, a, params, bindings))
+        }
+        (TypeExpr::Tuple(pa), TypeExpr::Tuple(aa)) => {
+            pa.len() == aa.len()
+                && pa.iter().zip(aa).all(|(p, a)| match_edge_child(p, a, params, bindings))
+        }
+        (TypeExpr::Fn { args: pa, ret: pr }, TypeExpr::Fn { args: aa, ret: ar }) => {
+            pa.len() == aa.len()
+                && pa.iter().zip(aa).all(|(p, a)| match_edge_child(p, a, params, bindings))
+                && match_edge_child(pr, ar, params, bindings)
+        }
+        _ => type_exprs_same(pattern, actual),
+    }
+}
+
+/// Stone 255.22 — the TARGETS the GENERIC edges declared on `actual`'s head reach at
+/// `surface` (head compared through [`parametric_heads_unify`]), each INSTANTIATED under the
+/// bindings its child pattern-matched from `actual`. `(extend-type :- [Elem] (Box :- [Elem])
+/// (Greets :- [Elem]))` asked of `(Box :- [String])` at `Greets` answers `[(Greets :- [String])]`.
+///
+/// DIRECT edges only, for the reason [`parametric_extensions_of`] gives (a `derive` chain has no
+/// method body under the child's own name). The caller decides what more than one answer means.
+pub(crate) fn generic_edge_targets(actual: &TypeExpr, surface: &str, env: &TypeEnv) -> Vec<TypeExpr> {
+    generic_edge_matches(actual, surface, env)
+        .into_iter()
+        .map(|(target, bindings)| crate::check::rename(target, &bindings))
+        .collect()
+}
+
+/// Stone 255.22 — the one walk under [`generic_edge_targets`]: each GENERIC edge declared on
+/// `actual`'s head whose target's head is `surface` and whose child pattern-matches `actual`,
+/// as (the edge's declared target, the bindings of its binder names). The method path reads
+/// the bindings directly: an extend-type method's registered scheme is written in the edge's
+/// OWN parameter names, so it is instantiated by these bindings, not by the surface's.
+pub(crate) fn generic_edge_matches<'e>(
+    actual: &TypeExpr,
+    surface: &str,
+    env: &'e TypeEnv,
+) -> Vec<(&'e TypeExpr, HashMap<String, TypeExpr>)> {
+    let key = match actual {
+        TypeExpr::Parametric { head, .. } => {
+            crate::edn::render::type_denotation(&parametric_head_fqdn(head))
+        }
+        _ => return Vec::new(),
+    };
+    let Some(edges) = env.generic_edges.get(&key) else {
+        return Vec::new();
+    };
+    let target_head = |t: &TypeExpr| match t {
+        TypeExpr::Parametric { head, .. } => Some(parametric_head_fqdn(head)),
+        TypeExpr::Path(p) => Some(p.clone()),
+        _ => None,
+    };
+    edges
+        .iter()
+        .filter(|e| target_head(&e.target).is_some_and(|h| parametric_heads_unify(&h, surface)))
+        .filter_map(|e| {
+            let mut bindings = HashMap::new();
+            match_edge_child(&e.child, actual, &e.params, &mut bindings)
+                .then_some((&e.target, bindings))
+        })
+        .collect()
 }
 
 /// Seeds a fresh [`TypeEnv`] with wat-rs's own `:wat::*` declarations.
@@ -4513,6 +4624,17 @@ fn splice_type_decls(
         // The form shape is `(:wat::core::extend-type :T :P (impl…)…)`.
         ":wat::core::extend-type" => {
             let decl_span = span.clone();
+            // Stone 255.22 — read the operands through the ONE door, past an optional
+            // `:- [P …]` binder at the form head. `ops[0]` is the child, `ops[1]` the target.
+            let (binder, ops) = extend_type_operands(&items).map_err(|reason| {
+                TypeError::new(
+                    decl_span.clone(),
+                    TypeErrorKind::MalformedDecl { head: "extend-type".into(), reason },
+                )
+            })?;
+            let binder = binder.unwrap_or_default();
+            let child_node = ops.first().cloned();
+            let target_node = ops.get(1).cloned();
             // Arc 109 identity 2c remainder — the TARGET slot also accepts a parametric-type
             // FORM (`(Head :- [args])`) alongside the bare (non-parametric) Keyword surface —
             // angle brackets can never reach here at all: the lexer refuses `<` inside a
@@ -4520,12 +4642,12 @@ fn splice_type_decls(
             // lexer.rs), so a parametric target has exactly one live spelling, the FORM. Unlike
             // the SATISFIED-SURFACE arm just below, this one does NOT reduce to `base_fqdn()`:
             // `type_name` feeds `register_subtype`'s CHILD side, which `is_subtype` (below)
-            // walks with EXACT-string semantics, and `transport_edge_keys`/
-            // `transport_satisfier_heads` (check.rs) guess at the FULL `(Head :- [T])`/`(Head :- [Wire])`
-            // spelling verbatim — dropping args here would starve both. `check::format_type`
+            // walks with EXACT-string semantics — dropping args here would starve it (a generic
+            // edge is ALSO kept structured, by its binder: `register_generic_edge`, below).
+            // `check::format_type`
             // is the substrate's ONE authoritative TypeExpr renderer (types.rs:1987), so
             // re-render through it rather than hand-rolling a second stringifier.
-            let type_name = match items.get(1) {
+            let type_name = match &child_node {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
                     crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
@@ -4543,39 +4665,9 @@ fn splice_type_decls(
                     ))
                 }
             };
-            // Arc 109 stone 1 — the protocol slot also accepts a parametric-type FORM
-            // (`(:Proto :- [T])`, ②-iii's eventual spelling) alongside the bare (non-parametric)
-            // Keyword surface — the lexer refuses `<` inside a keyword token outright, so a
-            // parametric protocol has exactly one live spelling, the FORM. Both the bare Keyword
-            // and the FORM go through the SAME two existing doors — `parse_type_node`
-            // (already parses `:-`-marked forms into `TypeExpr::Parametric`, no reader change
-            // needed) then `TypeExpr::base_fqdn()` — so the lattice's own extraction stays
-            // singular; this does not add a second hand-rolled `find('<')`.
-            // ⛔ CORRECTED — this arm was added under ruling A-i ("the lattice keys on the BASE
-            // NAME") and survived the revert to S2 ("`is_subtype` keeps EXACT-string semantics")
-            // because flight 2's brief called it "orthogonal to S2". It was not: it left ONE site
-            // keying on the base while `register_subtype` stores VERBATIM, so
-            // `(extend-type :A :Proto<S,R>)` registered `":Proto<S,R>"` while
-            // `(extend-type :A (:Proto :- [S R]))` registered `":Proto"` — two spellings of one
-            // declaration, two different keys, and `is_subtype`'s exact-string query for the full
-            // name never found the second. Floor-green only because nothing fed a genuinely
-            // parametric protocol through the FORM spelling until `dialable-ty` would have.
-            // Renders the FULL name, exactly as the TARGET arm above now does.
-            let protocol_name = match items.get(2) {
-                Some(WatAST::Keyword(k, _)) => k.clone(),
-                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
-                }
-                // Stone 255.15 — a PARAMETRIC target keeps its structure: the one door
-                // writes the rendered edge AND the `TypeExpr` it was rendered from.
-                Some(node @ WatAST::List(_, _)) => {
-                    let target = parse_type_node(node)?;
-                    if matches!(target, TypeExpr::Parametric { .. }) {
-                        env.register_parametric_extension(&type_name, &target, decl_span)?;
-                        return Ok(WatAST::List(items, span));
-                    }
-                    crate::check::format_type(&target)
-                }
+            let target_te = match &target_node {
+                Some(node @ (WatAST::Keyword(_, _) | WatAST::List(_, _))) => parse_type_node(node)?,
+                Some(node @ WatAST::Symbol(id, _)) if id.is_reference() => parse_type_node(node)?,
                 _ => {
                     return Err(TypeError::new(
                         decl_span,
@@ -4586,6 +4678,70 @@ fn splice_type_decls(
                         },
                     ))
                 }
+            };
+            // Stone 255.22 — the two WALLS, at registration, before any half of the edge is
+            // written. The binder is what makes a name a parameter of this edge; its spelling
+            // never does.
+            //   (1) every binder name appears in the CHILD — an edge cannot invent a parameter
+            //       the child does not carry (matching the child is what binds it);
+            //   (2) every name in the child or the target is a declared parameter or a known
+            //       type — a free letter is an error, not a parameter.
+            let child_te = match &child_node {
+                Some(node) => parse_type_node(node)?,
+                None => unreachable!("child_node was matched above"),
+            };
+            if let Some(param) = binder.iter().find(|p| !type_mentions_param(&child_te, p)) {
+                return Err(TypeError::new(
+                    decl_span,
+                    TypeErrorKind::EdgeParamAbsentFromChild {
+                        param: param.clone(),
+                        child: crate::check::format_type(&child_te),
+                        target: crate::check::format_type(&target_te),
+                    },
+                ));
+            }
+            for (slot, te) in [("child", &child_te), ("target", &target_te)] {
+                if let Some(name) = first_free_type_name(te, &binder, env) {
+                    return Err(TypeError::new(
+                        decl_span,
+                        TypeErrorKind::EdgeFreeTypeName {
+                            name,
+                            slot: slot.into(),
+                            child: crate::check::format_type(&child_te),
+                            target: crate::check::format_type(&target_te),
+                        },
+                    ));
+                }
+            }
+            if !binder.is_empty() {
+                env.register_generic_edge(binder.clone(), child_te.clone(), target_te.clone());
+            }
+            // Arc 109 stone 1 — the protocol slot also accepts a parametric-type FORM
+            // (`(:Proto :- [T])`, ②-iii's eventual spelling) alongside the bare (non-parametric)
+            // Keyword surface — the lexer refuses `<` inside a keyword token outright, so a
+            // parametric protocol has exactly one live spelling, the FORM. Both the bare Keyword
+            // and the FORM go through the SAME `parse_type_node` door, then render through
+            // `format_type` — so the lattice's own extraction stays singular.
+            // ⛔ CORRECTED — this arm was added under ruling A-i ("the lattice keys on the BASE
+            // NAME") and survived the revert to S2 ("`is_subtype` keeps EXACT-string semantics")
+            // because flight 2's brief called it "orthogonal to S2". It was not: it left ONE site
+            // keying on the base while `register_subtype` stores VERBATIM, so
+            // `(extend-type :A :Proto<S,R>)` registered `":Proto<S,R>"` while
+            // `(extend-type :A (:Proto :- [S R]))` registered `":Proto"` — two spellings of one
+            // declaration, two different keys, and `is_subtype`'s exact-string query for the full
+            // name never found the second. Renders the FULL name, exactly as the child arm does.
+            let protocol_name = match (&target_node, &target_te) {
+                (Some(WatAST::Keyword(k, _)), _) => k.clone(),
+                (Some(WatAST::Symbol(id, _)), _) => {
+                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                }
+                // Stone 255.15 — a PARAMETRIC target keeps its structure: the one door
+                // writes the rendered edge AND the `TypeExpr` it was rendered from.
+                (_, target @ TypeExpr::Parametric { .. }) => {
+                    env.register_parametric_extension(&type_name, target, decl_span)?;
+                    return Ok(WatAST::List(items, span));
+                }
+                (_, target) => crate::check::format_type(target),
             };
             env.register_subtype(&type_name, &protocol_name, decl_span)?;
             Ok(WatAST::List(items, span))
@@ -5512,6 +5668,89 @@ pub(crate) fn peel_param_spec(args: &[WatAST]) -> (Option<&[WatAST]>, &[WatAST])
             (Some(inner.as_slice()), rest)
         }
         _ => (None, args),
+    }
+}
+
+/// Stone 255.22 — THE one door every positional reader of an `extend-type` form reads through.
+///
+/// `(:wat::core::extend-type [:- [P …]] <child> <target> <methods…>)`: the binder, when
+/// present, rides the form head (it reads like Rust's `impl<T>` — *for any `T`, a `(Box :- [T])`
+/// is a `(Greets :- [T])`*). `items` is the WHOLE form, head included. Returns the declared
+/// parameter names (BARE, `"T"`/`"Elem"`; `None` when the form has no binder, `Some(vec![])`
+/// for an expressed empty binder) and the operand slice after it: `operands[0]` is the child,
+/// `operands[1]` the target, `operands[2..]` the method impls. Every reader indexes
+/// `operands`, never `items` — so the binder moves no reader's child/target/method offsets.
+///
+/// Refused (`Err(reason)`, the caller wraps it in its own error type): a `:-` not followed by
+/// a `[…]` vector, and a binder entry that is not a bare, namespace-less symbol.
+pub(crate) fn extend_type_operands(
+    items: &[WatAST],
+) -> Result<(Option<Vec<String>>, &[WatAST]), String> {
+    let tail = items.get(1..).unwrap_or(&[]);
+    match peel_param_spec(tail) {
+        (Some(entries), rest) => {
+            let mut names = Vec::with_capacity(entries.len());
+            for entry in entries {
+                match entry {
+                    WatAST::Symbol(id, _) if !id.is_reference() => {
+                        names.push(id.as_str().to_string())
+                    }
+                    other => {
+                        return Err(format!(
+                            "an extend-type binder `:- [P …]` declares bare parameter names; got {}",
+                            other.variant_name()
+                        ))
+                    }
+                }
+            }
+            Ok((Some(names), rest))
+        }
+        (None, _) if tail.first().is_some_and(is_binder_marker) => Err(
+            "an extend-type `:-` binder must be followed by a `[P …]` vector of parameter names"
+                .into(),
+        ),
+        (None, rest) => Ok((None, rest)),
+    }
+}
+
+/// Stone 255.22 — does `ty` mention the type parameter `name` (bare) anywhere?
+fn type_mentions_param(ty: &TypeExpr, name: &str) -> bool {
+    match ty {
+        TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p) == name,
+        TypeExpr::Parametric { args, .. } => args.iter().any(|a| type_mentions_param(a, name)),
+        TypeExpr::Fn { args, ret } => {
+            args.iter().any(|a| type_mentions_param(a, name)) || type_mentions_param(ret, name)
+        }
+        TypeExpr::Tuple(xs) => xs.iter().any(|a| type_mentions_param(a, name)),
+        TypeExpr::Var(_) => false,
+    }
+}
+
+/// Stone 255.22 — the first NAME in `ty` (a path, or a parametric head) that is neither one of
+/// the edge's declared `params` nor a known type. `None` = every name is accounted for.
+fn first_free_type_name(ty: &TypeExpr, params: &[String], env: &TypeEnv) -> Option<String> {
+    match ty {
+        TypeExpr::Path(p) => {
+            let bare = p.strip_prefix(':').unwrap_or(p);
+            if params.iter().any(|n| n == bare) || env.is_known_type(p) {
+                None
+            } else {
+                Some(p.clone())
+            }
+        }
+        TypeExpr::Parametric { head, args } => {
+            let h = parametric_head_fqdn(head);
+            if !env.is_known_type(&h) {
+                return Some(h);
+            }
+            args.iter().find_map(|a| first_free_type_name(a, params, env))
+        }
+        TypeExpr::Fn { args, ret } => args
+            .iter()
+            .find_map(|a| first_free_type_name(a, params, env))
+            .or_else(|| first_free_type_name(ret, params, env)),
+        TypeExpr::Tuple(xs) => xs.iter().find_map(|a| first_free_type_name(a, params, env)),
+        TypeExpr::Var(_) => None,
     }
 }
 

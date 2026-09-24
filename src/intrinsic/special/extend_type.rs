@@ -13,12 +13,18 @@ use wat_macros::wat_special_form;
 /// in `sym.functions` under `<T>/<method>`, and `env.register_subtype(&T, &P, ...)` records the
 /// `(T, P)` edge in the type lattice.
 ///
+/// Stone 255.22 — a GENERIC edge declares its type parameters in a binder at the form head:
+/// `(:wat::core::extend-type :- [T] (:my::Box :- [T]) (:my::Greets :- [T]) …)` — *for any `T`, a
+/// `(Box :- [T])` is a `(Greets :- [T])`*. Only the binder makes a name a parameter: every binder
+/// name must appear in the child, and every other name in the child or target must be a known
+/// type (`EdgeParamAbsentFromChild` / `EdgeFreeTypeName`, refused at registration).
+///
 /// **Category ground — ★★★ argued, not assumed, per Stone 1a-δ's own lesson.** `:Declaration`'s
 /// prose ("registers a program-level entity ... visible to everything after it") is not just a
 /// face-value fit here — it is confirmed by what the form measurably does to BOTH the type
 /// lattice and the symbol table: `env.register_subtype` (`src/types.rs:3918`) writes the `(T,
-/// P)` edge that `is_subtype`'s exact-string lookup and `transport_edge_keys`/
-/// `transport_satisfier_heads` (`check.rs`) consult for the rest of the program, and
+/// P)` edge that `is_subtype`'s exact-string lookup and `family_extends`/`generic_edge_targets`
+/// (`src/types.rs`; a generic edge is matched by its `:- [P …]` binder, stone 255.22) consult for the rest of the program, and
 /// `register_extend_type_surface_impls`/`register_extend_type_methods`
 /// (`src/declare/register.rs`) register every method impl into `sym.functions`, visible to
 /// every call after it — a strictly LARGER registration footprint than `def`'s single name.

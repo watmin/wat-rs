@@ -996,17 +996,23 @@ pub(crate) fn parse_extend_type_form(
             ))
         }
     };
-    // items[0] = :wat::core::extend-type
-    // items[1] = :T type name keyword
-    // items[2] = :P protocol name keyword
-    // items[3..] = method impl lists (method-name [self ...] body)
-    if items.len() < 3 {
+    // Stone 255.22 — the operands are read through the ONE door (`types::extend_type_operands`),
+    // past an optional `:- [P …]` binder at the form head:
+    // ops[0] = the child type, ops[1] = the target (protocol/surface),
+    // ops[2..] = method impl lists (method-name [self ...] body).
+    let (_binder, ops) = crate::types::extend_type_operands(items).map_err(|reason| {
+        RuntimeError::new(
+            form_span.clone(),
+            RuntimeErrorKind::MalformedForm { head: HEAD.into(), reason },
+        )
+    })?;
+    if ops.len() < 2 {
         return Err(RuntimeError::new(
             form_span,
             RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!(
-                "expected (:wat::core::extend-type :T :P (method-impl ...) ...); got {} elements",
+                "expected (:wat::core::extend-type [:- [P …]] :T :P (method-impl ...) ...); got {} elements",
                 items.len()
             ),
             },
@@ -1022,16 +1028,16 @@ pub(crate) fn parse_extend_type_form(
     // boundary elsewhere, e.g. line 8146) — so `type_name` stays the FULL identity string
     // (base + args), byte-identical to what the Keyword arm always produced. Dropping to a
     // base-only name here would silently starve `is_subtype`'s exact-string edge lookup
-    // (types.rs's `register_subtype`) and the `transport_edge_keys` guess-set, both of which
-    // key on the full `(Head :- [T])`/`(Head :- [Wire])` spelling verbatim.
+    // (types.rs's `register_subtype`), which keys on the full `(Head :- [T])`/`(Head :- [Wire])`
+    // spelling verbatim.
     // Arc 109 ③ — keep the STRUCTURED `TypeExpr` alongside the rendered `type_name` string
     // (below, `ExtendDef::type_te`) so a consumer needing the target's structure (self's
     // param type at each impl method, `register_extend_type_surface_impls`) never has to
     // re-parse `type_name`'s angle-bracket string — the exact spelling this stone's wall
     // refuses. The Keyword arm parses too now (`.ok()`, best-effort: a non-parametric
     // keyword like `:t::Robot` always parses; only a malformed one falls back to `None`).
-    let (type_name, type_te) = match &items[1] {
-        WatAST::Keyword(k, _) => (k.clone(), crate::types::parse_type_node(&items[1]).ok()),
+    let (type_name, type_te) = match &ops[0] {
+        WatAST::Keyword(k, _) => (k.clone(), crate::types::parse_type_node(&ops[0]).ok()),
         // A namespaced symbol is the same type identity as its keyword.
         // `parse_type_node` maps it through `ns_to_wat_path` (always `::`).
         node @ (WatAST::List(_, _) | WatAST::Symbol(_, _)) => {
@@ -1079,7 +1085,7 @@ pub(crate) fn parse_extend_type_form(
     // fails to re-parse as a type expr — should not happen for well-formed input — falls back to
     // itself verbatim, preserving the prior behavior rather than fabricating a split). The List
     // arm has no analogous "raw string": a malformed List already errored out above via `?`.
-    let (protocol_te, protocol_name_raw) = match &items[2] {
+    let (protocol_te, protocol_name_raw) = match &ops[1] {
         WatAST::Keyword(k, _) => (crate::types::parse_type_expr(k).ok(), k.clone()),
         node @ (WatAST::List(_, _) | WatAST::Symbol(_, _)) => {
             let te = crate::types::parse_type_node(node).map_err(|e| {
@@ -1117,7 +1123,7 @@ pub(crate) fn parse_extend_type_form(
 
     let mut impl_clauses: std::collections::HashMap<String, crate::value::Clause> =
         std::collections::HashMap::new();
-    for impl_form in &items[3..] {
+    for impl_form in &ops[2..] {
         let impl_span = impl_form.span().clone();
         let impl_items = match impl_form {
             WatAST::List(items, _) => items,

@@ -5384,6 +5384,31 @@ fn infer_list(
                                             // hypothetical `(Map :- [K V])` satisfying `(Seqable :- [T])` fails
                                             // it and falls through untouched rather than binding
                                             // `T := K`.
+                                            //
+                                            // Stone 255.22 — a GENERIC edge (one whose form declared
+                                            // a `:- [P …]` binder) registered this scheme in ITS OWN
+                                            // parameter names: `self` is the edge's child, and the
+                                            // surface's params were renamed to the target's args
+                                            // (`register_extend_type_surface_impls`). So the scheme is
+                                            // instantiated by matching the edge's CHILD against the
+                                            // receiver — binding exactly the binder's names — not by
+                                            // zipping the SURFACE's params against the receiver's
+                                            // args, which agreed only when the edge happened to spell
+                                            // its parameter as the surface does (`(extend-type :- [E]
+                                            // (Box :- [E]) (Greets :- [E]))` on `(Greets :- [T])` left
+                                            // `:E` in the result). One match decides; none or several
+                                            // fall through to the positional zip below, unchanged.
+                                            let edge_matches = crate::types::generic_edge_matches(
+                                                &recv,
+                                                protocol_fqdn,
+                                                env.types(),
+                                            );
+                                            if let [(_, bindings)] = edge_matches.as_slice() {
+                                                return Some((
+                                                    rename(&ret, bindings),
+                                                    params.iter().map(|t| rename(t, bindings)).collect(),
+                                                ));
+                                            }
                                             if let TypeExpr::Parametric {
                                                 args: recv_args, ..
                                             } = &recv
@@ -10562,42 +10587,11 @@ pub(crate) fn is_type_param_letter(ty: &TypeExpr) -> bool {
     }
 }
 
-/// Subtype-edge keys for (Handle :- [Wire]) / (Handle :- [K V Shared]): the bare head,
-/// `(Handle :- [:T])`, `(Handle :- [:Xt])`, and the full type with last arg rewritten to
-/// `:T`/`:Xt`. STONE-defservice-emits-the-binder — the letters carry their OWN leading
-/// colon (`":T"`, not `"T"`): `parse_type_node`'s `Symbol` arm prepends `:` to a
-/// namespace-less binder symbol before it is ever stored as `TypeExpr::Path`, so the
-/// registered edge (and `format_type`, which no longer strips it for nested args — see
-/// `render_binder_ref`) both carry it. A bare `Path("T".into())` here rendered `(Head :-
-/// [T])` — one colon short of the registered `(Head :- [:T])` — and the extend-type edge
-/// for every transport-polymorphic `(Handle :- [Wire])`/`(Handle :- [Shared])` silently stopped
-/// resolving (`every_wat_scripts_file_loads` caught it, three probes red).
-fn transport_edge_keys(ty: &TypeExpr) -> Vec<String> {
-    let mut keys = Vec::new();
-    match ty {
-        TypeExpr::Path(p) => keys.push(p.clone()),
-        TypeExpr::Parametric { head, args } => {
-            keys.extend(crate::types::transport_satisfier_heads(head));
-            if !args.is_empty() {
-                for letter in [":T", ":Xt"] {
-                    let mut inst = args.clone();
-                    inst[args.len() - 1] = TypeExpr::Path(letter.into());
-                    keys.push(format_type(&TypeExpr::Parametric {
-                        head: head.clone(),
-                        args: inst,
-                    }));
-                }
-            }
-        }
-        _ => {}
-    }
-    keys
-}
-
 /// Scheme keys for a surface method on `recv`: exact format_type, then
 /// last-arg rewritten to `:T` / `:Xt` ((Handle :- [Wire]) → `(Handle :- [:T])`), then the bare
 /// head. STONE-defservice-emits-the-binder — the colon on the letter matches
-/// `transport_edge_keys`'s own fix, same reason: `Path(":T")`, not `Path("T")`.
+/// (retired) `transport_edge_keys` guess, same reason: `Path(":T")`, not `Path("T")`. Stone 255.22 left this
+/// METHOD-key guess in place (C-b3's ground); the EDGE guesses it mirrored are gone.
 fn satisfier_method_keys(recv: &TypeExpr, method_name: &str) -> Vec<String> {
     let mut keys = vec![format!("{}/{}", format_type(recv), method_name)];
     if let TypeExpr::Parametric { head, args } = recv {
@@ -17361,11 +17355,13 @@ pub(crate) fn assignable(
     if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
         // Full-args edge (a full-parametric extend-type, e.g. (Peer' :- [Op Reply]) <: :S — PROTOCOL-SPECIFIC)
         // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. (Vector :- [T]) <: :Proto).
+        // Stone 255.22 — OR a GENERIC edge (its form declared a `:- [P …]` binder) whose child
+        // pattern-matches `a` reaches `ep` (`generic_edge_targets`); OR `a`'s family reaches it
+        // by walking edges (`family_extends`). Neither guesses a parameter's spelling any more.
         if crate::types::is_subtype(&format_type(&a), ep, types)
             || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types)
-            || transport_edge_keys(&a)
-                .iter()
-                .any(|k| crate::types::family_extends(k, ep, types))
+            || !crate::types::generic_edge_targets(&a, ep, types).is_empty()
+            || crate::types::family_extends(&format_type(&a), ep, types)
         {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
             return nature_floor_ok(&a, ep, types);
@@ -17463,65 +17459,57 @@ pub(crate) fn assignable(
     ) = (&a, &e)
     {
         // 293.W.2f — (Handle :- [Shared]) / (Handle :- [K V Shared]) satisfies
-        // (TypedCapability :- [S R]) via the extend-type on (Handle :- [T]) / (Handle :- [K V T]).
+        // (TypedCapability :- [S R]) via an extend-type edge. An EXACT edge — the actual's own
+        // rendering, or its bare head, extends exactly `e` — decides first.
         if ah != eh
-            && transport_edge_keys(&a)
-                .iter()
-                .any(|k| crate::types::is_subtype(k, &format_type(&e), types))
+            && (crate::types::is_subtype(&format_type(&a), &format_type(&e), types)
+                || crate::types::is_subtype(
+                    &crate::types::parametric_head_fqdn(ah),
+                    &format_type(&e),
+                    types,
+                ))
         {
             return nature_floor_ok(&a, &crate::types::parametric_head_fqdn(eh), types);
         }
-        // Stone 118.3-B — the exact-string compare above can never succeed when `e`'s args
-        // still carry an unbound unification VAR (e.g. a fresh `?454` from an uninstantiated
-        // generic fn's own type param — `count-of :- [T] [s <- (Seqable :- [T])]`): `format_type(&e)`
-        // renders the fresh var, but the registered `extend-type` edge is keyed by the
-        // SURFACE's own declared param name, verbatim (`(:sq::Seqable :- [T])` — rendered by
-        // `format_type` in `TypeEnv::register_parametric_extension`, reached from
-        // `types::splice_type_decls`' `:wat::core::extend-type` arm) —
-        // "[?454]" != "[T]", always. Bind instead of string-match: confirm `eh` resolves to a
-        // registered SURFACE by its BARE key (`parametric_head_fqdn` — the same lookup arm 3,
-        // 14800-14812, already uses), confirm the actual's family really does extend-type it
-        // (existence only, arg-agnostic — `family_extends`, the same helper arm 3
-        // calls), then UNIFY — invariant, per this arm's own doctrine two paragraphs up — the
-        // surface's declared params (already positionally == `eargs`) against the actual's own
-        // args. `e` is already fully `reduce`d (this fn's top), so `eargs` needs no re-walk.
+        // Stone 255.22 — otherwise the edge is matched STRUCTURALLY. Each candidate is a target
+        // `a`'s head declared at `eh`'s surface, instantiated for `a`:
+        //   - a GENERIC edge (`(extend-type :- [P …] <child> <target>)`): its child is
+        //     pattern-matched against `a`, binding exactly the names its BINDER declared, and the
+        //     target is instantiated under those bindings (`types::generic_edge_targets`) —
+        //     `(extend-type :- [Elem] (Vector :- [Elem]) (Seqable :- [Elem]))` asked of
+        //     `(Vector :- [i64])` offers `(Seqable :- [i64])`;
+        //   - a concrete edge on the BARE head (`(extend-type :Vector (Holds :- [i64]))`): its
+        //     target as declared (`types::parametric_extensions_of`).
+        // Each candidate is UNIFIED with `e` — invariant, as every surface-arg arm here — on a
+        // CLONED subst, and only a UNIQUE solution is committed (255.15's discipline: a failed
+        // unify leaves partial bindings; two solutions are ambiguous, never pick one).
         //
-        // Stone 118.B1a — this branch was ALSO gated on `eargs` still containing a Var. That
-        // gate is REMOVED, because it excluded a legitimate case while protecting nothing.
-        //
-        // Why it protected nothing: this is an `else if` on the exact-string arm above. The
-        // tenants the old comment named — `Dialable` / `TypedCapability` / `Handle` (293.W.2f) —
-        // are baked per-instance with fully CONCRETE args (`(TypedCapability :- [Echo::Op Echo::Reply])`,
-        // never a bare `S`/`R`; live at tests/services/probe_arc170_c2_d_bodiless_edge_ok.wat:32),
-        // so the arm above DECIDES AND RETURNS for them and this branch is unreachable for their
-        // calls either way. `else` is what protects them, never the Var test.
-        //
-        // What it excluded: a CONCRETE instantiation of a parametric surface over a BUILTIN —
-        // `(Vector :- [i64])` against `(Seqable :- [wat::core::i64])`. A builtin's name can never string-match
-        // a surface's, so the arm above MUST fail for it; and once an earlier parameter has pinned
-        // `T`, `eargs` holds no Var, so the old gate skipped it too and satisfaction fell through
-        // to `false`. Measured: `[s <- (Seqable :- [T])]` accepted a Vector while
-        // `[probe <- :T  s <- (Seqable :- [T])]` rejected the same Vector — the position of an unrelated
-        // parameter decided it (`118-lazy-seqs-vs-threaded-streams/MEASURED-118.B2-blocked-the-var-gate.md`).
-        //
-        // ★ SOUNDNESS LIVES IN THE GUARDS BELOW, NOT IN THE GATE — and specifically the swap-gate
-        // (arm 4's comment, 14814-14822) is enforced by UNIFY on the args: two different concrete
-        // instantiations do not unify, so `(Vector :- [String])` is still refused against
-        // `(Seqable :- [i64])`, and a family with no extend-type edge is refused by
-        // `family_extends`. Both are negative-control rows of 118.B1a's gate.
-        else {
+        // This REPLACES two guesses. The old exact arm tried the actual with its last argument
+        // rewritten to `:T`/`:Xt` (`transport_edge_keys`), and Stone 118.3-B's arm unified the
+        // ACTUAL's arguments positionally against the expected's — assuming a child's parameters
+        // are its target's, in order. Both found a generic edge by its parameter's SPELLING, so
+        // renaming `T` to `Elem` changed the verdict. The binder now says what is a parameter;
+        // matching the child says what it binds. Soundness is unchanged in kind: two different
+        // concrete instantiations do not unify (`(Vector :- [String])` is refused against
+        // `(Seqable :- [i64])`), and a family with no edge offers no candidate.
+        if ah != eh {
             let bare = crate::types::parametric_head_fqdn(eh);
-            if let Some(crate::types::TypeDef::Surface(surf)) = types.get(&bare) {
-                if surf.type_params.len() == eargs.len()
-                    && aargs.len() == eargs.len()
-                    && transport_edge_keys(&a)
-                        .iter()
-                        .any(|k| crate::types::family_extends(k, &bare, types))
-                    && aargs
-                        .iter()
-                        .zip(eargs.iter())
-                        .all(|(x, y)| unify(x, y, subst, types).is_ok())
-                {
+            let mut candidates = crate::types::generic_edge_targets(&a, &bare, types);
+            candidates.extend(crate::types::parametric_extensions_of(
+                &crate::types::parametric_head_fqdn(ah),
+                &bare,
+                types,
+            ));
+            let mut solutions: Vec<Subst> = Vec::new();
+            for target in &candidates {
+                let mut trial = subst.clone();
+                if unify(target, &e, &mut trial, types).is_ok() {
+                    solutions.push(trial);
+                }
+            }
+            if solutions.len() == 1 {
+                if let Some(solved) = solutions.pop() {
+                    *subst = solved;
                     return nature_floor_ok(&a, &bare, types);
                 }
             }

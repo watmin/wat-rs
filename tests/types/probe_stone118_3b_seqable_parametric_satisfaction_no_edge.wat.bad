@@ -1,0 +1,7 @@
+;; Stone 118.3-B / 255.22 — NEGATIVE row: a family with NO `extend-type` edge to
+;; `:wat::core::Seqable` (a HashMap) offers no candidate target. Must be refused at check.
+(:wat::core::defn :t118b::count-of :- [T] [s <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
+  (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
+
+(:wat::core::defn :t::count-map [] -> :wat::core::i64
+  (:t118b::count-of (:wat::core::HashMap :- [:wat::core::String :wat::core::i64] "a" 1)))

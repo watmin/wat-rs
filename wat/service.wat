@@ -2888,7 +2888,7 @@
      grantable-pids-sym (:wat::core::symbol-node "pids")
      handle-addr-name (:wat::keyword::from-string
                          (:wat::string::interpolate "{b}::Handle/addr" :b fqdn-base))
-     grantable-extend `(:wat::core::extend-type ~handle-bare-name :wat::capability::Capability
+     grantable-extend `(:wat::core::extend-type :- [~@handle-tp-syms] ~handle-bare-name :wat::capability::Capability
                          (grant  [~grantable-self-sym ~grantable-pids-sym] (~grant-call-name  ~grantable-self-sym ~grantable-pids-sym))
                          (revoke [~grantable-self-sym ~grantable-pids-sym] (~revoke-call-name ~grantable-self-sym ~grantable-pids-sym))
                          (coordinate [~grantable-self-sym]
@@ -2903,7 +2903,7 @@
      ;; the hand-proven extend-type in scratchpad/probe-c2-typed-coordinate.wat. proto-str
      ;; (not fqdn-str) matches addr-ty's own Op/Reply namespace (arc 293 S2, line ~472).
      dialable-ty `(:wat::capability::Dialable :- [~proto-op-ty-ann ~proto-reply-ty-ann])
-     dialable-extend `(:wat::core::extend-type ~handle-bare-name ~dialable-ty
+     dialable-extend `(:wat::core::extend-type :- [~@handle-tp-syms] ~handle-bare-name ~dialable-ty
                          (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
 
      ;; ── arc 170 C2 D: auto-emit the THIRD, BODILESS TypedCapability :- [S R] extend-type ─
@@ -2915,7 +2915,7 @@
      ;; wiring exactly (proto-str namespace, not fqdn-str — same reasoning as line ~1192).
      ;; Shape proven probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat (all since deleted).
      typedcap-ty `(:wat::capability::TypedCapability :- [~proto-op-ty-ann ~proto-reply-ty-ann])
-     typedcap-extend `(:wat::core::extend-type ~handle-bare-name ~typedcap-ty)]
+     typedcap-extend `(:wat::core::extend-type :- [~@handle-tp-syms] ~handle-bare-name ~typedcap-ty)]
 
     ;; Assemble the final `do`:
     ;;   record + state defs (durable/ephemeral projections)

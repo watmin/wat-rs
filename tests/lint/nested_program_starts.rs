@@ -139,11 +139,17 @@ fn walk_defn(
             return;
         }
         WatAST::List(items, _) if h == ":wat::core::extend-type" => {
-            let surface = items.get(2).and_then(|c| match c {
+            // Stone 255.22 — an optional `:- [P …]` binder (the marker and its vector) rides the
+            // form head; the operands (child, target, methods) start after it. The marker is
+            // asked of the ONE recogniser (`wat_reader::is_binder_marker`); the crate-private
+            // `types::extend_type_operands` is not reachable from an integration test.
+            let skip = if items.get(1).is_some_and(wat_reader::is_binder_marker) { 3 } else { 1 };
+            let ops: &[WatAST] = items.get(skip..).unwrap_or(&[]);
+            let surface = ops.get(1).and_then(|c| match c {
                 WatAST::Keyword(k, _) => Some(k.as_str()),
                 _ => None,
             });
-            for meth in items.iter().skip(3) {
+            for meth in ops.iter().skip(2) {
                 if let WatAST::List(ch, _) = meth {
                     if ch.len() >= 2 {
                         let mname = match &ch[0] {

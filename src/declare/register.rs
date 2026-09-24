@@ -391,7 +391,7 @@ pub(crate) fn register_extend_type_surface_impls(
     // Value's type-erased class name — `runtime.rs`'s `eval_call`/surface-method dispatch
     // arm) is ALWAYS the BARE base name: a `Value::Aggregate`'s `class` field never carries
     // instantiation args. `ed.type_name` stays the FULL identity string (base + args) for
-    // `is_subtype`/`transport_edge_keys` (see the comment on its field, `src/value/value.rs`)
+    // `is_subtype`/`family_extends` (see the comment on its field, `src/value/value.rs`)
     // — those key on the exact declared spelling on purpose — but a method REGISTRATION key
     // built from that full string would never match the bare dispatch lookup for a
     // genuinely parametric target (was previously masked only because a MONOMORPHIC

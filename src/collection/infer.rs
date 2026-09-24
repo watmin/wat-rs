@@ -644,8 +644,8 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 /// are now ALL refuted, measured against the disk (not reasoned):
 /// 1. ~~no `defsurface` `:nature` admits a builtin container~~ — REFUTED: `:nature
 ///    :wat::core::Struct` + `extend-type` on a builtin, both bare and parametric, type-check and
-///    run today (`wat-scripts/scratch-pad/probe-seqable-is-spellable-today.wat`,
-///    `probe-seqable-parametric-all-four.wat`).
+///    run today (`wat-scripts/scratch-pad/probe-seqable-is-spellable-today.wat`, and all four
+///    parametric: `tests/types/probe_stone118_3b_seqable_parametric_satisfaction.wat`).
 /// 2. ~~no builtin satisfies any surface today~~ — REFUTED twice over: a bare surface over
 ///    `Vector`/`PersistentVector` (`SCORE-293.4d`, 2026-06-28), and — the stone-118.3-B fix,
 ///    `src/check.rs`'s `(Parametric actual, Parametric expected)` arm, ~14858 — a PARAMETRIC

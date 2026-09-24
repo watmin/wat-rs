@@ -80,16 +80,16 @@
 ;; The four impls. Each delegates to the native normaliser, which already steps its source BY
 ;; POSITION (O(n) total) rather than by repeated `rest` (which REBUILDS an eager container per step,
 ;; O(n^2) — the arc-278 Strike-1 fix). Stream's arm is the identity case and stays lazy.
-(:wat::core::extend-type :wat::core::Vector (:wat::core::Seqable :- [T])
+(:wat::core::extend-type :- [T] (:wat::core::Vector :- [T]) (:wat::core::Seqable :- [T])
   (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
-(:wat::core::extend-type :wat::core::PersistentVector (:wat::core::Seqable :- [T])
+(:wat::core::extend-type :- [T] (:wat::core::PersistentVector :- [T]) (:wat::core::Seqable :- [T])
   (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
-(:wat::core::extend-type :wat::core::List (:wat::core::Seqable :- [T])
+(:wat::core::extend-type :- [T] (:wat::core::List :- [T]) (:wat::core::Seqable :- [T])
   (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
-(:wat::core::extend-type :wat::stream::Stream (:wat::core::Seqable :- [T])
+(:wat::core::extend-type :- [T] (:wat::stream::Stream :- [T]) (:wat::core::Seqable :- [T])
   (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
 ;; ─── filter — NATIVE now (Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a) ─────────────

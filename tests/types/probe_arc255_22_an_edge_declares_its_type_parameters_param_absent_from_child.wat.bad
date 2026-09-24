@@ -1,0 +1,10 @@
+;; Stone 255.22 — an extend-type declares its type parameters (arc 255).
+;; NEGATIVE WALL — a binder parameter the child does not carry: refused at registration (EdgeParamAbsentFromChild).
+(:wat::core::defsurface :hello::Greets :- [T] :nature :wat::core::Struct
+  :features [(greet [self <- (:hello::Greets :- [T])] -> :T)])
+(:wat::core::defrecord :hello::Box :- [T] [v <- :T])
+(:wat::core::defrecord :hello::Plain [v <- :wat::core::String])
+(:wat::core::extend-type :- [T] :hello::Plain (:hello::Greets :- [T])
+  (greet [self] -> :T (:hello::Plain/v self)))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println (:hello::Greets/greet (:hello::Plain :v "hello, world!"))))

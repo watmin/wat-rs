@@ -220,6 +220,34 @@ pub enum TypeErrorKind {
         second: String,
     },
 
+    /// Stone 255.22 — an `extend-type` binder declared a parameter its CHILD type does not
+    /// carry (`(extend-type :- [T] :Box (Greets :- [T]))`). Matching the child against an actual
+    /// type is what binds an edge's parameters; a name the child does not mention could never be
+    /// bound, so the edge would invent it. Refused at registration.
+    EdgeParamAbsentFromChild {
+        /// The binder name the child does not carry (bare, as the binder spelled it).
+        param: String,
+        /// The child, rendered.
+        child: String,
+        /// The target, rendered.
+        target: String,
+    },
+
+    /// Stone 255.22 — a name in an `extend-type` edge's child or target is neither a parameter
+    /// the form's `:- [P …]` binder declared nor a known type
+    /// (`(extend-type (Box :- [T]) (Greets :- [T]))` with no binder). A free letter is an error,
+    /// not a parameter: only the binder makes a name a parameter. Refused at registration.
+    EdgeFreeTypeName {
+        /// The undeclared name, as parsed (`:T`).
+        name: String,
+        /// Which operand carried it: `"child"` or `"target"`.
+        slot: String,
+        /// The child, rendered.
+        child: String,
+        /// The target, rendered.
+        target: String,
+    },
+
     // ─── Arc 293.W — containment rule ──────────────────────────────────────
     /// A portable aggregate (Record | HolonRecord) declared a field whose type
     /// is non-portable (e.g. a Struct). Such a field cannot be reconstructed
@@ -412,6 +440,18 @@ impl fmt::Display for TypeErrorKind {
                 "{ty} already binds {existing}; a type binds a parametric surface once — \
                  refused second binding {second} (dispatch is keyed on `<Type>/<method>`, so one \
                  body would serve both bindings)"
+            ),
+            TypeErrorKind::EdgeParamAbsentFromChild { param, child, target } => write!(
+                f,
+                "extend-type {child} → {target}: binder parameter {param} does not appear in the \
+                 child type; an edge's parameters are bound by matching its child, so a name the \
+                 child does not carry cannot be declared"
+            ),
+            TypeErrorKind::EdgeFreeTypeName { name, slot, child, target } => write!(
+                f,
+                "extend-type {child} → {target}: {name} in the {slot} is neither declared in the \
+                 edge's `:- [P …]` binder nor a known type — a free name is an error, not a \
+                 parameter; declare it: (:wat::core::extend-type :- [P …] <child> <target> …)"
             ),
             TypeErrorKind::ImpureFieldInPureAggregate { aggregate, field, field_ty } => write!(
                 f,
