@@ -107,10 +107,35 @@ slow-timeout = { period = "120s", terminate-after = 2 }
 # this one test. Splitting the gate per-directory (fixes/ - scratch-pad/ - probes/ - perf/) has
 # stopped being the tidy option and is now the difference between an 8-minute floor and a
 # 25-minute one. THAT is the strike; this number is the stopgap that buys time to draw it.
-[[profile.default.overrides]]
-filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "1500s", terminate-after = 2 }  # warn 1500s, kill 3000s
-priority = 100                                            # schedule first
+#
+#   2026-09-23:  1500s/3000s -> NO OVERRIDE, in ANY profile.  THE STRIKE LANDED (excursus 003,
+#   stone D): the gate is split into 200 STRIDE shards,
+#   `every_wat_scripts_file_loads_on_the_current_runtime_shard_000` .. `_199`
+#   (tests/lint/wat_scripts_fixes_load.rs). Stride, NOT the per-directory split drawn above:
+#   the per-file cost is FLAT (median 985 ms, top 10 files = 1.4% of the total), and
+#   `scratch-pad/` alone is 55% of the corpus, so its directory shard would still cost ~230s.
+#
+#   MEASURED: 24 files/shard ran 13.973s and 13.480s isolated = 0.57 s/file. Sized to the
+#   DEFAULT 15s-warn / 30s-kill with this file's own contention band and flake line:
+#       69% of 30s = 20.7s loaded;  / 4.4 = 4.70s isolated;  / 0.57 = 8 files per shard max
+#       N = 200 -> 4 files ~ 2.3s isolated ~ 10.0s loaded = 33% of the kill
+#       the invariant breaks past ~1600 files — then raise N_SHARDS, NEVER a budget.
+#   The old name is every shard's PREFIX, so every `test(every_wat_scripts_file_loads…)`
+#   citation (17 files) still matches. The three 1500s/3000s overrides (default · ci · slow)
+#   are removed TOGETHER — overrides do not inherit, so removing one would have left two
+#   profiles sized for a test that no longer exists. Shards schedule early via the
+#   `binary_id(wat::lint)` priority rule below, like the rest of the lint binary.
+#
+#   ⛔ AND IT DID NOT MAKE THE FLOOR FASTER — measured, and the reason corrects the ★ above.
+#   Floor before (.floor/2026-09-23T23-37-45Z) 1026.851s; after (.floor/2026-09-24T00-50-22Z)
+#   1026.450s, both green, 8 test threads. The sum of every test's reported duration is 8210s
+#   before and 8208s after — and 8210 / 8 = 1026. The floor is THROUGHPUT-bound: all 8 slots
+#   stay busy for the whole run, so wall-clock = total work / threads, and redistributing the
+#   gate's work (775s in one slot -> 791s across 200) cannot move it. "THE GATE IS 98% OF THE
+#   FLOOR'S WALL-CLOCK" was true of the 223s floor of 2026-08-16; at 1026s the gate was 9.4% of
+#   the slot-time. Only LESS WORK shortens the floor now. What the split DID buy: no 3000s
+#   budget in any profile, a red that names one 4-file shard, and the gate alone in ~100s
+#   (8-way) instead of 425s. Loaded shard cost in that floor: 3.0s-4.3s vs 2.28s isolated.
 
 # ⏱ retirement_table_is_fully_reachable — STARTUP-bound, and the ARC GROWS ITS INPUT.
 #
@@ -155,8 +180,8 @@ slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
 # contention band) = 31s, which is why the 30s default kill caught it. 240s leaves it at 13%.
 #
 # ⛔ AND IT NEEDS A COPY IN EVERY PROFILE, because overrides do NOT inherit — the duplicated
-# `every_wat_scripts_file_loads` blocks under `[profile.ci]` and `[profile.slow]` exist for
-# exactly that reason, and say so: "a deadline that only the dev profile can meet is not a
+# `every_wat_scripts_file_loads` blocks under `[profile.ci]` and `[profile.slow]` existed for
+# exactly that reason (removed together 2026-09-23 when that gate was sharded), and said so: "a deadline that only the dev profile can meet is not a
 # deadline." The same wall is hit by the same corpus whichever profile runs it.
 [[profile.ci.overrides]]
 filter = 'test(no_broken_intra_doc_link_outside_the_frozen_ledger)'
@@ -273,10 +298,11 @@ priority = 99
 # trailing them.
 #
 # ⚠ ORDER IS LOAD-BEARING. Overrides are matched top-down, so this MUST stay
-# BELOW the `every_wat_scripts_file_loads_on_the_current_runtime` rule — that
-# test lives INSIDE this very binary (tests/lint/wat_scripts_fixes_load.rs).
-# Above it, this broader filter would swallow the gate and strip its 300s/600s
-# timeout, walking the 88s freeze back into a SIGTERM. Only `priority` is set
+# BELOW every narrower rule for a test inside this very binary — it once sat
+# below the `every_wat_scripts_file_loads_on_the_current_runtime` rule, whose
+# test lives here (tests/lint/wat_scripts_fixes_load.rs). That rule is gone
+# (2026-09-23: the gate is 200 shards that fit the default budget), and its
+# shards now take their priority from THIS rule. Only `priority` is set
 # here; every other setting falls through to the profile default.
 [[profile.default.overrides]]
 filter = 'binary_id(wat::lint)'
@@ -446,12 +472,9 @@ priority = 97
 filter = 'test(every_recorded_migration_replays)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 
-[[profile.ci.overrides]]
-filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-# raised with [profile.default] 2026-08-16 — CI and --profile slow hit the same 327-file
-# corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
-slow-timeout = { period = "1500s", terminate-after = 2 }  # 2026-09-22: 300s->1500s WITH profile.default — 425.736s isolated, 769 files
-priority = 100
+# (the `every_wat_scripts_file_loads_on_the_current_runtime` override stood here at 1500s/3000s —
+# removed 2026-09-23 WITH profile.default and profile.slow: the gate is 200 stride shards sized to
+# fit the default budget. The sizing arithmetic is in the [profile.default] block's history.)
 
 # C19 — raised with [profile.default]; CI runs the same corpus on the same wall. A deadline only
 # the dev profile can meet is not a deadline (the same reasoning the scripts gate's ci override
@@ -501,12 +524,9 @@ retries = 0
 fail-fast = false
 default-filter = 'all() - test(diag_first_over_form) - test(diag_first_over_vector_form) - test(diag_keyword_to_string_over_form)'
 
-[[profile.slow.overrides]]
-filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-# raised with [profile.default] 2026-08-16 — CI and --profile slow hit the same 327-file
-# corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
-slow-timeout = { period = "1500s", terminate-after = 2 }  # 2026-09-22: 300s->1500s WITH profile.default — 425.736s isolated, 769 files
-priority = 100
+# (the `every_wat_scripts_file_loads_on_the_current_runtime` override stood here at 1500s/3000s —
+# removed 2026-09-23 WITH profile.default and profile.ci: the gate is 200 stride shards sized to
+# fit the default budget. The sizing arithmetic is in the [profile.default] block's history.)
 
 # C19 — raised with [profile.default]; same corpus, same box, same argument. MUST stay above the
 # `binary_id(wat::lint)` rule — first match wins.
