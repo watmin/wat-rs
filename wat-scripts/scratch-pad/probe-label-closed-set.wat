@@ -18,8 +18,8 @@
 
 (:wat::core::defrecord :probe::Rogue [tag <- :wat::core::String])
 
-(:wat::core::defn :probe::mint-rogue-label [] -> :wat::spawn::Locus
-  (:wat::spawn::with-label
+(:wat::core::defn :probe::mint-rogue-label [] -> (:wat::spawn::Locus :- [:wat::kernel::Wire])
+  (:wat::spawn::Locus/with-label
     (:wat::spawn::process)
     (:probe::Rogue :tag "i-am-not-a-bracket-or-a-service")))
 

@@ -26,6 +26,9 @@
 ;; — measured in wat-scripts/scratch-pad/255-18-generic-locus-narrows-to-a-clause.wat. A defn
 ;; that calls one of those (e.g. `:wat::bracket::map-worker`, `:user::read-blind`) must NOT be
 ;; listed. Pass only the consumers the stone names.
+;; 255.19 lifted that restriction: both defclauses became `Locus` surface methods
+;; (wat-scripts/fixes/locus-methods-on-the-waist.wat), and this codemod was then run on
+;; `wat-scripts/probes/arc-170/probe-s2-runner-count.wat` (`:user::read-blind`).
 ;;
 ;; Comment-faithful: span splices through `fix-text-apply` (each edit carries its old text).
 ;;

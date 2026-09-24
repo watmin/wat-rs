@@ -1,0 +1,16 @@
+;; Stone 255.19 — per-locus behaviour lives on the waist. `with-label` is a `(Locus :- [T])`
+;; surface method that KEEPS the transport it was given.
+;; NEGATIVE (was 255.18's erasure witness, wat-scripts/scratch-pad/255-18-with-label-erases-the-
+;; transport.wat): a PROCESS locus passed through `with-label` cannot be launched as Shared. While
+;; `with-label` was a defclause returning the bare `Locus`, this type-checked (rc=0).
+;; The positive twin, claiming Wire, is _with_label_process_claimed_wire.wat.
+(:wat::core::defrecord :probe::Tag [s <- :wat::core::String])
+(:wat::core::defn :probe::mislabeled-launch [] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Shared])
+  (:wat::spawn::Locus/launch
+    (:wat::spawn::Locus/with-label (:wat::spawn::process) (:probe::Tag :s "x"))
+    0
+    (:wat::keyword::from-string "p::init")
+    (:wat::keyword::from-string "p::serve")
+    (:wat::core::forms)
+    (:wat::keyword::from-string "p::init")
+    (:wat::keyword::from-string "p::mk-lu")))

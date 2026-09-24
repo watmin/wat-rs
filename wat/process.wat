@@ -42,7 +42,7 @@
 ;; dropped deliberately — nobody reads a column out of `ps`.
 
 ;; Bracket — a pool-worker's identity: its runner index + where the pool was spawned.
-;; wat/bracket.wat's map-worker sets one per runner via `:wat::spawn::with-label`.
+;; wat/bracket.wat's map-worker sets one per runner via `:wat::spawn::Locus/with-label`.
 ;; The origin is what disambiguates runners: `{:id 3}` alone is ambiguous the moment two
 ;; pools run concurrently — three runners numbered 0,1,2 from two different call sites are
 ;; indistinguishable without it.
@@ -56,7 +56,7 @@
 ;; :wat::core::keyword`), which already types identity-like `name` fields this way. A
 ;; keyword IS the symbol carrier post the Clojure-syntax flip (`::` <-> `.`); a String would
 ;; need re-parsing at the boundary — a redesign wearing a swap's clothes. wat/service.wat's
-;; `start`/`resume` set this via `:wat::spawn::with-label` using the service's own fqdn
+;; `start`/`resume` set this via `:wat::spawn::Locus/with-label` using the service's own fqdn
 ;; keyword, known statically at macro-expansion time.
 ;; The origin here is INTENDED to be the `start`/`resume` CALL SITE, not the `defservice`
 ;; definition site: the name already says WHICH service this is, so the useful second fact

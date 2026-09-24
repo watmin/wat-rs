@@ -15,8 +15,11 @@
 //! - `generic` — one consumer `:- [T] (Locus :- [T]) -> (Launched :- [… T])` binds Wire from a
 //!   process and Shared from a thread. Pre-stone: rc=1 (the surface was not parametric).
 //! - `generic_thread_wire` — that consumer given a thread, claimed Wire → `ReturnTypeMismatch`.
-//! - `generic_narrowing` — the MEASURED GAP: a generic `(Locus :- [T])` cannot narrow to a
-//!   defclause keyed on the concrete loci (`runner-count`). Pinned so it is seen when it closes.
+//! - `generic_reads_its_count` — was `generic_narrowing`, the MEASURED GAP (a generic
+//!   `(Locus :- [T])` could not narrow to `runner-count`, a defclause keyed on the concrete
+//!   loci → `NoMatchingClauseAtCallSite`). 255.19 closed it by REMOVAL: `runner-count` is a
+//!   `Locus` surface method, so the generic reader is accepted. Its non-vacuity row (the count
+//!   is a declared i64) is 255.19's `generic_count_claimed_string`.
 
 use wat::check::error::{CheckErrorKind, CheckErrors};
 use wat::freeze::{startup_from_file, StartupError};
@@ -71,10 +74,6 @@ fn a_generic_consumer_given_a_thread_cannot_be_claimed_wire() {
 }
 
 #[test]
-fn a_generic_locus_does_not_yet_narrow_to_a_concrete_clause() {
-    let errs = check_errors("generic_narrowing");
-    assert_eq!(errs.len(), 1, "{errs:?}");
-    wat::assert_check_error_present!(errs,
-        CheckErrorKind::NoMatchingClauseAtCallSite { name, .. }
-            if name == ":wat::spawn::runner-count");
+fn a_generic_locus_reads_its_runner_count() {
+    accepted("generic_reads_its_count");
 }

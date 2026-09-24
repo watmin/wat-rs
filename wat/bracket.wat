@@ -677,12 +677,10 @@
 ;; for a thread pool) is harmless. Arc 170 M1-pool's `worker-init`/W convention is unchanged:
 ;; W is the raw work-fn (a 1-param `[I :-> O]`, or — new this stone — the kwargs work-fn's bare
 ;; keyword, `process-work-forms`'s KWARGS defclause dispatching on the VALUE's runtime type).
-;; 255.18 — `locus` stays the BARE `:wat::spawn::Locus` (the family top) here, not `(Locus :- [T])`:
-;; this body forwards it to `runner-count` and `with-label`, defclauses keyed on the CONCRETE loci,
-;; and a generic `(Locus :- [T])` cannot narrow to them yet (the rigid T cannot unify with the
-;; clause's Shared/Wire binding) — tests/types/probe_arc255_18_locus_names_its_transport_generic_narrowing.wat.bad.
-(:wat::core::defn :wat::bracket::map-worker :- [D G I O W]
-  [locus         <- :wat::spawn::Locus
+;; 255.19 — `locus` is `(Locus :- [T])`: `runner-count`, `with-label` and `spawn-runner` are all
+;; `Locus` surface methods, so the generic locus reaches every per-locus behaviour it needs.
+(:wat::core::defn :wat::bracket::map-worker :- [D G I O W T]
+  [locus         <- (:wat::spawn::Locus :- [T])
    items         <- (:wat::core::Vector :- [I])
    worker-init   <- [:wat::core::i64 :-> W]
    grant-handles <- :G
@@ -698,7 +696,7 @@
      ;; the user's call — which would label every process with this file instead of theirs.
      origin (:wat::kernel::call-site)
      m  (:wat::core::length items)
-     rc (:wat::spawn::runner-count locus)
+     rc (:wat::spawn::Locus/runner-count locus)
      n  (:wat::core::if (:wat::core::< rc m) rc m)
      ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` ((Vector :- [(Peer :- […])]) param
      ;; — repeatedly `select'`-ed, must be eager) and later `sort-by`, so materialize here.
@@ -709,8 +707,8 @@
                  [work-fn (worker-init i)                          ;; per-runner setup, once
                   ;; arc 170 closure #6 — label THIS runner with its own index before spawning
                   ;; it (the ps-visible `#wat.process/Bracket {:id N}`, wat/process.wat); a
-                  ;; no-op for a thread locus (with-label's ThreadOpts arm).
-                  locus-i (:wat::spawn::with-label locus
+                  ;; no-op for a thread locus (ThreadOpts' `with-label` impl).
+                  locus-i (:wat::spawn::Locus/with-label locus
                             (:wat::process::Bracket
                               :id   i
                               :file (:wat::kernel::Frame/file origin)
@@ -887,7 +885,7 @@
                         (:wat::core::let [lch (:wat::core::ast->children locus)]
                           (:wat::core::if (:wat::core::empty? lch) "" (:wat::core::ast-name (:wat::core::first lch))))
                         "")
-       locus-inner   (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label")
+       locus-inner   (:wat::core::if (:wat::core::= locus-head ":wat::spawn::Locus/with-label")
                         (:wat::core::let [lch (:wat::core::ast->children locus)]
                           (:wat::core::if (:wat::core::empty? (:wat::core::rest lch))
                             ""
@@ -898,7 +896,7 @@
                                 ""))))
                         locus-head)
        process-door? (:wat::string::starts-with?
-                       (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label") locus-inner locus-head)
+                       (:wat::core::if (:wat::core::= locus-head ":wat::spawn::Locus/with-label") locus-inner locus-head)
                        ":wat::spawn::process")
        wire-pairs    (:wat::core::if process-door?
                         (:wat::core::foldl
@@ -970,7 +968,7 @@
                         (:wat::core::let [lch (:wat::core::ast->children locus)]
                           (:wat::core::if (:wat::core::empty? lch) "" (:wat::core::ast-name (:wat::core::first lch))))
                         "")
-       locus-inner   (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label")
+       locus-inner   (:wat::core::if (:wat::core::= locus-head ":wat::spawn::Locus/with-label")
                         (:wat::core::let [lch (:wat::core::ast->children locus)]
                           (:wat::core::if (:wat::core::empty? (:wat::core::rest lch))
                             ""
@@ -981,7 +979,7 @@
                                 ""))))
                         locus-head)
        process-door? (:wat::string::starts-with?
-                       (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label") locus-inner locus-head)
+                       (:wat::core::if (:wat::core::= locus-head ":wat::spawn::Locus/with-label") locus-inner locus-head)
                        ":wat::spawn::process")
        wire-pairs    (:wat::core::if process-door?
                         (:wat::core::foldl

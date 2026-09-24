@@ -2582,10 +2582,11 @@
                          (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) locus-sym)
                          init-arg-names)
      start-fnames-ast (:wat::core::with-children init-params-vec start-fname-nodes)
-     ;; 255.18 — the abstract impl's locus stays the BARE `:wat::spawn::Locus`: start/resume-body
-     ;; hands it to `:wat::spawn::with-label`, a defclause keyed on the CONCRETE loci, and a
-     ;; `(Locus :- [T])` cannot narrow to it yet (see bracket.wat's map-worker note).
-     start-impl-params `[~locus-sym <- :wat::spawn::Locus ~@init-param]
+     ;; 255.19 — the abstract impl's locus is `(Locus :- [T])`, T being the SAME transport
+     ;; letter the return `(Handle :- [… T])` already carries (`transport-param`: `T`, or `Xt`
+     ;; when the service binds `T` itself). The locus's own binding now names the handle's
+     ;; transport. `with-label` is a `Locus` surface method that keeps T, so the body checks.
+     start-impl-params `[~locus-sym <- (:wat::spawn::Locus :- [~(:wat::core::symbol-node transport-param)]) ~@init-param]
      start-impl-thread-params `[~locus-sym <- :wat::spawn::ThreadOpts ~@init-param]
      start-impl-process-params `[~locus-sym <- :wat::spawn::ProcessOpts ~@init-param]
      start-handle-expr `(~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
@@ -2596,13 +2597,13 @@
                                  ;; arc 170 closure #6 — label this service's process locus
                                  ;; with its own fqdn + the START CALL SITE (the
                                  ;; `:wat::process::Service` identity, wat/process.wat); a
-                                 ;; no-op for a thread locus (with-label's ThreadOpts arm).
+                                 ;; no-op for a thread locus (ThreadOpts' `with-label` impl).
                                  ;; `fqdn-base` is the params-stripped BASE name — a
                                  ;; runtime-name-string keyword, same convention as
                                  ;; `::Handle{p}`'s sibling names. The name says WHICH
                                  ;; service; the origin says which of possibly several
                                  ;; starts brought THIS process up.
-                                 (:wat::spawn::with-label ~locus-sym
+                                 (:wat::spawn::Locus/with-label ~locus-sym
                                    (:wat::process::Service
                                      :name (:wat::keyword::from-string ~fqdn-base)
                                      :file (:wat::kernel::Frame/file ~origin-sym)
@@ -2619,7 +2620,7 @@
      start-body-thread `(:wat::core::let
                           [~origin-sym (:wat::kernel::call-site)
                            ~lr-sym (~launch-head-kw :- ~launch-tp-ann
-                                     (:wat::spawn::with-label ~locus-sym
+                                     (:wat::spawn::Locus/with-label ~locus-sym
                                        (:wat::process::Service
                                          :name (:wat::keyword::from-string ~fqdn-base)
                                          :file (:wat::kernel::Frame/file ~origin-sym)
@@ -2634,7 +2635,7 @@
      start-body-process `(:wat::core::let
                            [~origin-sym (:wat::kernel::call-site)
                             ~lr-sym (~launch-head-kw :- ~launch-tp-ann
-                                      (:wat::spawn::with-label ~locus-sym
+                                      (:wat::spawn::Locus/with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::keyword::from-string ~fqdn-base)
                                           :file (:wat::kernel::Frame/file ~origin-sym)
@@ -2692,7 +2693,7 @@
                                  (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
                                ""))
                            ~(:wat::core::symbol-node "inner-nm")
-                           (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label")
+                           (:wat::core::if (:wat::core::= head-nm ":wat::spawn::Locus/with-label")
                              (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
                                (:wat::core::if (:wat::core::empty? (:wat::core::rest ch))
                                  ""
@@ -2703,7 +2704,7 @@
                                      ""))))
                              head-nm)
                            ~(:wat::core::symbol-node "ctor-nm")
-                           (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label") inner-nm head-nm)
+                           (:wat::core::if (:wat::core::= head-nm ":wat::spawn::Locus/with-label") inner-nm head-nm)
                            ~(:wat::core::symbol-node "impl")
                            (:wat::core::if (:wat::string::starts-with? ctor-nm ":wat::spawn::process")
                              ~start-impl-process-call
@@ -2727,7 +2728,7 @@
                        [~origin-sym (:wat::kernel::call-site)
                         ~lr-sym (~launch-head-kw :- ~launch-tp-ann
                                   ;; arc 170 closure #6 — see start-body's identical wrap.
-                                  (:wat::spawn::with-label ~locus-sym
+                                  (:wat::spawn::Locus/with-label ~locus-sym
                                     (:wat::process::Service
                                       :name (:wat::keyword::from-string ~fqdn-base)
                                       :file (:wat::kernel::Frame/file ~origin-sym)
@@ -2743,7 +2744,7 @@
      resume-body-thread `(:wat::core::let
                            [~origin-sym (:wat::kernel::call-site)
                             ~lr-sym (~launch-head-kw :- ~launch-tp-ann
-                                      (:wat::spawn::with-label ~locus-sym
+                                      (:wat::spawn::Locus/with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::keyword::from-string ~fqdn-base)
                                           :file (:wat::kernel::Frame/file ~origin-sym)
@@ -2758,7 +2759,7 @@
      resume-body-process `(:wat::core::let
                             [~origin-sym (:wat::kernel::call-site)
                              ~lr-sym (~launch-head-kw :- ~launch-tp-ann
-                                       (:wat::spawn::with-label ~locus-sym
+                                       (:wat::spawn::Locus/with-label ~locus-sym
                                          (:wat::process::Service
                                            :name (:wat::keyword::from-string ~fqdn-base)
                                            :file (:wat::kernel::Frame/file ~origin-sym)
@@ -2816,7 +2817,7 @@
                                   (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
                                 ""))
                             ~(:wat::core::symbol-node "inner-nm")
-                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label")
+                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::Locus/with-label")
                               (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
                                 (:wat::core::if (:wat::core::empty? (:wat::core::rest ch))
                                   ""
@@ -2827,7 +2828,7 @@
                                       ""))))
                               head-nm)
                             ~(:wat::core::symbol-node "ctor-nm")
-                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label") inner-nm head-nm)
+                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::Locus/with-label") inner-nm head-nm)
                             ~(:wat::core::symbol-node "impl")
                             (:wat::core::if (:wat::string::starts-with? ctor-nm ":wat::spawn::process")
                               ~resume-impl-process-call

@@ -69,7 +69,7 @@
 ;; a world that does not exist parent-side — see the arc 170 closure #6 STOP
 ;; that killed evaluating env-fn parent-side) — the label is a static fact the
 ;; SPAWNER already knows, so it reaches `ExecPlan::build()` directly.
-;; DESCRIBES only; never ROUTES — see `:wat::spawn::with-label` and
+;; DESCRIBES only; never ROUTES — see `:wat::spawn::Locus/with-label` and
 ;; `src/process/exec_plan.rs`'s wall doc. The record's TYPE is a closed set
 ;; the substrate owns (`:wat::process::Bracket` | `:wat::process::Service`,
 ;; wat/process.wat) — no caller mints its own tag, so `ps` output stays a set
@@ -172,15 +172,6 @@
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count n
     :label :wat::core::Option.None))
-
-;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
-;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
-;; per-type accessor: the defclause dispatches on the concrete locus class (exactly as
-;; spawn-program' dispatches on ThreadOpts | ProcessOpts). A new locus type joins as one
-;; more clause here; the 1-arg sig is unmoved.
-(:wat::core::defclause :wat::spawn::runner-count
-  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::i64  (:wat::spawn::ThreadOpts/runner-count locus))
-  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::i64  (:wat::spawn::ProcessOpts/runner-count locus)))
 
 ;; ── ServiceEvent :- [I O] — the poll' return type ─────────────────────────
 ;;
@@ -432,51 +423,46 @@
    ;; carrier is never welded into this surface's return type, only named by it.
    (spawn-runner :- [D I O W] [self    <- (:wat::spawn::Locus :- [T])
                                work-fn <- :W]
-     -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])]))])
-
-;; ── with-label — attach the ps-visible identity to a locus (arc 170 closure #6) ──
-;; Locus-agnostic so both a defservice's `start`/`resume` and bracket's `map-worker`
-;; can set a label without knowing the concrete locus type. ThreadOpts arm is a
-;; no-op (a thread peer shares the parent's `ps` line — there is nothing to label,
-;; and ThreadOpts carries no `label` field). ProcessOpts arm rebuilds with
-;; `:label (Some r)`, overwriting whatever was there (last call wins — matches
-;; "fixed at boot", since nothing calls this after a locus is actually spawned).
-;; The INTENDED vocabulary is the two substrate-owned identity types
-;; (`:wat::process::Bracket` | `:wat::process::Service`, wat/process.wat) — SHAPE 2 was
-;; ratified over SHAPE 1 precisely so `ps` output is a set an operator learns once and
-;; matches exhaustively.
-;;
-;; ⚠ THAT RESTRICTION IS A CONVENTION HERE, NOT A WALL — say so rather than let a comment
-;; claim a guarantee the code does not make. NOTHING closes the set today: `:R` is a
-;; wildcard at runtime dispatch (`is_type_var` -> `return true`, runtime.rs) and a free
-;; type-var to the checker, and `ProcessOpts/label` is `(Option Record)` — the record-TOP,
-;; which by construction admits every record. So ANY record type-checks and dispatches as a
-;; ps label; `ps` output is, as it stands, the OPEN set SHAPE 1 was rejected for.
-;; PROVEN, not asserted: wat-scripts/scratch-pad/probe-label-closed-set.wat mints a rogue
-;; `:probe::Rogue` record, hands it to this clause, and type-checks GREEN. That probe is the
-;; live witness — it goes RED the day the set is genuinely closed, which is its whole job.
-;;
-;; `r`'s param type is the bare type-var `:R`, NOT `:wat::core::Record` — a runtime-dispatch
-;; gap, grounded, not a style choice: `defclause`'s dispatcher (`value_matches_type_by_name`,
-;; runtime.rs) matches a concrete-record-typed param against the value's EXACT `class`
-;; (`bare_p == a.class`), the same rule that lets it discriminate `:user::Tag`-shaped clauses
-;; — it does NOT walk the assignability/subtype lattice the STATIC checker does. Declaring
-;; this param `:wat::core::Record` type-checks fine (the checker DOES know Bracket/Service are
-;; Record subtypes) but then fails EVERY call at runtime (`Bracket`/`Service` != the literal
-;; string `"wat::core::Record"`). A bare type-var is a WILDCARD at runtime dispatch by the
-;; same function (`is_type_var` arm) — exactly the posture `process-work-forms`'s generic `:W`
-;; clause already relies on (bracket.wat) — so dispatch here rests entirely on the FIRST
-;; param (the locus's concrete type), which is the one that actually needs to discriminate.
-;; DESCRIBES only, never crosses as anything but inert EDN (see ProcessOpts' `label` field doc).
-(:wat::core::defclause :wat::spawn::with-label
-  ([locus <- :wat::spawn::ThreadOpts   _r <- :R] -> :wat::spawn::Locus locus)
-  ([locus <- :wat::spawn::ProcessOpts  r  <- :R] -> :wat::spawn::Locus
-    (:wat::spawn::ProcessOpts
-      :post-spawn-fn     (:wat::spawn::ProcessOpts/post-spawn-fn locus)
-      :env-fn            (:wat::spawn::ProcessOpts/env-fn locus)
-      :max-message-bytes (:wat::spawn::ProcessOpts/max-message-bytes locus)
-      :runner-count      (:wat::spawn::ProcessOpts/runner-count locus)
-      :label             (:wat::core::Option.Some {:value r}))))
+     -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])]))
+   ;; ── runner-count — the tier-blind pool-count reader ──
+   ;; 255.19 — was a defclause keyed on the concrete loci ("a new locus type joins as one
+   ;; more clause here"): a per-locus list OUTSIDE the surface, which a generic
+   ;; `(Locus :- [T])` could not narrow into. Now a surface method every `(Locus :- [T])`
+   ;; holder can call. A locus satisfies it with a `:<Locus>/runner-count` fn — for
+   ;; ThreadOpts and ProcessOpts that is their own `runner-count` field ACCESSOR (the method
+   ;; key and the accessor are the same name, so an extend-type arm would be a duplicate
+   ;; define); a new locus without that field implements it in its `extend-type`.
+   (runner-count [self <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64)
+   ;; ── with-label — attach the ps-visible identity to a locus (arc 170 closure #6) ──
+   ;; 255.19 — a surface method (was a defclause returning the BARE `Locus`, which erased T:
+   ;; a process locus through it type-checked as a Shared launch). It KEEPS the transport:
+   ;; `(Locus :- [T])` in, `(Locus :- [T])` out. Called by defservice's `start`/`resume` and
+   ;; bracket's `map-worker`. ThreadOpts' impl is a no-op (a thread peer shares the parent's
+   ;; `ps` line, and ThreadOpts carries no `label` field). ProcessOpts' impl rebuilds with
+   ;; `:label (Some r)`, overwriting whatever was there (last call wins — matches "fixed at
+   ;; boot", since nothing calls this after a locus is actually spawned).
+   ;; The INTENDED vocabulary is the two substrate-owned identity types
+   ;; (`:wat::process::Bracket` | `:wat::process::Service`, wat/process.wat) — SHAPE 2 was
+   ;; ratified over SHAPE 1 precisely so `ps` output is a set an operator learns once and
+   ;; matches exhaustively.
+   ;;
+   ;; ⚠ THAT RESTRICTION IS A CONVENTION HERE, NOT A WALL — say so rather than let a comment
+   ;; claim a guarantee the code does not make. NOTHING closes the set today: `r` is the
+   ;; record-TOP `:wat::core::Record`, as is `ProcessOpts/label`'s `(Option Record)`, which by
+   ;; construction admits every record. So ANY record type-checks as a ps label; `ps` output
+   ;; is, as it stands, the OPEN set SHAPE 1 was rejected for.
+   ;; `r` is `Record`, not a method type-var `:- [R]`: a method-level R is RIGID in the
+   ;; ProcessOpts impl and cannot flow into the `(Option Record)` label field (measured,
+   ;; TypeMismatch). The old defclause's `:R` was a runtime-dispatch workaround (defclause
+   ;; matched a Record-typed param by exact class); surface dispatch is on `self`, so the
+   ;; honest top type works.
+   ;; PROVEN, not asserted: wat-scripts/scratch-pad/probe-label-closed-set.wat mints a rogue
+   ;; `:probe::Rogue` record, hands it to this method, and type-checks GREEN. That probe is the
+   ;; live witness — it goes RED the day the set is genuinely closed, which is its whole job.
+   ;; DESCRIBES only, never crosses as anything but inert EDN (see ProcessOpts' `label` field doc).
+   (with-label [self <- (:wat::spawn::Locus :- [T])
+                r    <- :wat::core::Record]
+     -> (:wat::spawn::Locus :- [T]))])
 
 ;; ── Arc 278 Strike A — the ONE canonical Failure constructor ─────────────────
 ;; `:wat::kernel::Failure` is canonically a Record (Nature::Record, pure EDN — arc 293.W.2b:
@@ -560,7 +546,13 @@
             ;; complete, and the message says so instead of blaming the child.
             [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "spawn (thread): stop requested before the child reached readiness — launch abandoned, the child was alive")]
             [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "spawn (thread): child exited before readiness")])]
-      (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
+      (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b))))
+  ;; 255.19 — the per-locus behaviour lives on the waist (was a defclause arm each).
+  ;; `runner-count` has NO arm here: the surface method's key is `:wat::spawn::ThreadOpts/runner-count`,
+  ;; which IS ThreadOpts' own field accessor (same signature, [self] -> i64), so the accessor
+  ;; satisfies the method; an arm here would be a DuplicateDefine of it.
+  ;; A thread peer shares the parent's `ps` line: nothing to label, a no-op.
+  (with-label [self _r] self))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
 ;; prepend `(def :user::spawn::service-locus (process))` (the transport literal lives HERE,
@@ -618,7 +610,17 @@
               [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "spawn (process): stop requested before the child reached readiness — launch abandoned, the child was alive")]
               [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "spawn (process): child exited before readiness")])
        addr (:wat::core::apply  lu-addr-kw lu [])]
-      (:wat::spawn::Launched :handle svc :address addr))))
+      (:wat::spawn::Launched :handle svc :address addr)))
+  ;; 255.19 — the per-locus behaviour lives on the waist (was a defclause arm each).
+  ;; `runner-count` is satisfied by ProcessOpts' own field accessor, as for ThreadOpts above.
+  ;; Rebuild with `:label (Some r)` — last call wins (see the surface's `with-label` note).
+  (with-label [self r]
+    (:wat::spawn::ProcessOpts
+      :post-spawn-fn     (:wat::spawn::ProcessOpts/post-spawn-fn self)
+      :env-fn            (:wat::spawn::ProcessOpts/env-fn self)
+      :max-message-bytes (:wat::spawn::ProcessOpts/max-message-bytes self)
+      :runner-count      (:wat::spawn::ProcessOpts/runner-count self)
+      :label             (:wat::core::Option.Some {:value r}))))
 
 ;; ── recv-all' — the honest peer-drain (arc 278 IPC de-prime) ─────────────────
 ;; Drains ALL output values from a spawned peer, honestly. The primed replacement

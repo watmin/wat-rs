@@ -7,11 +7,12 @@
 ;; RED at HEAD (the field + ctors don't exist). GREEN after S2: prints "8 <cpu-count> 4"
 ;; where <cpu-count> is (:wat::program::cpu-count).
 
-;; THE READER (tier-blind) — a :Locus-typed parameter is the supported way to hold a value
-;; at the abstract protocol type; the :wat::spawn::runner-count defclause dispatches on the
-;; concrete class at runtime. This is the exact S3 usage (the bracket holds a :Locus).
-(:wat::core::defn :user::read-blind [l <- :wat::spawn::Locus] -> :wat::core::i64
-  (:wat::spawn::runner-count l))
+;; THE READER (tier-blind) — a `(Locus :- [T])`-typed parameter is the supported way to hold a
+;; value at the abstract protocol type; `:wat::spawn::Locus/runner-count` (255.19: a surface
+;; method, was a defclause) dispatches on the concrete class at runtime. This is the exact S3
+;; usage (the bracket holds a `(Locus :- [T])`).
+(:wat::core::defn :user::read-blind :- [T] [l <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64
+  (:wat::spawn::Locus/runner-count l))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

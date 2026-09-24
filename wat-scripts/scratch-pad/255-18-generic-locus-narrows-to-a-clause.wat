@@ -6,7 +6,10 @@
 ;; LOADED (this file): the BARE surface `:probe::Loc` narrows to both clauses — rc=0, prints 9.
 ;;
 ;; REFUSED (the generic row, kept OUT of the loaded forms so this file stays loadable; the
-;; committed refusal is tests/types/probe_arc255_18_locus_names_its_transport_generic_narrowing.wat.bad):
+;; committed refusal WAS tests/types/probe_arc255_18_locus_names_its_transport_generic_narrowing.wat.bad;
+;; 255.19 removed the real defclauses — `runner-count`/`with-label` are `Locus` surface methods —
+;; so that row is now the positive `…_generic_reads_its_count.wat`. The checker behaviour this
+;; file measures is unchanged; only the stdlib stopped depending on it):
 ;;
 ;;   (:wat::core::defn :probe::generic :- [T] [l <- (:probe::Loc :- [T])] -> :wat::core::i64
 ;;     (:probe::count l))

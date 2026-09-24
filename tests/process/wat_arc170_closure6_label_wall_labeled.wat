@@ -25,10 +25,10 @@
 ;; `:user::main` below, not this fn's own lines. That makes the gate prove the capture
 ;; mechanism end-to-end, through a real spawn into real `ps`, instead of only proving that
 ;; a hand-built record renders.
-(:wat::core::defn :probe::labeled-locus [] -> :wat::spawn::Locus
+(:wat::core::defn :probe::labeled-locus [] -> (:wat::spawn::Locus :- [:wat::kernel::Wire])
   (:wat::core::let
     [origin (:wat::kernel::call-site)]
-    (:wat::spawn::with-label (:wat::spawn::process)
+    (:wat::spawn::Locus/with-label (:wat::spawn::process)
       (:wat::process::Service
         :name (:wat::keyword::from-string "my::demo::labeled-svc")
         :file (:wat::kernel::Frame/file origin)

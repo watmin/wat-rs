@@ -1,0 +1,9 @@
+# arc 255 Stone 255.19 — provenance is the codemod's own HEADER SPEC (its three rule rows),
+# not the tool under test. No `history` row: the migration lands in the same commit as its
+# fixture, so no prior commit carries the rewritten text to cite.
+spec (:wat::spawn::Locus/with-label l r) :: (:wat::spawn::with-label l r)  =>  (:wat::spawn::Locus/with-label l r)
+spec-before (:wat::spawn::with-label l r) :: (:wat::spawn::with-label l r)  =>  (:wat::spawn::Locus/with-label l r)
+spec (:wat::spawn::Locus/runner-count l) :: (:wat::spawn::runner-count l)  =>  (:wat::spawn::Locus/runner-count l)
+spec-before (:wat::spawn::runner-count l) :: (:wat::spawn::runner-count l)  =>  (:wat::spawn::Locus/runner-count l)
+spec (= h ":wat::spawn::Locus/with-label") :: (= h ":wat::spawn::with-label")  =>  (= h ":wat::spawn::Locus/with-label")
+spec-before (= h ":wat::spawn::with-label") :: (= h ":wat::spawn::with-label")  =>  (= h ":wat::spawn::Locus/with-label")

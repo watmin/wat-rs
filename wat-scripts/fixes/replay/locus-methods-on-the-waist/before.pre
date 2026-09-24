@@ -1,0 +1,14 @@
+;; Replay fixture — arc 255 Stone 255.19, "per-locus behaviour lives on the waist".
+;; Three rewrites (with-label call; runner-count call; the macro's head-name string) plus
+;; negative controls that must stay byte-identical.
+(:wat::spawn::with-label l r)
+(:wat::spawn::runner-count l)
+(= h ":wat::spawn::with-label")
+;; CONTROL 1 — already migrated: must NOT move (idempotence).
+(:wat::spawn::Locus/with-label l r)
+;; CONTROL 2 — the per-env ctor and the field accessor share the leaf name: must NOT move.
+(:wat::spawn::process::runner-count 3)
+(:wat::spawn::ThreadOpts/runner-count l)
+;; CONTROL 3 — a string that only CONTAINS the old name: must NOT move.
+(= h ":wat::spawn::with-label-x")
+;; CONTROL 4 — prose naming :wat::spawn::with-label is not rewritten.
