@@ -1,0 +1,514 @@
+diff --git a/src/check.rs b/src/check.rs
+index 889527062..4205bf854 100644
+--- a/src/check.rs
++++ b/src/check.rs
+@@ -480,6 +480,11 @@ pub(crate) fn clause_attempts_to_edn(v: &[(usize, Vec<String>)]) -> wat_edn::Own
+ pub(crate) struct InferCtx {
+     next: u64,
+     enclosing_rets: Vec<TypeExpr>,
++    /// Excursus 003 stone F — every constructor call of an aggregate / enum seen while
++    /// inferring, as `(its result type under the subst at the call, the call's span)`.
++    /// Judged by [`refuse_impure_instantiations`] once the enclosing body's subst is final,
++    /// so a type argument that is only pinned down AFTER the call is still seen.
++    pure_instantiations: Vec<(TypeExpr, Span)>,
+ }
+ 
+ impl InferCtx {
+@@ -506,6 +511,51 @@ impl InferCtx {
+     pub(crate) fn enclosing_ret(&self) -> Option<&TypeExpr> {
+         self.enclosing_rets.last()
+     }
++
++    /// Excursus 003 stone F — record a constructor call's result type for the purity check.
++    /// The only two callers are the constructor sites (the aggregate prime in the generic call
++    /// path, which the kwargs form also lowers to, and `infer_enum_map_ctor`).
++    pub(crate) fn note_constructed(&mut self, ty: TypeExpr, span: Span) {
++        self.pure_instantiations.push((ty, span));
++    }
++}
++
++/// Excursus 003 stone F — LAYER 1 (check time). Drain every constructor result noted since the
++/// last drain, resolve it under the body's FINAL `subst`, and refuse each one that instantiates a
++/// pure aggregate / pure enum with a type argument that makes a field impure.
++///
++/// Called at the two places a body's subst completes: [`check_function_body`] (after the
++/// return-type unification) and [`check_form`]. A note left behind by some other `infer` entry
++/// point is judged with whatever it resolved to at the call (an unresolved `Var` counts as
++/// PURE — see [`impure_instantiation`]), so a miss here is only ever a pass-through to layer 2,
++/// never a false refusal.
++fn refuse_impure_instantiations(
++    fresh: &mut InferCtx,
++    subst: &Subst,
++    types: &TypeEnv,
++    errors: &mut Vec<CheckError>,
++) {
++    for (ty, span) in std::mem::take(&mut fresh.pure_instantiations) {
++        let resolved = apply_subst(&ty, subst);
++        if let Some(found) = impure_instantiation(&resolved, types) {
++            if let Ok(path) = std::env::var("WAT_STONE_F_CENSUS") {
++                use std::io::Write;
++                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++                    let _ = writeln!(f, "L1\t{}\t{}\t{}\t{}", span, found.pure_type, format_type(&resolved), found.field);
++                }
++                continue;
++            }
++            errors.push(CheckError {
++                span,
++                kind: CheckErrorKind::ImpureInstantiationOfPureType {
++                    pure_type: found.pure_type,
++                    instance: format_type(&resolved),
++                    field: found.field,
++                    field_ty: format_type(&found.field_ty),
++                },
++            });
++        }
++    }
+ }
+ 
+ /// Substitution map: unification variable id → its concrete type.
+@@ -1894,6 +1944,8 @@ fn check_function_body(
+             } });
+         }
+     }
++    // Excursus 003 stone F — the subst is final: judge every constructor call in this body.
++    refuse_impure_instantiations(fresh, &subst, env.types(), errors);
+ }
+ 
+ /// Stone 241.10 — variant-constructor typo remediation for ReturnTypeMismatch.
+@@ -1952,6 +2004,8 @@ fn check_form(
+ ) {
+     let mut subst = Subst::new();
+     let _ = infer(form, env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors);
++    // Excursus 003 stone F — the subst is final: judge every constructor call in this form.
++    refuse_impure_instantiations(fresh, &subst, env.types(), errors);
+ }
+ 
+ // ─── Inference ──────────────────────────────────────────────────────────
+@@ -6232,6 +6286,13 @@ fn infer_list(
+             }
+         }
+         let ty = apply_subst(&ret_type, subst);
++        // Excursus 003 stone F — an aggregate's constructor is its PRIME `:T'`; the kwargs
++        // form (`infer_kwargs_construct_check`) lowers to a synthetic call of it, so this one
++        // note covers kwargs and positional-prime construction alike. Judged once the body's
++        // subst is final (`refuse_impure_instantiations`).
++        if wat_reader::identifier::prime(canonical_k) {
++            fresh.note_constructed(ty.clone(), head_span.clone());
++        }
+         return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+     }
+ 
+@@ -14245,6 +14306,8 @@ fn infer_enum_map_ctor(
+     }
+ 
+     let ty = apply_subst(&ret_type, subst);
++    // Excursus 003 stone F — the enum constructor site; judged once the body's subst is final.
++    fresh.note_constructed(ty.clone(), head_span.clone());
+     Some(if local_errors.is_empty() {
+         CheckResult::ok(ty)
+     } else {
+@@ -15200,6 +15263,100 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
+     }
+ }
+ 
++/// Excursus 003 stone F — what [`impure_instantiation`] found: the pure type, the field that
++/// would hold an impure value (`field` or `Variant.field`), and that field's type AFTER the
++/// type arguments were substituted in.
++pub(crate) struct ImpureInstantiation {
++    pub(crate) pure_type: String,
++    pub(crate) field: String,
++    pub(crate) field_ty: TypeExpr,
++}
++
++/// Excursus 003 stone F — **a type parameter does not launder impurity into a pure aggregate.**
++///
++/// [`validate_aggregate_containment`] judges a DECLARATION, where a field typed `:T` is still
++/// `:T` — and [`is_pure_type`]'s `None => true` arm calls a formal parameter pure by assumption.
++/// This is the other half of that assumption: at an INSTANTIATION `(Box :- [X])` the assumption
++/// is checked. Answers `Some` when `ty` is a pure aggregate (`Record`/`HolonRecord` nature) or a
++/// `:wat::enum::Pure` enum, instantiated with type arguments under which one of its fields'
++/// types is impure.
++///
++/// Three things this deliberately does NOT refuse, each a truth:
++/// - **An unresolved inference var** (`TypeExpr::Var`) is judged PURE: `is_pure_type` calls a
++///   `Var` impure, which here would refuse every constructor whose type argument is merely not
++///   yet known. A var is replaced by a pure placeholder before judging, so only an argument that
++///   is impure however the vars resolve is refused.
++/// - **A rigid type parameter of an enclosing generic fn** (`Path(":T")`) stays pure by
++///   `is_pure_type`'s own assumption — a generic fn building `(Box :- [T])` is legal for a pure
++///   `T`. The runtime constructor (layer 2, `crate::record::construct`) judges the value there.
++/// - **`:wat::core::Option` / `:wat::core::Result`.** They are declared `:wat::enum::Pure`, but
++///   they are the language's parametric CONTAINERS — `is_pure_type`'s own classification lists
++///   them beside `Vector`/`HashMap` as "pure iff all type args are pure" — and
++///   `(Result :- [(Lru :- [K V]) Fault])` is what `Lru/new` returns. Refusing them would outlaw
++///   the whole standard library; they are pure-if-args-pure exactly as `Vector` is.
++fn is_builtin_container_enum(key: &str) -> bool {
++    // A variant's singleton type (`:wat::core::Option.Some`) is registered as an enum of its own
++    // (`register_variant_types`); it is the same container, so it is judged by its base path.
++    let base = wat_reader::identifier::decompose_variant(key).map_or(key, |(b, _)| b);
++    base == ":wat::core::Option" || base == ":wat::core::Result"
++}
++
++pub(crate) fn impure_instantiation(ty: &TypeExpr, types: &TypeEnv) -> Option<ImpureInstantiation> {
++    use crate::types::{EnumVariant, TypeDef};
++    let TypeExpr::Parametric { head, args } = ty else {
++        return None;
++    };
++    let key = if head.starts_with(':') { head.clone() } else { format!(":{head}") };
++    let (params, fields): (&[String], Vec<(String, &TypeExpr)>) = match types.get(&key)? {
++        TypeDef::Aggregate(a) if a.nature.is_pure() => (
++            &a.type_params,
++            a.fields.iter().map(|(n, t)| (n.clone(), t)).collect(),
++        ),
++        TypeDef::Enum(e) if e.purity.is_pure() && !is_builtin_container_enum(&key) => {
++            let mut fs = Vec::new();
++            for v in &e.variants {
++                if let EnumVariant::Tagged { name: vname, fields } = v {
++                    for (fname, fty) in fields {
++                        fs.push((format!("{vname}.{fname}"), fty));
++                    }
++                }
++            }
++            (&e.type_params, fs)
++        }
++        _ => return None,
++    };
++    if params.is_empty() {
++        return None;
++    }
++    fn vars_as_pure(t: &TypeExpr) -> TypeExpr {
++        match t {
++            TypeExpr::Var(_) => TypeExpr::Path(":wat::core::nil".into()),
++            TypeExpr::Path(_) => t.clone(),
++            TypeExpr::Parametric { head, args } => TypeExpr::Parametric {
++                head: head.clone(),
++                args: args.iter().map(vars_as_pure).collect(),
++            },
++            TypeExpr::Fn { args, ret } => TypeExpr::Fn {
++                args: args.iter().map(vars_as_pure).collect(),
++                ret: Box::new(vars_as_pure(ret)),
++            },
++            TypeExpr::Tuple(es) => TypeExpr::Tuple(es.iter().map(vars_as_pure).collect()),
++        }
++    }
++    let mapping: HashMap<String, TypeExpr> = params
++        .iter()
++        .zip(args)
++        .map(|(p, a)| (p.clone(), vars_as_pure(a)))
++        .collect();
++    for (field, fty) in fields {
++        let field_ty = rename(fty, &mapping);
++        if !is_pure_type(&field_ty, types) {
++            return Some(ImpureInstantiation { pure_type: key, field, field_ty });
++        }
++    }
++    None
++}
++
+ /// Arc 293.W — THE CONTAINMENT RULE post-registration pass.
+ ///
+ /// A portable aggregate (`Record` | `HolonRecord`) may declare ONLY portable
+diff --git a/src/check/error.rs b/src/check/error.rs
+index 1d9718d5b..2e1cbf33b 100644
+--- a/src/check/error.rs
++++ b/src/check/error.rs
+@@ -131,6 +131,21 @@ pub enum CheckErrorKind {
+     },
+     /// Arc 138 slice 1 — unknown callee at a call site.
+     UnknownCallee { callee: String },
++    /// Excursus 003 stone F — a constructor call instantiates a pure aggregate (`Record`/
++    /// `HolonRecord`) or a `:wat::enum::Pure` enum with a type argument that makes one of its
++    /// fields impure. The declaration passed the containment rule because a formal `:T` is pure
++    /// by assumption; this is that assumption checked at the instantiation. Outer span = the
++    /// constructor call.
++    ImpureInstantiationOfPureType {
++        /// The pure aggregate / enum (e.g. `:t::Box`).
++        pure_type: String,
++        /// The whole instantiated type (e.g. `(:t::Box :- [(:wat::cache::Lru :- [..])])`).
++        instance: String,
++        /// The field that would hold the impure value — `field`, or `Variant.field` for an enum.
++        field: String,
++        /// That field's type with the type arguments substituted in.
++        field_ty: String,
++    },
+     /// A built-in form is structurally malformed in a way the syntax-level
+     /// grammar doesn't catch.
+     MalformedForm {
+@@ -463,6 +478,14 @@ impl CheckErrorKind {
+                 }
+                 Ok(())
+             }
++            CheckErrorKind::ImpureInstantiationOfPureType { pure_type, instance, field, field_ty } => write!(
++                f,
++                "{}{} is pure, but this constructs {}: its field `{}` would hold impure type {}. \
++                 A type parameter does not launder impurity — a pure value must be reconstructible \
++                 from EDN bytes, and a live resource written to EDN comes back as nil. Declare the \
++                 type Impure (a struct, or :wat::enum::Impure) if it must hold a live resource.",
++                prefix, pure_type, instance, field, field_ty
++            ),
+             CheckErrorKind::ReturnTypeMismatch { function, expected, got, remedies } => {
+                 write!(
+                     f,
+diff --git a/src/record/construct.rs b/src/record/construct.rs
+index f18b8004b..9550c2d1e 100644
+--- a/src/record/construct.rs
++++ b/src/record/construct.rs
+@@ -21,7 +21,7 @@ use crate::ast::WatAST;
+ use crate::span::Span;
+ use crate::value::{
+     AggregateValue, EnumValue, Environment, EvalBreak, RuntimeError, RuntimeErrorKind,
+-    SymbolTable, Value,
++    SymbolTable, Value, ValueSnapshot,
+ };
+ 
+ // `eval_inner`/`no_field_names`/`require_encoding_ctx` are genuinely defined in
+@@ -234,6 +234,19 @@ pub(crate) fn eval_variant(
+             .into())
+         }
+     };
++    // Excursus 003 stone F — layer 2 for the positional variant form (a variant ctor's body).
++    if enum_def.purity.is_pure() {
++        if let Some(declared) = enum_def.variant_fields(&variant_name) {
++            refuse_impure_type_param_values(
++                &type_path,
++                &enum_def.type_params,
++                declared,
++                &fields,
++                types,
++                list_span,
++            )?;
++        }
++    }
+     Ok(Value::Enum(Arc::new(EnumValue {
+         type_path,
+         variant_name,
+@@ -355,6 +368,23 @@ pub(crate) fn try_eval_enum_map_ctor(
+             .into()));
+         }
+     }
++    // Excursus 003 stone F — layer 2 for the enum constructor. Option/Result are the parametric
++    // CONTAINERS (see `crate::check::impure_instantiation`), not pure-by-declaration enums.
++    if enum_def.purity.is_pure()
++        && type_path != ":wat::core::Option"
++        && type_path != ":wat::core::Result"
++    {
++        if let Err(e) = refuse_impure_type_param_values(
++            type_path,
++            &enum_def.type_params,
++            declared,
++            &fields,
++            types,
++            list_span,
++        ) {
++            return Some(Err(e));
++        }
++    }
+     Some(Ok(enum_runtime_value(
+         type_path,
+         variant_name,
+@@ -522,6 +552,11 @@ fn construct_aggregate(
+         .into());
+     }
+ 
++    // Excursus 003 stone F — layer 2: the one tail both record constructors reduce to.
++    if agg.nature.is_pure() {
++        refuse_impure_type_param_values(&type_key, &agg.type_params, &agg.fields, &fields, types, list_span)?;
++    }
++
+     match agg.nature {
+         crate::types::Nature::Struct => Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
+             class,
+@@ -727,3 +762,68 @@ pub(crate) fn eval_kwargs_construct(
+         .into())
+     }
+ }
++
++/// Excursus 003 stone F — LAYER 2 (runtime): a pure aggregate / `:wat::enum::Pure` enum built
++/// with a type parameter bound to an impure value is REFUSED, never built.
++///
++/// Layer 1 (`crate::check::impure_instantiation`) refuses every constructor call whose type
++/// argument it can see. It cannot see one inside a GENERIC function — `(Box :x v)` where `v : T`
++/// is `(Box :- [T])`, and refusing that would outlaw a truth (it is legal for every pure `T`). So
++/// the constructor itself judges the VALUE, and only for the fields whose declared type mentions
++/// a type parameter: every other field's type is concrete, and the containment rule already made
++/// it pure.
++///
++/// ⛔ Refuse, never coerce: the failure this exists for is `:wat::edn::write` turning the handle
++/// into `nil` with nothing reporting it. The raise carries `span` — the constructor form's own,
++/// which is the user's call site.
++fn refuse_impure_type_param_values(
++    type_key: &str,
++    type_params: &[String],
++    declared: &[(String, crate::types::TypeExpr)],
++    fields: &[Value],
++    types: &crate::types::TypeEnv,
++    span: &Span,
++) -> Result<(), EvalBreak> {
++    if type_params.is_empty() {
++        return Ok(());
++    }
++    fn mentions_param(t: &crate::types::TypeExpr, params: &[String]) -> bool {
++        use crate::types::TypeExpr;
++        match t {
++            TypeExpr::Path(p) => params.iter().any(|q| p.strip_prefix(':').unwrap_or(p) == q),
++            TypeExpr::Parametric { args, .. } => args.iter().any(|a| mentions_param(a, params)),
++            TypeExpr::Fn { args, ret } => {
++                args.iter().any(|a| mentions_param(a, params)) || mentions_param(ret, params)
++            }
++            TypeExpr::Tuple(es) => es.iter().any(|e| mentions_param(e, params)),
++            TypeExpr::Var(_) => false,
++        }
++    }
++    for ((fname, fty), value) in declared.iter().zip(fields) {
++        if !mentions_param(fty, type_params) {
++            continue;
++        }
++        if let Some(bad) = crate::runtime::first_impure_value(value, types) {
++            if let Ok(path) = std::env::var("WAT_STONE_F_CENSUS") {
++                use std::io::Write;
++                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++                    let _ = writeln!(f, "L2\t{}\t{}\t{}\t{}", span, type_key, fname, bad.type_name());
++                }
++                continue;
++            }
++            return Err(RuntimeError::new(
++                span.clone(),
++                RuntimeErrorKind::TypeMismatch {
++                    op: format!("{type_key} (field :{fname})"),
++                    expected: "a pure value — a pure aggregate or :wat::enum::Pure enum cannot hold a \
++                               live resource, whatever its type parameter is bound to (declare the \
++                               type Impure — a struct, or :wat::enum::Impure — if it must)",
++                    got: Box::new(ValueSnapshot::of(bad)),
++                },
++            )
++            .into());
++        }
++    }
++    Ok(())
++}
++
+diff --git a/src/runtime.rs b/src/runtime.rs
+index 5e691bcd3..e174ae3d8 100644
+--- a/src/runtime.rs
++++ b/src/runtime.rs
+@@ -6837,6 +6837,101 @@ pub fn value_is_hashable(v: &Value) -> bool {
+     }
+ }
+ 
++/// Excursus 003 stone F — LAYER 2's question about a VALUE: does it hold, at any depth, a value
++/// that could not be reconstructed from EDN bytes? Returns the first such value found, so the
++/// refusal can name it; `None` means the value is pure data.
++///
++/// The value-level mirror of `crate::check::is_pure_type`, answered for what is actually THERE:
++/// - **Leaves** are impure exactly when [`Value::key_eligibility`] classes them
++///   `NeverAKey(InteriorMutable | OpaqueHandle)` — the same single source stone E's
++///   [`value_is_hashable`] uses, so the two walks cannot disagree about what a handle is. That
++///   class is every opaque handle, channel end, ML handle, stream, and callable (`fn` values,
++///   `clauses`, `extend_def`) — each is a `TypeExpr` `is_pure_type` also calls impure.
++/// - **A struct** (`Nature::Struct`) is impure whatever it holds — "a struct crosses NO comms".
++/// - **An enum** declared `:wat::enum::Impure` is impure whatever it holds (its purity is
++///   DECLARED, as `is_pure_type` reads it); a `Pure` one is judged by its fields.
++/// - **A stamped record** is pure without a walk: `AggregateValue::from_parts` stamps only when
++///   every field is `value_is_shallow` (scalars, stamped records, shallow enums).
++///
++/// ⛔ Exhaustive, no wildcard: a new `Value` variant must be classified here before it compiles.
++pub(crate) fn first_impure_value<'a>(v: &'a Value, types: &crate::types::TypeEnv) -> Option<&'a Value> {
++    match v {
++        Value::Vec(xs) | Value::Tuple(xs) => xs.iter().find_map(|x| first_impure_value(x, types)),
++        Value::wat__core__List(xs) => xs.iter().find_map(|x| first_impure_value(x, types)),
++        Value::wat__core__PersistentVector(pv) => pv.iter().find_map(|x| first_impure_value(x, types)),
++        Value::wat__std__HashSet(s) => s.iter().find_map(|x| first_impure_value(x, types)),
++        Value::wat__std__HashMap(m) => m
++            .iter()
++            .find_map(|(k, val)| first_impure_value(k, types).or_else(|| first_impure_value(val, types))),
++        Value::wat__core__PersistentMap(pm) => pm
++            .iter()
++            .find_map(|(k, val)| first_impure_value(k, types).or_else(|| first_impure_value(val, types))),
++        Value::Option(opt) => opt.as_ref().as_ref().and_then(|x| first_impure_value(x, types)),
++        Value::Result(res) => match res.as_ref() {
++            Ok(inner) | Err(inner) => first_impure_value(inner, types),
++        },
++        Value::Aggregate(a) => match a.nature {
++            crate::types::Nature::Struct | crate::types::Nature::Peer => Some(v),
++            crate::types::Nature::Record | crate::types::Nature::HolonRecord => {
++                if a.identity() != 0 {
++                    None
++                } else {
++                    a.fields.iter().find_map(|x| first_impure_value(x, types))
++                }
++            }
++        },
++        Value::Enum(e) => {
++            let declared_impure = matches!(
++                types.get(&e.type_path),
++                Some(crate::types::TypeDef::Enum(d)) if !d.purity.is_pure()
++            );
++            if declared_impure {
++                Some(v)
++            } else {
++                e.fields.iter().find_map(|x| first_impure_value(x, types))
++            }
++        }
++        Value::ForeignRecord(r) => r.fields.iter().find_map(|(_, x)| first_impure_value(x, types)),
++        Value::ForeignVariant(fv) => fv.fields.iter().find_map(|x| first_impure_value(x, types)),
++        Value::wat__core__clauses(_)
++        | Value::wat__core__extend_def(_)
++        | Value::bool(_)
++        | Value::i64(_)
++        | Value::u8(_)
++        | Value::f64(_)
++        | Value::String(_)
++        | Value::Unit
++        | Value::wat__core__keyword(_)
++        | Value::wat__core__fn(_)
++        | Value::holon__HolonAST(_)
++        | Value::wat__WatAST(_)
++        | Value::wat__kernel__Sender(_)
++        | Value::wat__kernel__Receiver(_)
++        | Value::RustOpaque(_)
++        | Value::io__IOReader(_)
++        | Value::io__IOWriter(_)
++        | Value::wat__kernel__HandlePool { .. }
++        | Value::wat__kernel__ChildHandle(_)
++        | Value::Vector(_)
++        | Value::OnlineSubspace(_)
++        | Value::Reckoner(_)
++        | Value::Engram(_)
++        | Value::EngramLibrary(_)
++        | Value::Hologram(_)
++        | Value::Instant(_)
++        | Value::Duration(_)
++        | Value::wat__core__Uuid(_)
++        | Value::wat__core__Char(_)
++        | Value::wat__core__Rational(_)
++        | Value::wat__core__BigInt(_)
++        | Value::wat__stream__Stream(_) => matches!(
++            v.key_eligibility(),
++            KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable | NotAKeyReason::OpaqueHandle)
++        )
++        .then_some(v),
++    }
++}
++
+ /// Guard for `HashSet<Value>` insert sites. Delegates to `value_is_hashable`.
+ /// Preserves WAT-surface TypeMismatch for opaque-handle elements (they can
+ /// never be inserted into a HashSet; contains? on them is always false).
+diff --git a/wat/service.wat b/wat/service.wat
+index 29c2ad9c2..1760fc1c3 100644
+--- a/wat/service.wat
++++ b/wat/service.wat
+@@ -55,7 +55,13 @@
+ ;;   :NoReplyAndArm — no reply, arm one/more timers (a re-arming heartbeat).
+ (:wat::core::defrecord :wat::service::Alarm :- [O] [after <- :wat::time::Duration  op <- :O])
+ 
+-(:wat::core::defenum :wat::service::Outcome :- [S R O] :wat::enum::Pure
++;; ⛔ IMPURE (excursus 003 stone F). `S` is the service's `::State` — a STRUCT holding the live
++;; resources — at every instantiation the stdlib makes; the handler result never crosses a wire.
++;; It was declared `:wat::enum::Pure`, which only held because the containment rule judges a
++;; formal `:S` pure by assumption; once an instantiation is checked, 23 stdlib handler sites
++;; built `(Outcome :- [<svc>::State …])`. Same ruling as `SpawnOutcome`/`AcceptOutcome`/
++;; `ConnectOutcome`: an outcome that carries a live resource is Impure.
++(:wat::core::defenum :wat::service::Outcome :- [S R O] :wat::enum::Impure
+   :Reply         [state <- :S  reply <- :R]
+   :Stop          [state <- :S  reply <- :R]
+   :NoReply       [state <- :S]
