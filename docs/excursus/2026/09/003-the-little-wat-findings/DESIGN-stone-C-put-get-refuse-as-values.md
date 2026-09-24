@@ -1,7 +1,9 @@
-# DESIGN — STONE C: `Lru/put` and `Lru/get` stop panicking
+# DESIGN — STONE C: `Lru/put` returns a Result, `Lru/get` misses — no panic
 
-**Drawn 2026-09-23.** Builder's ruling: *"i want the least amount of panics possible (which may be
-zero…)"*. Supersedes the arc-109 NOTE's "LEAVE put/get" (recorded there at `a8a3d4bd4`).
+**Redrawn 2026-09-23.** Builder's ruling: *"i want the least amount of panics possible (which may
+be zero…)"* — and, on the first draft: *"why is using a boxed result via an enum not the path
+forward for dealing with a panic?"* It is. The first draft is superseded; see "What went wrong"
+at the bottom.
 
 ## The defect, driven — reachable from well-typed programs
 
@@ -9,41 +11,59 @@ zero…)"*. Supersedes the arc-109 NOTE's "LEAVE put/get" (recorded there at `a8
 an Lru handle as the key, direct            check=0  run=2  Rust panic
 the same, laundered through a generic K      check=0  run=2  Rust panic
 ```
-The NOTE's defence — *"the checker already rejects an opaque-typed key at most call sites"* — is
-false for both. `src/rust_deps/cache.rs:151-170`: each verb calls `value_is_hashable(&k)` and then
-`panic!`s.
+`src/rust_deps/cache.rs:151-170`: each verb calls `value_is_hashable(&k)` and then `panic!`s.
 
-## ⭐ The precedent is HashMap, and it splits by verb
+## The cure
 
-`src/collection/eval.rs`, same predicate family (`value_is_key_hashable`):
-- **insert** with an unhashable key → raises `RuntimeErrorKind::TypeMismatch` — a wat error.
-- **`contains-key?`** with an unhashable key → **`false`**, commented *"never inserted"*: a key that
-  cannot be stored is a guaranteed miss, so the answer is total and needs no error at all.
+- **`put`** → `Result<Option<(Value, Value)>, RawFault>`: `Err` on an unhashable key, naming the
+  user-facing verb `:wat::cache::Lru/put` in the `diagnostic` field. **This is stone A's mechanism
+  exactly** (`Lru/new`, `70f8e2cd5`); `#[wat_dispatch]` marshals `Result<T, E>` natively. No macro
+  change.
+- **`get`** → returns `None` on an unhashable key. Its return type is already `Option`, so no
+  caller changes. Precedent: `HashMap`'s `contains-key?` returns `false` for an unhashable key,
+  *"never inserted"* (`src/collection/eval.rs:203-207`) — a key that cannot be stored cannot be
+  there, so the answer is total.
 
-So: **`put` raises a wat `TypeMismatch`; `get` returns `None`.** Same shape as `i64::/` (raises
-`DivisionByZero` with the user's span) — a refusal INSIDE the language.
+## The ONE contract decision — the Result PROPAGATES through `HolographicLru/put`
 
-## The ONE contract decision — raise, do not return a Result
+Same decision as stone A made for `HolographicLru/new`: `:wat::cache::HolographicLru/put` wraps
+`Lru/put` and must return the `Result` rather than swallow it. Swallowing would re-create the
+defect one level up.
 
-Stone A made `Lru/new` return a `Result`, because its input arrives from DURABLE STORAGE at
-rehydration with no caller in the frame. `put`/`get` are different: the key is in the caller's
-hand at the call. The siblings RAISE there, and a `Result` would churn **56 call sites** across
-`wat/cache.wat`, `wat-tests/cache/HolographicLru.wat`, `tests/rete/probe_arc278_cache_lru.wat` and
-others for no gain in honesty. **Match HashMap: raise on `put`, miss on `get`. No signature change.**
+⚠ **Service handlers are the exception the surface forces.** Stone A found that a `defservice`
+`:init` cannot return a `Result`; its disposition, copied from `wat/query/sqlite-store.wat`, was
+`Result/expect` with the verb name written into the message. If `lru-svc` / `hologram-svc`
+handlers hit the same wall, do the same — and note that `Result/expect` DISCARDS the `Err`
+payload (stone A's finding), so the verb name only survives if it is in the `expect` message.
 
-## ⛔ A trap already avoided — `is_atomizable` is the WRONG check-time rule
+## Blast radius — measured, `put` only
 
-The tempting "static layer" is `is_atomizable` (`src/check.rs:1586`). It answers *"can this become
-a holon"*, NOT *"can this be hashed"*: the runtime predicate's own doc says structurally-hashable
-non-atomizable values (`u8`, `Tuple`, `Option`) ARE hashable. Keying `Lru`'s `K` on
-`is_atomizable` would refuse legal programs — a rule that outlaws a truth.
+| file | code call sites |
+|---|---|
+| `wat-tests/cache/HolographicLru.wat` | 12 |
+| `tests/rete/probe_arc278_cache_lru.wat` | 8 |
+| `wat/cache.wat` | 7 |
+| `wat-scripts/scratch-pad/255-struct-field-is-a-constant-projection.wat` | 2 |
+| ⚠ `tests/lint/little_wat_findings_board__f083_holographic_lru_reput.wat` | 2 |
 
-**No type-level hashability predicate exists anywhere in the tree** — measured: `HashMap` keyed by
-an `Lru` handle is `check=0 run=1` today, refused only at runtime. So a check-time layer is not
-"match the siblings", it is a NEW predicate over all three hashed containers. **Out of this stone.**
+**31 sites.** `get`'s callers do not change. `src/remedy/retirement.rs` and
+`wat-scripts/fixes/type-member-colon-to-slash.wat` NAME the verb in string tables — not call sites.
+
+⚠ **The F-083 board fixture is a caller.** F-083 (a re-put empties a `HolographicLru`) is a
+DIFFERENT defect; its row `(check 0, run 0, stdout "0")` must still pin it afterwards.
 
 ## Out of scope — REJECTED
 
-- A type-level hashability predicate (all hashed containers at once; its own stone).
-- Returning a `Result` from `put`/`get` (see the contract decision).
-- F-083 (a re-put empties a `HolographicLru`) — a different defect; its board row must still pin it.
+- **Where RAISED errors say they happened.** `HashMap`'s own unhashable-key raise reports
+  `:file "src/collection/eval.rs" :line 449`, and C-114 reports `wat/core.wat:66` — both F-006
+  family, both real, both a separate stone. A `Result` has no location, so `put` does not wait.
+- A type-level hashability predicate (`is_atomizable` is the WRONG rule — it asks "can this be a
+  holon", and `u8`/`Tuple`/`Option` are hashable but not atomizable).
+
+## What went wrong with the first draft
+
+It made "match the sibling's RAISE" the goal instead of "no panic". The sibling, when driven,
+raised with a `.rs` location — so copying it would have copied an F-006 defect. It also quoted
+"56 call sites" for a `Result`, a number that counted `get`'s callers (which do not change) and
+two string tables; the real `put` count is 31, and stone A had already recorded a codemod for
+exactly this wrap. The executor stopped at STOP-1/STOP-2 correctly; the brief was wrong.

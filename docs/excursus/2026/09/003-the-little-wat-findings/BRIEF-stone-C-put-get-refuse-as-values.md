@@ -1,54 +1,50 @@
-# BRIEF — STONE C: `Lru/put` raises, `Lru/get` misses — no panic
+# BRIEF — STONE C (redrawn): `Lru/put` returns a Result, `Lru/get` misses
 
 Read `DESIGN-stone-C-put-get-refuse-as-values.md` first.
 
 ## The work
 
-Replace the two `panic!`s in `src/rust_deps/cache.rs` (`put` ~`:151`, `get` ~`:163`). **`put`** with
-an unhashable key raises a wat `RuntimeErrorKind::TypeMismatch` naming `:wat::cache::Lru/put`;
-**`get`** with an unhashable key returns `None`. No signature visible to wat changes; no call site
-moves. Update the module doc's failure-surface section and the arc-109 NOTE to record what shipped.
+1. `src/rust_deps/cache.rs`: `put` returns `Result<Option<(Value, Value)>, RawFault>`, `Err` on an
+   unhashable key with `diagnostic = ":wat::cache::Lru/put"`; `get` returns `None` on an unhashable
+   key. Remove both `panic!`s. Rewrite the module doc's failure-surface section.
+2. `wat/cache.wat`: `:wat::cache::Lru/put`'s signature returns the `Result`; `HolographicLru/put`
+   propagates it; service handlers use `Result/expect` with the verb name in the message if and
+   only if the surface forces it (stone A's disposition).
+3. Move the 31 `put` call sites **with a recorded wat-fix codemod** (`CLAUDE.md` — never hand-edit
+   a multi-site `.wat` change). Model: `wat-scripts/fixes/wrap-cache-new-in-result-expect.wat` and
+   its replay fixture `wat-scripts/fixes/replay/wrap-cache-new-in-result-expect/`.
+4. Record what shipped in `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-…md`.
 
 ## Rooms
 
-1. **`src/rust_deps/cache.rs:40-75`** (module doc — rewrite the "two guards panic" paragraph) and
-   **`:140-172`** (`put`/`get`).
-2. **`src/collection/eval.rs`** — the HashMap guards: `contains-key?` at ~`:203-207` (the miss) and
-   the insert path's `TypeMismatch` (grep `value_is_key_hashable`). **Copy these.**
-3. **`crates/wat-macros/src/codegen.rs:276`** — the generated dispatch fn returns
-   `Result<Value, RuntimeError>`. ⚠ Find out whether a `#[wat_dispatch]` METHOD can itself return a
-   `RuntimeError` that propagates as a raise. `sqlite.rs`'s `RawFault` is the OTHER mechanism (an Err
-   VALUE in a wat `Result`) — **not** what is wanted here.
-4. **`docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-…md`** — record `put`/`get` shipped.
-
-## Blast radius
-
-`src/rust_deps/cache.rs` · the arc-109 NOTE · one new probe under `tests/diagnostics/`. If and only
-if STOP-1 resolves that way, `crates/wat-macros/` — see STOP-1.
+- `src/rust_deps/cache.rs:40-75` (module doc) and `:140-172` (`put`/`get`); `Lru::new` above them
+  (`:~120`) is stone A's shipped `Result<Self, RawFault>` — copy it.
+- `wat/cache.wat:127-144` (`Lru/put`), `HolographicLru/put`, and the two services' handlers.
+- `src/collection/eval.rs:203-207` — HashMap `contains-key?`'s miss, the precedent for `get`.
+- The stone-A codemod and replay fixture above.
 
 ## STOP triggers
 
-1. **A dispatch method cannot raise a `RuntimeError`.** STOP and report what the macro supports.
-   ⛔ Do NOT fall back to returning a `Result` (that is the 56-site churn the DESIGN rejects) and do
-   NOT keep a panic behind a nicer message.
-2. **The raised error's `:location` names a `.rs` file** instead of the user's `.wat`. That is the
-   F-006 family again. Report it with the verbatim `:location`; do not silently accept it.
-3. **Any gate reddens that you did not add.** Capture whole, name the arm. ⛔ Do not re-run first.
+1. A service handler that cannot express the `Err` AND cannot `Result/expect` it — report.
+2. The F-083 row can no longer pin its defect after the fixture moves — report; do not delete it.
+3. A `put` caller the DESIGN's table lacks — derive the count yourself and report the delta.
+4. Any gate reddens that you did not add — capture whole, name the arm. ⛔ Do not re-run first.
 
-## Prove it — a new probe, four cases
+## Prove it — a probe, four cases
 
 `put` direct · `put` via a generic `K` · `get` direct · `get` via a generic `K`, each keyed on an
-`Lru` handle (the repros are in the DESIGN). Assert: no `panicked at`, no `RUST_BACKTRACE` on
-stderr; `put` → a wat `TypeMismatch` naming `:wat::cache::Lru/put`; `get` → prints `None`/a miss.
-**Mutation:** restore each `panic!` in turn — its cases go RED. Restore.
+`Lru` handle. `put` → an `Err` value naming `:wat::cache::Lru/put`; `get` → a miss. No
+`panicked at`, no `RUST_BACKTRACE`. **Mutation:** restore each `panic!` in turn (keeping the new
+signatures) — its cases go RED. Restore.
 
 ## Mechanics — ⛔ read
 
 - The Bash tool caps at 600s. Floor: `nohup scripts/floor.sh > <file> 2>&1 &`, then repeated
-  foreground `until grep -qE '^ *Summary' <that file>; do sleep 30; done` blocks (NOT
-  `.floor/latest/clean.log` — it only appears at the end). Do not end your turn while it runs.
-- Never `pgrep -f 'cargo …'`. Read `Summary` lines, never piped exit codes.
-- `cargo fmt` reformats the whole workspace — use `rustfmt <file>` or neither.
+  foreground `until grep -qE '^ *Summary' <that file>; do sleep 30; done` blocks. Do not end your
+  turn while it runs. Never `pgrep -f 'cargo …'`. Read `Summary` lines, never piped exit codes.
+- `cargo fmt` reformats the whole workspace — `rustfmt <file>` or neither.
 - `git add` BEFORE running `git ls-files`-based gates.
-- A new `.rs`/`.wat` under `tests/` answers to `no_loose_string_assert`, `no_inlined_edn`,
-  `no_inlined_wat_in_tests`, `every_tracked_wat_parses`, `every_wat_bad_fixture_actually_fails`.
+- A new file under `tests/` or `wat-scripts/fixes/` answers to: `no_loose_string_assert`,
+  `no_inlined_edn`, `no_inlined_wat_in_tests`, `every_tracked_wat_parses`,
+  `every_wat_bad_fixture_actually_fails`, `every_recorded_migration_replays` (fixture-or-rune +
+  `;; SCOPE:`), and the sharded `every_wat_scripts_file_loads…` gate.
