@@ -52,3 +52,22 @@ This is only enumeration. **None of these has been put through the four question
 must therefore declare **the markers**, not only the slot: which parameter is a transport, and what a
 transport marker **is** (a phantom type-level member of a closed family whose portability is
 declared). See `SCORE-STONE-255.17a-the-child-says-wire.md`.
+
+## Addendum 2 — the language CAN already declare a closed family of phantom markers
+
+`wat-scripts/scratch-pad/255-17b-transport-family-shapes.wat`, run against `main` @ `97de80fa7`:
+
+| probe | rc |
+|---|---|
+| a `Pure` unit-variant enum `:probe::Tr {:Sh [] :Wi []}`; `(Box :- [Tr.Wi])` built and passed where `(Box :- [Tr.Wi])` is expected | check **0**, run **0** |
+| negative: `(Box :- [Tr.Sh])` where `(Box :- [Tr.Wi])` is expected | **1**: `expects (:probe::Box :- [:probe::Tr.Wi]); got (:probe::Box :- [:probe::Tr.Sh])` |
+| family: `(Box :- [Tr.Wi])` where `(Box :- [Tr])` is expected | **0** |
+
+So **what a marker is** can be declared with an existing form: `Transport` as a closed `Pure` enum, with
+`Shared`/`Wire` as its variants. Adding a transport is adding a variant, which is a language update, as
+the locus ruling asks. Variants are kept apart and are assignable to the family.
+
+**Which parameter is the slot** is still undeclarable: there are no bounded or kinded type parameters.
+Separately noted while probing: a type parameter that no field consumes is refused
+(`UnconsumedTypeParam`), so a phantom parameter must flow into a field. The carriers' `T` does, via
+`Address`.
