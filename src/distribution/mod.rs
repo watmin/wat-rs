@@ -350,7 +350,40 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // sweep loops.
     if check_only {
         let loader: Arc<dyn crate::load::loader::SourceLoader> = Arc::new(FsLoader);
-        match startup_from_source(&source, canonical.as_deref(), loader) {
+        // the-little-wat excursus 002 stone 2 — `WAT_CHECK_TYPES=1 wat --check <entry.wat>`
+        // also prints, on stdout, the type the checker's `infer` gave every node it inferred
+        // (see `crate::check::type_record` and `check_output::emit_types`). Unset, nothing
+        // here runs and `--check` is exactly what it was.
+        //
+        // The types come from a SECOND `check_program`, over the FROZEN world, made only
+        // here. The startup check (freeze step 8) reads each function body as it was
+        // registered at step 6 -- before step 7 normalizes namespaced symbols (`wat.core/let`,
+        // `user/f`) to keywords -- so a body spelled that way reaches `infer` as calls through
+        // unbound symbols, and nothing inside it is typed. The frozen world holds the bodies
+        // the runtime actually runs, normalized. Its diagnostics are counted in the trailer and
+        // printed to stderr; they change nothing about this command's outcome.
+        let dump_types = std::env::var_os("WAT_CHECK_TYPES").is_some();
+        let outcome = startup_from_source(&source, canonical.as_deref(), loader);
+        if dump_types {
+            if let Ok(world) = &outcome {
+                crate::check::type_record::start();
+                let rechecked =
+                    crate::check::check_program(world.program(), world.symbols(), world.types());
+                if let Some(rec) = crate::check::type_record::finish() {
+                    let errors = match &rechecked {
+                        Ok(()) => 0,
+                        Err(errs) => {
+                            for e in &errs.0 {
+                                eprintln!("TYPES-CHECK-ERROR {}", e);
+                            }
+                            errs.0.len()
+                        }
+                    };
+                    check_output::emit_types(&rec, errors);
+                }
+            }
+        }
+        match outcome {
             Ok(_world) => {
                 // Successful freeze. The world is dropped without invocation.
                 return ExitCode::from(0);

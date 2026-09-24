@@ -51,6 +51,7 @@ pub use env::CheckEnv;
 pub mod error;
 pub use error::{CheckError, CheckErrorKind, CheckErrors, EnsureFnInvalidReason};
 pub mod error_edn;
+pub mod type_record;
 
 use crate::ast::WatAST;
 use crate::runtime::{Function, FunctionBody, SymbolTable};
@@ -1803,6 +1804,7 @@ fn check_function_body(
         FunctionBody::Wat(ast) => ast,
         FunctionBody::Native => return,
     };
+    type_record::open_root();
     fresh.push_enclosing_ret(scheme.ret.clone());
     let body_ty = infer(body_ast, env, &locals, fresh, &mut subst).drain_errors_into(errors);
     fresh.pop_enclosing_ret();
@@ -1825,6 +1827,7 @@ fn check_function_body(
             } });
         }
     }
+    type_record::close_root(&subst, env.types());
 }
 
 /// Stone 241.10 — variant-constructor typo remediation for ReturnTypeMismatch.
@@ -1882,7 +1885,9 @@ fn check_form(
     errors: &mut Vec<CheckError>,
 ) {
     let mut subst = Subst::new();
+    type_record::open_root();
     let _ = infer(form, env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors);
+    type_record::close_root(&subst, env.types());
 }
 
 // ─── Inference ──────────────────────────────────────────────────────────
@@ -1919,6 +1924,25 @@ fn is_primitive_type_keyword_in_value_position(k: &str) -> bool {
 /// Arc 236.1: primary fn infer() migrated from Option<TypeExpr> +
 /// &mut Vec<CheckError> dual-channel to CheckResult<TypeExpr> single-channel.
 pub(crate) fn infer(
+    ast: &WatAST,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let result = infer_node(ast, env, locals, fresh, subst);
+    // the-little-wat excursus 002 stone 2 — off unless `type_record::start` was called; one
+    // flag read when off. It notes, and changes nothing about `result`.
+    if type_record::is_on() {
+        if let Some(ty) = result.value() {
+            type_record::note(ast.span(), ty);
+        }
+    }
+    result
+}
+
+/// [`infer`]'s dispatch, unrecorded. Every caller goes through [`infer`].
+fn infer_node(
     ast: &WatAST,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
@@ -8601,6 +8625,7 @@ fn infer_defclause(
             clause_locals.insert(crate::scope::env_key(arg_ident).into_owned(), arg_ty.clone());
         }
         let mut clause_subst = Subst::new();
+        type_record::open_root();
 
         // Stone 237.3 — Validate :guard expression (if present).
         if let Some(guard_ast) = &clause.guard {
@@ -8664,6 +8689,7 @@ fn infer_defclause(
                                     } });
                                 }
                             }
+                            type_record::close_root(&clause_subst, env.types());
                             continue;
                         }
                     }
@@ -8697,6 +8723,7 @@ fn infer_defclause(
                             } });
                         }
                     }
+                    type_record::close_root(&clause_subst, env.types());
                     continue;
                 }
             };
@@ -8792,6 +8819,7 @@ fn infer_defclause(
                 } });
             }
         }
+        type_record::close_root(&clause_subst, env.types());
     }
 
     if local_errors.is_empty() {
@@ -9134,7 +9162,10 @@ fn extract_def_binding(
         }
     }
     let mut subst = Subst::new();
-    let ty = infer(&items[expr_idx], env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors)?;
+    type_record::open_root();
+    let ty = infer(&items[expr_idx], env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors);
+    type_record::close_root(&subst, env.types());
+    let ty = ty?;
     let ty = apply_subst(&ty, &subst);
     Some((name, ty, span))
 }

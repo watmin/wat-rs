@@ -83,3 +83,59 @@ fn prepend_file_field(edn: wat_edn::OwnedValue, file: &str) -> wat_edn::OwnedVal
         ]),
     }
 }
+
+/// the-little-wat excursus 002 stone 2 — print what `crate::check::type_record` recorded, one
+/// node per line on stdout, TAB-separated (a type can hold spaces), sorted by position, a line
+/// said twice said once:
+///
+/// ```text
+/// TYPE <file> <line> <col> <type> <wide>         the type infer gave the node starting there
+/// UNRESOLVED <file> <line> <col> <type> <wide>   a variable survived the final substitution
+/// TYPES recorded <n> distinct <d> spans <s> multi <m> unresolved <u> orphans <o> check-errors <e>
+/// ```
+///
+/// Positions are the reader's: 1-based line and column of the node's first character (a list
+/// begins at its `(`), columns in characters. `<type>` is `format_type` of the type after the
+/// final substitution with aliases expanded; `<wide>` is the same type with every variant
+/// widened to its enum (`Recorded::wide`). `multi` counts spans that carry more than one
+/// distinct type -- every one is printed, none is chosen. `check-errors` is the number of
+/// diagnostics the recording check itself produced (their text goes to stderr).
+pub(super) fn emit_types(rec: &crate::check::type_record::Recording, errors: usize) {
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::io::Write;
+    let mut seen: BTreeSet<(String, i64, i64, bool, String, String)> = BTreeSet::new();
+    for r in &rec.types {
+        seen.insert((
+            r.span.file.as_str().to_string(),
+            r.span.line,
+            r.span.col,
+            r.unresolved,
+            crate::check::format_type(&r.ty),
+            crate::check::format_type(&r.wide),
+        ));
+    }
+    let mut per_span: BTreeMap<(&str, i64, i64), usize> = BTreeMap::new();
+    let mut unresolved = 0usize;
+    let out = std::io::stdout();
+    let mut out = out.lock();
+    for (file, line, col, unres, ty, wide) in &seen {
+        *per_span.entry((file.as_str(), *line, *col)).or_insert(0) += 1;
+        if *unres {
+            unresolved += 1;
+        }
+        let tag = if *unres { "UNRESOLVED" } else { "TYPE" };
+        let _ = writeln!(out, "{tag}\t{file}\t{line}\t{col}\t{ty}\t{wide}");
+    }
+    let multi = per_span.values().filter(|n| **n > 1).count();
+    let _ = writeln!(
+        out,
+        "TYPES recorded {} distinct {} spans {} multi {} unresolved {} orphans {} check-errors {}",
+        rec.types.len(),
+        seen.len(),
+        per_span.len(),
+        multi,
+        unresolved,
+        rec.orphans,
+        errors
+    );
+}
