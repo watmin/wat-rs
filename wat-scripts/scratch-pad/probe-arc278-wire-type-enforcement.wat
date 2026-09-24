@@ -87,8 +87,8 @@
         (:wat::string::concat label " => RecvOutcome::Closed"))]))
 
 ;; ── one tier: stand up, connect, send a GOOD payload then a MISTYPED one ─────
-(:wat::core::defn :probe-wire::measure-tier
-  [locus <- :wat::spawn::Locus
+(:wat::core::defn :probe-wire::measure-tier :- [T]
+  [locus <- (:wat::spawn::Locus :- [T])
    tier  <- :wat::core::String]
   -> :wat::core::nil
   (:wat::core::let

@@ -235,7 +235,7 @@
          [:wat::bracket::PoolMsg.Setup {:deps _deps}
            (:wat::kernel::assertion-failed! :message "bracket thread runner: unexpected PoolMsg::Setup (plain thread pool — no kwargs tail)")])))))
 
-(:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
+(:wat::core::extend-type :wat::spawn::ThreadOpts (:wat::spawn::Locus :- [:wat::kernel::Shared])
   (spawn-runner [self work-fn]
     (:wat::kernel::spawn-program self
       (:wat::core::fn [sp <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])] -> :wat::core::nil
@@ -315,7 +315,7 @@
 ;; must NOT reflect the work-fn VALUE (metadata-of/lookup-define/field-names-of on an
 ;; anonymous fn raises TypeMismatch and crashes the parent, per the design doc's STOP-4) —
 ;; the keyword-vs-fn distinction is made by defclause's own type dispatch, for free.
-(:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
+(:wat::core::extend-type :wat::spawn::ProcessOpts (:wat::spawn::Locus :- [:wat::kernel::Wire])
   (spawn-runner [self work-fn]
     (:wat::kernel::spawn-program self (:wat::bracket::process-work-forms work-fn))))
 
@@ -677,6 +677,10 @@
 ;; for a thread pool) is harmless. Arc 170 M1-pool's `worker-init`/W convention is unchanged:
 ;; W is the raw work-fn (a 1-param `[I :-> O]`, or — new this stone — the kwargs work-fn's bare
 ;; keyword, `process-work-forms`'s KWARGS defclause dispatching on the VALUE's runtime type).
+;; 255.18 — `locus` stays the BARE `:wat::spawn::Locus` (the family top) here, not `(Locus :- [T])`:
+;; this body forwards it to `runner-count` and `with-label`, defclauses keyed on the CONCRETE loci,
+;; and a generic `(Locus :- [T])` cannot narrow to them yet (the rigid T cannot unify with the
+;; clause's Shared/Wire binding) — tests/types/probe_arc255_18_locus_names_its_transport_generic_narrowing.wat.bad.
 (:wat::core::defn :wat::bracket::map-worker :- [D G I O W]
   [locus         <- :wat::spawn::Locus
    items         <- (:wat::core::Vector :- [I])
@@ -777,8 +781,8 @@
 ;; `map-worker` that DISCARDS: run worker-init-derived per-item fns over every
 ;; item through the pool, then return nil. Thin wrapper — the SAME provisioning
 ;; params ride through unchanged (the kwargs layer rides `each` for free, below).
-(:wat::core::defn :wat::bracket::each-worker :- [D G I O W]
-  [locus         <- :wat::spawn::Locus
+(:wat::core::defn :wat::bracket::each-worker :- [D G I O W T]
+  [locus         <- (:wat::spawn::Locus :- [T])
    items         <- (:wat::core::Vector :- [I])
    worker-init   <- [:wat::core::i64 :-> W]
    grant-handles <- :G

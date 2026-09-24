@@ -2582,6 +2582,9 @@
                          (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) locus-sym)
                          init-arg-names)
      start-fnames-ast (:wat::core::with-children init-params-vec start-fname-nodes)
+     ;; 255.18 — the abstract impl's locus stays the BARE `:wat::spawn::Locus`: start/resume-body
+     ;; hands it to `:wat::spawn::with-label`, a defclause keyed on the CONCRETE loci, and a
+     ;; `(Locus :- [T])` cannot narrow to it yet (see bracket.wat's map-worker note).
      start-impl-params `[~locus-sym <- :wat::spawn::Locus ~@init-param]
      start-impl-thread-params `[~locus-sym <- :wat::spawn::ThreadOpts ~@init-param]
      start-impl-process-params `[~locus-sym <- :wat::spawn::ProcessOpts ~@init-param]

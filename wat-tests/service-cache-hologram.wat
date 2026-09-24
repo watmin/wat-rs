@@ -98,7 +98,7 @@
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SEVEN behaviours in one round trip ────────────────
-(:wat::core::defn :wat-tests::hologram-svc/run [locus <- :wat::spawn::Locus] -> :wat::core::nil
+(:wat::core::defn :wat-tests::hologram-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::nil
   (:wat::core::let
     [h (:wat::cache::hologram-svc/start :locus locus
          :record (:wat::cache::hologram-svc::Record :capacity 2

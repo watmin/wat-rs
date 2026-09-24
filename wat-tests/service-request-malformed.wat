@@ -102,8 +102,8 @@
 
 ;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.
 ;; The victim's `connect'` happens AFTER the malformed frame — that dial is the assertion.
-(:wat::core::defn :wat-tests::mal/run
-  [locus <- :wat::spawn::Locus] -> :wat::core::String
+(:wat::core::defn :wat-tests::mal/run :- [T]
+  [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::String
   (:wat::core::let
     [h    (:wat-tests::mal-bag/start :locus locus :record (:wat-tests::mal-bag::Record :n 0))
      good (:wat-tests::MalBag::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))

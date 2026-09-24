@@ -20,10 +20,11 @@
 (:wat::core::defn :my::svc::mk-lu
   [a <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64 0)
 
-;; Locus-AGNOSTIC: the param is the abstract `:wat::spawn::Locus`. `Locus/launch` routes through it.
+;; Locus-AGNOSTIC: the param is `(:wat::spawn::Locus :- [T])` (255.18: the locus names its transport).
+;; `Locus/launch` routes through it.
 ;; arc 291: launch signature = [self ship init serve service-forms lu-addr-kw] (6 args).
-;; Launched now has 4 type params [S R Sh Lu]; here all are i64.
-(:wat::core::defn :user::start-it [h <- :wat::spawn::Locus] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64])
+;; Launched has 5 type params [S R Sh Lu T]; S R Sh Lu are i64 here, T comes from the locus.
+(:wat::core::defn :user::start-it :- [T] [h <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 T])
   (:wat::spawn::Locus/launch h 0
     (:wat::keyword::from-string "my::svc::init")
     (:wat::keyword::from-string "my::svc::serve")

@@ -1,0 +1,11 @@
+;; Stone 255.18 — the locus names its transport. `(:wat::spawn::Locus :- [T])`: ThreadOpts binds
+;; Shared, ProcessOpts binds Wire, and `Locus/launch` returns `(Launched :- [S R Sh Lu T])`.
+;; NEGATIVE: a THREAD locus cannot yield a Wire Launched — T is Shared, from ThreadOpts' binding.
+;; (The positive twin, with ProcessOpts, is _process_yields_wire.wat: the opposite transport passes.)
+(:wat::core::defn :probe::launch-thread [l <- :wat::spawn::ThreadOpts] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Wire])
+  (:wat::spawn::Locus/launch l 0
+    (:wat::keyword::from-string "p::init")
+    (:wat::keyword::from-string "p::serve")
+    (:wat::core::forms)
+    (:wat::keyword::from-string "p::init")
+    (:wat::keyword::from-string "p::mk-lu")))

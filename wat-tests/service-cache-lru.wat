@@ -117,7 +117,7 @@
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SIX behaviours in one round trip ──────────────────
-(:wat::core::defn :wat-tests::cache-svc/run [locus <- :wat::spawn::Locus] -> :wat::core::String
+(:wat::core::defn :wat-tests::cache-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::String
   (:wat::core::let
     [h (:wat::cache::lru-svc/start :locus locus
          :record (:wat::cache::lru-svc::Record :capacity 2))

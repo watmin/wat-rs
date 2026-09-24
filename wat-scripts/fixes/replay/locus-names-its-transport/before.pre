@@ -1,0 +1,15 @@
+;; Replay fixture — arc 255 Stone 255.18, "the locus names its transport".
+;; Three rewrites (no binder; a binder; a 4-arg Launched return) plus negative controls
+;; that must stay byte-identical.
+(:wat::core::defn f [l <- :wat::spawn::Locus] -> R)
+(:wat::core::defn f :- [A] [l <- :wat::spawn::Locus] -> R)
+(:wat::core::defn g [l <- :wat::spawn::Locus] -> (:wat::spawn::Launched :- [a b c d])
+  (:wat::spawn::Locus/launch l))
+;; CONTROL 1 — already parametric: must NOT move (idempotence).
+(:wat::core::defn :user::c1 :- [T] [l <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64 0)
+;; CONTROL 2 — a concrete locus param: must NOT move.
+(:wat::core::defn :user::c2 [l <- :wat::spawn::ThreadOpts] -> :wat::core::i64 0)
+;; CONTROL 3 — a RETURN of the bare Locus (not a param): must NOT move.
+(:wat::core::defn :user::c3 [] -> :wat::spawn::Locus (:wat::spawn::thread))
+;; CONTROL 4 — a 5-arg Launched on a defn with no Locus param: must NOT move.
+(:wat::core::defn :user::c4 [x <- :wat::core::i64] -> (:wat::spawn::Launched :- [a b c d e]) x)

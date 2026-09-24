@@ -1,0 +1,12 @@
+;; Stone 255.18 — the locus names its transport. `(:wat::spawn::Locus :- [T])`: ThreadOpts binds
+;; Shared, ProcessOpts binds Wire, and `Locus/launch` returns `(Launched :- [S R Sh Lu T])`.
+;; NEGATIVE: the generic consumer given a THREAD locus cannot be claimed Wire.
+(:wat::core::defn :probe::launch :- [T] [l <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 T])
+  (:wat::spawn::Locus/launch l 0
+    (:wat::keyword::from-string "p::init")
+    (:wat::keyword::from-string "p::serve")
+    (:wat::core::forms)
+    (:wat::keyword::from-string "p::init")
+    (:wat::keyword::from-string "p::mk-lu")))
+(:wat::core::defn :probe::via-thread [] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Wire])
+  (:probe::launch (:wat::spawn::thread)))

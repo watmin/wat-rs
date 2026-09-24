@@ -159,7 +159,7 @@
     [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :wat-tests::pcache/run [locus <- :wat::spawn::Locus] -> :wat::core::String
+(:wat::core::defn :wat-tests::pcache/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::String
   (:wat::core::let
     [h (:wat-tests::pcache-svc/start :locus locus
          :record (:wat-tests::pcache-svc::Record

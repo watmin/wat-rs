@@ -1,0 +1,8 @@
+;; Stone 255.18 — the gap this stone MEASURED and did not close. A generic consumer holding
+;; `(:wat::spawn::Locus :- [T])` cannot pass it to a defclause keyed on the CONCRETE loci
+;; (`runner-count`, `with-label`): the narrowing arm must unify the clause's binding (Shared /
+;; Wire) with the binder's rigid `T`, and cannot. This is why `:wat::bracket::map-worker` and
+;; defservice's `start$impl`/`resume$impl` still take the bare `:wat::spawn::Locus`.
+;; This row goes GREEN (and must be moved to a positive fixture) the day the gap is closed.
+(:wat::core::defn :probe::count :- [T] [l <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64
+  (:wat::spawn::runner-count l))

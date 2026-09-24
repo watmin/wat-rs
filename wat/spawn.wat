@@ -315,7 +315,8 @@
 ;; Lu=LineageUp), no longer the opaque :Spawned marker. (Thread' :- [Sh Lu])/(Process' :- [Sh Lu])
 ;; bind it via the `derive …Peer'` foundation. This is what makes owner-only `stop` able
 ;; to send'/recv' on the Handle's handle. S,R = the client (listener/dial) channel.
-;; T is the transport marker (Shared | Wire); 4-arg (Launched :- [S R Sh Lu]) still means T unknown.
+;; T is the transport marker (Shared | Wire). 255.18: `Locus/launch` returns the full 5-arg form, T
+;; from the locus's own binding; a 4-arg (Launched :- [S R Sh Lu]) is the checker's residual shorthand.
 (:wat::core::defstruct :wat::spawn::Launched :- [S R Sh Lu T]
   [handle  <- (:wat::kernel::Peer :- [Sh Lu])
    address <- (:wat::kernel::Address :- [S R T])])
@@ -386,7 +387,10 @@
 ;; listener/state; process ships forms ([[project_shared_memory_partition_hosting]]).
 ;; So `launch` MINTS THE LISTENER INSIDE the concrete impl (arc 272 6a: the child
 ;; must mint its own listener; parent-minting is wrong for the process tier) and
-;; returns a (Launched :- [S R]){handle,address}. `start` unwraps Launched — locus-agnostic.
+;; returns a (Launched :- [S R Sh Lu T]){handle,address}. `start` unwraps Launched — locus-agnostic.
+;; 255.18 — the locus NAMES its transport: `Locus :- [T]`; ThreadOpts binds Shared, ProcessOpts
+;; binds Wire (here and in wat/bracket.wat, which adds `spawn-runner` to the same bindings), so a
+;; thread launch can never be claimed Wire.
 ;; A new transport joins as one `extend-type`, zero edit to `start`.
 ;;
 ;; Generic over S,R (the listener/peer channel types) and St (service state).
@@ -395,12 +399,12 @@
 ;; applies; a future process impl ships forms that apply the same keyword.
 ;; serve's shape: (serve self-peer listener clients next-id state) -> nil. (arc 278 the call
 ;; context added `next-id`, the monotonic conn-id counter, as the 4th positional arg.)
-(:wat::core::defsurface :wat::spawn::Locus :nature :wat::core::Struct
+(:wat::core::defsurface :wat::spawn::Locus :- [T] :nature :wat::core::Struct
   ;; arc 291 3a-ii-β: Lu = the lineage UP type (LineageUp); Sh = the ship/admin DOWN type.
   ;; The returned Launched carries the lineage peer as (Peer' :- [Sh Lu]).
   :features
   [(launch :- [S R St Sh Lu]
-     [self          <- :wat::spawn::Locus
+     [self          <- (:wat::spawn::Locus :- [T])
       ship          <- :Sh
       init          <- :wat::core::keyword
       serve         <- :wat::core::keyword
@@ -414,7 +418,7 @@
       ;; runs, making an :init crash surface over the crash-aware launch handshake
       ;; instead of deadlocking the owner's connect'. Process ignores it (its
       ;; child-main-form owns the ctor).
-      lu-mk-kw      <- :wat::core::keyword] -> (:wat::spawn::Launched :- [S R Sh Lu]))
+      lu-mk-kw      <- :wat::core::keyword] -> (:wat::spawn::Launched :- [S R Sh Lu T]))
    ;; Arc 170 M1-pool — work-fn is a GENERIC W (not `[I :-> O]`): the thread/non-dial
    ;; tiers pass a 1-param `[I :-> O]`, the process DIAL tier a 2-param `[(Peer' :- [S R]) I :-> O]`.
    ;; The impl reifies (process, fn-forms) or applies (thread, unifying W~[I :-> O] locally)
@@ -426,7 +430,7 @@
    ;; for a plain pool (no dial ever sent), the work-fn's own `<base>::Coords` record for a
    ;; kwargs pool. This is what lets ONE pool coordinator carry both provisionings: the
    ;; carrier is never welded into this surface's return type, only named by it.
-   (spawn-runner :- [D I O W] [self    <- :wat::spawn::Locus
+   (spawn-runner :- [D I O W] [self    <- (:wat::spawn::Locus :- [T])
                                work-fn <- :W]
      -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])]))])
 
@@ -503,7 +507,7 @@
 ;; via apply so this generic impl never names the per-service serve fn.
 ;; Returns Launched{handle=Thread', address=Bound/address}.
 ;; service-forms: thread arm ignores it (serve is already in the parent universe).
-(:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
+(:wat::core::extend-type :wat::spawn::ThreadOpts (:wat::spawn::Locus :- [:wat::kernel::Shared])
   (launch [self ship init serve service-forms lu-addr-kw lu-mk-kw]
     (:wat::core::let
       ;; arc 278 startup-crash parity: the thread tier gains a Status::Started handshake it
@@ -575,7 +579,7 @@
 ;;   send' state0 to the child over the lineage (arc 272 6b-ii-α)
 ;; Returns Launched{handle=Process', address=child-minted Address'}.
 ;; The (process) literal lives ONLY here — the per-locus arm owns its transport.
-(:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
+(:wat::core::extend-type :wat::spawn::ProcessOpts (:wat::spawn::Locus :- [:wat::kernel::Wire])
   ;; arc 278 startup-crash parity: lu-mk-kw is accepted (surface arity) but UNUSED here — the
   ;; process child-main-form owns the Status::Started ctor. The handshake is REORDERED so :init
   ;; runs before Status::Started is sent: send' the ship (Admin::Init) DOWN first, THEN recv'

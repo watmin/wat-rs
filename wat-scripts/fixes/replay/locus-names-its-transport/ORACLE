@@ -1,0 +1,9 @@
+# arc 255 Stone 255.18 — provenance is the codemod's own HEADER SPEC (its three rule rows),
+# not the tool under test. No `history` row: the migration lands in the same commit as its
+# fixture, so no prior commit carries the rewritten text to cite.
+spec (:wat::core::defn f :- [T] [l <- (:wat::spawn::Locus :- [T])] -> R) :: (defn f [l <- :wat::spawn::Locus] -> R)  =>  (defn f :- [T] [l <- (:wat::spawn::Locus :- [T])] -> R)
+spec-before (:wat::core::defn f [l <- :wat::spawn::Locus] -> R) :: (defn f [l <- :wat::spawn::Locus] -> R)  =>  (defn f :- [T] [l <- (:wat::spawn::Locus :- [T])] -> R)
+spec (:wat::core::defn f :- [A T] [l <- (:wat::spawn::Locus :- [T])] -> R) :: (defn f :- [A] [l <- :wat::spawn::Locus] -> R)  =>  (defn f :- [A T] [l <- (:wat::spawn::Locus :- [T])] -> R)
+spec-before (:wat::core::defn f :- [A] [l <- :wat::spawn::Locus] -> R) :: (defn f :- [A] [l <- :wat::spawn::Locus] -> R)  =>  (defn f :- [A T] [l <- (:wat::spawn::Locus :- [T])] -> R)
+spec (:wat::core::defn g :- [T] [l <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [a b c d T]) :: -> (:wat::spawn::Launched :- [a b c d])  =>  -> (:wat::spawn::Launched :- [a b c d T])
+spec-before (:wat::core::defn g [l <- :wat::spawn::Locus] -> (:wat::spawn::Launched :- [a b c d]) :: -> (:wat::spawn::Launched :- [a b c d])  =>  -> (:wat::spawn::Launched :- [a b c d T])
