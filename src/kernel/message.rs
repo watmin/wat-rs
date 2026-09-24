@@ -152,6 +152,55 @@ pub(crate) fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, Eval
     ))
 }
 
+/// Excursus 003 stone G — encode `payload` for a WIRE peer, or refuse AT THE SENDER.
+///
+/// A wire promises the value comes back whole, so a value the EDN writer can only render as a
+/// payload-less tag (an `Lru`, a `Sender`, a fn — anything with no wire form) must not be shipped: it
+/// used to go out as `#tag nil`, the sender was told `Sent`, and only the RECEIVER learned — as a
+/// `Lost` whose message spoke of retired syntax. The compile-time wall at the wire-peer producers
+/// cannot see it when the peer is opened inside a generic fn (`(Box :- [T])`, `T` still a parameter).
+///
+/// The refusal RAISES, at `list_span` (the user's call), like the timer arm's misuse raise below: it
+/// is a programmer misuse, not a gone peer, so it is no `SendOutcome` — `Sent/Closed/Stopped/Lost`
+/// all describe the channel, never the value. Which values refuse is the WRITER's own set
+/// ([`crate::edn::render::value_to_wire_edn_string`]), never a parallel list here.
+fn encode_for_wire(
+    op: &str,
+    payload: &Value,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<String, EvalBreak> {
+    use crate::edn::render::{value_to_wire_edn_string, WireEncodeError};
+    value_to_wire_edn_string(payload, sym.types().map(|a| a.as_ref())).map_err(|e| match e {
+        WireEncodeError::Encode(e) => e.into(),
+        WireEncodeError::NotPure { type_name } => RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "a wire peer carries only pure data — the value sent ({}) contains a {}, \
+                     which is not pure and has no wire form. Send records, scalars, or pure enums \
+                     over a wire; a handle stays in-locus (a thread peer carries any value).",
+                    wat_type_label(payload),
+                    type_name
+                ),
+            },
+        )
+        .into(),
+    })
+}
+
+/// The wat type a refusal names for the value sent: a record's or enum's own class, else the
+/// value's type name — always with its leading `:`.
+fn wat_type_label(v: &Value) -> String {
+    let t = match v {
+        Value::Aggregate(a) => a.class.to_string(),
+        Value::Enum(e) => e.type_path.to_string(),
+        other => other.type_name().to_string(),
+    };
+    if t.starts_with(':') { t } else { format!(":{t}") }
+}
+
 /// `(:wat::kernel::send peer payload)` — Stone 4.6a-ii / Arc 258.5b-ii.
 ///
 /// Thread': `peer.send(value)` Value pass-through (crossbeam, no serialisation).
@@ -226,10 +275,8 @@ pub(crate) fn eval_peer_send_prime(
             // receiver side uses sym.types() too (arc 258.5b / 272 6c.2), so the
             // named-field map round-trips exactly. Before 258.5b, send' called
             // value_to_edn (no registry) and recv' expected a `-> :T` hint.
-            let edn_str = wat_edn::write(&crate::edn::render::value_to_edn_with(
-                &payload_val,
-                sym.types().map(|a| a.as_ref()),
-            )?);
+            // Excursus 003 stone G — the strict wire encode: a value with no wire form raises here.
+            let edn_str = encode_for_wire(OP, &payload_val, list_span, sym)?;
             let outcome = cell
                 .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
                     match opt_bundle {
@@ -282,10 +329,8 @@ pub(crate) fn eval_peer_send_prime(
                         None => send_outcome_closed(),
                         Some(peer) if peer.is_socket_tier() => {
                             // Socket-tier: encode with type registry in eval, ship the wire String.
-                            let wire = crate::edn::render::value_to_edn_string_with(
-                                &payload_val,
-                                sym.types().map(|a| a.as_ref()),
-                            )?;
+                            // Excursus 003 stone G — strict: a value with no wire form raises here.
+                            let wire = encode_for_wire(OP, &payload_val, list_span, sym)?;
                             match peer.send_wire(wire) {
                                 Ok(()) => send_outcome_sent(),
                                 Err(e) => send_outcome_from_error(&e),
@@ -352,8 +397,9 @@ pub(crate) fn eval_peer_try_send_prime(
 
     match &peer_val {
         // Unified Peer' arm (the serve loop's `clients` are PEER_TYPE_PATH — socket
-        // tier on process, thread tier on thread). Best-effort: any failure is a
-        // faced TrySendOutcome value, never a raise.
+        // tier on process, thread tier on thread). Best-effort: any TRANSPORT failure is a
+        // faced TrySendOutcome value, never a raise. A payload with no wire form on the socket
+        // tier is not a transport failure but a misuse, and raises (excursus 003 stone G).
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
             let cell: &crate::kernel::spawn::PeerCell =
                 crate::rust_deps::marshal::downcast_ref_opaque(
@@ -368,17 +414,31 @@ pub(crate) fn eval_peer_try_send_prime(
             // than either: it would put an `#wat.edn/Unencodable` marker on the WIRE as if it
             // were the payload. An unencodable value must fail the call, not be transmitted.
             // The encode needs no peer, so it simply happens where the error can propagate.
-            let wire_pre = crate::edn::render::value_to_edn_string_with(
-                &payload_val,
-                sym.types().map(|a| a.as_ref()),
-            )?;
+            //
+            // Excursus 003 stone G — encoded STRICT (`encode_for_wire`). A value with no wire form
+            // is a refusal only on the socket tier; the thread tier ships the Value itself. So the
+            // refusal is HELD until the tier is known, and raised only on the socket arm. The thread
+            // tier is left exactly as it was — it has always encoded the payload it never ships, and
+            // raised on an ordinary encode failure — so a held refusal re-runs the lax encode, which
+            // raises that failure (if any) just as before.
+            let wire_pre: Result<String, EvalBreak> =
+                match encode_for_wire(OP, &payload_val, list_span, sym) {
+                    Ok(wire) => Ok(wire),
+                    Err(refusal) => {
+                        crate::edn::render::value_to_edn_string_with(
+                            &payload_val,
+                            sym.types().map(|a| a.as_ref()),
+                        )?;
+                        Err(refusal)
+                    }
+                };
             let outcome = cell
-                .with_ref(OP, |opt_peer| {
-                    match opt_peer {
+                .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                    Ok(match opt_peer {
                         // Already closed → Closed (never an error).
                         None => try_send_outcome_closed(),
                         Some(peer) if peer.is_socket_tier() => {
-                            let wire = wire_pre.clone();
+                            let wire = wire_pre?;
                             match peer.try_send_wire(wire) {
                                 crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
                                 crate::kernel::peer::TrySendResult::Full => {
@@ -398,9 +458,9 @@ pub(crate) fn eval_peer_try_send_prime(
                                 try_send_outcome_lost(loci_died_disconnected())
                             }
                         },
-                    }
+                    })
                 })
-                .map_err(Into::<EvalBreak>::into)?;
+                .map_err(Into::<EvalBreak>::into)??;
             Ok(outcome)
         }
         other => Err(RuntimeError::new(

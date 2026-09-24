@@ -1,0 +1,17 @@
+#wat.runtime/MalformedForm {
+  :message "malformed :wat::kernel::send form: a wire peer carries only pure data — the value sent (:g::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
+  :location #wat.core/Span {
+    :file "tests/comms/probe_ex003_stone_g_wire_send_refuses.wat"
+    :line 80
+    :col 22
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 80
+        :col 59
+      }
+    }
+  }
+  :causes []
+  :head ":wat::kernel::send"
+  :reason "a wire peer carries only pure data — the value sent (:g::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
+}

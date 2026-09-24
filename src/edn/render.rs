@@ -4471,6 +4471,77 @@ pub fn value_to_edn_with(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
 ) -> Result<OwnedValue, RuntimeError> {
+    value_to_edn_in(v, types, OpaqueMode::RenderNil).map_err(|e| match e {
+        WireEncodeError::Encode(e) => e,
+        WireEncodeError::NotPure { .. } => {
+            unreachable!("OpaqueMode::RenderNil renders every opaque as a tagged nil; it never refuses")
+        }
+    })
+}
+
+/// Excursus 003 stone G — the WIRE encoder: [`value_to_edn_with`] with one difference. Where the
+/// writer would render a value as a payload-less tag (`opaque_nil`, or a `RustOpaque` that is not a
+/// registered capability), this REFUSES with [`WireEncodeError::NotPure`] instead. The set is the
+/// writer's own — the same arms, asked in a different mode — never a parallel list: a registered
+/// capability (a Wire `Address`) still encodes through `crate::capability::encode_capability` and
+/// crosses. Only the wire uses this, because only the wire promises the value comes back whole; every
+/// other path (printing, `:wat::edn::write`) keeps `opaque_nil` (arc 294, *"correct and final"*).
+pub(crate) fn value_to_wire_edn_string(
+    v: &Value,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<String, WireEncodeError> {
+    Ok(wat_edn::write(&value_to_edn_in(v, types, OpaqueMode::Refuse)?))
+}
+
+/// How the writer meets a value it can only render as a payload-less tag (excursus 003 stone G).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OpaqueMode {
+    /// Render it as `#ns/Name nil` — every non-wire path (arc 294).
+    RenderNil,
+    /// Refuse it — the wire, where a nil-bodied tag would arrive as a decode failure on the far side.
+    Refuse,
+}
+
+/// The wire encoder's failure ([`value_to_wire_edn_string`]).
+#[derive(Debug)]
+pub(crate) enum WireEncodeError {
+    /// An ordinary encode failure — exactly the one [`value_to_edn_with`] returns.
+    Encode(RuntimeError),
+    /// The value holds something with no wire form; `type_name` is that thing's wat type path.
+    NotPure { type_name: String },
+}
+
+impl From<RuntimeError> for WireEncodeError {
+    fn from(e: RuntimeError) -> Self {
+        WireEncodeError::Encode(e)
+    }
+}
+
+fn not_pure(v: &Value) -> WireEncodeError {
+    let t = v.type_name();
+    WireEncodeError::NotPure {
+        type_name: if t.starts_with(':') { t.to_string() } else { format!(":{t}") },
+    }
+}
+
+/// The writer's `opaque_nil`, asked in `mode`.
+fn opaque_nil_or_refuse(
+    v: &Value,
+    mode: OpaqueMode,
+    ns: &str,
+    name: &str,
+) -> Result<OwnedValue, WireEncodeError> {
+    match mode {
+        OpaqueMode::RenderNil => Ok(opaque_nil(ns, name)),
+        OpaqueMode::Refuse => Err(not_pure(v)),
+    }
+}
+
+fn value_to_edn_in(
+    v: &Value,
+    types: Option<&crate::types::TypeEnv>,
+    mode: OpaqueMode,
+) -> Result<OwnedValue, WireEncodeError> {
     Ok(match v {
         // ── Primitive leaves ─────────────────────────────────────
         Value::Unit => OwnedValue::Nil,
@@ -4493,7 +4564,7 @@ pub fn value_to_edn_with(
                 Tag::ns("wat.core", "Option.Some"),
                 Box::new(OwnedValue::Map(vec![(
                     OwnedValue::Keyword(Keyword::new("value")),
-                    value_to_edn_with(inner, types)?,
+                    value_to_edn_in(inner, types, mode)?,
                 )])),
             ),
         },
@@ -4502,36 +4573,36 @@ pub fn value_to_edn_with(
                 Tag::ns("wat.core", "Result.Ok"),
                 Box::new(OwnedValue::Map(vec![(
                     OwnedValue::Keyword(Keyword::new("value")),
-                    value_to_edn_with(inner, types)?,
+                    value_to_edn_in(inner, types, mode)?,
                 )])),
             ),
             Err(inner) => OwnedValue::Tagged(
                 Tag::ns("wat.core", "Result.Err"),
                 Box::new(OwnedValue::Map(vec![(
                     OwnedValue::Keyword(Keyword::new("error")),
-                    value_to_edn_with(inner, types)?,
+                    value_to_edn_in(inner, types, mode)?,
                 )])),
             ),
         },
 
         // ── Compound containers ──────────────────────────────────
         Value::Vec(xs) => {
-            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?)
+            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_in(x, types, mode)).collect::<Result<Vec<_>, WireEncodeError>>()?)
         }
         // Arc 220 Stone 220.4 — List → EDN parens form (OwnedValue::List).
         // Preserves the List/Vector distinction on the wire so Clojure sees
         // a proper list `(1 2 3)` rather than a vector `[1 2 3]`.
         Value::wat__core__List(xs) => {
-            OwnedValue::List(xs.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?)
+            OwnedValue::List(xs.iter().map(|x| value_to_edn_in(x, types, mode)).collect::<Result<Vec<_>, WireEncodeError>>()?)
         }
         Value::Tuple(xs) => {
-            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?)
+            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_in(x, types, mode)).collect::<Result<Vec<_>, WireEncodeError>>()?)
         }
         // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
         Value::wat__std__HashMap(m) => OwnedValue::Map(
             m.iter()
-                .map(|(k, v)| Ok((value_to_edn_with(k, types)?, value_to_edn_with(v, types)?)))
-                .collect::<Result<Vec<_>, RuntimeError>>()?,
+                .map(|(k, v)| Ok((value_to_edn_in(k, types, mode)?, value_to_edn_in(v, types, mode)?)))
+                .collect::<Result<Vec<_>, WireEncodeError>>()?,
         ),
         // Arc-278-0a — PersistentMap writes as a TAGGED literal `#wat.core/PersistentMap {…}`
         // so round-trip IDENTITY is preserved: a std-HashMap `{}` reads back as wat__std__HashMap;
@@ -4540,8 +4611,8 @@ pub fn value_to_edn_with(
             Tag::ns("wat.core", "PersistentMap"),
             Box::new(OwnedValue::Map(
                 m.iter()
-                    .map(|(k, v)| Ok((value_to_edn_with(k, types)?, value_to_edn_with(v, types)?)))
-                    .collect::<Result<Vec<_>, RuntimeError>>()?,
+                    .map(|(k, v)| Ok((value_to_edn_in(k, types, mode)?, value_to_edn_in(v, types, mode)?)))
+                    .collect::<Result<Vec<_>, WireEncodeError>>()?,
             )),
         ),
         // Arc-278-0b — PersistentVector writes as a TAGGED literal `#wat.core/PersistentVector [...]`
@@ -4551,13 +4622,13 @@ pub fn value_to_edn_with(
             Tag::ns("wat.core", "PersistentVector"),
             Box::new(OwnedValue::Vector(
                 pv.iter()
-                    .map(|x| value_to_edn_with(x, types))
-                    .collect::<Result<Vec<_>, RuntimeError>>()?,
+                    .map(|x| value_to_edn_in(x, types, mode))
+                    .collect::<Result<Vec<_>, WireEncodeError>>()?,
             )),
         ),
         Value::wat__std__HashSet(s) => OwnedValue::Set(
             // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
-            s.iter().map(|x| value_to_edn_with(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?,
+            s.iter().map(|x| value_to_edn_in(x, types, mode)).collect::<Result<Vec<_>, WireEncodeError>>()?,
         ),
 
         // ── User-declared struct / record / holon-record ─────────
@@ -4573,10 +4644,10 @@ pub fn value_to_edn_with(
                 .map(|(name, fv)| {
                     Ok((
                         OwnedValue::Keyword(Keyword::new(name.clone())),
-                        value_to_edn_with(fv, types)?,
+                        value_to_edn_in(fv, types, mode)?,
                     ))
                 })
-                .collect::<Result<Vec<_>, RuntimeError>>()?;
+                .collect::<Result<Vec<_>, WireEncodeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         Value::Enum(ev) => {
@@ -4588,10 +4659,10 @@ pub fn value_to_edn_with(
                 .map(|(n, fv)| {
                     Ok((
                         OwnedValue::Keyword(Keyword::new(n.clone())),
-                        value_to_edn_with(fv, types)?,
+                        value_to_edn_in(fv, types, mode)?,
                     ))
                 })
-                .collect::<Result<Vec<_>, RuntimeError>>()?;
+                .collect::<Result<Vec<_>, WireEncodeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
 
@@ -4609,10 +4680,10 @@ pub fn value_to_edn_with(
                 .map(|(k, v)| {
                     Ok((
                         OwnedValue::Keyword(Keyword::new(k.clone())),
-                        value_to_edn_with(v, types)?,
+                        value_to_edn_in(v, types, mode)?,
                     ))
                 })
-                .collect::<Result<Vec<_>, RuntimeError>>()?;
+                .collect::<Result<Vec<_>, WireEncodeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         Value::ForeignVariant(fv) => {
@@ -4624,10 +4695,10 @@ pub fn value_to_edn_with(
                 .map(|(n, val)| {
                     Ok((
                         OwnedValue::Keyword(Keyword::new(n.clone())),
-                        value_to_edn_with(val, types)?,
+                        value_to_edn_in(val, types, mode)?,
                     ))
                 })
-                .collect::<Result<Vec<_>, RuntimeError>>()?;
+                .collect::<Result<Vec<_>, WireEncodeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
 
@@ -4672,9 +4743,9 @@ pub fn value_to_edn_with(
         // are a total bijection). Render it faithfully as its form (legible + recoverable);
         // opaque-nil was a lie. Round-trip-as-WatAST is type-directed (from-edn :T / the typed slot).
         Value::wat__WatAST(a) => crate::edn::bridge::watast_to_edn(a.as_ref()),
-        Value::wat__core__fn(_) => opaque_nil("wat.core", "fn"),
-        Value::wat__kernel__Sender(_) => opaque_nil("wat.kernel", "Sender"),
-        Value::wat__kernel__Receiver(_) => opaque_nil("wat.kernel", "Receiver"),
+        Value::wat__core__fn(_) => opaque_nil_or_refuse(v, mode, "wat.core", "fn")?,
+        Value::wat__kernel__Sender(_) => opaque_nil_or_refuse(v, mode, "wat.kernel", "Sender")?,
+        Value::wat__kernel__Receiver(_) => opaque_nil_or_refuse(v, mode, "wat.kernel", "Receiver")?,
         // Arc 294.i — the ONE exception to "everything decorates nil": HandlePool carries its
         // pool name as the body today. Preserve it; flattening to nil would silently drop data.
         Value::wat__kernel__HandlePool { name, .. } => OwnedValue::Tagged(
@@ -4683,9 +4754,9 @@ pub fn value_to_edn_with(
                 (**name).clone(),
             ))),
         ),
-        Value::wat__kernel__ChildHandle(_) => opaque_nil("wat.kernel", "ChildHandle"),
-        Value::io__IOReader(_) => opaque_nil("wat.io", "IOReader"),
-        Value::io__IOWriter(_) => opaque_nil("wat.io", "IOWriter"),
+        Value::wat__kernel__ChildHandle(_) => opaque_nil_or_refuse(v, mode, "wat.kernel", "ChildHandle")?,
+        Value::io__IOReader(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOReader")?,
+        Value::io__IOWriter(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOWriter")?,
         Value::RustOpaque(inner) => {
             // Arc 272 narrow-waist — GENERIC capability dispatch (the FROZEN waist; never changes
             // per-capability). If this opaque is a registered PORTABLE capability with a portable
@@ -4704,21 +4775,26 @@ pub fn value_to_edn_with(
                     return Ok(cap_tag);
                 }
             }
-            OwnedValue::Tagged(
-                tag_from_type_path(inner.type_path),
-                Box::new(OwnedValue::Nil),
-            )
+            // Excursus 003 stone G — this is the writer's `opaque_nil` too, spelled per type path:
+            // under `OpaqueMode::Refuse` (the wire) it refuses instead of rendering.
+            match mode {
+                OpaqueMode::RenderNil => OwnedValue::Tagged(
+                    tag_from_type_path(inner.type_path),
+                    Box::new(OwnedValue::Nil),
+                ),
+                OpaqueMode::Refuse => return Err(not_pure(v)),
+            }
         }
         // Arc 294.i — the VSA five: not derivable from the `Value` variant name (bare
         // `Hologram`, `Engram`, …), but the inner Rust type says it — all five are `holon::X`,
         // and the codebase already names them `wat::holon::X` (see `value.rs` type_name/gate
         // entries for OnlineSubspace/Reckoner/Engram/EngramLibrary/Hologram). Home measured
         // from that existing convention, not invented.
-        Value::OnlineSubspace(_) => opaque_nil("wat.holon", "OnlineSubspace"),
-        Value::Reckoner(_) => opaque_nil("wat.holon", "Reckoner"),
-        Value::Engram(_) => opaque_nil("wat.holon", "Engram"),
-        Value::EngramLibrary(_) => opaque_nil("wat.holon", "EngramLibrary"),
-        Value::Hologram(_) => opaque_nil("wat.holon", "Hologram"),
+        Value::OnlineSubspace(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "OnlineSubspace")?,
+        Value::Reckoner(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Reckoner")?,
+        Value::Engram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Engram")?,
+        Value::EngramLibrary(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "EngramLibrary")?,
+        Value::Hologram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Hologram")?,
         Value::Instant(t) => OwnedValue::Inst(*t),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
         // Arc 207 — typed Uuid → EDN `#uuid "..."` reader literal.
@@ -4758,10 +4834,10 @@ pub fn value_to_edn_with(
                 .map(|(name, fv)| {
                     Ok((
                         OwnedValue::Keyword(Keyword::new(name.clone())),
-                        value_to_edn_with(fv, types)?,
+                        value_to_edn_in(fv, types, mode)?,
                     ))
                 })
-                .collect::<Result<Vec<_>, RuntimeError>>()?;
+                .collect::<Result<Vec<_>, WireEncodeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         // Arc 118 — Stream: opaque (lazy; realizing for EDN would diverge on infinite seqs).
@@ -4776,25 +4852,25 @@ pub fn value_to_edn_with(
                     // only the namespace moves home (arc 294.i).
                     OwnedValue::Tagged(
                         Tag::ns("wat.stream", "Stream"),
-                        Box::new(value_to_edn_with(head, types)?),
+                        Box::new(value_to_edn_in(head, types, mode)?),
                     )
                 }
                 // Arc 294.i — lazy-seq is a Stream::Thunk|NativeThunk sub-state, not its own
                 // Value variant, so it shares Stream's home namespace.
-                Stream::Thunk(_) | Stream::NativeThunk(_) => opaque_nil("wat.stream", "lazy-seq"),
+                Stream::Thunk(_) | Stream::NativeThunk(_) => opaque_nil_or_refuse(v, mode, "wat.stream", "lazy-seq")?,
             }
         }
         // Stone 237.2 — wat__core__clauses: opaque (multi-arity dispatcher;
         // not directly serializable to EDN).
-        Value::wat__core__clauses(cs) => opaque_nil("wat.core", {
+        Value::wat__core__clauses(cs) => opaque_nil_or_refuse(v, mode, "wat.core", {
             let _ = cs;
             "clauses"
-        }),
+        })?,
         // Arc 232 Stone 232.1 — registry carriers: opaque (not value-serializable).
-        Value::wat__core__extend_def(ed) => opaque_nil("wat.core", {
+        Value::wat__core__extend_def(ed) => opaque_nil_or_refuse(v, mode, "wat.core", {
             let _ = ed;
             "extend-def"
-        }),
+        })?,
     })
 }
 
