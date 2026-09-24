@@ -1,5 +1,12 @@
 # DESIGN — STONE I: a value with no EDN representation renders as tagged nil — no exceptions
 
+> ⛔ **AMENDED 2026-09-24 — `Value::Vector` is OUT of this stone.** Builder: *"why is Value::Vector
+> not just [...] — [1 2 3] is a vec of i64 ?"* Measured: `Value::Vector` is `Arc<holon::Vector>`, the
+> VSA hypervector, backed by `&[i8]` — pure numeric DATA, not a resource. It HAS an honest EDN repr
+> (its components), so rendering it `nil` would lie in the other direction. It goes to its own stone:
+> `#wat.holon/Vector [i8 …]` plus the reader arm it has never had. (wat's `[1 2 3]` is `Value::Vec` and
+> already renders as `[1 2 3]`.) Everything below about Vector is superseded; HandlePool and Stream stand.
+
 **Drawn 2026-09-24.** From stone H's measurement (c): four values the writer claims can cross, and
 none survives the trip.
 
