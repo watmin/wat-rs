@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 215; // 255.20: 220 → 215 — infer_list lost the `:wat::kernel::`/`:wat::std::` prefix arm (5 keyword compares).
+const LEDGER_TOTAL: usize = 211; // 255.25: 215 → 211 — the transport-marker helpers compare through the denotation door (is_shared_marker, is_wire_marker, and is_transport_slot routed through them: 4 Ex compares). 255.20: 220 → 215 — infer_list lost the `:wat::kernel::`/`:wat::std::` prefix arm (5 keyword compares).
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -799,11 +799,8 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "is_must_use_type", 2, "Ex2"),
     ("src/check.rs", "is_primitive_type_keyword_in_value_position", 1, "Ax1"),
     ("src/check.rs", "is_pure_type", 3, "Ex3"),
-    ("src/check.rs", "is_shared_marker", 1, "Ex1"),
-    ("src/check.rs", "is_transport_slot", 2, "Ex2"),
     ("src/check.rs", "is_type_equatable", 2, "Ex2"),
     ("src/check.rs", "is_type_orderable", 1, "Ex1"),
-    ("src/check.rs", "is_wire_marker", 1, "Ex1"),
     ("src/check.rs", "map_kv_of", 1, "Ex1"),
     ("src/check.rs", "preregister_defclause_in_env", 1, "Ax1"),
     ("src/check.rs", "project_peer_io", 4, "Ex4"),

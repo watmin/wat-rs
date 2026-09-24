@@ -1,0 +1,9 @@
+;; Stone 255.25 (C-b4) — CONTROL for _markers_are_pure.wat: a unit variant of an `Impure`
+;; family, in the same field position, is refused. So a variant's purity is read from its
+;; enum's declaration — the `Transport` markers are pure because `Transport` says `Pure`, not
+;; because an unknown path falls through to "a type parameter, portable by convention".
+(:wat::core::defenum :probe::Lease :wat::enum::Impure
+  :Held []
+  :Free [])
+(:wat::core::defrecord :probe::HoldsLease
+  [lease <- :probe::Lease.Held])

@@ -28,8 +28,8 @@ const DIR: &str = "tests/types/probe_arc255_19_locus_methods_on_the_waist";
 
 // rune:lint(no-inlined-wat) — the `(:wat::spawn::Launched :- [...])` literals below are golden
 // rendered TYPE NAMES the checker prints, compared by equality; not wat source that is evaluated.
-const SHARED: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Shared])";
-const WIRE: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Wire])";
+const SHARED: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])";
+const WIRE: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Wire])";
 
 fn check_errors(suffix: &str) -> Vec<wat::check::error::CheckError> {
     let path = format!("{DIR}_{suffix}.wat.bad");
@@ -65,8 +65,8 @@ fn a_generic_runner_count_is_a_declared_i64() {
 }
 
 // rune:lint(no-inlined-wat) — golden rendered TYPE NAMES the checker prints, compared by equality.
-const KV_SHARED: &str = "(:probe::kv::Handle :- [:wat::kernel::Shared])";
-const KV_WIRE: &str = "(:probe::kv::Handle :- [:wat::kernel::Wire])";
+const KV_SHARED: &str = "(:probe::kv::Handle :- [:wat::kernel::Transport.Shared])";
+const KV_WIRE: &str = "(:probe::kv::Handle :- [:wat::kernel::Transport.Wire])";
 
 #[test]
 fn an_abstract_start_of_a_process_locus_cannot_be_claimed_shared() {

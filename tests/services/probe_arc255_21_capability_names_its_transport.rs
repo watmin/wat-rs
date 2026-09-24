@@ -16,8 +16,8 @@ use wat::freeze::{startup_from_file, StartupError};
 const ACCEPTED: &str = "tests/services/probe_arc255_21_coord_names_its_transport.wat";
 const REFUSED: &str = "tests/services/probe_arc255_21_coord_claims_either_transport.wat.bad";
 
-const SHARED: &str = ":wat::kernel::Shared";
-const WIRE: &str = ":wat::kernel::Wire";
+const SHARED: &str = ":wat::kernel::Transport.Shared";
+const WIRE: &str = ":wat::kernel::Transport.Wire";
 
 /// (function, the transport it claimed, the transport its handle actually has)
 const REFUSALS: &[(&str, &str, &str)] = &[

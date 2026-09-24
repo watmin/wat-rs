@@ -51,5 +51,5 @@ fn bodiless_edge_is_per_service_swap_is_compile_error() {
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
             if expected == "(:probe::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply])"
-            && got == "(:probe::kv::Handle :- [:wat::kernel::Wire])");
+            && got == "(:probe::kv::Handle :- [:wat::kernel::Transport.Wire])");
 }

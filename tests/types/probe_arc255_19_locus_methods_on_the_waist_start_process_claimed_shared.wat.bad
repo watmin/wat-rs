@@ -15,5 +15,5 @@
 (:wat::service::defservice :probe::kv
   :satisfies :probe::Kv :durable [] :ephemeral []
   :impls [(get [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Kv::GetResponse.Ok {:v "v"})}))])
-(:wat::core::defn :probe::go [l <- :wat::spawn::ProcessOpts] -> (:probe::kv::Handle :- [:wat::kernel::Shared])
+(:wat::core::defn :probe::go [l <- :wat::spawn::ProcessOpts] -> (:probe::kv::Handle :- [:wat::kernel::Transport.Shared])
   (:probe::kv/start :locus l :record (:probe::kv::Record)))

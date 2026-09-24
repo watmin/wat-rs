@@ -235,7 +235,7 @@
          [:wat::bracket::PoolMsg.Setup {:deps _deps}
            (:wat::kernel::assertion-failed! :message "bracket thread runner: unexpected PoolMsg::Setup (plain thread pool — no kwargs tail)")])))))
 
-(:wat::core::extend-type :wat::spawn::ThreadOpts (:wat::spawn::Locus :- [:wat::kernel::Shared])
+(:wat::core::extend-type :wat::spawn::ThreadOpts (:wat::spawn::Locus :- [:wat::kernel::Transport.Shared])
   (spawn-runner [self work-fn]
     (:wat::kernel::spawn-program self
       (:wat::core::fn [sp <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])] -> :wat::core::nil
@@ -315,7 +315,7 @@
 ;; must NOT reflect the work-fn VALUE (metadata-of/lookup-define/field-names-of on an
 ;; anonymous fn raises TypeMismatch and crashes the parent, per the design doc's STOP-4) —
 ;; the keyword-vs-fn distinction is made by defclause's own type dispatch, for free.
-(:wat::core::extend-type :wat::spawn::ProcessOpts (:wat::spawn::Locus :- [:wat::kernel::Wire])
+(:wat::core::extend-type :wat::spawn::ProcessOpts (:wat::spawn::Locus :- [:wat::kernel::Transport.Wire])
   (spawn-runner [self work-fn]
     (:wat::kernel::spawn-program self (:wat::bracket::process-work-forms work-fn))))
 

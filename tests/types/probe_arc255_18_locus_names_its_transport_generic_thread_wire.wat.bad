@@ -8,5 +8,5 @@
     (:wat::core::forms)
     (:wat::keyword::from-string "p::init")
     (:wat::keyword::from-string "p::mk-lu")))
-(:wat::core::defn :probe::via-thread [] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Wire])
+(:wat::core::defn :probe::via-thread [] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Wire])
   (:probe::launch (:wat::spawn::thread)))

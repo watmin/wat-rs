@@ -83,5 +83,5 @@ fn mixed_via_macro_swap_is_compile_error() {
             // Stone 255.21 (C-b1b): TypedCapability names its transport; the checker's param
             // carries its own declared `T<i>`, still unbound when the swap is refused (`_`).
             if expected == "(:wat::capability::TypedCapability :- [:probe::S1::Op :probe::S1::Reply _])"
-            && got == "(:probe::s2::Handle :- [:wat::kernel::Wire])");
+            && got == "(:probe::s2::Handle :- [:wat::kernel::Transport.Wire])");
 }

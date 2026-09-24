@@ -1,0 +1,18 @@
+;; Replay fixture — arc 255 Stone 255.25 (C-b4), "the markers are a Transport".
+;; The declaration rewrite (two empty defstructs -> one Pure defenum), the two keyword-leaf
+;; renames, and the two string-leaf renames — plus negative controls that must stay byte-identical.
+(:wat::core::defstruct :wat::kernel::Shared [])
+(:wat::core::defstruct :wat::kernel::Wire [])
+(:probe::f (:wat::kernel::Address :- [S R :wat::kernel::Shared]))
+(:probe::f (:wat::kernel::Address :- [S R :wat::kernel::Wire]))
+(:wat::core::keyword-node ":wat::kernel::Shared")
+(:wat::core::keyword-node ":wat::kernel::Wire")
+;; CONTROL 1 — already migrated: must NOT move (idempotence).
+(:probe::f (:wat::kernel::Address :- [S R :wat::kernel::Transport.Wire]))
+;; CONTROL 2 — a sibling name that only STARTS with an old one: must NOT move.
+(:probe::f :wat::kernel::SharedPeer)
+;; CONTROL 3 — a string that only CONTAINS an old name: must NOT move.
+(:wat::core::keyword-node ":wat::kernel::Wire-ish")
+;; CONTROL 4 — another empty defstruct: must NOT move.
+(:wat::core::defstruct :wat::kernel::Other [])
+;; CONTROL 5 — prose naming :wat::kernel::Shared is not rewritten (a comment is not a node).

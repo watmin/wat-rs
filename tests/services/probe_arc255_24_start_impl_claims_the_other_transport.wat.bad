@@ -32,10 +32,10 @@
 
 ;; a THREAD locus claimed Wire → refused (it is Shared)
 (:wat::core::defn :probe::thread-claimed-wire []
-  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Wire])
+  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Transport.Wire])
   (:probe::pair-svc/start$impl (:wat::spawn::thread) (:probe::seed)))
 
 ;; a PROCESS locus claimed Shared → refused (it is Wire)
 (:wat::core::defn :probe::process-claimed-shared []
-  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Shared])
+  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Transport.Shared])
   (:probe::pair-svc/start$impl (:wat::spawn::process) (:probe::seed)))

@@ -10524,20 +10524,30 @@ fn bound_type(s: TypeExpr, r: TypeExpr, t: TypeExpr) -> TypeExpr {
     TypeExpr::Parametric { head: "wat::spawn::Bound".into(), args: vec![s, r, t] }
 }
 
+/// 255.25 — the transport markers are the variants of ONE closed `Pure` family,
+/// `(:wat::core::defenum :wat::kernel::Transport :wat::enum::Pure :Shared [] :Wire [])`
+/// (`wat/spawn.wat`). These four helpers are the ONLY place the checker names them; every
+/// consumer goes through them.
+const SHARED_MARKER: &str = ":wat::kernel::Transport.Shared";
+const WIRE_MARKER: &str = ":wat::kernel::Transport.Wire";
+
 fn shared_marker() -> TypeExpr {
-    TypeExpr::Path(":wat::kernel::Shared".into())
+    TypeExpr::Path(SHARED_MARKER.into())
 }
 
 fn wire_marker() -> TypeExpr {
-    TypeExpr::Path(":wat::kernel::Wire".into())
+    TypeExpr::Path(WIRE_MARKER.into())
 }
 
+/// Compared by DENOTATION, never raw string: a faithful spelling of the variant
+/// (`wat.kernel/Transport.Shared`) is the same marker (CLAUDE.md's recurring class — a
+/// string compare with one side normalised and the other not).
 fn is_shared_marker(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Path(p) if p == ":wat::kernel::Shared")
+    matches!(ty, TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == SHARED_MARKER)
 }
 
 fn is_wire_marker(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Path(p) if p == ":wat::kernel::Wire")
+    matches!(ty, TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == WIRE_MARKER)
 }
 
 pub(crate) fn is_type_param_letter(ty: &TypeExpr) -> bool {
@@ -10588,7 +10598,7 @@ fn is_transport_slot(ty: &TypeExpr) -> bool {
     match ty {
         TypeExpr::Var(_) => true,
         TypeExpr::Path(p) => {
-            if p == ":wat::kernel::Shared" || p == ":wat::kernel::Wire" {
+            if is_shared_marker(ty) || is_wire_marker(ty) {
                 return true;
             }
             let bare = p.trim_start_matches(':');

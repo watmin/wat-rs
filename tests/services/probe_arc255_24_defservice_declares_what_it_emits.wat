@@ -43,11 +43,11 @@
 
 ;; ── the start$impl rows (accepted) ──────────────────────────────────────────────────────────
 (:wat::core::defn :probe::thread-is-shared []
-  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Shared])
+  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Transport.Shared])
   (:probe::pair-svc/start$impl (:wat::spawn::thread) (:probe::seed)))
 
 (:wat::core::defn :probe::process-is-wire []
-  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Wire])
+  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Transport.Wire])
   (:probe::pair-svc/start$impl (:wat::spawn::process) (:probe::seed)))
 
 (:wat::core::defn :probe::abstract-locus-passes-its-transport :- [T]

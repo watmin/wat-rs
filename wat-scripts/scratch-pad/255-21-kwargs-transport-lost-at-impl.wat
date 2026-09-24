@@ -31,14 +31,14 @@
   item)
 
 (:wat::core::defn :probe::kwargs-thread-handle-claimed-wire []
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Wire])
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire])
   (:wat::core::let
     [h    (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))
      pair (:probe::work::kwargs-check :echo h)]
     (:wat::capability::TypedCapability/coord (:probe::work::GrantHandles/echo (:wat::core::second pair)))))
 
 (:wat::core::defn :probe::kwargs-thread-handle-claimed-shared []
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Shared])
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Shared])
   (:wat::core::let
     [h    (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))
      pair (:probe::work::kwargs-check :echo h)]

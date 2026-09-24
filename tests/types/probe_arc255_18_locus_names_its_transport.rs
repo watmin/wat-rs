@@ -28,8 +28,8 @@ const DIR: &str = "tests/types/probe_arc255_18_locus_names_its_transport";
 
 // rune:lint(no-inlined-wat) — the `(:wat::spawn::Launched :- [...])` literals below are golden
 // rendered TYPE NAMES the checker prints, compared by equality; not wat source that is evaluated.
-const SHARED: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Shared])";
-const WIRE: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Wire])";
+const SHARED: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])";
+const WIRE: &str = "(:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Wire])";
 
 fn check_errors(suffix: &str) -> Vec<wat::check::error::CheckError> {
     let path = format!("{DIR}_{suffix}.wat.bad");

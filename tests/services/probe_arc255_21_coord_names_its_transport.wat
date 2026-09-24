@@ -19,25 +19,25 @@
               :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 
 (:wat::core::defn :probe::thread-coord-is-shared []
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Shared])
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Shared])
   (:wat::core::let
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))]
     (:wat::capability::Dialable/coord h)))
 
 (:wat::core::defn :probe::process-coord-is-wire []
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Wire])
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire])
   (:wat::core::let
     [h (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))]
     (:wat::capability::Dialable/coord h)))
 
 (:wat::core::defn :probe::thread-typedcap-coord-is-shared []
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Shared])
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Shared])
   (:wat::core::let
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))]
     (:wat::capability::TypedCapability/coord h)))
 
 (:wat::core::defn :probe::process-typedcap-coord-is-wire []
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Wire])
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire])
   (:wat::core::let
     [h (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))]
     (:wat::capability::TypedCapability/coord h)))

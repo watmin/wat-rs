@@ -281,12 +281,17 @@
 ;; `ThreadSelfPeer'`; this edge is what lets that call be STATIC.
 (:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)
 
-;; ── Shared / Wire — phantom transport markers (293.W.2f) ─────────────────────
-;; Type arguments only. Not values. The third argument of (Address :- [S R T]):
+;; ── Transport — the phantom transport markers (293.W.2f; 255.25 a family) ─────
+;; Phantom type-level members of a closed family; adding a transport is adding a variant
+;; (a language update). Type arguments only, never values. The third argument of
+;; (Address :- [S R T]), spelled `:wat::kernel::Transport.Shared` / `.Wire`:
 ;;   Shared — in-locus (crossbeam). A process may never dial this.
 ;;   Wire   — portable (SocketAddressWire). A process may hold and dial this.
-(:wat::core::defstruct :wat::kernel::Shared [])
-(:wat::core::defstruct :wat::kernel::Wire [])
+;; Declared `Pure`: a marker alone crosses the wire. `(Address :- [S R Transport.Shared])` is
+;; still IMPURE — an in-process resource — by the `Address` arm of `is_pure_type` (src/check.rs).
+(:wat::core::defenum :wat::kernel::Transport :wat::enum::Pure
+  :Shared []
+  :Wire [])
 
 ;; ── Bound :- [S R T] — the listening state minted by (listener' (thread) :S :R) ─
 ;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
@@ -493,7 +498,7 @@
 ;; via apply so this generic impl never names the per-service serve fn.
 ;; Returns Launched{handle=Thread', address=Bound/address}.
 ;; service-forms: thread arm ignores it (serve is already in the parent universe).
-(:wat::core::extend-type :wat::spawn::ThreadOpts (:wat::spawn::Locus :- [:wat::kernel::Shared])
+(:wat::core::extend-type :wat::spawn::ThreadOpts (:wat::spawn::Locus :- [:wat::kernel::Transport.Shared])
   (launch [self ship init serve service-forms lu-addr-kw lu-mk-kw]
     (:wat::core::let
       ;; arc 278 startup-crash parity: the thread tier gains a Status::Started handshake it
@@ -571,7 +576,7 @@
 ;;   send' state0 to the child over the lineage (arc 272 6b-ii-α)
 ;; Returns Launched{handle=Process', address=child-minted Address'}.
 ;; The (process) literal lives ONLY here — the per-locus arm owns its transport.
-(:wat::core::extend-type :wat::spawn::ProcessOpts (:wat::spawn::Locus :- [:wat::kernel::Wire])
+(:wat::core::extend-type :wat::spawn::ProcessOpts (:wat::spawn::Locus :- [:wat::kernel::Transport.Wire])
   ;; arc 278 startup-crash parity: lu-mk-kw is accepted (surface arity) but UNUSED here — the
   ;; process child-main-form owns the Status::Started ctor. The handshake is REORDERED so :init
   ;; runs before Status::Started is sent: send' the ship (Admin::Init) DOWN first, THEN recv'

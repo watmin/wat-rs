@@ -108,8 +108,8 @@ fn arc255_24_start_impl_claim_of_the_other_transport_is_refused() {
         format!("(:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 {t}])")
     };
     for (func, claimed, actual) in [
-        (":probe::thread-claimed-wire", ":wat::kernel::Wire", ":wat::kernel::Shared"),
-        (":probe::process-claimed-shared", ":wat::kernel::Shared", ":wat::kernel::Wire"),
+        (":probe::thread-claimed-wire", ":wat::kernel::Transport.Wire", ":wat::kernel::Transport.Shared"),
+        (":probe::process-claimed-shared", ":wat::kernel::Transport.Shared", ":wat::kernel::Transport.Wire"),
     ] {
         let (want_expected, want_got) = (handle(claimed), handle(actual));
         wat::assert_check_error_present!(errs,

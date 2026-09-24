@@ -45,5 +45,5 @@ fn w2a_kwargs_check_mint_swap_is_compile_error() {
             // Stone 255.21 (C-b1b): TypedCapability names its transport; the checker's param
             // carries its own declared `T<i>`, still unbound when the swap is refused (`_`).
             if expected == "(:wat::capability::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply _])"
-            && got == "(:probe::kv::Handle :- [:wat::kernel::Wire])");
+            && got == "(:probe::kv::Handle :- [:wat::kernel::Transport.Wire])");
 }

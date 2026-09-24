@@ -1,0 +1,16 @@
+# arc 255 Stone 255.25 (C-b4) — provenance is the codemod's own HEADER SPEC (its rule rows), not
+# the tool under test. No `history` row: the migration lands in the same commit as its fixture,
+# so no prior commit carries the rewritten text to cite.
+spec (:wat::core::defenum :wat::kernel::Transport :wat::enum::Pure :: =>  (:wat::core::defenum :wat::kernel::Transport :wat::enum::Pure
+spec :Shared [] :: :Shared []
+spec :Wire []) :: :Wire [])
+spec-before (:wat::core::defstruct :wat::kernel::Shared []) :: (:wat::core::defstruct :wat::kernel::Shared [])  =>  (deleted, with its line)
+spec-before (:wat::core::defstruct :wat::kernel::Wire []) :: (:wat::core::defstruct :wat::kernel::Wire [])    =>  (:wat::core::defenum :wat::kernel::Transport :wat::enum::Pure
+spec (:probe::f (:wat::kernel::Address :- [S R :wat::kernel::Transport.Shared])) :: :wat::kernel::Shared    =>  :wat::kernel::Transport.Shared     (keyword leaf)
+spec-before (:probe::f (:wat::kernel::Address :- [S R :wat::kernel::Shared])) :: :wat::kernel::Shared    =>  :wat::kernel::Transport.Shared     (keyword leaf)
+spec (:probe::f (:wat::kernel::Address :- [S R :wat::kernel::Transport.Wire])) :: :wat::kernel::Wire      =>  :wat::kernel::Transport.Wire       (keyword leaf)
+spec-before (:probe::f (:wat::kernel::Address :- [S R :wat::kernel::Wire])) :: :wat::kernel::Wire      =>  :wat::kernel::Transport.Wire       (keyword leaf)
+spec (:wat::core::keyword-node ":wat::kernel::Transport.Shared") :: ":wat::kernel::Shared"  =>  ":wat::kernel::Transport.Shared"   (string leaf — a keyword-node name)
+spec-before (:wat::core::keyword-node ":wat::kernel::Shared") :: ":wat::kernel::Shared"  =>  ":wat::kernel::Transport.Shared"   (string leaf — a keyword-node name)
+spec (:wat::core::keyword-node ":wat::kernel::Transport.Wire") :: ":wat::kernel::Wire"  =>  ":wat::kernel::Transport.Wire"   (string leaf — a keyword-node name)
+spec-before (:wat::core::keyword-node ":wat::kernel::Wire") :: ":wat::kernel::Wire"  =>  ":wat::kernel::Transport.Wire"   (string leaf — a keyword-node name)

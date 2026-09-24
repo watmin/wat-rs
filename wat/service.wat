@@ -1023,9 +1023,9 @@
      handle-bare-name handle-name-ann
      ;; identity 2c: handle-shared-name / handle-wire-name are ANNOTATION-only (ann-form
      ;; ascriptions + start/resume$impl-thread/-process return types) — mint the reference FORM.
-     handle-shared-tp-syms (:wat::core::conj fqdn-tp-syms (:wat::core::keyword-node ":wat::kernel::Shared"))
+     handle-shared-tp-syms (:wat::core::conj fqdn-tp-syms (:wat::core::keyword-node ":wat::kernel::Transport.Shared"))
      handle-shared-name `(~handle-base-kw :- [~@handle-shared-tp-syms])
-     handle-wire-tp-syms (:wat::core::conj fqdn-tp-syms (:wat::core::keyword-node ":wat::kernel::Wire"))
+     handle-wire-tp-syms (:wat::core::conj fqdn-tp-syms (:wat::core::keyword-node ":wat::kernel::Transport.Wire"))
      handle-wire-name `(~handle-base-kw :- [~@handle-wire-tp-syms])
      ;; handle-new-kw: :<fqdn>::Handle' — the PRIME positional ctor (arc 294 item 9a: the bare
      ;; `:<fqdn>::Handle` is now the kwargs UX macro; generated machinery constructs via the prime,
@@ -1121,7 +1121,16 @@
      ;; resolver-side SIBLING of the `macros/expand.rs` guard) that declines a `(Head :- [args])`
      ;; form as a call head — the exact mechanism the regression needed. Converts clean.
      status-ty-ann     `(~status-base-kw :- [~@handle-tp-syms])
-     status-ty-runtime status-ty-ann
+     ;; arc 255.25 (measured 255.17a) — the RUNTIME spelling is the process-only child
+     ;; `:user::main`'s self-peer (its one use, in `child-main-form` below). That child IS a
+     ;; forked process, so its transport slot is `:wat::kernel::Transport.Wire` — spelled, not
+     ;; the free `transport-param` letter (which nothing in the child declares).
+     ;; `handle-wire-tp-syms` is exactly `fqdn-tp-syms` + `Transport.Wire`. The self-peer
+     ;; purity wall accepts it because `Transport` is a declared `Pure` family (while the
+     ;; markers were `defstruct`s it refused them: 57 process-child tests red in 255.17a).
+     ;; `status-ty-ann` (the thread-tier/annotation spelling) keeps the transport letter:
+     ;; there the enclosing defn declares it.
+     status-ty-runtime `(~status-base-kw :- [~@handle-wire-tp-syms])
      ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
      ;; serve binds `self` to this (distinct from the client peer-ty (Peer :- [Reply Op])).
      ;; Arc 293.W.2d: serve's self is (ThreadSelfPeer :- [Status Admin]) for thread-tier.
@@ -2443,12 +2452,18 @@
                           ;; `listener'` types the `Bound`, whose `Address` flows into
                           ;; `Status::Started` — a `(Status :- [K V])` variant, so its addr slot is
                           ;; `(Address :- [(Op :- [K V]) (Reply :- [K V])])` and a BARE `(Address :- [Op Reply])` does
-                          ;; not unify with it. In this generated child `:user::main` the params
-                          ;; are FREE type vars (exactly as they already are in the sibling
-                          ;; `(self-peer ~status-ty ~admin-ty)` below), which is what the child
-                          ;; instance is: one erased instantiation. At RUNTIME the decode target
-                          ;; a type var names is opaque (`edn_to_typed_value`'s var arm) — the
-                          ;; concrete fields around it are still decoded and enforced exactly.
+                          ;; not unify with it. In this generated child `:user::main`:
+                          ;;   - the TRANSPORT slot is `:wat::kernel::Transport.Wire`, spelled
+                          ;;     (arc 255.25, `status-ty-runtime`): this child runs only in a
+                          ;;     forked process, so its transport is Wire — a fact, not a type
+                          ;;     var, and a declared `Pure` variant the self-peer wall admits.
+                          ;;   - the service's OWN type parameters (`K V` for `(Cache :- [K V])`)
+                          ;;     are still bare letters that nothing in this child declares — in
+                          ;;     the proto/Status/Admin/selectable types alike. They are NOT
+                          ;;     closed here; they pass today by their spelling. At RUNTIME the
+                          ;;     decode target such a letter names is opaque
+                          ;;     (`edn_to_typed_value`'s var arm) — the concrete fields around it
+                          ;;     are still decoded and enforced exactly.
                           [~cm-b-sym    (:wat::kernel::listener :user::spawn::service-locus
                                             ~proto-op-ty-ann ~proto-reply-ty-ann ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty-runtime ~admin-ty-runtime)
