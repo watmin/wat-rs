@@ -8,12 +8,15 @@
 (defrecord :t::Box [x <- (Lru :- [i64 i64])])      check=1  ImpureFieldInPureAggregate   ✓ refused
 (defrecord :t::Box :- [T] [x <- T]) + (Box :- [Lru]) {:x h}   check=0 run=0              ⛔ accepted
 the same, T INFERRED — (:t::Box {:x h})                       check=0 run=0              ⛔ accepted
-(:wat::edn::write b)  →  #t/Box {:x {:x #rust.cache/Lru nil}}                            ⛔ SILENT DATA LOSS
+(:wat::edn::write b)  →  #t/Box {:x {:x #rust.cache/Lru nil}}      (the writer is CORRECT — see below)
 ```
 
-⛔ **The last row is why this matters.** The purity rule exists so a record can cross a boundary
-and come back whole. This one crosses and comes back with its handle turned into `nil`, and nothing
-anywhere reports it. Stone E's executor also measured a **generic `:Pure` enum** getting past the
+⛔ **The last row is why this matters — and the writer is NOT the defect.** An opaque has no EDN
+representation by design: `src/edn/render.rs` renders a live handle as `opaque_nil`, *"only
+genuinely-opaque LIVE values nil"* (builder, 2026-09-24: *"opaques are meant to produce nil - they
+have no edn repr"*). The purity rule is what promises a `Pure` record contains NONE, so that
+writing it is whole. The defect is that the promise is false here; `nil` is the writer correctly
+declining to serialize something the record should never have held. Stone E's executor also measured a **generic `:Pure` enum** getting past the
 check the same way — reproduce that case yourself first (the fixture shape is in stone E's probe).
 
 ## The root
@@ -49,8 +52,8 @@ see it.
 
 ## Out of scope — REJECTED, but recorded
 
-- **`:wat::edn::write` of a bare opaque handle emits `#rust.cache/Lru nil`.** After this stone a
-  pure record cannot carry one, but writing a handle directly is its own lossy path. Separate stone.
+- **The EDN writer's `opaque_nil`.** Deliberate, not a defect (an opaque has no EDN repr). ⛔ Do
+  not touch it. An earlier draft of this DESIGN called it a separate lossy path; that was wrong.
 - Type-parameter BOUNDS as a language feature (`T : Pure`). A real design, and the builder's call —
   this stone enforces the invariant without adding syntax.
 - Where raised errors report their location (the F-006 family) — separate stone.

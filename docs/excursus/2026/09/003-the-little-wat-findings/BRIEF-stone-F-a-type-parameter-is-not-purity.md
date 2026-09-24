@@ -36,8 +36,7 @@ orchestrator's own enum repro was malformed syntax, so it is not evidence; stone
 
 A probe: annotated, inferred, generic-fn-built, and enum — each with a handle (refused, at the layer
 you say) and each with a pure payload (accepted — the positive controls matter here, because this
-change can over-refuse). Plus the EDN row: a pure record can no longer be written with a handle
-silently turned into `nil`. **Mutation per layer:** disable each layer alone and say which rows red.
+change can over-refuse). The EDN writer is NOT a target: `opaque_nil` is by design (an opaque has no EDN repr) — do not change it. **Mutation per layer:** disable each layer alone and say which rows red.
 
 ## Mechanics — ⛔ read
 
