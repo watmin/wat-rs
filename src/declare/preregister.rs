@@ -391,7 +391,18 @@ pub(crate) fn preregister_fn_defs_in_do(
                 existing,
                 &child.span().clone(),
                 || -> Result<(), RuntimeError> {
-                    sym.register_function(path.clone(), func);
+                    // F-196 — a USER def is DECLARED (signature only; its one body is the
+                    // form in the residue). Stdlib do/let defs are never re-evaluated
+                    // from a residue, so they keep their body here, unchanged.
+                    match privilege {
+                        crate::resolve::Privilege::User => sym.declare_function(
+                            path.clone(),
+                            crate::declare::register::declaration_of(func, child.span()),
+                        ),
+                        crate::resolve::Privilege::Stdlib => {
+                            sym.register_function(path.clone(), func)
+                        }
+                    }
                     Ok(())
                 },
             )?;
@@ -468,7 +479,18 @@ pub(crate) fn preregister_fn_defs_in_let(
                 existing,
                 &child.span().clone(),
                 || -> Result<(), RuntimeError> {
-                    sym.register_function(path.clone(), func);
+                    // F-196 — a USER def is DECLARED (signature only; its one body is the
+                    // form in the residue). Stdlib do/let defs are never re-evaluated
+                    // from a residue, so they keep their body here, unchanged.
+                    match privilege {
+                        crate::resolve::Privilege::User => sym.declare_function(
+                            path.clone(),
+                            crate::declare::register::declaration_of(func, child.span()),
+                        ),
+                        crate::resolve::Privilege::Stdlib => {
+                            sym.register_function(path.clone(), func)
+                        }
+                    }
                     Ok(())
                 },
             )?;

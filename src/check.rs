@@ -558,6 +558,89 @@ fn is_fn_def_form(form: &WatAST) -> bool {
     }
 }
 
+/// the-little-wat excursus 002 stone 3 (F-196) — the body of the function registered as `path`.
+///
+/// For a user `def` declared at freeze step 6 ([`SymbolTable::body_in_residue`]) that is the
+/// body of its `(:wat::core::def path (:wat::core::fn …))` form in the residue `forms` — the
+/// normalized form, and the very form freeze step 9 (`register_runtime_defs`) evaluates. For
+/// every other function (stdlib, synthesized accessors, extend-type impls) it is the body the
+/// `Function` carries. `None` for a native builtin.
+fn function_body<'a>(
+    path: &str,
+    func: &'a Function,
+    sym: &SymbolTable,
+    residue_bodies: &'a HashMap<String, std::sync::Arc<WatAST>>,
+) -> Option<&'a WatAST> {
+    if sym.body_in_residue(path) {
+        let body = residue_bodies.get(path).map(|b| b.as_ref());
+        // Step 6 declared `path` from a form in this same residue; the SAME parser reads it
+        // back below. A miss means `forms` is not the residue step 6 declared from.
+        assert!(body.is_some(), "F-196: {path} was declared at step 6 but no def form in the checked forms carries its body");
+        return body;
+    }
+    match &func.body {
+        FunctionBody::Wat(b) => Some(b.as_ref()),
+        FunctionBody::Native => None,
+    }
+}
+
+/// F-196 — every user fn-shape `def` body in `forms`, keyed by name, found by EXACTLY the
+/// recognition freeze step 6 uses to declare them (`register_defines`: a top-level fn-shape or
+/// user-variadic `def`; `preregister_fn_defs_in_do` / `_in_let`: a fn-shape `def` in a top-level
+/// `do` / `let` body, recursing into a nested `do` / `let` of the same head). First occurrence
+/// wins, as it does at step 6 (a later same-name `def` is `infer_def`'s redef error, not a
+/// second declaration). The bodies are parsed from the forms the caller hands in — for the
+/// startup check, the normalized residue.
+fn residue_fn_bodies(forms: &[WatAST]) -> HashMap<String, std::sync::Arc<WatAST>> {
+    use crate::declare::parse::{head_fqdn, try_parse_fn_shape_def, try_parse_user_variadic_def_fn_form};
+    fn fn_shape(form: &WatAST) -> Option<(String, std::sync::Arc<WatAST>)> {
+        let (path, func, _) = try_parse_fn_shape_def(form).ok()??;
+        match &func.body {
+            FunctionBody::Wat(b) => Some((path, b.clone())),
+            FunctionBody::Native => None,
+        }
+    }
+    fn in_do(items: &[WatAST], out: &mut HashMap<String, std::sync::Arc<WatAST>>) {
+        for child in &items[1..] {
+            if let Some((path, body)) = fn_shape(child) {
+                out.entry(path).or_insert(body);
+            } else if let WatAST::List(nested, _) = child {
+                if nested.first().and_then(head_fqdn).as_deref() == Some(":wat::core::do") {
+                    in_do(nested, out);
+                }
+            }
+        }
+    }
+    fn in_let(items: &[WatAST], out: &mut HashMap<String, std::sync::Arc<WatAST>>) {
+        for child in items.get(2..).unwrap_or(&[]) {
+            if let Some((path, body)) = fn_shape(child) {
+                out.entry(path).or_insert(body);
+            } else if let WatAST::List(nested, _) = child {
+                if nested.first().and_then(head_fqdn).as_deref() == Some(":wat::core::let") {
+                    in_let(nested, out);
+                }
+            }
+        }
+    }
+    let mut out = HashMap::new();
+    for form in forms {
+        if let Some((path, body)) = fn_shape(form) {
+            out.entry(path).or_insert(body);
+        } else if let Ok(Some((path, func))) = try_parse_user_variadic_def_fn_form(form) {
+            if let FunctionBody::Wat(b) = &func.body {
+                out.entry(path).or_insert(b.clone());
+            }
+        } else if let WatAST::List(items, _) = form {
+            match items.first().and_then(head_fqdn).as_deref() {
+                Some(":wat::core::do") => in_do(items, &mut out),
+                Some(":wat::core::let") => in_let(items, &mut out),
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
 /// Check every user define's body against its declared return type;
 /// verify every call-position form in the `forms` list has correct
 /// arity and argument types.
@@ -600,9 +683,13 @@ pub fn check_program(
     // Arc 153/154/155 — legacy unit-name / let-star / lambda walkers retired
     // (sweep windows closed; variants + Display preserved as orphaned scaffolding).
     // Arc 159 — validate_legacy_typed_let_binding retired (sweep window closed).
-    for func in sym.function_values() {
+    // the-little-wat excursus 002 stone 3 (F-196) — a user `def`'s ONE body is its normalized
+    // form in `forms` (the residue); `sym` holds only its declared signature. Every body walk
+    // below reads through `function_body`, so the body checked is the body step 9 evaluates.
+    let residue_bodies = residue_fn_bodies(forms);
+    for (path, func) in sym.functions_iter() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
-        if let FunctionBody::Wat(body) = &func.body {
+        if let Some(body) = function_body(path, func, sym, &residue_bodies) {
             validate_bare_legacy_primitives(body, &mut errors);
             walk_for_legacy_stream(body, &mut errors);
             walk_for_legacy_lru_cache_service(body, &mut errors);
@@ -650,7 +737,7 @@ pub fn check_program(
     // applies uniformly.
     for (name, func) in sym.functions_iter() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
-        if let FunctionBody::Wat(body) = &func.body {
+        if let Some(body) = function_body(name, func, sym, &residue_bodies) {
             walk_for_restricted_call(body, name, func.synthesized_for.as_deref(), &env, &mut errors);
         }
     }
@@ -677,9 +764,9 @@ pub fn check_program(
     validate_def_positions_in_forms(forms, &mut errors);
     // Also check inside user-defined function bodies (def inside fn body
     // is always non-top-level regardless of the call site).
-    for func in sym.function_values() {
+    for (path, func) in sym.functions_iter() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
-        if let FunctionBody::Wat(body) = &func.body {
+        if let Some(body) = function_body(path, func, sym, &residue_bodies) {
             validate_def_position_with_wrapper(
                 body,
                 DefCtx::NonTopLevel,
@@ -739,7 +826,10 @@ pub fn check_program(
     // function signatures from `from_symbols`, populated before the loop).
     for (path, func) in sym.functions_iter() {
         if let Some(scheme) = env.get(path) {
-            check_function_body(path, func, scheme, &env, &mut fresh, &mut errors);
+            // Stone 255.1a — Native builtins carry no wat body to type-check.
+            if let Some(body) = function_body(path, func, sym, &residue_bodies) {
+                check_function_body(path, func, body, scheme, &env, &mut fresh, &mut errors);
+            }
         }
     }
 
@@ -1775,6 +1865,7 @@ fn collect_process_stdin_and_joins(
 fn check_function_body(
     path: &str,
     func: &Function,
+    body_ast: &WatAST,
     scheme: &TypeScheme,
     env: &CheckEnv,
     fresh: &mut InferCtx,
@@ -1799,11 +1890,6 @@ fn check_function_body(
     // Push this function's declared return type so `infer_try`, if it
     // recurses into the body, can unify its propagated `Err` with this
     // function's own `(Result :- [_ E])` shape.
-    // Stone 255.1a — Native builtins carry no wat body to type-check.
-    let body_ast = match &func.body {
-        FunctionBody::Wat(ast) => ast,
-        FunctionBody::Native => return,
-    };
     type_record::open_root();
     fresh.push_enclosing_ret(scheme.ret.clone());
     let body_ty = infer(body_ast, env, &locals, fresh, &mut subst).drain_errors_into(errors);

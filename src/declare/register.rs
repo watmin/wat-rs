@@ -224,7 +224,10 @@ pub fn register_defines(
                 existing,
                 &form_span,
                 || -> Result<(), RuntimeError> {
-                    sym.register_function(path.clone(), func);
+                    // F-196 — DECLARE: the signature only. The body stays in the form,
+                    // which goes on to `rest` — the residue step 7 normalizes, step 8
+                    // checks and step 9 evaluates.
+                    sym.declare_function(path.clone(), declaration_of(func, &form_span));
                     Ok(())
                 },
             )?;
@@ -258,7 +261,8 @@ pub fn register_defines(
                 existing,
                 &form_span,
                 || -> Result<(), RuntimeError> {
-                    sym.register_function(path.clone(), func);
+                    // F-196 — DECLARE, as the fn-shape arm above.
+                    sym.declare_function(path.clone(), declaration_of(func, &form_span));
                     Ok(())
                 },
             )?;
@@ -332,6 +336,22 @@ pub fn register_defines(
         }
     }
     Ok(rest)
+}
+
+/// the-little-wat excursus 002 stone 3 (F-196, option E) — a user `def`'s DECLARATION: its
+/// name, params, type params and return type, with a placeholder body (`nil`, the same
+/// placeholder the defclause stub uses). Step 6 needs no more than this — the resolver asks
+/// whether the name exists, the checker's `CheckEnv::from_symbols` builds the scheme from the
+/// signature, and a recursive or mutually recursive call is typed against that scheme.
+///
+/// The body is NOT kept here. It is the `def` form in the residue, the only copy between
+/// normalization (step 7) and evaluation (step 9): `check_program` reads it from there
+/// (`check.rs`, `function_body`), and `register_runtime_defs` evaluates that same form and
+/// replaces this declaration with the evaluated `Function`.
+pub(crate) fn declaration_of(func: Arc<Function>, span: &Span) -> Arc<Function> {
+    let mut decl = Arc::unwrap_or_clone(func);
+    decl.body = FunctionBody::Wat(Arc::new(WatAST::NilLit(span.clone())));
+    Arc::new(decl)
 }
 
 /// Arc 278 BRIEF-STONE-extend-user-checked — the surface-inheriting `extend-type`
@@ -1840,6 +1860,15 @@ pub fn register_runtime_defs(
             },
         }
     }
+    // F-196 (excursus 002 stone 3) — every user `def` step 6 DECLARED has now been evaluated
+    // from the residue and installed with its one body. A declaration left over would be a
+    // body-less function reachable at runtime. Held here, in the one door both the boot path
+    // and the live-session path call.
+    assert!(
+        sym.declared_without_body().next().is_none(),
+        "F-196: declared at step 6 but never evaluated at step 9: {:?}",
+        sym.declared_without_body().collect::<Vec<_>>()
+    );
     Ok(())
 }
 
@@ -1935,6 +1964,18 @@ fn register_runtime_defs_form(
             // overwriting the prior value (the program may still partially
             // execute to surface other errors).
             if sym.has_def_value(&name) && !sym.redef_allowed {
+                // F-196 — a live session seeds the prior turn's `runtime_def_values`, so a
+                // `def` of a function declared again at this freeze's step 6 lands HERE and
+                // is not re-evaluated. Its `sym.functions` entry is then this freeze's
+                // step-6 DECLARATION (no body); the function IS the value this very `def`
+                // form produced when it was evaluated, and that value is what runs — install
+                // it exactly as the evaluating arm below does. (At boot the only way here is a
+                // byte-identical duplicate `def`, whose first copy just installed the same
+                // value — the reinstall is the identity.)
+                if let Some(Value::wat__core__fn(func)) = sym.def_value(&name) {
+                    let installed = named_def_fn(func, &name);
+                    sym.register_function(name.clone(), installed);
+                }
                 return Ok(()); // redef rejected; type checker already caught it
             }
             // Evaluate the expr in the current env (which carries any
@@ -1956,23 +1997,7 @@ fn register_runtime_defs_form(
             // closure extraction (`function_to_define_form`) can reconstruct the
             // correct defn form with the canonical name instead of `__anon`.
             if let Value::wat__core__fn(ref func) = value {
-                let named_func = if func.name.is_none() {
-                    Arc::new(Function {
-                        name: Some(name.clone()),
-                        params: func.params.clone(),
-                        type_params: func.type_params.clone(),
-                        param_types: func.param_types.clone(),
-                        ret_type: func.ret_type.clone(),
-                        rest_param: func.rest_param.clone(),
-                        rest_param_type: func.rest_param_type.clone(),
-                        body: func.body.clone(),
-                        closed_env: func.closed_env.clone(),
-                        rete: None,
-                        synthesized_for: None,
-                    })
-                } else {
-                    func.clone()
-                };
+                let named_func = named_def_fn(func, &name);
                 sym.register_function(name.clone(), named_func);
             }
             // Stone 241.7 — store metadata for non-fn defs. fn-shape defs are
@@ -2106,6 +2131,29 @@ fn register_runtime_defs_form(
         }
     }
     Ok(())
+}
+
+/// The `Function` a fn-valued top-level `def` installs in `sym.functions`: the evaluated fn,
+/// named by the `def`'s name keyword (Stone 241.11 — `eval_fn` makes it anonymous). Extracted
+/// (F-196) so the evaluating arm and the live-session reinstall arm build the SAME function.
+fn named_def_fn(func: &Arc<Function>, name: &str) -> Arc<Function> {
+    if func.name.is_none() {
+        Arc::new(Function {
+            name: Some(name.to_string()),
+            params: func.params.clone(),
+            type_params: func.type_params.clone(),
+            param_types: func.param_types.clone(),
+            ret_type: func.ret_type.clone(),
+            rest_param: func.rest_param.clone(),
+            rest_param_type: func.rest_param_type.clone(),
+            body: func.body.clone(),
+            closed_env: func.closed_env.clone(),
+            rete: None,
+            synthesized_for: None,
+        })
+    } else {
+        func.clone()
+    }
 }
 
 /// Stone 241.12 — register a `(:wat::core::defalias :alias :target)` form into `sym`.

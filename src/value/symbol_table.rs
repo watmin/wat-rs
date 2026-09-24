@@ -148,6 +148,14 @@ pub struct SymbolTable {
     /// Consulted by `pascal->kebab-in` and `kebab->pascal-in` at expand time.
     /// No entry for a namespace → plain `pascal->kebab` / `kebab->pascal` behavior.
     pub acronym_registry: HashMap<String, Vec<String>>,
+    /// the-little-wat excursus 002 stone 3 (F-196) — the names whose entry in `functions` is a
+    /// DECLARATION only: the signature, registered at freeze step 6 (`register_defines`), with a
+    /// placeholder body. The ONE body of each such function is the normalized `def` form in the
+    /// user residue: `check_program` (step 8) checks THAT form's body against this signature,
+    /// and `register_runtime_defs` (step 9) evaluates THAT form, whose `register_function` below
+    /// replaces the declaration and drops the name from this set. Between normalization (step 7)
+    /// and evaluation (step 9) there is no second copy of the body anywhere.
+    bodies_in_residue: std::collections::HashSet<String>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -324,10 +332,33 @@ impl SymbolTable {
     // purpose. These exist so the fields can stay private.
 
     pub fn register_function(&mut self, path: String, f: Arc<Function>) {
+        // A real registration supersedes a declaration: the body now lives HERE.
+        self.bodies_in_residue.remove(&path);
         self.functions.insert(path, f);
     }
 
+    /// F-196 — register `f` as a DECLARATION: its signature is callable (by the checker's
+    /// scheme lookup and the resolver's name lookup), its body is NOT here — it is the `def`
+    /// form in the residue. `f.body` must be a placeholder; nothing between step 6 and step 9
+    /// reads it (`check_program` asks [`Self::body_in_residue`] first).
+    pub fn declare_function(&mut self, path: String, f: Arc<Function>) {
+        self.bodies_in_residue.insert(path.clone());
+        self.functions.insert(path, f);
+    }
+
+    /// F-196 — is `path`'s entry a declaration whose one body lives in the residue?
+    pub fn body_in_residue(&self, path: &str) -> bool {
+        self.bodies_in_residue.contains(path)
+    }
+
+    /// F-196 — the declarations still waiting for their body. EMPTY after freeze step 9: every
+    /// declared `def` is evaluated there and its `register_function` clears its name.
+    pub fn declared_without_body(&self) -> impl Iterator<Item = &String> {
+        self.bodies_in_residue.iter()
+    }
+
     pub fn remove_function(&mut self, path: &str) -> Option<Arc<Function>> {
+        self.bodies_in_residue.remove(path);
         self.functions.remove(path)
     }
 

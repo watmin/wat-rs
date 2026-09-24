@@ -14444,6 +14444,13 @@ mod tests {
         })
     }
 
+    /// A top-level `(:wat::core::def …)` — the forms these harnesses register (via
+    /// `register_runtime_defs`) rather than evaluate as expressions.
+    fn is_top_level_def(form: &WatAST) -> bool {
+        matches!(form, WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::def"))
+    }
+
     fn run(src: &str) -> Result<Value, EvalBreak> {
         let (stdlib_sym, stdlib_macros, stdlib_types) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
@@ -14466,7 +14473,14 @@ mod tests {
         if let Err(errors) = crate::check::check_program(&rest, &sym, stdlib_types) {
             panic!("type-check errors in test wat:\n{}", errors);
         }
+        // F-196 (excursus 002 stone 3) — `register_defines` DECLARES a `def`'s signature; its
+        // one body is the form itself. Register the `def` forms through freeze step 9's own
+        // door (`register_runtime_defs`) before evaluating the rest, as the freeze path does.
         let env = Environment::new();
+        {
+            let defs: Vec<WatAST> = rest.iter().filter(|f| is_top_level_def(f)).cloned().collect();
+            register_runtime_defs(&defs, &env, &mut sym, &Default::default())?;
+        }
         let mut last = Value::Unit;
         for form in &rest {
             // Stone 241.11 — `defn` macro-expands to `(:wat::core::def ...)` which
@@ -14661,7 +14675,10 @@ mod tests {
             crate::macros::expand_all(forms, &mut macros, &Environment::new(), stdlib_sym)
                 .expect("expand");
         let mut sym = stdlib_sym.clone();
-        let _ = register_defines(expanded, &mut sym).expect("register");
+        let rest = register_defines(expanded, &mut sym).expect("register");
+        // F-196 — step 6 declares; step 9's door installs the one body.
+        register_runtime_defs(&rest, &Environment::new(), &mut sym, &Default::default())
+            .expect("register runtime defs");
         let func = sym.get(":my::app::failing-fn").expect("defined").clone();
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -14708,7 +14725,10 @@ mod tests {
             crate::macros::expand_all(forms, &mut macros, &Environment::new(), stdlib_sym)
                 .expect("expand");
         let mut sym = stdlib_sym.clone();
-        let _ = register_defines(expanded, &mut sym).expect("register");
+        let rest = register_defines(expanded, &mut sym).expect("register");
+        // F-196 — step 6 declares; step 9's door installs the one body.
+        register_runtime_defs(&rest, &Environment::new(), &mut sym, &Default::default())
+            .expect("register runtime defs");
         let func = sym.get(":my::app::plain-fn").expect("defined").clone();
 
         assert_eq!(snapshot_call_stack().len(), 0, "stack must start empty");
@@ -18990,7 +19010,10 @@ mod tests {
             crate::macros::expand_all(forms, &mut macros, &Environment::new(), stdlib_sym)
                 .expect("expand");
         let mut sym = stdlib_sym.clone();
-        let _ = register_defines(expanded, &mut sym).expect("register");
+        let rest = register_defines(expanded, &mut sym).expect("register");
+        // F-196 — step 6 declares; step 9's door installs the one body.
+        register_runtime_defs(&rest, &Environment::new(), &mut sym, &Default::default())
+            .expect("register runtime defs");
         let func = sym
             .get(":my::test::assert-mismatched")
             .expect("defined")
@@ -19721,7 +19744,14 @@ mod tests {
         sym.set_presence_sigma_fn(Arc::new(crate::holon::sigma::DefaultPresenceSigma));
         sym.set_coincident_sigma_fn(Arc::new(crate::holon::sigma::DefaultCoincidentSigma));
         let rest = register_defines(expanded, &mut sym)?;
+        // F-196 (excursus 002 stone 3) — `register_defines` DECLARES a `def`'s signature; its
+        // one body is the form itself. Register the `def` forms through freeze step 9's own
+        // door (`register_runtime_defs`) before evaluating the rest, as the freeze path does.
         let env = Environment::new();
+        {
+            let defs: Vec<WatAST> = rest.iter().filter(|f| is_top_level_def(f)).cloned().collect();
+            register_runtime_defs(&defs, &env, &mut sym, &Default::default())?;
+        }
         let mut last = Value::Unit;
         for form in &rest {
             // Stone 241.11 — skip declaration forms (already pre-registered);
