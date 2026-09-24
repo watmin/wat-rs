@@ -102,3 +102,46 @@ Runtime prediction: 3–4 hours.
 
 C-b3 (the coord transport binding through the method path), C-b1b, C-b2, C-b4, C-b5, C-c (other uses of
 `is_type_param_letter`).
+
+---
+
+## ADDENDUM — 2026-09-24, after STOP-2 (the first strike changed nothing; the tree was clean at `69ccc37ab`)
+
+The first executor stopped at STOP-2 before changing any code. Its census:
+- **Every hand-written generic edge in the corpus is the bare-child shape**, 14 sites: `wat/seq.wat:83/86/89/92`,
+  `tests/types/probe_stone118_3b_seqable_parametric_satisfaction.wat:40/43/46/52`,
+  `wat-scripts/scratch-pad/probe-seqable-parametric-all-four.wat:41/44/47/53`, and
+  `wat-scripts/scratch-pad/probe-285-map-surface-over-builtins.wat:27/30`.
+- defservice's edges are already honest: the child carries its letters. They need a **macro edit**, not a codemod.
+- Everything else is concrete.
+
+It also mapped the rooms: 11 positional readers of `extend-type` (`src/types.rs:4514`,
+`src/function/parse.rs:980`, `src/declare/register.rs:551/:2102`, `src/check.rs:2783/:9159`,
+`src/freeze/env.rs:559/:825`, `src/rete/purity.rs:2763`, `src/declare/parse.rs:144/:170`,
+`tests/lint/nested_program_starts.rs:141`). **One shared binder-offset helper**, not 11 hand edits. The
+Elem failure sits in the Arc-267 `(Parametric, Path)` arm of `assignable`, where `transport_edge_keys`
+guesses `(Box :- [:T])` and never finds `(Box :- [:Elem])`. That needs a structured generic edge keyed by
+its binder and **pattern-matched** against the actual type.
+
+**RULINGS (builder, 2026-09-24):**
+
+1. **R1: the child spells its element.** The four `wat/seq.wat` edges become
+   `(:wat::core::extend-type :- [T] (:wat::core::Vector :- [T]) (:wat::core::Seqable :- [T]) …)`, and the
+   same for `PersistentVector`, `List` and `Stream`: *"a Vector holding T is a Seqable of T."* Measured:
+   the parametric child checks and runs **today** with `T` (identical output), and fails with `Elem`,
+   which is this stone's root.
+2. **The 118.3b fixture migrates against the real surface.** It drops its private `:t118b::Seqable` /
+   `:t118b::BareSeqable` surfaces and their `as-vec`/`as-vec-bare` methods, which were probe inventions
+   standing in for the language's own `(:wat::core::into [] coll)` (491 call sites). It tests
+   `:wat::core::Seqable` directly and reads results through `into`. **Keep what it proves:** parametric
+   satisfaction across all four children, plus its negative rows. Name any row that cannot survive the
+   rewrite.
+3. **Delete the two scratch probes** `probe-seqable-parametric-all-four.wat` and
+   `probe-285-map-surface-over-builtins.wat` (and its probe-local `:user::Mapping`). Their questions were
+   answered in August and now live in `wat/seq.wat` and the fixture. `probe-seqable-is-spellable-today.wat`
+   also calls `as-vec`: **measure it and report it; do not delete it.**
+4. The rest of the brief stands. The `Elem` hello-world must check and run, and both walls land.
+
+**Updated rows:** add *the four `Seqable` edges in binder form, with the child spelled `Elem`, check and
+run*. The pre-stone binary is rc=1 (measured: `List/as-vec: body produces (Vector :- [:T]); signature
+declares (Vector :- [:Elem])`, under the fixture's old surface).
