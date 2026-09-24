@@ -1037,11 +1037,13 @@
          ;; `::GrantHandles`) tests "is this field's type a (Peer :- [S R])?" and swaps
          ;; `Peer`→`Address`/`TypedCapability` in EIGHT places by `ast-name` +
          ;; `string::contains?`/`string::split`+`string::join` — every one assumed the
-         ;; Keyword-only shape. These two LOCAL closures (bound here, not top-level `defn`s —
+         ;; Keyword-only shape. These LOCAL closures (bound here, not top-level `defn`s —
          ;; a program-body macro's default-deny purity gate, arc 249 stone 249.2b-i, refuses
          ;; any user-defined GLOBAL head; a `let`-bound closure invoked by its bound SYMBOL is
          ;; not a keyword-headed call at all, so it never reaches that gate) are the ONE door
-         ;; both shapes go through for the eight call sites below.
+         ;; the call sites below go through. Stone 255.21 (C-b1b) replaced the substring test
+         ;; and the text swap with `kwargs-type-slot-peer?` (a structural head check) and
+         ;; `kwargs-type-slot-rehead` (a structural rebuild).
          ;;
          ;; kwargs-type-slot-name: structural type-NAME text of a kwargs field's type slot,
          ;; whether spelled as a bare Keyword or the `(Head :- [args])` List form (reads the
@@ -1051,27 +1053,69 @@
              (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
                (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children node)))
                (:wat::core::ast-name node)))
-         ;; kwargs-type-slot-swap-head: rebuild a type-slot node with its HEAD keyword's text
-         ;; substring-substituted `old`->`new`, preserving shape: a bare Keyword becomes a
-         ;; bare Keyword; a `(Head :- [args])` List keeps the SAME `:- [args]` tail — only
-         ;; Head's text changes, so the args (however deeply nested) survive untouched.
-         kwargs-type-slot-swap-head
-           (:wat::core::fn [node <- :wat::WatAST old <- :wat::core::String new <- :wat::core::String] -> :wat::WatAST
+         ;; Stone 255.21 (C-b1b) — kwargs-type-slot-rehead: rebuild a `(Peer :- [S R])` slot as
+         ;; `(<head> :- [S R ~@extra])`, STRUCTURALLY: the new head keyword replaces child 0, and
+         ;; `extra` is appended to the slot's OWN `[S R]` vector node (`with-children` on both the
+         ;; List and the Vector, so spans survive). Retires `kwargs-type-slot-swap-head`, which
+         ;; substring-substituted the head's TEXT (`string::split`+`string::join`).
+         kwargs-type-slot-rehead
+           (:wat::core::fn [node <- :wat::WatAST
+                            head <- :wat::core::String
+                            extra <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
              (:wat::core::let
-               [nm         (kwargs-type-slot-name node)
-                swapped-kw (:wat::core::keyword-node (:wat::string::join new (:wat::string::split nm old)))]
-               (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-                 (:wat::core::let
-                   [ch     (:wat::core::ast->children node)
-                    tail   (:wat::core::rest ch)
-                    new-ch (:wat::core::foldl
-                             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::WatAST]
-                               -> (:wat::core::Vector :- [:wat::WatAST])
-                               (:wat::core::conj acc x))
-                             (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) swapped-kw)
-                             tail)]
-                   (:wat::core::with-children node new-ch))
-                 swapped-kw)))
+               [ch       (:wat::core::ast->children node)
+                binder   (:wat::core::Option/expect (:wat::core::get ch 1) "kwargs rehead: a (Peer :- [S R]) slot carries its :-")
+                args-v   (:wat::core::Option/expect (:wat::core::get ch 2) "kwargs rehead: a (Peer :- [S R]) slot carries its [S R] vector")
+                new-args (:wat::core::foldl
+                           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::WatAST]
+                             -> (:wat::core::Vector :- [:wat::WatAST])
+                             (:wat::core::conj acc x))
+                           (:wat::core::ast->children args-v)
+                           extra)]
+               (:wat::core::with-children node
+                 (:wat::core::conj
+                   (:wat::core::conj
+                     (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST]) (:wat::core::keyword-node head))
+                     binder)
+                   (:wat::core::with-children args-v new-args)))))
+         ;; Stone 255.21 (C-b1b) — kwargs-type-slot-peer?: is this type slot a SERVICE field, the
+         ;; parsed reference form `(:wat::kernel::Peer :- [S R])`? A STRUCTURAL test: a List whose
+         ;; head keyword IS `:wat::kernel::Peer`. It retires the `(string::contains? nm "Peer")`
+         ;; substring test that stood in all nine places below, which read any type whose NAME
+         ;; merely contained "Peer" as a service.
+         kwargs-type-slot-peer?
+           (:wat::core::fn [node <- :wat::WatAST] -> :wat::core::bool
+             (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+               (:wat::core::= (kwargs-type-slot-name node) ":wat::kernel::Peer")
+               false))
+         ;; Stone 255.21 (C-b1b) — kwargs-field-tp: the TRANSPORT type parameter the generated
+         ;; `::kwargs-check` / `::GrantHandles` / `::grant-worker` / `::revoke-worker` DECLARE for
+         ;; the service field at kwargs position `i` (`T<i>`). A service field's capability type is
+         ;; `(TypedCapability :- [S R T<i>])`; `T<i>` is bound from the handle the caller passes
+         ;; (a thread handle binds Shared, a process handle Wire), never assumed.
+         kwargs-field-tp
+           (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
+             (:wat::core::symbol-node (:wat::string::concat "T" (:wat::i64::to-string i))))
+         ;; the service-field kwargs positions, in order (`i` such that field `i`'s type slot is a
+         ;; Peer), and the transport binder they declare — one `T<i>` per service field.
+         peer-field-idxs (:wat::core::foldl
+                           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::i64]) i <- :wat::core::i64]
+                             -> (:wat::core::Vector :- [:wat::core::i64])
+                             (:wat::core::if
+                               (kwargs-type-slot-peer?
+                                 (:wat::core::Option/expect
+                                   (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                                   "255.21 peer-field-idxs: type index"))
+                               (:wat::core::conj acc i)
+                               acc))
+                           (:wat::core::Vector :- [:wat::core::i64])
+                           (:wat::core::range 0 n-kw-fields))
+         peer-tp-syms    (:wat::core::foldl
+                           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64]
+                             -> (:wat::core::Vector :- [:wat::WatAST])
+                             (:wat::core::conj acc (kwargs-field-tp i)))
+                           (:wat::core::Vector :- [:wat::WatAST])
+                           peer-field-idxs)
          ;; ── the head-swapped argvec: fold kw-ch, swap Peer TYPE nodes only ──
          ;; kw-ch is flat triples [fname@j·3, arrow@j·3+1, type@j·3+2]; only the type position
          ;; (j mod 3 == 2) is ever swapped, and only when it names a (Peer :- [S R]) (data-typed
@@ -1081,10 +1125,9 @@
                         (:wat::core::let
                           [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2a swapped-ch index")
                            is-type (:wat::core::= (:wat::i64::mod j 3) 2)
-                           nm      (:wat::core::if is-type (kwargs-type-slot-name child) "")
-                           is-peer (:wat::core::if is-type (:wat::string::contains? nm "Peer") false)
+                           is-peer (:wat::core::if is-type (kwargs-type-slot-peer? child) false)
                            swapped (:wat::core::if is-peer
-                                     (kwargs-type-slot-swap-head child "Peer" "Address")
+                                     (kwargs-type-slot-rehead child ":wat::kernel::Address" (:wat::core::Vector :- [:wat::WatAST]))
                                      child)]
                           (:wat::core::conj acc swapped)))
                       (:wat::core::Vector :- [:wat::WatAST])
@@ -1122,37 +1165,35 @@
          has-peer-field (:wat::core::foldl
                           (:wat::core::fn [acc <- :wat::core::bool i <- :wat::core::i64] -> :wat::core::bool
                             (:wat::core::if acc true
-                              (:wat::string::contains?
-                                (kwargs-type-slot-name
-                                  (:wat::core::Option/expect
-                                    (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
-                                    "w2a has-peer-field: type index"))
-                                "Peer")))
+                              (kwargs-type-slot-peer?
+                                (:wat::core::Option/expect
+                                  (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                                  "w2a has-peer-field: type index"))))
                           false
                           (:wat::core::range 0 n-kw-fields))
          ;; mint-coords?: the checker itself is a kwargs defn (has `& [...]`) so it re-enters this
          ;; branch — the `is-check` suffix guard stops the infinite mint (no Coords/checker for a
          ;; `::kwargs-check`). Otherwise gate on being a dialing (Peer-bearing) work-fn.
          mint-coords? (:wat::core::if is-check false has-peer-field)
-         ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — (Peer :- [S R]) → (TypedCapability :- [S R]) ──
-         ;; A SECOND head-swap, parallel to `swapped-ch` (Address) but targeting the combined
-         ;; `(:wat::capability::TypedCapability :- [S R])` surface (capability.wat) instead. This is
+         ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — (Peer :- [S R]) → (TypedCapability :- [S R T<i>]) ──
+         ;; A SECOND re-head, parallel to `swapped-ch` (Address) but targeting the combined
+         ;; `(:wat::capability::TypedCapability :- [S R T])` surface (capability.wat) instead. This is
          ;; the checker's OWN param typing (so `bracket/uses` passes RAW HANDLES typed as
          ;; TypedCapability — caught by the bodiless-edge assignability check — never erased,
-         ;; never a bare Address). `swapped-ch`/`swapped-argvec` (Address) is UNCHANGED and
-         ;; still used only for `::Coords`'s field TYPES (the pure crossing carrier). The needle
-         ;; is the FULL "wat::kernel::Peer" (not bare "Peer"): Address shares Peers
-         ;; `wat::kernel::` namespace so the bare swap works there, but TypedCapability lives in
-         ;; `wat::capability::` — the whole qualified head must relocate, not just the tail.
+         ;; never a bare Address). `swapped-ch`/`swapped-argvec` (Address) is still used only for
+         ;; `::Coords`'s field TYPES (the pure crossing carrier). Stone 255.21 (C-b1b): the surface
+         ;; names its transport, so each service field `i` gets its OWN declared transport param
+         ;; `T<i>` (`kwargs-field-tp`), bound by the handle the caller passes.
          capswapped-ch (:wat::core::foldl
                           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) j <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                             (:wat::core::let
                               [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2d capswapped-ch index")
                                is-type (:wat::core::= (:wat::i64::mod j 3) 2)
-                               nm      (:wat::core::if is-type (kwargs-type-slot-name child) "")
-                               is-peer (:wat::core::if is-type (:wat::string::contains? nm "Peer") false)
+                               is-peer (:wat::core::if is-type (kwargs-type-slot-peer? child) false)
                                swapped (:wat::core::if is-peer
-                                         (kwargs-type-slot-swap-head child "wat::kernel::Peer" "wat::capability::TypedCapability")
+                                         (kwargs-type-slot-rehead child ":wat::capability::TypedCapability"
+                                           (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST])
+                                             (kwargs-field-tp (:wat::i64::/ j 3))))
                                          child)]
                               (:wat::core::conj acc swapped)))
                           (:wat::core::Vector :- [:wat::WatAST])
@@ -1160,7 +1201,7 @@
          capswapped-argvec (:wat::core::with-children kw-argvec capswapped-ch)
          ;; ── ::GrantHandles — the impure, is-peer-FILTERED parent-local carrier ──────────────
          ;; A `defstruct` (impure-permitting, like `::Kwargs` itself) of ONLY the service fields,
-         ;; each typed `(TypedCapability :- [Si Ri])` (capswapped). Data fields never enter it — they
+         ;; each typed `(TypedCapability :- [Si Ri T<i>])` (capswapped). Data fields never enter it — they
          ;; carry no capability to grant. Read `kw-ch`'s ORIGINAL (unswapped) type per field —
          ;; same is-peer test as `has-peer-field`, applied per-field here.
          grant-handles-ty-str (:wat::string::interpolate "{name-base}::GrantHandles" :name-base name-base)
@@ -1174,7 +1215,7 @@
                                   orig-ty    (:wat::core::Option/expect
                                                (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
                                                "w2d gh-field: type index")
-                                  is-peer    (:wat::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
+                                  is-peer    (kwargs-type-slot-peer? orig-ty)
                                   cap-ty     (:wat::core::Option/expect
                                                (:wat::core::get capswapped-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
                                                "w2d gh-field: capswapped type index")]
@@ -1184,8 +1225,12 @@
                              (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::range 0 n-kw-fields))
          grant-handles-field-vec (:wat::core::with-children kw-argvec gh-field-triples)
+         ;; Stone 255.21 (C-b1b): each GrantHandles field is `(TypedCapability :- [S R T<i>])`, so the
+         ;; carrier DECLARES the service fields' transport params (`peer-tp-syms`), and every type
+         ;; position that names it takes the reference form `(GrantHandles :- [T<i> …])`.
+         grant-handles-ann `(~grant-handles-kw :- [~@peer-tp-syms])
          grant-handles-def (:wat::core::if mint-coords?
-                              `(:wat::core::defstruct ~grant-handles-kw ~grant-handles-field-vec)
+                              `(:wat::core::defstruct ~grant-handles-kw :- [~@peer-tp-syms] ~grant-handles-field-vec)
                               `(:wat::core::do nil))
          ;; ── the Coords record + checker forms (guarded) ──
          ;; GUARD NO-OP = (do nil), NOT an empty (do): an empty `(:wat::core::do)` is ILLEGAL —
@@ -1202,7 +1247,7 @@
          ;; coord call — these stay live/granted-through, never erased.
          ;; Reuses `fname-nodes` (the SAME symbol-node objects bound as the checker's OWN param
          ;; names via `capswapped-argvec` — hygienic by construction, mirrors the $impl
-         ;; let-binder reuse above). The gate (param types are now `(TypedCapability :- [S R])` → a
+         ;; let-binder reuse above). The gate (param types are now `(TypedCapability :- [S R T<i>])` → a
          ;; swapped handle TypeMismatches) and the carrier-assembly (this body) are ONE act.
          coords-ctor-args (:wat::core::foldl
                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -1211,7 +1256,7 @@
                                   orig-ty    (:wat::core::Option/expect
                                                (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
                                                "w2d coords-ctor-args: type index")
-                                  is-peer    (:wat::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
+                                  is-peer    (kwargs-type-slot-peer? orig-ty)
                                   arg-form   (:wat::core::if is-peer
                                                `(:wat::capability::TypedCapability/coord ~fname-node)
                                                fname-node)]
@@ -1225,16 +1270,16 @@
                              orig-ty    (:wat::core::Option/expect
                                           (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
                                           "w2d gh-ctor-args: type index")
-                             is-peer    (:wat::string::contains? (kwargs-type-slot-name orig-ty) "Peer")]
+                             is-peer    (kwargs-type-slot-peer? orig-ty)]
                             (:wat::core::if is-peer (:wat::core::conj acc fname-node) acc)))
                         (:wat::core::Vector :- [:wat::WatAST])
                         (:wat::core::range 0 n-kw-fields))
-         pair-ty-str  (:wat::string::concat "("
-                        (:wat::string::concat coords-ty-str
-                          (:wat::string::concat "," (:wat::string::concat grant-handles-ty-str ")"))))
-         pair-ty-kw   (:wat::core::keyword-node (:wat::string::interpolate ":{pair-ty-str}" :pair-ty-str pair-ty-str))
+         ;; Stone 255.21 (C-b1b): the checker DECLARES one transport param per service field
+         ;; (`peer-tp-syms`, the `T<i>` its capswapped params mention), bound from the handles the
+         ;; caller passes; its return names the generic GrantHandles as a reference form.
+         pair-ty      `(:wat::core::Tuple :- [~coords-kw ~grant-handles-ann])
          kwargs-check-def (:wat::core::if mint-coords?
-                            `(:wat::core::defn ~kwargs-check-kw [& ~capswapped-argvec] -> ~pair-ty-kw
+                            `(:wat::core::defn ~kwargs-check-kw :- [~@peer-tp-syms] [& ~capswapped-argvec] -> ~pair-ty
                                (:wat::core::Tuple (~coords-prime-kw ~@coords-ctor-args) (~grant-handles-prime-kw ~@gh-ctor-args)))
                             `(:wat::core::do nil))
          ;; ── <fqdn>::grant-worker / revoke-worker — unrolled typed grant|revoke over the
@@ -1254,7 +1299,7 @@
                             orig-ty    (:wat::core::Option/expect
                                          (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
                                          "w2d grant-calls: type index")
-                            is-peer    (:wat::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
+                            is-peer    (kwargs-type-slot-peer? orig-ty)
                             fname-str  (:wat::core::ast-name fname-node)
                             acc-kw     (:wat::core::keyword-node
                                          (:wat::string::concat ":"
@@ -1271,7 +1316,7 @@
                              orig-ty    (:wat::core::Option/expect
                                           (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
                                           "w2d revoke-calls: type index")
-                             is-peer    (:wat::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
+                             is-peer    (kwargs-type-slot-peer? orig-ty)
                              fname-str  (:wat::core::ast-name fname-node)
                              acc-kw     (:wat::core::keyword-node
                                           (:wat::string::concat ":"
@@ -1281,12 +1326,14 @@
                             (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
                         (:wat::core::Vector :- [:wat::WatAST])
                         (:wat::core::range 0 n-kw-fields))
+         ;; Stone 255.21 (C-b1b): both workers take the generic `(GrantHandles :- [T<i> …])`, so they
+         ;; declare the same transport params.
          grant-worker-def (:wat::core::if mint-coords?
-                            `(:wat::core::defn ~grant-worker-kw [~gw-handles-sym <- ~grant-handles-kw ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
+                            `(:wat::core::defn ~grant-worker-kw :- [~@peer-tp-syms] [~gw-handles-sym <- ~grant-handles-ann ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
                                (:wat::core::do ~@grant-calls))
                             `(:wat::core::do nil))
          revoke-worker-def (:wat::core::if mint-coords?
-                              `(:wat::core::defn ~revoke-worker-kw [~gw-handles-sym <- ~grant-handles-kw ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
+                              `(:wat::core::defn ~revoke-worker-kw :- [~@peer-tp-syms] [~gw-handles-sym <- ~grant-handles-ann ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
                                  (:wat::core::do ~@revoke-calls))
                               `(:wat::core::do nil))
          ;; ── <fqdn>::assemble — typed Coords → Kwargs (thread bracket Setup).
@@ -1313,7 +1360,7 @@
                 orig-ty    (:wat::core::Option/expect
                              (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
                              "assemble-ctor-args: type index")
-                is-peer    (:wat::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
+                is-peer    (kwargs-type-slot-peer? orig-ty)
                 fname-str  (:wat::core::ast-name fname-node)
                 acc-kw     (:wat::core::keyword-node
                              (:wat::string::concat ":"

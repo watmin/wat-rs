@@ -2894,7 +2894,7 @@
                          (coordinate [~grantable-self-sym]
                            (:wat::core::ann-form (~handle-addr-name ~grantable-self-sym) :wat::kernel::Address)))
 
-     ;; ── arc 170 W1: auto-emit the Dialable :- [S R] extend-type ───────────────────
+     ;; ── arc 170 W1: auto-emit the Dialable :- [S R T] extend-type ─────────────────
      ;; A SECOND, PARAMETRIC surface (wat/capability.wat) every <fqdn>::Handle also
      ;; satisfies, beside the flat Capability above. Where Capability/coordinate up-casts
      ;; to a bare Address (service-erased, for uniform grant/revoke), Dialable/coord
@@ -2902,11 +2902,14 @@
      ;; Reply]) — so a wrong-service dial is a compile-time discrimination error. Mirrors
      ;; the hand-proven extend-type in scratchpad/probe-c2-typed-coordinate.wat. proto-str
      ;; (not fqdn-str) matches addr-ty's own Op/Reply namespace (arc 293 S2, line ~472).
-     dialable-ty `(:wat::capability::Dialable :- [~proto-op-ty-ann ~proto-reply-ty-ann])
+     ;; Stone 255.21 (C-b1b): the edge target carries the Handle's OWN transport letter
+     ;; (`transport-param`, the same `T`/`Xt` the `(Handle :- [… T])` child and `addr-ty` carry),
+     ;; so `(Dialable/coord h)` on a `(Handle :- [Shared])` returns `(Address :- [Op Reply Shared])`.
+     dialable-ty `(:wat::capability::Dialable :- [~proto-op-ty-ann ~proto-reply-ty-ann ~(:wat::core::symbol-node transport-param)])
      dialable-extend `(:wat::core::extend-type :- [~@handle-tp-syms] ~handle-bare-name ~dialable-ty
                          (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
 
-     ;; ── arc 170 C2 D: auto-emit the THIRD, BODILESS TypedCapability :- [S R] extend-type ─
+     ;; ── arc 170 C2 D: auto-emit the THIRD, BODILESS TypedCapability :- [S R T] extend-type ─
      ;; Registers the satisfaction EDGE only — no method bodies (that's the whole point: a
      ;; third re-declaration of coord/grant/revoke here would collide with grantable-extend/
      ;; dialable-extend's own bodies on the flat `<Type>/<method>` key, DuplicateDefine).
@@ -2914,7 +2917,7 @@
      ;; Capability+Dialable bodies above via that flat key. Mirrors dialable-ty's Op/Reply
      ;; wiring exactly (proto-str namespace, not fqdn-str — same reasoning as line ~1192).
      ;; Shape proven probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat (all since deleted).
-     typedcap-ty `(:wat::capability::TypedCapability :- [~proto-op-ty-ann ~proto-reply-ty-ann])
+     typedcap-ty `(:wat::capability::TypedCapability :- [~proto-op-ty-ann ~proto-reply-ty-ann ~(:wat::core::symbol-node transport-param)])
      typedcap-extend `(:wat::core::extend-type :- [~@handle-tp-syms] ~handle-bare-name ~typedcap-ty)]
 
     ;; Assemble the final `do`:

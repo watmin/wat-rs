@@ -5406,9 +5406,9 @@ fn infer_list(
                                 None => {
                                     // (2) Arc 170 C2 Gap 2 — ABSTRACT parametric-surface receiver:
                                     //     the receiver IS this surface itself parametrized (e.g.
-                                    //     `(Dialable :- [probe::Echo::Op probe::Echo::Reply])`), so no
+                                    //     `(Dialable :- [probe::Echo::Op probe::Echo::Reply T])`), so no
                                     //     concrete satisfier `<Type>/<method>` scheme exists →
-                                    //     `Dialable/coord` on it fell back to the RAW `(Address' :- [S R])`.
+                                    //     `Dialable/coord` on it fell back to the RAW `(Address' :- [S R T])`.
                                     //     Instead, bind the surface's own `<T>` params from the
                                     //     RECEIVER's concrete args (`s.type_params[i] → recv_args[i]`)
                                     //     and `rename` the member's raw return + extra params — the
@@ -17318,7 +17318,7 @@ pub(crate) fn assignable(
         }
     }
     // Arc 170 C2 Gap 1 — a CONCRETE type satisfies a PARAMETRIC-SURFACE param iff its FULL-ARGS
-    // extend-type edge exists (e.g. `echo'::Handle <: (Dialable :- [Echo::Op Echo::Reply])`, keyed by the
+    // extend-type edge exists (e.g. `echo'::Handle <: (Dialable :- [Echo::Op Echo::Reply Wire])`, keyed by the
     // full parametric string — `types::splice_type_decls`' `:wat::core::extend-type` arm parses the
     // target form and `TypeEnv::register_parametric_extension` stores it as the edge rendered by
     // `format_type`, the same renderer `format_type(&e)` below uses; stone 255.16 corrected a stale
@@ -17328,7 +17328,7 @@ pub(crate) fn assignable(
     // expected head naming a `Surface`, so a parametric NON-surface bound (e.g. `(Vector :- [T])`) is
     // untouched → falls through to the derive-graph / unify paths below (byte-identical). SOUND, not
     // permissive: `is_subtype` is an EXACT-string match on the parent, so `echo'::Handle` matches ONLY
-    // `(Dialable :- [Echo::Op Echo::Reply])`, never `(Dialable :- [Kv::Op Kv::Reply])` — the swap-gate holds.
+    // `(Dialable :- [Echo::Op Echo::Reply Wire])`, never `(Dialable :- [Kv::Op Kv::Reply Wire])` — the swap-gate holds.
     if let (TypeExpr::Path(ap), TypeExpr::Parametric { head, args: eargs }) = (&a, &e) {
         let surface_key = crate::types::parametric_head_fqdn(head);
         if let Some(crate::types::TypeDef::Surface(_)) = types.get(&surface_key) {
@@ -17409,7 +17409,7 @@ pub(crate) fn assignable(
     ) = (&a, &e)
     {
         // 293.W.2f — (Handle :- [Shared]) / (Handle :- [K V Shared]) satisfies
-        // (TypedCapability :- [S R]) via an extend-type edge. An EXACT edge — the actual's own
+        // (TypedCapability :- [S R Shared]) via an extend-type edge. An EXACT edge — the actual's own
         // rendering, or its bare head, extends exactly `e` — decides first.
         if ah != eh
             && (crate::types::is_subtype(&format_type(&a), &format_type(&e), types)

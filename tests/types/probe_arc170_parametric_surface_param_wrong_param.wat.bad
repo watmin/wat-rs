@@ -32,9 +32,10 @@
               (:probe::Kv::GetResponse.Ok (:probe::Kv::GetRequest/k req))))])
 
 ;; wants a Kv-Dialable
-(:wat::core::defn :probe::takes-kv-dialable
-  [d <- (:wat::capability::Dialable :- [:probe::Kv::Op :probe::Kv::Reply])]
-  -> (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])
+;; Stone 255.21 (C-b1b): `Dialable :- [S R T]` names its transport, so a generic site declares `T`.
+(:wat::core::defn :probe::takes-kv-dialable :- [T]
+  [d <- (:wat::capability::Dialable :- [:probe::Kv::Op :probe::Kv::Reply T])]
+  -> (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply T])
   (:wat::capability::Dialable/coord d))
 
 ;; …but passes an ECHO handle → MUST be a TypeMismatch (soundness — the swap-gate holds)

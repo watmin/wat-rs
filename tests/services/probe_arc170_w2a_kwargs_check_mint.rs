@@ -42,6 +42,8 @@ fn w2a_kwargs_check_mint_swap_is_compile_error() {
     // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == "(:wat::capability::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply])"
+            // Stone 255.21 (C-b1b): TypedCapability names its transport; the checker's param
+            // carries its own declared `T<i>`, still unbound when the swap is refused (`_`).
+            if expected == "(:wat::capability::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply _])"
             && got == "(:probe::kv::Handle :- [:wat::kernel::Wire])");
 }

@@ -27,11 +27,11 @@
 ;; `(Vector :- [(keyword,Capability)])`, exactly `process/uses`'s (wat/spawn.wat) shape. Zero
 ;; consumers remain (whole-tree grep) — deleted rather than kept as dead surface.
 
-;; Dialable :- [S R] (arc 170 W1) — a SECOND, PARAMETRIC surface every service's `<fqdn>::Handle`
+;; Dialable :- [S R T] (arc 170 W1; T since 255.21) — a SECOND, PARAMETRIC surface every service's `<fqdn>::Handle`
 ;; also satisfies (via a second auto-emitted extend-type, wat/service.wat's dialable-extend,
 ;; beside grantable-extend). Where Capability/coordinate deliberately erases the service type
 ;; (bare :wat::kernel::Address', for the uniform heterogeneous (Vector :- [Capability]) grant/revoke
-;; path), Dialable/coord returns the handle's own TYPED `(:wat::kernel::Address' :- [S R])` — so
+;; path), Dialable/coord returns the handle's own TYPED `(:wat::kernel::Address' :- [S R T])` — so
 ;; `(Dialable/coord handle)` resolves per-satisfier to the concrete service address
 ;; ((Address' :- [Echo::Op Echo::Reply]) vs (Address' :- [Kv::Op Kv::Reply])), and a wrong-service dial is
 ;; a compile-time discrimination error. Proven by hand in
@@ -41,11 +41,16 @@
 ;; `coordinate` so a handle satisfying BOTH surfaces has no unqualified-call ambiguity; callers
 ;; already qualify by surface (`:wat::capability::Capability/coordinate` vs
 ;; `:wat::capability::Dialable/coord`), matching the probe's proven shape.
-(:wat::core::defsurface :wat::capability::Dialable :- [S R] :nature :wat::core::Struct
+;;
+;; Stone 255.21 (C-b1b): the surface names its TRANSPORT — `Dialable :- [S R T]`, and `coord`
+;; returns `(Address :- [S R T])`. The `T` is the one the satisfying Handle already carries
+;; (defservice's dialable-extend binds `(Handle :- [… T])` to `(Dialable :- [Op Reply T])`), so a
+;; thread handle's coord is a Shared address and a process handle's a Wire one — never either.
+(:wat::core::defsurface :wat::capability::Dialable :- [S R T] :nature :wat::core::Struct
   :features
-  [(coord [self <- (:wat::capability::Dialable :- [S R])] -> (:wat::kernel::Address :- [S R]))])
+  [(coord [self <- (:wat::capability::Dialable :- [S R T])] -> (:wat::kernel::Address :- [S R T]))])
 
-;; TypedCapability :- [S R] (arc 170 C2 candidate D) — a THIRD, combined surface every service's
+;; TypedCapability :- [S R T] (arc 170 C2 candidate D; T since 255.21) — a THIRD, combined surface every service's
 ;; `<fqdn>::Handle` also satisfies, via a THIRD auto-emitted extend-type that is deliberately
 ;; BODILESS (wat/service.wat's typedcap-extend, beside grantable-extend/dialable-extend). It
 ;; unions Dialable's typed `coord` with Capability's `grant`/`revoke` under ONE surface so a
@@ -62,8 +67,10 @@
 ;; dispatches at runtime through the flat key). Method names reused verbatim from Dialable/
 ;; Capability (coord, grant, revoke) — safe because a handle only ever calls THROUGH one
 ;; qualified surface at a time; there is no unqualified-call ambiguity to resolve.
-(:wat::core::defsurface :wat::capability::TypedCapability :- [S R] :nature :wat::core::Struct
+;;
+;; Stone 255.21 (C-b1b): `TypedCapability :- [S R T]` — the Handle's own transport, as Dialable.
+(:wat::core::defsurface :wat::capability::TypedCapability :- [S R T] :nature :wat::core::Struct
   :features
-  [(coord  [self <- (:wat::capability::TypedCapability :- [S R])] -> (:wat::kernel::Address :- [S R]))
-   (grant  [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
-   (revoke [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)])
+  [(coord  [self <- (:wat::capability::TypedCapability :- [S R T])] -> (:wat::kernel::Address :- [S R T]))
+   (grant  [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
+   (revoke [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)])

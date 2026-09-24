@@ -52,8 +52,10 @@ fn wrong_service_coord_is_compile_error() {
     // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
+            // Stone 255.21 (C-b1b): `Dialable/coord` now names the handle's transport, so the
+            // process handle's address renders with its `Wire` slot.
             if expected == "(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])"
-            && got == "(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])");
+            && got == "(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply :wat::kernel::Wire])");
 }
 
 #[test]
@@ -72,6 +74,7 @@ fn swapped_colocation_tuple_is_compile_error() {
         CheckErrorKind::TypeMismatch { expected, got, .. }
             if expected == ":((wat::kernel::Address :- [probe::Echo::Op probe::Echo::Reply]),\
                               (wat::kernel::Address :- [probe::Kv::Op probe::Kv::Reply]))"
-            && got == ":((wat::kernel::Address :- [probe::Kv::Op probe::Kv::Reply]),\
-                         (wat::kernel::Address :- [probe::Echo::Op probe::Echo::Reply]))");
+            // Stone 255.21 (C-b1b): each coord'd address now carries its handle's `Wire` slot.
+            && got == ":((wat::kernel::Address :- [probe::Kv::Op probe::Kv::Reply wat::kernel::Wire]),\
+                         (wat::kernel::Address :- [probe::Echo::Op probe::Echo::Reply wat::kernel::Wire]))");
 }

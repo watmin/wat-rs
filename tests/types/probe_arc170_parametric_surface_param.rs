@@ -53,6 +53,8 @@ fn wrong_parametric_surface_param_is_compile_error() {
     // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == "(:wat::capability::Dialable :- [:probe::Kv::Op :probe::Kv::Reply])"
+            // Stone 255.21 (C-b1b): Dialable names its transport; the generic param's `T` is
+            // still unbound when the swap is refused (`_`).
+            if expected == "(:wat::capability::Dialable :- [:probe::Kv::Op :probe::Kv::Reply _])"
             && got == "(:probe::echo::Handle :- [:wat::kernel::Wire])");
 }

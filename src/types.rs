@@ -4815,7 +4815,7 @@ pub(crate) fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
 /// - `Surface` — every `Field` member's type, AND every `Method` member's fixed-param types,
 ///   rest-param type (if any), and return type. The design/brief docs shorthand this variant's
 ///   row as "surface fields", but the corpus's own parametric surfaces ((Seqable :- [T]),
-///   (Dialable :- [S R]), (TypedCapability :- [S R]), (Holds :- [T]), (Cache :- [K V]), (Pair :- [A B]), …) declare
+///   (Dialable :- [S R T]), (TypedCapability :- [S R T]), (Holds :- [T]), (Cache :- [K V]), (Pair :- [A B]), …) declare
 ///   ZERO plain `Field` members — every one of them consumes its type params exclusively
 ///   through `:features` method signatures (typically the `self <- (Name :- [T,...])` restatement,
 ///   sometimes the return type, e.g. `(Holds :- [T])`'s `get [self] -> :T`). A check that read only

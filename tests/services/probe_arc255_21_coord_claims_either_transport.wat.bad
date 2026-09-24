@@ -1,0 +1,53 @@
+;; tests/services/probe_arc255_21_coord_claims_either_transport.wat.bad — stone 255.21 (C-b1b).
+;;
+;; The NEGATIVE rows. Was the witness `wat-scripts/scratch-pad/255-21-coord-claims-either-transport.wat`
+;; (255.21's first strike): every defn below type-checked (rc=0) while `Dialable`/`TypedCapability`
+;; were `:- [S R]` and `coord` returned the 2-argument `(Address :- [S R])` — the missing-slot arm
+;; admitted either transport, so a THREAD handle's address passed as Wire and a PROCESS handle's as
+;; Shared (the rule a6da457e3 made a type error, broken through the capability surface).
+;;
+;; After 255.21 both surfaces are `:- [S R T]`, defservice's edges bind the Handle's own transport,
+;; and 255.23 binds that `T` from the receiver: every defn below is a ReturnTypeMismatch naming the
+;; transport the handle actually has. Driven by `probe_arc255_21_capability_names_its_transport.rs`;
+;; the accepted twins are `probe_arc255_21_coord_names_its_transport.wat`.
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+     :Ok              [reply <- :wat::core::String]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
+(:wat::service::defservice :probe::echo
+  :satisfies :probe::Echo  :durable []  :ephemeral []
+  :impls [(echo [s ctx req]
+            (:wat::service::Outcome.Reply {:state s
+              :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
+
+;; a THREAD handle's Dialable/coord claimed Wire → refused (it is Shared)
+(:wat::core::defn :probe::thread-coord-claimed-wire []
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Wire])
+  (:wat::core::let
+    [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))]
+    (:wat::capability::Dialable/coord h)))
+
+;; a PROCESS handle's Dialable/coord claimed Shared → refused (it is Wire)
+(:wat::core::defn :probe::process-coord-claimed-shared []
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Shared])
+  (:wat::core::let
+    [h (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))]
+    (:wat::capability::Dialable/coord h)))
+
+;; the same two claims through TypedCapability/coord
+(:wat::core::defn :probe::thread-typedcap-coord-claimed-wire []
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Wire])
+  (:wat::core::let
+    [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))]
+    (:wat::capability::TypedCapability/coord h)))
+
+(:wat::core::defn :probe::process-typedcap-coord-claimed-shared []
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Shared])
+  (:wat::core::let
+    [h (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))]
+    (:wat::capability::TypedCapability/coord h)))

@@ -25,15 +25,16 @@
               :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 
 ;; abstract parametric-surface param + coord on it (Gap 2 return + Gap 1 accepting the handle)
-(:wat::core::defn :probe::takes-dialable
-  [d <- (:wat::capability::Dialable :- [:probe::Echo::Op :probe::Echo::Reply])]
-  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
+;; Stone 255.21 (C-b1b): `Dialable :- [S R T]` names its transport, so a generic site declares `T`.
+(:wat::core::defn :probe::takes-dialable :- [T]
+  [d <- (:wat::capability::Dialable :- [:probe::Echo::Op :probe::Echo::Reply T])]
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply T])
   (:wat::capability::Dialable/coord d))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`, per the arc-170 `[] -> :nil` / UselessMain
 ;; wall) dials nothing; it exists so the checker sees a raw `echo'::Handle` flow into the
-;; `(Dialable :- […])` param (Gap 1). Returns the coord'd Address'.
-(:wat::core::defn :probe::run [] -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
+;; `(Dialable :- […])` param (Gap 1). Returns the coord'd Address' — a process handle's is Wire.
+(:wat::core::defn :probe::run [] -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Wire])
   (:wat::core::let
     [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))]
     (:probe::takes-dialable eh)))
