@@ -21,13 +21,57 @@ ls -dt docs/arc/2026/*/*/ | head -6      # which arcs moved most recently
 git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # the ignore ledger, live
 ```
 
-**Stamp: written against HEAD `d01e638f375324d9f17c32c8e5f659868795f846`.** `main` == `origin/main`.
-Floor at that tree: **5918 passed / 22 skipped**, clippy 0, census `no STOP-8`.
-⚠ A one-commit docs-only gap is normal — the commit that writes this stamp lands after it.
+**Stamp: written against HEAD `74410c56f` (2026-09-24).** `main` == `origin/main` at that commit.
+Floor at `a25c9b2b9`: **6037 passed / 22 skipped**, clippy 0, census `no STOP-8`, delta NEW 3 / RECOVERY 0.
+⚠ 255.20's executor may have committed on top, locally and unweighed. **Do not push it before weighing.**
+⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
 ---
 
-## ⭐ WHAT JUST HAPPENED — the grok-rete replay is MERGED
+## ⭐ WHERE THE WORK STANDS — 2026-09-24 (arc 255, stones 255.14 → 255.20)
+
+The live thread is **the locus waist** (rulings below: *LOCUS IS A NARROW WAIST*, *EXACTLY ONE WAY*).
+Every stone's brief, SCORE and WEIGH is in `docs/arc/2026/06/255-builtin-registry/`; read the newest
+WEIGH first. ⛔ **Read the files. The table below only says where to look.**
+
+| stone | state | the doc to read |
+|---|---|---|
+| 255.15 transport inferred from the locus | ✅ | `WEIGH-STONE-255.15-…` |
+| 255.16 a type binds a parametric surface once | ✅ (closed Shared-as-Wire) | `WEIGH-STONE-255.16-…` |
+| 255.17 D2 (the last type argument lost) | ⛔ STOPPED; narrow fix **parked** in the session scratchpad `park-255.17/`, lands in C-b5 | `BRIEF-STONE-255.17-…`, `FINDING-a-matched-field-forgets-its-type-argument.md` |
+| 255.17a the child main says Wire | ⛔ STOPPED; the brief was wrong (Wire is a `defstruct`, so it reads impure) | `SCORE-STONE-255.17a-…` |
+| S5 measurement | ✅ **no failure needs a transport slot** | `FINDING-S5-no-failure-needs-a-transport-slot.md` |
+| 255.18 (C-b1a) `Locus :- [T]` | ✅ partial | `WEIGH-STONE-255.18-…` |
+| 255.19 locus behaviour on the surface | ✅ | `WEIGH-STONE-255.19-…` |
+| 255.20 a name nothing declares does not check | ⏳ **in flight** | `BRIEF-STONE-255.20-…` |
+
+⭐ **THE ROOT under all of it (four-questions, 2026-09-24):** the checker **knows by spelling what it
+should know by declaration**. A one-letter name counts as a type parameter (`is_type_param_letter`), the
+last letter-spelled argument counts as the transport slot, an unregistered name counts as pure, and a
+scheme-less `:wat::` head is accepted by its prefix. **C-a → C-b → C-c** is the ruled cure. The
+remaining queue, from the S5 finding and the 255.18/.19 WEIGHs:
+
+1. **255.20** (in flight): an undeclared call head is `UnknownCallee`.
+2. **C-b1b**: `Dialable`/`TypedCapability :- [S R T]` (X1 ruled; 68 annotations in 24 files).
+3. **C-b2**: defservice declares its transport `T` in every emitted generic defn.
+4. **C-b3**: a generic `extend-type` edge is matched by unification, not by string.
+5. **C-b4**: `Transport` becomes a `Pure` enum (`Shared`/`Wire` variants). ⚠ **The names are the
+   builder's to rule.** The child main then says Wire.
+6. **C-b5**: delete the transport special cases, land the parked D2 patch, refuse a bare `Locus` / an
+   uninstantiated `Handle` as any instantiation, and re-floor.
+7. **C-c**: a type parameter is known from its declared `type_params` (fixes `:- [Elem]` being refused
+   by `=`, and `is_pure_type`'s *unknown ⇒ type param* arm).
+8. **Step 3**: one generic `start`/`resume` (option E), retiring the per-locus copies and their string
+   routing, plus the waist wall.
+
+Also open: `spawn-program`/`test::spawn-peer` are per-locus defclauses with per-locus types · the
+alias probe's candidate 2 waits on D2 · ⚠ `cargo wat` in `~/.cargo/bin` is a **stale Aug-29 binary**;
+executors run codemods with `./target/release/wat` (the CLAUDE.md instruction names `cargo wat`; the
+builder's call) · stale `types.rs:<line>` citations in comments rot (`:1402`, `:1987` unchecked).
+
+---
+
+## EARLIER (2026-09-19) — the grok-rete replay is MERGED
 
 **651 of 651 commits replayed and landed on `main`** (fast-forward, 841 commits, no merge commit).
 The branch `replay/grok-rete` points at the same commit; `merge/grok-rete` (the first, **rejected**
@@ -907,4 +951,4 @@ blocks the registry.
 
 ---
 
-**Nothing is in flight. The tree is clean, `main` is green and pushed, and no batch is running.**
+⛔ **This line was true on 2026-09-19 and is not now.** For what is in flight, read *WHERE THE WORK STANDS* at the top. Then run `git status` and `git log` yourself: this file is a cache, not your memory.
