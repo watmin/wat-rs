@@ -299,6 +299,19 @@
      ;; char-length=0" — because a downstream reader trusted the flag and did bracket
      ;; arithmetic on "".
      fqdn-parametric? (:wat::core::if (:wat::core::empty? fqdn-tp-syms) false true)
+     ;; 255.24 (C-b2) — an emitted generic `defn` DECLARES the type parameters its signature
+     ;; names, instead of leaving `K`/`V`/`T`/`Xt` free and type-parameters-by-spelling.
+     ;; `decl-binder tps sig` → the `:- [P…]` splice (as a (Vector :- [WatAST]) of the two
+     ;; nodes `:-` and `[P…]`) naming EXACTLY the params of `tps` that `sig` (the defn's
+     ;; `[params ret]`) uses, in `tps`'s order; empty when it uses none, so a monomorphic
+     ;; defn stays binderless. A declaration names only what it consumes (255.20).
+     decl-binder (:wat::core::fn [tps <- (:wat::core::Vector :- [:wat::WatAST])
+                                  sig <- :wat::WatAST]
+                   -> (:wat::core::Vector :- [:wat::WatAST])
+                   (:wat::core::let [used (:wat::core::type-params-used-in tps sig)]
+                     (:wat::core::if (:wat::core::empty? used)
+                       (:wat::core::Vector :- [:wat::WatAST])
+                       (:wat::core::ast->children `[:- [~@used]]))))
      ;; STONE-the-last-mint — `fqdn-tp`, the bracketed `<K,V>` suffix STRING compatibility
      ;; shim, is RETIRED (its last two consumers, `transport-param` and `method-name`
      ;; below, now read `fqdn-tp-syms` structurally); mirrors `proto-tp`'s retirement
@@ -690,7 +703,8 @@
      init-name-str  (:wat::string::interpolate "{b}::init" :b fqdn-base)
      init-name      (:wat::keyword::from-string init-name-str)
      ;; init-def: the emitted top-level defn for init
-     init-def       `(:wat::core::defn ~init-name ~init-params-vec -> ~state-ty-ann ~init-body)
+     init-bnd       (decl-binder fqdn-tp-syms `[~init-params-vec ~state-ty-ann])
+     init-def       `(:wat::core::defn ~init-name ~@init-bnd ~init-params-vec -> ~state-ty-ann ~init-body)
 
      ;; ── 4b-ii: :stop option — projection hook ────────────────────────────────
      ;; Default: (fn [s <- ::State] -> ::Record (::State/durable s))
@@ -712,7 +726,8 @@
      stop-project-name-str (:wat::string::interpolate "{b}::stop-project" :b fqdn-base)
      stop-project-name (:wat::keyword::from-string stop-project-name-str)
      ;; stop-project-def: the emitted top-level defn for stop projection
-     stop-project-def `(:wat::core::defn ~stop-project-name ~stop-params-vec -> ~resp-ty ~stop-body)
+     stop-project-bnd (decl-binder fqdn-tp-syms `[~stop-params-vec ~resp-ty])
+     stop-project-def `(:wat::core::defn ~stop-project-name ~@stop-project-bnd ~stop-params-vec -> ~resp-ty ~stop-body)
 
      ;; ── 4b-ii: :hibernate option — projection hook (NEW, mirror of :stop) ────
      ;; Return type FORCED to ::Record (resume = :init consumes it).
@@ -754,7 +769,8 @@
                         nil)
      hibernate-project-name-str (:wat::string::interpolate "{b}::hibernate-project" :b fqdn-base)
      hibernate-project-name (:wat::keyword::from-string hibernate-project-name-str)
-     hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty-ann ~hibernate-body)
+     hibernate-project-bnd (decl-binder fqdn-tp-syms `[~hibernate-params-vec ~record-ty-ann])
+     hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~@hibernate-project-bnd ~hibernate-params-vec -> ~record-ty-ann ~hibernate-body)
 
      ;; ── 4b-ii: emit the Record def + State defstruct ─────────────────────────
      ;; record-def: (:wat::core::Record::def ::Record [durable-fields]) (or holon parent)
@@ -1232,7 +1248,8 @@
      ;;   Resume(snapshot) → (init snapshot)   — resume: init rebuilds struct from saved record
      ;;   Stop             → assertion-failed! (not a startup message)
      ;;   Hibernate        → assertion-failed! (not a startup message)
-     dispatch-admin-def `(:wat::core::defn ~dispatch-admin-name [ai <- ~admin-ty-ann] -> ~state-ty-ann
+     dispatch-admin-bnd (decl-binder fqdn-tp-syms `[[ai <- ~admin-ty-ann] ~state-ty-ann])
+     dispatch-admin-def `(:wat::core::defn ~dispatch-admin-name ~@dispatch-admin-bnd [ai <- ~admin-ty-ann] -> ~state-ty-ann
                             (:wat::core::match ai 
                               [~admin-init-kw ~init-arg-map-ast   (~init-name ~@init-arg-names)]
                               [~admin-resume-kw ~init-arg-map-ast (~init-name ~@init-arg-names)]
@@ -1251,7 +1268,8 @@
      ;; Passed to Locus/launch as lu-addr-kw so the generic ProcessOpts impl
      ;; can extract the Address without naming per-service Status types.
      lu-sym     (:wat::core::symbol-node "lu")
-     extract-addr-def `(:wat::core::defn ~extract-addr-name
+     extract-addr-bnd (decl-binder handle-tp-syms `[[lu <- ~status-ty-ann] ~addr-ty])
+     extract-addr-def `(:wat::core::defn ~extract-addr-name ~@extract-addr-bnd
                                   [lu <- ~status-ty-ann] -> ~addr-ty
                                   (:wat::core::match lu 
                                     [~status-started-kw {:addr addr} addr]
@@ -2203,7 +2221,8 @@
                               (:wat::kernel::assertion-failed! :message "defservice stop: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                             [:wat::kernel::RecvOutcome.Closed {}
                               (:wat::kernel::assertion-failed! :message "defservice stop: service peer closed during stop")]))
-     stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
+     stop-method-bnd (decl-binder handle-tp-syms `[~stop-method-params ~resp-ty])
+     stop-method       `(:wat::core::defn ~stop-method-name ~@stop-method-bnd ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
      methods           (:wat::core::conj op-methods stop-method)
 
@@ -2237,7 +2256,8 @@
                                    (:wat::kernel::assertion-failed! :message "defservice hibernate: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                                  [:wat::kernel::RecvOutcome.Closed {}
                                    (:wat::kernel::assertion-failed! :message "defservice hibernate: service peer closed during hibernate")]))
-     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
+     hibernate-method-bnd (decl-binder handle-tp-syms `[~hibernate-method-params ~record-ty-ann])
+     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~@hibernate-method-bnd ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
 
@@ -2283,7 +2303,8 @@
                             [:wat::kernel::RecvOutcome.Closed {}
                               (:wat::kernel::assertion-failed! :message "defservice grant: service peer closed during grant")]))]
                           [:wat::core::Option.None {} nil])
-     grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
+     grant-method-bnd (decl-binder handle-tp-syms `[~grant-method-params :wat::core::nil])
+     grant-method      `(:wat::core::defn ~grant-method-name ~@grant-method-bnd ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
      methods           (:wat::core::conj methods grant-method)
 
@@ -2326,7 +2347,8 @@
                              [:wat::kernel::RecvOutcome.Closed {}
                                (:wat::kernel::assertion-failed! :message "defservice revoke: service peer closed during revoke")]))]
                            [:wat::core::Option.None {} nil])
-     revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
+     revoke-method-bnd (decl-binder handle-tp-syms `[~revoke-method-params :wat::core::nil])
+     revoke-method      `(:wat::core::defn ~revoke-method-name ~@revoke-method-bnd ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
      methods           (:wat::core::conj methods revoke-method)
 
@@ -2484,6 +2506,8 @@
      ;; re-shipping them is what turned `resolve::gate -> Reserved` red in the child. The ONE
      ;; thing shipped unconditionally is `child-main-form` — generated per service, in no
      ;; bake, and the child's entry point; dropping it leaves the child with nothing to run.
+     ;; 255.24 — serve's `self` is `(ThreadSelfPeer :- [(Status :- [… T]) Admin])`; declared.
+     serve-bnd       (decl-binder handle-tp-syms `[~serve-params :wat::core::nil])
      fqdn-is-wat-rooted? (:wat::string::starts-with? fqdn-base "wat::")
      own-forms-call  (:wat::core::if fqdn-is-wat-rooted?
 
@@ -2493,7 +2517,7 @@
                           ~state-def
                           ~service-op-def
                           ~@service-op-derive-items
-                          (:wat::core::defn ~serve-name ~serve-params
+                          (:wat::core::defn ~serve-name ~@serve-bnd ~serve-params
                             -> :wat::core::nil ~serve-body)
                           ~init-def
                           ~stop-project-def
@@ -2647,9 +2671,15 @@
                                       (:wat::keyword::from-string ~extract-addr-name-str)
                                       (:wat::keyword::from-string ~status-started-str))]
                            (:wat::core::ann-form ~start-handle-expr ~handle-wire-name))
-     start-impl-fn `(:wat::core::defn ~start-impl-name ~start-impl-params -> ~handle-name-ann ~start-body)
-     start-impl-thread-fn `(:wat::core::defn ~start-impl-thread-name ~start-impl-thread-params -> ~handle-shared-name ~start-body-thread)
-     start-impl-process-fn `(:wat::core::defn ~start-impl-process-name ~start-impl-process-params -> ~handle-wire-name ~start-body-process)
+     ;; 255.24 — the abstract impl declares `:- [K V T]` (the service's params its signature
+     ;; names + the transport letter its `(Locus :- [T])` / `(Handle :- [… T])` share); the
+     ;; per-locus copies name only the service's params (their transport is concrete).
+     start-impl-bnd (decl-binder handle-tp-syms `[~start-impl-params ~handle-name-ann])
+     start-impl-thread-bnd (decl-binder handle-tp-syms `[~start-impl-thread-params ~handle-shared-name])
+     start-impl-process-bnd (decl-binder handle-tp-syms `[~start-impl-process-params ~handle-wire-name])
+     start-impl-fn `(:wat::core::defn ~start-impl-name ~@start-impl-bnd ~start-impl-params -> ~handle-name-ann ~start-body)
+     start-impl-thread-fn `(:wat::core::defn ~start-impl-thread-name ~@start-impl-thread-bnd ~start-impl-thread-params -> ~handle-shared-name ~start-body-thread)
+     start-impl-process-fn `(:wat::core::defn ~start-impl-process-name ~@start-impl-process-bnd ~start-impl-process-params -> ~handle-wire-name ~start-body-process)
      start-fn      `(:wat::core::do
                       ~start-impl-fn
                       ~start-impl-thread-fn
@@ -2771,9 +2801,9 @@
                                        (:wat::keyword::from-string ~extract-addr-name-str)
                                        (:wat::keyword::from-string ~status-started-str))]
                             (:wat::core::ann-form ~start-handle-expr ~handle-wire-name))
-     resume-impl-fn `(:wat::core::defn ~resume-impl-name ~start-impl-params -> ~handle-name-ann ~resume-body)
-     resume-impl-thread-fn `(:wat::core::defn ~resume-impl-thread-name ~start-impl-thread-params -> ~handle-shared-name ~resume-body-thread)
-     resume-impl-process-fn `(:wat::core::defn ~resume-impl-process-name ~start-impl-process-params -> ~handle-wire-name ~resume-body-process)
+     resume-impl-fn `(:wat::core::defn ~resume-impl-name ~@start-impl-bnd ~start-impl-params -> ~handle-name-ann ~resume-body)
+     resume-impl-thread-fn `(:wat::core::defn ~resume-impl-thread-name ~@start-impl-thread-bnd ~start-impl-thread-params -> ~handle-shared-name ~resume-body-thread)
+     resume-impl-process-fn `(:wat::core::defn ~resume-impl-process-name ~@start-impl-process-bnd ~start-impl-process-params -> ~handle-wire-name ~resume-body-process)
      resume-fn      `(:wat::core::do
                        ~resume-impl-fn
                        ~resume-impl-thread-fn
@@ -2938,7 +2968,7 @@
        ~@service-op-derive-items
        ~admin-enum-def
        ~status-enum-def
-       (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
+       (:wat::core::defn ~serve-name ~@serve-bnd ~serve-params -> :wat::core::nil ~serve-body)
        ~init-def
        ~stop-project-def
        ~hibernate-project-def

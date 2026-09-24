@@ -1,0 +1,41 @@
+;; tests/services/probe_arc255_24_start_impl_claims_the_other_transport.wat.bad — stone 255.24 (C-b2).
+;;
+;; The REFUSED rows beside `probe_arc255_24_defservice_declares_what_it_emits.wat`: `start$impl` of a
+;; `:- [K V]` service, whose binder now declares `:- [K V T]`, called with a concrete locus and
+;; claimed at the OTHER transport. Each is a ReturnTypeMismatch naming the transport the locus
+;; gives. Driven by `probe_arc255_24_defservice_declares_what_it_emits.rs`. (Also refused on the
+;; pre-stone binary `56b57f09e`: the undeclared `T` was generalized by spelling.)
+(:wat::core::defsurface :probe::Pair :- [K V] :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :probe::Pair::PutRequest [item <- :wat::core::i64])
+   (:wat::core::defenum :probe::Pair::PutResponse :wat::enum::Pure
+     :Ok               [echo <- :wat::core::i64]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(put [self <- (:probe::Pair :- [K V])  req <- :probe::Pair::PutRequest]
+     -> :probe::Pair::PutResponse :max-request-bytes 1024)])
+
+(:wat::service::defservice :probe::pair-svc :- [K V]
+  :satisfies (:probe::Pair :- [K V])
+  :durable   [k <- (:wat::core::Option :- [K])  v <- (:wat::core::Option :- [V])]
+  :ephemeral []
+  :impls
+  [(put [s ctx req]
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::Pair::PutResponse.Ok {:echo (:probe::Pair::PutRequest/item req)})}))])
+
+(:wat::core::defn :probe::seed [] -> (:probe::pair-svc::Record :- [:wat::core::String :wat::core::i64])
+  (:probe::pair-svc::Record
+    :k (:wat::core::Option.Some {:value "hi"})
+    :v (:wat::core::Option.Some {:value 42})))
+
+;; a THREAD locus claimed Wire → refused (it is Shared)
+(:wat::core::defn :probe::thread-claimed-wire []
+  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Wire])
+  (:probe::pair-svc/start$impl (:wat::spawn::thread) (:probe::seed)))
+
+;; a PROCESS locus claimed Shared → refused (it is Wire)
+(:wat::core::defn :probe::process-claimed-shared []
+  -> (:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Shared])
+  (:probe::pair-svc/start$impl (:wat::spawn::process) (:probe::seed)))
