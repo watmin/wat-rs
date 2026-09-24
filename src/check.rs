@@ -5335,106 +5335,71 @@ fn infer_list(
                         if s.type_params.is_empty() {
                             (member_ret_raw, extra_param_types_raw)
                         } else {
-                            // (1) CONCRETE satisfier scheme (existing path — a satisfier's
-                            //     `<ConcreteType>/<method>` scheme has the surface `<T>` already
-                            //     bound to its concrete args). Byte-identical to prior behavior.
+                            // (1) The receiver's SATISFIER scheme — Stone 255.23 (C-b3), ONE PATH.
+                            //
+                            // A GENERIC edge (`(extend-type :- [P …] <child> <target> …)`, 255.22)
+                            // registered its method scheme in ITS OWN parameter names under the
+                            // child's head (`<child-head>/<method>`,
+                            // `register_extend_type_surface_impls`). The receiver is fitted against
+                            // each generic edge's child at this surface
+                            // (`types::generic_edge_matches`, binding exactly the binder's names):
+                            //   - ONE match: that scheme, instantiated with the edge's bindings;
+                            //   - SEVERAL: no scheme, never pick one (unreachable: registration
+                            //     already refuses it, `ParametricSurfaceBoundTwice`);
+                            //   - NONE: a concrete edge — its scheme is already concrete
+                            //     (`register_extend_type_surface_impls` substituted the surface's
+                            //     params), found under the exact key or the bare head.
+                            //
+                            // This REPLACES two guesses: the receiver's last argument rewritten to
+                            // `:T`/`:Xt` (a spelling guess at which name an edge used), and 118.B2d's
+                            // positional zip of the SURFACE's params against the receiver's args
+                            // (right only when a child's parameters are its target's, in order).
                             let concrete = arg_tys.first()
                                 .and_then(|o| o.as_ref())
                                 .and_then(|recv_ty| {
                                     let recv = apply_subst(recv_ty, subst);
-                                    // 293.W.2f — (Handle :- [Wire]) is an instantiation of
-                                    // (Handle :- [T]); the extend-type scheme is keyed on
-                                    // (Handle :- [T]) (or the bare Handle). Try exact, then
-                                    // T/Xt in the last slot, then the bare head.
-                                    for key in satisfier_method_keys(&recv, method_name) {
-                                        if let Some(scheme) = env.get(&key) {
-                                            let ret = scheme.ret.clone();
-                                            let params =
-                                                scheme.params.get(1..).unwrap_or(&[]).to_vec();
-                                            // ── Stone 118.B2d — A GENERIC SATISFIER LEAVES THE
-                                            // SURFACE'S PARAM UNBOUND, SO BIND IT FROM THE RECEIVER
-                                            //
-                                            // Path (1) above assumes `extend-type` already
-                                            // substituted the surface's `<T>` to a CONCRETE binding
-                                            // ("e.g. T=i64 for (extend-type :IntBox (:Holds :- [i64]))").
-                                            // That holds for a MONOMORPHIC satisfier. It does NOT
-                                            // hold when a GENERIC container satisfies the surface:
-                                            // `(extend-type :wat::core::Vector (:wat::core::Seqable :- [T]))`
-                                            // binds `T -> T`, a VARIABLE, so the stored scheme's
-                                            // return stays `(Stream :- [T])` with `T` free and nothing
-                                            // ever instantiated it. `(Seqable/seq v)` on a
-                                            // `(Vector :- [i64])` therefore yielded `(Stream :- [T])` and could
-                                            // not be handed to any consumer wanting a concrete
-                                            // element type — the ONE method `(Seqable :- [T])` has could
-                                            // not have its result typed.
-                                            //
-                                            // ★ NO NEW STATE IS NEEDED, AND `rename` IS THE SIGNAL.
-                                            // A satisfier that bound CONCRETELY leaves no surface
-                                            // param in its scheme, so this `rename` is the identity
-                                            // and those schemes are byte-identical — the safety is
-                                            // structural, not a guard someone has to maintain. Only
-                                            // a scheme that still MENTIONS the surface's params can
-                                            // move, and that is exactly the broken class (measured:
-                                            // 8 rows, all Seqable —
-                                            // MEASURED-118.B2d-the-blast-radius-is-exactly-seqable.md).
-                                            //
-                                            // The arity guard is the same one path (2) below
-                                            // already applies, for the same reason: the positional
-                                            // zip is only meaningful when the counts line up. A
-                                            // hypothetical `(Map :- [K V])` satisfying `(Seqable :- [T])` fails
-                                            // it and falls through untouched rather than binding
-                                            // `T := K`.
-                                            //
-                                            // Stone 255.22 — a GENERIC edge (one whose form declared
-                                            // a `:- [P …]` binder) registered this scheme in ITS OWN
-                                            // parameter names: `self` is the edge's child, and the
-                                            // surface's params were renamed to the target's args
-                                            // (`register_extend_type_surface_impls`). So the scheme is
-                                            // instantiated by matching the edge's CHILD against the
-                                            // receiver — binding exactly the binder's names — not by
-                                            // zipping the SURFACE's params against the receiver's
-                                            // args, which agreed only when the edge happened to spell
-                                            // its parameter as the surface does (`(extend-type :- [E]
-                                            // (Box :- [E]) (Greets :- [E]))` on `(Greets :- [T])` left
-                                            // `:E` in the result). One match decides; none or several
-                                            // fall through to the positional zip below, unchanged.
-                                            let edge_matches = crate::types::generic_edge_matches(
-                                                &recv,
-                                                protocol_fqdn,
-                                                env.types(),
+                                    let edge_matches = crate::types::generic_edge_matches(
+                                        &recv,
+                                        protocol_fqdn,
+                                        env.types(),
+                                    );
+                                    match edge_matches.as_slice() {
+                                        [] => {}
+                                        [(_, bindings)] => {
+                                            let TypeExpr::Parametric { head, .. } = &recv else {
+                                                return None;
+                                            };
+                                            let key = format!(
+                                                "{}/{}",
+                                                crate::types::parametric_head_fqdn(head),
+                                                method_name
                                             );
-                                            if let [(_, bindings)] = edge_matches.as_slice() {
-                                                return Some((
-                                                    rename(&ret, bindings),
-                                                    params.iter().map(|t| rename(t, bindings)).collect(),
-                                                ));
-                                            }
-                                            if let TypeExpr::Parametric {
-                                                args: recv_args, ..
-                                            } = &recv
-                                            {
-                                                if recv_args.len() == s.type_params.len()
-                                                    && !s.type_params.is_empty()
-                                                {
-                                                    let mapping: HashMap<String, TypeExpr> = s
-                                                        .type_params
-                                                        .iter()
-                                                        .cloned()
-                                                        .zip(recv_args.iter().cloned())
-                                                        .collect();
-                                                    return Some((
-                                                        rename(&ret, &mapping),
-                                                        params
-                                                            .iter()
-                                                            .map(|t| rename(t, &mapping))
-                                                            .collect(),
-                                                    ));
-                                                }
-                                            }
-                                            return Some((ret, params));
+                                            let scheme = env.get(&key)?;
+                                            return Some((
+                                                rename(&scheme.ret, bindings),
+                                                scheme
+                                                    .params
+                                                    .get(1..)
+                                                    .unwrap_or(&[])
+                                                    .iter()
+                                                    .map(|t| rename(t, bindings))
+                                                    .collect(),
+                                            ));
                                         }
+                                        // SEVERAL cannot arise: registration refuses a type binding
+                                        // a parametric surface twice (`ParametricSurfaceBoundTwice`,
+                                        // measured 255.23). Never pick one — no scheme.
+                                        _ => return None,
                                     }
-                                    None
+                                    satisfier_method_keys(&recv, method_name)
+                                        .into_iter()
+                                        .find_map(|key| env.get(&key))
+                                        .map(|scheme| {
+                                            (
+                                                scheme.ret.clone(),
+                                                scheme.params.get(1..).unwrap_or(&[]).to_vec(),
+                                            )
+                                        })
                                 });
                             match concrete {
                                 Some(rp) => rp,
@@ -10587,30 +10552,15 @@ pub(crate) fn is_type_param_letter(ty: &TypeExpr) -> bool {
     }
 }
 
-/// Scheme keys for a surface method on `recv`: exact format_type, then
-/// last-arg rewritten to `:T` / `:Xt` ((Handle :- [Wire]) → `(Handle :- [:T])`), then the bare
-/// head. STONE-defservice-emits-the-binder — the colon on the letter matches
-/// (retired) `transport_edge_keys` guess, same reason: `Path(":T")`, not `Path("T")`. Stone 255.22 left this
-/// METHOD-key guess in place (C-b3's ground); the EDGE guesses it mirrored are gone.
+/// Scheme keys for a surface method on a receiver NO generic edge matched: the exact
+/// `format_type`, then the bare head (`register_extend_type_surface_impls` registers every
+/// method under the child's BARE head, the runtime dispatch key). Stone 255.23 (C-b3)
+/// deleted the `:T`/`:Xt` last-argument rewrite: a generic edge's scheme is now found by
+/// matching the receiver against the edge's child (`types::generic_edge_matches`), never by
+/// guessing how the edge spelled its parameter.
 fn satisfier_method_keys(recv: &TypeExpr, method_name: &str) -> Vec<String> {
     let mut keys = vec![format!("{}/{}", format_type(recv), method_name)];
-    if let TypeExpr::Parametric { head, args } = recv {
-        if let Some(last) = args.last() {
-            if is_shared_marker(last) || is_wire_marker(last) || is_type_param_letter(last) {
-                for letter in [":T", ":Xt"] {
-                    let mut inst = args.clone();
-                    inst[args.len() - 1] = TypeExpr::Path(letter.into());
-                    keys.push(format!(
-                        "{}/{}",
-                        format_type(&TypeExpr::Parametric {
-                            head: head.clone(),
-                            args: inst,
-                        }),
-                        method_name
-                    ));
-                }
-            }
-        }
+    if let TypeExpr::Parametric { head, .. } = recv {
         keys.push(format!(
             "{}/{}",
             crate::types::parametric_head_fqdn(head),
