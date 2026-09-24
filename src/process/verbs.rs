@@ -412,6 +412,9 @@ pub(crate) fn run_forms_as_server_child(
         ))),
     );
     let _self_peer_guard = crate::services::install_self_peer(self_peer_value);
+    // Excursus 003 stone H — fd 1 is now this process's wire to the parent as well as its stdout, so
+    // `println`/`pprintln` here encode STRICT (a handle refuses at the print, not at the parent).
+    crate::services::verbs::mark_stdout_as_peer_wire();
 
     // Build wat-level stdio over the already-dup2'd fd 0/1/2.
     // SAFETY: The child branch in spawn_process_peer has already dup2'd

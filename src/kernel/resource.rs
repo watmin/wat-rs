@@ -1122,13 +1122,22 @@ pub(crate) fn eval_kernel_after(
         Ok(make_rust_opaque(PEER_TYPE_PATH, cell))
     } else {
         // ── Process tier ─────────────────────────────────────────────────────
-        // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'
-        // and as a real socket peer's frames, so `poll'`/`select'` decode it via
+        // Encode msg to a wire frame (tagged EDN; `timer` adds the '\n') — same framing as
+        // send' and as a real socket peer's frames, so `poll'`/`select'` decode it via
         // `decode_trusted_wire` identically to any accepted connection.
-        let edn_node = crate::edn::render::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()))?;
-        let edn_str = wat_edn::write(&edn_node);
-        let mut frame: Vec<u8> = edn_str.into_bytes();
-        frame.push(b'\n');
+        //
+        // Excursus 003 stone H — it is decoded as DATA, so it is encoded STRICT, and a msg with no
+        // wire form (a handle) RAISES here, at the user's `after`. It used to go out as `#tag nil`
+        // and surface only at the `select` that fired it, as a decode failure about retired syntax
+        // located in `src/edn/render.rs`. The thread tier (above) carries the `Value` itself.
+        let frame = crate::kernel::message::encode_for_wire_as(
+            OP,
+            &msg,
+            list_span,
+            sym,
+            "scheduled",
+            " A process-tier `after` delivers its msg as a wire frame.",
+        )?;
 
         // A timerfd-backed `process::Receiver<Value>` — the SAME `Source::Timer`
         // that backed the old `Receiver<String>`; the frame bytes are tier-agnostic

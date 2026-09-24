@@ -132,16 +132,15 @@ impl EdnRepresentable for String {
 
 /// `EdnRepresentable` for `Value` — Stone C0b.2e-i-0 (arc 209).
 ///
-/// Plain-EDN wire — no holon tags. `to_wire` uses `value_to_edn_string`
-/// (registry-free codec; positional `:field-{i}` for structs). This is used by
-/// thread-tier `CommSender<Value>` (crossbeam, no serialisation roundtrip) and
-/// as a fallback.
+/// Plain-EDN wire — no holon tags. `to_wire` uses the LENIENT, registry-free writer
+/// (positional `:field-{i}` for structs; a handle as its nil-bodied tag). The thread
+/// tier never calls it (crossbeam carries the `Value` itself).
 ///
-/// Arc 258.5b-ii: the socket-tier PEER_TYPE_PATH send path now uses
-/// `Peer::send_wire(String)` with the string pre-encoded by
-/// `value_to_edn_string_with(v, sym.types())` in the eval layer — `to_wire` is
-/// NOT called on that path.  `to_wire` remains for the thread-tier `CommSender`
-/// contract and any non-PEER_TYPE_PATH comms (process-tier thread-local is gone).
+/// Arc 258.5b-ii / excursus 003 stone H: every runtime wire path ships a strict
+/// `WireFrame` pre-encoded in the eval layer (`Peer::send_wire`,
+/// `ProcessPeerBundle::send_wire`, `comms::process::timer`) — `to_wire` is NOT called
+/// on any of them, and no wat program reaches it (see the body). It serves only a Rust
+/// caller holding a `process::Sender<Value>` directly.
 ///
 /// `from_wire` uses `edn_string_to_value` with `None` for the type registry
 /// (primitive scaffold only — reconstructs i64/f64/bool/nil/String/keyword/
@@ -160,6 +159,17 @@ impl EdnRepresentable for crate::value::Value {
         // 258.5b-ii already moved the socket tier OFF it (encode in the eval layer, ship
         // bytes) precisely for this reason; the thread tier passes `T` directly. Anything
         // still reaching here with a record is a plumbing gap, not a rendering choice.
+        //
+        // ⛔ Excursus 003 stone H — NO WAT PROGRAM REACHES THIS, and it must stay so: it is the
+        // LENIENT writer (a handle ships as `#tag nil`, the sender is told Ok) with no registry,
+        // and it cannot refuse (`to_wire` is infallible). Every `Sender<Value>` the runtime builds
+        // (`sender_receiver_from_*::<Value>` in `process::verbs`, `kernel::{address, listener,
+        // message}`, and `after`'s dead sender) is `reinterpret::<String>()`ed before any send, and
+        // the eval layer ships strict `WireFrame`s (`edn::render`). Proved 2026-09-24 by mutation:
+        // with this body a `panic!`, the whole floor (6247 tests) reddened exactly two — both Rust
+        // tests that call `comms::process::pair::<Value>()` directly (`tests/comms/process.rs`,
+        // `tests/comms/trait_object.rs`). So it is reachable from the Rust API only. A new runtime
+        // path that sends a `Value` through a `process::Sender<Value>` would bypass the wire wall.
         crate::edn::render::value_to_edn_string_lossy(self, None)
     }
 

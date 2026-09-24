@@ -1,0 +1,17 @@
+#wat.runtime/MalformedForm {
+  :message "malformed :wat::kernel::after form: a wire peer carries only pure data — the value scheduled (:h::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. A process-tier `after` delivers its msg as a wire frame. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
+  :location #wat.core/Span {
+    :file "tests/comms/probe_ex003_stone_h_every_wire_encoder_is_strict.wat"
+    :line 25
+    :col 9
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 25
+        :col 105
+      }
+    }
+  }
+  :causes []
+  :head ":wat::kernel::after"
+  :reason "a wire peer carries only pure data — the value scheduled (:h::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. A process-tier `after` delivers its msg as a wire frame. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
+}

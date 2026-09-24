@@ -1330,7 +1330,7 @@ fn uring_read_n_into_scratch(
 /// Create a one-shot process-tier timer `Receiver<String>`.
 ///
 /// The returned receiver fires exactly once after `duration`, delivering
-/// `msg_frame` (a pre-encoded EDN frame — must end with `'\n'`). After that,
+/// `msg` framed with a trailing `'\n'`. After that,
 /// subsequent `recv()` or `Select::select()` calls on this receiver behave as
 /// if the peer closed: the timerfd is spent and the `OwnedMoveCell` is drained.
 ///
@@ -1343,8 +1343,17 @@ fn uring_read_n_into_scratch(
 /// mirrors `src/comms/thread.rs:200`). A `Mutex`/`RwLock`/`RefCell<Option<..>>`
 /// here is a heresy (see `docs/ZERO-MUTEX.md`).
 ///
+/// Excursus 003 stone H — `msg` is a [`WireFrame`](crate::edn::render::WireFrame): the frame is
+/// decoded as DATA by `poll`/`select` on the far side, so it must come from the STRICT wire
+/// encoder, and only that encoder mints one.
+///
 /// Returns `Err(io::Error)` if `timerfd_create` or `timerfd_settime` fails.
-pub fn timer<T: EdnRepresentable>(duration: std::time::Duration, msg_frame: Frame) -> std::io::Result<Receiver<T>> {
+pub fn timer<T: EdnRepresentable>(
+    duration: std::time::Duration,
+    msg: crate::edn::render::WireFrame,
+) -> std::io::Result<Receiver<T>> {
+    let mut msg_frame: Frame = msg.into_string().into_bytes();
+    msg_frame.push(b'\n');
     // timerfd_create: CLOCK_MONOTONIC is steady (unaffected by wall-clock adjustments);
     // TFD_NONBLOCK + TFD_CLOEXEC are atomic at creation.
     // SAFETY: libc::timerfd_create is a raw syscall; its return value is a raw fd
@@ -2097,9 +2106,14 @@ mod timer_tests {
     #[test]
     fn timer_source_fires_through_select() {
         let delay = Duration::from_millis(50);
-        let msg_frame: Vec<u8> = b":tick\n".to_vec();
+        // Excursus 003 stone H — `timer` takes a strict `WireFrame`, which only the wire encoder mints.
+        let msg = crate::edn::render::value_to_wire_edn_string(
+            &crate::runtime::Value::wat__core__keyword(std::sync::Arc::new(":tick".to_string())),
+            None,
+        )
+        .expect("a keyword has a wire form");
 
-        let rx = timer(delay, msg_frame).expect("timerfd_create + timerfd_settime must succeed");
+        let rx = timer(delay, msg).expect("timerfd_create + timerfd_settime must succeed");
 
         let mut sel = Select::<String>::new();
         let idx: ReceiverIndex = sel.recv(&rx);

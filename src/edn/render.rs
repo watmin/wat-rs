@@ -4294,18 +4294,12 @@ fn build_foreign_variant(
 // door — `value_to_edn_string_with` — and a caller with no registry passes `None`
 // EXPLICITLY, in the open, where the next reader can ask why.
 
-/// Encode a `Value` to a compact EDN `String` with an optional type registry.
-///
-/// Arc 258.5b-ii: called by `eval_peer_send_prime` (PEER_TYPE_PATH socket-tier
-/// arm) to encode with `sym.types()` so records cross the wire with named
-/// fields rather than positional `:field-{i}` fallback.  The resulting `String`
-/// is shipped via `Peer::send_wire` — no thread-local involved.
 /// The LOSSY door, for call sites that structurally cannot propagate — a panic hook, a crash
 /// reporter, an exit path, a `Drop`. It renders the encode failure INTO the output instead of
 /// returning it.
 ///
 /// ⛔ THIS IS NOT A CONVENIENCE, AND IT IS NOT FOR ORDINARY CALLERS. Every site that CAN return a
-/// `Result` must use [`value_to_edn_string_with`] and report honestly; reaching for this one to
+/// `Result` must use [`value_to_edn_with`] and report honestly; reaching for this one to
 /// avoid threading an error is how the panic being removed here got written in the first place.
 /// The whole point of the conversion is that failure has somewhere to go — this door exists only
 /// where there is genuinely nowhere.
@@ -4327,6 +4321,14 @@ pub(crate) fn value_to_edn_string_lossy(
     }
 }
 
+/// Encode a `Value` to a compact EDN `String` with an optional type registry — the LENIENT writer
+/// (a handle renders as its nil-bodied tag).
+///
+/// Excursus 003 stone H — TEST-ONLY now. It was the wire's encoder (arc 258.5b-ii: `send`'s
+/// socket-tier arm, then stone G's `try-send` thread-tier re-run); every wire sink now takes a strict
+/// [`WireFrame`] from [`value_to_wire_edn_string`], and no production caller remained. A non-wire
+/// production caller that wants a `String` writes `wat_edn::write(&value_to_edn_with(..)?)`.
+#[cfg(test)]
 pub(crate) fn value_to_edn_string_with(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
@@ -4486,11 +4488,46 @@ pub fn value_to_edn_with(
 /// capability (a Wire `Address`) still encodes through `crate::capability::encode_capability` and
 /// crosses. Only the wire uses this, because only the wire promises the value comes back whole; every
 /// other path (printing, `:wat::edn::write`) keeps `opaque_nil` (arc 294, *"correct and final"*).
+///
+/// Excursus 003 stone H — returns a [`WireFrame`], the ONLY way to mint one. Every sink that ships a
+/// user value as bytes a peer DECODES AS DATA takes a `WireFrame`, so a wire path cannot be written
+/// with the lenient writer: it would not type-check.
 pub(crate) fn value_to_wire_edn_string(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
-) -> Result<String, WireEncodeError> {
-    Ok(wat_edn::write(&value_to_edn_in(v, types, OpaqueMode::Refuse)?))
+) -> Result<WireFrame, WireEncodeError> {
+    Ok(WireFrame(wat_edn::write(&value_to_edn_in(v, types, OpaqueMode::Refuse)?)))
+}
+
+/// Excursus 003 stone H — ONE EDN line produced by the STRICT wire encoder
+/// ([`value_to_wire_edn_string`]), and by nothing else: the field is private to this module and that
+/// function is its only constructor.
+///
+/// ⛔ **THE INVARIANT, where the next hand adding a wire path meets it.** A sink that ships a user
+/// value as bytes a peer decodes as data — `Peer::send_wire` / `Peer::try_send_wire` (the socket
+/// tier), `ProcessPeerBundle::send_wire` (parent -> child), `comms::process::timer` (a process-tier
+/// `after`) — takes a `WireFrame`, never a `String`. The lenient writers ([`value_to_edn_with`],
+/// `value_to_edn_string_lossy`) render a handle as a nil-bodied tag
+/// that the far side can only reject, AFTER the sender was told `Sent`; they return `String`s /
+/// `OwnedValue`s, which such a sink refuses at compile time. Adding a wire sink? Take a `WireFrame`.
+/// Handing one a lenient string needs a constructor that does not exist.
+///
+/// ⚠ The ONE wire this type cannot guard: a spawned process's STDOUT is also its wire to the parent,
+/// and stdout is dual-use (text in a root process), so `println`/`pprintln` decide at runtime
+/// (`services::verbs::STDOUT_IS_PEER_WIRE`, set at the spawned-child seam) and use this encoder there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WireFrame(String);
+
+impl WireFrame {
+    /// The EDN line (no trailing newline — framing is the transport's).
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Unwrap into the EDN line, for the transport that frames and writes it.
+    pub fn into_string(self) -> String {
+        self.0
+    }
 }
 
 /// How the writer meets a value it can only render as a payload-less tag (excursus 003 stone G).

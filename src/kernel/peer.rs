@@ -330,9 +330,12 @@ impl Peer {
     /// endpoint has been dropped (EPIPE), or `Shutdown`/`FrameTooLarge`/
     /// `Failed(_, reason)` for the other process-transport failures this
     /// tier can honestly produce — see `comms::process::Sender::send`.
-    pub fn send_wire(&self, wire: String) -> Result<(), SendError<String>> {
+    ///
+    /// Excursus 003 stone H — takes a [`WireFrame`](crate::edn::render::WireFrame), which only the
+    /// STRICT wire encoder mints: a lenient string (a handle rendered `#tag nil`) cannot reach here.
+    pub fn send_wire(&self, wire: crate::edn::render::WireFrame) -> Result<(), SendError<String>> {
         match &self.tx {
-            PeerTx::Socket(tx) => tx.send(wire),
+            PeerTx::Socket(tx) => tx.send(wire.into_string()),
             PeerTx::Thread(_) => panic!("Peer::send_wire called on thread-tier peer — use send"),
         }
     }
@@ -363,10 +366,11 @@ impl Peer {
 
     /// Best-effort NON-BLOCKING send of a pre-encoded wire `String` (socket
     /// tier). Never blocks (see [`try_send`](Self::try_send)). Returns which of
-    /// the three outcomes occurred — see [`TrySendResult`].
-    pub fn try_send_wire(&self, wire: String) -> TrySendResult {
+    /// the three outcomes occurred — see [`TrySendResult`]. Takes a strict
+    /// [`WireFrame`](crate::edn::render::WireFrame), as [`send_wire`](Self::send_wire) does.
+    pub fn try_send_wire(&self, wire: crate::edn::render::WireFrame) -> TrySendResult {
         match &self.tx {
-            PeerTx::Socket(tx) => match tx.try_send(wire) {
+            PeerTx::Socket(tx) => match tx.try_send(wire.into_string()) {
                 Ok(()) => TrySendResult::Sent,
                 Err(TrySendError::Full(_)) => TrySendResult::Full,
                 Err(TrySendError::Disconnected(_)) => TrySendResult::Disconnected,

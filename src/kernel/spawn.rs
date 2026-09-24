@@ -337,6 +337,18 @@ pub struct ProcessPeerBundle {
 // via the unsafe impl in custodia.
 
 impl ProcessPeerBundle {
+    /// Send one strict [`WireFrame`](crate::edn::render::WireFrame) to the child (parent -> child,
+    /// the child's fd 0). Excursus 003 stone H — the eval layer's `send` down a `Process` peer goes
+    /// through here, so, like `Peer::send_wire`, it cannot be handed a lenient string. (`peer` stays
+    /// a `pub` field — an integration test drives `peer.send(String)` directly with a literal line;
+    /// eval code must not.)
+    pub fn send_wire(
+        &self,
+        wire: crate::edn::render::WireFrame,
+    ) -> Result<(), crate::comms::SendError<String>> {
+        self.peer.send(wire.into_string())
+    }
+
     /// Receive the next Ok response, or surface the child's crash reason.
     ///
     /// Stone 214 1b-ii-α. The Ok channel (`peer.output`, fd 1) and the Err channel

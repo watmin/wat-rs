@@ -35,6 +35,47 @@ use crate::value::value::AggregateValue;
 
 const DOC_ROW_CLASS: &str = "wat::doc::Row";
 
+/// Excursus 003 stone H — TRUE in a spawned process, whose fd 1 is BOTH its stdout and its self-peer
+/// wire to the parent (`process::verbs::run_forms_as_server_child` dups fd 1 into the self-peer's
+/// sender and builds wat's stdout over the same fd). The parent's `recv` decodes every line there as
+/// DATA — measured: a child's `(println (Box :x 42))` arrives as `RecvOutcome.Message`. A per-PROCESS
+/// fact (every thread's `println` reaches the one fd), so a process-global flag, set once at the
+/// child-only seam before `:user::main`, never cleared.
+static STDOUT_IS_PEER_WIRE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Mark this process's stdout as its peer wire. Called ONLY at the spawned-child seam.
+pub(crate) fn mark_stdout_as_peer_wire() {
+    STDOUT_IS_PEER_WIRE.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+fn stdout_is_peer_wire() -> bool {
+    STDOUT_IS_PEER_WIRE.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// The `println`/`pprintln` refusal in a spawned process: a value with no wire form is refused with
+/// the same MalformedForm every wire verb raises (`kernel::message::encode_for_wire_as`). Elsewhere
+/// stdout is a terminal or a pipe of text, and a handle prints as its nil-bodied tag (arc 294).
+fn strict_if_stdout_is_wire(
+    op: &str,
+    v: &Value,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Option<crate::edn::render::WireFrame>, RuntimeError> {
+    if !stdout_is_peer_wire() {
+        return Ok(None);
+    }
+    crate::kernel::message::encode_for_wire_as(
+        op,
+        v,
+        list_span,
+        sym,
+        "printed",
+        " In a spawned process stdout IS the peer wire to the parent: printing there is a send.",
+    )
+    .map(Some)
+}
+
 /// Pretty-print a wat value. A `:wat::doc::Row` record is scoped: `:doc`
 /// keeps literal newlines (prose), `:examples` are dressed by fmt rules
 /// when those rules are loaded. Every other value uses `wat_edn::write_pretty`.
@@ -344,11 +385,15 @@ pub fn eval_kernel_println(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::println";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
+    // Excursus 003 stone H — in a spawned process this line IS a wire frame: strict, and the same
+    // bytes the lenient writer produces whenever it does not refuse.
+    let mut line = match strict_if_stdout_is_wire(OP, &v, list_span, sym)? {
+        Some(wire) => wire.into_string(),
+        None => wat_edn::write(&value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?),
+    };
     // Append the line terminator HERE (the service is now a raw byte writer — no implicit newline);
     // the batched `stdio-write-out` fragments this `<edn>\n` payload into ≤budget raw chunks, so the
     // bytes on fd1 are identical to the old `writeln(edn)` path (`<edn>\n`) even for oversized output.
-    let mut line = wat_edn::write(&edn);
     line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
     Ok(Value::Unit)
@@ -364,6 +409,10 @@ pub fn eval_kernel_pprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::pprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
+    // Excursus 003 stone H — a spawned process's stdout is its wire; the pretty writer has no strict
+    // mode, so the strict encoder is asked first, over the same value (the same refusal set), and the
+    // pretty rendering ships only if it does not refuse.
+    strict_if_stdout_is_wire(OP, &v, list_span, sym)?;
     let mut line = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym)?;
     line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
