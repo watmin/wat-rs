@@ -4967,7 +4967,7 @@ fn infer_list(
                     // leading `:` stripped is an ordinary caller-side op per
                     // `identifier.rs`'s module doc, not the name grammar itself); when
                     // `enum_path::variant` resolves to the singleton `TypeDef::Enum`
-                    // `register_variant_types` mints (`src/types.rs`), the value's type
+                    // `insert_enum_with_variants` mints (`src/types.rs`), the value's type
                     // NARROWS to the variant instead of erasing to the bare enum.
                     WatAST::Keyword(enum_path, _) => {
                         let narrowed = match &args[1] {
@@ -12637,7 +12637,7 @@ fn process_let_binding(
                     // shapes the TYPE to fit the PREDICATE, exactly the move Stone O's own
                     // `nature == Struct` guard made and was corrected out of). A tagged
                     // enum variant — the singleton `TypeDef::Enum` synthesized by
-                    // `register_variant_types`, always exactly one variant — carries named
+                    // `insert_enum_with_variants`, always exactly one variant — carries named
                     // fields the same way an Aggregate does; a Unit variant (or any other
                     // TypeDef arm) does not, and falls through to the same "not an
                     // aggregate type" refusal below it already got.
@@ -15185,7 +15185,12 @@ pub(crate) fn validate_aggregate_containment(
             }
             // Arc 293.W.2b — the enum counterpart: a `Pure` enum may declare only pure
             // variant fields (an `Impure` enum is unrestricted — it never crosses).
-            TypeDef::Enum(e) if e.purity.is_pure() => {
+            // Stone 255.25a — asked of the DECLARED enum only: a variant singleton (`E.V`,
+            // registered with its enum) carries a copy of the parent's own fields, so the
+            // parent's check covers it, and asking it too would let the refusal name
+            // `E.V` or `E` depending on map order. Before 255.25a the singletons did not
+            // exist yet when this wall ran.
+            TypeDef::Enum(e) if e.purity.is_pure() && !env.is_variant_type(name) => {
                 for variant in &e.variants {
                     if let EnumVariant::Tagged { name: vname, fields } = variant {
                         for (fname, fty) in fields {
@@ -17110,7 +17115,7 @@ fn type_head_args(t: &TypeExpr) -> Option<(&str, &[TypeExpr])> {
 }
 
 /// Arc 296 A-2 RELAND-4 — option E's ONE gate. `head`'s bare type is registered as an
-/// `Enum` — a user `defenum`, OR one of [`crate::types::TypeEnv::register_variant_types`]'s
+/// `Enum` — a user `defenum`, OR one of [`crate::types::TypeEnv::insert_enum_with_variants`]'s
 /// one-variant singletons (a variant is itself a sum-of-one, so the same derivation
 /// applies transitively at every nesting level). Sound BY CONSTRUCTION: an enum's type
 /// parameters appear only in variant FIELD types, which `match` only ever READS — there is
@@ -23955,7 +23960,7 @@ pub(crate) mod tests {
     }
 
     /// 2a4b — retract the replaced enum's variant singletons. Without it,
-    /// `register_variant_types` skips `E.V` (already present) so the copy
+    /// the enum's registration skips `E.V` (already present) so the copy
     /// keeps the OLD fields and a removed `E.W` survives.
     #[test]
     fn declared_stdlib_types_retracts_old_variant_singletons() {
@@ -23975,10 +23980,10 @@ pub(crate) mod tests {
             "unit W singleton present before replace"
         );
         let forms = crate::parse_all!(src_new).expect("parse");
+        // Stone 255.25a — no separate variant pass: the replacing registration itself
+        // retracts the old singletons with the enum and registers the new ones with it.
         crate::types::register_stdlib_types_replacing(forms, &mut env)
             .unwrap_or_else(|e| panic!("replace: {e}"));
-        env.register_variant_types()
-            .unwrap_or_else(|e| panic!("variants: {e}"));
         assert_eq!(
             enum_variant_fields(&env, ":wat::probe2a4b::E.V"),
             vec![("V".into(), vec!["b".into(), "c".into()])]

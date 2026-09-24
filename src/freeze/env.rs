@@ -107,7 +107,7 @@ pub(crate) struct DeclaredTypesFail {
 /// walks BODY children only ([`crate::macros::expand::container_body_start`]); a
 /// registered macro is [`expand_once`]'d and the result walked; anything else is
 /// dropped and never expanded. Then `expand_all` → `register_types_with_acronyms`
-/// → `register_variant_types` on the kept forms.
+/// on the kept forms (each enum's variant singletons register with it).
 pub(crate) fn register_declared_types(
     forms: Vec<WatAST>,
     stdlib_sym: &SymbolTable,
@@ -138,10 +138,8 @@ pub(crate) fn register_declared_types(
     let expanded = expand_all(kept, &mut macros, &env, &macro_sym)
         .map_err(|e| fail_at(&e.span, format!("{e}")))?;
     let mut types = stdlib_types.clone();
+    // Stone 255.25a — variant singletons register WITH their enum (no separate pass).
     register_types_with_acronyms(expanded, &mut types, &macro_sym.acronym_registry)
-        .map_err(|e| fail_at(e.span(), format!("{e}")))?;
-    types
-        .register_variant_types()
         .map_err(|e| fail_at(e.span(), format!("{e}")))?;
     Ok(types)
 }
@@ -192,10 +190,9 @@ pub(crate) fn register_declared_stdlib_types(
     )
     .map_err(|e| fail_at(&e.span, format!("{e}")))?;
     let mut types = stdlib_types.clone();
+    // Stone 255.25a — a replaced enum's variants are retracted with it
+    // (`retract_for_door_replace`) and re-registered with it (no separate pass).
     let (_rest, declared) = register_stdlib_types_replacing(expanded, &mut types)
-        .map_err(|e| fail_at(e.span(), format!("{e}")))?;
-    types
-        .register_variant_types()
         .map_err(|e| fail_at(e.span(), format!("{e}")))?;
     Ok((types, macros, declared))
 }
@@ -509,15 +506,14 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // check is complete and sound. TypeError converts to StartupError::Type via
     // the From impl in freeze.rs.
     validate_aggregate_containment(&types)?;
-    // Arc 296 A-2 RELAND-1 — every enum variant becomes its own type (`:Enum::Variant`, a
+    // Arc 296 A-2 RELAND-1 — every enum variant is its own type (`:Enum::Variant`, a
     // singleton `TypeDef::Enum` sharing the parent's type params) plus a head-level
-    // subtype edge `Variant <: Enum`, BEFORE the P-3 annotation wall
-    // (`validate_named_type_annotations`, below) and ctor-method synthesis
-    // (`register_enum_methods`) see them. Stdlib enums are NOT excluded (RELAND-0's
-    // `!is_reserved_prefix` scope cut relocated its failures into user code instead of
-    // avoiding them — see `TypeEnv::register_variant_types`'s doc comment); `join_types`
+    // subtype edge `Variant <: Enum`. Stone 255.25a — no longer a pass here: the
+    // singletons register in the SAME act as their enum (`TypeEnv::insert_enum_with_variants`,
+    // `src/types.rs`), so they already exist when step 5's own registration-time walls
+    // (255.22's `EdgeFreeTypeName`) ask, and before the P-3 annotation wall and
+    // `register_enum_methods` see them. Stdlib enums are NOT excluded; `join_types`
     // (`src/check.rs`) is what makes registering every enum, stdlib included, safe.
-    types.register_variant_types()?;
 
     // 6. Function definitions.
     let mut symbols = SymbolTable::new();

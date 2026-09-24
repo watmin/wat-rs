@@ -1322,7 +1322,7 @@ pub fn register_enum_methods(
             _ => continue,
         };
         // Arc 296 A-2 RELAND-1 — `types` also holds a singleton `TypeDef::Enum` per
-        // variant (`register_variant_types`, `src/types.rs`). Walking one HERE as though
+        // variant (`insert_enum_with_variants`, `src/types.rs`). Walking one HERE as though
         // it were a fresh user enum would mint `:Enum::Variant::Variant` ctors / duplicate
         // unit-variant entries.
         if types.is_variant_type(name) {
@@ -1404,7 +1404,7 @@ pub fn register_enum_methods(
                     // Arc 296 A-2 RELAND-1 — the erasure. Was unconditionally
                     // `enum_type.clone()`: the ctor returned the ENUM, destroying the
                     // variant at construction and making a variant-typed parameter
-                    // uninhabitable. `register_variant_types` (src/types.rs) now
+                    // uninhabitable. `insert_enum_with_variants` (src/types.rs) now
                     // registers `constructor_path` as its own `TypeDef::Enum` singleton
                     // for EVERY enum (no scope cut — `join_types`, `src/check.rs`, is
                     // what makes that safe), so the ctor's return type narrows to it —

@@ -643,7 +643,7 @@ pub enum EnumVariant {
 
 impl EnumVariant {
     /// Arc 296 A-2 RELAND-1 — the bare variant name, either shape. The one place that
-    /// destructures `Unit`/`Tagged` just to read the name (`register_variant_types`,
+    /// destructures `Unit`/`Tagged` just to read the name (`insert_enum_with_variants`,
     /// `is_variant_type`, `build_unit_variant_map`) uses this instead of re-deriving it.
     pub fn name(&self) -> &str {
         match self {
@@ -1030,9 +1030,9 @@ impl TypeEnv {
     /// of a snapshot type is REPLACED by the file's form; retract first so
     /// `register_stdlib_with_span` sees `Existing::Absent`.
     ///
-    /// 2a4b — also retract this enum's variant singletons. `register_variant_types`
-    /// skips an already-present FQDN, so leaving `E.V` would keep the OLD fields
-    /// and a removed `E.W` would survive.
+    /// 2a4b — also retract this enum's variant singletons. The enum's registration
+    /// ([`Self::insert_enum_with_variants`], 255.25a) skips an already-present FQDN, so
+    /// leaving `E.V` would keep the OLD fields and a removed `E.W` would survive.
     pub(crate) fn retract_for_door_replace(&mut self, name: &str) {
         let variant_fqdns: Vec<String> = if !self.is_variant_type(name) {
             match self.types.get(name) {
@@ -1110,7 +1110,7 @@ impl TypeEnv {
         for (name, def) in self.iter() {
             if let TypeDef::Enum(e) = def {
                 // Arc 296 A-2 RELAND-1 — skip synthesized variant-types (singleton
-                // `TypeDef::Enum` per variant, see `register_variant_types`): walking one
+                // `TypeDef::Enum` per variant, see `insert_enum_with_variants`): walking one
                 // here would mint `:Enum::Variant::Variant` for a unit variant's singleton.
                 if self.is_variant_type(name) {
                     continue;
@@ -1241,6 +1241,11 @@ impl TypeEnv {
                         }
                     }
                 }
+                // Stone 255.25a — an enum's variants are types in the SAME act that registers
+                // the enum (see [`Self::insert_enum_with_variants`]).
+                if let TypeDef::Enum(e) = def {
+                    return self.insert_enum_with_variants(e);
+                }
                 self.types.insert(name.clone(), def);
                 Ok(())
             },
@@ -1251,7 +1256,7 @@ impl TypeEnv {
     /// Arc 296 stone ③b-i, room ⑤b — the variant-type registration door. A sibling of
     /// [`Self::register_validated`] for the ONE type-registration site that composes a
     /// name rather than typing one: a variant's own singleton `TypeDef::Enum`
-    /// (minted by [`Self::register_variant_types`]).
+    /// (minted by [`Self::insert_enum_with_variants`]).
     ///
     /// This is the FOURTH gate-facing composition site — not one of the three the
     /// DESIGN doc's own census named, and missed by the brief's STOP-3 too: it reads as
@@ -1267,7 +1272,7 @@ impl TypeEnv {
     /// the same reason `resolve::register_variant` takes them separately: a caller must
     /// not be able to hand this door a string it built itself.
     ///
-    /// `privilege` is still `register_variant_types`' call to make (mirrors the
+    /// `privilege` is still `insert_enum_with_variants`' call to make (mirrors the
     /// `register_with_span`/`register_stdlib_with_span` split exactly as before — only
     /// the GATE call underneath changes shape, not who decides stdlib-vs-user).
     fn register_variant_type(
@@ -1329,6 +1334,12 @@ impl TypeEnv {
                 self.register_subtype(&child, root, crate::rust_caller_span!())
                     .expect("builtin aggregate subtype edge must not cycle");
             }
+            return;
+        }
+        // Stone 255.25a — a builtin enum's variants are types the moment it is, like any enum.
+        if let TypeDef::Enum(e) = def {
+            self.insert_enum_with_variants(e)
+                .expect("builtin enum variant singletons must register");
             return;
         }
         self.types.insert(name, def);
@@ -1467,13 +1478,13 @@ impl TypeEnv {
     // ─── Arc 296 A-2 RELAND-1 — a variant is a type, no scope cut ──────────
 
     /// `name` is a registered variant-type (`:Enum::Variant`) — the singleton
-    /// `TypeDef::Enum` synthesized per variant by [`Self::register_variant_types`] —
+    /// `TypeDef::Enum` synthesized per variant by [`Self::insert_enum_with_variants`] —
     /// iff its parent path is itself a registered enum that declares that leaf as one of
     /// its variants. Delegates entirely to [`Self::variant_parent_enum`] — see there for
     /// the name-grammar / colon-normalization notes.
     ///
     /// Reused as the ONE guard against re-walking a singleton as though it were a fresh
-    /// user enum: `register_variant_types` (skip re-synthesizing a variant's own
+    /// user enum: `insert_enum_with_variants` (skip re-synthesizing a variant's own
     /// "variants"), `register_enum_methods` (skip minting `:Enum::Variant::Variant` ctors
     /// / duplicate unit-variant entries), and `build_unit_variant_map` (same). Applies to
     /// EVERY enum, stdlib included — RELAND-0's `!is_reserved_prefix` scope cut relocated
@@ -1542,7 +1553,16 @@ impl TypeEnv {
         }
     }
 
-    /// Arc 296 A-2 RELAND-1 — for every registered enum (parametric or not, stdlib
+    /// Stone 255.25a — THE ONE enum-registration act: insert the enum `e` AND, in the same
+    /// act, its variant singleton types. Called by the two doors that insert a
+    /// `TypeDef::Enum` — [`Self::register_validated`] (every user/stdlib `defenum`, a
+    /// surface's synthesized `::Op`/`::Reply`, the stdlib door-replace path) and
+    /// [`Self::register_builtin`] (the builtin sum types). It RETIRES the separate
+    /// whole-env `register_variant_types` pass: a variant is a type the moment its enum is,
+    /// so a registration-time wall (255.22's `EdgeFreeTypeName`) asking `is_known_type`
+    /// about `E.V` gets the same answer it gets for a struct declared above it.
+    ///
+    /// Arc 296 A-2 RELAND-1 — for every enum (parametric or not, stdlib
     /// included — no scope cut), register each variant's FQDN (`:Enum::Variant`) as its
     /// own `TypeDef::Enum` singleton — a one-variant sub-enum carrying that variant's own
     /// declared fields, sharing the PARENT's type params (so `(:usr::Box::Full :- [T])`
@@ -1556,7 +1576,8 @@ impl TypeEnv {
     /// `{:keys}` — `{:keys}`'s predicate widens instead (`src/check.rs`).
     ///
     /// Idempotent (skips an already-registered FQDN) and guarded by [`Self::is_variant_type`]
-    /// so a singleton's own lone "variant" is never re-expanded — the thing that stops this
+    /// (asked of `e` itself, before it is inserted) so a singleton's own lone "variant" is
+    /// never re-expanded — the thing that stops this
     /// from minting `:Enum::Variant::Variant`, since a parametric singleton has a live
     /// `EnumDef` with exactly one variant, structurally indistinguishable from a genuine
     /// user one-variant enum without this parent-lookup guard.
@@ -1568,18 +1589,13 @@ impl TypeEnv {
     /// bought nothing: it relocated the identical failure shape into user namespaces
     /// (`:probe::`, `:usr::`, `:arena::` — 600 of 103 floor failures) while excluding the
     /// population (`Option`/`Result`) the capability is FOR. `join_types` (`src/check.rs`)
-    /// is what makes the unconditional registration below safe: `join_if_branches` and
+    /// is what makes the unconditional registration here safe: `join_if_branches` and
     /// `infer_match`'s arm-unification now widen two sibling variants to their shared enum
     /// instead of failing, so nothing here is scoped by namespace or prefix.
-    pub(crate) fn register_variant_types(&mut self) -> Result<(), TypeError> {
-        let parents: Vec<EnumDef> = self
-            .iter()
-            .filter_map(|(name, def)| match def {
-                TypeDef::Enum(e) if !self.is_variant_type(name) => Some(e.clone()),
-                _ => None,
-            })
-            .collect();
-        for e in parents {
+    fn insert_enum_with_variants(&mut self, e: EnumDef) -> Result<(), TypeError> {
+        let is_variant = self.is_variant_type(&e.name);
+        self.types.insert(e.name.clone(), TypeDef::Enum(e.clone()));
+        if !is_variant {
             for v in &e.variants {
                 let fqdn = wat_reader::identifier::compose_variant(&e.name, v.name());
                 if self.get(&fqdn).is_some() {
