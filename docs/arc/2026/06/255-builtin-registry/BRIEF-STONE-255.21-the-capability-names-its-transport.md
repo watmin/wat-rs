@@ -74,3 +74,36 @@ Runtime prediction: 2–3 hours.
 ## Out of scope
 
 C-b2 (defservice's free letter), C-b3, C-b4, C-b5, C-c, the third silent door (255.20's findings).
+
+---
+
+## ADDENDUM — 2026-09-24, re-run on `main` @ `b56af789b` (after 255.22 and 255.23)
+
+255.21's first strike stopped with three blockers (`SCORE-STONE-255.21-…`). The state of each now:
+
+1. **Nothing bound the edge's `T` to the receiver's transport. CLOSED by 255.23:** a surface method
+   resolves through the receiver's uniquely matching generic edge and is instantiated with its bindings.
+   Measured: a thread handle binds `T=:wat::kernel::Shared`. What was missing is a `T` in `coord`'s
+   return, and **that is this stone.**
+2. **Edges were looked up by exact string. CLOSED by 255.22:** a structured generic edge, fitted by its
+   child, with a declared binder. defservice's edges already emit `:- [~@handle-tp-syms]`.
+3. **The kwargs `capswap` (`wat/core.wat` ~:1147–:1158): OPEN, and it is in scope now.** It decides a
+   field is a service by **`(:wat::string::contains? nm "Peer")`, a substring test on the type's name**
+   (the spelling root again), then mints a 2-argument `(TypedCapability :- [S R])` from `(Peer :- [S R])`.
+   After this stone, `TypedCapability :- [S R T]` needs a transport there. The honest shape is that the
+   generated `kwargs-check` defn **declares** a type parameter per service field (e.g. `Ti`), bound from
+   the handle the caller passes. **Measure it**, and name any other generated defn in that macro that
+   needs the same treatment. **Replace the substring test** with a structural one, reading the field
+   type's head as a parsed type. If that grows beyond the kwargs macro → STOP and report the shape.
+
+**The rest of the brief stands**, with these corrections:
+
+- The site census is the first executor's (≈15 live type positions, itemised in its report), not "≈68".
+- **Rows:** the first strike showed all four transport claims accepted pre-stone. After this stone:
+  thread claimed Wire **refused**, process claimed Shared **refused**, the twins accepted. The witness
+  `wat-scripts/scratch-pad/255-21-coord-claims-either-transport.wat` becomes a `.wat.bad` row (and leaves
+  the scratch-pad, since the loader gate requires files that load).
+- **The census baseline is 215 non-zero.** The first strike's 13 STOP-8 files were mostly `capswap`
+  (item 3) and the exact-string lookup (item 2, now closed). Any still refused after this stone is a
+  finding: report each with its first error.
+- The pre-stone binary is built from `b56af789b`.
