@@ -12,7 +12,7 @@
 //! `src/runtime.rs:7198` consumes `Clause.rest_param` for:
 //!   1. Variadic-min arity match (called_arity >= fixed_arity when rest exists)
 //!   2. Element-type check per rest value (against Vector<T>'s T)
-//!   3. Rest values collected into Value::Vector
+//!   3. Rest values collected into Value::wat__holon__Vector
 //!   4. Bound at rest_param.name in the clause scope
 //!
 //! ## What this probe proves

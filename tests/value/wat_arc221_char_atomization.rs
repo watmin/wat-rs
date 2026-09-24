@@ -48,7 +48,7 @@ fn run_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> i64 {
 // ─── Probe 1 — `(:wat::holon::to-holon \a)` round-trip; atom(Char) ≠ atom(i64) ──
 
 /// `(:wat::holon::to-holon \a)` dispatches through `value_to_atom` Char arm to
-/// `HolonAST::char_('a')`. The result is a `Value::holon__HolonAST` wrapping
+/// `HolonAST::char_('a')`. The result is a `Value::wat__holon__HolonAST` wrapping
 /// a `HolonAST::Char('a')` leaf.
 ///
 /// Cross-type distinctness: `atom(\a)` must NOT equal `atom(97)` — the i64

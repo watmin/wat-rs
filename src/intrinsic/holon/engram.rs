@@ -38,13 +38,13 @@ use crate::value::{EvalBreak, Value};
 /// given at `EngramLibrary/add` time.
 ///
 /// ⚠ UNREACHABLE FROM WAT TODAY, disclosed rather than hidden: nothing in
-/// this crate ever constructs a bare `Value::Engram` (`EngramLibrary/add`
+/// this crate ever constructs a bare `Value::wat__holon__Engram` (`EngramLibrary/add`
 /// freezes one internally but never hands it back; `match-vec` returns
 /// `(name, residual)` tuples, not the engram itself). `@Purity Pure` +
 /// `@Determinism Deterministic` is still the honest claim about this
 /// handler's own body (a `with_ref` read, no side effect); the mandatory
 /// runnable `@example` below cannot actually be evaluated by any legal wat
-/// program until a future stone adds an accessor producing `Value::Engram`
+/// program until a future stone adds an accessor producing `Value::wat__holon__Engram`
 /// (e.g. an `EngramLibrary/get`). Same shape as the already-disclosed,
 /// `#[ignore]`d gap in `probe_arc255_ivb2b_verify_examples.rs` for
 /// `type-equal?`/`type-params-used-in` — a documented purpose current
@@ -73,7 +73,7 @@ pub(crate) fn engram_name(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
 ///
 /// ⚠ UNREACHABLE FROM WAT TODAY — see `Engram/name`'s doc for why (no
 /// constructor anywhere in this crate ever hands a wat program a bare
-/// `Value::Engram`).
+/// `Value::wat__holon__Engram`).
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -99,7 +99,7 @@ pub(crate) fn engram_eigenvalue_signature(e: &Value, span: &Span) -> Result<Valu
 ///
 /// ⚠ UNREACHABLE FROM WAT TODAY — see `Engram/name`'s doc for why (no
 /// constructor anywhere in this crate ever hands a wat program a bare
-/// `Value::Engram`).
+/// `Value::wat__holon__Engram`).
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -160,7 +160,7 @@ pub(crate) fn engram_residual(e: &Value, v: &Value, span: &Span) -> Result<Value
 pub(crate) fn library_new(dim: &Value) -> Result<Value, EvalBreak> {
     let dim = require_i64(":wat::holon::EngramLibrary/new", dim.clone())?;
     let lib = holon::EngramLibrary::new(dim as usize);
-    Ok(Value::EngramLibrary(Arc::new(
+    Ok(Value::wat__holon__EngramLibrary(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(lib),
     )))
 }

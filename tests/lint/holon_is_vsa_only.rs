@@ -112,7 +112,7 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
 const VSA_HOME_DIRS: &[&str] = &["src/holon/", "src/intrinsic/holon/"];
 const VSA_HOME_FILES: &[&str] = &["src/lower.rs", "src/record/update.rs", "src/edn/render.rs"];
 
-/// THE ONE CARRIER — `Value::holon__HolonAST` and the two Hologram carriers. Named explicitly,
+/// THE ONE CARRIER — `Value::wat__holon__HolonAST` and the two Hologram carriers. Named explicitly,
 /// not lumped into the homes list, because it is rung 3's target (see the RULING).
 const THE_ONE_CARRIER: &str = "src/value/value.rs";
 

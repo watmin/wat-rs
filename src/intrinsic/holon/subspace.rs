@@ -49,7 +49,7 @@ pub(crate) fn subspace_new(dim: &Value, k: &Value) -> Result<Value, EvalBreak> {
     let dim = require_i64(":wat::holon::OnlineSubspace/new", dim.clone())?;
     let k = require_i64(":wat::holon::OnlineSubspace/new", k.clone())?;
     let s = holon::OnlineSubspace::new(dim as usize, k as usize);
-    Ok(Value::OnlineSubspace(Arc::new(
+    Ok(Value::wat__holon__OnlineSubspace(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(s),
     )))
 }

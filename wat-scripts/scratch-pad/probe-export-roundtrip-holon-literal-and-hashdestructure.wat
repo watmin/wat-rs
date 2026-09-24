@@ -1,6 +1,6 @@
 ;; Does a rete program carrying (a) a `#holon` literal and (b) a hash-destructure arm survive the
 ;; `#wat.rete/Export` wire? Both are 2026-08-28/29 additions and both put NEW shapes into the
-;; compiled program: `Expr::Lit(Value::holon__HolonAST)` and `Pat::Fields`.
+;; compiled program: `Expr::Lit(Value::wat__holon__HolonAST)` and `Pat::Fields`.
 (:wat::core::defrecord :xr::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 (:wat::core::defrecord :xr::In  [k <- :wat::core::String  p <- :xr::Point  h <- :wat::holon::HolonAST])
 (:wat::core::defrecord :xr::Out [k <- :wat::core::String])

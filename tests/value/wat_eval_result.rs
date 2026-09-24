@@ -57,7 +57,7 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
     let world = startup_beside(file!()).expect("startup");
     match run(&world, ":t::test1") {
         Value::Result(r) => match &*r {
-            Ok(Value::holon__HolonAST(_)) => {}
+            Ok(Value::wat__holon__HolonAST(_)) => {}
             other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),

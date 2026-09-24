@@ -348,8 +348,8 @@ pub(crate) fn record_assoc_inner(
             };
 
             let new_val_holon = match to_holon_inner(new_val, list_span)? {
-                Value::holon__HolonAST(h) => (*h).clone(),
-                _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                Value::wat__holon__HolonAST(h) => (*h).clone(),
+                _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
             };
             let field_name_holon = HolonAST::Atom(Arc::new(HolonAST::String(Arc::from(
                 available[field_index].as_str(),

@@ -163,7 +163,7 @@ fn row4_thermometer_renders_to_directive_tag_and_decodes_to_real_thermometer() {
     let decoded = wat::edn::render::edn_to_typed_value(&target, &edn, world.symbols())
         .unwrap_or_else(|e| panic!("decode of a legitimate Thermometer wire form must succeed: {e:?}"));
     match decoded {
-        Value::holon__HolonAST(h) => match h.as_ref() {
+        Value::wat__holon__HolonAST(h) => match h.as_ref() {
             HolonAST::Thermometer { value, min, max } => {
                 assert_eq!((*value, *min, *max), (50.0, 0.0, 100.0));
             }
@@ -173,7 +173,7 @@ fn row4_thermometer_renders_to_directive_tag_and_decodes_to_real_thermometer() {
                  on a real Thermometer (the far-side crash this stone fixes)"
             ),
         },
-        other => panic!("expected Value::holon__HolonAST; got {other:?}"),
+        other => panic!("expected Value::wat__holon__HolonAST; got {other:?}"),
     }
 
     // Non-vacuity: `:wat::edn::validate` (the pass/fail check) must ALSO accept the
@@ -195,7 +195,7 @@ fn row4_thermometer_renders_to_directive_tag_and_decodes_to_real_thermometer() {
 #[test]
 fn row5_slotmarker_renders_to_directive_tag_and_roundtrips() {
     let original = HolonAST::SlotMarker { min: 0.0, max: 10.0 };
-    let v = Value::holon__HolonAST(Arc::new(original.clone()));
+    let v = Value::wat__holon__HolonAST(Arc::new(original.clone()));
     let edn = wat::edn::render::value_to_edn_with(&v, None).expect("test value must encode");
     let w = wat_edn::write(&edn);
     wat::assert_edn_matches_file!(
@@ -210,11 +210,11 @@ fn row5_slotmarker_renders_to_directive_tag_and_roundtrips() {
     let decoded = wat::edn::render::edn_to_typed_value(&target, &edn, world.symbols())
         .unwrap_or_else(|e| panic!("SlotMarker decode must succeed: {e:?}"));
     match decoded {
-        Value::holon__HolonAST(h) => assert_eq!(
+        Value::wat__holon__HolonAST(h) => assert_eq!(
             *h, original,
             "a round-tripped SlotMarker must equal the original structurally"
         ),
-        other => panic!("expected Value::holon__HolonAST; got {other:?}"),
+        other => panic!("expected Value::wat__holon__HolonAST; got {other:?}"),
     }
 }
 
@@ -231,7 +231,7 @@ fn row6_data_holon_roundtrips_under_wat_slash_holon_tag() {
             HolonAST::string("val1"),
         )]),
     );
-    let v = Value::holon__HolonAST(Arc::new(original.clone()));
+    let v = Value::wat__holon__HolonAST(Arc::new(original.clone()));
     let edn = wat::edn::render::value_to_edn_with(&v, None).expect("test value must encode");
     let w = wat_edn::write(&edn);
     // The builder: "the only things that need tags are stuff like thermometers" — but
@@ -251,11 +251,11 @@ fn row6_data_holon_roundtrips_under_wat_slash_holon_tag() {
     let decoded = wat::edn::render::edn_to_typed_value(&target, &edn, world.symbols())
         .unwrap_or_else(|e| panic!("data holon decode must succeed: {e:?}"));
     match decoded {
-        Value::holon__HolonAST(h) => assert_eq!(
+        Value::wat__holon__HolonAST(h) => assert_eq!(
             *h, original,
             "a round-tripped data holon must equal the original structurally"
         ),
-        other => panic!("expected Value::holon__HolonAST; got {other:?}"),
+        other => panic!("expected Value::wat__holon__HolonAST; got {other:?}"),
     }
 }
 
@@ -267,7 +267,7 @@ fn row7_bare_bundle_raises_on_encode_never_falls_back() {
     // for any collection) — the "unclassified HolonAST (bare Bundle, ...)" shape
     // `from_holon_item`'s own error message names. Neither data nor a directive.
     let bare_bundle = HolonAST::bundle(vec![HolonAST::i64(1), HolonAST::i64(2)]);
-    let v = Value::holon__HolonAST(Arc::new(bare_bundle));
+    let v = Value::wat__holon__HolonAST(Arc::new(bare_bundle));
 
     // ⛔ THIS ROW CHANGED SHAPE 2026-08-29 AND THE CONTRACT DID NOT. It used to assert a
     // `panic!`; `value_to_edn_with` now returns `Result`, because an unencodable value is

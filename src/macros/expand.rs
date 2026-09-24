@@ -1578,7 +1578,7 @@ fn expand_program_body(
 
     // Convert the result Value to a WatAST expansion form.
     // value_to_watast handles: i64/f64/bool/String/keyword/nil literals, wat__WatAST (direct),
-    // holon__HolonAST (via holon_to_watast). Other shapes (Struct/Enum/Vec/HashMap) error.
+    // wat__holon__HolonAST (via holon_to_watast). Other shapes (Struct/Enum/Vec/HashMap) error.
     crate::runtime::value_to_watast(
         &format!("macro {} body result", macro_name),
         result_tv.value_owned(),

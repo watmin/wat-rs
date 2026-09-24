@@ -3,7 +3,7 @@
 //!
 //! THE DEFECT (caught by dogfooding the reflection surface as EDN):
 //! `eval_metadata_of`'s intrinsic branch wraps every value in
-//! `Value::holon__HolonAST` (`runtime.rs` ~10111 `put` closure). So the
+//! `Value::wat__holon__HolonAST` (`runtime.rs` ~10111 `put` closure). So the
 //! metadata map EDN-serializes with holon-algebra tags — the holon VSA algebra-AST encoder leaking
 //! into reflection. This is the same `HolonAST`-as-`EdnRepresentable` crutch
 //! the codebase has been rooting out (`impl EdnRepresentable for Value`,
@@ -31,10 +31,10 @@
 //!    :layer       -> Value::Enum :wat::runtime::Layer / Substrate
 //!    :purity      -> Value::Enum :wat::runtime::Purity / Pure
 //!    :determinism -> Value::Enum :wat::runtime::Determinism / Deterministic
-//!  - NO value in the map is `Value::holon__HolonAST` (the cross-cutting RED this
+//!  - NO value in the map is `Value::wat__holon__HolonAST` (the cross-cutting RED this
 //!    probe was written to catch, and which iv-c fixed).
 //!
-//! RED at HEAD (pre-255.1b-iv-c): every value was `Value::holon__HolonAST`.
+//! RED at HEAD (pre-255.1b-iv-c): every value was `Value::wat__holon__HolonAST`.
 //! GREEN (as shipped): plain values + the five enums above.
 
 use wat::freeze::call_beside_value;
@@ -100,8 +100,8 @@ fn metadata_of_emits_plain_values_and_enums_not_holon_ast() {
     // The cross-cutting RED: NOT ONE value rides as holon AST.
     for (k, v) in &map {
         assert!(
-            !matches!(v, Value::holon__HolonAST(_)),
-            "metadata value for {k:?} is still holon__HolonAST — the encoder leak iv-c removes"
+            !matches!(v, Value::wat__holon__HolonAST(_)),
+            "metadata value for {k:?} is still wat__holon__HolonAST — the encoder leak iv-c removes"
         );
     }
 }

@@ -164,7 +164,7 @@ fn extract_arg_types_errors_on_non_bundle_input() {
     // extract-arg-types must surface a TypeMismatch error referencing the OP tag.
     //
     // We construct the error by passing a bare i64 literal (which is a
-    // `Value::i64`, not a `Value::holon__HolonAST`) — the TypeMismatch
+    // `Value::i64`, not a `Value::wat__holon__HolonAST`) — the TypeMismatch
     // fires at the "expected HolonAST" guard inside eval_extract_arg_types.
     let err = run_expecting_runtime_error_file(
         "tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat",

@@ -10,7 +10,7 @@
 //! 3. NaN-safety — `Value::f64(NAN) == Value::f64(NAN)` (bit-pattern); hash stable
 //! 4. Recursive composition — `std::collections::HashSet<Value>` + `HashMap<Value,Value>`
 //!    build + query at Rust level
-//! 5. HolonAST nesting — `Value::holon__HolonAST(...)` hashes consistently
+//! 5. HolonAST nesting — `Value::wat__holon__HolonAST(...)` hashes consistently
 //! 6. Vec composition — reversed-order Vec produces DIFFERENT hash (order preserved)
 //! 7. HashSet composition — same elements different insertion order → IDENTICAL hash
 //! 8. HashMap composition — same pairs different insertion order → IDENTICAL hash
@@ -94,7 +94,7 @@ fn probe_1_self_equality_vec() {
 fn probe_1_self_equality_holon_ast() {
     use holon::HolonAST;
     let ast = HolonAST::I64(99);
-    let v = Value::holon__HolonAST(Arc::new(ast));
+    let v = Value::wat__holon__HolonAST(Arc::new(ast));
     assert_eq!(hash_value(&v), hash_value(&v), "HolonAST hash must be stable");
     assert_eq!(v, v, "HolonAST PartialEq reflexive");
 }
@@ -198,8 +198,8 @@ fn probe_5_holon_ast_nesting() {
     use holon::HolonAST;
     let ast1 = HolonAST::Bundle(Arc::new(vec![HolonAST::I64(1), HolonAST::I64(2)]));
     let ast2 = HolonAST::Bundle(Arc::new(vec![HolonAST::I64(1), HolonAST::I64(2)]));
-    let v1 = Value::holon__HolonAST(Arc::new(ast1));
-    let v2 = Value::holon__HolonAST(Arc::new(ast2));
+    let v1 = Value::wat__holon__HolonAST(Arc::new(ast1));
+    let v2 = Value::wat__holon__HolonAST(Arc::new(ast2));
     assert_eq!(v1, v2, "structurally-equal HolonAST Values are equal");
     assert_eq!(hash_value(&v1), hash_value(&v2), "equal HolonAST Values have same hash");
 }
@@ -329,7 +329,7 @@ fn probe_10_non_atomizable_fn_panics() {
     // NOTE: Value::wat__core__fn's Arc<Function> is not publicly constructible
     // at the test layer without going through WAT eval (Function is an internal
     // substrate type). We exercise the panic via a known non-atomizable variant
-    // that IS constructible: Value::OnlineSubspace or similar ML types.
+    // that IS constructible: Value::wat__holon__OnlineSubspace or similar ML types.
     //
     // However, ThreadOwnedCell is also private. The only approach available at THIS
     // layer (constructing a real Value and hashing it) is to verify that the Hash
@@ -337,8 +337,8 @@ fn probe_10_non_atomizable_fn_panics() {
     // We document this skip per BRIEF § Part E Probe 10:
     // "document if Fn construction isn't accessible at this test layer."
     //
-    // SKIP REASON: Value::wat__core__fn(Arc<Function>), Value::OnlineSubspace,
-    // Value::Reckoner, etc. wrap private internal types (Function, ThreadOwnedCell)
+    // SKIP REASON: Value::wat__core__fn(Arc<Function>), Value::wat__holon__OnlineSubspace,
+    // Value::wat__holon__Reckoner, etc. wrap private internal types (Function, ThreadOwnedCell)
     // that have no public constructor outside of WAT eval, so the unreachable!() Hash
     // arms cannot be triggered by constructing a real Value at this layer.
     //

@@ -60,7 +60,7 @@
 ;; to trust holon keys, proven directly against `(:wat::cache::Lru :- [K V])` this time, not the old
 ;; `:wat::lru::LocalCache`.
 ;;
-;; The underlying `impl Hash + Eq for Value::holon__HolonAST` is ALSO covered at the Rust level
+;; The underlying `impl Hash + Eq for Value::wat__holon__HolonAST` is ALSO covered at the Rust level
 ;; (`tests/value/probe_arc216_stone5a_value_hash.rs`) — these three gates are the WAT-level
 ;; proof that it flows correctly through `:rust::cache::Lru`'s `hashmap_key` dispatch.
 

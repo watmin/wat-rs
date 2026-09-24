@@ -81,18 +81,18 @@ pub(crate) fn pair_values_to_vectors(
     let normalize_for_cosine = |v: Value, span: &Span| -> Result<Value, EvalBreak> {
         match v {
             Value::Aggregate(ref a) => match &a.holon {
-                HolonForm::Hologram(h) => Ok(Value::holon__HolonAST(h.clone())),
+                HolonForm::Hologram(h) => Ok(Value::wat__holon__HolonAST(h.clone())),
                 HolonForm::Empty => to_holon_inner(v, span),
             },
-            Value::holon__HolonAST(h) => Ok(Value::holon__HolonAST(h)),
-            Value::Vector(v) => Ok(Value::Vector(v)),
+            Value::wat__holon__HolonAST(h) => Ok(Value::wat__holon__HolonAST(h)),
+            Value::wat__holon__Vector(v) => Ok(Value::wat__holon__Vector(v)),
             other => to_holon_inner(other, span),
         }
     };
     let a = normalize_for_cosine(a, list_span)?;
     let b = normalize_for_cosine(b, list_span)?;
     match (a, b) {
-        (Value::Vector(va), Value::Vector(vb)) => {
+        (Value::wat__holon__Vector(va), Value::wat__holon__Vector(vb)) => {
             if va.dimensions() != vb.dimensions() {
                 return Ok(PairedVectors::DimensionMismatch {
                     expected: va.dimensions() as i64,
@@ -104,19 +104,19 @@ pub(crate) fn pair_values_to_vectors(
                 vb.as_ref().clone(),
             ))
         }
-        (Value::Vector(va), Value::holon__HolonAST(b)) => {
+        (Value::wat__holon__Vector(va), Value::wat__holon__HolonAST(b)) => {
             let d = va.dimensions();
             let enc = ctx.encoders.get(d);
             let vb = encode(&b, &enc.vm, &enc.scalar);
             Ok(PairedVectors::Paired(va.as_ref().clone(), vb))
         }
-        (Value::holon__HolonAST(a), Value::Vector(vb)) => {
+        (Value::wat__holon__HolonAST(a), Value::wat__holon__Vector(vb)) => {
             let d = vb.dimensions();
             let enc = ctx.encoders.get(d);
             let va = encode(&a, &enc.vm, &enc.scalar);
             Ok(PairedVectors::Paired(va, vb.as_ref().clone()))
         }
-        (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => {
+        (Value::wat__holon__HolonAST(a), Value::wat__holon__HolonAST(b)) => {
             let d = program_dim(op, sym, list_span)?;
             let enc = ctx.encoders.get(d);
             let va = encode(&a, &enc.vm, &enc.scalar);
@@ -488,7 +488,7 @@ pub(crate) fn vector_decode_outcome_decoded(v: holon::Vector) -> Value {
         type_path: VECTOR_DECODE_OUTCOME_TYPE.into(),
         variant_name: "Decoded".into(),
         names: builtin_enum_variant_names(VECTOR_DECODE_OUTCOME_TYPE, "Decoded"),
-        fields: vec![Value::Vector(Arc::new(v))],
+        fields: vec![Value::wat__holon__Vector(Arc::new(v))],
     }))
 }
 
@@ -560,7 +560,7 @@ pub(crate) fn combine_outcome_combined(v: holon::Vector) -> Value {
         type_path: COMBINE_OUTCOME_TYPE.into(),
         variant_name: "Combined".into(),
         names: builtin_enum_variant_names(COMBINE_OUTCOME_TYPE, "Combined"),
-        fields: vec![Value::Vector(Arc::new(v))],
+        fields: vec![Value::wat__holon__Vector(Arc::new(v))],
     }))
 }
 

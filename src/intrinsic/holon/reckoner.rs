@@ -114,7 +114,7 @@ pub(crate) fn eval_reckoner_new_discrete(
         recalib as usize,
         holon::ReckConfig::Discrete(label_asts),
     );
-    Ok(Value::Reckoner(Arc::new(
+    Ok(Value::wat__holon__Reckoner(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(r),
     )))
 }
@@ -194,7 +194,7 @@ pub(crate) fn eval_reckoner_new_continuous(
             buckets: buckets as usize,
         },
     );
-    Ok(Value::Reckoner(Arc::new(
+    Ok(Value::wat__holon__Reckoner(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(r),
     )))
 }

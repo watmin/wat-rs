@@ -127,7 +127,7 @@ fn probe_3_bind_right_on_defrecord_instance() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 3 result: {}", s);
-            assert_eq!(s, "Option(Some(holon__HolonAST(Bundle([Bind(Atom(String(\"magnitude\")), Atom(F64(5.0)))]))))", "Probe 3: unexpected Bind/right result");
+            assert_eq!(s, "Option(Some(wat__holon__HolonAST(Bundle([Bind(Atom(String(\"magnitude\")), Atom(F64(5.0)))]))))", "Probe 3: unexpected Bind/right result");
         }
         Err(e) => panic!("Probe 3 FAILED: {}", e),
     }
@@ -186,7 +186,7 @@ fn probe_6_bind_left_on_defrecord_instance() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 6 result: {}", s);
-            assert_eq!(s, "Option(Some(holon__HolonAST(Atom(String(\"myapp::Voltage\")))))", "Probe 6: unexpected Bind/left result");
+            assert_eq!(s, "Option(Some(wat__holon__HolonAST(Atom(String(\"myapp::Voltage\")))))", "Probe 6: unexpected Bind/left result");
         }
         Err(e) => panic!("Probe 6 FAILED: {}", e),
     }

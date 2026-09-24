@@ -417,8 +417,8 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         }
 
         // ── Substrate compound values — angle-bracketed summary ──
-        Value::holon__HolonAST(_) => "<HolonAST>".to_string(),
-        Value::Vector(v) => format!("<Vector dim={}>", v.dimensions()),
+        Value::wat__holon__HolonAST(_) => "<HolonAST>".to_string(),
+        Value::wat__holon__Vector(v) => format!("<Vector dim={}>", v.dimensions()),
         Value::wat__WatAST(_) => "<WatAST>".to_string(),
         Value::wat__core__fn(_) => "<fn>".to_string(),
         Value::wat__kernel__Sender(_) => "<Sender>".to_string(),
@@ -430,11 +430,11 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::io__IOReader(_) => "<IOReader>".to_string(),
         Value::io__IOWriter(_) => "<IOWriter>".to_string(),
         Value::RustOpaque(inner) => format!("<{}>", inner.type_path),
-        Value::OnlineSubspace(_) => "<OnlineSubspace>".to_string(),
-        Value::Reckoner(_) => "<Reckoner>".to_string(),
-        Value::Engram(_) => "<Engram>".to_string(),
-        Value::EngramLibrary(_) => "<EngramLibrary>".to_string(),
-        Value::Hologram(_) => "<Hologram>".to_string(),
+        Value::wat__holon__OnlineSubspace(_) => "<OnlineSubspace>".to_string(),
+        Value::wat__holon__Reckoner(_) => "<Reckoner>".to_string(),
+        Value::wat__holon__Engram(_) => "<Engram>".to_string(),
+        Value::wat__holon__EngramLibrary(_) => "<EngramLibrary>".to_string(),
+        Value::wat__holon__Hologram(_) => "<Hologram>".to_string(),
         Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
         Value::Duration(ns) => format!("<Duration {}ns>", ns),
         // Arc 207 — Uuid renders as the EDN reader literal form.

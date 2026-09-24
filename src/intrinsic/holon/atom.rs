@@ -196,7 +196,7 @@ pub(crate) fn eval_holon_from_holon(
     };
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let holon = match v {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 args[0].span().clone(),
@@ -246,7 +246,7 @@ pub(crate) fn eval_holon_from_holon(
         HolonAST::F64(x) => Ok(TrackedValue::new(Value::f64(*x), prov())),
         HolonAST::Bool(b) => Ok(TrackedValue::new(Value::bool(*b), prov())),
         HolonAST::Atom(inner) => Ok(TrackedValue::new(
-            Value::holon__HolonAST(inner.clone()),
+            Value::wat__holon__HolonAST(inner.clone()),
             prov(),
         )),
         // Arc 228 Stone 228.1 — classifier-dispatch replaces arc 216 heuristic Bundle dispatch.
@@ -550,7 +550,7 @@ pub(crate) fn eval_holon_leaf(
             .into());
         }
     };
-    Ok(Value::holon__HolonAST(Arc::new(h)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(h)))
 }
 
 
@@ -598,7 +598,7 @@ pub(crate) fn eval_holon_from_wat(
             .into());
         }
     };
-    Ok(Value::holon__HolonAST(Arc::new(h)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(h)))
 }
 
 
@@ -628,7 +628,7 @@ pub(crate) fn eval_holon_to_wat(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     let h = match eval_inner(h, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -768,7 +768,7 @@ pub(crate) fn eval_algebra_map(
         HolonAST::Atom(Arc::new(HolonAST::string("Map"))),
         inner_bundle,
     );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(classified)))
 }
 
 
@@ -818,7 +818,7 @@ pub(crate) fn eval_algebra_set(
         HolonAST::Atom(Arc::new(HolonAST::string("Set"))),
         inner_bundle,
     );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(classified)))
 }
 
 
@@ -872,7 +872,7 @@ pub(crate) fn eval_algebra_vector(
         HolonAST::Atom(Arc::new(HolonAST::string("Vector"))),
         inner_bundle,
     );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(classified)))
 }
 
 
@@ -922,7 +922,7 @@ pub(crate) fn eval_algebra_list(
         HolonAST::Atom(Arc::new(HolonAST::string("List"))),
         inner_bundle,
     );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(classified)))
 }
 
 
@@ -976,7 +976,7 @@ pub(crate) fn eval_algebra_tuple(
         HolonAST::Atom(Arc::new(HolonAST::string("Tuple"))),
         inner_bundle,
     );
-    Ok(Value::holon__HolonAST(Arc::new(classified)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(classified)))
 }
 
 
@@ -1011,7 +1011,7 @@ pub(crate) fn eval_algebra_bind(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (from `coerce_to_holon_ast`) locate at `a`'s/`b`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
-    // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
+    // Accepts Value::wat__holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
     // Records flow through natively; auto-dispatch extracts the hologram at the boundary.
     let a = coerce_to_holon_ast(
         ":wat::holon::Bind",
@@ -1031,7 +1031,7 @@ pub(crate) fn eval_algebra_bind(
     // where the algebra acknowledges quantized noise. Bind always constructs
     // the Bind tree; the self-inverse is observable via vector-level presence
     // measurement. FOUNDATION 1718: the retrieval primitive is cosine.
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind(a, b))))
+    Ok(Value::wat__holon__HolonAST(Arc::new(HolonAST::bind(a, b))))
 }
 
 
@@ -1077,7 +1077,7 @@ pub(crate) fn eval_algebra_bundle(
         }
     };
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
-    // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
+    // Accepts Value::wat__holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
     // Records auto-extract their hologram at the coerce boundary.
     // Per-element WatAST span is gone by this point (we have Value, not
     // WatAST — arc 138 discipline); fall back to the Bundle call's own
@@ -1124,7 +1124,7 @@ pub(crate) fn eval_algebra_bundle(
         }
     }
 
-    let ok = Value::holon__HolonAST(Arc::new(bundle_ast));
+    let ok = Value::wat__holon__HolonAST(Arc::new(bundle_ast));
     Ok(Value::Result(Arc::new(Ok(ok))))
 }
 
@@ -1183,7 +1183,7 @@ pub(crate) fn eval_algebra_permute(
             .into());
         }
     };
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::permute(
+    Ok(Value::wat__holon__HolonAST(Arc::new(HolonAST::permute(
         (*child).clone(),
         k,
     ))))
@@ -1221,7 +1221,7 @@ pub(crate) fn algebra_thermometer(
     let v = require_numeric(":wat::holon::Thermometer", v, span)?;
     let mn = require_numeric(":wat::holon::Thermometer", min, span)?;
     let mx = require_numeric(":wat::holon::Thermometer", max, span)?;
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(
+    Ok(Value::wat__holon__HolonAST(Arc::new(HolonAST::thermometer(
         v, mn, mx,
     ))))
 }
@@ -1260,7 +1260,7 @@ pub(crate) fn algebra_blend(
     let b = require_holon(":wat::holon::Blend", b)?;
     let w1 = require_numeric(":wat::holon::Blend", w1, span)?;
     let w2 = require_numeric(":wat::holon::Blend", w2, span)?;
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend(
+    Ok(Value::wat__holon__HolonAST(Arc::new(HolonAST::blend(
         (*a).clone(),
         (*b).clone(),
         w1,
@@ -1306,7 +1306,7 @@ pub(crate) fn eval_extract_classifier(
     match arg_val {
         // Arc 293.R2.1 — Aggregate carries class (colon-free); return as String.
         Value::Aggregate(a) => Ok(Value::String(Arc::new(a.class.to_string()))),
-        Value::holon__HolonAST(h) => {
+        Value::wat__holon__HolonAST(h) => {
             let result = extract_classifier(&h).map(|s| Value::String(Arc::new(s)));
             Ok(Value::Option(Arc::new(result)))
         }
@@ -1351,7 +1351,7 @@ pub(crate) fn eval_bind_left(
     const OP: &str = ":wat::holon::Bind/left";
     let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -1364,7 +1364,7 @@ pub(crate) fn eval_bind_left(
             .into());
         }
     };
-    let result = bind_left(&holon_arc).map(|h| Value::holon__HolonAST(Arc::new(h)));
+    let result = bind_left(&holon_arc).map(|h| Value::wat__holon__HolonAST(Arc::new(h)));
     Ok(Value::Option(Arc::new(result)))
 }
 
@@ -1397,7 +1397,7 @@ pub(crate) fn eval_bind_right(
     const OP: &str = ":wat::holon::Bind/right";
     let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -1410,7 +1410,7 @@ pub(crate) fn eval_bind_right(
             .into());
         }
     };
-    let result = bind_right(&holon_arc).map(|h| Value::holon__HolonAST(Arc::new(h)));
+    let result = bind_right(&holon_arc).map(|h| Value::wat__holon__HolonAST(Arc::new(h)));
     Ok(Value::Option(Arc::new(result)))
 }
 
@@ -1474,7 +1474,7 @@ pub(crate) fn eval_bundle_children(
     const OP: &str = ":wat::holon::Bundle/children";
     let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -1490,7 +1490,7 @@ pub(crate) fn eval_bundle_children(
     let children = require_bundle(OP, &holon_arc, h.span())?;
     let out: Vec<Value> = children
         .iter()
-        .map(|child| Value::holon__HolonAST(Arc::new(child.clone())))
+        .map(|child| Value::wat__holon__HolonAST(Arc::new(child.clone())))
         .collect();
     Ok(Value::Vec(Arc::new(out)))
 }
@@ -1525,7 +1525,7 @@ pub(crate) fn eval_bundle_first(
     const OP: &str = ":wat::holon::Bundle/first";
     let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -1549,7 +1549,7 @@ pub(crate) fn eval_bundle_first(
             },
         )
     })?;
-    Ok(Value::holon__HolonAST(Arc::new(first.clone())))
+    Ok(Value::wat__holon__HolonAST(Arc::new(first.clone())))
 }
 
 
@@ -1575,7 +1575,7 @@ pub(crate) fn eval_bundle_first(
 #[wat_intrinsic(":wat::holon::is-Map?")]
 pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Map"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Map"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1604,7 +1604,7 @@ pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-Set?")]
 pub(crate) fn holon_is_set_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Set"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Set"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1633,7 +1633,7 @@ pub(crate) fn holon_is_set_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-Vector?")]
 pub(crate) fn holon_is_vector_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Vector"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Vector"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1662,7 +1662,7 @@ pub(crate) fn holon_is_vector_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-List?")]
 pub(crate) fn holon_is_list_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("List"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("List"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1691,7 +1691,7 @@ pub(crate) fn holon_is_list_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-Tuple?")]
 pub(crate) fn holon_is_tuple_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Tuple"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Tuple"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1720,7 +1720,7 @@ pub(crate) fn holon_is_tuple_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-Symbol?")]
 pub(crate) fn holon_is_symbol_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Symbol"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Symbol"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1749,7 +1749,7 @@ pub(crate) fn holon_is_symbol_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-Keyword?")]
 pub(crate) fn holon_is_keyword_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Keyword"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Keyword"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1778,7 +1778,7 @@ pub(crate) fn holon_is_keyword_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-Tag?")]
 pub(crate) fn holon_is_tag_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Tag"),
+        Value::wat__holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Tag"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1805,7 +1805,7 @@ pub(crate) fn holon_is_tag_q(x: &Value) -> Result<Value, EvalBreak> {
 #[wat_intrinsic(":wat::holon::is-Nil?")]
 pub(crate) fn holon_is_nil_q(x: &Value) -> Result<Value, EvalBreak> {
     let matches = match x {
-        Value::holon__HolonAST(h) => h.is_nil(),
+        Value::wat__holon__HolonAST(h) => h.is_nil(),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1858,7 +1858,7 @@ pub(crate) fn eval_holon_is_predicate(
         }
     };
     let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some(class_name.as_str()),
+        Value::wat__holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some(class_name.as_str()),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1888,7 +1888,7 @@ pub(crate) fn eval_term_template(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::template";
     let h = match eval_inner(h, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -1901,7 +1901,7 @@ pub(crate) fn eval_term_template(
             .into());
         }
     };
-    Ok(Value::holon__HolonAST(Arc::new(h.template())))
+    Ok(Value::wat__holon__HolonAST(Arc::new(h.template())))
 }
 
 
@@ -1928,7 +1928,7 @@ pub(crate) fn eval_term_slots(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::slots";
     let h = match eval_inner(h, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -1969,7 +1969,7 @@ pub(crate) fn eval_term_ranges(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::ranges";
     let h = match eval_inner(h, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 h.span().clone(),
@@ -2015,7 +2015,7 @@ pub(crate) fn eval_term_matches_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::matches?";
     let q = match eval_inner(q, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 q.span().clone(),
@@ -2029,7 +2029,7 @@ pub(crate) fn eval_term_matches_q(
         }
     };
     let s = match eval_inner(s, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 s.span().clone(),
@@ -2164,7 +2164,7 @@ pub(crate) fn eval_therm_form(
         min: low,
         max: high,
     };
-    Ok(Value::holon__HolonAST(Arc::new(ast)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(ast)))
 }
 
 
@@ -2700,11 +2700,11 @@ pub(crate) fn eval_algebra_simhash(
     // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
     // Vector uses its native dim directly.
     let (v, enc) = match val {
-        Value::Vector(vec) => {
+        Value::wat__holon__Vector(vec) => {
             let d = vec.dimensions();
             (vec.as_ref().clone(), ctx.encoders.get(d))
         }
-        Value::holon__HolonAST(ast) => {
+        Value::wat__holon__HolonAST(ast) => {
             let enc = ctx.encoders.get(ctx.dim_count);
             let v = encode(&ast, &enc.vm, &enc.scalar);
             (v, enc)
@@ -2765,7 +2765,7 @@ pub(crate) fn eval_holon_encode(
     let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
     let enc = ctx.encoders.get(ctx.dim_count);
     let v = encode(&target, &enc.vm, &enc.scalar);
-    Ok(Value::Vector(Arc::new(v)))
+    Ok(Value::wat__holon__Vector(Arc::new(v)))
 }
 
 
@@ -3088,7 +3088,7 @@ pub(crate) fn eval_holon_vector_permute(
         }
     };
     let result = holon::primitives::Primitives::permute(&v, k);
-    Ok(Value::Vector(Arc::new(result)))
+    Ok(Value::wat__holon__Vector(Arc::new(result)))
 }
 
 

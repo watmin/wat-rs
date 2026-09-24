@@ -6,7 +6,7 @@
 //! runtime.rs eval_type). This stone proves the recipe on ONE op: `length`.
 //!
 //! The change Sonnet makes: register `:wat::core::length` as a `∀T. T -> :i64` Rust builtin
-//! (eval matches Value::Vector/HashMap/HashSet → len, else teaching error); DELETE the
+//! (eval matches Value::wat__holon__Vector/HashMap/HashSet → len, else teaching error); DELETE the
 //! `(:wat::core::define-dispatch :wat::core::length ...)` decl at core.wat:12. The per-type
 //! leaves (`:Vector/length` etc.) and the DispatchRegistry STAY (other ops still tenant it).
 //!

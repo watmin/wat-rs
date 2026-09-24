@@ -892,7 +892,7 @@ pub(crate) fn eval_extract_arg_names(
 /// Arc 201 slice 5.
 ///
 /// ★ Doc correction (arc 255 Stone P6-c-W3): the prior header described an elaborate
-/// HolonAST-carrier pipeline — `head` as `Value::holon__HolonAST`, a "hand-built Bundle", and a
+/// HolonAST-carrier pipeline — `head` as `Value::wat__holon__HolonAST`, a "hand-built Bundle", and a
 /// render step through a named helper `holon_type_ast_to_wat_type_form` — that does not exist in
 /// this codebase (`grep` finds the name only in comments: this one, a `check.rs` comment, and a
 /// test-file comment — never a function definition). The body below has never called anything by

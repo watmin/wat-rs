@@ -2625,7 +2625,7 @@ fn edn_to_typed_value_inner(
             // tag family (`edn_derive_holon`, above) — there is nothing left
             // to select between, so both former branches call the same fn.
             ":wat::holon::HolonAST" => {
-                edn_derive_holon(edn, types, ctx).map(Value::holon__HolonAST).map_err(|e| EdnCoerceError {
+                edn_derive_holon(edn, types, ctx).map(Value::wat__holon__HolonAST).map_err(|e| EdnCoerceError {
                     expected: ":wat::holon::HolonAST".into(),
                     got: format!("HolonAST decode error: {e}"),
                     path: String::new(),
@@ -3520,7 +3520,7 @@ fn tagged_to_value(
     // directive tag is recognised by NAME, not by a registered type.
     if ns == "wat.holon" {
         if let Some(holon) = decode_holon_directive_tag(name, body)? {
-            return Ok(Value::holon__HolonAST(Arc::new(holon)));
+            return Ok(Value::wat__holon__HolonAST(Arc::new(holon)));
         }
     }
 
@@ -3532,7 +3532,7 @@ fn tagged_to_value(
     // (`edn_derive_holon`) — a struct field carrying a data holon needs to re-lift here too.
     if ns == "wat" && name == "holon" {
         let inner = edn_to_value_caps(body, types, allow_caps, foreign, ctx)?;
-        return Ok(Value::holon__HolonAST(Arc::new(decode_holon_data_tag(inner)?)));
+        return Ok(Value::wat__holon__HolonAST(Arc::new(decode_holon_data_tag(inner)?)));
     }
 
     // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
@@ -4751,13 +4751,13 @@ fn value_to_edn_in(
         // refuses (Err) on anything that is not data — Thermometer/SlotMarker
         // included, because they are constructor directives, not data. See
         // `holon_ast_to_edn_data` below for the three-case dispatch.
-        Value::holon__HolonAST(h) => holon_ast_to_edn_data(h, types)?,
+        Value::wat__holon__HolonAST(h) => holon_ast_to_edn_data(h, types)?,
         // Arc 294.j — the realized VSA vector is the algebra's OWN terminal
         // artifact (the materialized `holon::Vector` a Bind/Bundle tree
         // evaluates to), so it shares the "derived, not shipped" disposition
         // the DESIGN STONE's classification table gives the algebra family —
         // it was the one member of that family not living in
-        // `holon_ast_to_edn` (it is a `Value::Vector`, not a `HolonAST`
+        // `holon_ast_to_edn` (it is a `Value::wat__holon__Vector`, not a `HolonAST`
         // variant — holon-rs has no such variant). Its OLD tag shared the
         // now-dead namespace by accident of authorship, not by kinship with
         // the tag/reader pair this stone kills; it never had a reader arm at
@@ -4767,7 +4767,7 @@ fn value_to_edn_in(
         // "preserve real data" call 294.i made for `HandlePool`'s name);
         // only the home moves off the dead namespace, to the same
         // `wat.holon` per-type home the VSA five already use.
-        Value::Vector(vec) => OwnedValue::Tagged(
+        Value::wat__holon__Vector(vec) => OwnedValue::Tagged(
             Tag::ns("wat.holon", "Vector"),
             Box::new(OwnedValue::Map(vec![(
                 OwnedValue::Keyword(Keyword::new("dim")),
@@ -4827,11 +4827,11 @@ fn value_to_edn_in(
         // and the codebase already names them `wat::holon::X` (see `value.rs` type_name/gate
         // entries for OnlineSubspace/Reckoner/Engram/EngramLibrary/Hologram). Home measured
         // from that existing convention, not invented.
-        Value::OnlineSubspace(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "OnlineSubspace")?,
-        Value::Reckoner(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Reckoner")?,
-        Value::Engram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Engram")?,
-        Value::EngramLibrary(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "EngramLibrary")?,
-        Value::Hologram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Hologram")?,
+        Value::wat__holon__OnlineSubspace(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "OnlineSubspace")?,
+        Value::wat__holon__Reckoner(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Reckoner")?,
+        Value::wat__holon__Engram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Engram")?,
+        Value::wat__holon__EngramLibrary(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "EngramLibrary")?,
+        Value::wat__holon__Hologram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Hologram")?,
         Value::Instant(t) => OwnedValue::Inst(*t),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
         // Arc 207 — typed Uuid → EDN `#uuid "..."` reader literal.
@@ -5187,9 +5187,9 @@ fn edn_derive_holon(
 /// [`decode_holon_directive_tag`] for the directive tags).
 fn decode_holon_data_tag(value: Value) -> Result<holon::HolonAST, EdnReadError> {
     match crate::holon::to_holon_inner(value, &crate::rust_caller_span!()) {
-        Ok(Value::holon__HolonAST(h)) => Ok((*h).clone()),
+        Ok(Value::wat__holon__HolonAST(h)) => Ok((*h).clone()),
         Ok(other) => unreachable!(
-            "to_holon_inner always returns holon__HolonAST on Ok; got {other:?}"
+            "to_holon_inner always returns wat__holon__HolonAST on Ok; got {other:?}"
         ),
         Err(e) => Err(EdnReadError {
             span: crate::rust_caller_span!(),

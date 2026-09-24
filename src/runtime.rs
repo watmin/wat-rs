@@ -5862,7 +5862,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // every i8 element must match. Forced by the Hash + Eq contract
         // for use as HashMap/LruCache keys. For graded similarity, reach
         // for cosine / presence? / simhash.
-        (Value::Vector(a), Value::Vector(b)) => {
+        (Value::wat__holon__Vector(a), Value::wat__holon__Vector(b)) => {
             if a.dimensions() != b.dimensions() {
                 return Some(false);
             }
@@ -5875,7 +5875,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // compares on the algebra grid via cosine + sigma): this is
         // the bit-exact structural predicate, the one a HashMap or a
         // term-store template-key dispatch lookup needs.
-        (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => Some(a == b),
+        (Value::wat__holon__HolonAST(a), Value::wat__holon__HolonAST(b)) => Some(a == b),
         // Arc 293.R2.1 — Aggregate (all natures). Cross-nature → false (nature check first).
         (Value::Aggregate(x), Value::Aggregate(y)) => {
             if x.nature != y.nature {
@@ -5926,7 +5926,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::Duration(a), Value::Duration(b)) => Some(a == b),
         // Arc 238 Stone 238.1 — WatAST structural equality.
         // WatAST derives PartialEq (ast.rs:33; span-agnostic — two nodes with same structure
-        // but different spans compare equal). Symmetry with the holon__HolonAST arm above.
+        // but different spans compare equal). Symmetry with the wat__holon__HolonAST arm above.
         (Value::wat__WatAST(a), Value::wat__WatAST(b)) => Some(a == b),
         _ => None,
     }
@@ -6077,7 +6077,7 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         // Different-dim Vectors fall to length lex on the i8 slice; the
         // type checker would normally enforce dim equality upstream, but
         // honest lex if mismatched values arrive.
-        (Value::Vector(x), Value::Vector(y)) => Some(x.data().cmp(y.data())),
+        (Value::wat__holon__Vector(x), Value::wat__holon__Vector(y)) => Some(x.data().cmp(y.data())),
         _ => None,
     }
 }
@@ -6809,7 +6809,7 @@ pub fn value_is_hashable(v: &Value) -> bool {
         | Value::Unit
         | Value::wat__core__keyword(_)
         | Value::wat__core__fn(_)
-        | Value::holon__HolonAST(_)
+        | Value::wat__holon__HolonAST(_)
         | Value::wat__WatAST(_)
         | Value::wat__kernel__Sender(_)
         | Value::wat__kernel__Receiver(_)
@@ -6818,12 +6818,12 @@ pub fn value_is_hashable(v: &Value) -> bool {
         | Value::io__IOWriter(_)
         | Value::wat__kernel__HandlePool { .. }
         | Value::wat__kernel__ChildHandle(_)
-        | Value::Vector(_)
-        | Value::OnlineSubspace(_)
-        | Value::Reckoner(_)
-        | Value::Engram(_)
-        | Value::EngramLibrary(_)
-        | Value::Hologram(_)
+        | Value::wat__holon__Vector(_)
+        | Value::wat__holon__OnlineSubspace(_)
+        | Value::wat__holon__Reckoner(_)
+        | Value::wat__holon__Engram(_)
+        | Value::wat__holon__EngramLibrary(_)
+        | Value::wat__holon__Hologram(_)
         | Value::Instant(_)
         | Value::Duration(_)
         | Value::wat__core__Uuid(_)
@@ -7367,7 +7367,7 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
         Value::Unit => Ok(WatAST::NilLit(span)),
         Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
         Value::wat__WatAST(a) => Ok((*a).clone()),
-        Value::holon__HolonAST(h) => Ok(holon_to_watast(&h)),
+        Value::wat__holon__HolonAST(h) => Ok(holon_to_watast(&h)),
         other => Err(RuntimeError::new(
             span,
             RuntimeErrorKind::TypeMismatch {
@@ -9411,7 +9411,7 @@ pub(crate) fn try_match_pattern(
 /// Polymorphic runtime primitive that extracts a Value's record-type FQDN as a String.
 /// Works on every Value variant that exists at Stone 234.0 time. Dispatch table:
 ///
-/// - `Value::holon__HolonAST(h)` → `extract_classifier(h)` (classifier-wrap FQDN)
+/// - `Value::wat__holon__HolonAST(h)` → `extract_classifier(h)` (classifier-wrap FQDN)
 ///   with fallback to `"wat::holon::HolonAST"` for non-classifier-wrapped HolonAST.
 /// - `Value::Aggregate(a)` → `a.class` (per-instance FQDN, colon-free; covers Struct/Record/HolonRecord).
 /// - Any other Value → `Value::type_name()` (existing Rust method; returns FQDN per
@@ -13517,11 +13517,11 @@ fn step_holon_descend_then_fire(
     // Arc 255 STONE-stepvalue-is-watast — direct Value -> WatAST, no
     // `value_to_holon` middle hop (see the sibling comment in
     // `step_descend_then_fire`). Every `:wat::holon::*` constructor's
-    // `eval` arm already returns `Value::holon__HolonAST` directly
+    // `eval` arm already returns `Value::wat__holon__HolonAST` directly
     // (e.g. `eval_algebra_bind`), so the old `value_to_holon` call
     // here was always hitting its bare passthrough arm — pure
     // ceremony. `value_to_watast` has that same passthrough arm
-    // (`Value::holon__HolonAST(h) => holon_to_watast(&h)`, `runtime.rs:7054`)
+    // (`Value::wat__holon__HolonAST(h) => holon_to_watast(&h)`, `runtime.rs:7054`)
     // and nothing is lost.
     Ok(StepValue::Terminal(value_to_watast(
         ":wat::eval-step!",
@@ -15703,7 +15703,7 @@ mod tests {
     fn algebra_atom_from_literal() {
         // Arc 225 Stone 225.1 — Atom is now narrow (HolonAST→Atom); use to-holon for primitives.
         let v = eval_expr(r#"(:wat::holon::to-holon "role")"#).unwrap();
-        assert!(matches!(v, Value::holon__HolonAST(_)));
+        assert!(matches!(v, Value::wat__holon__HolonAST(_)));
     }
 
     #[test]
@@ -15711,7 +15711,7 @@ mod tests {
         // Arc 225 Stone 225.1 — to-holon lifts bound integer → HolonAST leaf.
         let v = eval_expr(r#"(:wat::core::let [x 42] (:wat::holon::to-holon x))"#).unwrap();
         match v {
-            Value::holon__HolonAST(h) => {
+            Value::wat__holon__HolonAST(h) => {
                 assert_eq!(h.as_i64(), Some(42));
             }
             other => panic!("expected Holon, got {:?}", other),
@@ -15727,7 +15727,7 @@ mod tests {
                  (:wat::holon::to-holon "filler"))"#,
         )
         .unwrap();
-        assert!(matches!(v, Value::holon__HolonAST(_)));
+        assert!(matches!(v, Value::wat__holon__HolonAST(_)));
     }
 
     #[test]
@@ -15749,7 +15749,7 @@ mod tests {
         .unwrap();
         match v {
             Value::Result(r) => match &*r {
-                Ok(Value::holon__HolonAST(_)) => {}
+                Ok(Value::wat__holon__HolonAST(_)) => {}
                 other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
             },
             other => panic!("expected Value::Result; got {:?}", other),
@@ -15768,7 +15768,7 @@ mod tests {
                  (:wat::i64::- 0 1))"#,
         )
         .unwrap();
-        assert!(matches!(v, Value::holon__HolonAST(_)));
+        assert!(matches!(v, Value::wat__holon__HolonAST(_)));
     }
 
     #[test]
@@ -15796,7 +15796,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(matches!(result, Value::holon__HolonAST(_)));
+        assert!(matches!(result, Value::wat__holon__HolonAST(_)));
     }
 
     // ─── Four eval forms (wat-source callable) ──────────────────────────
@@ -15956,7 +15956,7 @@ mod tests {
         // New: (from-wat (quote form)) — the honest directional verb.
         let result =
             eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2)))").unwrap();
-        assert!(matches!(result, Value::holon__HolonAST(_)));
+        assert!(matches!(result, Value::wat__holon__HolonAST(_)));
     }
 
     #[test]
@@ -15988,7 +15988,7 @@ mod tests {
         let v =
             eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))").unwrap();
         let h = match v {
-            Value::holon__HolonAST(h) => h,
+            Value::wat__holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
         };
         match &*h {
@@ -16068,7 +16068,7 @@ mod tests {
         )
         .unwrap();
         match result {
-            Value::holon__HolonAST(h) => {
+            Value::wat__holon__HolonAST(h) => {
                 // Must be a Bind tree, NOT reduced to the "program" atom.
                 assert!(matches!(&*h, HolonAST::Bind(_, _)));
             }
@@ -16098,7 +16098,7 @@ mod tests {
         let v =
             eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))").unwrap();
         let h = match v {
-            Value::holon__HolonAST(h) => h,
+            Value::wat__holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
         };
         match &*h {
@@ -19419,7 +19419,7 @@ mod tests {
         "#;
         let v = eval_expr(src).unwrap();
         let h = match v {
-            Value::holon__HolonAST(h) => h,
+            Value::wat__holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
         };
         match &*h {
@@ -19456,7 +19456,7 @@ mod tests {
         "#;
         let v = eval_expr(src).unwrap();
         let h = match v {
-            Value::holon__HolonAST(h) => h,
+            Value::wat__holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
         };
         // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword (no leading colon stored).
@@ -20368,7 +20368,7 @@ mod tests {
         // never calls `check_program`), but it exercises the SAME
         // `step_value_to_enum` boundary and would silently start
         // returning `Value::wat__WatAST` instead of the
-        // `Value::holon__HolonAST` it used to assert on, the moment that
+        // `Value::wat__holon__HolonAST` it used to assert on, the moment that
         // boundary's fields are made consistent with `src/types.rs`'s
         // new declaration. Fixed alongside the 17 rather than left to
         // rot uncaught by a checker that never sees it.
@@ -20818,7 +20818,7 @@ mod tests {
         );
     }
 
-    /// Arc 143 slice 5b — `value_to_watast` bridges `Value::holon__HolonAST`.
+    /// Arc 143 slice 5b — `value_to_watast` bridges `Value::wat__holon__HolonAST`.
     ///
     /// A `HolonAST::Symbol` whose content begins with `:` is a keyword.
     /// `holon_to_watast` maps it to `WatAST::Keyword`; `value_to_watast`
@@ -20829,7 +20829,7 @@ mod tests {
         use std::sync::Arc;
         // rune:lint(holon-not-vsa, test-fixture) — the coercion arm under test needs a REAL HolonAST to exercise it, not a stand-in.
         let h = HolonAST::symbol(":foo");
-        let v = Value::holon__HolonAST(Arc::new(h));
+        let v = Value::wat__holon__HolonAST(Arc::new(h));
         let result = value_to_watast("test_op", v, crate::rust_caller_span!());
         match result {
             Ok(WatAST::Keyword(k, _)) => assert_eq!(k, ":foo"),

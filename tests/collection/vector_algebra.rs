@@ -1,7 +1,7 @@
 //! Arc 053 slice 1 — Vector-tier algebra primitives.
 //!
 //! Coverage: vector-bind, vector-bundle, vector-blend, vector-permute
-//! over `Value::Vector` inputs (post-arc-052).
+//! over `Value::wat__holon__Vector` inputs (post-arc-052).
 //!
 //! Wat source lives in the co-located fixture: vector_algebra.wat, driven via
 //! call_beside_value(file!(), fn_name). Functions return String results so tests

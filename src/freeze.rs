@@ -2257,7 +2257,7 @@ mod tests {
         .unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
-        assert!(matches!(result.value(), Value::holon__HolonAST(_)));
+        assert!(matches!(result.value(), Value::wat__holon__HolonAST(_)));
     }
 
     #[test]

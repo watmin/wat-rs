@@ -67,11 +67,11 @@ pub enum Value {
     wat__core__fn(Arc<Function>),
     /// A composed `wat::holon::HolonAST` — the algebra AST tier carried
     /// at runtime.
-    holon__HolonAST(Arc<HolonAST>),
+    wat__holon__HolonAST(Arc<HolonAST>),
     /// A parsed wat AST carried as a first-class runtime value. Used
     /// by `:wat::eval-ast!` and adjacent forms. Distinct from
     /// [`Value::String`] (raw EDN text that still needs parsing) and
-    /// from [`Value::holon__HolonAST`] (algebra AST).
+    /// from [`Value::wat__holon__HolonAST`] (algebra AST).
     wat__WatAST(Arc<WatAST>),
     /// A `(:wat::kernel::Sender :- [T])` handle (arc 170 slice 1c).
     /// Carries `Value` — any wat runtime value can travel through.
@@ -237,7 +237,7 @@ pub enum Value {
     /// Forced by the Hash + Eq contract for use as HashMap/LruCache
     /// keys. For graded similarity reach for `cosine`, `presence?`,
     /// or `simhash`-then-bucket-then-cosine.
-    Vector(Arc<holon::Vector>),
+    wat__holon__Vector(Arc<holon::Vector>),
     /// Arc 053 — `:wat::holon::OnlineSubspace`. Incremental PCA that
     /// learns "what normal looks like" from a stream of vectors.
     /// `Arc<ThreadOwnedCell<...>>` for per-thread ownership, zero
@@ -247,27 +247,27 @@ pub enum Value {
     /// `reconstruct` / `eigenvalues`. No equality semantics — two
     /// subspaces trained on different orderings produce different
     /// internal bases.
-    OnlineSubspace(Arc<ThreadOwnedCell<holon::OnlineSubspace>>),
+    wat__holon__OnlineSubspace(Arc<ThreadOwnedCell<holon::OnlineSubspace>>),
     /// Arc 053 — `:wat::holon::Reckoner`. Gradient-trained discriminant
     /// classifier with discrete or continuous readout. Per-thread
     /// owned for safe mutation under CSP.
-    Reckoner(Arc<ThreadOwnedCell<holon::Reckoner>>),
+    wat__holon__Reckoner(Arc<ThreadOwnedCell<holon::Reckoner>>),
     /// Arc 053 — `:wat::holon::Engram`. A learned-pattern snapshot
     /// produced by training. Mostly read-only after construction; the
     /// `residual` method triggers lazy subspace-cache mutation, so we
     /// use ThreadOwnedCell (same per-thread-ownership pattern as the
     /// other state-bearing types). Send+Sync via the same UnsafeCell
     /// + thread-id-check discipline.
-    Engram(Arc<ThreadOwnedCell<holon::Engram>>),
+    wat__holon__Engram(Arc<ThreadOwnedCell<holon::Engram>>),
     /// Arc 053 — `:wat::holon::EngramLibrary`. The collection-and-
     /// match container for engrams. `Arc<ThreadOwnedCell<...>>` for
     /// per-thread mutation under CSP.
-    EngramLibrary(Arc<ThreadOwnedCell<holon::EngramLibrary>>),
+    wat__holon__EngramLibrary(Arc<ThreadOwnedCell<holon::EngramLibrary>>),
     /// Arc 074 slice 1 — `(:wat::holon::Hologram :- [V])`. Coordinate-cell
     /// store with cosine readout, unbounded. The wat-side `V` is
     /// phantom — the runtime carries any `Value`. Thread-owned mutable
     /// per `ZERO-MUTEX.md` Tier 2.
-    Hologram(Arc<ThreadOwnedCell<Hologram>>),
+    wat__holon__Hologram(Arc<ThreadOwnedCell<Hologram>>),
     /// Arc 056 — `:wat::time::Instant`. Wall-clock point in time
     /// (Java/Clojure lineage; not Rust's monotonic `std::time::Instant`).
     /// Backing: `chrono::DateTime<chrono::Utc>` (Copy + Send + Sync;
@@ -576,7 +576,7 @@ where
 /// ## Variant classification (per the `is_atomizable` predicate in `src/check.rs`)
 ///
 /// **Atomizable** (may appear as HashSet elements / HashMap keys):
-/// `bool`, `i64`, `f64`, `String`, `wat__core__keyword`, `holon__HolonAST`,
+/// `bool`, `i64`, `f64`, `String`, `wat__core__keyword`, `wat__holon__HolonAST`,
 /// `wat__WatAST`, `wat__core__Uuid`, `wat__core__Char`, `Aggregate` (Record/HolonRecord),
 /// `Unit` (`:wat::core::nil`), `Vec` (recursive),
 /// `wat__std__HashSet` (recursive), `wat__std__HashMap` (recursive),
@@ -602,7 +602,7 @@ impl PartialEq for Value {
             (Value::f64(a), Value::f64(b)) => a.to_bits() == b.to_bits(),
             (Value::String(a), Value::String(b)) => a == b,
             (Value::wat__core__keyword(a), Value::wat__core__keyword(b)) => a == b,
-            (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => a == b,
+            (Value::wat__holon__HolonAST(a), Value::wat__holon__HolonAST(b)) => a == b,
             (Value::wat__WatAST(a), Value::wat__WatAST(b)) => a == b,
             (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
             // Arc 220 — Char equality. `char` implements `PartialEq`.
@@ -675,7 +675,7 @@ impl PartialEq for Value {
                     && a.fields == b.fields
             }
             // holon::Vector: bit-exact (PartialEq impl in holon-rs compares data slices)
-            (Value::Vector(a), Value::Vector(b)) => a == b,
+            (Value::wat__holon__Vector(a), Value::wat__holon__Vector(b)) => a == b,
             // chrono::DateTime implements PartialEq
             (Value::Instant(a), Value::Instant(b)) => a == b,
             // Duration is stored as i64 nanoseconds
@@ -698,11 +698,11 @@ impl PartialEq for Value {
             (Value::io__IOReader(a), Value::io__IOReader(b)) => Arc::ptr_eq(a, b),
             (Value::io__IOWriter(a), Value::io__IOWriter(b)) => Arc::ptr_eq(a, b),
             // ML types: per-thread-owned; pointer identity is the only meaningful equality
-            (Value::OnlineSubspace(a), Value::OnlineSubspace(b)) => Arc::ptr_eq(a, b),
-            (Value::Reckoner(a), Value::Reckoner(b)) => Arc::ptr_eq(a, b),
-            (Value::Engram(a), Value::Engram(b)) => Arc::ptr_eq(a, b),
-            (Value::EngramLibrary(a), Value::EngramLibrary(b)) => Arc::ptr_eq(a, b),
-            (Value::Hologram(a), Value::Hologram(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__holon__OnlineSubspace(a), Value::wat__holon__OnlineSubspace(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__holon__Reckoner(a), Value::wat__holon__Reckoner(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__holon__Engram(a), Value::wat__holon__Engram(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__holon__EngramLibrary(a), Value::wat__holon__EngramLibrary(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__holon__Hologram(a), Value::wat__holon__Hologram(b)) => Arc::ptr_eq(a, b),
             // Arc 293.R2.1: wat__holon__Record and wat__core__Record arms removed; handled by Aggregate above.
             // Stone 237.2 — wat__core__clauses: pointer equality (two ClauseSet instances
             // are the same dispatcher iff they are the same Arc). Structural equality
@@ -769,7 +769,7 @@ impl std::hash::Hash for Value {
             Value::f64(x) => x.to_bits().hash(state),
             Value::String(s) => s.hash(state),
             Value::wat__core__keyword(k) => k.hash(state),
-            Value::holon__HolonAST(h) => h.hash(state),
+            Value::wat__holon__HolonAST(h) => h.hash(state),
             Value::wat__WatAST(ast) => ast.hash(state),
             Value::wat__core__Uuid(u) => u.hash(state),
             // Arc 220 — Char hash. `char` implements `Hash`.
@@ -876,7 +876,7 @@ impl std::hash::Hash for Value {
                 a.fields.hash(state);
             }
             // holon::Vector: hash the underlying i8 data slice
-            Value::Vector(v) => v.data().hash(state),
+            Value::wat__holon__Vector(v) => v.data().hash(state),
             // chrono::DateTime<Utc>: hash via timestamp_nanos (i64, unique per instant)
             Value::Instant(dt) => dt.timestamp_nanos_opt().hash(state),
             // Duration: stored as i64 nanoseconds
@@ -926,28 +926,28 @@ impl std::hash::Hash for Value {
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::OnlineSubspace(_) => unreachable!(
-                "Value::OnlineSubspace is not atomizable; is_atomizable predicate in \
+            Value::wat__holon__OnlineSubspace(_) => unreachable!(
+                "Value::wat__holon__OnlineSubspace is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::Reckoner(_) => unreachable!(
-                "Value::Reckoner is not atomizable; is_atomizable predicate in \
+            Value::wat__holon__Reckoner(_) => unreachable!(
+                "Value::wat__holon__Reckoner is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::Engram(_) => unreachable!(
-                "Value::Engram is not atomizable; is_atomizable predicate in \
+            Value::wat__holon__Engram(_) => unreachable!(
+                "Value::wat__holon__Engram is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::EngramLibrary(_) => unreachable!(
-                "Value::EngramLibrary is not atomizable; is_atomizable predicate in \
+            Value::wat__holon__EngramLibrary(_) => unreachable!(
+                "Value::wat__holon__EngramLibrary is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::Hologram(_) => unreachable!(
-                "Value::Hologram is not atomizable; is_atomizable predicate in \
+            Value::wat__holon__Hologram(_) => unreachable!(
+                "Value::wat__holon__Hologram is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
@@ -1384,7 +1384,7 @@ value_key_eligibility_table! {
         key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::core::keyword".to_string()) ]
     },
-    Value::holon__HolonAST(_) => {
+    Value::wat__holon__HolonAST(_) => {
         type_name: "wat::holon::HolonAST",
         key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::holon::HolonAST".to_string()) ]
@@ -1484,27 +1484,27 @@ value_key_eligibility_table! {
     },
     // The five `Arc<ThreadOwnedCell<_>>` ML types: `ThreadOwnedCell.cell: UnsafeCell<T>`
     // (src/rust_deps/custodia.rs) is direct, unconditional interior mutability.
-    Value::OnlineSubspace(_) => {
+    Value::wat__holon__OnlineSubspace(_) => {
         type_name: "wat::holon::OnlineSubspace",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
         gate: [ TypeExpr::Path(":wat::holon::OnlineSubspace".to_string()) ]
     },
-    Value::Reckoner(_) => {
+    Value::wat__holon__Reckoner(_) => {
         type_name: "wat::holon::Reckoner",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
         gate: [ TypeExpr::Path(":wat::holon::Reckoner".to_string()) ]
     },
-    Value::Engram(_) => {
+    Value::wat__holon__Engram(_) => {
         type_name: "wat::holon::Engram",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
         gate: [ TypeExpr::Path(":wat::holon::Engram".to_string()) ]
     },
-    Value::EngramLibrary(_) => {
+    Value::wat__holon__EngramLibrary(_) => {
         type_name: "wat::holon::EngramLibrary",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
         gate: [ TypeExpr::Path(":wat::holon::EngramLibrary".to_string()) ]
     },
-    Value::Hologram(_) => {
+    Value::wat__holon__Hologram(_) => {
         type_name: "wat::holon::Hologram",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable),
         gate: [ TypeExpr::Path(":wat::holon::Hologram".to_string()) ]
@@ -1645,7 +1645,7 @@ value_key_eligibility_table! {
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::edn::ForeignVariant".to_string()) ]
     },
-    Value::Vector(_) => {
+    Value::wat__holon__Vector(_) => {
         type_name: "wat::holon::Vector",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::holon::Vector".to_string()) ]
@@ -1699,7 +1699,7 @@ impl Value {
     /// its declared-type arm (the exact rot that broke Enum/Newtype).
     ///
     /// Per-form FQDN source:
-    /// - `holon__HolonAST` → `extract_classifier` (classifier-wrap FQDN) with
+    /// - `wat__holon__HolonAST` → `extract_classifier` (classifier-wrap FQDN) with
     ///   fallback to `"wat::holon::HolonAST"`.
     /// - `Aggregate(Struct)` → `agg.class` (colon-free FQDN; covers newtype too).
     /// - `Aggregate(Record/HolonRecord)` → `agg.class` (colon-free FQDN).
@@ -1711,7 +1711,7 @@ impl Value {
     pub fn declared_type_name(&self) -> String {
         match self {
             // ── Nominal forms: per-instance declared FQDN ────────────────────
-            Value::holon__HolonAST(h) => {
+            Value::wat__holon__HolonAST(h) => {
                 // rune:solvere(historical-shape) — transitional back-arc into the monolith; extract_classifier lifts to its home at the algebra/ migration stone (docs/arc/2026/06/251-types-as-forms/SCOUT-LIFT-MAP.md); the back-arc resolves then.
                 crate::holon::extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
             }
@@ -1755,12 +1755,12 @@ impl Value {
             Value::Tuple(_) => self.type_name().to_string(),
             Value::wat__kernel__HandlePool { .. } => self.type_name().to_string(),
             Value::wat__kernel__ChildHandle(_) => self.type_name().to_string(),
-            Value::Vector(_) => self.type_name().to_string(),
-            Value::OnlineSubspace(_) => self.type_name().to_string(),
-            Value::Reckoner(_) => self.type_name().to_string(),
-            Value::Engram(_) => self.type_name().to_string(),
-            Value::EngramLibrary(_) => self.type_name().to_string(),
-            Value::Hologram(_) => self.type_name().to_string(),
+            Value::wat__holon__Vector(_) => self.type_name().to_string(),
+            Value::wat__holon__OnlineSubspace(_) => self.type_name().to_string(),
+            Value::wat__holon__Reckoner(_) => self.type_name().to_string(),
+            Value::wat__holon__Engram(_) => self.type_name().to_string(),
+            Value::wat__holon__EngramLibrary(_) => self.type_name().to_string(),
+            Value::wat__holon__Hologram(_) => self.type_name().to_string(),
             Value::Instant(_) => self.type_name().to_string(),
             Value::Duration(_) => self.type_name().to_string(),
             Value::wat__core__Uuid(_) => self.type_name().to_string(),

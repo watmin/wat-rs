@@ -38,7 +38,7 @@ use std::sync::Arc;
 ///
 /// - Primitive leaf (Symbol/Keyword/Nil/Char/String/I64/F64/Bool) → corresponding
 ///   runtime `Value`.
-/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`.
+/// - `Atom(inner)` → inner HolonAST as a `Value::wat__holon__HolonAST`.
 /// - `Bind(Atom(String(name)), Bundle(items))` → classifier-dispatch by name.
 /// - `Bundle(items)` → TypeMismatch (unclassified Bundle; HARD CUT per arc 228 doctrine).
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
@@ -228,8 +228,8 @@ pub(crate) fn build_holon_hologram(
         .zip(field_values.iter())
         .map(|(name, val)| -> Result<HolonAST, EvalBreak> {
             let val_holon = match to_holon_inner(val.clone(), span)? {
-                Value::holon__HolonAST(h) => (*h).clone(),
-                _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                Value::wat__holon__HolonAST(h) => (*h).clone(),
+                _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
             };
             Ok(HolonAST::Bind(
                 Arc::new(HolonAST::Atom(Arc::new(HolonAST::String(Arc::from(
@@ -344,11 +344,11 @@ pub(crate) fn extract_classifier_inner_bundle(holon: &HolonAST) -> Option<&Vec<H
 /// Wrap a HolonAST in an opaque-identity `Atom` node.
 ///
 /// Arc 225 Stone 225.1 — renamed from `value_to_atom` (which was polymorphic).
-/// This function now accepts ONLY `Value::holon__HolonAST`; the polymorphic UP
+/// This function now accepts ONLY `Value::wat__holon__HolonAST`; the polymorphic UP
 /// arms moved to `eval_holon_to_holon` / `to_holon_inner`.
 pub(crate) fn wrap_holon_as_atom(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
     match v {
-        Value::holon__HolonAST(h) => Ok(Value::holon__HolonAST(Arc::new(HolonAST::Atom(h)))),
+        Value::wat__holon__HolonAST(h) => Ok(Value::wat__holon__HolonAST(Arc::new(HolonAST::Atom(h)))),
         other => Err(RuntimeError::new(
             arg_span.clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -405,7 +405,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         // Opaque-identity wrap ───────────────────────────────────────
         // HolonAST input → Atom(inner) wrap; the to-holon verb is the general
         // lift, and for HolonAST inputs it behaves identically to narrow Atom.
-        Value::holon__HolonAST(h) => HolonAST::Atom(h),
+        Value::wat__holon__HolonAST(h) => HolonAST::Atom(h),
         // Structural lowering of a captured wat form ────────────────
         Value::wat__WatAST(a) => watast_to_holon(&a),
         // Arc 216 Stone 1 — (HashSet :- [T]) → classifier-wrapped Bundle of bare items.
@@ -418,8 +418,8 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             for elem in s.iter() {
                 let holon_val = to_holon_inner(elem.clone(), arg_span)?;
                 match holon_val {
-                    Value::holon__HolonAST(h) => items.push((*h).clone()),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                    Value::wat__holon__HolonAST(h) => items.push((*h).clone()),
+                    _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
                 }
             }
             let inner_bundle = HolonAST::bundle(items);
@@ -427,7 +427,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
                 HolonAST::Atom(Arc::new(HolonAST::string("Set"))),
                 inner_bundle,
             );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
+            return Ok(Value::wat__holon__HolonAST(Arc::new(classified)));
         }
         // Arc 216 Stone 2 — (Vector :- [T]) → classifier-wrapped positional-Bind Bundle.
         // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
@@ -439,8 +439,8 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             for (i, elem) in v.iter().enumerate() {
                 let holon_val = to_holon_inner(elem.clone(), arg_span)?;
                 let elem_holon = match holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                    Value::wat__holon__HolonAST(h) => (*h).clone(),
+                    _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
                 };
                 let key = HolonAST::i64(i as i64);
                 items.push(HolonAST::bind(key, elem_holon));
@@ -450,7 +450,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
                 HolonAST::Atom(Arc::new(HolonAST::string("Vector"))),
                 inner_bundle,
             );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
+            return Ok(Value::wat__holon__HolonAST(Arc::new(classified)));
         }
         // Arc 216 Stone 7 — Tuple → classifier-wrapped positional-Bind Bundle.
         // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding + resolves the
@@ -462,8 +462,8 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             for (i, elem) in t.iter().enumerate() {
                 let holon_val = to_holon_inner(elem.clone(), arg_span)?;
                 let elem_holon = match holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                    Value::wat__holon__HolonAST(h) => (*h).clone(),
+                    _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
                 };
                 let key = HolonAST::i64(i as i64);
                 items.push(HolonAST::bind(key, elem_holon));
@@ -473,7 +473,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
                 HolonAST::Atom(Arc::new(HolonAST::string("Tuple"))),
                 inner_bundle,
             );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
+            return Ok(Value::wat__holon__HolonAST(Arc::new(classified)));
         }
         // Arc 216 Stone 3 — (HashMap :- [K V]) → classifier-wrapped Bundle of arbitrary-K Binds.
         // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
@@ -487,13 +487,13 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             for (k, v) in m.iter() {
                 let k_holon_val = to_holon_inner(k.clone(), arg_span)?;
                 let k_holon = match k_holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                    Value::wat__holon__HolonAST(h) => (*h).clone(),
+                    _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
                 };
                 let v_holon_val = to_holon_inner(v.clone(), arg_span)?;
                 let v_holon = match v_holon_val {
-                    Value::holon__HolonAST(h) => (*h).clone(),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                    Value::wat__holon__HolonAST(h) => (*h).clone(),
+                    _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
                 };
                 items.push(HolonAST::bind(k_holon, v_holon));
             }
@@ -502,7 +502,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
                 HolonAST::Atom(Arc::new(HolonAST::string("Map"))),
                 inner_bundle,
             );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
+            return Ok(Value::wat__holon__HolonAST(Arc::new(classified)));
         }
         // Arc 228 Stone 228.1 — List (wat::core::List) → classifier-wrapped Bundle of
         // sequential bare items. Output: Bind(Atom("List"), Bundle(items)).
@@ -514,8 +514,8 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             for elem in l.iter() {
                 let holon_val = to_holon_inner(elem.clone(), arg_span)?;
                 match holon_val {
-                    Value::holon__HolonAST(h) => items.push((*h).clone()),
-                    _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+                    Value::wat__holon__HolonAST(h) => items.push((*h).clone()),
+                    _ => unreachable!("to_holon_inner always returns wat__holon__HolonAST on Ok"),
                 }
             }
             let inner_bundle = HolonAST::bundle(items);
@@ -523,12 +523,12 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
                 HolonAST::Atom(Arc::new(HolonAST::string("List"))),
                 inner_bundle,
             );
-            return Ok(Value::holon__HolonAST(Arc::new(classified)));
+            return Ok(Value::wat__holon__HolonAST(Arc::new(classified)));
         }
         // Arc 293.R2.1 — Aggregate: HolonRecord exposes hologram; Record has no hologram.
         Value::Aggregate(a) => match &a.holon {
             HolonForm::Hologram(h) => {
-                return Ok(Value::holon__HolonAST(Arc::new(h.as_ref().clone())));
+                return Ok(Value::wat__holon__HolonAST(Arc::new(h.as_ref().clone())));
             }
             HolonForm::Empty => {
                 return Err(RuntimeError::new(
@@ -553,7 +553,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             }).into());
         }
     };
-    Ok(Value::holon__HolonAST(Arc::new(holon)))
+    Ok(Value::wat__holon__HolonAST(Arc::new(holon)))
 }
 
 
@@ -639,7 +639,7 @@ pub(crate) fn watast_to_holon(a: &WatAST) -> HolonAST {
 // wat source form this fn renders — `edn::render` now composes `from_holon_item` /
 // `to_holon_inner` instead). private is correct again. Caller count is stale the moment it's
 // written down — arc 255 STONE-stepvalue-is-watast alone took it from 5 to 1 live call in
-// `runtime.rs` (`value_to_watast`'s `Value::holon__HolonAST` passthrough arm); don't trust a
+// `runtime.rs` (`value_to_watast`'s `Value::wat__holon__HolonAST` passthrough arm); don't trust a
 // number here, grep it.
 pub(crate) fn holon_to_watast(h: &HolonAST) -> WatAST {
     // Arc 230: Symbol/Keyword/Nil/Tag variants retired; check via accessors
@@ -812,7 +812,7 @@ pub(crate) fn capacity_exceeded_names() -> Arc<Vec<String>> {
 /// cloning while its siblings did not.
 pub(crate) fn require_holon(op: &str, v: &Value) -> Result<Arc<HolonAST>, EvalBreak> {
     match v {
-        Value::holon__HolonAST(h) => Ok(h.clone()),
+        Value::wat__holon__HolonAST(h) => Ok(h.clone()),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
@@ -838,7 +838,7 @@ pub(crate) fn require_holon(op: &str, v: &Value) -> Result<Arc<HolonAST>, EvalBr
 /// safe even when the Arc is shared (proven at Stone 234.2a eval_record_field_at).
 pub(crate) fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, EvalBreak> {
     match v {
-        Value::holon__HolonAST(h) => Ok((*h).clone()),
+        Value::wat__holon__HolonAST(h) => Ok((*h).clone()),
         // Arc 293.R2.1 — Aggregate: HolonRecord exposes hologram; Record has no hologram.
         Value::Aggregate(a) => match &a.holon {
             HolonForm::Hologram(h) => Ok(h.as_ref().clone()),

@@ -15,7 +15,7 @@ pub(crate) fn require_hologram(
     v: &Value,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<crate::holon::hologram::Hologram>>, EvalBreak> {
     match v {
-        Value::Hologram(h) => Ok(h.clone()),
+        Value::wat__holon__Hologram(h) => Ok(h.clone()),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
@@ -55,12 +55,12 @@ pub(crate) fn match_names() -> Arc<Vec<String>> {
 }
 
 
-/// Arc 053 — helper. Extract a `Value::Vector` payload, error on
+/// Arc 053 — helper. Extract a `Value::wat__holon__Vector` payload, error on
 /// non-Vector input. Cousin of `require_holon`. Used by the
 /// Vector-tier algebra primitives.
 pub(crate) fn require_vector(op: &str, v: &Value) -> Result<Arc<holon::Vector>, EvalBreak> {
     match v {
-        Value::Vector(vec) => Ok(vec.clone()),
+        Value::wat__holon__Vector(vec) => Ok(vec.clone()),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
@@ -75,14 +75,14 @@ pub(crate) fn require_vector(op: &str, v: &Value) -> Result<Arc<holon::Vector>, 
 }
 
 
-/// Arc 053 — extract a `Value::OnlineSubspace` payload.
+/// Arc 053 — extract a `Value::wat__holon__OnlineSubspace` payload.
 pub(crate) fn require_subspace(
     op: &str,
     v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::OnlineSubspace>>, EvalBreak> {
     match v {
-        Value::OnlineSubspace(s) => Ok(s.clone()),
+        Value::wat__holon__OnlineSubspace(s) => Ok(s.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -102,14 +102,14 @@ pub(crate) fn vec_f64_to_value(xs: Vec<f64>) -> Value {
 }
 
 
-/// Arc 053 — extract a `Value::Reckoner` payload.
+/// Arc 053 — extract a `Value::wat__holon__Reckoner` payload.
 pub(crate) fn require_reckoner(
     op: &str,
     v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Reckoner>>, EvalBreak> {
     match v {
-        Value::Reckoner(r) => Ok(r.clone()),
+        Value::wat__holon__Reckoner(r) => Ok(r.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -123,14 +123,14 @@ pub(crate) fn require_reckoner(
 }
 
 
-/// Arc 053 — extract a `Value::Engram` payload.
+/// Arc 053 — extract a `Value::wat__holon__Engram` payload.
 pub(crate) fn require_engram(
     op: &str,
     v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Engram>>, EvalBreak> {
     match v {
-        Value::Engram(e) => Ok(e.clone()),
+        Value::wat__holon__Engram(e) => Ok(e.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -144,14 +144,14 @@ pub(crate) fn require_engram(
 }
 
 
-/// Arc 053 — extract a `Value::EngramLibrary` payload.
+/// Arc 053 — extract a `Value::wat__holon__EngramLibrary` payload.
 pub(crate) fn require_engram_library(
     op: &str,
     v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>, EvalBreak> {
     match v {
-        Value::EngramLibrary(l) => Ok(l.clone()),
+        Value::wat__holon__EngramLibrary(l) => Ok(l.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {

@@ -65,7 +65,7 @@ pub(crate) fn eval_hologram_make(
     let filter = require_fn(OP, &eval_inner(filter, env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let h = crate::holon::hologram::Hologram::make(ctx.dim_count, filter);
-    Ok(Value::Hologram(Arc::new(
+    Ok(Value::wat__holon__Hologram(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(h),
     )))
 }
@@ -97,7 +97,7 @@ pub(crate) fn eval_hologram_put(
     const OP: &str = ":wat::holon::Hologram/put";
     let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let key = match eval_inner(key, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => (*h).clone(),
+        Value::wat__holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::new(
                 key.span().clone(),
@@ -111,7 +111,7 @@ pub(crate) fn eval_hologram_put(
         }
     };
     let val = match eval_inner(val, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => (*h).clone(),
+        Value::wat__holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::new(
                 val.span().clone(),
@@ -154,7 +154,7 @@ pub(crate) fn eval_hologram_get(
     const OP: &str = ":wat::holon::Hologram/get";
     let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let probe = match eval_inner(probe, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 probe.span().clone(),
@@ -171,7 +171,7 @@ pub(crate) fn eval_hologram_get(
     let span = list_span.clone();
     let result = store.with_ref(OP, |s| s.get(&probe, sym, span.clone(), &ctx.encoders))??;
     match result {
-        Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+        Some(val) => Ok(Value::Option(Arc::new(Some(Value::wat__holon__HolonAST(
             Arc::new(val),
         ))))),
         None => Ok(Value::Option(Arc::new(None))),
@@ -204,7 +204,7 @@ pub(crate) fn eval_hologram_find(
     const OP: &str = ":wat::holon::Hologram/find";
     let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let probe = match eval_inner(probe, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => h,
+        Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
                 probe.span().clone(),
@@ -226,8 +226,8 @@ pub(crate) fn eval_hologram_find(
                 "wat::holon::Match".into(),
                 match_names(),
                 Arc::new(vec![
-                    Value::holon__HolonAST(Arc::new(k)),
-                    Value::holon__HolonAST(Arc::new(v)),
+                    Value::wat__holon__HolonAST(Arc::new(k)),
+                    Value::wat__holon__HolonAST(Arc::new(v)),
                 ]),
             ),
         )))))),
@@ -261,7 +261,7 @@ pub(crate) fn eval_hologram_remove(
     const OP: &str = ":wat::holon::Hologram/remove";
     let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let key = match eval_inner(key, env, sym)?.value_owned() {
-        Value::holon__HolonAST(h) => (*h).clone(),
+        Value::wat__holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::new(
                 key.span().clone(),
@@ -276,7 +276,7 @@ pub(crate) fn eval_hologram_remove(
     };
     let removed = store.with_mut(OP, list_span.clone(), |s| s.remove(&key))?;
     match removed {
-        Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+        Some(val) => Ok(Value::Option(Arc::new(Some(Value::wat__holon__HolonAST(
             Arc::new(val),
         ))))),
         None => Ok(Value::Option(Arc::new(None))),

@@ -2327,11 +2327,11 @@ fn encode_value_with_path(
         | Value::wat__kernel__ChildHandle(_)
         | Value::io__IOReader(_)
         | Value::io__IOWriter(_)
-        | Value::OnlineSubspace(_)
-        | Value::Reckoner(_)
-        | Value::Engram(_)
-        | Value::EngramLibrary(_)
-        | Value::Hologram(_) => Err(ExtractionError {
+        | Value::wat__holon__OnlineSubspace(_)
+        | Value::wat__holon__Reckoner(_)
+        | Value::wat__holon__Engram(_)
+        | Value::wat__holon__EngramLibrary(_)
+        | Value::wat__holon__Hologram(_) => Err(ExtractionError {
             span: crate::rust_caller_span!(),
             kind: ExtractionErrorKind::ImpureCapture {
                 name: binding_name.to_string(),
@@ -2370,10 +2370,10 @@ fn encode_value_with_path(
         // surfacing test reveals the gap. (Per FM 5: don't bridge with
         // a TODO.)
         Value::wat__core__fn(_)
-        | Value::holon__HolonAST(_)
+        | Value::wat__holon__HolonAST(_)
         | Value::wat__WatAST(_)
         | Value::RustOpaque(_)
-        | Value::Vector(_)
+        | Value::wat__holon__Vector(_)
         | Value::Instant(_)
         | Value::Duration(_)
         // Arc 118 — Stream: lazy seqs carry closures/thunks; closure-extract encoding

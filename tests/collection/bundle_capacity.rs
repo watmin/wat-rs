@@ -50,7 +50,7 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
     // d=1024 → budget=32. Bundle 5 atoms — well under. Ok(h) expected.
     match run("tests/collection/bundle_capacity_under_error.wat") {
         Value::Result(r) => match &*r {
-            Ok(Value::holon__HolonAST(_)) => {}
+            Ok(Value::wat__holon__HolonAST(_)) => {}
             other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),
@@ -61,7 +61,7 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
 fn bundle_under_budget_returns_ok_under_panic_mode() {
     match run("tests/collection/bundle_capacity_under_panic.wat") {
         Value::Result(r) => match &*r {
-            Ok(Value::holon__HolonAST(_)) => {}
+            Ok(Value::wat__holon__HolonAST(_)) => {}
             other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),
