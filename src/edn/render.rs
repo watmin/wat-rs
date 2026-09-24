@@ -4792,8 +4792,8 @@ fn value_to_edn_in(
             ))),
         ),
         Value::wat__kernel__ChildHandle(_) => opaque_nil_or_refuse(v, mode, "wat.kernel", "ChildHandle")?,
-        Value::io__IOReader(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOReader")?,
-        Value::io__IOWriter(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOWriter")?,
+        Value::wat__io__IOReader(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOReader")?,
+        Value::wat__io__IOWriter(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOWriter")?,
         Value::RustOpaque(inner) => {
             // Arc 272 narrow-waist — GENERIC capability dispatch (the FROZEN waist; never changes
             // per-capability). If this opaque is a registered PORTABLE capability with a portable

@@ -54,9 +54,11 @@ it conforms). Non-`.wat` temp files (logs, patches, data) still use the session 
 
 ## The test floor is weighed in RELEASE
 
-The zero-failure floor is **`cargo nextest run --release`** (~4189/0), run through
-**`scripts/floor.sh`** so the whole run is captured before anyone reads it. Read the Summary line —
-never a piped exit code (`cargo nextest ... | tail` returns `tail`'s exit, not nextest's).
+The zero-failure floor is **`cargo nextest run --release`**, run through **`scripts/floor.sh`** so
+the whole run is captured before anyone reads it. The floor is **0 failed**, read from the `Summary`
+line of `.floor/latest/clean.log` — never a piped exit code (`cargo nextest ... | tail` returns
+`tail`'s exit, not nextest's). No test count is stated here on purpose: a count in prose rots as the
+suite grows (one sat here, stale, for months).
 
 ### ⛔ THERE IS NO SUCH THING AS A KNOWN FLAKE. A RED IS A RED.
 

@@ -796,7 +796,7 @@ fn arity(op: &str, args: &[WatAST], n: usize, list_span: &Span) -> Result<(), Ru
 
 fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
     match tv.value_owned() {
-        Value::io__IOReader(r) => Ok(r),
+        Value::wat__io__IOReader(r) => Ok(r),
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOReader",
@@ -807,7 +807,7 @@ fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatRe
 
 fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
     match tv.value_owned() {
-        Value::io__IOWriter(w) => Ok(w),
+        Value::wat__io__IOWriter(w) => Ok(w),
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOWriter",
@@ -882,7 +882,7 @@ pub fn eval_ioreader_from_bytes(
     arity(op, args, 1, list_span)?;
     let bytes = expect_vec_u8(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_bytes(bytes));
-    Ok(Value::io__IOReader(reader))
+    Ok(Value::wat__io__IOReader(reader))
 }
 
 /// `(:wat::io::IOReader/from-string <String>)` → `:wat::io::IOReader`.
@@ -896,7 +896,7 @@ pub fn eval_ioreader_from_string(
     arity(op, args, 1, list_span)?;
     let s = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string((*s).clone()));
-    Ok(Value::io__IOReader(reader))
+    Ok(Value::wat__io__IOReader(reader))
 }
 
 // ─── IOReader ops ────────────────────────────────────────────────────────
@@ -1179,7 +1179,7 @@ pub fn eval_iowriter_new(
     let op = ":wat::io::IOWriter/new";
     arity(op, args, 0, list_span)?;
     let writer: Arc<dyn WatWriter> = Arc::new(StringIoWriter::new());
-    Ok(Value::io__IOWriter(writer))
+    Ok(Value::wat__io__IOWriter(writer))
 }
 
 /// `(:wat::io::IOWriter/open-file path)` → `:wat::io::IOWriter`. Opens
@@ -1222,7 +1222,7 @@ pub fn eval_iowriter_open_file(
         .unwrap_or_else(|e| panic!(":wat::io::IOWriter/open-file {path:?}: {e}"));
     let fd: OwnedFd = file.into();
     let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(fd));
-    Ok(Value::io__IOWriter(writer))
+    Ok(Value::wat__io__IOWriter(writer))
 }
 
 /// `(:wat::io::IOReader/open-file path)` → `:wat::io::IOReader`. Opens a
@@ -1259,7 +1259,7 @@ pub fn eval_ioreader_open_file(
         .unwrap_or_else(|e| panic!(":wat::io::IOReader/open-file {path:?}: {e}"));
     let fd: OwnedFd = file.into();
     let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(fd));
-    Ok(Value::io__IOReader(reader))
+    Ok(Value::wat__io__IOReader(reader))
 }
 
 /// `(:wat::io::IOWriter/from-fd fd)` → `:wat::io::IOWriter`. Arc 170 stdio-as-defservice.
@@ -1308,7 +1308,7 @@ pub fn eval_iowriter_from_fd(
     // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
     let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
     let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(owned));
-    Ok(Value::io__IOWriter(writer))
+    Ok(Value::wat__io__IOWriter(writer))
 }
 
 /// `(:wat::io::IOReader/from-fd fd)` → `:wat::io::IOReader`. Arc 170 stdio-as-defservice. The read
@@ -1346,7 +1346,7 @@ pub fn eval_ioreader_from_fd(
     // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
     let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
     let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(owned));
-    Ok(Value::io__IOReader(reader))
+    Ok(Value::wat__io__IOReader(reader))
 }
 
 /// `(:wat::io::IOWriter/to-bytes <writer>)` → `(:wat::core::Vector :- [u8])`. Clones the
@@ -1593,8 +1593,8 @@ pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, Runt
     let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(writer_fd));
     let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(reader_fd));
     Ok(Value::Tuple(Arc::new(vec![
-        Value::io__IOWriter(writer),
-        Value::io__IOReader(reader),
+        Value::wat__io__IOWriter(writer),
+        Value::wat__io__IOReader(reader),
     ])))
 }
 

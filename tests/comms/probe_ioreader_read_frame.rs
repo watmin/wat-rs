@@ -44,7 +44,7 @@ fn read_frame_multiline_edn_map() {
     // rune:lint(no-inlined-edn) — input under test: a multi-line EDN map written to a StringIoReader for read-frame to accumulate.
     let frame_src = "{\n  :a 1\n  :b 2\n}\n";
     let reader_arc: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(frame_src.to_string()));
-    let reader_val = Value::io__IOReader(reader_arc);
+    let reader_val = Value::wat__io__IOReader(reader_arc);
 
     // Inject the reader into a child env under the name "__reader__".
     let tv: TrackedValue = reader_val.into();
@@ -86,7 +86,7 @@ fn read_frame_eof_returns_none() {
     let sym = world.symbols();
 
     let reader_arc: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
-    let reader_val = Value::io__IOReader(reader_arc);
+    let reader_val = Value::wat__io__IOReader(reader_arc);
 
     let tv: TrackedValue = reader_val.into();
     let env = Environment::new()

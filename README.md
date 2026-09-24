@@ -218,8 +218,8 @@ test --release` from `wat-rs/`.
   `:wat::WatAST`; `:wat::holon::Atom` accepts `Value::wat__WatAST`
   payloads; `:wat::core::atom-value` structurally reads the payload.
   `Value` enum with namespace-honest variant names
-  (`Value::io__IOReader`, `Value::wat__holon__HolonAST`, `Value::wat__WatAST`,
-  `Value::crossbeam_channel__Sender`, `Value::RustOpaque` for generic
+  (`Value::wat__io__IOReader`, `Value::wat__holon__HolonAST`, `Value::wat__WatAST`,
+  `Value::wat__kernel__Sender`, `Value::RustOpaque` for generic
   `:rust::*` opaques, …).
 - [`io`] — the abstract IO trait objects (arc 008). `WatReader` /
   `WatWriter` traits; `RealStdin` / `RealStdout` / `RealStderr` wrap

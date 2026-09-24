@@ -6814,8 +6814,8 @@ pub fn value_is_hashable(v: &Value) -> bool {
         | Value::wat__kernel__Sender(_)
         | Value::wat__kernel__Receiver(_)
         | Value::RustOpaque(_)
-        | Value::io__IOReader(_)
-        | Value::io__IOWriter(_)
+        | Value::wat__io__IOReader(_)
+        | Value::wat__io__IOWriter(_)
         | Value::wat__kernel__HandlePool { .. }
         | Value::wat__kernel__ChildHandle(_)
         | Value::wat__holon__Vector(_)

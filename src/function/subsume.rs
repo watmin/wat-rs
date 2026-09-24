@@ -262,8 +262,8 @@ pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
         // One authority: type_name() delegates to inner.type_path for RustOpaque;
         // val_type_path mirrors it as &'static str (inner.type_path IS &'static str).
         Value::RustOpaque(inner) => inner.type_path,
-        Value::io__IOReader(_) => ":wat::io::IOReader",
-        Value::io__IOWriter(_) => ":wat::io::IOWriter",
+        Value::wat__io__IOReader(_) => ":wat::io::IOReader",
+        Value::wat__io__IOWriter(_) => ":wat::io::IOWriter",
         Value::wat__holon__Vector(_) => ":wat::holon::Vector",
         Value::wat__holon__OnlineSubspace(_) => ":wat::holon::OnlineSubspace",
         Value::wat__holon__Reckoner(_) => ":wat::holon::Reckoner",

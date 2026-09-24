@@ -2325,8 +2325,8 @@ fn encode_value_with_path(
         | Value::wat__kernel__Receiver(_)
         | Value::wat__kernel__HandlePool { .. }
         | Value::wat__kernel__ChildHandle(_)
-        | Value::io__IOReader(_)
-        | Value::io__IOWriter(_)
+        | Value::wat__io__IOReader(_)
+        | Value::wat__io__IOWriter(_)
         | Value::wat__holon__OnlineSubspace(_)
         | Value::wat__holon__Reckoner(_)
         | Value::wat__holon__Engram(_)

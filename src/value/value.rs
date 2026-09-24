@@ -124,11 +124,11 @@ pub enum Value {
     /// Abstract byte-source handle — `:wat::io::IOReader`. Wraps any
     /// `WatReader` implementation (real stdin, in-memory `StringIoReader`,
     /// …). Arc 008 slice 2.
-    io__IOReader(Arc<dyn WatReader>),
+    wat__io__IOReader(Arc<dyn WatReader>),
     /// Abstract byte-sink handle — `:wat::io::IOWriter`. Wraps any
     /// `WatWriter` implementation (real stdout/stderr, in-memory
     /// `StringIoWriter`, …). Arc 008 slice 2.
-    io__IOWriter(Arc<dyn WatWriter>),
+    wat__io__IOWriter(Arc<dyn WatWriter>),
     /// An `(:Option :- [T])` value — `:None` or `(Some v)`. Built-in
     /// parametric enum per 058-030; used as the return type of
     /// `:wat::kernel::recv` / `select` and of structural
@@ -590,7 +590,7 @@ where
 /// `wat__core__fn`, `wat__core__clauses` (pointer-equality like fn),
 /// `wat__kernel__Sender`, `wat__kernel__Receiver`,
 /// `wat__kernel__HandlePool`, `wat__kernel__ChildHandle`,
-/// `RustOpaque`, `io__IOReader`, `io__IOWriter`,
+/// `RustOpaque`, `wat__io__IOReader`, `wat__io__IOWriter`,
 /// `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
@@ -695,8 +695,8 @@ impl PartialEq for Value {
             }
             (Value::RustOpaque(a), Value::RustOpaque(b)) => Arc::ptr_eq(a, b),
             // dyn trait objects: pointer equality on the data pointer
-            (Value::io__IOReader(a), Value::io__IOReader(b)) => Arc::ptr_eq(a, b),
-            (Value::io__IOWriter(a), Value::io__IOWriter(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__io__IOReader(a), Value::wat__io__IOReader(b)) => Arc::ptr_eq(a, b),
+            (Value::wat__io__IOWriter(a), Value::wat__io__IOWriter(b)) => Arc::ptr_eq(a, b),
             // ML types: per-thread-owned; pointer identity is the only meaningful equality
             (Value::wat__holon__OnlineSubspace(a), Value::wat__holon__OnlineSubspace(b)) => Arc::ptr_eq(a, b),
             (Value::wat__holon__Reckoner(a), Value::wat__holon__Reckoner(b)) => Arc::ptr_eq(a, b),
@@ -916,13 +916,13 @@ impl std::hash::Hash for Value {
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::io__IOReader(_) => unreachable!(
-                "Value::io__IOReader is not atomizable; is_atomizable predicate in \
+            Value::wat__io__IOReader(_) => unreachable!(
+                "Value::wat__io__IOReader is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            Value::io__IOWriter(_) => unreachable!(
-                "Value::io__IOWriter is not atomizable; is_atomizable predicate in \
+            Value::wat__io__IOWriter(_) => unreachable!(
+                "Value::wat__io__IOWriter is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
@@ -1544,12 +1544,12 @@ value_key_eligibility_table! {
                 => KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle)
         ]
     },
-    Value::io__IOReader(_) => {
+    Value::wat__io__IOReader(_) => {
         type_name: "wat::io::IOReader",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
         gate: [ TypeExpr::Path(":wat::io::IOReader".to_string()) ]
     },
-    Value::io__IOWriter(_) => {
+    Value::wat__io__IOWriter(_) => {
         type_name: "wat::io::IOWriter",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::OpaqueHandle),
         gate: [ TypeExpr::Path(":wat::io::IOWriter".to_string()) ]
@@ -1748,8 +1748,8 @@ impl Value {
             Value::wat__core__PersistentVector(_) => self.type_name().to_string(),
             Value::wat__std__HashSet(_) => self.type_name().to_string(),
             Value::RustOpaque(_) => self.type_name().to_string(),
-            Value::io__IOReader(_) => self.type_name().to_string(),
-            Value::io__IOWriter(_) => self.type_name().to_string(),
+            Value::wat__io__IOReader(_) => self.type_name().to_string(),
+            Value::wat__io__IOWriter(_) => self.type_name().to_string(),
             Value::Option(_) => self.type_name().to_string(),
             Value::Result(_) => self.type_name().to_string(),
             Value::Tuple(_) => self.type_name().to_string(),

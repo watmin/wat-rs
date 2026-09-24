@@ -427,8 +427,8 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             format!("<HandlePool {:?}>", name)
         }
         Value::wat__kernel__ChildHandle(_) => "<ChildHandle>".to_string(),
-        Value::io__IOReader(_) => "<IOReader>".to_string(),
-        Value::io__IOWriter(_) => "<IOWriter>".to_string(),
+        Value::wat__io__IOReader(_) => "<IOReader>".to_string(),
+        Value::wat__io__IOWriter(_) => "<IOWriter>".to_string(),
         Value::RustOpaque(inner) => format!("<{}>", inner.type_path),
         Value::wat__holon__OnlineSubspace(_) => "<OnlineSubspace>".to_string(),
         Value::wat__holon__Reckoner(_) => "<Reckoner>".to_string(),
