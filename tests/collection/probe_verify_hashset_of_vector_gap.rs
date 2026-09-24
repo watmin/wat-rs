@@ -6,7 +6,7 @@
 //!
 //! **The gap is closed.** Stone 216.5d deleted `fn hashmap_key` entirely.
 //! The canonical-key crutch that caused the gap no longer exists in the substrate.
-//! `Value::wat__std__HashSet` now stores `Arc<HashSet<Value>>` (Stone 216.5b);
+//! `Value::wat__core__HashSet` now stores `Arc<HashSet<Value>>` (Stone 216.5b);
 //! `Value: Hash + Eq` (Stone 216.5a) is the equality contract.
 //! This probe is historical evidence — it documents the gap that was there
 //! and confirms it cannot reopen because the mechanism no longer exists.

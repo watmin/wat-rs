@@ -48,7 +48,7 @@ use holon::HolonAST;
 /// `(:wat::core::record->map r)` — arc 234 Stone 234.3a.
 ///
 /// Core of `record->map`: given an already-evaluated `Value` that must be a record (base or
-/// holonic), returns `Value::wat__std__HashMap` mapping `:<field-name>` keywords to values.
+/// holonic), returns `Value::wat__core__HashMap` mapping `:<field-name>` keywords to values.
 ///
 /// Called by `eval_record_to_map` (single public path, behavior unchanged) and by
 /// `eval_record_same_data` (arc 237 Stone S-C.2d) to avoid code duplication.
@@ -103,7 +103,7 @@ fn record_field_map(
                 let val = a.fields[i].clone();
                 map.insert(key, val);
             }
-            Ok(Value::wat__std__HashMap(Arc::new(map)))
+            Ok(Value::wat__core__HashMap(Arc::new(map)))
         }
         other => Err(RuntimeError::new(
             span.clone(),

@@ -195,7 +195,7 @@ pub(crate) fn hashmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 ///
 /// Arc 255 Stone the-registry-answers-first-wave-2 — re-derived from `hashmap_keys_inner`
 /// (`src/collection/eval.rs`): given a well-typed `(HashMap :- [K V])` argument it always
-/// takes the `Value::wat__std__HashMap(m)` arm and returns `Ok`; the `other =>` `TypeMismatch`
+/// takes the `Value::wat__core__HashMap(m)` arm and returns `Ok`; the `other =>` `TypeMismatch`
 /// arm is checker-impossible (the checker enforces the declared `HashMap` arg type, so no
 /// well-typed call can reach it — same shape as `:wat::stream::cons`'s `tail`-type guard).
 /// Total.

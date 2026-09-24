@@ -65,7 +65,7 @@ pub(crate) fn eval_bigint_add(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::+";
     crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
-        Ok(Value::wat__core__BigInt(Box::new(x + y)))
+        Ok(Value::wat__core__bigint(Box::new(x + y)))
     })
 }
 
@@ -76,7 +76,7 @@ pub(crate) fn eval_bigint_add(
 // this is deliberately not merged with `eval_bigint_arith` above.
 fn eval_bigint_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
     crate::numeric::arith::arith_bigint_bigint_inner(":wat::bigint::+", vals, span, |a, b| {
-        Ok(Value::wat__core__BigInt(Box::new(a + b)))
+        Ok(Value::wat__core__bigint(Box::new(a + b)))
     })
 }
 
@@ -103,14 +103,14 @@ pub(crate) fn eval_bigint_sub(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::-";
     crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
-        Ok(Value::wat__core__BigInt(Box::new(x - y)))
+        Ok(Value::wat__core__bigint(Box::new(x - y)))
     })
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
 fn eval_bigint_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
     crate::numeric::arith::arith_bigint_bigint_inner(":wat::bigint::-", vals, span, |a, b| {
-        Ok(Value::wat__core__BigInt(Box::new(a - b)))
+        Ok(Value::wat__core__bigint(Box::new(a - b)))
     })
 }
 
@@ -137,14 +137,14 @@ pub(crate) fn eval_bigint_mul(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::*";
     crate::numeric::arith::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
-        Ok(Value::wat__core__BigInt(Box::new(x * y)))
+        Ok(Value::wat__core__bigint(Box::new(x * y)))
     })
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
 fn eval_bigint_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
     crate::numeric::arith::arith_bigint_bigint_inner(":wat::bigint::*", vals, span, |a, b| {
-        Ok(Value::wat__core__BigInt(Box::new(a * b)))
+        Ok(Value::wat__core__bigint(Box::new(a * b)))
     })
 }
 
@@ -189,9 +189,9 @@ fn eval_bigint_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
         }
         let (q, r) = (a / b, a % b);
         if r.is_zero() {
-            Ok(Value::wat__core__BigInt(Box::new(q)))
+            Ok(Value::wat__core__bigint(Box::new(q)))
         } else {
-            Ok(Value::wat__core__Rational(Box::new(
+            Ok(Value::wat__core__rational(Box::new(
                 num_rational::BigRational::new(a.clone(), b.clone()),
             )))
         }

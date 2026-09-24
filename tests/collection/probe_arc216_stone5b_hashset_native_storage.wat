@@ -1,5 +1,5 @@
 ;; tests/collection/probe_arc216_stone5b_hashset_native_storage.wat — co-located fixture.
-;; Arc 216 Stone 216.5b — Value::wat__std__HashSet native storage refactor.
+;; Arc 216 Stone 216.5b — Value::wat__core__HashSet native storage refactor.
 
 ;; ─── Probe 1 — Construction with primitive elements ──────────────────────────
 

@@ -1000,7 +1000,7 @@ pub(crate) fn eval_signal(
 ///
 /// Three args:
 /// - `args[0]`: peer-kind — must evaluate to `:wat::program::PeerKind` enum value.
-/// - `args[1]`: duration — must evaluate to `Value::Duration(nanos: i64)`, non-negative.
+/// - `args[1]`: duration — must evaluate to `Value::wat__time__Duration(nanos: i64)`, non-negative.
 /// - `args[2]`: msg — any `Value`; becomes the timer's output payload.
 pub(crate) fn eval_kernel_after(
     args: &[WatAST],
@@ -1059,10 +1059,10 @@ pub(crate) fn eval_kernel_after(
         }
     };
 
-    // arg 1: duration — must be Value::Duration(nanos: i64), non-negative.
+    // arg 1: duration — must be Value::wat__time__Duration(nanos: i64), non-negative.
     let duration_val = eval_inner(&args[1], env, sym)?.value_owned();
     let nanos: i64 = match &duration_val {
-        Value::Duration(n) => *n,
+        Value::wat__time__Duration(n) => *n,
         other => {
             return Err(RuntimeError::new(
                 args[1].span().clone(),

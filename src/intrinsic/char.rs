@@ -93,5 +93,5 @@ pub(crate) fn eval_char_of(
         })
         .into());
     }
-    Ok(Value::wat__core__Char(c))
+    Ok(Value::wat__core__char(c))
 }

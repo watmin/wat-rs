@@ -94,7 +94,7 @@ fn c03_generic_decl_name_and_parametric_target() {
     // `ReadOutcome::Malformed` arm calls `(:wat::core::Error/message __cause)` on a
     // Arc 109 — this reports CLEANLY now. `ReadOutcome::Malformed`'s cause is declared
     // `:wat::core::Error`, and the decode ladder's FOREIGN arm used to return a
-    // `Value::ForeignRecord` that satisfied that surface nowhere, so every consumer
+    // `Value::wat__edn__ForeignRecord` that satisfied that surface nowhere, so every consumer
     // calling `(:wat::core::Error/message __cause)` — 75 sites across 57 files — died
     // with `UnknownFunction` instead of reporting the failure. The decoded diagnostic
     // now rides as a CAUSE under a real `:wat::core::Fault`, through the one

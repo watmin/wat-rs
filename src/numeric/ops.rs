@@ -25,7 +25,7 @@ use num_traits::ToPrimitive;
 pub(crate) fn bigint_component_to_value(n: BigInt) -> Value {
     match n.to_i64() {
         Some(i) => Value::i64(i),
-        None => Value::wat__core__BigInt(Box::new(n)),
+        None => Value::wat__core__bigint(Box::new(n)),
     }
 }
 
@@ -49,7 +49,7 @@ pub(crate) fn eval_rational_numerator(
         sym,
         "rational",
         |v| match v {
-            Value::wat__core__Rational(r) => Ok(r),
+            Value::wat__core__rational(r) => Ok(r),
             other => Err(other),
         },
     )?;
@@ -76,7 +76,7 @@ pub(crate) fn eval_rational_denominator(
         sym,
         "rational",
         |v| match v {
-            Value::wat__core__Rational(r) => Ok(r),
+            Value::wat__core__rational(r) => Ok(r),
             other => Err(other),
         },
     )?;

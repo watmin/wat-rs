@@ -1577,20 +1577,20 @@ pub(crate) fn eval_inner(
         )),
         // Arc 300 stone B — rational literal, representation only.
         WatAST::RationalLit(r, span) => Ok(TrackedValue::new(
-            Value::wat__core__Rational(Box::new(r.clone())),
+            Value::wat__core__rational(Box::new(r.clone())),
             Provenance::Literal { span: span.clone() },
         )),
         // Arc 300 stone C1 — bigint literal, full arithmetic type (mirrors
         // Rational immediately above, one type over).
         WatAST::BigIntLit(n, span) => Ok(TrackedValue::new(
-            Value::wat__core__BigInt(Box::new(n.clone())),
+            Value::wat__core__bigint(Box::new(n.clone())),
             Provenance::Literal { span: span.clone() },
         )),
         // Arc 300 stone D — char literal, representation only (mirrors
         // BigInt/Rational immediately above, one type over). Was a
         // desugared `(:wat::core::char/of "c")` call before this stone.
         WatAST::CharLit(c, span) => Ok(TrackedValue::new(
-            Value::wat__core__Char(*c),
+            Value::wat__core__char(*c),
             Provenance::Literal { span: span.clone() },
         )),
         WatAST::BoolLit(b, span) => Ok(TrackedValue::new(
@@ -1649,7 +1649,7 @@ pub(crate) fn eval_inner(
                 map.insert(k, v);
             }
             Ok(TrackedValue::new(
-                Value::wat__std__HashMap(Arc::new(map)),
+                Value::wat__core__HashMap(Arc::new(map)),
                 Provenance::Literal { span: span.clone() },
             ))
         }
@@ -1672,7 +1672,7 @@ pub(crate) fn eval_inner(
                 set.insert(v);
             }
             Ok(TrackedValue::new(
-                Value::wat__std__HashSet(Arc::new(set)),
+                Value::wat__core__HashSet(Arc::new(set)),
                 Provenance::Literal { span: span.clone() },
             ))
         }
@@ -3771,7 +3771,7 @@ fn dispatch_keyword_head_value(
                     }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
                     // When head is an unknown verb AND args.len() == 1 AND receiver is
-                    // {Value::Aggregate (Record/HolonRecord/Struct), wat__std__HashMap}, dispatch as field accessor.
+                    // {Value::Aggregate (Record/HolonRecord/Struct), wat__core__HashMap}, dispatch as field accessor.
                     // Fires LAST: after user-fn lookup, after def-bound check, after sandbox
                     // leak detection. Only unknown single-arg keyword calls reach here.
                     if args.len() == 1 {
@@ -3800,7 +3800,7 @@ fn dispatch_keyword_head_value(
                             Value::Enum(e) => {
                                 return keyword_accessor_enum(bare_name, &e, list_span);
                             }
-                            Value::wat__std__HashMap(map) => {
+                            Value::wat__core__HashMap(map) => {
                                 // HashMap accessor: keyword key → (Option :- [V]).
                                 // Equivalent to (:wat::core::HashMap/get map :key).
                                 // Never errors on miss — missing key = None (per D5 / T7).
@@ -4272,7 +4272,7 @@ fn bind_let_binding(
         // Evaluates the RHS once; dispatches on Value variant:
         //   Aggregate (Record/HolonRecord) → look up field index via AggregateDef; bind fields[i]
         //   Aggregate (Struct)             → look up field in TypeDef; bind fields[i]
-        //   wat__std__HashMap              → keyword key lookup; bind to Value::Option(Some/None)
+        //   wat__core__HashMap              → keyword key lookup; bind to Value::Option(Some/None)
         //   Other          → TypeMismatch
         //
         // Reuses keyword_accessor_record / keyword_accessor_struct helpers
@@ -4325,7 +4325,7 @@ fn bind_let_binding(
                         );
                     }
                 }
-                Value::wat__std__HashMap(map) => {
+                Value::wat__core__HashMap(map) => {
                     // HashMap receiver — keyword key lookup returning (Option :- [V]).
                     // Consistent with keyword-as-accessor fall-through and
                     // :wat::core::HashMap/get (miss = None, never an error).
@@ -4482,7 +4482,7 @@ enum LetBinding<'a> {
     },
     /// Arc 234 Stone 234.4 — Clojure-style hash-destructure.
     /// `{var :field  var2 :field2 ...}` in let-binding position.
-    /// Receiver-polymorphic over Value::Aggregate (all natures) and wat__std__HashMap.
+    /// Receiver-polymorphic over Value::Aggregate (all natures) and wat__core__HashMap.
     ///
     /// Each binding carries (var_name, bare_field_name, var_span).
     /// Runtime evaluates the RHS once and dispatches on Value variant
@@ -5723,11 +5723,11 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // cleanly `false` (clj: `(= 1N 1.0)` => false), never a TypeMismatch —
         // this is the one deliberate exception to "cross-numeric falls to
         // None" above: `=`'s category-awareness is bigint's pinned contract.
-        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => Some(x == y),
-        (Value::wat__core__BigInt(x), Value::i64(y)) => Some(x.as_ref() == &BigInt::from(*y)),
-        (Value::i64(x), Value::wat__core__BigInt(y)) => Some(&BigInt::from(*x) == y.as_ref()),
-        (Value::wat__core__BigInt(_), Value::f64(_)) => Some(false),
-        (Value::f64(_), Value::wat__core__BigInt(_)) => Some(false),
+        (Value::wat__core__bigint(x), Value::wat__core__bigint(y)) => Some(x == y),
+        (Value::wat__core__bigint(x), Value::i64(y)) => Some(x.as_ref() == &BigInt::from(*y)),
+        (Value::i64(x), Value::wat__core__bigint(y)) => Some(&BigInt::from(*x) == y.as_ref()),
+        (Value::wat__core__bigint(_), Value::f64(_)) => Some(false),
+        (Value::f64(_), Value::wat__core__bigint(_)) => Some(false),
         // Arc 300 stone C2 — rational equality. Same-type: structural
         // (`BigRational` implements `PartialEq`, already-reduced). Category-
         // aware cross-type: a genuine rational always has denominator >= 2
@@ -5737,13 +5737,13 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // DIFFERENT category too (clj: `(= 1/2 0.5)` => false) — same
         // deliberate cross-numeric-falls-to-`Some(false)` exception bigint
         // established immediately above, one type over.
-        (Value::wat__core__Rational(x), Value::wat__core__Rational(y)) => Some(x == y),
-        (Value::wat__core__Rational(_), Value::i64(_)) => Some(false),
-        (Value::i64(_), Value::wat__core__Rational(_)) => Some(false),
-        (Value::wat__core__Rational(_), Value::wat__core__BigInt(_)) => Some(false),
-        (Value::wat__core__BigInt(_), Value::wat__core__Rational(_)) => Some(false),
-        (Value::wat__core__Rational(_), Value::f64(_)) => Some(false),
-        (Value::f64(_), Value::wat__core__Rational(_)) => Some(false),
+        (Value::wat__core__rational(x), Value::wat__core__rational(y)) => Some(x == y),
+        (Value::wat__core__rational(_), Value::i64(_)) => Some(false),
+        (Value::i64(_), Value::wat__core__rational(_)) => Some(false),
+        (Value::wat__core__rational(_), Value::wat__core__bigint(_)) => Some(false),
+        (Value::wat__core__bigint(_), Value::wat__core__rational(_)) => Some(false),
+        (Value::wat__core__rational(_), Value::f64(_)) => Some(false),
+        (Value::f64(_), Value::wat__core__rational(_)) => Some(false),
         (Value::String(x), Value::String(y)) => Some(x == y),
         (Value::bool(x), Value::bool(y)) => Some(x == y),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
@@ -5756,7 +5756,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Arc 220 — Char equality. `char` implements `PartialEq`.
         // Two Char values with the same codepoint are equal; a Char and a
         // String are NOT equal (cross-type falls through to `_ => None`).
-        (Value::wat__core__Char(x), Value::wat__core__Char(y)) => Some(x == y),
+        (Value::wat__core__char(x), Value::wat__core__char(y)) => Some(x == y),
         (Value::Unit, Value::Unit) => Some(true),
         (Value::Vec(xs), Value::Vec(ys)) => {
             if xs.len() != ys.len() {
@@ -5900,11 +5900,11 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Delegates to Value's PartialEq (arc 216.5a; storage is Arc<HashMap<Value,Value>>).
         // Order-independent + structural + total. No numeric promotion (Hash-keyed storage
         // is type-sensitive; #{1} != #{1.0} is honest and documented in DESIGN.md).
-        (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => Some(a == b),
+        (Value::wat__core__HashMap(a), Value::wat__core__HashMap(b)) => Some(a == b),
         // Arc 238 Stone 238.1 — HashSet structural equality.
         // Delegates to Value's PartialEq (arc 216.5b; storage is Arc<HashSet<Value>>).
         // Order-independent (set semantics).
-        (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => Some(a == b),
+        (Value::wat__core__HashSet(a), Value::wat__core__HashSet(b)) => Some(a == b),
         // DESIGN-STONE-into-pv-from-vector.md — PersistentVector same-type structural
         // equality (order-dependent; a vector's order is semantic). A genuine pre-existing
         // gap surfaced by this stone's own test: `rpds::VectorSync<Value>` already implements
@@ -5921,9 +5921,9 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Arc 238 Stone 238.1 — Instant equality. chrono::DateTime<Utc> implements Eq.
         // Mirrors the values_compare Instant arm (runtime.rs:9609).
         // Closes the orderable-but-not-equatable asymmetry (Instant had values_compare but not values_equal).
-        (Value::Instant(a), Value::Instant(b)) => Some(a == b),
+        (Value::wat__time__Instant(a), Value::wat__time__Instant(b)) => Some(a == b),
         // Arc 238 Stone 238.1 — Duration equality. i64 nanoseconds; mirrors values_compare.
-        (Value::Duration(a), Value::Duration(b)) => Some(a == b),
+        (Value::wat__time__Duration(a), Value::wat__time__Duration(b)) => Some(a == b),
         // Arc 238 Stone 238.1 — WatAST structural equality.
         // WatAST derives PartialEq (ast.rs:33; span-agnostic — two nodes with same structure
         // but different spans compare equal). Symmetry with the wat__holon__HolonAST arm above.
@@ -5975,10 +5975,10 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         // before). NotNumeric cannot occur for these type-guaranteed pairs.
         (Value::i64(_), Value::f64(_))
         | (Value::f64(_), Value::i64(_))
-        | (Value::wat__core__BigInt(_), Value::f64(_))
-        | (Value::f64(_), Value::wat__core__BigInt(_))
-        | (Value::wat__core__Rational(_), Value::f64(_))
-        | (Value::f64(_), Value::wat__core__Rational(_)) => {
+        | (Value::wat__core__bigint(_), Value::f64(_))
+        | (Value::f64(_), Value::wat__core__bigint(_))
+        | (Value::wat__core__rational(_), Value::f64(_))
+        | (Value::f64(_), Value::wat__core__rational(_)) => {
             match crate::value::numeric_order::numeric_order(a, b) {
                 crate::value::numeric_order::NumOrd::Ord(o) => Some(o),
                 crate::value::numeric_order::NumOrd::Incomparable => Some(Ordering::Equal),
@@ -5993,9 +5993,9 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         // implements `Ord`. Cross-type with i64: promote i64 to bigint
         // before comparing (mirrors the i64↔f64 promotion pattern above;
         // `cf i64↔f64 :8369` per the design's room table).
-        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => Some(x.cmp(y)),
-        (Value::wat__core__BigInt(x), Value::i64(y)) => Some(x.as_ref().cmp(&BigInt::from(*y))),
-        (Value::i64(x), Value::wat__core__BigInt(y)) => Some(BigInt::from(*x).cmp(y.as_ref())),
+        (Value::wat__core__bigint(x), Value::wat__core__bigint(y)) => Some(x.cmp(y)),
+        (Value::wat__core__bigint(x), Value::i64(y)) => Some(x.as_ref().cmp(&BigInt::from(*y))),
+        (Value::i64(x), Value::wat__core__bigint(y)) => Some(BigInt::from(*x).cmp(y.as_ref())),
         // Arc 300 stone C4 — bigint↔f64 total order (was missing; grounding
         // showed `(< 1N 2.0)` had no arm). The bigint↔f64 and rational↔f64 mixed
         // arms both route through the C5b door above (combined with the
@@ -6006,17 +6006,17 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         // `BigRational` before comparing (mirrors the i64↔bigint promotion
         // pattern immediately above, one type over). Cross-type with f64: see
         // the C5b door above — no longer coerced down to f64.
-        (Value::wat__core__Rational(x), Value::wat__core__Rational(y)) => Some(x.cmp(y)),
-        (Value::wat__core__Rational(x), Value::i64(y)) => {
+        (Value::wat__core__rational(x), Value::wat__core__rational(y)) => Some(x.cmp(y)),
+        (Value::wat__core__rational(x), Value::i64(y)) => {
             Some(x.as_ref().cmp(&BigRational::from_integer(BigInt::from(*y))))
         }
-        (Value::i64(x), Value::wat__core__Rational(y)) => {
+        (Value::i64(x), Value::wat__core__rational(y)) => {
             Some(BigRational::from_integer(BigInt::from(*x)).cmp(y.as_ref()))
         }
-        (Value::wat__core__Rational(x), Value::wat__core__BigInt(y)) => {
+        (Value::wat__core__rational(x), Value::wat__core__bigint(y)) => {
             Some(x.as_ref().cmp(&BigRational::from_integer((**y).clone())))
         }
-        (Value::wat__core__BigInt(x), Value::wat__core__Rational(y)) => {
+        (Value::wat__core__bigint(x), Value::wat__core__rational(y)) => {
             Some(BigRational::from_integer((**x).clone()).cmp(y.as_ref()))
         }
         (Value::String(x), Value::String(y)) => Some(x.cmp(y)),
@@ -6025,8 +6025,8 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         // Arc 148 slice 3 — time ord. chrono::DateTime<Utc> implements Ord
         // (chronological); Duration is a non-negative i64 nanosecond count
         // and uses i64 ord directly.
-        (Value::Instant(x), Value::Instant(y)) => Some(x.cmp(y)),
-        (Value::Duration(x), Value::Duration(y)) => Some(x.cmp(y)),
+        (Value::wat__time__Instant(x), Value::wat__time__Instant(y)) => Some(x.cmp(y)),
+        (Value::wat__time__Duration(x), Value::wat__time__Duration(y)) => Some(x.cmp(y)),
         // Arc 148 slice 3 — Vec lex ord, recursive. Element-wise
         // comparison; first non-Equal element decides; on a prefix tie,
         // shorter < longer (matches Rust's `Vec::cmp`). Returns None if
@@ -6767,10 +6767,10 @@ pub fn value_is_hashable(v: &Value) -> bool {
         Value::Vec(xs) | Value::Tuple(xs) => xs.iter().all(value_is_hashable),
         Value::wat__core__List(xs) => xs.iter().all(value_is_hashable),
         Value::wat__core__PersistentVector(pv) => pv.iter().all(value_is_hashable),
-        Value::wat__std__HashSet(s) => s.iter().all(value_is_hashable),
+        Value::wat__core__HashSet(s) => s.iter().all(value_is_hashable),
         // Maps: `Hash` hashes every key AND every value — a map whose VALUE is a handle
         // panics as surely as one keyed on it.
-        Value::wat__std__HashMap(m) => m
+        Value::wat__core__HashMap(m) => m
             .iter()
             .all(|(k, val)| value_is_hashable(k) && value_is_hashable(val)),
         Value::wat__core__PersistentMap(pm) => pm
@@ -6790,8 +6790,8 @@ pub fn value_is_hashable(v: &Value) -> bool {
         // sit under a stamp. An unstamped aggregate (identity 0) is walked, as `Hash` walks it.
         Value::Aggregate(a) => a.identity() != 0 || a.fields.iter().all(value_is_hashable),
         Value::Enum(e) => e.fields.iter().all(value_is_hashable),
-        Value::ForeignRecord(r) => r.fields.iter().all(|(_, val)| value_is_hashable(val)),
-        Value::ForeignVariant(fv) => fv.fields.iter().all(value_is_hashable),
+        Value::wat__edn__ForeignRecord(r) => r.fields.iter().all(|(_, val)| value_is_hashable(val)),
+        Value::wat__edn__ForeignVariant(fv) => fv.fields.iter().all(value_is_hashable),
 
         // ── Pointer-hashed registry carriers: `Hash` is REAL (the `Arc` pointer, consistent
         // with their `Arc::ptr_eq` `PartialEq`) and never looks inside. `key_eligibility()`
@@ -6824,12 +6824,12 @@ pub fn value_is_hashable(v: &Value) -> bool {
         | Value::wat__holon__Engram(_)
         | Value::wat__holon__EngramLibrary(_)
         | Value::wat__holon__Hologram(_)
-        | Value::Instant(_)
-        | Value::Duration(_)
+        | Value::wat__time__Instant(_)
+        | Value::wat__time__Duration(_)
         | Value::wat__core__Uuid(_)
-        | Value::wat__core__Char(_)
-        | Value::wat__core__Rational(_)
-        | Value::wat__core__BigInt(_)
+        | Value::wat__core__char(_)
+        | Value::wat__core__rational(_)
+        | Value::wat__core__bigint(_)
         | Value::wat__stream__Stream(_) => !matches!(
             v.key_eligibility(),
             KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable | NotAKeyReason::OpaqueHandle)
@@ -6872,7 +6872,7 @@ pub fn value_is_key_hashable(v: &Value) -> bool {
 ///
 /// Polymorphic write verb spanning two heterogeneous collection families:
 ///
-/// - `Value::wat__std__HashMap(_)` → `hashmap_assoc_inner` (functional clone-insert).
+/// - `Value::wat__core__HashMap(_)` → `hashmap_assoc_inner` (functional clone-insert).
 /// - `Value::Aggregate (Record/HolonRecord nature)` →
 ///   `eval_record_assoc` (base early-return rebuilds fields only; holonic fallthrough
 ///   rebuilds BOTH fields + hologram in parity — the PARITY invariant).
@@ -7359,8 +7359,8 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
         // hypervector encoding of data, not a syntax tree), so routing these
         // through `value_to_holon` refused with TypeMismatch. `WatAST` has an
         // exact leaf for both; use it.
-        Value::wat__core__Rational(r) => Ok(WatAST::RationalLit(*r, span)),
-        Value::wat__core__BigInt(n) => Ok(WatAST::BigIntLit(*n, span)),
+        Value::wat__core__rational(r) => Ok(WatAST::RationalLit(*r, span)),
+        Value::wat__core__bigint(n) => Ok(WatAST::BigIntLit(*n, span)),
         Value::bool(b) => Ok(WatAST::BoolLit(b, span)),
         Value::String(s) => Ok(WatAST::StringLit((*s).clone(), span)),
         // Arc 244 — Value::Unit (nil) → NilLit; closes the quasiquote ~nil gap (AUDIT §3 site 9).
@@ -7770,7 +7770,7 @@ fn eval_metadata_of(
         // :category — closed-domain Value::Enum (iv-c / arc 255.1b-iv-c Part C).
         let category_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.category);
         put(":category", category_val);
-        return Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(
+        return Ok(Value::Option(Arc::new(Some(Value::wat__core__HashMap(
             Arc::new(map),
         )))));
     }
@@ -7857,7 +7857,7 @@ fn eval_metadata_of(
             put(":doc", Value::String(Arc::new(doc.prose.clone())));
             put(":added", Value::String(Arc::new(doc.added.clone())));
             emit_doc_contract(&mut put, &doc_contract_from_comment(&doc), name_ast.span())?;
-            Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(
+            Ok(Value::Option(Arc::new(Some(Value::wat__core__HashMap(
                 Arc::new(map),
             )))))
         }
@@ -7873,7 +7873,7 @@ fn eval_metadata_of(
                     Value::wat__WatAST(Arc::new(v.clone())),
                 );
             }
-            Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(
+            Ok(Value::Option(Arc::new(Some(Value::wat__core__HashMap(
                 Arc::new(map),
             )))))
         }
@@ -8525,7 +8525,7 @@ fn eval_vector(
 ///
 /// **Purity/Determinism ground — `Pure ∧ Deterministic`:** past its own arity/type-form guards,
 /// `eval_hashmap_ctor`'s body evaluates each key/value by ordinary call-by-value (`eval_inner`)
-/// and inserts into a fresh `HashMap<Value, Value>`, wrapped `Value::wat__std__HashMap` — no
+/// and inserts into a fresh `HashMap<Value, Value>`, wrapped `Value::wat__core__HashMap` — no
 /// `apply_function`, no I/O, no entropy/clock read anywhere. `Pure ∧ Deterministic`.
 ///
 /// **Totality ground — `Partial`, on TWO independent raises, neither shared with `Vector`'s own
@@ -8597,7 +8597,7 @@ fn eval_hashmap(
 /// **Purity/Determinism ground — `Pure ∧ Deterministic`:** past its own `args[0]` type-form
 /// guard, `eval_hashset_ctor`'s body evaluates each element by ordinary call-by-value
 /// (`eval_inner`) and inserts into a fresh `HashSet<Value>` (duplicates collapse; `Value: Hash +
-/// Eq`), wrapped `Value::wat__std__HashSet` — no `apply_function`, no I/O, no entropy/clock read
+/// Eq`), wrapped `Value::wat__core__HashSet` — no `apply_function`, no I/O, no entropy/clock read
 /// anywhere. `Pure ∧ Deterministic`.
 ///
 /// **Totality ground — `Partial`, on the SAME two-independent-raises SHAPE `HashMap`'s ground
@@ -8878,7 +8878,7 @@ fn match_variant_map(
                 }
                 bind_named_fields(pairs, ev.names.as_slice(), &ev.fields, env, sym, span)
             }
-            Value::ForeignVariant(fv) => {
+            Value::wat__edn__ForeignVariant(fv) => {
                 let composed = wat_reader::identifier::compose_variant(
                     &format!(":{}", fv.enum_class),
                     &fv.variant,
@@ -9048,19 +9048,19 @@ pub(crate) fn try_match_pattern(
         // Arc 300 stone B — rational literal sub-pattern; compares by
         // structural equality (both sides are already-reduced BigRationals).
         WatAST::RationalLit(r, _) => match value {
-            Value::wat__core__Rational(v) if v.as_ref() == r => Ok(Some(outer.clone())),
+            Value::wat__core__rational(v) if v.as_ref() == r => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
         // Arc 300 stone C1 — bigint literal sub-pattern; compares by structural
         // equality (mirrors the Rational arm immediately above, one type over).
         WatAST::BigIntLit(n, _) => match value {
-            Value::wat__core__BigInt(v) if v.as_ref() == n => Ok(Some(outer.clone())),
+            Value::wat__core__bigint(v) if v.as_ref() == n => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
         // Arc 300 stone D — char literal sub-pattern; compares by equality
         // (mirrors the BigInt/Rational arms immediately above).
         WatAST::CharLit(c, _) => match value {
-            Value::wat__core__Char(v) if v == c => Ok(Some(outer.clone())),
+            Value::wat__core__char(v) if v == c => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
         WatAST::BoolLit(b, _) => match value {
@@ -9354,7 +9354,7 @@ pub(crate) fn try_match_pattern(
                         }
                         Ok(Some(env))
                     }
-                    Value::wat__std__HashMap(map) => {
+                    Value::wat__core__HashMap(map) => {
                         let mut env = outer.clone();
                         for (var_name, bare_field) in &pairs {
                             let key_str = format!(":{}", bare_field);
@@ -9460,8 +9460,8 @@ pub(crate) fn eval_type(
 /// Mirrors `eval_empty` in shape: arity-2, eval args, match Value variant.
 /// Delegates to the existing per-type inner helpers for correct semantics:
 /// - `Value::Vec(..)` → vector element membership (PartialEq scan)
-/// - `Value::wat__std__HashSet(..)` → set membership (Hash+Eq)
-/// - `Value::wat__std__HashMap(..)` → KEY membership (contains-key?, not value)
+/// - `Value::wat__core__HashSet(..)` → set membership (Hash+Eq)
+/// - `Value::wat__core__HashMap(..)` → KEY membership (contains-key?, not value)
 ///
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 ///
@@ -9585,7 +9585,7 @@ fn eval_contains(
 /// Mirrors `eval_contains` in shape: arity-2, eval args, match Value variant.
 /// Delegates to the existing per-type inner helpers for correct semantics:
 /// - `Value::Vec(..)` → vector append (clone + push; functional, not mutating)
-/// - `Value::wat__std__HashSet(..)` → set insert (clone + insert; functional)
+/// - `Value::wat__core__HashSet(..)` → set insert (clone + insert; functional)
 ///
 /// HashMap excluded — HashMap insertion requires key+value pair (`assoc`).
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
@@ -9651,7 +9651,7 @@ pub(crate) fn eval_conj(
 /// Mirrors `eval_conj` in shape: arity-2, eval args, match Value variant.
 /// Delegates to the existing per-type inner helpers for correct semantics:
 /// - `Value::Vec(..)` → `vector_get_inner` (index i64 → (Option :- [T]); inner already wraps in Value::Option)
-/// - `Value::wat__std__HashMap(..)` → `hashmap_get_inner` (key → (Option :- [V]); inner already wraps)
+/// - `Value::wat__core__HashMap(..)` → `hashmap_get_inner` (key → (Option :- [V]); inner already wraps)
 ///
 /// HashSet excluded — HashSet has no positional get (use `contains?`).
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
@@ -10138,7 +10138,7 @@ fn conforms_check(
                         return Ok(true);
                     }
                     let elem_type = &args[0];
-                    if let Value::wat__std__HashSet(elems) = value {
+                    if let Value::wat__core__HashSet(elems) = value {
                         for elem in elems.iter() {
                             if !conforms_check(elem, elem_type, types)? {
                                 return Ok(false);
@@ -10153,7 +10153,7 @@ fn conforms_check(
                     }
                     let key_type = &args[0];
                     let val_type = &args[1];
-                    if let Value::wat__std__HashMap(map) = value {
+                    if let Value::wat__core__HashMap(map) = value {
                         for (k, v) in map.iter() {
                             if !conforms_check(k, key_type, types)? {
                                 return Ok(false);
@@ -12511,7 +12511,7 @@ fn form_outcome_check_failed(e: &crate::freeze::StartupError, sym: &SymbolTable)
 /// becomes an `:wat::core::Error`". Three sites run the strict→foreign decode ladder
 /// (`check_failed_cause` here, `read_outcome_malformed` and `read_json_outcome_malformed`
 /// in `edn/render.rs`); each feeds an enum variant whose cause field is DECLARED
-/// `:wat::core::Error`, and the ladder's FOREIGN arm yields a `Value::ForeignRecord` —
+/// `:wat::core::Error`, and the ladder's FOREIGN arm yields a `Value::wat__edn__ForeignRecord` —
 /// a dynamic bag that satisfies that surface NOWHERE. Two of the three used to return it
 /// directly, making the declared type a lie at the boundary. They route through here now,
 /// so the ladder and its disposal cannot drift apart again.
@@ -13434,8 +13434,8 @@ fn step_to_watast(
 /// `holon_to_watast` (HolonAST -> WatAST) to satisfy `StepValue::
 /// Terminal`'s old HolonAST-typed field. That middle hop is exactly
 /// what the stone exists to remove, and it was not merely redundant:
-/// `value_to_holon` has no arm for `Value::wat__core__Rational` /
-/// `Value::wat__core__BigInt` (HolonAST has no such leaf, by design),
+/// `value_to_holon` has no arm for `Value::wat__core__rational` /
+/// `Value::wat__core__bigint` (HolonAST has no such leaf, by design),
 /// so any pure op whose result was a rational or bigint — e.g.
 /// `(:wat::core::/ 1 3)` — refused with TypeMismatch. `value_to_watast`
 /// converts `Value -> WatAST` directly and has exact leaves for both.
@@ -17876,7 +17876,7 @@ mod tests {
     fn hashmap_constructor_even_arity() {
         let v = eval_expr(r#"(:wat::core::HashMap :- [:String :i64] "a" 1 "b" 2)"#).unwrap();
         match v {
-            Value::wat__std__HashMap(m) => {
+            Value::wat__core__HashMap(m) => {
                 assert_eq!(m.len(), 2);
             }
             v => panic!("expected HashMap, got {:?}", v),
@@ -18418,7 +18418,7 @@ mod tests {
     fn hashset_constructor() {
         let v = eval_expr(r#"(:wat::core::HashSet :- [:String] "a" "b" "c")"#).unwrap();
         match v {
-            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 3),
+            Value::wat__core__HashSet(s) => assert_eq!(s.len(), 3),
             v => panic!("expected HashSet, got {:?}", v),
         }
     }
@@ -18427,7 +18427,7 @@ mod tests {
     fn hashset_collapses_duplicates() {
         let v = eval_expr(r#"(:wat::core::HashSet :- [:String] "a" "a" "b")"#).unwrap();
         match v {
-            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 2),
+            Value::wat__core__HashSet(s) => assert_eq!(s.len(), 2),
             v => panic!("expected HashSet, got {:?}", v),
         }
     }
@@ -21138,8 +21138,8 @@ mod tests {
     fn values_equal_instant_same() {
         use chrono::TimeZone;
         let t = chrono::Utc.timestamp_opt(1_000_000, 0).unwrap();
-        let a = Value::Instant(t);
-        let b = Value::Instant(t);
+        let a = Value::wat__time__Instant(t);
+        let b = Value::wat__time__Instant(t);
         assert_eq!(values_equal(&a, &b), Some(true));
     }
 
@@ -21148,22 +21148,22 @@ mod tests {
         use chrono::TimeZone;
         let t1 = chrono::Utc.timestamp_opt(1_000_000, 0).unwrap();
         let t2 = chrono::Utc.timestamp_opt(2_000_000, 0).unwrap();
-        let a = Value::Instant(t1);
-        let b = Value::Instant(t2);
+        let a = Value::wat__time__Instant(t1);
+        let b = Value::wat__time__Instant(t2);
         assert_eq!(values_equal(&a, &b), Some(false));
     }
 
     #[test]
     fn values_equal_duration_same() {
-        let a = Value::Duration(123_456_789);
-        let b = Value::Duration(123_456_789);
+        let a = Value::wat__time__Duration(123_456_789);
+        let b = Value::wat__time__Duration(123_456_789);
         assert_eq!(values_equal(&a, &b), Some(true));
     }
 
     #[test]
     fn values_equal_duration_different() {
-        let a = Value::Duration(100);
-        let b = Value::Duration(200);
+        let a = Value::wat__time__Duration(100);
+        let b = Value::wat__time__Duration(200);
         assert_eq!(values_equal(&a, &b), Some(false));
     }
 

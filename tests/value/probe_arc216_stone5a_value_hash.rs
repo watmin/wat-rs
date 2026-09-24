@@ -14,7 +14,7 @@
 //! 6. Vec composition — reversed-order Vec produces DIFFERENT hash (order preserved)
 //! 7. HashSet composition — same elements different insertion order → IDENTICAL hash
 //! 8. HashMap composition — same pairs different insertion order → IDENTICAL hash
-//! 9. Deep nesting — `Value::Vec([Value::wat__std__HashMap(...)])` hashes consistently
+//! 9. Deep nesting — `Value::Vec([Value::wat__core__HashMap(...)])` hashes consistently
 //! 10. Non-atomizable panic — Fn value panics with predicate-citation message
 
 use std::collections::hash_map::DefaultHasher;
@@ -222,7 +222,7 @@ fn probe_6_vec_order_preserved() {
 
 #[test]
 fn probe_7_hashset_value_set_semantics() {
-    // Build two Value::wat__std__HashSet with the same elements inserted in different order.
+    // Build two Value::wat__core__HashSet with the same elements inserted in different order.
     // Stone 216.5b — storage is now Arc<HashSet<Value>>; native insert via Value: Hash + Eq.
     // The Value::Hash impl uses sorted element-hashes for order-independence.
 
@@ -231,14 +231,14 @@ fn probe_7_hashset_value_set_semantics() {
         std::collections::HashSet::new();
     set_a_inner.insert(Value::i64(1));
     set_a_inner.insert(Value::i64(2));
-    let set_a = Value::wat__std__HashSet(Arc::new(set_a_inner));
+    let set_a = Value::wat__core__HashSet(Arc::new(set_a_inner));
 
     // Build set B: same elements inserted as 2 then 1
     let mut set_b_inner: std::collections::HashSet<Value> =
         std::collections::HashSet::new();
     set_b_inner.insert(Value::i64(2));
     set_b_inner.insert(Value::i64(1));
-    let set_b = Value::wat__std__HashSet(Arc::new(set_b_inner));
+    let set_b = Value::wat__core__HashSet(Arc::new(set_b_inner));
 
     assert_eq!(set_a, set_b, "HashSet Values with same elements are equal regardless of insertion order");
     assert_eq!(
@@ -252,7 +252,7 @@ fn probe_7_hashset_value_set_semantics() {
 
 #[test]
 fn probe_8_hashmap_value_map_semantics() {
-    // Build two Value::wat__std__HashMap with the same pairs in different order.
+    // Build two Value::wat__core__HashMap with the same pairs in different order.
     // Storage is Arc<HashMap<canonical_key, (key_Value, val_Value)>>.
     // Value::Hash impl uses sorted (key_hash, val_hash) pairs for order-independence.
 
@@ -269,7 +269,7 @@ fn probe_8_hashmap_value_map_semantics() {
         Value::wat__core__keyword(Arc::new(":b".to_string())),
         Value::i64(2),
     );
-    let hmap_a = Value::wat__std__HashMap(Arc::new(map_a));
+    let hmap_a = Value::wat__core__HashMap(Arc::new(map_a));
 
     // Map B: same pairs, ":b" first
     #[allow(clippy::mutable_key_type)]
@@ -283,7 +283,7 @@ fn probe_8_hashmap_value_map_semantics() {
         Value::wat__core__keyword(Arc::new(":a".to_string())),
         Value::i64(1),
     );
-    let hmap_b = Value::wat__std__HashMap(Arc::new(map_b));
+    let hmap_b = Value::wat__core__HashMap(Arc::new(map_b));
 
     assert_eq!(hmap_a, hmap_b, "HashMap Values with same pairs are equal regardless of insertion order");
     assert_eq!(
@@ -297,7 +297,7 @@ fn probe_8_hashmap_value_map_semantics() {
 
 #[test]
 fn probe_9_deep_nesting() {
-    // Value::Vec([Value::wat__std__HashMap({keyword(":a") → i64(1)})])
+    // Value::Vec([Value::wat__core__HashMap({keyword(":a") → i64(1)})])
     // Stone 216.5c — storage is now HashMap<Value, Value>; K is the native key.
     #[allow(clippy::mutable_key_type)]
     let mut inner_map: std::collections::HashMap<Value, Value> =
@@ -306,7 +306,7 @@ fn probe_9_deep_nesting() {
         Value::wat__core__keyword(Arc::new(":a".to_string())),
         Value::i64(1),
     );
-    let hmap_val = Value::wat__std__HashMap(Arc::new(inner_map));
+    let hmap_val = Value::wat__core__HashMap(Arc::new(inner_map));
     let nested = Value::Vec(Arc::new(vec![hmap_val]));
 
     // Must hash consistently (same value → same hash)

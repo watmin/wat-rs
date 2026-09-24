@@ -1,6 +1,6 @@
 //! Arc 220 slice 2 — `:wat::core::char` typed primitive (Stone 242.1: renamed from Char).
 //!
-//! Verifies the `Value::wat__core__Char` variant and the `char/of` constructor.
+//! Verifies the `Value::wat__core__char` variant and the `char/of` constructor.
 //! Also verifies the lexer `\c` literal syntax and BMP-only enforcement.
 //!
 //! Test cases:
@@ -8,7 +8,7 @@
 //!   2 — Lexer accepts named chars: `\newline`, `\space`, `\tab`, `\return`
 //!   3 — Lexer accepts `\uNNNN` Unicode escape (BMP)
 //!   4 — Lexer rejects supplementary-plane literal (produces diagnostic)
-//!   5 — `(:wat::core::char "x")` returns Value::wat__core__Char('x')
+//!   5 — `(:wat::core::char "x")` returns Value::wat__core__char('x')
 //!   6 — `(:wat::core::char "")` errors with "length-1" diagnostic
 //!   7 — `(:wat::core::char "ab")` errors with "length-2" diagnostic
 //!   8 — `(:wat::core::char "\u{1F600}")` errors with "supplementary-plane"

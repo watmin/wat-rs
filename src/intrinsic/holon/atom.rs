@@ -235,9 +235,9 @@ pub(crate) fn eval_holon_from_holon(
         ));
     }
     match &*holon {
-        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
+        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__char.
         // Arc 233 Stone 233.2.j — use TrackedValue::new directly.
-        HolonAST::Char(c) => Ok(TrackedValue::new(Value::wat__core__Char(*c), prov())),
+        HolonAST::Char(c) => Ok(TrackedValue::new(Value::wat__core__char(*c), prov())),
         HolonAST::String(s) => Ok(TrackedValue::new(
             Value::String(Arc::new(s.to_string())),
             prov(),
@@ -310,7 +310,7 @@ pub(crate) fn eval_holon_from_holon(
                             }
                         }
                         Ok(TrackedValue::new(
-                            Value::wat__std__HashMap(Arc::new(map)),
+                            Value::wat__core__HashMap(Arc::new(map)),
                             prov(),
                         ))
                     }
@@ -322,7 +322,7 @@ pub(crate) fn eval_holon_from_holon(
                             set.insert(v);
                         }
                         Ok(TrackedValue::new(
-                            Value::wat__std__HashSet(Arc::new(set)),
+                            Value::wat__core__HashSet(Arc::new(set)),
                             prov(),
                         ))
                     }

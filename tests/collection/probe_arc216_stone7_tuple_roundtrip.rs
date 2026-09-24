@@ -191,7 +191,7 @@ fn probe_6_tuple_containing_hashset() {
 
     match v {
         Value::Tuple(outer_items) => match outer_items.first() {
-            Some(Value::wat__std__HashSet(hs)) => {
+            Some(Value::wat__core__HashSet(hs)) => {
                 assert_eq!(hs.len(), 2, "Tuple containing HashSet: inner HashSet must have length 2");
             }
             other => panic!("probe_6: outer[0] should be HashSet; got {:?}", other),

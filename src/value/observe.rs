@@ -202,10 +202,10 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::wat__core__keyword(k) => (**k).clone(),
         // Arc 300 stone B — a genuine ratio always has den>=2 (a den==1
         // literal already reduced to an Integer at lex time) — no `"/1"` case.
-        Value::wat__core__Rational(r) => format!("{}/{}", r.numer(), r.denom()),
+        Value::wat__core__rational(r) => format!("{}/{}", r.numer(), r.denom()),
         // Arc 300 stone C1 — bigint renders with the `N` suffix (pr/edn form),
         // mirroring clj's `1N` and wat-edn's `writer.rs` (`"{}N"`).
-        Value::wat__core__BigInt(n) => format!("{}N", n),
+        Value::wat__core__bigint(n) => format!("{}N", n),
 
         // ── Option / Result — wat-surface variant shape ───────────
         Value::Option(opt) => match &**opt {
@@ -252,7 +252,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out.push(')');
             out
         }
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             let mut out = String::from("{");
             let mut first = true;
             // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
@@ -313,7 +313,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out.push(']');
             out
         }
-        Value::wat__std__HashSet(s) => {
+        Value::wat__core__HashSet(s) => {
             let mut out = String::from("#{");
             let mut first = true;
             // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
@@ -380,7 +380,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         }
 
         // ── Arc 278 Stone A — foreign dynamic values (self-describing) ──
-        Value::ForeignRecord(fr) => {
+        Value::wat__edn__ForeignRecord(fr) => {
             let mut out = format!("#{} {{", fr.class);
             let mut first = true;
             for (k, fv) in fr.fields.iter() {
@@ -398,7 +398,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out.push('}');
             out
         }
-        Value::ForeignVariant(fv) => {
+        Value::wat__edn__ForeignVariant(fv) => {
             let mut out = format!("#{}/{} [", fv.enum_class, fv.variant);
             let mut first = true;
             for item in fv.fields.iter() {
@@ -435,14 +435,14 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::wat__holon__Engram(_) => "<Engram>".to_string(),
         Value::wat__holon__EngramLibrary(_) => "<EngramLibrary>".to_string(),
         Value::wat__holon__Hologram(_) => "<Hologram>".to_string(),
-        Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
-        Value::Duration(ns) => format!("<Duration {}ns>", ns),
+        Value::wat__time__Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
+        Value::wat__time__Duration(ns) => format!("<Duration {}ns>", ns),
         // Arc 207 — Uuid renders as the EDN reader literal form.
         Value::wat__core__Uuid(u) => format!("#uuid \"{}\"", u),
         // Arc 220 — Char renders as the EDN character literal form `\c`.
         // Named chars: newline → `\newline`, return → `\return`,
         // space → `\space`, tab → `\tab`. All others: `\<char>`.
-        Value::wat__core__Char(c) => match c {
+        Value::wat__core__char(c) => match c {
             '\n' => "\\newline".to_string(),
             '\r' => "\\return".to_string(),
             ' ' => "\\space".to_string(),

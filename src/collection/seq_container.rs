@@ -144,7 +144,7 @@ impl StreamContainer {
                 // Non-List forms are not sequence containers
                 _ => None,
             },
-            Value::wat__std__HashSet(_) => Some(StreamContainer::HashSet),
+            Value::wat__core__HashSet(_) => Some(StreamContainer::HashSet),
             // Arc 118 — lazy seq.
             Value::wat__stream__Stream(_) => Some(StreamContainer::Stream),
             _ => None,

@@ -69,8 +69,8 @@ use crate::span::Span;
 /// Mirrors `eval_type` in shape: arity-1, eval arg, match Value variant.
 /// Accepted variants:
 /// - `Value::Vec(..)` → vector length
-/// - `Value::wat__std__HashMap(..)` → map entry count
-/// - `Value::wat__std__HashSet(..)` → set element count
+/// - `Value::wat__core__HashMap(..)` → map entry count
+/// - `Value::wat__core__HashSet(..)` → set element count
 /// - `Value::wat__core__List(..)` → list element count
 ///
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
@@ -119,8 +119,8 @@ pub(crate) fn eval_length(
 /// Mirrors `eval_length` in shape: arity-1, eval arg, match Value variant.
 /// Accepted variants:
 /// - `Value::Vec(..)` → true iff vector is empty
-/// - `Value::wat__std__HashMap(..)` → true iff map has no entries
-/// - `Value::wat__std__HashSet(..)` → true iff set has no elements
+/// - `Value::wat__core__HashMap(..)` → true iff map has no entries
+/// - `Value::wat__core__HashSet(..)` → true iff set has no elements
 /// - `Value::wat__core__List(..)` → true iff list has no elements
 ///
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.

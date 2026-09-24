@@ -250,12 +250,12 @@ pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
         },
         Value::Enum(_) => "<enum>",
         // Arc 278 Stone A — foreign dynamic values dispatch on their own kind.
-        Value::ForeignRecord(_) => ":wat::edn::ForeignRecord",
-        Value::ForeignVariant(_) => ":wat::edn::ForeignVariant",
-        Value::wat__std__HashMap(_) => ":wat::core::HashMap",
+        Value::wat__edn__ForeignRecord(_) => ":wat::edn::ForeignRecord",
+        Value::wat__edn__ForeignVariant(_) => ":wat::edn::ForeignVariant",
+        Value::wat__core__HashMap(_) => ":wat::core::HashMap",
         Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap",
         Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector",
-        Value::wat__std__HashSet(_) => ":wat::core::HashSet",
+        Value::wat__core__HashSet(_) => ":wat::core::HashSet",
         // Arc 214 Stone 4.6a-i — peer RustOpaques carry their specific type_path
         // (e.g. ":wat::kernel::Thread" / ":wat::kernel::Process"); report it
         // so the defclause dispatcher sees the real peer type, not the generic fallback.
@@ -270,17 +270,17 @@ pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
         Value::wat__holon__Engram(_) => ":wat::holon::Engram",
         Value::wat__holon__EngramLibrary(_) => ":wat::holon::EngramLibrary",
         Value::wat__holon__Hologram(_) => ":wat::holon::Hologram",
-        Value::Instant(_) => ":wat::time::Instant",
-        Value::Duration(_) => ":wat::time::Duration",
+        Value::wat__time__Instant(_) => ":wat::time::Instant",
+        Value::wat__time__Duration(_) => ":wat::time::Duration",
         Value::wat__core__Uuid(_) => ":wat::core::Uuid",
         // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
         // (scalar types lowercase per Doctrine 2).
-        Value::wat__core__Char(_) => ":wat::core::char",
+        Value::wat__core__char(_) => ":wat::core::char",
         // Arc 300 stone B — FQDN-only (mirrors Uuid, not the bare-primitive char).
         // Stone C1 lowercased the surface (Doctrine 2: scalar types are lowercase).
-        Value::wat__core__Rational(_) => ":wat::core::rational",
+        Value::wat__core__rational(_) => ":wat::core::rational",
         // Arc 300 stone C1 — arbitrary-precision integer.
-        Value::wat__core__BigInt(_) => ":wat::core::bigint",
+        Value::wat__core__bigint(_) => ":wat::core::bigint",
         Value::wat__core__List(_) => ":wat::core::List",
         Value::wat__stream__Stream(_) => ":wat::stream::Stream",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",

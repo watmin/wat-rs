@@ -156,7 +156,7 @@ pub fn eval_edn_write_json_natural(
 ///     variant `<name>`; reconstruct `Value::Enum` with the vector
 ///     elements as positional fields.
 ///   - Tagged + Nil body → enum unit-variant; same lookup as above.
-///   - `#inst` (handled by wat-edn parser) → `Value::Instant`.
+///   - `#inst` (handled by wat-edn parser) → `Value::wat__time__Instant`.
 ///   - Other tags → `EdnReadError::UnknownTag` panic; consumer sees
 ///     the path that failed.
 // Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
@@ -254,7 +254,7 @@ fn tagged_read_outcome_malformed(
     let ctx = sym.encoding_ctx().map(|c| &**c);
     // Arc 109 — the decoded diagnostic rides as a CAUSE under a real `:wat::core::Fault`,
     // never AS the returned value. This variant's cause field is DECLARED
-    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::ForeignRecord`, a
+    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::wat__edn__ForeignRecord`, a
     // self-describing dynamic bag that satisfies that surface NOWHERE — so returning it
     // directly made the declared type a lie at the boundary, and every consumer calling
     // `(:wat::core::Error/message __cause)` died with `UnknownFunction: ForeignRecord does
@@ -440,7 +440,7 @@ pub fn eval_foreign_record_get(
     let fr_v = eval(&args[0], env, sym).map(|tv| tv.value_owned())?;
     let key_v = eval(&args[1], env, sym).map(|tv| tv.value_owned())?;
     let fr = match &fr_v {
-        Value::ForeignRecord(fr) => fr,
+        Value::wat__edn__ForeignRecord(fr) => fr,
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -476,7 +476,7 @@ pub fn eval_foreign_record_class(
     const OP: &str = ":wat::edn::ForeignRecord/class";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
-        Value::ForeignRecord(fr) => Ok(Value::String(Arc::new(fr.class.clone()))),
+        Value::wat__edn__ForeignRecord(fr) => Ok(Value::String(Arc::new(fr.class.clone()))),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignRecord",
@@ -499,7 +499,7 @@ pub fn eval_foreign_variant_variant(
     const OP: &str = ":wat::edn::ForeignVariant/variant";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
-        Value::ForeignVariant(fv) => {
+        Value::wat__edn__ForeignVariant(fv) => {
             Ok(Value::wat__core__keyword(Arc::new(format!(":{}", fv.variant))))
         }
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
@@ -521,7 +521,7 @@ pub fn eval_foreign_variant_enum_class(
     const OP: &str = ":wat::edn::ForeignVariant/enum-class";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
-        Value::ForeignVariant(fv) => Ok(Value::String(Arc::new(fv.enum_class.clone()))),
+        Value::wat__edn__ForeignVariant(fv) => Ok(Value::String(Arc::new(fv.enum_class.clone()))),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignVariant",
@@ -542,7 +542,7 @@ pub fn eval_foreign_variant_fields(
     const OP: &str = ":wat::edn::ForeignVariant/fields";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
-        Value::ForeignVariant(fv) => Ok(Value::Vec(Arc::new(fv.fields.clone()))),
+        Value::wat__edn__ForeignVariant(fv) => Ok(Value::Vec(Arc::new(fv.fields.clone()))),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignVariant",
@@ -591,7 +591,7 @@ fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> V
     let ctx = sym.encoding_ctx().map(|c| &**c);
     // Arc 109 — the decoded diagnostic rides as a CAUSE under a real `:wat::core::Fault`,
     // never AS the returned value. This variant's cause field is DECLARED
-    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::ForeignRecord`, a
+    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::wat__edn__ForeignRecord`, a
     // self-describing dynamic bag that satisfies that surface NOWHERE — so returning it
     // directly made the declared type a lie at the boundary, and every consumer calling
     // `(:wat::core::Error/message __cause)` died with `UnknownFunction: ForeignRecord does
@@ -1374,7 +1374,7 @@ pub fn eval_ast_span(
         Value::i64(span.col),
     );
     Ok(crate::value::TrackedValue::new(
-        Value::wat__std__HashMap(std::sync::Arc::new(map)),
+        Value::wat__core__HashMap(std::sync::Arc::new(map)),
         crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
     ))
 }
@@ -1410,7 +1410,7 @@ pub fn eval_ast_end_span(
         Value::i64(end_col),
     );
     Ok(crate::value::TrackedValue::new(
-        Value::wat__std__HashMap(std::sync::Arc::new(map)),
+        Value::wat__core__HashMap(std::sync::Arc::new(map)),
         crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
     ))
 }
@@ -2254,8 +2254,8 @@ pub fn edn_to_value(
 /// Arc 278 Stone A — the DATA-MODE decode entry (`:wat::edn::read-foreign`).
 ///
 /// Identical to [`edn_to_value`] except an UNKNOWN tag reconstructs a
-/// self-describing dynamic value (`Value::ForeignRecord` for a map body,
-/// `Value::ForeignVariant` for a vector body) instead of raising `UnknownTag`.
+/// self-describing dynamic value (`Value::wat__edn__ForeignRecord` for a map body,
+/// `Value::wat__edn__ForeignVariant` for a vector body) instead of raising `UnknownTag`.
 /// `allow_caps` is kept `false` — foreign decode is untrusted parsed data, so
 /// capability tags stay refused (the strict floor is not the only guard here).
 /// STRICT [`edn_to_value`] is UNCHANGED (unknown tag still errors — R41).
@@ -2283,13 +2283,13 @@ fn edn_to_value_caps(
         Edn::Float(x) => Ok(Value::f64(*x)),
         // Arc 300 stone B — rational literal, representation only (no
         // arithmetic; Stone A already normalized so `denom() >= 2`).
-        Edn::Rational(r) => Ok(Value::wat__core__Rational(Box::new((**r).clone()))),
+        Edn::Rational(r) => Ok(Value::wat__core__rational(Box::new((**r).clone()))),
         Edn::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
         // Arc 220 slice 2: EDN character literal `\c` → typed `:wat::core::char`.
         // Previously folded to String (lossy). Now preserved as a typed char
         // so round-trips through EDN are lossless. BMP guaranteed by wat-edn parser.
         // Stone 242.1: renamed from :wat::core::Char to :wat::core::char.
-        Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
+        Edn::Char(c) => Ok(Value::wat__core__char(*c)),
         Edn::Keyword(k) => {
             let s = match k.namespace() {
                 // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword from an EDN keyword's dotted namespace
@@ -2333,7 +2333,7 @@ fn edn_to_value_caps(
                 }
                 backing.insert(k_val, v_val);
             }
-            Ok(Value::wat__std__HashMap(Arc::new(backing)))
+            Ok(Value::wat__core__HashMap(Arc::new(backing)))
         }
         Edn::Set(items) => {
             // Stone 216.5b — native HashSet<Value> insert; hashmap_key crutch removed.
@@ -2343,12 +2343,12 @@ fn edn_to_value_caps(
                 let v_val = edn_to_value_caps(x, types, allow_caps, foreign, ctx)?;
                 backing.insert(v_val);
             }
-            Ok(Value::wat__std__HashSet(Arc::new(backing)))
+            Ok(Value::wat__core__HashSet(Arc::new(backing)))
         }
-        Edn::Inst(t) => Ok(Value::Instant(*t)),
+        Edn::Inst(t) => Ok(Value::wat__time__Instant(*t)),
         // arc 138: no span — edn_to_value walks an OwnedValue tree (already-parsed EDN); no WatAST available
         // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::core::Uuid`.
-        // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::Instant(*t)` pattern.
+        // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::wat__time__Instant(*t)` pattern.
         Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
         Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps, foreign, ctx),
     }
@@ -2581,14 +2581,14 @@ fn edn_to_typed_value_inner(
             // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
             // (scalar types lowercase per Doctrine 2).
             ":wat::core::char" => match edn {
-                Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
+                Edn::Char(c) => Ok(Value::wat__core__char(*c)),
                 other => Err(mismatch(target, other)),
             },
             // Arc 300 stone B — rational literal typed-coerce path, mirrors
             // the `:wat::core::Uuid` / `:wat::core::char` latent-gap pattern.
             // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
             ":wat::core::rational" => match edn {
-                Edn::Rational(r) => Ok(Value::wat__core__Rational(Box::new((**r).clone()))),
+                Edn::Rational(r) => Ok(Value::wat__core__rational(Box::new((**r).clone()))),
                 other => Err(mismatch(target, other)),
             },
             // Universal top (arc 278 R7): UP is free — ANY EDN value IS a
@@ -2830,7 +2830,7 @@ fn edn_to_typed_value_inner(
                                 .map_err(|e| e.at(&seg))?;
                             map.insert(k, v);
                         }
-                        Ok(Value::wat__std__HashMap(Arc::new(map)))
+                        Ok(Value::wat__core__HashMap(Arc::new(map)))
                     }
                     other => Err(mismatch(target, other)),
                 }
@@ -2848,7 +2848,7 @@ fn edn_to_typed_value_inner(
                                 .map_err(|e| e.at(&seg))?;
                             set.insert(v);
                         }
-                        Ok(Value::wat__std__HashSet(Arc::new(set)))
+                        Ok(Value::wat__core__HashSet(Arc::new(set)))
                     }
                     other => Err(mismatch(target, other)),
                 }
@@ -3247,10 +3247,10 @@ pub fn value_to_json_natural(
 ) -> Result<OwnedValue, RuntimeError> {
     use std::borrow::Cow;
     Ok(match v {
-        Value::Instant(t) => OwnedValue::String(Cow::Owned(
+        Value::wat__time__Instant(t) => OwnedValue::String(Cow::Owned(
             t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         )),
-        Value::Duration(ns) => OwnedValue::Integer(*ns),
+        Value::wat__time__Duration(ns) => OwnedValue::Integer(*ns),
         Value::wat__core__keyword(k) => {
             OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
         }
@@ -3306,7 +3306,7 @@ pub fn value_to_json_natural(
             xs.iter().map(|x| value_to_json_natural(x, types)).collect::<Result<Vec<_>, RuntimeError>>()?,
         ),
         // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
-        Value::wat__std__HashMap(m) => OwnedValue::Map(
+        Value::wat__core__HashMap(m) => OwnedValue::Map(
             m.iter()
                 .map(|(k, v)| {
                     let key_v = value_to_json_natural(k, types)?;
@@ -4197,7 +4197,7 @@ fn reconstruct_enum_tagged(
     })))
 }
 
-/// Arc 278 Stone A — build a self-describing [`Value::ForeignRecord`] from an
+/// Arc 278 Stone A — build a self-describing [`Value::wat__edn__ForeignRecord`] from an
 /// UNKNOWN map-bodied tag (`#ns/name {…}`). The class is the colon-free
 /// fully-qualified tag path (`some::unknown::Rec`); each field key is
 /// self-carried (the bare keyword name) and each value is recursively decoded
@@ -4233,10 +4233,10 @@ fn build_foreign_record(
         let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true, ctx)?;
         fields.push((key, val));
     }
-    Ok(Value::ForeignRecord(Arc::new(ForeignRecordValue { class, fields })))
+    Ok(Value::wat__edn__ForeignRecord(Arc::new(ForeignRecordValue { class, fields })))
 }
 
-/// Arc 296 H-2 — build a self-describing [`Value::ForeignVariant`] from an
+/// Arc 296 H-2 — build a self-describing [`Value::wat__edn__ForeignVariant`] from an
 /// UNKNOWN map-bodied dotted tag (`#<ns>/<Enum>.<Variant> {…}`). Names are
 /// self-carried from the map keys (STOP-2).
 fn build_foreign_variant(
@@ -4268,7 +4268,7 @@ fn build_foreign_variant(
         names.push(key);
         fields.push(val);
     }
-    Ok(Value::ForeignVariant(Arc::new(ForeignVariantValue {
+    Ok(Value::wat__edn__ForeignVariant(Arc::new(ForeignVariantValue {
         enum_class,
         variant: variant_name.to_string(),
         names,
@@ -4636,13 +4636,13 @@ fn value_to_edn_in(
             OwnedValue::Vector(xs.iter().map(|x| value_to_edn_in(x, types, mode)).collect::<Result<Vec<_>, WireEncodeError>>()?)
         }
         // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
-        Value::wat__std__HashMap(m) => OwnedValue::Map(
+        Value::wat__core__HashMap(m) => OwnedValue::Map(
             m.iter()
                 .map(|(k, v)| Ok((value_to_edn_in(k, types, mode)?, value_to_edn_in(v, types, mode)?)))
                 .collect::<Result<Vec<_>, WireEncodeError>>()?,
         ),
         // Arc-278-0a — PersistentMap writes as a TAGGED literal `#wat.core/PersistentMap {…}`
-        // so round-trip IDENTITY is preserved: a std-HashMap `{}` reads back as wat__std__HashMap;
+        // so round-trip IDENTITY is preserved: a std-HashMap `{}` reads back as wat__core__HashMap;
         // the tagged form reads back as PersistentMap (distinct identity per the DESIGN contract).
         Value::wat__core__PersistentMap(m) => OwnedValue::Tagged(
             Tag::ns("wat.core", "PersistentMap"),
@@ -4663,7 +4663,7 @@ fn value_to_edn_in(
                     .collect::<Result<Vec<_>, WireEncodeError>>()?,
             )),
         ),
-        Value::wat__std__HashSet(s) => OwnedValue::Set(
+        Value::wat__core__HashSet(s) => OwnedValue::Set(
             // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
             s.iter().map(|x| value_to_edn_in(x, types, mode)).collect::<Result<Vec<_>, WireEncodeError>>()?,
         ),
@@ -4708,7 +4708,7 @@ fn value_to_edn_in(
         // reader consumed. Keys/fields are SELF-carried (not registry-looked-up,
         // which would fall to `field-{i}` and lose the foreign names). Recursive:
         // nested foreign values re-emit via `value_to_edn_with`.
-        Value::ForeignRecord(fr) => {
+        Value::wat__edn__ForeignRecord(fr) => {
             let type_key = format!(":{}", fr.class);
             let tag = tag_from_type_path(&type_key);
             let entries: Vec<(OwnedValue, OwnedValue)> = fr
@@ -4723,7 +4723,7 @@ fn value_to_edn_in(
                 .collect::<Result<Vec<_>, WireEncodeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
-        Value::ForeignVariant(fv) => {
+        Value::wat__edn__ForeignVariant(fv) => {
             let tag = variant_tag(&format!(":{}", fv.enum_class), &fv.variant);
             let entries: Vec<(OwnedValue, OwnedValue)> = fv
                 .names
@@ -4832,21 +4832,21 @@ fn value_to_edn_in(
         Value::wat__holon__Engram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Engram")?,
         Value::wat__holon__EngramLibrary(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "EngramLibrary")?,
         Value::wat__holon__Hologram(_) => opaque_nil_or_refuse(v, mode, "wat.holon", "Hologram")?,
-        Value::Instant(t) => OwnedValue::Inst(*t),
-        Value::Duration(ns) => OwnedValue::Integer(*ns),
+        Value::wat__time__Instant(t) => OwnedValue::Inst(*t),
+        Value::wat__time__Duration(ns) => OwnedValue::Integer(*ns),
         // Arc 207 — typed Uuid → EDN `#uuid "..."` reader literal.
-        // Mirrors `Value::Instant → OwnedValue::Inst` pattern.
+        // Mirrors `Value::wat__time__Instant → OwnedValue::Inst` pattern.
         // `uuid::Uuid` is `Copy`; `OwnedValue::Uuid` already exists
         // in wat-edn (no crates/wat-edn/ edits needed).
         Value::wat__core__Uuid(u) => OwnedValue::Uuid(*u),
         // Arc 220 — typed Char → EDN character literal.
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
-        Value::wat__core__Char(c) => OwnedValue::Char(*c),
+        Value::wat__core__char(c) => OwnedValue::Char(*c),
         // Arc 300 stone B — typed Rational → EDN rational literal round-trip.
-        Value::wat__core__Rational(r) => OwnedValue::Rational(Box::new((**r).clone())),
+        Value::wat__core__rational(r) => OwnedValue::Rational(Box::new((**r).clone())),
         // Arc 300 stone C1 — typed BigInt → EDN bigint literal round-trip (mirrors
         // Rational immediately above, one type over).
-        Value::wat__core__BigInt(n) => OwnedValue::BigInt(Box::new((**n).clone())),
+        Value::wat__core__bigint(n) => OwnedValue::BigInt(Box::new((**n).clone())),
         // Arc 293.R2.1 — Record/HolonRecord: Aggregate with nature != Struct.
         // No guard here — the Struct arm above catches nature==Struct; this arm is reached
         // only for Record/HolonRecord. Guard dropped so Rust's exhaustiveness checker sees

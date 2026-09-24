@@ -71,7 +71,7 @@ use crate::value::{
 /// @example-norun (:wat::time::now) #=> #inst "2026-08-13T12:00:00.000000000Z"
 #[wat_intrinsic(":wat::time::now")]
 pub(crate) fn eval_time_now() -> Result<Value, EvalBreak> {
-    Ok(Value::Instant(Utc::now()))
+    Ok(Value::wat__time__Instant(Utc::now()))
 }
 
 /// Builds an Instant from integer seconds since 1970-01-01T00:00:00Z (the
@@ -104,7 +104,7 @@ pub(crate) fn eval_time_at(
             got: Box::new(ValueSnapshot::unavailable("out-of-range i64"))
         })
     })?;
-    Ok(Value::Instant(dt))
+    Ok(Value::wat__time__Instant(dt))
 }
 
 /// Builds an Instant from integer milliseconds since the Unix epoch.
@@ -136,7 +136,7 @@ pub(crate) fn eval_time_at_millis(
             got: Box::new(ValueSnapshot::unavailable("out-of-range i64"))
         })
     })?;
-    Ok(Value::Instant(dt))
+    Ok(Value::wat__time__Instant(dt))
 }
 
 /// Builds an Instant from integer nanoseconds since the Unix epoch. i64 ns
@@ -161,7 +161,7 @@ pub(crate) fn eval_time_at_nanos(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::time::at-nanos";
     let ns = require_i64(OP, eval(ns, env, sym)?, list_span)?;
-    Ok(Value::Instant(Utc.timestamp_nanos(ns)))
+    Ok(Value::wat__time__Instant(Utc.timestamp_nanos(ns)))
 }
 
 /// Parses an ISO 8601 / RFC 3339 string into an Instant. `:None` on parse
@@ -190,7 +190,7 @@ pub(crate) fn eval_time_from_iso8601(
     let parsed = DateTime::parse_from_rfc3339(&s)
         .ok()
         .map(|dt| dt.with_timezone(&Utc));
-    let inner = parsed.map(Value::Instant);
+    let inner = parsed.map(Value::wat__time__Instant);
     Ok(Value::Option(Arc::new(inner)))
 }
 
@@ -377,7 +377,7 @@ fn unit_constructor(
             i64::MAX / unit_nanos
         )
     });
-    Ok(Value::Duration(nanos))
+    Ok(Value::wat__time__Duration(nanos))
 }
 
 /// Builds a Duration of N nanoseconds. Panics on negative N or overflow.
@@ -765,7 +765,7 @@ pub(crate) fn eval_time_sub(
     let b = eval(b, env, sym)?.value_owned();
     let a_inst = require_instant(OP, a, list_span)?;
     match b {
-        Value::Duration(ns) => {
+        Value::wat__time__Duration(ns) => {
             // Instant - Duration -> Instant.
             // ns is non-negative (constructor invariant); subtract
             // by adding chrono::Duration::nanoseconds(-ns).
@@ -777,9 +777,9 @@ pub(crate) fn eval_time_sub(
                     expected: "result-Instant in chrono representable range",
                     got: Box::new(ValueSnapshot::unavailable("out-of-range subtraction"))
                 }))?;
-            Ok(Value::Instant(new_inst))
+            Ok(Value::wat__time__Instant(new_inst))
         }
-        Value::Instant(b_inst) => {
+        Value::wat__time__Instant(b_inst) => {
             // Instant - Instant -> Duration. Compute elapsed via
             // chrono's signed_duration_since; panic if negative
             // per §2.
@@ -801,7 +801,7 @@ pub(crate) fn eval_time_sub(
                     OP, ns
                 );
             }
-            Ok(Value::Duration(ns))
+            Ok(Value::wat__time__Duration(ns))
         }
         // b is an evaluated Value with no AST trace at match point; list_span is the best available location
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
@@ -838,7 +838,7 @@ pub(crate) fn eval_time_add(
     let b = eval(b, env, sym)?.value_owned();
     let a_inst = require_instant(OP, a, list_span)?;
     let ns = match b {
-        Value::Duration(ns) => ns,
+        Value::wat__time__Duration(ns) => ns,
         other => {
             // b is an evaluated Value with no AST trace at match point; list_span is the best available location
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
@@ -856,7 +856,7 @@ pub(crate) fn eval_time_add(
             expected: "result-Instant in chrono representable range",
             got: Box::new(ValueSnapshot::unavailable("out-of-range addition"))
         }))?;
-    Ok(Value::Instant(new_inst))
+    Ok(Value::wat__time__Instant(new_inst))
 }
 
 // ─── Arc 097 slice 3 — `ago` / `from-now` composers ─────────────────
@@ -897,7 +897,7 @@ pub(crate) fn eval_time_ago(
             expected: "result-Instant in chrono representable range",
             got: Box::new(ValueSnapshot::unavailable("out-of-range subtraction"))
         }))?;
-    Ok(Value::Instant(result))
+    Ok(Value::wat__time__Instant(result))
 }
 
 /// Instant `duration` after now. Equivalent to `(:wat::time::+
@@ -931,7 +931,7 @@ pub(crate) fn eval_time_from_now(
             expected: "result-Instant in chrono representable range",
             got: Box::new(ValueSnapshot::unavailable("out-of-range addition"))
         }))?;
-    Ok(Value::Instant(result))
+    Ok(Value::wat__time__Instant(result))
 }
 
 // ─── Arc 097 slice 4 — pre-composed unit-ago / unit-from-now ────────
@@ -976,7 +976,7 @@ fn unit_ago(
             expected: "result-Instant in chrono representable range",
             got: Box::new(ValueSnapshot::unavailable("out-of-range subtraction"))
         }))?;
-    Ok(Value::Instant(result))
+    Ok(Value::wat__time__Instant(result))
 }
 
 fn unit_from_now(
@@ -1013,7 +1013,7 @@ fn unit_from_now(
             expected: "result-Instant in chrono representable range",
             got: Box::new(ValueSnapshot::unavailable("out-of-range addition"))
         }))?;
-    Ok(Value::Instant(result))
+    Ok(Value::wat__time__Instant(result))
 }
 
 // ─── Per-unit ago helpers ───────────────────────────────────────────
@@ -1358,7 +1358,7 @@ fn require_string(op: &'static str, tv: TrackedValue, list_span: &Span) -> Resul
 
 fn require_instant(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<DateTime<Utc>, RuntimeError> {
     match tv.value_owned() {
-        Value::Instant(dt) => Ok(dt),
+        Value::wat__time__Instant(dt) => Ok(dt),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::time::Instant",
@@ -1369,7 +1369,7 @@ fn require_instant(op: &'static str, tv: TrackedValue, list_span: &Span) -> Resu
 
 fn require_duration(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<i64, RuntimeError> {
     match tv.value_owned() {
-        Value::Duration(ns) => Ok(ns),
+        Value::wat__time__Duration(ns) => Ok(ns),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::time::Duration",

@@ -183,7 +183,7 @@ pub(crate) fn i64_mod_op(_head: &str, a: i64, b: i64, b_span: &Span) -> Result<i
 /// Arc 300 stone C1 — arbitrary precision: `op` never sees an overflow case
 /// (contrast `eval_i64_arith`'s wrapping semantics). `op` returns a `Value`
 /// directly (not a `BigInt`) because `/` can collapse to EITHER
-/// `Value::wat__core__BigInt` (divisible) or `Value::wat__core__Rational`
+/// `Value::wat__core__bigint` (divisible) or `Value::wat__core__rational`
 /// (else) — a single-output-type shape can't express that.
 pub(crate) fn eval_bigint_arith<F>(
     head: &str,
@@ -212,8 +212,8 @@ where
     let a = eval_inner(&args[0], env, sym)?;
     let b = eval_inner(&args[1], env, sym)?;
     match (a.value(), b.value()) {
-        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => op(x, y, &b_span),
-        (other, _) if !matches!(other, Value::wat__core__BigInt(_)) => Err(RuntimeError::new(
+        (Value::wat__core__bigint(x), Value::wat__core__bigint(y)) => op(x, y, &b_span),
+        (other, _) if !matches!(other, Value::wat__core__bigint(_)) => Err(RuntimeError::new(
             a_span,
             RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
@@ -246,9 +246,9 @@ pub(crate) fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value,
     }
     let (q, r) = (a / b, a % b);
     if r.is_zero() {
-        Ok(Value::wat__core__BigInt(Box::new(q)))
+        Ok(Value::wat__core__bigint(Box::new(q)))
     } else {
-        Ok(Value::wat__core__Rational(Box::new(
+        Ok(Value::wat__core__rational(Box::new(
             num_rational::BigRational::new(a.clone(), b.clone()),
         )))
     }
@@ -265,8 +265,8 @@ pub(crate) fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value,
 /// `:wat::i64::to-rational` (mirrors C1's i64::to-bigint contagion pattern).
 pub(crate) fn to_bigrational(v: &Value) -> Option<BigRational> {
     match v {
-        Value::wat__core__Rational(r) => Some((**r).clone()),
-        Value::wat__core__BigInt(n) => Some(BigRational::from_integer((**n).clone())),
+        Value::wat__core__rational(r) => Some((**r).clone()),
+        Value::wat__core__bigint(n) => Some(BigRational::from_integer((**n).clone())),
         _ => None,
     }
 }
@@ -280,9 +280,9 @@ pub(crate) fn to_bigrational(v: &Value) -> Option<BigRational> {
 /// reduce to an integer).
 pub(crate) fn collapse_bigrational(r: BigRational) -> Value {
     if r.is_integer() {
-        Value::wat__core__BigInt(Box::new(r.to_integer()))
+        Value::wat__core__bigint(Box::new(r.to_integer()))
     } else {
-        Value::wat__core__Rational(Box::new(r))
+        Value::wat__core__rational(Box::new(r))
     }
 }
 
@@ -563,7 +563,7 @@ where
 /// Arc 300 stone C1 — bigint substrate-addressed arithmetic leaf, mirroring
 /// `arith_i64_i64_inner`/`arith_f64_f64_inner` above. `op` returns a `Value`
 /// directly (not a `BigInt`) so `/` can produce EITHER
-/// `Value::wat__core__BigInt` or `Value::wat__core__Rational` — same
+/// `Value::wat__core__bigint` or `Value::wat__core__rational` — same
 /// two-output-type reason as `eval_bigint_arith`.
 // Arc 255 Stone Q-2 — gained `span: &Span`; see `arith_i64_i64_inner`'s comment above.
 pub(crate) fn arith_bigint_bigint_inner<F>(
@@ -578,7 +578,7 @@ where
     let a = vals.first().expect("arity-checked");
     let b = vals.get(1).expect("arity-checked");
     match (a, b) {
-        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => match op(x, y) {
+        (Value::wat__core__bigint(x), Value::wat__core__bigint(y)) => match op(x, y) {
             Ok(v) => Ok(v),
             Err(()) => {
                 Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())

@@ -2010,10 +2010,10 @@ fn encode_value_with_path(
         // Arc 300 stone B — Rational is the numeric-literal lane (NOT a
         // desugared call, per DESIGN-STONE-rational-B-runtime.md's pinned
         // contract) — re-encodes directly as a `RationalLit`.
-        Value::wat__core__Rational(r) => Ok(WatAST::RationalLit((**r).clone(), span)),
+        Value::wat__core__rational(r) => Ok(WatAST::RationalLit((**r).clone(), span)),
         // Arc 300 stone C1 — BigInt is the numeric-literal lane (mirrors Rational
         // immediately above, one type over): re-encodes directly as a `BigIntLit`.
-        Value::wat__core__BigInt(n) => Ok(WatAST::BigIntLit((**n).clone(), span)),
+        Value::wat__core__bigint(n) => Ok(WatAST::BigIntLit((**n).clone(), span)),
         Value::wat__core__keyword(k) => {
             // A wat-level keyword value is constructed via
             // `(:wat::core::keyword "literal-text")` — but the simpler
@@ -2038,7 +2038,7 @@ fn encode_value_with_path(
         // cleanly. Was: a `char/of` call on a length-1 String
         // (arc 220 / stone 242.1) — that workaround is retired now that
         // WatAST can hold a char literal directly.
-        Value::wat__core__Char(c) => Ok(WatAST::CharLit(*c, span)),
+        Value::wat__core__char(c) => Ok(WatAST::CharLit(*c, span)),
         // Arc 220 Stone 220.4 — List is portable: encode as a variadic
         // `(:wat::core::List item1 item2 ...)` call. Each item is recursively
         // encoded. Round-trips cleanly.
@@ -2099,7 +2099,7 @@ fn encode_value_with_path(
             }
             Ok(WatAST::List(out, span))
         }
-        Value::wat__std__HashMap(map) => {
+        Value::wat__core__HashMap(map) => {
             // Closure-capture round-trip: re-encode a runtime HashMap<K,V> Value
             // back to the corresponding `(:wat::core::HashMap :- [K V] k1 v1 k2 v2 ...)`
             // constructor AST, so the captured env can be replayed in a fresh
@@ -2156,7 +2156,7 @@ fn encode_value_with_path(
             }
             Ok(WatAST::List(out, span))
         }
-        Value::wat__std__HashSet(set) => {
+        Value::wat__core__HashSet(set) => {
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate Values directly.
             // Stone 216.5d — sort by Value's native Hash for deterministic encoding order.
             let elem_kw = if let Some(v) = set.iter().next() {
@@ -2374,8 +2374,8 @@ fn encode_value_with_path(
         | Value::wat__WatAST(_)
         | Value::RustOpaque(_)
         | Value::wat__holon__Vector(_)
-        | Value::Instant(_)
-        | Value::Duration(_)
+        | Value::wat__time__Instant(_)
+        | Value::wat__time__Duration(_)
         // Arc 118 — Stream: lazy seqs carry closures/thunks; closure-extract encoding
         // is a later strike (not portable in slice 1; same as fn).
         | Value::wat__stream__Stream(_)
@@ -2384,8 +2384,8 @@ fn encode_value_with_path(
         // Arc 278 Stone A — foreign dynamic values are portable in principle (they
         // re-serialize to EDN), but closure-extract re-encoding is a later strike;
         // surface as Internal so the gap is honest (no silent bridge, FM5).
-        | Value::ForeignRecord(_)
-        | Value::ForeignVariant(_) => Err(ExtractionError {
+        | Value::wat__edn__ForeignRecord(_)
+        | Value::wat__edn__ForeignVariant(_) => Err(ExtractionError {
             span: crate::rust_caller_span!(),
             kind: ExtractionErrorKind::Internal(format!(
                 "encoding for captured Value of kind {} not implemented in slice 1",
@@ -2547,10 +2547,10 @@ fn value_static_type_keyword(
         // path exercises nested-HashMap-in-container through closure extraction;
         // if one arises, the K/V keywords must be derived here (sample first entry
         // like the encode arm above) or emit via a richer type-tag mechanism.
-        Value::wat__std__HashMap(_) => WatAST::Keyword(":wat::core::HashMap".into(), span.clone()),
+        Value::wat__core__HashMap(_) => WatAST::Keyword(":wat::core::HashMap".into(), span.clone()),
         Value::wat__core__PersistentMap(_) => WatAST::Keyword(":wat::core::PersistentMap".into(), span.clone()),
         Value::wat__core__PersistentVector(_) => WatAST::Keyword(":wat::core::PersistentVector".into(), span.clone()),
-        Value::wat__std__HashSet(_) => WatAST::Keyword(":wat::core::HashSet".into(), span.clone()),
+        Value::wat__core__HashSet(_) => WatAST::Keyword(":wat::core::HashSet".into(), span.clone()),
         // Non-portable types — they should not be reaching here through
         // a portable container, but if they do, encoding fails through
         // the value-level path.

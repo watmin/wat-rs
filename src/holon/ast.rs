@@ -63,8 +63,8 @@ pub(crate) fn from_holon_item(
         return Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s))));
     }
     match item {
-        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
-        HolonAST::Char(c) => Ok(Value::wat__core__Char(*c)),
+        // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__char.
+        HolonAST::Char(c) => Ok(Value::wat__core__char(*c)),
         HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
         HolonAST::I64(n) => Ok(Value::i64(*n)),
         HolonAST::F64(x) => Ok(Value::f64(*x)),
@@ -103,7 +103,7 @@ pub(crate) fn from_holon_item(
                             }
                         }
                     }
-                    Ok(Value::wat__std__HashMap(Arc::new(map)))
+                    Ok(Value::wat__core__HashMap(Arc::new(map)))
                 }
                 "Set" => {
                     let mut set: HashSet<Value> = HashSet::with_capacity(inner_items.len());
@@ -111,7 +111,7 @@ pub(crate) fn from_holon_item(
                         let v = from_holon_item(child, op, op_span)?;
                         set.insert(v);
                     }
-                    Ok(Value::wat__std__HashSet(Arc::new(set)))
+                    Ok(Value::wat__core__HashSet(Arc::new(set)))
                 }
                 "Vector" => {
                     let n = inner_items.len();
@@ -401,7 +401,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         // Stone 221.1 minted HolonAST::Char + char_() constructor in holon-rs
         // commit 243eded. Char is a proper primitive (BMP-only Unicode scalar),
         // not a convention-based encoding inside an existing leaf.
-        Value::wat__core__Char(c) => HolonAST::char_(c),
+        Value::wat__core__char(c) => HolonAST::char_(c),
         // Opaque-identity wrap ───────────────────────────────────────
         // HolonAST input → Atom(inner) wrap; the to-holon verb is the general
         // lift, and for HolonAST inputs it behaves identically to narrow Atom.
@@ -413,7 +413,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         // typed-entities doctrine: every collection carries its classifier at substrate.
         // Output: Bind(Atom("Set"), Bundle(bare items)).
         // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
-        Value::wat__std__HashSet(s) => {
+        Value::wat__core__HashSet(s) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(s.len());
             for elem in s.iter() {
                 let holon_val = to_holon_inner(elem.clone(), arg_span)?;
@@ -482,7 +482,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         // Bind order is therefore non-deterministic. The reverse trip (from-holon)
         // reconstructs a HashMap which is also order-agnostic — round-trip is correct.
         // Stone 216.5c — iterate m.iter() for (k, v) directly (K is the native key).
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             let mut items: Vec<HolonAST> = Vec::with_capacity(m.len());
             for (k, v) in m.iter() {
                 let k_holon_val = to_holon_inner(k.clone(), arg_span)?;

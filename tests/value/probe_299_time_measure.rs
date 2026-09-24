@@ -35,7 +35,7 @@ fn now_is_within_the_bracketed_window() {
         other => panic!("expected i64; got {other:?}"),
     };
     let hi = epoch_nanos();
-    let instant = Value::Instant(Utc.timestamp_nanos(now_ns));
+    let instant = Value::wat__time__Instant(Utc.timestamp_nanos(now_ns));
     match call(&world, ":probe::measure", vec![instant, Value::i64(lo), Value::i64(hi)]) {
         Value::bool(true) => {}
         other => panic!("now={now_ns} not in [{lo},{hi}]: {other:?}"),

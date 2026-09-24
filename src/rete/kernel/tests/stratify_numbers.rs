@@ -60,7 +60,7 @@ fn eval_form(world: &crate::freeze::FrozenWorld, src: &str) -> Value {
 /// `:wat::rete::stratify` returns `(HashMap :- [String i64])`.
 fn hashmap_i64(v: &Value, what: &str) -> HashMap<String, i64> {
     match v {
-        Value::wat__std__HashMap(m) => m
+        Value::wat__core__HashMap(m) => m
             .iter()
             .map(|(k, val)| {
                 let key = match k {

@@ -566,8 +566,8 @@ was deleted in Stone 216.5d — it no longer exists in the substrate.
 
 | Type | Native Rust storage |
 |---|---|
-| `Value::wat__std__HashSet` | `Arc<HashSet<Value>>` — uses `Value: Hash + Eq` directly |
-| `Value::wat__std__HashMap` | `Arc<HashMap<Value, Value>>` — uses `Value: Hash + Eq` as key |
+| `Value::wat__core__HashSet` | `Arc<HashSet<Value>>` — uses `Value: Hash + Eq` directly |
+| `Value::wat__core__HashMap` | `Arc<HashMap<Value, Value>>` — uses `Value: Hash + Eq` as key |
 
 **Guarded runtime error:** attempting to use a non-hashable value (opaque handle such
 as a function, channel, or thread handle) as a `HashSet` element or `HashMap` key

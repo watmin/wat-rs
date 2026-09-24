@@ -53,7 +53,7 @@ fn user_form_metadata_is_some() -> bool {
 fn metadata_of_map(_name_kw: &str) -> std::collections::HashMap<Value, Value> {
     match call_beside_value(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
         Value::Option(o) => match o.as_ref() {
-            Some(Value::wat__std__HashMap(m)) => m.as_ref().clone(),
+            Some(Value::wat__core__HashMap(m)) => m.as_ref().clone(),
             other => panic!("metadata-of must return Some(HashMap); got {:?}", other),
         },
         other => panic!("metadata-of must return Option; got {:?}", other),

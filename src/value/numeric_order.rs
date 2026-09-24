@@ -47,22 +47,22 @@ pub(crate) fn numeric_order(a: &Value, b: &Value) -> NumOrd {
             Some(o) => NumOrd::Ord(o),
             None => NumOrd::Incomparable, // NaN was involved
         },
-        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => NumOrd::Ord(x.cmp(y)),
-        (Value::wat__core__Rational(x), Value::wat__core__Rational(y)) => NumOrd::Ord(x.cmp(y)),
+        (Value::wat__core__bigint(x), Value::wat__core__bigint(y)) => NumOrd::Ord(x.cmp(y)),
+        (Value::wat__core__rational(x), Value::wat__core__rational(y)) => NumOrd::Ord(x.cmp(y)),
 
         // ── 2. EXACT INTEGER / RATIONAL PAIRS — already correct today; unchanged.
-        (Value::wat__core__BigInt(x), Value::i64(y)) => NumOrd::Ord(x.as_ref().cmp(&BigInt::from(*y))),
-        (Value::i64(x), Value::wat__core__BigInt(y)) => NumOrd::Ord(BigInt::from(*x).cmp(y.as_ref())),
-        (Value::wat__core__Rational(x), Value::i64(y)) => {
+        (Value::wat__core__bigint(x), Value::i64(y)) => NumOrd::Ord(x.as_ref().cmp(&BigInt::from(*y))),
+        (Value::i64(x), Value::wat__core__bigint(y)) => NumOrd::Ord(BigInt::from(*x).cmp(y.as_ref())),
+        (Value::wat__core__rational(x), Value::i64(y)) => {
             NumOrd::Ord(x.as_ref().cmp(&BigRational::from_integer(BigInt::from(*y))))
         }
-        (Value::i64(x), Value::wat__core__Rational(y)) => {
+        (Value::i64(x), Value::wat__core__rational(y)) => {
             NumOrd::Ord(BigRational::from_integer(BigInt::from(*x)).cmp(y.as_ref()))
         }
-        (Value::wat__core__Rational(x), Value::wat__core__BigInt(y)) => {
+        (Value::wat__core__rational(x), Value::wat__core__bigint(y)) => {
             NumOrd::Ord(x.as_ref().cmp(&BigRational::from_integer((**y).clone())))
         }
-        (Value::wat__core__BigInt(x), Value::wat__core__Rational(y)) => {
+        (Value::wat__core__bigint(x), Value::wat__core__rational(y)) => {
             NumOrd::Ord(BigRational::from_integer((**x).clone()).cmp(y.as_ref()))
         }
 
@@ -81,14 +81,14 @@ pub(crate) fn numeric_order(a: &Value, b: &Value) -> NumOrd {
         (Value::f64(x), Value::i64(y)) => {
             f64_vs_exact(*x, &BigRational::from_integer(BigInt::from(*y)))
         }
-        (Value::wat__core__BigInt(x), Value::f64(y)) => {
+        (Value::wat__core__bigint(x), Value::f64(y)) => {
             f64_vs_exact(*y, &BigRational::from_integer((**x).clone())).reversed()
         }
-        (Value::f64(x), Value::wat__core__BigInt(y)) => {
+        (Value::f64(x), Value::wat__core__bigint(y)) => {
             f64_vs_exact(*x, &BigRational::from_integer((**y).clone()))
         }
-        (Value::wat__core__Rational(x), Value::f64(y)) => f64_vs_exact(*y, x).reversed(),
-        (Value::f64(x), Value::wat__core__Rational(y)) => f64_vs_exact(*x, y),
+        (Value::wat__core__rational(x), Value::f64(y)) => f64_vs_exact(*y, x).reversed(),
+        (Value::f64(x), Value::wat__core__rational(y)) => f64_vs_exact(*x, y),
 
         // ── 4. Not both numeric.
         _ => NumOrd::NotNumeric,
@@ -176,21 +176,21 @@ mod tests {
     fn gate_row_8_below_2_53_unchanged() {
         // (< 1N 2.0) => true
         assert_ord(
-            &Value::wat__core__BigInt(Box::new(BigInt::from(1))),
+            &Value::wat__core__bigint(Box::new(BigInt::from(1))),
             &Value::f64(2.0),
             Ordering::Less,
         );
         // (> 3.0 1/2) => true, i.e. 3.0 vs 1/2 is Greater.
         assert_ord(
             &Value::f64(3.0),
-            &Value::wat__core__Rational(Box::new(BigRational::new(BigInt::from(1), BigInt::from(2)))),
+            &Value::wat__core__rational(Box::new(BigRational::new(BigInt::from(1), BigInt::from(2)))),
             Ordering::Greater,
         );
     }
 
     #[test]
     fn gate_row_9_bigint_f64_boundary_exact() {
-        let above = Value::wat__core__BigInt(Box::new(BigInt::from(9007199254740993_i64)));
+        let above = Value::wat__core__bigint(Box::new(BigInt::from(9007199254740993_i64)));
         let at_limit = Value::f64(9007199254740992.0);
         // row 9a — RED at HEAD: (< 2^53.0 bigint(2^53+1)) must be Less.
         assert_ord(&at_limit, &above, Ordering::Less);
@@ -204,7 +204,7 @@ mod tests {
         // f64-representable at this magnitude (doubles step by 2 here), so this proves
         // the rational side compares EXACTLY rather than being coerced down and rounded
         // onto the f64 operand.
-        let half_above = Value::wat__core__Rational(Box::new(BigRational::new(
+        let half_above = Value::wat__core__rational(Box::new(BigRational::new(
             BigInt::from(18014398509481985_i64),
             BigInt::from(2),
         )));
@@ -232,11 +232,11 @@ mod tests {
             (Value::i64(1), Value::f64(f64::NAN)),
             (Value::f64(f64::NAN), Value::i64(1)),
             (
-                Value::wat__core__BigInt(Box::new(BigInt::from(1))),
+                Value::wat__core__bigint(Box::new(BigInt::from(1))),
                 Value::f64(f64::NAN),
             ),
             (
-                Value::wat__core__Rational(Box::new(BigRational::from_integer(BigInt::from(1)))),
+                Value::wat__core__rational(Box::new(BigRational::from_integer(BigInt::from(1)))),
                 Value::f64(f64::NAN),
             ),
         ] {

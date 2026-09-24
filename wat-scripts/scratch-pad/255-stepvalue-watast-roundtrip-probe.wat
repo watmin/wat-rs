@@ -7,8 +7,8 @@
 ;; Part 2 covers the sibling defect the orchestrator's correction identified: the FIRED-
 ;; redex path (`step_descend_then_fire` / `step_holon_descend_then_fire`) routed its
 ;; result through `value_to_holon` (Value -> HolonAST) before lifting back to WatAST via
-;; `holon_to_watast`. `value_to_holon` has no arm for `Value::wat__core__Rational` /
-;; `Value::wat__core__BigInt` (HolonAST has no such leaf, by design) — so a REDEX whose
+;; `holon_to_watast`. `value_to_holon` has no arm for `Value::wat__core__rational` /
+;; `Value::wat__core__bigint` (HolonAST has no such leaf, by design) — so a REDEX whose
 ;; value is a rational or bigint refused with TypeMismatch instead of corrupting. Fixed
 ;; by routing `step_descend_then_fire`/`step_holon_descend_then_fire` through
 ;; `value_to_watast` (Value -> WatAST) directly, which now has exact Rational/BigInt arms.

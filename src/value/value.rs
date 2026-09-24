@@ -99,7 +99,7 @@ pub enum Value {
     /// A `(:HashMap :- [K V])` — Rust std's HashMap natively; stored as
     /// `Arc<HashMap<Value, Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; K is the actual HashMap key directly.
-    wat__std__HashMap(Arc<HashMap<Value, Value>>),
+    wat__core__HashMap(Arc<HashMap<Value, Value>>),
     /// A `(:wat::core::PersistentMap :- [K V])` — [`crate::value::pmap::PMap`], the promoting map
     /// (array below `PROMOTION_THRESHOLD`, `rpds::HashTrieMapSync` above it — one-way promotion
     /// on `assoc`). Structural sharing: `assoc`/`dissoc` return a NEW map; the original is
@@ -112,7 +112,7 @@ pub enum Value {
     /// A `(:HashSet :- [T])` — Rust std's HashSet natively; stored as
     /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
-    wat__std__HashSet(Arc<HashSet<Value>>),
+    wat__core__HashSet(Arc<HashSet<Value>>),
     /// Generic opaque handle to a Rust-shim-owned value. The
     /// target-form for any `:rust::*` type that doesn't have its own
     /// dedicated Value variant. The inner `RustOpaqueInner` carries a
@@ -213,15 +213,15 @@ pub enum Value {
     /// consumer LACKS the type). Re-serializes faithfully back to the same
     /// `#ns/Type {…}` the reader consumed (round-trip identity). Pure data
     /// (records-are-EDN, arc 300); recursive — a field may itself be a
-    /// `ForeignRecord`/`ForeignVariant` decoded all the way down.
-    ForeignRecord(Arc<ForeignRecordValue>),
+    /// `wat__edn__ForeignRecord`/`wat__edn__ForeignVariant` decoded all the way down.
+    wat__edn__ForeignRecord(Arc<ForeignRecordValue>),
     /// Arc 278 Stone A — `:wat::edn::ForeignVariant`. A self-describing
     /// DYNAMIC enum variant produced by `:wat::edn::read-foreign` on an
     /// UNKNOWN vector-bodied tag (`#<enum-path>/<Variant> [...]`). Carries
     /// the enum class (colon-free FQDN) + variant name + positional fields.
     /// Re-serializes faithfully back to the same `#<enum-path>/<Variant> [...]`.
-    /// Sibling of [`Self::ForeignRecord`]; recursive the same way.
-    ForeignVariant(Arc<ForeignVariantValue>),
+    /// Sibling of [`Self::wat__edn__ForeignRecord`]; recursive the same way.
+    wat__edn__ForeignVariant(Arc<ForeignVariantValue>),
     /// A materialized `:wat::holon::Vector` — the algebra's vector
     /// representation surfaced as a first-class wat value (arc 052).
     /// `Arc` keeps clone cheap (refcount bump only) since vectors at
@@ -279,8 +279,8 @@ pub enum Value {
     /// Arc 056 originally chose no separate Duration type; arc 097
     /// reversed that decision when the lab's debugging UX called for
     /// ActiveSupport-flavored "X ago" composers and `Instant - Instant
-    /// → Duration` arithmetic. See [`Value::Duration`].
-    Instant(chrono::DateTime<chrono::Utc>),
+    /// → Duration` arithmetic. See [`Value::wat__time__Duration`].
+    wat__time__Instant(chrono::DateTime<chrono::Utc>),
     /// Arc 097 — `:wat::time::Duration`. Non-negative time interval
     /// expressed in nanoseconds. Distinct runtime variant from
     /// `Value::i64` so polymorphic `:wat::time::-` can dispatch on
@@ -289,11 +289,11 @@ pub enum Value {
     /// Non-negative by WAT-surface construction: `time.rs` constructors
     /// panic on negative input and arithmetic panics on negative results.
     /// NOTE: the `i64` storage does not itself enforce this; direct Rust
-    /// construction (`Value::Duration(-n)`) bypasses the guard and must
+    /// construction (`Value::wat__time__Duration(-n)`) bypasses the guard and must
     /// uphold non-negativity as a caller contract. (A future stone makes
     /// this type-enforced via `u64`.)
     /// Constructed via `:wat::time::Hour`/`Minute`/`Second`/`Day`/etc.
-    Duration(i64),
+    wat__time__Duration(i64),
     /// Arc 207 — `:wat::core::Uuid`. Typed UUID primitive. Distinct
     /// runtime variant from `Value::String` so `(= some-uuid some-string)`
     /// returns type-mismatch rather than comparing by content — UUIDs are
@@ -309,7 +309,7 @@ pub enum Value {
     /// BMP-only inherits Stone 218.6b discipline (supplementary-plane
     /// codepoints U+10000–U+10FFFF rejected at construction + lex time).
     /// Constructed via `(:wat::core::char "x")` or `\c` literal.
-    wat__core__Char(char),
+    wat__core__char(char),
     /// Arc 300 stone B — `:wat::core::rational` (Stone C1 lowercased the surface;
     /// see the `char` precedent). Typed rational primitive,
     /// REPRESENTATION ONLY (no arithmetic — that is Stone C). Boxed for the
@@ -319,15 +319,15 @@ pub enum Value {
     /// / clj's `clojure.lang.Ratio`); a literal reducing to a whole number
     /// (`4/2`) becomes `Value::i64` instead, never this variant.
     /// Constructed via the `<int>/<int>` source literal (`WatAST::RationalLit`).
-    wat__core__Rational(Box<BigRational>),
+    wat__core__rational(Box<BigRational>),
     /// Arc 300 stone C1 — `:wat::core::bigint`. Arbitrary-precision integer,
-    /// a FULL first-class arithmetic type (contrast `wat__core__Rational`,
+    /// a FULL first-class arithmetic type (contrast `wat__core__rational`,
     /// representation-only in Stone B): `+ - *` never wrap/overflow,
     /// contagious (`i64 ⊕ bigint → bigint`, never demotes), `/` collapses
     /// to `bigint` (divisible) or `Rational` (else, reusing `BigRational`).
-    /// Boxed for the same cache-friendliness reason as `wat__core__Rational`.
+    /// Boxed for the same cache-friendliness reason as `wat__core__rational`.
     /// Constructed via the `<int>N` source literal (`WatAST::BigIntLit`).
-    wat__core__BigInt(Box<BigInt>),
+    wat__core__bigint(Box<BigInt>),
     /// Arc 220 Stone 220.4 — `(:wat::core::List :- [T])`. Typed linked-list primitive.
     /// Distinct from `Value::Vec` (`:wat::core::Vector`) — preserves the EDN
     /// parens-vs-brackets distinction for faithful round-trips with Clojure.
@@ -577,14 +577,14 @@ where
 ///
 /// **Atomizable** (may appear as HashSet elements / HashMap keys):
 /// `bool`, `i64`, `f64`, `String`, `wat__core__keyword`, `wat__holon__HolonAST`,
-/// `wat__WatAST`, `wat__core__Uuid`, `wat__core__Char`, `Aggregate` (Record/HolonRecord),
+/// `wat__WatAST`, `wat__core__Uuid`, `wat__core__char`, `Aggregate` (Record/HolonRecord),
 /// `Unit` (`:wat::core::nil`), `Vec` (recursive),
-/// `wat__std__HashSet` (recursive), `wat__std__HashMap` (recursive),
+/// `wat__core__HashSet` (recursive), `wat__core__HashMap` (recursive),
 /// `Tuple` (iff all element types atomizable).
 ///
 /// **Structurally-equal but NOT atomizable** (natural equality; not predicate-admitted):
 /// `u8`, `Option`, `Result`, `Aggregate(Struct)`, `Enum`, `Vector` (holon::Vector),
-/// `Instant`, `Duration`, `wat__core__List` (not in `is_atomizable`).
+/// `wat__time__Instant`, `wat__time__Duration`, `wat__core__List` (not in `is_atomizable`).
 ///
 /// **Opaque handles** (pointer equality; not atomizable; never in HashSet/HashMap keys):
 /// `wat__core__fn`, `wat__core__clauses` (pointer-equality like fn),
@@ -606,17 +606,17 @@ impl PartialEq for Value {
             (Value::wat__WatAST(a), Value::wat__WatAST(b)) => a == b,
             (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
             // Arc 220 — Char equality. `char` implements `PartialEq`.
-            (Value::wat__core__Char(a), Value::wat__core__Char(b)) => a == b,
+            (Value::wat__core__char(a), Value::wat__core__char(b)) => a == b,
             // Arc 300 stone B — Rational equality. `BigRational` implements
             // `PartialEq` (structural, already-reduced so no `1/2 != 2/4` gap).
-            (Value::wat__core__Rational(a), Value::wat__core__Rational(b)) => a == b,
+            (Value::wat__core__rational(a), Value::wat__core__rational(b)) => a == b,
             // Arc 300 stone C1 — BigInt equality. `num_bigint::BigInt` implements
             // `PartialEq` (structural). Category-aware cross-type equality with
             // i64 (both INTEGER category) lives here too — `values_equal` in
             // runtime.rs is the polymorphic `=` entry point and mirrors this arm;
             // this `Value::eq` (structural Rust equality, used for HashMap/HashSet
             // keys where BigInt is NOT atomizable) stays same-type-only.
-            (Value::wat__core__BigInt(a), Value::wat__core__BigInt(b)) => a == b,
+            (Value::wat__core__bigint(a), Value::wat__core__bigint(b)) => a == b,
             // Arc 220 Stone 220.4 — List same-type equality.
             (Value::wat__core__List(a), Value::wat__core__List(b)) => {
                 sequence_eq(a.iter(), b.iter())
@@ -630,11 +630,11 @@ impl PartialEq for Value {
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; HashSet's PartialEq
             // impl delegates to element PartialEq (order-independent set semantics).
             // Reduces to a single native comparison.
-            (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => a == b,
+            (Value::wat__core__HashSet(a), Value::wat__core__HashSet(b)) => a == b,
             // HashMap: Stone 216.5c — native Arc<HashMap<Value,Value>> equality.
             // std HashMap PartialEq uses Value's PartialEq on both K and V.
             // Reduces to a single native comparison.
-            (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => a == b,
+            (Value::wat__core__HashMap(a), Value::wat__core__HashMap(b)) => a == b,
             // PersistentMap: rpds::HashTrieMapSync implements PartialEq — delegate.
             // Arc-278-0a: structural equality over K/V using Value's PartialEq.
             (Value::wat__core__PersistentMap(a), Value::wat__core__PersistentMap(b)) => a == b,
@@ -665,10 +665,10 @@ impl PartialEq for Value {
             // Arc 278 Stone A — foreign dynamic values: structural identity on
             // the self-carried data (class + ordered key→value fields / enum-class
             // + variant + positional fields). Pure data (records-are-EDN).
-            (Value::ForeignRecord(a), Value::ForeignRecord(b)) => {
+            (Value::wat__edn__ForeignRecord(a), Value::wat__edn__ForeignRecord(b)) => {
                 a.class == b.class && a.fields == b.fields
             }
-            (Value::ForeignVariant(a), Value::ForeignVariant(b)) => {
+            (Value::wat__edn__ForeignVariant(a), Value::wat__edn__ForeignVariant(b)) => {
                 a.enum_class == b.enum_class
                     && a.variant == b.variant
                     && a.names == b.names
@@ -677,9 +677,9 @@ impl PartialEq for Value {
             // holon::Vector: bit-exact (PartialEq impl in holon-rs compares data slices)
             (Value::wat__holon__Vector(a), Value::wat__holon__Vector(b)) => a == b,
             // chrono::DateTime implements PartialEq
-            (Value::Instant(a), Value::Instant(b)) => a == b,
+            (Value::wat__time__Instant(a), Value::wat__time__Instant(b)) => a == b,
             // Duration is stored as i64 nanoseconds
-            (Value::Duration(a), Value::Duration(b)) => a == b,
+            (Value::wat__time__Duration(a), Value::wat__time__Duration(b)) => a == b,
             // --- Opaque handles: pointer equality ---
             // These are never atomizable; pointer identity is the only meaningful equality.
             (Value::wat__core__fn(a), Value::wat__core__fn(b)) => Arc::ptr_eq(a, b),
@@ -742,7 +742,7 @@ impl Eq for Value {}
 /// If this panic ever fires, the predicate has drifted from the Hash impl.
 ///
 /// **Structural-but-not-atomizable variants** (`u8`, `Unit`, `Tuple`, `Option`,
-/// `Result`, `Aggregate(Struct)`, `Enum`, `Vector`, `Instant`, `Duration`) receive structural
+/// `Result`, `Aggregate(Struct)`, `Enum`, `Vector`, `wat__time__Instant`, `wat__time__Duration`) receive structural
 /// Hash impls rather than `unreachable!()`. Per STOP-4: these variants ARE reachable
 /// in Rust code (e.g., as HashMap values or as elements of an outer Tuple) and have
 /// well-defined structural hash semantics. They are NOT currently atomizable (not in
@@ -773,17 +773,17 @@ impl std::hash::Hash for Value {
             Value::wat__WatAST(ast) => ast.hash(state),
             Value::wat__core__Uuid(u) => u.hash(state),
             // Arc 220 — Char hash. `char` implements `Hash`.
-            Value::wat__core__Char(c) => c.hash(state),
+            Value::wat__core__char(c) => c.hash(state),
             // Arc 300 stone B — Rational hash. `BigRational` implements `Hash`.
-            Value::wat__core__Rational(r) => r.hash(state),
+            Value::wat__core__rational(r) => r.hash(state),
             // Arc 300 stone C1 — BigInt hash. `num_bigint::BigInt` implements `Hash`.
-            Value::wat__core__BigInt(n) => n.hash(state),
+            Value::wat__core__bigint(n) => n.hash(state),
             // Arc 220 Stone 220.4 — Vec + List handled above (early-return); unreachable.
             Value::Vec(_) | Value::wat__core__List(_) => unreachable!("handled above"),
             // HashSet: sort element hashes for set semantics (order-independent).
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate s.iter()
             // directly (Values, not String canonical-keys).
-            Value::wat__std__HashSet(s) => {
+            Value::wat__core__HashSet(s) => {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::Hasher;
                 let mut elem_hashes: Vec<u64> = s.iter().map(|v| {
@@ -796,7 +796,7 @@ impl std::hash::Hash for Value {
             }
             // HashMap: sort (key_hash, val_hash) pairs for map semantics (order-independent).
             // Stone 216.5c — iterate m.iter() for (k, v) directly (no canonical-key tuple).
-            Value::wat__std__HashMap(m) => {
+            Value::wat__core__HashMap(m) => {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::Hasher;
                 let mut pair_hashes: Vec<(u64, u64)> = m.iter().map(|(k, v)| {
@@ -865,11 +865,11 @@ impl std::hash::Hash for Value {
             // Arc 278 Stone A — foreign dynamic values: honest structural hash on
             // the self-carried data (matches PartialEq). Pure data, so hashing is
             // well-defined; kept consistent with Aggregate/Enum discipline.
-            Value::ForeignRecord(a) => {
+            Value::wat__edn__ForeignRecord(a) => {
                 a.class.hash(state);
                 a.fields.hash(state);
             }
-            Value::ForeignVariant(a) => {
+            Value::wat__edn__ForeignVariant(a) => {
                 a.enum_class.hash(state);
                 a.variant.hash(state);
                 a.names.hash(state);
@@ -878,9 +878,9 @@ impl std::hash::Hash for Value {
             // holon::Vector: hash the underlying i8 data slice
             Value::wat__holon__Vector(v) => v.data().hash(state),
             // chrono::DateTime<Utc>: hash via timestamp_nanos (i64, unique per instant)
-            Value::Instant(dt) => dt.timestamp_nanos_opt().hash(state),
+            Value::wat__time__Instant(dt) => dt.timestamp_nanos_opt().hash(state),
             // Duration: stored as i64 nanoseconds
-            Value::Duration(ns) => ns.hash(state),
+            Value::wat__time__Duration(ns) => ns.hash(state),
             // --- Non-atomizable variants: unreachable!() with predicate citation ---
             // The is_atomizable predicate at src/check.rs is the static guarantee
             // that these variants never reach hashing contexts (HashSet/HashMap key positions).
@@ -1008,7 +1008,7 @@ pub struct AggregateValue {
     /// `Arc<str>` so `CompiledRhs` can share the class (`DESIGN-STONE-class-arc`).
     pub class: Arc<str>,
     /// Field names in declaration order. **Same length as `fields`, always.**
-    /// Arc 296 G: carried, never looked up — see the sibling `Value::ForeignRecord`,
+    /// Arc 296 G: carried, never looked up — see the sibling `Value::wat__edn__ForeignRecord`,
     /// which self-carries its keys and has never had the `field-N` bug.
     pub names: Arc<Vec<String>>,
     /// Positional field values in declaration order.
@@ -1039,10 +1039,10 @@ fn value_is_shallow(v: &Value) -> bool {
         | Value::String(_)
         | Value::Unit
         | Value::wat__core__keyword(_)
-        | Value::wat__core__Char(_)
+        | Value::wat__core__char(_)
         | Value::wat__core__Uuid(_)
-        | Value::Instant(_)
-        | Value::Duration(_) => true,
+        | Value::wat__time__Instant(_)
+        | Value::wat__time__Duration(_) => true,
         Value::Aggregate(a) => a.identity != 0,
         Value::Enum(e) => e.fields.iter().all(value_is_shallow),
         _ => false,
@@ -1156,7 +1156,7 @@ pub struct EnumValue {
     pub fields: Vec<Value>,
 }
 
-/// Arc 278 Stone A — payload of a [`Value::ForeignRecord`].
+/// Arc 278 Stone A — payload of a [`Value::wat__edn__ForeignRecord`].
 ///
 /// A self-describing dynamic record: the fully-qualified (COLON-FREE) class
 /// (e.g. `"some::unknown::Rec"`) and its OWN ordered key→value fields. The
@@ -1172,7 +1172,7 @@ pub struct ForeignRecordValue {
     pub fields: Vec<(String, Value)>,
 }
 
-/// Arc 278 Stone A — payload of a [`Value::ForeignVariant`].
+/// Arc 278 Stone A — payload of a [`Value::wat__edn__ForeignVariant`].
 ///
 /// A self-describing dynamic enum variant: the enum's colon-free FQDN
 /// (`"some::unknown::Kind"`), the variant name (`"Click"`), and the
@@ -1280,7 +1280,7 @@ macro_rules! ke_gate_entries {
 ///   rows need more than a literal echo:
 ///   - `Aggregate` contributes TWO probes (`Struct` and `Record`) because its eligibility is
 ///     runtime-nature-dependent, not fixed per variant.
-///   - `Vec` / `wat__std__HashSet` / `wat__std__HashMap` / `Tuple` are recursively
+///   - `Vec` / `wat__core__HashSet` / `wat__core__HashMap` / `Tuple` are recursively
 ///     atomizable — `is_atomizable` only accepts them via `TypeExpr::Parametric` /
 ///     `TypeExpr::Tuple` with an atomizable element, never via a bare `Path` — so their
 ///     probes use a representative atomizable inner type (`:wat::core::i64`).
@@ -1395,7 +1395,7 @@ value_key_eligibility_table! {
         gate: [ TypeExpr::Path(":wat::WatAST".to_string()) ]
     },
     // Arc 216 Stone 3 — HashMap recursively atomizable; same Parametric-probe reasoning as Vec.
-    Value::wat__std__HashMap(_) => {
+    Value::wat__core__HashMap(_) => {
         type_name: "wat::core::HashMap",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
@@ -1409,7 +1409,7 @@ value_key_eligibility_table! {
         ]
     },
     // Arc 216 Stone 1 — HashSet recursively atomizable; same Parametric-probe reasoning as Vec.
-    Value::wat__std__HashSet(_) => {
+    Value::wat__core__HashSet(_) => {
         type_name: "wat::core::HashSet",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
@@ -1458,7 +1458,7 @@ value_key_eligibility_table! {
     },
     // Arc 220 — Stone 242.1 renamed the surface to `char`; this arm was
     // half-propagated (still emitted capital). C1 fixes it.
-    Value::wat__core__Char(_) => {
+    Value::wat__core__char(_) => {
         type_name: "wat::core::char",
         key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::core::char".to_string()) ]
@@ -1635,12 +1635,12 @@ value_key_eligibility_table! {
         gate: [ TypeExpr::Path(":wat::core::Enum".to_string()) ]
     },
     // Arc 278 Stone A — foreign dynamic values report their own kind.
-    Value::ForeignRecord(_) => {
+    Value::wat__edn__ForeignRecord(_) => {
         type_name: "wat::edn::ForeignRecord",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::edn::ForeignRecord".to_string()) ]
     },
-    Value::ForeignVariant(_) => {
+    Value::wat__edn__ForeignVariant(_) => {
         type_name: "wat::edn::ForeignVariant",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::edn::ForeignVariant".to_string()) ]
@@ -1650,24 +1650,24 @@ value_key_eligibility_table! {
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::holon::Vector".to_string()) ]
     },
-    Value::Instant(_) => {
+    Value::wat__time__Instant(_) => {
         type_name: "wat::time::Instant",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::time::Instant".to_string()) ]
     },
-    Value::Duration(_) => {
+    Value::wat__time__Duration(_) => {
         type_name: "wat::time::Duration",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::time::Duration".to_string()) ]
     },
     // Arc 300 stone B — representation-only; not in is_atomizable.
-    Value::wat__core__Rational(_) => {
+    Value::wat__core__rational(_) => {
         type_name: "wat::core::rational",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::core::rational".to_string()) ]
     },
     // Arc 300 stone C1 — full arithmetic type; still not in is_atomizable.
-    Value::wat__core__BigInt(_) => {
+    Value::wat__core__bigint(_) => {
         type_name: "wat::core::bigint",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::core::bigint".to_string()) ]
@@ -1725,8 +1725,8 @@ impl Value {
             Value::Enum(ev) => ev.type_path.trim_start_matches(':').to_string(),
             // Arc 278 Stone A — foreign dynamic values carry their own declared
             // FQDN self-describingly (colon-free): the record class / the enum class.
-            Value::ForeignRecord(fr) => fr.class.clone(),
-            Value::ForeignVariant(fv) => fv.enum_class.clone(),
+            Value::wat__edn__ForeignRecord(fr) => fr.class.clone(),
+            Value::wat__edn__ForeignVariant(fv) => fv.enum_class.clone(),
 
             // ── Primitive / kind-only variants: generic kind string ───────────
             // Listed explicitly (no bare `_ =>`) so the compiler catches any
@@ -1743,10 +1743,10 @@ impl Value {
             Value::wat__WatAST(_) => self.type_name().to_string(),
             Value::wat__kernel__Sender(_) => self.type_name().to_string(),
             Value::wat__kernel__Receiver(_) => self.type_name().to_string(),
-            Value::wat__std__HashMap(_) => self.type_name().to_string(),
+            Value::wat__core__HashMap(_) => self.type_name().to_string(),
             Value::wat__core__PersistentMap(_) => self.type_name().to_string(),
             Value::wat__core__PersistentVector(_) => self.type_name().to_string(),
-            Value::wat__std__HashSet(_) => self.type_name().to_string(),
+            Value::wat__core__HashSet(_) => self.type_name().to_string(),
             Value::RustOpaque(_) => self.type_name().to_string(),
             Value::wat__io__IOReader(_) => self.type_name().to_string(),
             Value::wat__io__IOWriter(_) => self.type_name().to_string(),
@@ -1761,12 +1761,12 @@ impl Value {
             Value::wat__holon__Engram(_) => self.type_name().to_string(),
             Value::wat__holon__EngramLibrary(_) => self.type_name().to_string(),
             Value::wat__holon__Hologram(_) => self.type_name().to_string(),
-            Value::Instant(_) => self.type_name().to_string(),
-            Value::Duration(_) => self.type_name().to_string(),
+            Value::wat__time__Instant(_) => self.type_name().to_string(),
+            Value::wat__time__Duration(_) => self.type_name().to_string(),
             Value::wat__core__Uuid(_) => self.type_name().to_string(),
-            Value::wat__core__Char(_) => self.type_name().to_string(),
-            Value::wat__core__Rational(_) => self.type_name().to_string(),
-            Value::wat__core__BigInt(_) => self.type_name().to_string(),
+            Value::wat__core__char(_) => self.type_name().to_string(),
+            Value::wat__core__rational(_) => self.type_name().to_string(),
+            Value::wat__core__bigint(_) => self.type_name().to_string(),
             Value::wat__core__List(_) => self.type_name().to_string(),
             Value::wat__stream__Stream(_) => self.type_name().to_string(),
             Value::wat__core__clauses(_) => self.type_name().to_string(),

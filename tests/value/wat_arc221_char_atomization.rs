@@ -1,6 +1,6 @@
 //! Arc 221 Stone 221.2 — `:wat::core::char` atomization probes.
 //!
-//! Verifies that `Value::wat__core__Char` is fully atomizable end-to-end:
+//! Verifies that `Value::wat__core__char` is fully atomizable end-to-end:
 //!   (a) `(:wat::holon::Atom \c)` dispatches via `value_to_atom` Char arm to
 //!       `HolonAST::char_(c)` (Stone 221.2 — holon-rs commit `243eded`).
 //!   (b) `is_atomizable(":wat::core::char")` returns true (Stone 221.2 predicate

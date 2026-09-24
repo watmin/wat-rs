@@ -81,7 +81,7 @@ impl MapContainer {
     /// `StreamContainer::WatAstList` mapping `WatAST::List` forms).
     pub(crate) fn of_value(v: &Value) -> Option<MapContainer> {
         match v {
-            Value::wat__std__HashMap(_) => Some(MapContainer::HashMap),
+            Value::wat__core__HashMap(_) => Some(MapContainer::HashMap),
             Value::wat__core__PersistentMap(_) => Some(MapContainer::PersistentMap),
             Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => {
                 Some(MapContainer::Record)

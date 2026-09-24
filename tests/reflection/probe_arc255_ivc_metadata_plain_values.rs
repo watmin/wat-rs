@@ -47,7 +47,7 @@ use wat::runtime::Value;
 fn metadata_of(_fqdn: &str) -> std::collections::HashMap<Value, Value> {
     match call_beside_value(file!(), ":user::to-hex-metadata").expect("eval metadata-of") {
         Value::Option(opt) => match &*opt {
-            Some(Value::wat__std__HashMap(m)) => (**m).clone(),
+            Some(Value::wat__core__HashMap(m)) => (**m).clone(),
             other => panic!("metadata-of must be Some(HashMap); got {other:?}"),
         },
         other => panic!("metadata-of must return Option; got {other:?}"),

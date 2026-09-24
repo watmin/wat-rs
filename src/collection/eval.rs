@@ -55,10 +55,10 @@ pub(crate) fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
-/// Returns the length of a `Value::wat__std__HashMap` as `Value::i64`; pre-evaluated value path.
+/// Returns the length of a `Value::wat__core__HashMap` as `Value::i64`; pre-evaluated value path.
 pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
-        Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
+        Value::wat__core__HashMap(m) => Ok(Value::i64(m.len() as i64)),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
@@ -71,10 +71,10 @@ pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
-/// Returns the length of a `Value::wat__std__HashSet` as `Value::i64`; pre-evaluated value path.
+/// Returns the length of a `Value::wat__core__HashSet` as `Value::i64`; pre-evaluated value path.
 pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
-        Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
+        Value::wat__core__HashSet(s) => Ok(Value::i64(s.len() as i64)),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
@@ -106,7 +106,7 @@ pub(crate) fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 
 pub(crate) fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
-        Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
+        Value::wat__core__HashMap(m) => Ok(Value::bool(m.is_empty())),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
@@ -121,7 +121,7 @@ pub(crate) fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 
 pub(crate) fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
-        Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
+        Value::wat__core__HashSet(s) => Ok(Value::bool(s.is_empty())),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
@@ -198,7 +198,7 @@ pub(crate) fn hashmap_contains_key_q_inner(
     key: &Value,
 ) -> Result<Value, EvalBreak> {
     match container {
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             // Stone 216.5c — native HashMap::contains_key via Value: Hash + Eq.
             // Guard: opaque-handle keys can't be in the map (rejected at insert);
             // contains-key? on an unhashable key is always false (never inserted).
@@ -224,7 +224,7 @@ pub(crate) fn hashset_contains_q_inner(
     item: &Value,
 ) -> Result<Value, EvalBreak> {
     match container {
-        Value::wat__std__HashSet(s) => {
+        Value::wat__core__HashSet(s) => {
             // Stone 216.5b — native HashSet::contains via Value: Hash + Eq.
             // hashmap_key canonical-key crutch removed.
             // Guard: opaque-handle items can't be in a HashSet (set rejects them at insert);
@@ -322,7 +322,7 @@ pub(crate) fn list_get_inner(container: &Value, index: &Value) -> Result<Value, 
 
 pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
     match container {
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             // Stone 216.5c — native HashMap::get via Value: Hash + Eq.
             // Guard: opaque-handle keys return None (they can never be inserted).
             if !value_is_key_hashable(key) {
@@ -398,7 +398,7 @@ pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, 
 #[allow(clippy::mutable_key_type)]
 pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
     match container {
-        Value::wat__std__HashSet(s) => {
+        Value::wat__core__HashSet(s) => {
             // Stone 216.5b — native HashSet insert via Value: Hash + Eq.
             // Arc strategy: clone-then-new-Arc (functional; no aliased mutation).
             // hashmap_key canonical-key crutch removed.
@@ -412,7 +412,7 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
             }
             let mut out: HashSet<Value> = (**s).clone();
             out.insert(item.clone());
-            Ok(Value::wat__std__HashSet(Arc::new(out)))
+            Ok(Value::wat__core__HashSet(Arc::new(out)))
         }
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
@@ -441,7 +441,7 @@ pub(crate) fn hashmap_assoc_inner(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::HashMap/assoc";
     match container {
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             // Stone 216.5c — native HashMap insert via Value: Hash + Eq.
             // Arc strategy: clone-then-new-Arc (functional; no aliased mutation; mirrors 216.5b).
             // Guard: reject opaque-handle keys before they reach Hash::hash.
@@ -454,7 +454,7 @@ pub(crate) fn hashmap_assoc_inner(
             }
             let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
             new_map.insert(k.clone(), v.clone());
-            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
+            Ok(Value::wat__core__HashMap(Arc::new(new_map)))
         }
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
@@ -474,17 +474,17 @@ pub(crate) fn hashmap_assoc_inner(
 pub(crate) fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::HashMap/dissoc";
     match container {
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             // Stone 216.5c — native HashMap remove via Value: Hash + Eq.
             // Arc strategy: clone-then-new-Arc (functional; mirrors hashmap_assoc_inner).
             // Guard: opaque-handle keys can't be in the map; dissoc is a no-op.
             if !value_is_key_hashable(k) {
                 // Nothing to remove — return the map unchanged.
-                return Ok(Value::wat__std__HashMap(m.clone()));
+                return Ok(Value::wat__core__HashMap(m.clone()));
             }
             let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
             new_map.remove(k);
-            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
+            Ok(Value::wat__core__HashMap(Arc::new(new_map)))
         }
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
@@ -501,7 +501,7 @@ pub(crate) fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value
 pub(crate) fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::HashMap/keys";
     match container {
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             // Stone 216.5c — SEMANTIC CORRECTION: returns actual K Values (not canonical String keys).
             // Previously: m.values().map(|(k, _v)| k.clone()) — still returned original K Values
             // (from the (canonical_key, (original_k, v)) tuple), which was correct by accident.
@@ -524,7 +524,7 @@ pub(crate) fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> 
 pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::HashMap/values";
     match container {
-        Value::wat__std__HashMap(m) => {
+        Value::wat__core__HashMap(m) => {
             // Stone 216.5c — native HashMap<Value, Value>; V is the direct map value.
             let vs: Vec<Value> = m.values().cloned().collect();
             Ok(Value::Vec(Arc::new(vs)))
@@ -1870,7 +1870,7 @@ pub(crate) fn eval_hashmap_ctor(
         }
         map.insert(k, v);
     }
-    Ok(Value::wat__std__HashMap(Arc::new(map)))
+    Ok(Value::wat__core__HashMap(Arc::new(map)))
 }
 
 /// Post-splice runtime shape: `args[0]` is the element type (keyword or
@@ -1944,7 +1944,7 @@ pub(crate) fn eval_hashset_ctor(
         }
         set.insert(v);
     }
-    Ok(Value::wat__std__HashSet(Arc::new(set)))
+    Ok(Value::wat__core__HashSet(Arc::new(set)))
 }
 
 // ─── Arc-278-seq-1b — Tuple/WatAstList/HashSet helpers ─────────────────────────────────────
@@ -2153,7 +2153,7 @@ pub(crate) fn watastlist_get_inner(container: &Value, index: &Value) -> Result<V
 /// otherwise `None`. Unhashable items always return `None` (they can never be inserted).
 pub(crate) fn hashset_get_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
     match container {
-        Value::wat__std__HashSet(s) => {
+        Value::wat__core__HashSet(s) => {
             if !value_is_set_hashable(item) {
                 return Ok(Value::Option(Arc::new(None)));
             }
@@ -2272,7 +2272,7 @@ mod arc109_two_iii_ctor_guard_widening {
         let v = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
             .unwrap_or_else(|e| panic!("keyword-typed HashSet ctor must still eval: {e:?}"));
         match v {
-            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 3, "1,2,2,3 dedupes to 3 elements"),
+            Value::wat__core__HashSet(s) => assert_eq!(s.len(), 3, "1,2,2,3 dedupes to 3 elements"),
             other => panic!("expected HashSet, got {other:?}"),
         }
     }
@@ -2358,7 +2358,7 @@ mod arc109_two_iii_ctor_guard_widening {
         let v = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
             .unwrap_or_else(|e| panic!("form-typed HashSet ctor must eval: {e:?}"));
         match v {
-            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 3),
+            Value::wat__core__HashSet(s) => assert_eq!(s.len(), 3),
             other => panic!("expected HashSet, got {other:?}"),
         }
     }

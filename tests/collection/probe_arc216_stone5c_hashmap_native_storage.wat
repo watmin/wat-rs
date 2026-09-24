@@ -1,5 +1,5 @@
 ;; tests/collection/probe_arc216_stone5c_hashmap_native_storage.wat — co-located fixture.
-;; Arc 216 Stone 216.5c — Value::wat__std__HashMap native storage refactor.
+;; Arc 216 Stone 216.5c — Value::wat__core__HashMap native storage refactor.
 
 ;; Probe 1a: keyword→i64 map length 3
 (:wat::core::defn :t::p1a-kw-i64-len [] -> :wat::core::i64

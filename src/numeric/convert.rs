@@ -46,7 +46,7 @@ pub(crate) fn eval_i64_to_rational(
             other => Err(other),
         },
     )?;
-    Ok(Value::wat__core__Rational(Box::new(
+    Ok(Value::wat__core__rational(Box::new(
         BigRational::from_integer(BigInt::from(n)),
     )))
 }
@@ -72,11 +72,11 @@ pub(crate) fn eval_bigint_to_rational(
         sym,
         "bigint",
         |v| match v {
-            Value::wat__core__BigInt(n) => Ok(n),
+            Value::wat__core__bigint(n) => Ok(n),
             other => Err(other),
         },
     )?;
-    Ok(Value::wat__core__Rational(Box::new(
+    Ok(Value::wat__core__rational(Box::new(
         BigRational::from_integer(*n),
     )))
 }
@@ -103,7 +103,7 @@ pub(crate) fn eval_rational_to_f64(
         sym,
         "rational",
         |v| match v {
-            Value::wat__core__Rational(r) => Ok(r),
+            Value::wat__core__rational(r) => Ok(r),
             other => Err(other),
         },
     )?;
@@ -274,7 +274,7 @@ pub(crate) fn eval_i64_to_bigint(
             other => Err(other),
         },
     )?;
-    Ok(Value::wat__core__BigInt(Box::new(BigInt::from(n))))
+    Ok(Value::wat__core__bigint(Box::new(BigInt::from(n))))
 }
 
 /// `:wat::core::bigint::to-f64` — lossy beyond f64's 53-bit mantissa (same
@@ -298,7 +298,7 @@ pub(crate) fn eval_bigint_to_f64(
         sym,
         "bigint",
         |v| match v {
-            Value::wat__core__BigInt(n) => Ok(n),
+            Value::wat__core__bigint(n) => Ok(n),
             other => Err(other),
         },
     )?;

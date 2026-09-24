@@ -1,6 +1,6 @@
-//! Arc 216 Stone 216.5c — `Value::wat__std__HashMap` native storage refactor.
+//! Arc 216 Stone 216.5c — `Value::wat__core__HashMap` native storage refactor.
 //!
-//! Verifies that `Value::wat__std__HashMap` now stores `Arc<HashMap<Value, Value>>`
+//! Verifies that `Value::wat__core__HashMap` now stores `Arc<HashMap<Value, Value>>`
 //! (not the old `Arc<HashMap<String, (Value, Value)>>` canonical-key crutch).
 //! All probes exercise the WAT surface — constructor, accessors, overwrite semantic,
 //! semantic correction for `keys`, round-trip through Atom, and cross-collection composition.

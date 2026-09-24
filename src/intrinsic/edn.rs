@@ -322,7 +322,7 @@ pub(crate) fn eval_foreign_record_get_home(
 /// The `#[wat_intrinsic]` delegate hands the render-layer fn exactly one arg via
 /// `std::slice::from_ref(fr)`, so its internal `require_one_arg` arity check is unreachable.
 /// Within that domain (`src/edn/render.rs::eval_foreign_record_class`), the
-/// `Value::ForeignRecord(fr) => Ok(...)` arm always matches and returns `fr.class.clone()` — no
+/// `Value::wat__edn__ForeignRecord(fr) => Ok(...)` arm always matches and returns `fr.class.clone()` — no
 /// raise. The `TypeMismatch` arm guards the wrong runtime shape, which the checker's scheme
 /// already excludes from the declared domain.
 ///
