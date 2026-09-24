@@ -1,0 +1,21 @@
+[
+  #wat.kernel/LociDiedError.RuntimeError {
+    :message #wat.runtime/TypeMismatch {
+      :message ":wat::core::HashSet/conj: expected hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V])), got wat::stream::Stream `(seq-empty)`"
+      :location #wat.core/Span {
+        :file "src/collection/eval.rs"
+        :line 0
+        :col 46
+        :end #wat.core/Option.None {}
+      }
+      :causes []
+      :op ":wat::core::HashSet/conj"
+      :expected "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))"
+      :got {
+        :type "wat::stream::Stream"
+        :rendered "(seq-empty)"
+        :provenance nil
+      }
+    }
+  }
+]

@@ -717,6 +717,7 @@ pub use crate::value::{
 pub use crate::value::{BoundEntry, EnvBuilder, Environment, Function, FunctionBody, ReteContract};
 
 use crate::value::EncodingCtx;
+use crate::value::{KeyEligibility, NotAKeyReason};
 
 // Stone 251.2d — SymbolTable lifted to src/value/symbol_table.rs.
 pub use crate::value::SymbolTable;
@@ -6732,44 +6733,108 @@ pub(crate) fn dispatch_substrate_impl(
 // impl above. Variadic 1+ arg shape collapsed to honest binary; callers
 // nest for >2 args (or fold).
 
-// Stone 216.5b — runtime hashability guard.
-// Returns `false` for the 14 opaque-handle `Value` variants that carry
-// `unreachable!()` in `impl Hash for Value`. These variants are not
-// atomizable and should not be inserted into a `HashSet<Value>` at the WAT surface.
-// Called by `eval_hashset_ctor` and `hashset_conj_inner` BEFORE `HashSet::insert`
-// so that a user-visible `TypeMismatch` is returned instead of an `unreachable!()`
-// panic. The `is_atomizable` check-time predicate (src/check.rs:3623) is the static
-// guarantee; this guard is the runtime defence-in-depth for inferred types.
-/// Stone 216.5c — shared hashability predicate.
+/// Stone 216.5c — shared hashability predicate; made DEEP and single-sourced by excursus 003
+/// stone E (`docs/excursus/2026/09/003-the-little-wat-findings/DESIGN-stone-E-hashability-looks-inside.md`).
 ///
-/// Returns `false` for the 14 opaque-handle variants (those that receive
-/// `unreachable!()` in `impl Hash for Value`). All other variants — including
-/// structurally-hashable non-atomizable ones like `u8`, `Tuple`, `Option`, etc. —
-/// return `true`. Callers rely on this before inserting into `HashSet<Value>`
-/// or `HashMap<Value, _>` to preserve WAT-surface TypeMismatch behavior
-/// instead of hitting the `unreachable!()` panic.
+/// **The question it answers:** will `impl Hash for Value` (`src/value/value.rs`) reach one of its
+/// `unreachable!()` arms if handed `v`? Every hashed container asks it BEFORE hashing — HashMap and
+/// HashSet insert/lookup (`src/collection/eval.rs`), `Lru/put`/`get` (`src/rust_deps/cache.rs`),
+/// the EDN map readers (`src/edn/render.rs`), the rete map builder (`src/rete/expr_ir/eval.rs`) —
+/// so that a key which cannot be hashed becomes the verb's normal refusal (`TypeMismatch`, an
+/// `Err` value, a miss) instead of a Rust panic.
 ///
-/// **Unification decision:** `value_is_set_hashable` and `value_is_key_hashable`
-/// have identical bodies (same 14 opaque-handle variants). They are both thin
-/// wrappers over this function. Separate names are kept for call-site clarity
-/// (set insert vs. map key insert) but the predicate logic is defined once.
+/// **Deep.** Before stone E this read only the key's OUTER variant: `(Option.Some <an Lru handle>)`
+/// passed, and `Hash` then recursed into the `Option` and panicked on the handle
+/// (`Value::RustOpaque is not atomizable`). This predicate recurses into exactly the variants
+/// `impl Hash` recurses into, and stops exactly where `Hash` stops.
+///
+/// **Single-sourced.** The leaf verdict is `Value::key_eligibility()`, not a hand list: a leaf
+/// refuses iff it is `NeverAKey(InteriorMutable | OpaqueHandle)`. `ExcludedByDesign` does NOT
+/// refuse — those variants (`List`, `PersistentMap`, `u8`, `Option`, …) have REAL `Hash` arms; they
+/// are kept off `is_atomizable`, not off hashing. Mirroring `is_atomizable` here would outlaw keys
+/// that hash fine today. (The hand list this replaced had drifted: it named 13 of the 14
+/// `unreachable!()` variants and omitted `wat__stream__Stream`, so a Stream key panicked.)
+///
+/// **Exhaustive, no `_ =>`.** A new `Value` variant is a compile error here until someone decides
+/// whether `Hash` recurses into it — drift between this predicate and `impl Hash` has no
+/// representation. Keep the arms in step with `impl Hash for Value`.
+///
+/// **Unification decision (216.5c):** `value_is_set_hashable` and `value_is_key_hashable` are thin
+/// wrappers over this function; separate names are kept for call-site clarity.
 pub fn value_is_hashable(v: &Value) -> bool {
-    !matches!(
-        v,
-        Value::wat__core__fn(_)
-            | Value::wat__kernel__Sender(_)
-            | Value::wat__kernel__Receiver(_)
-            | Value::wat__kernel__HandlePool { .. }
-            | Value::wat__kernel__ChildHandle(_)
-            | Value::RustOpaque(_)
-            | Value::io__IOReader(_)
-            | Value::io__IOWriter(_)
-            | Value::OnlineSubspace(_)
-            | Value::Reckoner(_)
-            | Value::Engram(_)
-            | Value::EngramLibrary(_)
-            | Value::Hologram(_)
-    )
+    match v {
+        // ── Recursive: `impl Hash` hashes each element ──────────────────────────────
+        Value::Vec(xs) | Value::Tuple(xs) => xs.iter().all(value_is_hashable),
+        Value::wat__core__List(xs) => xs.iter().all(value_is_hashable),
+        Value::wat__core__PersistentVector(pv) => pv.iter().all(value_is_hashable),
+        Value::wat__std__HashSet(s) => s.iter().all(value_is_hashable),
+        // Maps: `Hash` hashes every key AND every value — a map whose VALUE is a handle
+        // panics as surely as one keyed on it.
+        Value::wat__std__HashMap(m) => m
+            .iter()
+            .all(|(k, val)| value_is_hashable(k) && value_is_hashable(val)),
+        Value::wat__core__PersistentMap(pm) => pm
+            .iter()
+            .all(|(k, val)| value_is_hashable(k) && value_is_hashable(val)),
+        Value::Option(opt) => match opt.as_ref() {
+            None => true,
+            Some(inner) => value_is_hashable(inner),
+        },
+        Value::Result(res) => match res.as_ref() {
+            Ok(inner) | Err(inner) => value_is_hashable(inner),
+        },
+        // A STAMPED aggregate hashes its `identity` and never touches `fields`, so it cannot
+        // reach an `unreachable!()` arm — `true` is exactly `Hash`'s behaviour. It is also sound:
+        // `AggregateValue::from_parts` stamps only when every field is `value_is_shallow`, which
+        // admits scalars, stamped aggregates and shallow enums and nothing else — no handle can
+        // sit under a stamp. An unstamped aggregate (identity 0) is walked, as `Hash` walks it.
+        Value::Aggregate(a) => a.identity() != 0 || a.fields.iter().all(value_is_hashable),
+        Value::Enum(e) => e.fields.iter().all(value_is_hashable),
+        Value::ForeignRecord(r) => r.fields.iter().all(|(_, val)| value_is_hashable(val)),
+        Value::ForeignVariant(fv) => fv.fields.iter().all(value_is_hashable),
+
+        // ── Pointer-hashed registry carriers: `Hash` is REAL (the `Arc` pointer, consistent
+        // with their `Arc::ptr_eq` `PartialEq`) and never looks inside. `key_eligibility()`
+        // classes them `OpaqueHandle` — "never a key" by the holon rules — but deriving the
+        // verdict from that would refuse at runtime what `Hash` hashes without incident and what
+        // the 216.5c hand list accepted. Their arms answer the runtime question directly.
+        Value::wat__core__clauses(_) | Value::wat__core__extend_def(_) => true,
+
+        // ── Leaves: `Hash` does not recurse; the classification decides ─────────────
+        Value::bool(_)
+        | Value::i64(_)
+        | Value::u8(_)
+        | Value::f64(_)
+        | Value::String(_)
+        | Value::Unit
+        | Value::wat__core__keyword(_)
+        | Value::wat__core__fn(_)
+        | Value::holon__HolonAST(_)
+        | Value::wat__WatAST(_)
+        | Value::wat__kernel__Sender(_)
+        | Value::wat__kernel__Receiver(_)
+        | Value::RustOpaque(_)
+        | Value::io__IOReader(_)
+        | Value::io__IOWriter(_)
+        | Value::wat__kernel__HandlePool { .. }
+        | Value::wat__kernel__ChildHandle(_)
+        | Value::Vector(_)
+        | Value::OnlineSubspace(_)
+        | Value::Reckoner(_)
+        | Value::Engram(_)
+        | Value::EngramLibrary(_)
+        | Value::Hologram(_)
+        | Value::Instant(_)
+        | Value::Duration(_)
+        | Value::wat__core__Uuid(_)
+        | Value::wat__core__Char(_)
+        | Value::wat__core__Rational(_)
+        | Value::wat__core__BigInt(_)
+        | Value::wat__stream__Stream(_) => !matches!(
+            v.key_eligibility(),
+            KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable | NotAKeyReason::OpaqueHandle)
+        ),
+    }
 }
 
 /// Guard for `HashSet<Value>` insert sites. Delegates to `value_is_hashable`.

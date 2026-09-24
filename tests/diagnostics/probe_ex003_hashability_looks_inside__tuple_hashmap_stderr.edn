@@ -1,0 +1,21 @@
+[
+  #wat.kernel/LociDiedError.RuntimeError {
+    :message #wat.runtime/TypeMismatch {
+      :message ":wat::core::HashMap/assoc: expected hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V])), got wat::core::Tuple `(<:rust::cache::Lru>, 1)`"
+      :location #wat.core/Span {
+        :file "src/collection/eval.rs"
+        :line 0
+        :col 46
+        :end #wat.core/Option.None {}
+      }
+      :causes []
+      :op ":wat::core::HashMap/assoc"
+      :expected "hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))"
+      :got {
+        :type "wat::core::Tuple"
+        :rendered "(<:rust::cache::Lru>, 1)"
+        :provenance nil
+      }
+    }
+  }
+]

@@ -552,9 +552,12 @@ was deleted in Stone 216.5d — it no longer exists in the substrate.
   handle variants (`wat__core__fn`, `Sender`, `Receiver`, etc.) → `unreachable!()`.
 - `is_atomizable` at `src/check.rs:3623` — the check-time gate. Static guarantee that
   only hashable values reach `HashSet<Value>` or `HashMap<Value, _>` operations.
-- `value_is_hashable` at `src/runtime.rs` — runtime defense-in-depth. Guards 14 opaque-
-  handle variants before `HashSet::insert` or `HashMap::insert` so that a user-visible
-  `TypeMismatch` is returned instead of hitting the `unreachable!()` panic in `Hash`.
+- `value_is_hashable` at `src/runtime.rs` — runtime defense-in-depth, and DEEP (excursus 003
+  stone E): it recurses into exactly the variants `Hash` recurses into, and refuses any key
+  that reaches an opaque handle anywhere inside (`(Option.Some <handle>)`, a record field, a
+  map value, …) — its leaf verdict is `Value::key_eligibility()`, not a hand list. Consulted
+  before every hashed insert/lookup (HashMap, HashSet, `Lru/put`/`get`) so that a user-visible
+  refusal is returned instead of hitting the `unreachable!()` panic in `Hash`.
   Called via thin wrappers `value_is_set_hashable` (HashSet sites) and
   `value_is_key_hashable` (HashMap key sites). Separate names are documentation at
   the call site; they share the same predicate body.

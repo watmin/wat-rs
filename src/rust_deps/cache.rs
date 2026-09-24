@@ -73,12 +73,13 @@
 //! themselves must stay: `impl Hash for Value` is `unreachable!()` for an opaque
 //! handle, so hashing the key unguarded would panic in the hasher instead.
 //!
-//! ⚠ **The guard is SHALLOW.** `value_is_hashable` inspects the key's own
-//! variant, not its contents, so a hashable CONTAINER holding an opaque handle
-//! (`(Option.Some <an Lru handle>)` as the key) passes the guard and reaches the
-//! hasher's `unreachable!()` in `src/value/value.rs`. Measured 2026-09-23 on
-//! `put`; recorded, not cured, by excursus 003 stone C — the predicate is shared
-//! with `HashMap`/`HashSet`, so deepening it is not this file's call.
+//! **The guard is DEEP** (excursus 003 stone E, 2026-09-23). `value_is_hashable`
+//! recurses into exactly the variants `impl Hash for Value` recurses into, so a
+//! hashable CONTAINER holding an opaque handle — `(Option.Some <an Lru handle>)`
+//! as the key — is refused here too, not handed to the hasher's `unreachable!()`.
+//! Before stone E it was shallow and that key panicked; stone C recorded it here
+//! and left it, since the predicate is shared with `HashMap`/`HashSet`. Pinned by
+//! `tests/diagnostics/probe_ex003_hashability_looks_inside.rs`.
 //!
 //! **History.** All three verbs used to `panic!`. `new` converted 2026-09-22
 //! (excursus 003 stone A, curing the-little-wat F-084: a wat program got a Rust

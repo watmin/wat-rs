@@ -47,10 +47,10 @@
 //!
 //! ## ⚠ What this gate does NOT cover
 //!
-//! The guard is SHALLOW (`value_is_hashable` reads the key's own variant). A hashable container
-//! holding a handle — `(Option.Some <handle>)` as the key — passes it and panics in
-//! `impl Hash for Value`'s `unreachable!()` (`src/value/value.rs`). Measured, recorded in
-//! `src/rust_deps/cache.rs`'s module doc; not cured here.
+//! A hashable container holding a handle — `(Option.Some <handle>)` as the key. When this probe
+//! landed the guard was SHALLOW and that key panicked in `impl Hash for Value`'s `unreachable!()`.
+//! Excursus 003 stone E made `value_is_hashable` deep; the nested cases are pinned in
+//! `probe_ex003_hashability_looks_inside.rs`, not here.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
