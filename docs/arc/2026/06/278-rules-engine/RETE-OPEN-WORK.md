@@ -858,7 +858,8 @@ admission path — a population of one, which is why no count would ever have su
      **Recommendation: convert `new` only, leave `put`/`get`** — a third of the original surface
      churn. ⛔ **MANDATE GIVEN and the `new` half SHIPPED 2026-09-22** (excursus 003 stone A,
      `docs/excursus/2026/09/003-the-little-wat-findings/`): `Lru/new` and `HolographicLru/new`
-     both return a `Result`, `put`/`get` stay as ruled. The arc-109 NOTE carries the record.
+     both return a `Result`. `put`/`get` were re-ruled and SHIPPED 2026-09-23 (stone C): `put`
+     returns a `Result`, `get` misses. The arc-109 NOTE carries the record.
    - ✅ **② `match` map-destructure — CLOSED 2026-08-29. `:md::Point{40,2}` -> 42 now works in a
      rete rule, in BOTH positions.** It was the LAST `v1` refusal in the rete expression core, and
      it fell to the same move as every other denial this arc removed: *"not lowered in v1"* is a

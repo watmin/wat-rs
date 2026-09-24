@@ -3,7 +3,7 @@
 **Filed:** 2026-08-28, by the grok-rete agent, at the builder's direction
 (*"the cache lru… make a note on this… drop it into arc 109… this is unrelated to rete/278"*).
 **Home:** arc 109, because `src/rust_deps/` is its territory and the cache is not rete.
-**Status:** ⛔ **SECOND MANDATE 2026-09-23 — `put`/`get` CONVERT TOO.** `Lru::new` shipped
+**Status:** ⛔ **SECOND MANDATE 2026-09-23 — `put`/`get` CONVERT TOO — SHIPPED same day (stone C).** `Lru::new` shipped
 2026-09-22 (`70f8e2cd5`). The "LEAVE `put`/`get`" ruling below is **SUPERSEDED** — read the ruling
 section first, then treat the merits section as history.
 **Ground:** `grok-rete` @ `f1e112562`. Every citation re-checked against the tree on the day.
@@ -32,6 +32,24 @@ and then `panic!`. The cure is to make the cache match its siblings, in both lay
 
 ⚠ **The carve-out the builder left open is a FUTURE COMPILER**, which may legitimately panic on
 a bad expr. That is not this runtime, and it licenses nothing here.
+
+**What shipped** (excursus 003 stone C, 2026-09-23 —
+`docs/excursus/2026/09/003-the-little-wat-findings/DESIGN-stone-C-put-get-refuse-as-values.md`):
+
+| where | what |
+|---|---|
+| `src/rust_deps/cache.rs` | `put` → `Result<Option<(Value, Value)>, (i64, String, String)>`, `Err` on an unhashable key with `diagnostic` `:wat::cache::Lru/put`; `get` → `None` (a miss) on one. **Zero `panic!` left in the file.** |
+| `wat/cache.wat` `Lru/put` | returns `(Result :- [(Option :- [(Entry :- [K V])]) :wat::cache::Fault])`, lifting the raw tuple exactly as `Lru/new` does |
+| `wat/cache.wat` `HolographicLru/put` | returns `(Result :- [nil Fault])` — it PROPAGATES `Lru/put`'s fault verbatim. The LRU push now runs before the Hologram write, so a refusal touches neither half |
+| `wat/cache.wat` `HolographicLru/get`, `lru-svc` / `hologram-svc` `put` handlers | `Result/expect` with the verb in the message. `get`'s answer is an `Option` and its key came out of the Hologram (always hashable); `PutResponse` has no variant that could carry an `Err` (the arc 278 request-shape wall) |
+| 24 call sites, 4 files | migrated by `wat-scripts/fixes/wrap-cache-put-in-result-expect.wat` + replay fixture |
+| gate | `tests/diagnostics/probe_ex003_lru_put_get_refuse_as_values.rs` — 4 cases, mutation-proved per verb |
+
+⚠ **One route still panics, past the guard — not cured here.** `value_is_hashable` is SHALLOW: a
+hashable container holding a handle (`(Option.Some <an Lru handle>)` as the key) passes it, and
+`Lru/put` then dies in `impl Hash for Value`'s `unreachable!()` (`src/value/value.rs`), measured
+2026-09-23 after the cure. The predicate is shared with `HashMap`/`HashSet`, so deepening it is
+not a cache-only fix. Open.
 
 ## ⭐ MANDATE — 2026-09-22, and it SUPERSEDED this note's AXIS
 

@@ -1,0 +1,7 @@
+; near-miss: Lru/get shares the Lru/ prefix and is not a put — must NOT be wrapped (exactness)
+(:wat::core::defn :u::keep [c <- (:wat::cache::Lru :- [:wat::core::keyword :wat::core::i64])] -> (:wat::core::Option :- [:wat::core::i64])
+  (:wat::cache::Lru/get c :a))
+(:wat::core::defn :u::hit [c <- (:wat::cache::Lru :- [:wat::core::keyword :wat::core::i64])] -> :wat::core::nil
+  (:wat::core::let [_ (:wat::core::Result/expect (:wat::cache::Lru/put c :a 1) ":wat::cache::Lru/put refused the key: it must be a hashable value")] nil))
+(:wat::core::defn :u::hit2 [s <- :wat::cache::HolographicLru] -> :wat::core::nil
+  (:wat::core::let [_ (:wat::core::Result/expect (:wat::cache::HolographicLru/put s (:wat::holon::leaf "k") (:wat::holon::leaf "v")) ":wat::cache::Lru/put refused the key: it must be a hashable value")] nil))

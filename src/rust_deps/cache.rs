@@ -41,51 +41,62 @@
 //! makes the macro wrap the `Self` return in that cell before opaquing and
 //! route every `&self`/`&mut self` method through `with_ref`/`with_mut`.
 //!
-//! # Failure surface
+//! # Failure surface — no guard here panics
 //!
-//! `new` returns `Result<Self, (i64, String, String)>` — sqlite's `RawFault`
-//! shape, `(code, diagnostic, message)`, so ONE raw-fault shape reads across
-//! every `:rust::` shim. A non-positive `capacity` is an `Err` value, never a
-//! panic. ⚠ `code` is `0`: unlike sqlite there is no external result-code
-//! space here — `new` has exactly one failure mode — and the column is carried
-//! rather than dropped so this is not a second, cache-only tuple arity with
-//! its own lift (precedent for `0` = "not an external error code":
-//! `sqlite.rs::param_to_tosql`). The type is spelled as the literal tuple, not
-//! a `RawFault` alias, because the macro's `rust_type_to_type_expr_tokens`
-//! matches the UNRESOLVED type and an alias name is not in its known-type list
-//! — every `sqlite.rs` method spells it out for the same reason.
+//! **A refusal arrives as a wat value.** Every guard in this file answers with a
+//! value the calling program can see; none of them `panic!`s. (One route still
+//! reaches a panic PAST the guard — the shallow-guard ⚠ below.)
 //!
-//! `put`/`get` still `panic!` on a non-hashable key
-//! (an opaque handle — `impl Hash for Value` is `unreachable!()` there, so the
-//! guard turns a substrate `unreachable!` into a legible message).
+//! | verb | refusal | answer |
+//! |---|---|---|
+//! | `new` | `capacity <= 0` | `Err((code, diagnostic, message))` |
+//! | `put` | non-hashable key | `Err((code, diagnostic, message))` |
+//! | `get` | non-hashable key | `None` — a miss |
 //!
-//! **`new`'s conversion landed 2026-09-22** (excursus 003 stone A, curing
-//! the-little-wat F-084). The mandate is recorded in
-//! `docs/excursus/2026/09/003-the-little-wat-findings/DESIGN-stone-A-lru-new-returns-a-result.md`
-//! and it SUPERSEDED the arc-109 note's axis: the line is not
-//! total-vs-partial and not whose-fault-is-the-input — **a refusal must arrive
-//! as a wat value.** `:wat::i64::/` is annotated `@Totality Partial` (a
-//! divide-by-zero is a caller bug by any reading) and still refuses INSIDE the
-//! language, with the user's span; a `panic!` here gave a wat program a Rust
-//! backtrace note, the internal `:rust::` name, and no span at all.
+//! The `Err` column is sqlite's `RawFault` shape, `(code, diagnostic, message)`,
+//! so ONE raw-fault shape reads across every `:rust::` shim; `wat/cache.wat`
+//! lifts it into `:wat::cache::Fault`. `diagnostic` names the **user-facing**
+//! verb (`:wat::cache::Lru/new`, `:wat::cache::Lru/put`), never this internal
+//! `:rust::` shim. ⚠ `code` is `0`: unlike sqlite there is no external
+//! result-code space here, and the column is carried rather than dropped so this
+//! is not a second, cache-only tuple arity with its own lift (precedent for `0`
+//! = "not an external error code": `sqlite.rs::param_to_tosql`). The type is
+//! spelled as the literal tuple, not a `RawFault` alias, because the macro's
+//! `rust_type_to_type_expr_tokens` matches the UNRESOLVED type and an alias name
+//! is not in its known-type list — every `sqlite.rs` method spells it out for
+//! the same reason.
+//!
+//! `get` needs no error channel: a key `put` refuses to store cannot be present,
+//! so "absent" is the true, total answer — the same one `HashMap`'s
+//! `contains-key?` gives an unhashable key (`src/collection/eval.rs`,
+//! `hashmap_contains_key_q_inner`: *"never inserted"*). The `put`/`get` guards
+//! themselves must stay: `impl Hash for Value` is `unreachable!()` for an opaque
+//! handle, so hashing the key unguarded would panic in the hasher instead.
+//!
+//! ⚠ **The guard is SHALLOW.** `value_is_hashable` inspects the key's own
+//! variant, not its contents, so a hashable CONTAINER holding an opaque handle
+//! (`(Option.Some <an Lru handle>)` as the key) passes the guard and reaches the
+//! hasher's `unreachable!()` in `src/value/value.rs`. Measured 2026-09-23 on
+//! `put`; recorded, not cured, by excursus 003 stone C — the predicate is shared
+//! with `HashMap`/`HashSet`, so deepening it is not this file's call.
+//!
+//! **History.** All three verbs used to `panic!`. `new` converted 2026-09-22
+//! (excursus 003 stone A, curing the-little-wat F-084: a wat program got a Rust
+//! backtrace note, the internal `:rust::` name, and no span). `put`/`get`
+//! converted 2026-09-23 (stone C) under the builder's second ruling, *"the least
+//! amount of panics possible"* — which SUPERSEDED the arc-109 note's "LEAVE
+//! `put`/`get`": its defence, that the checker rejects an opaque-typed key at
+//! most call sites, measured false both direct and through a generic `K`. The
+//! line is not total-vs-partial and not whose-fault-is-the-input:
+//! `:wat::i64::/` is `@Totality Partial` and still refuses INSIDE the language.
+//! Record: `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`
+//! and `docs/excursus/2026/09/003-the-little-wat-findings/`.
 //!
 //! The mechanism is `src/rust_deps/sqlite.rs`'s "Errors-as-values — the exact
 //! mechanism": `#[wat_dispatch]` marshals `Result<T, E>` natively via the
 //! blanket `ToWat`/`FromWat` impls, INCLUDING `Result<Self, E>` for a
 //! constructor, through `emit_return_marshal`'s `result_ok_is_self` arm. Zero
-//! macro changes were needed.
-//!
-//! ⛔ **`put`/`get` are NOT converted, and that is a ruling, not an oversight.**
-//! The arc-109 NOTE rules LEAVE for both and warns explicitly against
-//! converting all three for symmetry; the builder's totality framing weakens
-//! that defence but does not overturn it. Re-opening it is a separate ruling.
-//!
-//! Tracked as a NOTE in arc 109, which owns `src/rust_deps/`:
-//! `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`
-//! — RULED ON THE MERITS (convert `Lru::new`, whose capacity crosses a
-//! serialization boundary; LEAVE `put`/`get`, whose key is a caller bug), and
-//! the `Lru::new` half has now SHIPPED. Do not re-open it in prose here; that
-//! note is the only honest home for it.
+//! macro changes were needed for any of the three.
 
 use lru::LruCache;
 use std::num::NonZeroUsize;
@@ -147,25 +158,37 @@ impl WatCacheLru {
     /// `HolographicLru`, whose hologram store must drop the evicted key too)
     /// needs the KEY back, not only the value.
     ///
-    /// A non-hashable key (an opaque handle) panics — see the module doc.
-    pub fn put(&mut self, k: Value, v: Value) -> Option<(Value, Value)> {
+    /// A non-hashable key (an opaque handle) is an `Err` `(code, diagnostic, message)` tuple,
+    /// never a panic — the same `RawFault` shape `new` returns, with `diagnostic` naming the
+    /// **user-facing** verb `:wat::cache::Lru/put` (see `new`'s ⭐ note, and the module doc's
+    /// failure surface). Nothing is inserted: the refusal leaves the cache untouched.
+    pub fn put(
+        &mut self,
+        k: Value,
+        v: Value,
+    ) -> Result<Option<(Value, Value)>, (i64, String, String)> {
         if !value_is_hashable(&k) {
-            panic!(
-                ":rust::cache::Lru/put: key must be a hashable value; got {}",
-                k.type_name()
-            );
+            return Err((
+                0,
+                ":wat::cache::Lru/put".to_string(),
+                format!("key must be a hashable value; got {}", k.type_name()),
+            ));
         }
-        self.inner.push(k, v)
+        Ok(self.inner.push(k, v))
     }
 
     /// `:rust::cache::Lru/get cache k` — `Some(v)` on a hit (which bumps `k`
-    /// to MRU), `None` on a miss. A non-hashable key panics — see the module doc.
+    /// to MRU), `None` on a miss.
+    ///
+    /// A non-hashable key (an opaque handle) is a MISS, never a panic: a key `put` refuses to
+    /// store cannot be present, so the answer is total and needs no error channel — `get`'s
+    /// return type is already `Option`. Precedent: `HashMap`'s `contains-key?` answers `false`
+    /// for an unhashable key, "never inserted" (`src/collection/eval.rs`,
+    /// `hashmap_contains_key_q_inner`). The guard must stay: `impl Hash for Value` is
+    /// `unreachable!()` for these variants, so looking the key up would panic in the hasher.
     pub fn get(&mut self, k: Value) -> Option<Value> {
         if !value_is_hashable(&k) {
-            panic!(
-                ":rust::cache::Lru/get: key must be a hashable value; got {}",
-                k.type_name()
-            );
+            return None;
         }
         self.inner.get(&k).cloned()
     }

@@ -1470,7 +1470,8 @@ question that has to be answered before it can move.
 > posed over all three at once: convert `Lru::new` (its capacity crosses a serialization boundary
 > and arrives as data, so no caller is in the frame), LEAVE `put`/`get` (a caller-supplied key,
 > a genuine programming error). ⛔ **Status there: MANDATE GIVEN and the `Lru::new` half SHIPPED
-> 2026-09-22** (excursus 003 stone A; `put`/`get` stay as ruled). Read the NOTE, not this copy.
+> 2026-09-22** (excursus 003 stone A); `put`/`get` were re-ruled and SHIPPED 2026-09-23 (stone C).
+> Read the NOTE, not this copy.
 > `src/rust_deps/cache.rs`'s
 > module doc now points at that NOTE — it used to cite a heading in THIS file
 > (*"exigere — the cache panic conversion"*) that has never existed anywhere.

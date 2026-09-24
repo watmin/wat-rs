@@ -24,7 +24,7 @@
       (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k (:wat::holon::Thermometer 50.0 0.0 100.0)
      v (:wat::holon::leaf :answer-for-fifty)
-     _ (:wat::cache::HolographicLru/put store k v)
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store k v) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      probe (:wat::holon::Thermometer 50.01 0.0 100.0)
      got (:wat::cache::HolographicLru/get store probe)]
     (:wat::test::assert-eq got (:wat::core::Option.Some {:value v}))))
@@ -40,9 +40,9 @@
      a (:wat::holon::leaf :a)
      b (:wat::holon::leaf :b)
      c (:wat::holon::leaf :c)
-     _ (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a))
-     _ (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b))
-     _ (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c))
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      got-a (:wat::cache::HolographicLru/get store a)
      got-b (:wat::cache::HolographicLru/get store b)
      got-c (:wat::cache::HolographicLru/get store c)]
@@ -60,10 +60,10 @@
      a (:wat::holon::leaf :a)
      b (:wat::holon::leaf :b)
      c (:wat::holon::leaf :c)
-     _ (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a))
-     _ (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b))
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      _ (:wat::cache::HolographicLru/get store a)
-     _ (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c))
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      got-a (:wat::cache::HolographicLru/get store a)
      got-b (:wat::cache::HolographicLru/get store b)
      got-c (:wat::cache::HolographicLru/get store c)]
@@ -84,7 +84,7 @@
     [store (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k (:wat::holon::Thermometer 50.0 0.0 100.0)
      v (:wat::holon::leaf :answer-for-fifty)
-     _ (:wat::cache::HolographicLru/put store k v)
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store k v) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      probe (:wat::holon::Thermometer 50.01 0.0 100.0)
      hologram (:wat::cache::HolographicLru/hologram store)]
     (:wat::core::match (:wat::holon::Hologram/find hologram probe)
@@ -104,9 +104,9 @@
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-len-agrees-with-bound
   (:wat::core::let
     [store (:wat::core::Result/expect (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 3) ":wat::cache::Lru/new refused the capacity: it must be positive")
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k1) (:wat::holon::leaf :v1))
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k2) (:wat::holon::leaf :v2))
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k3) (:wat::holon::leaf :v3))
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k4) (:wat::holon::leaf :v4))
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k1) (:wat::holon::leaf :v1)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k2) (:wat::holon::leaf :v2)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k3) (:wat::holon::leaf :v3)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
+     _ (:wat::core::Result/expect (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k4) (:wat::holon::leaf :v4)) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      n (:wat::cache::HolographicLru/len store)]
     (:wat::test::assert-eq n 3)))

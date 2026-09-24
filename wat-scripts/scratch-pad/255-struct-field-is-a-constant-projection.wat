@@ -48,8 +48,8 @@
      t2    (:wat::core::struct-field b 1)
      hA    (:wat::core::struct-field b 0)          ;; read BEFORE any mutation
      lenA  (:wat::cache::Lru/len hA)
-     _     (:wat::cache::Lru/put hA 1 100)
-     _2    (:wat::cache::Lru/put hA 2 200)
+     _     (:wat::core::Result/expect (:wat::cache::Lru/put hA 1 100) ":wat::cache::Lru/put refused the key: it must be a hashable value")
+     _2    (:wat::core::Result/expect (:wat::cache::Lru/put hA 2 200) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      hB    (:wat::core::struct-field b 0)          ;; read AFTER two mutations
      lenB  (:wat::cache::Lru/len hB)
      lenA2 (:wat::cache::Lru/len hA)]

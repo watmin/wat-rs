@@ -13,9 +13,9 @@
 (:wat::test::deftest :user::cache_lru
   (:wat::core::let
     [cache (:wat::core::Result/expect (:wat::cache::Lru/new 2) ":wat::cache::Lru/new refused the capacity: it must be positive")
-     e1    (:wat::cache::Lru/put cache :a 1)   ;; under cap  -> None
-     e2    (:wat::cache::Lru/put cache :b 2)   ;; at cap     -> None
-     e3    (:wat::cache::Lru/put cache :c 3)   ;; over cap   -> Some Entry{:a 1}
+     e1    (:wat::core::Result/expect (:wat::cache::Lru/put cache :a 1) ":wat::cache::Lru/put refused the key: it must be a hashable value")   ;; under cap  -> None
+     e2    (:wat::core::Result/expect (:wat::cache::Lru/put cache :b 2) ":wat::cache::Lru/put refused the key: it must be a hashable value")   ;; at cap     -> None
+     e3    (:wat::core::Result/expect (:wat::cache::Lru/put cache :c 3) ":wat::cache::Lru/put refused the key: it must be a hashable value")   ;; over cap   -> Some Entry{:a 1}
      got-b (:wat::cache::Lru/get cache :b)     ;; still present
      got-a (:wat::cache::Lru/get cache :a)     ;; evicted
      n     (:wat::cache::Lru/len cache)]
@@ -40,8 +40,8 @@
 (:wat::test::deftest :user::cache_lru_put_overwrites
   (:wat::core::let
     [cache (:wat::core::Result/expect (:wat::cache::Lru/new 16) ":wat::cache::Lru/new refused the capacity: it must be positive")
-     e1    (:wat::cache::Lru/put cache :k 1)   ;; first write -> None (nothing displaced)
-     e2    (:wat::cache::Lru/put cache :k 99)  ;; overwrite   -> Some Entry{:key :k :value 1}
+     e1    (:wat::core::Result/expect (:wat::cache::Lru/put cache :k 1) ":wat::cache::Lru/put refused the key: it must be a hashable value")   ;; first write -> None (nothing displaced)
+     e2    (:wat::core::Result/expect (:wat::cache::Lru/put cache :k 99) ":wat::cache::Lru/put refused the key: it must be a hashable value")  ;; overwrite   -> Some Entry{:key :k :value 1}
      got   (:wat::cache::Lru/get cache :k)
      n     (:wat::cache::Lru/len cache)]
 
@@ -69,7 +69,7 @@
   (:wat::core::let
     [cache (:wat::core::Result/expect (:wat::cache::Lru/new 16) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k     (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :the-form)))
-     _put  (:wat::cache::Lru/put cache k 42)
+     _put  (:wat::core::Result/expect (:wat::cache::Lru/put cache k 42) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      got   (:wat::cache::Lru/get cache k)]
     (:wat::test::assert-eq got (:wat::core::Option.Some {:value 42}))))
 
@@ -80,7 +80,7 @@
     [cache (:wat::core::Result/expect (:wat::cache::Lru/new 16) ":wat::cache::Lru/new refused the capacity: it must be positive")
      k1    (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :a)))
      k2    (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :b)))
-     _put  (:wat::cache::Lru/put cache k1 1)
+     _put  (:wat::core::Result/expect (:wat::cache::Lru/put cache k1 1) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      got   (:wat::cache::Lru/get cache k2)]
     (:wat::test::assert-eq got :wat::core::Option.None)))
 
@@ -99,6 +99,6 @@
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :role)))
         (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :filler))))
-     _put  (:wat::cache::Lru/put cache k1 99)
+     _put  (:wat::core::Result/expect (:wat::cache::Lru/put cache k1 99) ":wat::cache::Lru/put refused the key: it must be a hashable value")
      got   (:wat::cache::Lru/get cache k2)]
     (:wat::test::assert-eq got (:wat::core::Option.Some {:value 99}))))

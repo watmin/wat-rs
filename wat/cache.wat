@@ -37,12 +37,16 @@
 ;; *a refusal must arrive as a wat value*, which is not a total-vs-partial question —
 ;; `:wat::i64::/` is `@Totality Partial` and refuses inside the language anyway.
 ;;
-;; ⛔ `put`/`get` STILL PANIC on a non-hashable (opaque-handle) key, and that is RULED, not
-;; pending: docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md
-;; rules LEAVE for both and warns in as many words against converting all three for symmetry.
-;; The key is a caller bug that never crosses a serialization boundary, and the checker rejects
-;; an opaque-typed key at most call sites. Re-opening it is a separate ruling, not a tidy-up.
-;; The full account is src/rust_deps/cache.rs's module doc.
+;; `Lru/put` on a non-hashable (opaque-handle) key is the same: an `Err` carrying a
+;; `:wat::cache::Fault` whose `diagnostic` is `:wat::cache::Lru/put`. `Lru/get` on one MISSES — a
+;; key `put` refuses to store cannot be present, so `None` is the true, total answer (`HashMap`'s
+;; `contains-key?` answers `false` the same way). Both PANICKED until 2026-09-23 (excursus 003
+;; stone C, under the builder's ruling *"the least amount of panics possible"*); the arc-109
+;; NOTE's earlier "LEAVE `put`/`get`" rested on the checker rejecting an opaque-typed key, which
+;; measured false both direct and through a generic `K`.
+;; docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md
+;; carries the rulings; src/rust_deps/cache.rs's module doc the full account (including the one
+;; route that still panics past the guard: an opaque handle NESTED inside a hashable key).
 ;;
 ;; Loads after wat/core.wat (typealias/defrecord/defn + Option are core builtins) and after
 ;; wat/Record.wat is NOT required — `defrecord` is a defmacro, registered in the order-free
@@ -66,7 +70,8 @@
 ;;      (the arc 278 request-shape wall, wat/service.wat). `PutResponse::Ok []` is what `nil`
 ;;      became; precedent is `:wat::kernel::StdOut::WriteResponse`. This also resolves an honesty
 ;;      problem: `Lru::put` returns the displaced `Entry` but `HolographicLru::put` (Stone 3/4,
-;;      below) returns bare `nil` and never exposes the evicted key — so a `displaced` field on
+;;      below) returns no entry (bare `nil`, `Ok nil` since excursus 003 stone C) and never
+;;      exposes the evicted key — so a `displaced` field on
 ;;      `PutResponse` could not be told truthfully by both satisfiers. Eviction reporting, if ever
 ;;      wanted, belongs where it can be honest — not in `put`'s reply; it stays observable through
 ;;      a later `get` miss (both services' gates prove this).
@@ -84,16 +89,18 @@
   [key   <- :K
    value <- :V])
 
-;; ─── the error channel — one record, because there is exactly one failure ────────────────────
-;; `:rust::cache::Lru/new` hands back sqlite's raw `(code, diagnostic, message)` 3-tuple
-;; (src/rust_deps/cache.rs); this record is that tuple, named. `diagnostic` carries the
-;; USER-FACING verb name (`:wat::cache::Lru/new`), never the `:rust::` shim — naming the shim is
-;; half of what the-little-wat F-084 reports.
+;; ─── the error channel — one record ─────────────────────────────────────────────────────────
+;; `:rust::cache::Lru/new` and `:rust::cache::Lru/put` hand back sqlite's raw
+;; `(code, diagnostic, message)` 3-tuple (src/rust_deps/cache.rs); this record is that tuple,
+;; named. `diagnostic` carries the USER-FACING verb name (`:wat::cache::Lru/new` or
+;; `:wat::cache::Lru/put`), never the `:rust::` shim — naming the shim is half of what the-little-wat
+;; F-084 reports.
 ;;
 ;; ⚠ NOT an enum, and no `classify` sibling to `wat/sqlite.wat`'s. sqlite needs
 ;; Transient/Constraint/Fatal because the CATEGORY changes what the caller does (retry, surface,
-;; abort); a cache capacity has no such fork — the only refusal is a non-positive capacity, and
-;; the only honest response is to stop. A three-variant enum here would claim a taxonomy this
+;; abort); a cache has no such fork — its two refusals (a non-positive capacity, an unhashable
+;; key) are both caller errors with one honest response, to stop, and `diagnostic` already says
+;; which verb refused. A three-variant enum here would claim a taxonomy this
 ;; surface does not have. ⚠ `code` is `0` at the one site that mints one: see the Rust doc for
 ;; why the column is carried anyway.
 (:wat::core::defrecord :wat::cache::Fault
@@ -124,19 +131,34 @@
 ;; Insert or update, bumping `k` to MRU. Returns the DISPLACED entry — the least-recently-used
 ;; one when the insert pushed past capacity, or `k`'s previous binding when `k` was already
 ;; present — and `:wat::core::None` when nothing was displaced.
+;;
+;; A non-hashable `k` (an opaque handle — the checker admits one as a `K`) is an `Err` carrying a
+;; `:wat::cache::Fault` whose `diagnostic` is `:wat::cache::Lru/put`, and inserts nothing. It was
+;; a Rust `panic!` until excursus 003 stone C. The lift mirrors `Lru/new`'s, inline for the same
+;; reason.
 (:wat::core::defn :wat::cache::Lru/put :- [K V]
   [cache <- (:wat::cache::Lru :- [K V])
    k     <- :K
    v     <- :V]
-  -> (:wat::core::Option :- [(:wat::cache::Entry :- [K V])])
+  -> (:wat::core::Result :- [(:wat::core::Option :- [(:wat::cache::Entry :- [K V])]) :wat::cache::Fault])
   (:wat::core::match (:rust::cache::Lru/put cache k v)
-    [:wat::core::Option.Some {:value pair}
-      (:wat::core::Option.Some
-        {:value (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair))})]
-    [:wat::core::Option.None {} :wat::core::Option.None]))
+    [:wat::core::Result.Ok {:value displaced}
+      (:wat::core::Result.Ok
+        {:value (:wat::core::match displaced
+                  [:wat::core::Option.Some {:value pair}
+                    (:wat::core::Option.Some
+                      {:value (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair))})]
+                  [:wat::core::Option.None {} :wat::core::Option.None])})]
+    [:wat::core::Result.Err {:error raw}
+      (:wat::core::Result.Err
+        {:error (:wat::cache::Fault
+                  :code       (:wat::core::first raw)
+                  :diagnostic (:wat::core::second raw)
+                  :message    (:wat::core::third raw))})]))
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
-;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss.
+;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss. A non-hashable `k` is a miss:
+;; `put` refuses to store one, so it cannot be present (excursus 003 stone C; it was a panic).
 (:wat::core::defn :wat::cache::Lru/get :- [K V]
   [cache <- (:wat::cache::Lru :- [K V])
    k     <- :K]
@@ -281,9 +303,16 @@
               (:wat::core::fn [_acc <- :wat::core::nil
                                e    <- (:wat::cache::Entry :- [K V])]
                 -> :wat::core::nil
+                ;; ⚠ `Result/expect`, because `PutResponse` has no fault variant to carry the `Err`
+                ;; in (its arms are `Ok`/`RequestTooLarge`/`RequestMalformed`, the arc 278
+                ;; request-shape wall) — the same surface limit `:init` hits above. The message
+                ;; names the verb, because `Result/expect` DISCARDS the `Err` payload: only what is
+                ;; written here survives into the raise (excursus 003 stone A's finding).
                 (:wat::core::let
-                  [_ (:wat::cache::Lru/put (:wat::cache::lru-svc::State/cache s)
-                       (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))]
+                  [_ (:wat::core::Result/expect
+                       (:wat::cache::Lru/put (:wat::cache::lru-svc::State/cache s)
+                         (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))
+                       ":wat::cache::Lru/put refused an lru-svc key: it must be a hashable value")]
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]
@@ -357,22 +386,35 @@
 ;; 3. If step 2 displaced an entry (over capacity), remove ITS key from the Hologram too — the
 ;;    dual-eviction invariant. Without this the Hologram keeps growing after the LRU claims it
 ;;    dropped something.
+;;
+;; ⚠ THE `Result` PROPAGATES, exactly as `HolographicLru/new`'s does (excursus 003 stone C's one
+;; contract decision): `Lru/put`'s `Err` comes back verbatim, still naming `:wat::cache::Lru/put`.
+;; Swallowing it here would re-create the defect one level up. The LRU push therefore runs FIRST
+;; and the Hologram is touched only on `Ok`, so a refusal leaves the two halves agreeing. The
+;; Hologram sees the same two operations in the same order as before (put the new key, then
+;; remove the displaced one), so this reorder changes no outcome — F-083's re-put included.
+;; (A `HolonAST` key is always hashable, so today the `Err` arm is unreachable through this verb;
+;; the signature says what `Lru/put` can do, not what this caller happens to pass.)
 (:wat::core::defn :wat::cache::HolographicLru/put
   [store <- :wat::cache::HolographicLru
    key   <- :wat::holon::HolonAST
    val   <- :wat::holon::HolonAST]
-  -> :wat::core::nil
+  -> (:wat::core::Result :- [:wat::core::nil :wat::cache::Fault])
   (:wat::core::let
     [hologram (:wat::cache::HolographicLru/hologram store)
-     lru (:wat::cache::HolographicLru/lru store)
-     _ (:wat::holon::Hologram/put hologram key val)
-     evicted (:wat::cache::Lru/put lru key nil)]
-    (:wat::core::match evicted
-      [:wat::core::Option.Some {:value entry}
+     lru (:wat::cache::HolographicLru/lru store)]
+    (:wat::core::match (:wat::cache::Lru/put lru key nil)
+      [:wat::core::Result.Ok {:value evicted}
         (:wat::core::let
-          [_ (:wat::holon::Hologram/remove hologram (:wat::cache::Entry/key entry))]
-          nil)]
-      [:wat::core::Option.None {} nil])))
+          [_ (:wat::holon::Hologram/put hologram key val)
+           _ (:wat::core::match evicted
+               [:wat::core::Option.Some {:value entry}
+                 (:wat::core::let
+                   [_ (:wat::holon::Hologram/remove hologram (:wat::cache::Entry/key entry))]
+                   nil)]
+               [:wat::core::Option.None {} nil])]
+          (:wat::core::Result.Ok {:value nil}))]
+      [:wat::core::Result.Err {:error fault} (:wat::core::Result.Err {:error fault})])))
 
 ;; ─── get — similarity lookup + LRU bump on hit ─────────────────────────────────────────────────
 ;; `Hologram/find`
@@ -393,7 +435,11 @@
         (:wat::core::let
           [matched-key (:wat::holon::Match/key m)
            val (:wat::holon::Match/value m)
-           _ (:wat::cache::Lru/put lru matched-key nil)]
+           ;; `Result/expect`, not propagation: `get`'s answer is an `Option` (a hit or a miss),
+           ;; and `matched-key` came OUT of the Hologram, so it is a stored `HolonAST` — always
+           ;; hashable. An `Err` here is a substrate bug, not an outcome, and it dies naming the verb.
+           _ (:wat::core::Result/expect (:wat::cache::Lru/put lru matched-key nil)
+               ":wat::cache::Lru/put refused a key the Hologram had already stored: substrate bug")]
           (:wat::core::Option.Some {:value val}))]
       [:wat::core::Option.None {} :wat::core::Option.None])))
 
@@ -466,7 +512,7 @@
                        (:wat::cache::hologram-svc::Record/capacity record))
                      ":wat::cache::Lru/new refused hologram-svc's durable capacity: it must be positive")))
   :impls
-  ;; Batch folds, same discipline as `lru-svc` above. `HolographicLru::put` returns `nil` (Stone 3
+  ;; Batch folds, same discipline as `lru-svc` above. `HolographicLru::put` returns `nil` (`Ok nil` since stone C; Stone 3
   ;; header above), unlike `Lru::put` — the dual-eviction chain removes the displaced key from the
   ;; Hologram internally but never hands it back — so this was ALREADY an honest `nil` per-entry,
   ;; before batching; `PutResponse::Ok []` (file-header departure note) now says the same thing at
@@ -492,9 +538,13 @@
               (:wat::core::fn [_acc <- :wat::core::nil
                                e    <- (:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
                 -> :wat::core::nil
+                ;; `Result/expect` for the same reason `lru-svc`'s `put` uses it — see the comment
+                ;; there: `PutResponse` has no variant that can carry the `Err`.
                 (:wat::core::let
-                  [_ (:wat::cache::HolographicLru/put (:wat::cache::hologram-svc::State/cache s)
-                       (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))]
+                  [_ (:wat::core::Result/expect
+                       (:wat::cache::HolographicLru/put (:wat::cache::hologram-svc::State/cache s)
+                         (:wat::cache::Entry/key e) (:wat::cache::Entry/value e))
+                       ":wat::cache::Lru/put refused a hologram-svc key: it must be a hashable value")]
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]

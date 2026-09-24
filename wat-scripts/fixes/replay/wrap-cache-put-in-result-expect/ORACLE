@@ -1,0 +1,11 @@
+# ORACLE for wrap-cache-put-in-result-expect — HISTORY or header spec, never the tool.
+
+# spec: this codemod ships WITH the surface change it migrates for (excursus 003 stone C), so
+# there is no prior commit in which the after-shape exists. The oracle is the header's SPEC line.
+spec   (:wat::core::let [_ (:wat::core::Result/expect (:wat::cache::Lru/put c :a 1) ":wat::cache::Lru/put refused the key: it must be a hashable value")] nil)) :: becomes that call wrapped as `(:wat::core::Result/expect <call> ":wat::cache::Lru/put refused the key: it must be a hashable value")`.
+
+spec   (:wat::core::let [_ (:wat::core::Result/expect (:wat::cache::HolographicLru/put s (:wat::holon::leaf "k") (:wat::holon::leaf "v")) ":wat::cache::Lru/put refused the key: it must be a hashable value")] nil)) :: a call to `:wat::cache::Lru/put` or `:wat::cache::HolographicLru/put` becomes that call wrapped as
+
+spec-before   (:wat::core::let [_ (:wat::cache::Lru/put c :a 1)] nil)) :: a call to `:wat::cache::Lru/put` or `:wat::cache::HolographicLru/put` becomes that call wrapped as
+
+spec-before   (:wat::core::let [_ (:wat::cache::HolographicLru/put s (:wat::holon::leaf "k") (:wat::holon::leaf "v"))] nil)) :: a call to `:wat::cache::Lru/put` or `:wat::cache::HolographicLru/put` becomes that call wrapped as
