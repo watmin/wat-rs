@@ -1,5 +1,10 @@
 # DESIGN — STONE F: a type parameter does not launder impurity into a pure aggregate
 
+> ⛔ **CLOSED 2026-09-24 — SUPERSEDED BY `RULING-purity-is-parametric.md`.** This DESIGN's invariant
+> ("a Pure aggregate never holds an impure value, at any instantiation") is the BOUNDED reading, and
+> the builder ruled PARAMETRIC. Its executor's census found 166,330 deliberate stdlib hits. Read the
+> ruling; what survives of this stone is the generic wire-wall question recorded there.
+
 **Drawn 2026-09-24.** Found by stone E's executor; reproduced independently here.
 
 ## The defect, driven
