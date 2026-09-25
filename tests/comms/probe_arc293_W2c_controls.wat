@@ -14,7 +14,7 @@
 (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
 
 ;; 255.30 — the struct-on-thread arm moved. A struct on a thread peer is refused
-;; (tests/kernel/probe_arc255_30_struct_on_thread_peer.wat). This file keeps the
+;; (tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.bad). This file keeps the
 ;; record-on-process control, which must still load.
 
 ;; Record control: parent sends a portable record to a PROCESS child.

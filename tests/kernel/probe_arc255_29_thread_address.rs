@@ -5,7 +5,7 @@
 //! - a Shared address in a pure record loads;
 //! - `address-wire?` prints `false` then `true`;
 //! - a thread address sent to a process child prints `Rejected` with the
-//!   minting-process sentence, and the parent's echoed dial is `Connected`.
+//!   inert-wire sentence, and the parent's echoed dial is the same sentence.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -49,24 +49,17 @@ fn a_thread_address_sent_to_a_process_child_is_rejected() {
     let lines: Vec<&str> = stdout.lines().filter(|l| !l.is_empty()).collect();
     assert_eq!(lines.len(), 1, "stdout:\n{stdout}\nstderr:\n{stderr}");
     let line = lines[0];
-    let sentence = "a thread address is dialable only inside its minting process";
-    let suffix = format!("{sentence}\" \"Connected\"]");
-    let Some((head, tail)) = line.split_once(&suffix) else {
-        panic!("stdout:\n{stdout}\nstderr:\n{stderr}");
-    };
-    assert_eq!(tail, "");
-    assert_eq!(line.chars().next(), Some('['));
-    let prefix = "\"Rejected: thread address minted by process ";
-    let Some(rest) = head[1..].strip_prefix(prefix) else {
-        panic!("stdout:\n{stdout}\nstderr:\n{stderr}");
-    };
-    let Some((minter, dialer_part)) = rest.split_once(" dialed from process ") else {
-        panic!("stdout:\n{stdout}\nstderr:\n{stderr}");
-    };
-    let Some(dialer) = dialer_part.strip_suffix(" — ") else {
-        panic!("stdout:\n{stdout}\nstderr:\n{stderr}");
-    };
-    let minter_pid: i32 = minter.parse().expect(minter);
-    let dialer_pid: i32 = dialer.parse().expect(dialer);
-    assert_ne!(minter_pid, dialer_pid);
+    let sentence =
+        "Rejected: a thread address is dialable only through the live value; one that crossed a wire is inert.";
+    let mut expected = String::new();
+    expected.push('[');
+    expected.push('"');
+    expected.push_str(sentence);
+    expected.push('"');
+    expected.push(' ');
+    expected.push('"');
+    expected.push_str(sentence);
+    expected.push('"');
+    expected.push(']');
+    assert_eq!(line, expected, "stdout:\n{stdout}\nstderr:\n{stderr}");
 }

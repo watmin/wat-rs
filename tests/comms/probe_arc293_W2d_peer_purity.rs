@@ -64,7 +64,7 @@ fn impure_type_arg_on_wire_peer_is_check_error() {
 fn pure_wire_peer_type_checks_and_a_struct_on_a_thread_peer_is_refused() {
     let pure = startup_from_file("tests/comms/probe_arc293_W2d_positive.wat");
     assert!(pure.is_ok(), "a pure self-peer must still load: {:?}", pure.err());
-    let impure = startup_from_file("tests/kernel/probe_arc255_30_struct_on_thread_peer.wat");
+    let impure = startup_from_file("tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.bad");
     wat::assert_startup_error!(impure, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::core::fn"

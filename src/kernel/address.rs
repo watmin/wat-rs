@@ -27,9 +27,8 @@
 //! [[feedback_dont_build_the_forcing_function]]
 //! [[feedback_vended_primitives_never_deadlock]]
 
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use crate::kernel::peer::Peer;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
@@ -47,12 +46,12 @@ use crate::span::Span;
 /// `Refused`/`Rejected`/`Failed`. The exact TWIN of `AcceptFail` (`kernel/listener.rs`).
 pub enum ConnectFail {
     /// ECONNREFUSED / no listener / rendezvous gone — maps to `ConnectOutcome::Refused`
-    /// (RETRYABLE transport; the server may come up). A dangling thread-address id
-    /// uses this same variant: the id never returns, and this stone does not add a kind.
+    /// (RETRYABLE transport; the server may come up). The thread arm uses this when
+    /// the live rendezvous send fails because the listener was dropped.
     Refused(String),
-    /// Not retryable; wrong process. Socket: the `OnlyThisPeer` identity check failed
-    /// (the answerer's pid/euid != the address minter's). Thread: dialed outside the
-    /// minting process. Maps to `ConnectOutcome::Rejected`.
+    /// Not retryable. Socket: the `OnlyThisPeer` identity check failed (the
+    /// answerer's pid/euid != the address minter's). Thread: the address was rebuilt
+    /// from `ThreadAddressWire` and has no channel. Maps to `ConnectOutcome::Rejected`.
     Rejected(String),
     /// A `peer_cred` read / socket-wrap io error carrying its reason — maps to
     /// `ConnectOutcome::Failed[cause <- Failure]` (via `message_only_failure`).
@@ -99,62 +98,30 @@ pub trait CommAddress: Send + Sync {
 /// Verbatim body from the former thread arm of `eval_connect_prime`
 /// (now `src/kernel/resource.rs`).
 pub struct ThreadAddress {
-    /// `None` only for an address decoded off a wire whose rendezvous could
-    /// not be resolved here (another process, or a dangling id).
+    /// `Some` only on the value `listener'` minted in this process. A copy
+    /// rebuilt from `ThreadAddressWire` is `None`: the wire form is inert.
     pub(crate) tx: Option<Arc<crate::comms::thread::Sender<Value>>>,
     pub(crate) wire: ThreadWire,
 }
 
-/// The portable identity of a thread-tier address. `minter_pid` names the
-/// minting process (enough to say a decoded address is not dialable there).
-/// `id` is this process's listener key. No nonce and no token: a thread
-/// address is not authenticated.
+/// What a thread address carries so `ThreadAddressWire` stays a well-formed
+/// record. `minter_pid` is the process that minted the live value. `id` is
+/// `0` on a mint: the codec's record has two i64 fields, and nothing looks
+/// an id up. No nonce and no token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ThreadWire {
     pub(crate) minter_pid: i32,
     pub(crate) id: u64,
 }
 
+/// `connect` on a decoded thread address. One sentence for every such copy:
+/// the minter's echo and a foreign process say the same thing.
+const THREAD_ADDRESS_WIRE_IS_INERT: &str =
+    "a thread address is dialable only through the live value; one that crossed a wire is inert.";
+
 fn current_pid() -> i32 {
     // SAFETY: getpid() takes no arguments and does not fail.
     unsafe { libc::getpid() }
-}
-
-type Rendezvous = crate::comms::thread::Sender<Value>;
-
-/// id → Weak<Sender>. Weak so the registry does not keep a listener's
-/// rendezvous alive: dropping the last `Address` still closes it.
-///
-/// A `Mutex` is the map. `std` and `crossbeam-channel` have no lock-free
-/// map of `Weak`, and a new crate would be a second structure. The lock is
-/// taken at mint and at trusted decode, not on send.
-fn thread_registry() -> &'static Mutex<HashMap<u64, Weak<Rendezvous>>> {
-    static REG: std::sync::OnceLock<Mutex<HashMap<u64, Weak<Rendezvous>>>> =
-        std::sync::OnceLock::new();
-    REG.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn register_rendezvous(tx: &Arc<Rendezvous>) -> u64 {
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    let id = NEXT.fetch_add(1, Ordering::Relaxed);
-    let mut reg = thread_registry()
-        .lock()
-        .expect("thread address registry poisoned");
-    reg.insert(id, Arc::downgrade(tx));
-    if reg.len() >= 64 && reg.len().is_power_of_two() {
-        reg.retain(|_, w| w.strong_count() > 0);
-    }
-    id
-}
-
-fn resolve_rendezvous(wire: &ThreadWire) -> Option<Arc<Rendezvous>> {
-    if wire.minter_pid != current_pid() {
-        return None;
-    }
-    let reg = thread_registry()
-        .lock()
-        .expect("thread address registry poisoned");
-    reg.get(&wire.id).and_then(|w| w.upgrade())
 }
 
 impl CommAddress for ThreadAddress {
@@ -166,22 +133,15 @@ impl CommAddress for ThreadAddress {
         -> Result<Result<Peer, ConnectFail>, EvalBreak> {
         let rendezvous = match &self.tx {
             Some(tx) => Arc::clone(tx),
+            // Rejected, not Refused. Refused is documented retryable ("the server
+            // may come up"). A wire copy never becomes the live value, so that
+            // claim would be false. Rejected is the not-retryable variant. The
+            // sentence does not claim a wrong process: the minter's own echo is
+            // inert too.
             None => {
-                let here = current_pid();
-                if self.wire.minter_pid != here {
-                    return Ok(Err(ConnectFail::Rejected(format!(
-                        "thread address minted by process {} dialed from process {} — \
-                         a thread address is dialable only inside its minting process",
-                        self.wire.minter_pid, here
-                    ))));
-                }
-                // The id is not reused and the registry holds only a Weak, so this
-                // dial never succeeds later. Refused is still the variant: it is the
-                // retryable label, and 255.29 does not add an outcome kind.
-                return Ok(Err(ConnectFail::Refused(format!(
-                    "connect: thread address id {:#x} is dangling — its listener's rendezvous is gone",
-                    self.wire.id
-                ))));
+                return Ok(Err(ConnectFail::Rejected(
+                    THREAD_ADDRESS_WIRE_IS_INERT.to_string(),
+                )));
             }
         };
         // Mint the two connection pairs.
@@ -373,19 +333,22 @@ pub struct Address {
 impl Address {
     /// Construct a thread-tier address from the rendezvous sender.
     pub fn from_thread(tx: crate::comms::thread::Sender<Value>) -> Self {
-        let tx = Arc::new(tx);
-        let id = register_rendezvous(&tx);
-        let wire = ThreadWire { minter_pid: current_pid(), id };
-        Address { inner: Box::new(ThreadAddress { tx: Some(tx), wire }) }
+        // `id` stays on the record so the codec's two-field shape is unchanged.
+        // Nothing resolves it, so the mint stamps 0.
+        let wire = ThreadWire { minter_pid: current_pid(), id: 0 };
+        Address {
+            inner: Box::new(ThreadAddress {
+                tx: Some(Arc::new(tx)),
+                wire,
+            }),
+        }
     }
 
     /// Reconstruct a thread address from its wire stamp. The capability codec
-    /// is the only caller. Unresolvable here → `tx: None` (`connect` then
-    /// says `Rejected` or `Refused`).
+    /// is the only caller. The result is always undialable: `tx` is `None`.
     pub(crate) fn from_thread_wire(minter_pid: i32, id: u64) -> Self {
         let wire = ThreadWire { minter_pid, id };
-        let tx = resolve_rendezvous(&wire);
-        Address { inner: Box::new(ThreadAddress { tx, wire }) }
+        Address { inner: Box::new(ThreadAddress { tx: None, wire }) }
     }
 
     /// The thread-tier portable form, `(minter_pid, id)`. Not
@@ -489,7 +452,7 @@ mod tests {
     }
 }
 
-/// Stone 255.29 — a thread address is data. Round-trip, dangling id, foreign minter.
+/// Stone 255.29 / 255.31 — a thread address is data, and a decoded copy is inert.
 #[cfg(test)]
 mod thread_address_is_data {
     use super::*;
@@ -532,7 +495,7 @@ mod thread_address_is_data {
         let sym = &w.symbols;
         let types = Some(&w.types);
         let (tx, rx) = crate::comms::thread::pair::<Value>();
-        let listener = Listener::from_crossbeam(rx);
+        let _listener = Listener::from_crossbeam(rx);
         let addr_val = make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx));
         let (pid, id) = addr_of(&addr_val).thread_portable_form().expect("thread form");
         let payload = Value::Tuple(Arc::new(vec![Value::i64(7), addr_val]));
@@ -555,39 +518,46 @@ mod thread_address_is_data {
             other => panic!("tuple/vec expected, got {:?}", other.type_name()),
         };
         let span = crate::rust_caller_span!();
-        assert_eq!(outcome(d_addr.inner.connect(sym, &span)), "Connected");
-        assert!(
-            matches!(listener.inner.accept(sym, &span), Ok(Ok(_))),
-            "the minting listener accepts the dial"
+        assert_eq!(
+            outcome(d_addr.inner.connect(sym, &span)),
+            format!("Rejected: {THREAD_ADDRESS_WIRE_IS_INERT}")
         );
         assert!(d_addr.portable_form().is_none(), "address-wire? stays false");
-    }
-
-    #[test]
-    fn a_dangling_id_connects_as_refused() {
-        let w = world();
-        let sym = &w.symbols;
-        let types = Some(&w.types);
-        let (tx, rx) = crate::comms::thread::pair::<Value>();
-        let _listener = Listener::from_crossbeam(rx);
-        let addr_val = make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx));
-        let (_pid, id) = addr_of(&addr_val).thread_portable_form().expect("thread form");
-        let wire = crate::edn::render::value_to_edn_string_with(&addr_val, types).expect("encodes");
-        drop(addr_val);
-        let decoded =
-            crate::edn::render::decode_trusted_wire(&wire, types, None).expect("trusted door");
-        let span = crate::rust_caller_span!();
-        let o = outcome(addr_of(&decoded).inner.connect(sym, &span));
-        assert_eq!(
-            o,
-            format!(
-                "Refused: connect: thread address id {id:#x} is dangling — its listener's rendezvous is gone"
-            )
+        // The listener is still there. The decoded copy must not have dialed it.
+        // A live dial on a freshly minted address still reaches an accept.
+        let (tx2, rx2) = crate::comms::thread::pair::<Value>();
+        let listener2 = Listener::from_crossbeam(rx2);
+        let live = make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx2));
+        assert_eq!(outcome(addr_of(&live).inner.connect(sym, &span)), "Connected");
+        assert!(
+            matches!(listener2.inner.accept(sym, &span), Ok(Ok(_))),
+            "the live value still dials"
         );
     }
 
     #[test]
-    fn a_foreign_minter_connects_as_rejected() {
+    fn a_same_process_wire_copy_is_inert_while_the_listener_lives() {
+        let w = world();
+        let sym = &w.symbols;
+        let span = crate::rust_caller_span!();
+        let (tx, rx) = crate::comms::thread::pair::<Value>();
+        let listener = Listener::from_crossbeam(rx);
+        let live = Address::from_thread(tx);
+        let (pid, id) = live.thread_portable_form().expect("thread form");
+        let copy = Address::from_thread_wire(pid, id);
+        assert_eq!(
+            outcome(copy.inner.connect(sym, &span)),
+            format!("Rejected: {THREAD_ADDRESS_WIRE_IS_INERT}")
+        );
+        assert_eq!(outcome(live.inner.connect(sym, &span)), "Connected");
+        assert!(
+            matches!(listener.inner.accept(sym, &span), Ok(Ok(_))),
+            "the live value still dials"
+        );
+    }
+
+    #[test]
+    fn a_foreign_wire_copy_is_inert() {
         let w = world();
         let sym = &w.symbols;
         let span = crate::rust_caller_span!();
@@ -595,14 +565,9 @@ mod thread_address_is_data {
         let live = Address::from_thread(tx);
         let (pid, id) = live.thread_portable_form().expect("thread form");
         let other = Address::from_thread_wire(pid.wrapping_add(1), id);
-        let o = outcome(other.inner.connect(sym, &span));
         assert_eq!(
-            o,
-            format!(
-                "Rejected: thread address minted by process {} dialed from process {pid} — \
-                 a thread address is dialable only inside its minting process",
-                pid.wrapping_add(1)
-            )
+            outcome(other.inner.connect(sym, &span)),
+            format!("Rejected: {THREAD_ADDRESS_WIRE_IS_INERT}")
         );
         assert!(live.portable_form().is_none());
     }

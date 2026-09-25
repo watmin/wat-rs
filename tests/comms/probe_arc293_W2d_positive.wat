@@ -4,7 +4,7 @@
 ;; Arc 293.W.2d — positive cases that MUST type-check:
 ;;
 ;; 255.30 — the impure thread-peer arm is refused and lives in
-;; tests/kernel/probe_arc255_30_struct_on_thread_peer.wat. This file keeps the
+;; tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.bad. This file keeps the
 ;; pure self-peer, which must still load.
 
 ;; :wat::program::self-peer with pure types — must still type-check.

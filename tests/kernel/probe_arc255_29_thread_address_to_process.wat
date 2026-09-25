@@ -1,7 +1,7 @@
-;; Stone 255.29 — a thread address sent to a process child.
-;; The child dials it and must see Rejected (not the minting process).
-;; The echoed copy dials in the parent and must see Connected.
-;; Pre-stone the child dies decoding: unsupported substrate tag ##wat.kernel/Address.
+;; Stone 255.29 / 255.31 — a thread address sent to a process child.
+;; The child dials the decoded copy. The parent dials the copy the child echoed.
+;; Both are inert: Rejected, with the sentence that a wire copy is not the live value.
+;; Pre-255.29 the child died decoding. Pre-255.31 the parent echo connected.
 (:wat::core::defn :p29::recv-back
   [p <- (:wat::kernel::Process :- [(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])
                                    (:wat::core::Tuple :- [:wat::core::String (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])])])]

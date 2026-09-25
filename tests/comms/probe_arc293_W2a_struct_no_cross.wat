@@ -84,4 +84,4 @@
     nil))
 
 ;; 255.30 — a struct over a thread peer is refused. The row is
-;; tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.
+;; tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.bad.

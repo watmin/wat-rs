@@ -115,7 +115,7 @@ fn record_still_sends_after_backstop() {
 /// 255.30 — a struct on a thread peer is refused at the thread-spawn producer.
 #[test]
 fn struct_on_a_thread_peer_is_refused() {
-    let result = startup_from_file("tests/kernel/probe_arc255_30_struct_on_thread_peer.wat");
+    let result = startup_from_file("tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.bad");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::core::fn"

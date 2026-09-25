@@ -34,15 +34,14 @@
   [minter-pid <- :wat::core::i64
    name       <- (:wat::core::Vector :- [:wat::core::i64])])
 
-;; ── Stone 255.29 — ThreadAddressWire (the thread-tier address as data) ──
-;; A thread address's portable form: the minting process's pid and a listener
-;; id resolved against that process's weak rendezvous registry
-;; (src/kernel/address.rs). No token and no nonce — a thread address is not
-;; authenticated. Encodes as:
-;;   #wat.kernel/Address #wat.kernel/ThreadAddressWire {:minter-pid 4242 :id I}
-;; Dialed in any other process it connects as Rejected. Dialed in the minting
-;; process after the listener's rendezvous is gone it connects as Refused.
-;; `address-wire?` stays false: portable is not "a process may dial this".
+;; ── Stone 255.29 / 255.31 — ThreadAddressWire (the thread-tier address as data) ──
+;; The record a thread address encodes as, so a Status or PoolMsg holding one
+;; stays a well-formed capability. Two i64 fields: the minting process's pid,
+;; and an id the mint stamps 0 (nothing resolves it). No token and no nonce.
+;; Encodes as:
+;;   #wat.kernel/Address #wat.kernel/ThreadAddressWire {:minter-pid 4242 :id 0}
+;; A decoded copy is inert. connect on it is Rejected: dialable only through
+;; the live value. `address-wire?` stays false: this record is not a socket.
 (:wat::core::defrecord :wat::kernel::ThreadAddressWire
   [minter-pid <- :wat::core::i64
    id         <- :wat::core::i64])
