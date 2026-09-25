@@ -1,0 +1,4 @@
+;; Stone 255.39 — a parametric struct whose parameter no field uses.
+;; Still refused. The edge rule is surfaces only.
+(:wat::core::defstruct :probe::Unused :- [T]
+  [n <- :wat::core::i64])

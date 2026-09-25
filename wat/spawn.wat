@@ -251,27 +251,20 @@
   :Work  [pair <- (:wat::core::Tuple :- [:wat::core::i64 I])])
 
 ;; ── Spawned :- [S R] — the owner family ─────────────────────────────────────
-;; A surface. S is what the owner sends, R what the owner receives. send and
-;; recv stay intrinsics: a counterparty can do those too. close is the owner
-;; lifecycle, and its result is CloseOutcome, which lives in outcomes.wat.
-;; That file loads AFTER this one (AcceptOutcome names Peer, and deporder
-;; attributes Peer to this file), so this surface cannot name CloseOutcome.
-;; owner-end? is the feature that consumes S and R: the value is the owner
-;; end. Thread and Process implement it. They do not derive Peer. A new
-;; locus joins with one extend-type.
+;; The owner's end of a spawn. S is what the owner sends, R what it receives.
+;; Its implementors' edges bind them. Thread and Process each extend it.
+;; They do not derive Peer. A new locus joins with one extend-type.
+;; `:features` stays, empty: the declarator requires the clause.
 (:wat::core::defsurface :wat::spawn::Spawned :- [S R] :nature :wat::core::Struct
-  :features
-  [(owner-end? [self <- (:wat::spawn::Spawned :- [S R])] -> :wat::core::bool)])
+  :features [])
 
 (:wat::core::extend-type :- [S R]
   (:wat::kernel::Thread :- [S R])
-  (:wat::spawn::Spawned :- [S R])
-  (owner-end? [self] -> :wat::core::bool true))
+  (:wat::spawn::Spawned :- [S R]))
 
 (:wat::core::extend-type :- [S R]
   (:wat::kernel::Process :- [S R])
-  (:wat::spawn::Spawned :- [S R])
-  (owner-end? [self] -> :wat::core::bool true))
+  (:wat::spawn::Spawned :- [S R]))
 
 ;; ── arc 293.W.2d / arc 278 — a wire-safe Peer' IS usable in-locus ────────────
 ;; THE LINE IS SHARED MEMORY OR NOT, and it is DIRECTIONAL:

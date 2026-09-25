@@ -295,13 +295,15 @@ pub enum TypeErrorKind {
 
     /// Arc 109 (DESIGN-STONE-a-param-spec-must-be-consumed) — a type declaration's param-spec
     /// named a type parameter that no member type (field, variant, newtype inner, alias body,
-    /// union member, or surface field/method) reaches. This is a WALL, not a soundness fix — an
+    /// union member, or surface field/method) reaches. Stone 255.39 — a surface parameter
+    /// an implementing generic `extend-type` edge writes, by slot, is consumed too. The
+    /// rendered sentence is unchanged. This is a WALL, not a soundness fix — an
     /// unused param still discriminates types (nominal tagging, `PhantomData`'s use case); the
     /// declaration is rejected for READABILITY: a reader cannot tell a deliberate tag from a
     /// leftover edit unless every param is written into the shape somewhere. Consumption walks
     /// nested type expressions (`crate::declare::typevar::collect_free_type_vars_in`), so
     /// `[x <- (Vector <- [T])]` counts as consuming `T` — only a param absent from EVERY
-    /// reachable type expression, at any depth, fires this.
+    /// reachable type expression, at any depth, and from every implementing edge, fires this.
     UnconsumedTypeParam {
         /// The declaration's own name (`TypeDef::name()`), e.g. `:user::R`.
         decl: String,

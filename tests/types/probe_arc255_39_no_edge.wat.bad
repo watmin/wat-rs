@@ -1,0 +1,4 @@
+;; Stone 255.39 — the same featureless surface with no implementing edge.
+;; Refused. The diagnostic is UnconsumedTypeParam, same sentence as pre-stone.
+(:wat::core::defsurface :probe::Owner :- [S R] :nature :wat::core::Struct
+  :features [])

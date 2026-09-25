@@ -867,6 +867,12 @@ pub struct TypeEnv {
     /// Written only by [`Self::register_generic_edge`]; retracted beside the other edge
     /// stores in [`Self::retract_for_door_replace`].
     generic_edges: HashMap<String, Vec<GenericEdge>>,
+    /// Stone 255.39 — parametric surfaces whose members do not consume every
+    /// declared parameter. Rechecked by [`flush_surface_param_debt`] at the end
+    /// of the registration walk, once this batch's generic `extend-type` edges
+    /// exist. A parameter an implementing edge writes is consumed there; one
+    /// written by neither a member nor an edge is still `UnconsumedTypeParam`.
+    surface_param_debt: Vec<(String, Span)>,
 }
 
 /// Stone 255.22 — one generic `extend-type` edge: `(extend-type :- [params…] child target)`.
@@ -1058,6 +1064,16 @@ impl TypeEnv {
         self.parametric_extensions.remove(name);
         self.generic_edges.remove(name);
         self.source_forms.remove(name);
+    }
+
+    /// Stone 255.39 — remember a surface whose members leave a parameter
+    /// unconsumed. The edge half of the same check runs once this walk has
+    /// registered its `extend-type` forms.
+    fn note_surface_param_debt(&mut self, name: &str, span: Span) {
+        if self.surface_param_debt.iter().any(|(n, _)| n == name) {
+            return;
+        }
+        self.surface_param_debt.push((name.to_string(), span));
     }
 
     /// Register a name that has membership but no structure — a primitive, a
@@ -4319,7 +4335,7 @@ fn register_types_impl(
                 // Generalizes `surface_form_clone` to every decl head. Stored only for
                 // non-reserved user names, AFTER a successful registration (below).
                 let form_clone = form.clone();
-                let def = parse_type_decl(head, form, decl_span.clone(), env)?;
+                let def = take_parsed_decl(env, head, form, decl_span.clone())?;
                 // Arc 293 K3-revise — when a surface is registered, derive and register the
                 // PAIR of backing aggregates (`:S$core-record`, `:S$holon-record`).
                 // Field members only; methods are behavior. The `register` closure is re-used
@@ -4448,6 +4464,10 @@ fn register_types_impl(
             }
         }
     }
+    // Stone 255.39 — surfaces deferred above are checked HERE, after every
+    // `extend-type` in this batch has registered its generic edge. One function
+    // (`check_type_params_consumed`); this is the call that can see the edges.
+    flush_surface_param_debt(env)?;
     Ok(rest)
 }
 
@@ -4583,7 +4603,7 @@ fn splice_type_decls(
                 match classify_type_decl(&child) {
                     Some(head) => {
                         let decl_span = child.span().clone();
-                        let def = parse_type_decl(head, child, decl_span.clone(), env)?;
+                        let def = take_parsed_decl(env, head, child, decl_span.clone())?;
                         register(env, def, decl_span)?;
                     }
                     None => {
@@ -4604,7 +4624,7 @@ fn splice_type_decls(
                 match classify_type_decl(&child) {
                     Some(head) => {
                         let decl_span = child.span().clone();
-                        let def = parse_type_decl(head, child, decl_span.clone(), env)?;
+                        let def = take_parsed_decl(env, head, child, decl_span.clone())?;
                         register(env, def, decl_span)?;
                     }
                     None => {
@@ -4856,11 +4876,23 @@ pub(crate) fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
 ///   sometimes the return type, e.g. `(Holds :- [T])`'s `get [self] -> :T`). A check that read only
 ///   `Field` members would reject all of them; walking `Method` args + ret is required for the
 ///   wall to be sound against the surface declarations that already exist.
+///   Stone 255.39 — a surface parameter is ALSO consumed when an implementing generic
+///   `extend-type` edge writes its slot: the edge's target is this surface and the
+///   argument at that index is present (`(extend-type :- [S R] (Thread :- [S R])
+///   (Spawned :- [S R]))` writes both of `Spawned`'s parameters). The edge's binder
+///   names are the edge's, not the surface's; the slot is what binds the surface
+///   parameter. Records, structs, and enums do not consult edges. `edges` is `None`
+///   at declaration time (members only) and `Some` at the end of the registration
+///   walk, when the edges exist.
 ///
 /// Consumption itself walks NESTED type expressions — delegated to
 /// `crate::declare::typevar::collect_free_type_vars_in`, which already recurses through `Parametric`,
 /// `Fn`, and `Tuple` (stone 251.8a's single door; this reuses it rather than re-walking).
-fn check_type_params_consumed(def: &TypeDef, decl_span: &Span) -> Result<(), TypeError> {
+fn check_type_params_consumed(
+    def: &TypeDef,
+    decl_span: &Span,
+    edges: Option<&TypeEnv>,
+) -> Result<(), TypeError> {
     let type_params: &[String] = match def {
         TypeDef::Aggregate(a) => &a.type_params,
         TypeDef::Enum(e) => &e.type_params,
@@ -4906,7 +4938,14 @@ fn check_type_params_consumed(def: &TypeDef, decl_span: &Span) -> Result<(), Typ
             .collect(),
     };
 
-    let consumed = crate::declare::typevar::collect_free_type_vars_in(&member_types);
+    let mut consumed = crate::declare::typevar::collect_free_type_vars_in(&member_types);
+    if let (TypeDef::Surface(s), Some(env)) = (def, edges) {
+        for p in surface_params_bound_by_edges(env, &s.name, &s.type_params) {
+            if !consumed.iter().any(|c| c == &p) {
+                consumed.push(p);
+            }
+        }
+    }
     for p in type_params {
         if !consumed.contains(p) {
             return Err(TypeError::new(
@@ -4921,12 +4960,68 @@ fn check_type_params_consumed(def: &TypeDef, decl_span: &Span) -> Result<(), Typ
     Ok(())
 }
 
+/// Stone 255.39 — which of `params` an implementing generic edge writes, by slot.
+///
+/// `generic_edges` is keyed by the CHILD. The surface is the TARGET. A slot is
+/// written when some edge's target head is this surface and that argument
+/// position is present. One such edge is enough.
+fn surface_params_bound_by_edges(env: &TypeEnv, surface: &str, params: &[String]) -> Vec<String> {
+    let mut hit = vec![false; params.len()];
+    for edges in env.generic_edges.values() {
+        for edge in edges {
+            let TypeExpr::Parametric { head, args } = &edge.target else {
+                continue;
+            };
+            if !parametric_heads_unify(head, surface) {
+                continue;
+            }
+            for i in 0..args.len().min(hit.len()) {
+                hit[i] = true;
+            }
+        }
+    }
+    params
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| hit[*i])
+        .map(|(_, p)| p.clone())
+        .collect()
+}
+
+/// Parse a declaration and, for a surface whose members leave a parameter
+/// unconsumed, defer that one check until [`flush_surface_param_debt`].
+/// Aggregates still fail here, before the declaration is registered.
+fn take_parsed_decl(
+    env: &mut TypeEnv,
+    head: &str,
+    form: WatAST,
+    decl_span: Span,
+) -> Result<TypeDef, TypeError> {
+    let (def, surface_debt) = parse_type_decl(head, form, decl_span.clone(), env)?;
+    if surface_debt {
+        env.note_surface_param_debt(def.name(), decl_span);
+    }
+    Ok(def)
+}
+
+/// The edge half of [`check_type_params_consumed`], once this batch's edges exist.
+fn flush_surface_param_debt(env: &mut TypeEnv) -> Result<(), TypeError> {
+    let debt = std::mem::take(&mut env.surface_param_debt);
+    for (name, span) in debt {
+        let Some(def) = env.get(&name).cloned() else {
+            continue;
+        };
+        check_type_params_consumed(&def, &span, Some(env))?;
+    }
+    Ok(())
+}
+
 fn parse_type_decl(
     head: &str,
     form: WatAST,
     decl_span: Span,
     env: &TypeEnv,
-) -> Result<TypeDef, TypeError> {
+) -> Result<(TypeDef, bool), TypeError> {
     let items = match form {
         WatAST::List(items, _) => items,
         _ => {
@@ -4964,10 +5059,25 @@ fn parse_type_decl(
         "defsurface" => parse_defsurface(iter.collect(), decl_span.clone()),
         _ => unreachable!(),
     }?;
-    // Arc 109 (param-spec-must-be-consumed) — ONE check, here, after every declarator has
-    // returned its built TypeDef, rather than seven checks threaded into seven parsers.
-    check_type_params_consumed(&def, &decl_span)?;
-    Ok(def)
+    // Arc 109 (param-spec-must-be-consumed) — ONE check, after every declarator has
+    // returned its built TypeDef. Aggregates run it here (fields and variants; no
+    // edges). A surface whose members already consume every parameter also runs it
+    // here, so a later edge cannot change a verdict the members already settled.
+    // A surface with a parameter no member uses is deferred (`true`): the same
+    // function runs again from `flush_surface_param_debt` once this batch's
+    // implementing edges are registered.
+    let surface_debt = match &def {
+        TypeDef::Surface(_) => match check_type_params_consumed(&def, &decl_span, None) {
+            Ok(()) => false,
+            Err(e) if matches!(e.kind(), TypeErrorKind::UnconsumedTypeParam { .. }) => true,
+            Err(e) => return Err(e),
+        },
+        _ => {
+            check_type_params_consumed(&def, &decl_span, None)?;
+            false
+        }
+    };
+    Ok((def, surface_debt))
 }
 
 /// Stone 241.9 — parse a `(:wat::core::defenum :Name :V1 :V2 [f <- :T ...] ...)` declaration.
