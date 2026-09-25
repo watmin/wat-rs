@@ -112,6 +112,34 @@ pub(crate) fn eval_fn(
     })))
 }
 
+/// The binders and body of a `fn` form, peeled the same way [`eval_fn`] peels
+/// them. The stepper substitutes into `body`; it does not evaluate.
+pub(crate) struct FnFormParts {
+    pub params: Vec<crate::scope::Identifier>,
+    pub rest: Option<crate::scope::Identifier>,
+    pub body: WatAST,
+}
+
+pub(crate) fn peel_fn_form(items: &[WatAST], list_span: &Span) -> Result<FnFormParts, RuntimeError> {
+    let args = &items[1..];
+    let sig_args = peel_metadata_preamble(args);
+    let (_binder, sig_args) = peel_type_binder(sig_args);
+    if sig_args.len() < 3 {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: FN_HEAD.into(),
+            reason: format!("expected [name <- :T ...] -> :Ret body ...; got {} element(s)", sig_args.len())
+        }));
+    }
+    let body = synthesize_fn_body(&sig_args[3..]);
+    let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
+    let ParsedFnSignature { params, rest, .. } = parse_fn_signature_with_rest(sig3)?;
+    Ok(FnFormParts {
+        params,
+        rest: rest.map(|(name, _ty)| name),
+        body,
+    })
+}
+
 /// Stone 237.2 — dispatch: eval a call to a defclause-bound name.
 ///
 /// Implements first-match-wins arity+type dispatch. Evaluates all args first,

@@ -2734,6 +2734,7 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
         ("PatternMatchFailed", vec![("value-type".into(), string())]),
         ("EffectfulInStep", vec![("op".into(), string())]),
         ("NoStepRule", vec![("op".into(), string())]),
+        ("NoProgress", vec![("form".into(), string())]),
         // `message` collides with the floor → floor-only + these two.
         (
             "AssertionFailed",

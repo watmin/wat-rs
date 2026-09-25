@@ -215,6 +215,17 @@ filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
 priority = 98                                             # just below the lint binary
 
+# 2026-09-25 — excursus 004 stone 1 re-strike. The 15s/30s default is not a budget
+# for these four: measured ALONE on this machine, `c5c_nan_is_unordered_gate` 28.6s
+# and `wat_value_ui` 25.6s, against a 30s kill (about 1.4s of margin). `c5b` took
+# 27.3s under a loaded floor and lived. `to_edn_derive_ui` is the same trybuild
+# class; on that floor it died at 30s waiting on the cargo lock. Warn 90s / kill
+# 180s is about 3x the alone number. The 5s deftest deadlock guard is unchanged;
+# the nth past-end rows annotate `(:wat::test::time-limit "15s")` themselves.
+[[profile.default.overrides]]
+filter = 'test(c5c_nan_is_unordered_gate) or test(c5b_exact_mixed_numeric_order_gate) or test(wat_value_ui) or test(to_edn_derive_ui)'
+slow-timeout = { period = "90s", terminate-after = 2 }
+
 [[profile.ci.overrides]]
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
@@ -242,6 +253,11 @@ priority = 99
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98
+
+# 2026-09-25 — same four as profile.default. A deadline only the dev profile can meet is not one.
+[[profile.ci.overrides]]
+filter = 'test(c5c_nan_is_unordered_gate) or test(c5b_exact_mixed_numeric_order_gate) or test(wat_value_ui) or test(to_edn_derive_ui)'
+slow-timeout = { period = "90s", terminate-after = 2 }
 
 # 296 Stone K, move 3 — the slow profile. `all()` re-admits everything
 # `[profile.default]`'s `default-filter` excludes EXCEPT the three STOP-2
@@ -275,3 +291,8 @@ priority = 99
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98
+
+# 2026-09-25 — same four as profile.default.
+[[profile.slow.overrides]]
+filter = 'test(c5c_nan_is_unordered_gate) or test(c5b_exact_mixed_numeric_order_gate) or test(wat_value_ui) or test(to_edn_derive_ui)'
+slow-timeout = { period = "90s", terminate-after = 2 }

@@ -375,6 +375,10 @@ pub enum RuntimeErrorKind {
     /// consumers can distinguish "out of scope by design" from "not
     /// taught yet."
     NoStepRule { op: String },
+    /// `:wat::eval-step!` produced `StepNext` of a form equal to its input.
+    /// A step that does not change the form is not a fixed point the walker
+    /// can sit on — it is this error, and `form` is that form.
+    NoProgress { form: String },
     /// Raised by `:wat::kernel::assertion-failed!` when an assertion in
     /// a `:wat::test::*` form (or any user code that calls the primitive
     /// directly) fails. Intended to travel as a panic payload via the
@@ -763,6 +767,11 @@ impl RuntimeErrorKind {
                 f,
                 "{}:wat::eval-step!: no step rule for op {}; v1 covers arithmetic / logical / control flow / let / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.",
                 prefix, op
+            ),
+            RuntimeErrorKind::NoProgress { form } => write!(
+                f,
+                "{}:wat::eval-step!: step made no progress on {}",
+                prefix, form
             ),
             RuntimeErrorKind::AssertionFailed { message, actual, expected } => {
                 write!(f, "{}assertion failed: {}", prefix, message)?;

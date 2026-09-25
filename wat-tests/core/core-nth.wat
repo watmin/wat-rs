@@ -50,6 +50,7 @@
 ;; MESSAGE. Matching the message — not merely "it died" — is what proves the NAMED error rather
 ;; than any failure at all.
 
+(:wat::test::time-limit "15s")
 (:wat::test::deftest-hermetic :wat-tests::core::core-nth::nth-past-end-vector-raises
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
@@ -70,6 +71,7 @@
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
 
+(:wat::test::time-limit "15s")
 (:wat::test::deftest-hermetic :wat-tests::core::core-nth::nth-past-end-persistentvector-raises
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
@@ -90,6 +92,7 @@
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
 
+(:wat::test::time-limit "15s")
 (:wat::test::deftest-hermetic :wat-tests::core::core-nth::nth-past-end-list-raises
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)

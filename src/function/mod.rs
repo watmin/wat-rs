@@ -63,7 +63,10 @@ pub(in crate::function) const FN_HEAD: &str = ":wat::core::fn";
 // re-exports (`eval` list, below), plus the new `subsume` sub-module — home-internal only,
 // nothing outside `src/function/` reaches it. No new home minted; this fills out the
 // existing one.
-pub(crate) use eval::{eval_call_to_defclause, eval_call_to_defclause_with_vals, eval_fn, select_defclause_clause};
+pub(crate) use eval::{
+    eval_call_to_defclause, eval_call_to_defclause_with_vals, eval_fn, peel_fn_form,
+    select_defclause_clause,
+};
 pub(crate) use infer::infer_fn;
 pub(crate) use metadata::peel_type_binder;
 pub(crate) use parse::{
