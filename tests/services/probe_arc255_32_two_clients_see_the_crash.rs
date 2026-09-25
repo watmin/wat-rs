@@ -32,7 +32,7 @@ fn two_clients_and_the_owner_see_a_service_panic() {
 "thread client-b Lost peer crashed (abnormal far-side crash — no reason; the crash reason is administrative and travels only to the owner's crash channel)"
 "thread owner Lost P32-SERVICE-PANIC-REASON"
 "process client-a Lost peer crashed (abnormal far-side crash — no reason; the crash reason is administrative and travels only to the owner's crash channel)"
-"process client-b Lost io_uring read failed"
+"process client-b Lost peer crashed (abnormal far-side crash — no reason; the crash reason is administrative and travels only to the owner's crash channel)"
 "process owner Lost P32-SERVICE-PANIC-REASON""#,
         "stderr:\n{stderr}\nstdout:\n{stdout}"
     );

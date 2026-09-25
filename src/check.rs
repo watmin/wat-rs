@@ -12115,20 +12115,22 @@ fn infer_serve_dispatch_op(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::serve-dispatch-op";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 2 {
+    if args.len() != 3 {
         local_errors.push(CheckError {
             span: head_span.clone(),
-            kind: CheckErrorKind::ArityMismatch { callee: OP.into(), expected: 2, got: args.len() },
+            kind: CheckErrorKind::ArityMismatch { callee: OP.into(), expected: 3, got: args.len() },
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
         return CheckResult::errs(local_errors);
     }
-    // clients: checked for error coverage only — type not further constrained.
+    // clients and the listener: checked for error coverage only — type not
+    // further constrained.
     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     // body: its inferred type IS the form's type (do-style passthrough).
-    let val = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let val = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     match val {
         Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
         None => CheckResult::errs(local_errors),

@@ -23,6 +23,27 @@ use crate::value::{
 };
 use std::sync::Arc;
 
+/// The clients already in the serve loop, then anyone still sitting in the
+/// listen backlog. Both sends are best-effort and do not block.
+fn notify_crash(clients: &Value, listener: &Value) {
+    crate::kernel::peer::broadcast_peer_crashed_best_effort(clients);
+    let crate::value::Value::RustOpaque(inner) = listener else {
+        return;
+    };
+    if inner.type_path != crate::kernel::spawn::LISTENER_TYPE_PATH {
+        return;
+    }
+    let Ok(found) = crate::rust_deps::marshal::downcast_ref_opaque::<crate::kernel::listener::Listener>(
+        inner,
+        crate::kernel::spawn::LISTENER_TYPE_PATH,
+        ":wat::kernel::serve-dispatch-op",
+        crate::rust_caller_span!(),
+    ) else {
+        return;
+    };
+    found.notify_pending_best_effort();
+}
+
 /// Arc 278 Stone 2 (Option A) — `(:wat::kernel::retag-op op :<surface>::Op
 /// :<service>::Op)` — the ONE novel mechanism of the `<service>::Op` superset:
 /// the RE-TAG. A `defservice` serve loop dispatches over its synthesized
@@ -175,19 +196,20 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::serve-dispatch-op";
-    if args.len() != 2 {
+    if args.len() != 3 {
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 2,
+                expected: 3,
                 got: args.len(),
             },
         )
         .into());
     }
     let clients_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let body = &args[1];
+    let listener_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let body = &args[2];
     let outcome =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_tail(body, env, sym)));
     match outcome {
@@ -201,12 +223,12 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
         // control flow, not a crash → never broadcast.
         Ok(result) => {
             if let Err(EvalBreak::Diagnostic(_)) = &result {
-                crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
+                notify_crash(&clients_val, &listener_val);
             }
             result
         }
         Err(payload) => {
-            crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
+            notify_crash(&clients_val, &listener_val);
             std::panic::resume_unwind(payload);
         }
     }

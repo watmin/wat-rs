@@ -1956,7 +1956,7 @@
                      ;; resumes the SAME panic unchanged — the service still crashes exactly as
                      ;; before; this arm's own Reply/Stop behavior (the match body) is untouched.
                      [:wat::spawn::ServiceEvent.Message {:idx idx :msg op}
-                       (:wat::kernel::serve-dispatch-op ~peers-only-expr
+                       (:wat::kernel::serve-dispatch-op ~peers-only-expr l
                          ;; Arc 278 the parametric protocol — TYPE-position spellings on both
                          ;; sides: `infer_retag_op` reads arg[2] as this form's RESULT TYPE, and
                          ;; the arms below dispatch over the instantiated `(<service>::Op :- [K V])`.

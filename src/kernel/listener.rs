@@ -25,7 +25,7 @@
 
 use std::collections::HashSet;
 use std::os::fd::OwnedFd;
-use std::os::unix::net::UnixListener;
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::Arc;
 
 use crate::channel::inner::ReceiverInner;
@@ -295,6 +295,79 @@ impl SocketListener {
             s.remove(&pid);
         })
     }
+
+    /// A `connect` can return while the connection is still in the listen
+    /// backlog (the autobind listener listens with a backlog of 128). That
+    /// client is not in the serve loop's `clients` yet. Process death resets
+    /// an unaccepted socket, so their read is `ECONNRESET` and they never see
+    /// the crash notice. Accept each pending connection without blocking,
+    /// write the reasonless sentinel, discard unread inbound bytes (a close
+    /// that leaves some is a reset, and a reset drops the sentinel), and close.
+    pub(crate) fn notify_pending_best_effort(&self) {
+        use std::os::fd::AsRawFd;
+        loop {
+            let stream = match self.listener.accept() {
+                Ok((stream, _)) => stream,
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(_) => break,
+            };
+            let Ok(cred) = crate::comms::process::peer_cred(stream.as_raw_fd()) else {
+                continue;
+            };
+            if !self.authorizes(&cred) {
+                continue;
+            }
+            if stream.set_nonblocking(true).is_err() {
+                continue;
+            }
+            write_crash_notice(&stream);
+        }
+    }
+}
+
+/// Write the reasonless crash sentinel, then read away anything the client
+/// already sent. Both steps are non-blocking. The socket is closed by the
+/// caller's drop.
+fn write_crash_notice(stream: &UnixStream) {
+    use std::os::fd::AsRawFd;
+    let fd = stream.as_raw_fd();
+    let mut frame = crate::kernel::peer::PEER_CRASHED_SENTINEL.as_bytes().to_vec();
+    frame.push(b'\n');
+    let mut off = 0;
+    while off < frame.len() {
+        let n = unsafe {
+            libc::write(
+                fd,
+                frame[off..].as_ptr() as *const libc::c_void,
+                frame.len() - off,
+            )
+        };
+        if n < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            break;
+        }
+        if n == 0 {
+            break;
+        }
+        off += n as usize;
+    }
+    let mut buf = [0u8; 4096];
+    loop {
+        let n = unsafe { libc::recv(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0) };
+        if n < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            break;
+        }
+        if n == 0 {
+            break;
+        }
+    }
 }
 
 impl CommListener for SocketListener {
@@ -461,6 +534,14 @@ impl Listener {
     /// `PEER_TYPE_PATH` opaque); `Err(AcceptFail::Closed)` → `Closed[]`;
     /// `Err(AcceptFail::Failed(reason))` → `Failed[cause <- Failure]` (via
     /// `message_only_failure`). A must-never-happen raise stays an `EvalBreak` (the `?`).
+    /// Process tier only. A thread listener has no kernel accept queue:
+    /// `connect` does not return until `accept` has taken the request.
+    pub(crate) fn notify_pending_best_effort(&self) {
+        if let Some(socket) = self.inner.as_any_ref().downcast_ref::<SocketListener>() {
+            socket.notify_pending_best_effort();
+        }
+    }
+
     pub fn accept_as_value(&self, sym: &SymbolTable, span: &Span) -> Result<Value, EvalBreak> {
         use crate::kernel::spawn::PEER_TYPE_PATH;
         match self.inner.accept(sym, span)? {

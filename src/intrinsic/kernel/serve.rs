@@ -174,6 +174,7 @@ pub(crate) fn eval_retag_op(
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
 /// @arg     clients (:wat::core::Vector :- [(:wat::kernel::Peer :- [S R])]) the connected clients to notify on a handler crash
+/// @arg     listener (:wat::kernel::Listener :- [S R]) the serve loop's listener; pending accepts are notified too
 /// @arg     body :T the op-dispatch form to evaluate (a `(:wat::core::match op ~@arms)`)
 /// @ret     :T `body`'s own result — this primitive is a transparent wrapper (do-style passthrough)
 /// @example-norun (:wat::kernel::serve-dispatch-op clients (:wat::core::match op (Ping :pong))) #=> :pong
@@ -218,13 +219,14 @@ pub(crate) fn eval_retag_op(
 #[wat_intrinsic(":wat::kernel::serve-dispatch-op")]
 pub(crate) fn eval_kernel_serve_dispatch_op(
     clients: &WatAST,
+    listener: &WatAST,
     body: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     crate::kernel::serve::eval_kernel_serve_dispatch_op_tail(
-        &[clients.clone(), body.clone()],
+        &[clients.clone(), listener.clone(), body.clone()],
         list_span,
         env,
         sym,
