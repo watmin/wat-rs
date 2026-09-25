@@ -120,3 +120,118 @@
     [:wat::kernel::RecvOutcome.Lost {:cause c} (:wat::kernel::LociDiedError/message c)]
     [:wat::kernel::RecvOutcome.Stopped {} "Stopped"]
     [:wat::kernel::RecvOutcome.Closed {} "Closed"]))
+
+;; ═══ Excursus 003 stone I — a value with no EDN representation renders as tagged nil ═══════════
+;; Measured BEFORE, at 9cc4147ca (wat-scripts/scratch-pad/ex003-stone-h/c-writer-non-nil-opaques-over-wire.wat):
+;; the writer rendered a HandlePool as `#wat.kernel/HandlePool "<name>"`, a forced Stream as
+;; `#wat.stream/Stream <head>` and an EMPTY Stream as `()` — none a nil-bodied tag, so the strict
+;; wire encoder let all three through. The first two reached the parent as `RecvOutcome.Lost` "recv
+;; EDN decode failed … unknown tag"; the empty one ARRIVED, as a List in a Stream-typed slot, and
+;; failed later at `:wat::stream::next` ("expected wat::stream::Stream, got wat::core::List `()`").
+;; AFTER: every one is `opaque_nil`, so the child's `send` refuses it at its own span (stone G's
+;; message); a stream materialized into a vector first crosses whole.
+
+;; (g) A HandlePool over the child's self-peer — refused at the child's send.
+(:wat::core::defn :h::probe-send-handle-pool [] -> :wat::core::String
+  (:wat::core::let
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
+           (:wat::core::forms
+             (:wat::core::defrecord :h::Box :- [T] [x <- :T])
+             (:wat::core::defn :h::ship :- [T] [x <- :T] -> :wat::core::nil
+               (:wat::core::match
+                 (:wat::kernel::send (:wat::program::self-peer (:h::Box :- [:T]) :wat::core::i64) (:h::Box :x x))
+                 [:wat::kernel::SendOutcome.Sent {} nil]
+                 [:wat::kernel::SendOutcome.Closed {} nil]
+                 [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+                 [:wat::kernel::SendOutcome.Stopped {} nil]))
+             (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:h::ship (:wat::kernel::HandlePool/new "p" (:wat::core::Vector :- [:wat::core::i64] 1 2))))))]
+    (:h::child-said svc)))
+
+;; (h) A forced Stream (a Cons cell whose head is data) — refused at the child's send.
+(:wat::core::defn :h::probe-send-forced-stream [] -> :wat::core::String
+  (:wat::core::let
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
+           (:wat::core::forms
+             (:wat::core::defrecord :h::Box :- [T] [x <- :T])
+             (:wat::core::defn :h::ship :- [T] [x <- :T] -> :wat::core::nil
+               (:wat::core::match
+                 (:wat::kernel::send (:wat::program::self-peer (:h::Box :- [:T]) :wat::core::i64) (:h::Box :x x))
+                 [:wat::kernel::SendOutcome.Sent {} nil]
+                 [:wat::kernel::SendOutcome.Closed {} nil]
+                 [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+                 [:wat::kernel::SendOutcome.Stopped {} nil]))
+             (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:h::ship (:wat::stream::cons 1 (:wat::stream::lazy (:wat::stream::cons 2 (:wat::stream::lazy (:wat::stream::empty)))))))))]
+    (:h::child-said svc)))
+
+;; (i) An EMPTY Stream — refused at the child's send. Before: it arrived, as a List.
+(:wat::core::defn :h::probe-send-empty-stream [] -> :wat::core::String
+  (:wat::core::let
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
+           (:wat::core::forms
+             (:wat::core::defrecord :h::Box :- [T] [x <- :T])
+             (:wat::core::defn :h::ship :- [T] [x <- :T] -> :wat::core::nil
+               (:wat::core::match
+                 (:wat::kernel::send (:wat::program::self-peer (:h::Box :- [:T]) :wat::core::i64) (:h::Box :x x))
+                 [:wat::kernel::SendOutcome.Sent {} nil]
+                 [:wat::kernel::SendOutcome.Closed {} nil]
+                 [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+                 [:wat::kernel::SendOutcome.Stopped {} nil]))
+             (:wat::core::defn :h::none [] -> (:wat::stream::Stream :- [:wat::core::i64])
+               (:wat::stream::empty))
+             (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:h::ship (:h::none)))))]
+    (:wat::core::match (:wat::kernel::recv svc)
+      [:wat::kernel::RecvOutcome.Message {:msg m} (:h::empty-stream-arrived m)]
+      [:wat::kernel::RecvOutcome.Lost {:cause c} (:wat::kernel::LociDiedError/message c)]
+      [:wat::kernel::RecvOutcome.Stopped {} "Stopped"]
+      [:wat::kernel::RecvOutcome.Closed {} "Closed"])))
+
+;; What the parent says if an empty Stream ever arrives again: the value it got, and what `next`
+;; makes of it. (Reached only under the stone I mutation — restoring the writer's `()` arm.)
+(:wat::core::defn :h::empty-stream-arrived
+  [b <- (:h::Box :- [(:wat::stream::Stream :- [:wat::core::i64])])] -> :wat::core::String
+  (:wat::core::format "Message: {w} ; next of it: {n}" :w (:wat::edn::write b)
+    :n (:wat::core::match (:wat::stream::next (:h::Box/x b))
+         [:wat::stream::NextOutcome.Item {:value _v :rest _r} "Item"]
+         [:wat::stream::NextOutcome.Exhausted {} "Exhausted"])))
+
+;; (j) The builder's route: the child materializes the stream into a vector, and THAT crosses whole.
+(:wat::core::defn :h::probe-send-materialized-stream [] -> :wat::core::String
+  (:wat::core::let
+    [svc (:wat::test::spawn-peer (:wat::spawn::process)
+           (:wat::core::forms
+             (:wat::core::defrecord :h::Box :- [T] [x <- :T])
+             (:wat::core::defn :h::ship :- [T] [x <- :T] -> :wat::core::nil
+               (:wat::core::match
+                 (:wat::kernel::send (:wat::program::self-peer (:h::Box :- [:T]) :wat::core::i64) (:h::Box :x x))
+                 [:wat::kernel::SendOutcome.Sent {} nil]
+                 [:wat::kernel::SendOutcome.Closed {} nil]
+                 [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+                 [:wat::kernel::SendOutcome.Stopped {} nil]))
+             (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:h::ship (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
+                           (:wat::stream::cons 1 (:wat::stream::lazy (:wat::stream::cons 2 (:wat::stream::lazy (:wat::stream::empty))))))))))]
+    (:wat::core::match (:wat::kernel::recv svc)
+      [:wat::kernel::RecvOutcome.Message {:msg m} (:h::vec-arrived m)]
+      [:wat::kernel::RecvOutcome.Lost {:cause c} (:wat::kernel::LociDiedError/message c)]
+      [:wat::kernel::RecvOutcome.Stopped {} "Stopped"]
+      [:wat::kernel::RecvOutcome.Closed {} "Closed"])))
+
+(:wat::core::defn :h::vec-arrived
+  [b <- (:h::Box :- [(:wat::core::Vector :- [:wat::core::i64])])] -> :wat::core::String
+  (:wat::core::format "Message: {w}" :w (:wat::edn::write b)))
+
+;; (k) Outside any wire, `:wat::edn::write` of each renders its tagged nil — every Stream state
+;; (forced, empty, unforced) under the one type tag. Joined as one EDN vector, so the test compares
+;; it as data against its golden.
+(:wat::core::defn :h::probe-edn-write-no-repr [] -> :wat::core::String
+  (:wat::core::format "[{p} {f} {e} {l}]"
+    :p (:wat::edn::write (:wat::kernel::HandlePool/new "p" (:wat::core::Vector :- [:wat::core::i64] 1 2)))
+    :f (:wat::edn::write (:wat::stream::cons 1 (:wat::stream::lazy (:wat::stream::empty))))
+    :e (:wat::edn::write (:h::none))
+    :l (:wat::edn::write (:wat::stream::lazy (:wat::stream::cons 1 (:wat::stream::lazy (:wat::stream::empty)))))))
+
+(:wat::core::defn :h::none [] -> (:wat::stream::Stream :- [:wat::core::i64])
+  (:wat::stream::empty))

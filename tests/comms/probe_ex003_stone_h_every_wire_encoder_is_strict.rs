@@ -85,3 +85,63 @@ fn f_child_println_of_pure_data_arrives_whole() {
         "Message: #h/Box {:x 42}"
     );
 }
+
+// ═══ Excursus 003 stone I — a value with no EDN representation renders as tagged nil ═══════════
+//
+// A HandlePool and a Stream (every state) have no EDN representation (ruling 2026-09-24; arc 294,
+// `BRIEF-294.i:15`). Before, the writer gave them bodies no reader decodes — a HandlePool's name, a
+// forced Stream's head, and for an EMPTY Stream a bare `()` that decoded as the wrong type. Those
+// bodies are gone: each is `opaque_nil`, so the strict wire refuses it at the sender.
+
+/// (g) A HandlePool over a process wire raises at the child's `send`. Before: the parent's Lost was a
+/// recv-side "unknown tag #wat.kernel/HandlePool (body shape: string)".
+#[test]
+fn g_child_send_of_a_handle_pool_raises_at_the_sender() {
+    wat::assert_edn_matches_file!(
+        face_of(":h::probe-send-handle-pool"),
+        "probe_ex003_stone_h_every_wire_encoder_is_strict__send_handle_pool.edn",
+        "a HandlePool has no wire form; the child's send must refuse it at its own .wat span"
+    );
+}
+
+/// (h) A forced Stream over a process wire raises at the child's `send`. Before: the parent's Lost
+/// was a recv-side "unknown tag #wat.stream/Stream (body shape: integer)".
+#[test]
+fn h_child_send_of_a_forced_stream_raises_at_the_sender() {
+    wat::assert_edn_matches_file!(
+        face_of(":h::probe-send-forced-stream"),
+        "probe_ex003_stone_h_every_wire_encoder_is_strict__send_forced_stream.edn",
+        "a Stream has no wire form; the child's send must refuse it at its own .wat span"
+    );
+}
+
+/// (i) An EMPTY Stream over a process wire raises at the child's `send`. Before: it ARRIVED — as a
+/// List in a Stream-typed slot — and failed later, at the parent's `:wat::stream::next`.
+#[test]
+fn i_child_send_of_an_empty_stream_raises_at_the_sender() {
+    wat::assert_edn_matches_file!(
+        face_of(":h::probe-send-empty-stream"),
+        "probe_ex003_stone_h_every_wire_encoder_is_strict__send_empty_stream.edn",
+        "an empty Stream has no wire form either; the child's send must refuse it, not ship a List"
+    );
+}
+
+/// (j) The positive control: a stream materialized into a vector first crosses whole.
+#[test]
+fn j_a_stream_materialized_to_a_vector_crosses_whole() {
+    assert_eq!(
+        face_of(":h::probe-send-materialized-stream"),
+        "Message: #h/Box {:x [1 2]}"
+    );
+}
+
+/// (k) Outside the wire, `:wat::edn::write` prints the tagged nil — for a HandlePool, and for a
+/// Stream in every state (forced, empty, unforced) under the one type tag.
+#[test]
+fn k_edn_write_of_each_is_its_tagged_nil() {
+    wat::assert_edn_matches_file!(
+        face_of(":h::probe-edn-write-no-repr"),
+        "probe_ex003_stone_h_every_wire_encoder_is_strict__edn_write_no_repr.edn",
+        "[HandlePool, forced Stream, empty Stream, unforced Stream] each render as their tagged nil"
+    );
+}

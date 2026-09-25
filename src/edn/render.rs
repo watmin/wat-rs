@@ -3420,10 +3420,10 @@ fn tagged_to_value(
 
     // Arc 294.i — no explicit opaque-bucket refusal check needed anymore: every ex-opaque
     // handle now writes under its own per-type home (`#wat.kernel/Sender nil`, …) with a
-    // bare-nil (or, for HandlePool, a String) body, and neither shape reconstructs by accident.
-    // A nil body already refuses generically below (`Edn::Nil` arm — arc 278 A.0, "bare-nil body
-    // — retired"); a non-nil, non-Map, non-Vector body (HandlePool's String; a Stream head that
-    // happens not to be a Map/Vector) falls to the generic `UnknownTag` arm. Neither path
+    // bare-nil body (HandlePool and every Stream state too, since excursus 003 stone I), so it
+    // reconstructs nothing by accident. A nil body already refuses generically below (`Edn::Nil`
+    // arm — arc 278 A.0, "bare-nil body — retired"); any other body under a tag nothing
+    // registers falls to the generic `UnknownTag` arm. Neither path
     // reconstructs a live opaque handle from data — the property this check used to assert by
     // name is now structural, not a namespace string match.
     //
@@ -4783,14 +4783,12 @@ fn value_to_edn_in(
         Value::wat__core__fn(_) => opaque_nil_or_refuse(v, mode, "wat.core", "fn")?,
         Value::wat__kernel__Sender(_) => opaque_nil_or_refuse(v, mode, "wat.kernel", "Sender")?,
         Value::wat__kernel__Receiver(_) => opaque_nil_or_refuse(v, mode, "wat.kernel", "Receiver")?,
-        // Arc 294.i — the ONE exception to "everything decorates nil": HandlePool carries its
-        // pool name as the body today. Preserve it; flattening to nil would silently drop data.
-        Value::wat__kernel__HandlePool { name, .. } => OwnedValue::Tagged(
-            Tag::ns("wat.kernel", "HandlePool"),
-            Box::new(OwnedValue::String(std::borrow::Cow::Owned(
-                (**name).clone(),
-            ))),
-        ),
+        // Excursus 003 stone I (ruling 2026-09-24) — a HandlePool has no EDN representation, so
+        // it decorates nil like every other resource (arc 294, `BRIEF-294.i:15`: "A resource has
+        // no EDN representation. The tag says what it was; the `nil` body says you learn nothing
+        // more."). Its pool-name body was 294.i's one exception, and no reader decoded it — a
+        // body only the writer believed in. Being `opaque_nil`, the wire now refuses it.
+        Value::wat__kernel__HandlePool { .. } => opaque_nil_or_refuse(v, mode, "wat.kernel", "HandlePool")?,
         Value::wat__kernel__ChildHandle(_) => opaque_nil_or_refuse(v, mode, "wat.kernel", "ChildHandle")?,
         Value::wat__io__IOReader(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOReader")?,
         Value::wat__io__IOWriter(_) => opaque_nil_or_refuse(v, mode, "wat.io", "IOWriter")?,
@@ -4877,26 +4875,15 @@ fn value_to_edn_in(
                 .collect::<Result<Vec<_>, WireEncodeError>>()?;
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
-        // Arc 118 — Stream: opaque (lazy; realizing for EDN would diverge on infinite seqs).
-        // Render the forced prefix if available, otherwise as an opaque lazy sentinel.
-        Value::wat__stream__Stream(seq) => {
-            use crate::stream::Stream;
-            match seq.as_ref() {
-                Stream::Empty => OwnedValue::List(vec![]),
-                Stream::Cons { head, .. } => {
-                    // Only render the head (forced); tail may be infinite. NOT flattened to nil —
-                    // like HandlePool, the forced head is real data the model does not discard;
-                    // only the namespace moves home (arc 294.i).
-                    OwnedValue::Tagged(
-                        Tag::ns("wat.stream", "Stream"),
-                        Box::new(value_to_edn_in(head, types, mode)?),
-                    )
-                }
-                // Arc 294.i — lazy-seq is a Stream::Thunk|NativeThunk sub-state, not its own
-                // Value variant, so it shares Stream's home namespace.
-                Stream::Thunk(_) | Stream::NativeThunk(_) => opaque_nil_or_refuse(v, mode, "wat.stream", "lazy-seq")?,
-            }
-        }
+        // Excursus 003 stone I (ruling 2026-09-24) — a Stream has no EDN representation in ANY
+        // state: `#wat.stream/Stream nil` for Empty, Cons, Thunk and NativeThunk alike (arc 294,
+        // `BRIEF-294.i:15`: "A resource has no EDN representation. The tag says what it was; the
+        // `nil` body says you learn nothing more."). The forced-head body (arc 118 / 294.i's
+        // "preserve the data") decoded nowhere, and the empty `()` decoded as the WRONG TYPE — a
+        // List in a Stream slot. The Thunk states' old `lazy-seq` name is not a type; the tag is
+        // the type's. A program that wants a stream's data materializes it into a vector; being
+        // `opaque_nil`, the wire refuses the stream itself at the sender.
+        Value::wat__stream__Stream(_) => opaque_nil_or_refuse(v, mode, "wat.stream", "Stream")?,
         // Stone 237.2 — wat__core__clauses: opaque (multi-arity dispatcher;
         // not directly serializable to EDN).
         Value::wat__core__clauses(cs) => opaque_nil_or_refuse(v, mode, "wat.core", {
