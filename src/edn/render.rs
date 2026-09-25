@@ -4598,6 +4598,31 @@ fn opaque_nil_or_refuse(
     }
 }
 
+/// Excursus 003 stone Q — every field/variant name the writer emits as an EDN keyword and
+/// takes FROM DATA (a struct/enum/record's own `names`, a foreign value's self-carried keys)
+/// goes through here instead of `Keyword::new`, which is DOCUMENTED to panic on a name EDN
+/// cannot spell (`crates/wat-edn/src/value.rs:~324`; `Keyword::try_new` exists at `:~265`).
+/// the-little-wat F-030: printing a newtype hit this exact panic — `Keyword::new("0")` — because
+/// the Struct arm rendered a newtype (whose one field is synthesized-named `"0"`, never spelled
+/// through the identifier lexer) like an ordinary struct. That specific case is handled by
+/// rendering a newtype as its inner value (see the `Nature::Struct` arm below); THIS helper is
+/// the class-wide backstop for every other data-named `Keyword::new` in the writer — a refusal,
+/// never a panic, never a silent rename, naming the offending name and the type/variant it came
+/// from.
+fn edn_field_keyword(name: &str, context: &str) -> Result<Keyword, WireEncodeError> {
+    Keyword::try_new(name).map_err(|reason| {
+        WireEncodeError::Encode(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::edn::write".into(),
+                reason: format!(
+                    "field/variant name {name:?} of {context} is not a legal EDN keyword: {reason}"
+                ),
+            },
+        ))
+    })
+}
+
 fn value_to_edn_in(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,
@@ -4694,32 +4719,58 @@ fn value_to_edn_in(
 
         // ── User-declared struct / record / holon-record ─────────
         // Arc 293.R2.1 — all three collapsed into Value::Aggregate.
+        //
+        // Excursus 003 stone Q — a NEWTYPE is `Value::Aggregate(nature=Struct)` with exactly one
+        // field, synthesized-named `"0"` (`register_newtype_methods` / `eval_struct_new`,
+        // `src/record/construct.rs:103`: `Some(crate::types::TypeDef::Newtype(_)) => Arc::new(vec!["0".to_string()])`)
+        // — never spelled through the identifier lexer, so it is not a legal EDN keyword
+        // (`Keyword::new("0")` panics: the-little-wat F-030). The typed READER already treats a
+        // newtype as transparent at the EDN layer (`edn_to_typed_value_inner`, this file
+        // `:~2508`: "newtypes coerce against their inner declared shape (the wat-side wrapper is
+        // invisible at the EDN layer)") — so the writer renders a newtype value as its INNER
+        // value's EDN, never a map keyed by `:0`.
+        //
+        // The discriminator is STRUCTURAL, not a `types` registry lookup (which the writer's own
+        // unit tests routinely call with `types: None`, matching `value_to_edn_with(&v, None)`
+        // above at `stone_m_*`): `names == ["0"]` is the sole positional-newtype shape — EDN's
+        // `validate_first_char` (`crates/wat-edn/src/vocab.rs:~200`) refuses a leading digit, so
+        // no field name reaching this arm through the wat lexer (a real struct's declared field)
+        // can ever spell `"0"`; every other production site that builds a `Struct`-nature
+        // aggregate passes its own fixed/registered names (grepped: `bound_names()`,
+        // `eval_error_names()`, `capacity_exceeded_names()`, `coincident_explanation_names()`,
+        // `def.names_arc()`/`agg.names_arc()`). This still works with no type registry at all.
         Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             let type_key = format!(":{}", sv.class);
-            let tag = tag_from_type_path(&type_key);
-            // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
-            let entries: Vec<(OwnedValue, OwnedValue)> = sv
-                .names
-                .iter()
-                .zip(sv.fields.iter())
-                .map(|(name, fv)| {
-                    Ok((
-                        OwnedValue::Keyword(Keyword::new(name.clone())),
-                        value_to_edn_in(fv, types, mode)?,
-                    ))
-                })
-                .collect::<Result<Vec<_>, WireEncodeError>>()?;
-            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
+            if sv.names.as_slice() == ["0"] {
+                value_to_edn_in(&sv.fields[0], types, mode)?
+            } else {
+                let tag = tag_from_type_path(&type_key);
+                // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
+                let entries: Vec<(OwnedValue, OwnedValue)> = sv
+                    .names
+                    .iter()
+                    .zip(sv.fields.iter())
+                    .map(|(name, fv)| {
+                        Ok((
+                            OwnedValue::Keyword(edn_field_keyword(name, &type_key)?),
+                            value_to_edn_in(fv, types, mode)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, WireEncodeError>>()?;
+                OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
+            }
         }
         Value::Enum(ev) => {
             let tag = variant_tag(&ev.type_path, &ev.variant_name);
+            // rune:lint(one-variant-separator, display) — human-facing refusal-message context naming the enum/variant, not a constructed tag
+            let variant_context = format!("{}::{}", ev.type_path, ev.variant_name);
             let entries: Vec<(OwnedValue, OwnedValue)> = ev
                 .names
                 .iter()
                 .zip(ev.fields.iter())
                 .map(|(n, fv)| {
                     Ok((
-                        OwnedValue::Keyword(Keyword::new(n.clone())),
+                        OwnedValue::Keyword(edn_field_keyword(n, &variant_context)?),
                         value_to_edn_in(fv, types, mode)?,
                     ))
                 })
@@ -4740,7 +4791,7 @@ fn value_to_edn_in(
                 .iter()
                 .map(|(k, v)| {
                     Ok((
-                        OwnedValue::Keyword(Keyword::new(k.clone())),
+                        OwnedValue::Keyword(edn_field_keyword(k, &type_key)?),
                         value_to_edn_in(v, types, mode)?,
                     ))
                 })
@@ -4748,6 +4799,8 @@ fn value_to_edn_in(
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         Value::wat__edn__ForeignVariant(fv) => {
+            // rune:lint(one-variant-separator, display) — human-facing refusal-message context naming the enum/variant, not a constructed tag
+            let variant_context = format!(":{}::{}", fv.enum_class, fv.variant);
             let tag = variant_tag(&format!(":{}", fv.enum_class), &fv.variant);
             let entries: Vec<(OwnedValue, OwnedValue)> = fv
                 .names
@@ -4755,7 +4808,7 @@ fn value_to_edn_in(
                 .zip(fv.fields.iter())
                 .map(|(n, val)| {
                     Ok((
-                        OwnedValue::Keyword(Keyword::new(n.clone())),
+                        OwnedValue::Keyword(edn_field_keyword(n, &variant_context)?),
                         value_to_edn_in(val, types, mode)?,
                     ))
                 })
@@ -4885,7 +4938,7 @@ fn value_to_edn_in(
                 .zip(a.fields.iter())
                 .map(|(name, fv)| {
                     Ok((
-                        OwnedValue::Keyword(Keyword::new(name.clone())),
+                        OwnedValue::Keyword(edn_field_keyword(name, &type_key)?),
                         value_to_edn_in(fv, types, mode)?,
                     ))
                 })
@@ -5454,6 +5507,60 @@ mod tests {
         let t = TypeExpr::Path(":wat::core::i64".into());
         let v = coerce(&t, "42").unwrap();
         assert!(matches!(v, Value::i64(42)));
+    }
+
+    // ─── Excursus 003 stone Q — printing a newtype does not panic ───────────────────────
+    //
+    // The driven repro (`the-little-wat/probes/ml/newtype-value.wat`, `(:wat::kernel::println
+    // (:u::N 5))`) and its round-trip/wire/mutation proofs live in
+    // `tests/comms/probe_ex003_stone_q_printing_a_newtype_does_not_panic.rs`. The two cases below
+    // cannot be driven from wat surface syntax at all — a newtype's synthesized field name `"0"`
+    // and an invalid struct field name are both unspellable through the identifier lexer — so,
+    // like stone M's refusals, they are unit tests beside the writer instead.
+
+    /// A newtype `Value::Aggregate(nature=Struct, names=["0"])` — the exact shape
+    /// `eval_struct_new` builds (`src/record/construct.rs:103`) — renders as its INNER value's
+    /// EDN, never a map keyed by `:0` (which would panic: `Keyword::new("0")` is invalid — the
+    /// first character must be non-numeric). No type registry needed; the discriminator is
+    /// structural (`names == ["0"]`).
+    #[test]
+    fn stone_q_a_newtype_renders_as_its_inner_value_never_a_0_keyed_map() {
+        let v = Value::Aggregate(Arc::new(AggregateValue::struct_(
+            "q::probe::N".to_string(),
+            Arc::new(vec!["0".to_string()]),
+            vec![Value::i64(5)],
+        )));
+        let edn = value_to_edn_with(&v, None).expect("a newtype renders — it must not panic");
+        assert_eq!(edn, OwnedValue::Integer(5));
+    }
+
+    /// The class-wide backstop: a Struct/Record/HolonRecord field whose name is not a legal EDN
+    /// keyword (unreachable through the wat lexer for a REAL declaration — confirmed by driving
+    /// `(:wat::core::structtype :q::Bad :wat::core::Struct [0 <- :wat::core::i64])`, which the
+    /// lexer refuses because a bare `0` token is an IntLit, not an identifier) is refused as a
+    /// value through the writer's own `Result` channel, never `Keyword::new`'s panic. The `reason`
+    /// string is fully deterministic (no embedded Rust `file:line`), so it is asserted whole —
+    /// unlike a `Display`-rendered `RuntimeError`, which would carry `rust_caller_span!()`'s
+    /// call-site line and rot the moment a line is added above it.
+    #[test]
+    fn stone_q_an_invalid_field_name_is_refused_never_panicked() {
+        let v = Value::Aggregate(Arc::new(AggregateValue::struct_(
+            "q::probe::Bad".to_string(),
+            Arc::new(vec!["1bad".to_string()]),
+            vec![Value::i64(1)],
+        )));
+        let err = value_to_edn_with(&v, None).expect_err("an illegal field name must be refused, not panic");
+        match err.kind() {
+            RuntimeErrorKind::MalformedForm { head, reason } => {
+                assert_eq!(head, ":wat::edn::write");
+                assert_eq!(
+                    reason,
+                    "field/variant name \"1bad\" of :q::probe::Bad is not a legal EDN keyword: \
+                     first character must be non-numeric"
+                );
+            }
+            other => panic!("expected MalformedForm, got {other:?}"),
+        }
     }
 
     #[test]
