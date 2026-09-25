@@ -317,6 +317,39 @@ impl fmt::Display for LexError {
 
 impl std::error::Error for LexError {}
 
+/// A [`LexError`] with the user's real `Span` attached (the-little-wat F-091).
+///
+/// `LexError` itself stays a bare byte `position` — its ~43 construction
+/// sites (inside `lex_with_comments_raw` and its helpers: `lex_string`,
+/// `lex_number`, `lex_char`, `lex_keyword`, `lex_symbol`, …) are unchanged
+/// and never learn about files or line tables. This wrapper is built
+/// exactly ONCE, at the public return boundary of [`lex`] /
+/// [`lex_with_comments`] — the one place that already holds the `file`
+/// label and the line-start table — using [`compute_line_starts`] /
+/// [`line_col`], the same helpers every token span already goes through.
+///
+/// `span.end` is `None` (a point-span, [`Span::new`]): `position` is a
+/// verified char boundary (it always marks the start of a scan), but its
+/// *end* is not — the offending item can be a multi-byte char
+/// (`LexErrorKind::UnexpectedChar`), a whole string, or a numeric literal,
+/// and guessing a byte-width end risks the exact mid-character slice this
+/// crate's own totality tests guard against (`reader_totality.rs`). A
+/// point-span names the user's file, line and column, which is the F-091
+/// requirement; it does not also claim to bound a range.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LocatedLexError {
+    pub span: Span,
+    pub error: LexError,
+}
+
+impl fmt::Display for LocatedLexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.error, self.span)
+    }
+}
+
+impl std::error::Error for LocatedLexError {}
+
 /// Tokenize a wat source string.
 ///
 /// Returns the full token stream (with per-token source spans) or the
@@ -327,15 +360,16 @@ impl std::error::Error for LexError {}
 /// Line comments are dropped. Call [`lex_with_comments`] to capture them
 /// as a side channel; this function is that one with the comments discarded,
 /// so every existing caller is byte-identical.
-pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> {
+pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LocatedLexError> {
     let (tokens, _comments) = lex_with_comments(src, file)?;
     Ok(tokens)
 }
 
 /// Tokenize a wat source string, capturing line comments beside the token stream.
 ///
-/// Returns `(tokens, comments)` or the first lex error. [`lex`] is this
-/// function with the comments dropped.
+/// Returns `(tokens, comments)` or the first lex error, the latter now
+/// carrying the user's real file/line/col (the-little-wat F-091 — see
+/// [`LocatedLexError`]). [`lex`] is this function with the comments dropped.
 ///
 /// Each [`Comment`] carries the source bytes from the `;` through (not
 /// including) the newline, or through EOF if the file has no trailing
@@ -343,6 +377,20 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
 /// past the last comment char). A `;` inside a string never reaches the
 /// capture site — the string branch consumes a literal atomically.
 pub fn lex_with_comments(
+    src: &str,
+    file: Arc<String>,
+) -> Result<(Vec<SpannedToken>, Vec<Comment>), LocatedLexError> {
+    let line_starts = compute_line_starts(src);
+    lex_with_comments_raw(src, file.clone()).map_err(|error| {
+        let (line, col) = line_col(src, &line_starts, error.position);
+        LocatedLexError { span: Span::new(file, line, col), error }
+    })
+}
+
+/// The actual lexer body — unchanged by F-091. Raises plain [`LexError`]
+/// (byte position only) at every one of its ~43 call sites; [`lex_with_comments`]
+/// is the sole place that turns one into a [`LocatedLexError`].
+fn lex_with_comments_raw(
     src: &str,
     file: Arc<String>,
 ) -> Result<(Vec<SpannedToken>, Vec<Comment>), LexError> {
@@ -1084,7 +1132,7 @@ mod tests {
     /// shape, not positions. A dedicated arc-016 slice covers the
     /// span-carrying behavior.
     fn lex_tokens(src: &str) -> Result<Vec<Token>, LexError> {
-        let spanned = lex(src, Arc::new("<test>".to_string()))?;
+        let spanned = lex(src, Arc::new("<test>".to_string())).map_err(|e| e.error)?;
         Ok(spanned.into_iter().map(|s| s.token).collect())
     }
 

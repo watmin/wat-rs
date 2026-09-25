@@ -17,7 +17,7 @@
 
 use crate::ast::WatAST;
 use crate::identifier::{Identifier, BOUND_NAMESPACE};
-use crate::lexer::{lex, lex_with_comments, Comment, LexError, SpannedToken, Token};
+use crate::lexer::{lex, lex_with_comments, Comment, LexError, LocatedLexError, SpannedToken, Token};
 use crate::span::Span;
 use std::fmt;
 use std::sync::Arc;
@@ -196,9 +196,13 @@ impl wat_edn::ToEdn for ParseError {
     }
 }
 
-impl From<LexError> for ParseError {
-    fn from(e: LexError) -> Self {
-        ParseError { span: crate::rust_caller_span!(), kind: ParseErrorKind::Lex(e) }
+/// The-little-wat F-091: the lex error's OWN span (the user's file, line and
+/// column — [`LocatedLexError`], attached once at the lexer's return
+/// boundary) replaces `rust_caller_span!()`, which named wat-rs's own
+/// `parser.rs` and never the user's program.
+impl From<LocatedLexError> for ParseError {
+    fn from(e: LocatedLexError) -> Self {
+        ParseError { span: e.span, kind: ParseErrorKind::Lex(e.error) }
     }
 }
 

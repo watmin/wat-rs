@@ -8,7 +8,7 @@
 //! - **F-091** — a lex error carries `:file "crates/wat-reader/src/parser.rs"` and gives no line
 //!   or column of the user's file at all, only a byte offset. It has a measured cost: finding
 //!   which of 532 files raised `lex error at byte 258` meant grepping all 532 OUTSIDE wat.
-//!   **STILL OPEN** — a different mechanism (the reader, not the checker), its own stone.
+//!   **CURED** by excursus 003 stone O; `f091` below now pins the cure.
 //!
 //! Both reproduced at HEAD when this probe was banked. ⭐ F-006's span had already MOVED — their
 //! ledger records `src/check.rs:15141`, it was `15285` the day it was driven. The line drifted;
@@ -29,6 +29,18 @@
 //! ⚠ **A diagnostic naming a BUILTIN can still name a `.rs` file**, because a builtin really is
 //! declared in Rust. These four fixtures all declare their own types in wat, so none of them can
 //! reach that arm.
+//!
+//! ## What stone O changed, for F-091
+//!
+//! `crates/wat-reader/src/lexer.rs`'s `LexError` stays a bare byte `position` at all ~43 of its
+//! construction sites — untouched. `lex`/`lex_with_comments` now attach a real `Span` exactly
+//! ONCE, at their own return boundary, via a new `LocatedLexError { span, error }` built from the
+//! `file`/`compute_line_starts`/`line_col` already in scope there (the same machinery every token
+//! span goes through). `From<LocatedLexError> for ParseError` (`parser.rs`) reads that span
+//! instead of calling `crate::rust_caller_span!()`. `span.end` is `None` (point-span): `position`
+//! is a verified char boundary, but guessing a byte-width end risks slicing a multi-byte char
+//! mid-boundary (see `crates/wat-reader/tests/reader_totality.rs`), so this cure names the file,
+//! line and column and does not also claim to bound a range.
 //!
 //! ## The root: the sentinel is a CONVENTION, NOT A SHAPE
 //!
@@ -53,16 +65,20 @@
 //! would survive into a captured golden today. Keying on the `.rs` suffix alone covers both
 //! without enumerating roots, and closes that hole by construction.
 //!
-//! ## ⛔ ONE of these tests STILL PINS A KNOWN DEFECT and goes RED when cured. That is the point.
+//! ## ⛔ Both known defects this probe was banked to pin are now CURED — every test below asserts
+//! the cured shape. That is not a reason to delete it: it is the standing regression fixture.
 //!
-//! `f091_*` asserts the defect. The other four assert the CURED shape, and the first of them is a
-//! NEGATIVE CONTROL that must pass in every world: without it the detector could pass by flagging
-//! every diagnostic, and would stay green after a "cure" that broke user spans.
+//! All five assert the CURED shape (no `.rs` `:file`), and the first of them is a NEGATIVE
+//! CONTROL that must pass in every world: without it the detector could pass by flagging every
+//! diagnostic, and would stay green after a "cure" that broke user spans.
 //! `[[a-resolver-whose-halves-overlap-proves-nothing]]`
 //!
-//! ⭐ The three cured tests are mutation-proved together: forcing `decl_span()` /
-//! `body_span()` back to `crate::rust_caller_span!()` in `src/check.rs` turns all three RED and
-//! leaves the control green. A gate that has never failed is not a gate.
+//! ⭐ The three stone-B tests are mutation-proved together: forcing `decl_span()` / `body_span()`
+//! back to `crate::rust_caller_span!()` in `src/check.rs` turns all three RED and leaves the
+//! control green. `f091` (stone O) has its own mutation: forcing `From<LocatedLexError> for
+//! ParseError` (`crates/wat-reader/src/parser.rs`) back to `crate::rust_caller_span!()` turns
+//! ONLY `f091` RED and leaves the control and the three stone-B tests green. A gate that has
+//! never failed is not a gate.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -213,13 +229,9 @@ fn variant_singleton_a_refusal_names_the_enums_declaration() {
     );
 }
 
-/// F-091 — the lex error names wat-rs's reader, and gives no user line or column.
+/// F-091 — the lex error, raised for a name ending in `<` (`AngleTypeHeadInName`), now names
+/// the user's own `.wat` file, at the offending byte's real line and column.
 #[test]
-fn f091_a_lex_error_still_names_wat_rs_own_reader() {
-    let err = stderr_of("f091_lex_error", "wat.bad");
-    let ours = our_own_source(&err);
-    assert!(
-        !ours.is_empty(),
-        "F-091 is CURED — the lex error no longer names a .rs file. Go close the finding.\n{err}"
-    );
+fn f091_a_lex_error_names_the_users_own_file() {
+    assert_locates_the_user("f091_lex_error", "wat.bad", "F-091 (lex error, AngleTypeHeadInName)");
 }
