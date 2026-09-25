@@ -583,7 +583,7 @@ where
 /// `Tuple` (iff all element types atomizable).
 ///
 /// **Structurally-equal but NOT atomizable** (natural equality; not predicate-admitted):
-/// `u8`, `Option`, `Result`, `Aggregate(Struct)`, `Enum`, `Vector` (holon::Vector),
+/// `u8`, `Option`, `Result`, `Aggregate(Struct)`, `Enum`, `wat__holon__Vector` (holon::Vector),
 /// `wat__time__Instant`, `wat__time__Duration`, `wat__core__List` (not in `is_atomizable`).
 ///
 /// **Opaque handles** (pointer equality; not atomizable; never in HashSet/HashMap keys):
@@ -742,7 +742,7 @@ impl Eq for Value {}
 /// If this panic ever fires, the predicate has drifted from the Hash impl.
 ///
 /// **Structural-but-not-atomizable variants** (`u8`, `Unit`, `Tuple`, `Option`,
-/// `Result`, `Aggregate(Struct)`, `Enum`, `Vector`, `wat__time__Instant`, `wat__time__Duration`) receive structural
+/// `Result`, `Aggregate(Struct)`, `Enum`, `wat__holon__Vector`, `wat__time__Instant`, `wat__time__Duration`) receive structural
 /// Hash impls rather than `unreachable!()`. Per STOP-4: these variants ARE reachable
 /// in Rust code (e.g., as HashMap values or as elements of an outer Tuple) and have
 /// well-defined structural hash semantics. They are NOT currently atomizable (not in

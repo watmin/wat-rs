@@ -40,6 +40,7 @@
 //! | Struct | `Tagged #ns/Type {:field-0 v0 :field-1 v1 ...}` |
 //! | Enum | `Tagged #ns/Enum.Variant {:field v}` (unit variant → `{}`) |
 //! | HolonAST | DATA, never a wat source form (arc 294.j RELAND): a data-shaped holon renders as the plain EDN `from_holon_item` recovers; `Thermometer`/`SlotMarker` (constructor directives) render as `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}`; the algebra (Bind/Bundle/Atom/Permute/Blend) never crosses the wire in any form — encoding one RAISES |
+//! | holon Vector (hypervector) | `Tagged #wat.holon/Vector [i8 …]` — its components, DATA (excursus 003 stone M); reads back equal |
 //! | All other substrate handles | `Tagged #wat.<home>/<TypeName> nil` (arc 294.i — per-type home, not a shared bucket) |
 //!
 //! # Performance
@@ -2631,6 +2632,24 @@ fn edn_to_typed_value_inner(
                     path: String::new(),
                 })
             }
+            // Excursus 003 stone M — a hypervector slot. The wire's own recv is UNTYPED
+            // (`decode_trusted_wire` → `tagged_to_value`'s `wat.holon/Vector` arm); this is the
+            // typed door (`:wat::edn::validate`, a typed record field). Same reader, so the two
+            // agree by construction. Anything other than the tag is a mismatch.
+            ":wat::holon::Vector" => match edn {
+                Edn::Tagged(tag, body)
+                    if tag.namespace() == "wat.holon" && tag.name() == "Vector" =>
+                {
+                    decode_holon_vector_tag(body)
+                        .map(|v| Value::wat__holon__Vector(Arc::new(v)))
+                        .map_err(|e| EdnCoerceError {
+                            expected: ":wat::holon::Vector".into(),
+                            got: format!("{e}"),
+                            path: String::new(),
+                        })
+                }
+                other => Err(mismatch(target, other)),
+            },
             // ── Arc 278 the PARAMETRIC PROTOCOL — a type VARIABLE position is OPAQUE ──
             // `:K` / `:V` / `:T` is a declaration's lexically-scoped binder, not a registered
             // type, and it never resolves in the registry. Reached here it used to be an
@@ -3519,6 +3538,11 @@ fn tagged_to_value(
     // `wat.core.Option`/`wat.core.Result`/`wat.core/PersistentMap` immediately above — a
     // directive tag is recognised by NAME, not by a registered type.
     if ns == "wat.holon" {
+        // Excursus 003 stone M — `#wat.holon/Vector [i8 …]`, a hypervector's components. Checked
+        // before the directives: a Vector is DATA, not a constructor directive, and not a HolonAST.
+        if name == "Vector" {
+            return decode_holon_vector_tag(body).map(|v| Value::wat__holon__Vector(Arc::new(v)));
+        }
         if let Some(holon) = decode_holon_directive_tag(name, body)? {
             return Ok(Value::wat__holon__HolonAST(Arc::new(holon)));
         }
@@ -4752,27 +4776,20 @@ fn value_to_edn_in(
         // included, because they are constructor directives, not data. See
         // `holon_ast_to_edn_data` below for the three-case dispatch.
         Value::wat__holon__HolonAST(h) => holon_ast_to_edn_data(h, types)?,
-        // Arc 294.j — the realized VSA vector is the algebra's OWN terminal
-        // artifact (the materialized `holon::Vector` a Bind/Bundle tree
-        // evaluates to), so it shares the "derived, not shipped" disposition
-        // the DESIGN STONE's classification table gives the algebra family —
-        // it was the one member of that family not living in
-        // `holon_ast_to_edn` (it is a `Value::wat__holon__Vector`, not a `HolonAST`
-        // variant — holon-rs has no such variant). Its OLD tag shared the
-        // now-dead namespace by accident of authorship, not by kinship with
-        // the tag/reader pair this stone kills; it never had a reader arm at
-        // all (`Vector` never appeared in `edn_holon_tag_to_ast`), so there
-        // is no decode path to remove. Body is unchanged (`:dim`, the one
-        // legitimate non-secret fact about an opaque handle — same
-        // "preserve real data" call 294.i made for `HandlePool`'s name);
-        // only the home moves off the dead namespace, to the same
-        // `wat.holon` per-type home the VSA five already use.
+        // Excursus 003 stone M — a hypervector is DATA. `holon::Vector` is a `Vec<i8>` (its
+        // `PartialEq` and our `Hash` both read `data()`), so its honest EDN form is its
+        // components, in order: `#wat.holon/Vector [i8 …]`. The tag says WHICH type — a bare
+        // `[…]` reads back as a wat `Vec`, not a hypervector. Before this stone it rendered
+        // `#wat.holon/Vector {:dim N}` (294.j/294.i's "preserve real data" call for an opaque
+        // handle): neither the data nor nil, and no reader decoded it — over a process wire it
+        // arrived as `Lost: unknown tag #wat.holon/Vector`. Stone I reversed the opaque premise
+        // (DESIGN-stone-I, the 2026-09-24 amendment); the reader is `decode_holon_vector_tag`.
+        // Size is accepted, not hidden: one element per component (~10000 at the default dim).
         Value::wat__holon__Vector(vec) => OwnedValue::Tagged(
             Tag::ns("wat.holon", "Vector"),
-            Box::new(OwnedValue::Map(vec![(
-                OwnedValue::Keyword(Keyword::new("dim")),
-                OwnedValue::Integer(vec.dimensions() as i64),
-            )])),
+            Box::new(OwnedValue::Vector(
+                vec.data().iter().map(|&x| OwnedValue::Integer(x as i64)).collect(),
+            )),
         ),
 
         // ── Opaque substrate handles — type-tagged nil ───────────
@@ -5188,6 +5205,52 @@ fn decode_holon_data_tag(value: Value) -> Result<holon::HolonAST, EdnReadError> 
     }
 }
 
+/// Excursus 003 stone M — decode a `#wat.holon/Vector [i8 …]` body into a hypervector, in
+/// component order. The ONE reader for the writer's `wat__holon__Vector` arm, shared by the
+/// untyped door ([`tagged_to_value`] — the process wire's `decode_trusted_wire`) and the typed
+/// `:wat::holon::Vector` slot ([`edn_to_typed_value`]). A body that is not a vector, an element
+/// that is not an integer, or an integer outside `i8` is an ERROR naming what arrived — never a
+/// clamp, never a truncation (a clamped component is a different hypervector that compares
+/// unequal to nothing that would tell you so).
+fn decode_holon_vector_tag(body: &OwnedValue) -> Result<holon::Vector, EdnReadError> {
+    use wat_edn::Value as Edn;
+    let refuse = |msg: String| EdnReadError {
+        span: crate::rust_caller_span!(),
+        kind: EdnReadErrorKind::UnsupportedTag(msg),
+    };
+    let items = match body {
+        Edn::Vector(xs) => xs,
+        other => {
+            return Err(refuse(format!(
+                "wat.holon/Vector body must be a vector of i8 components, got {}",
+                edn_shape_name(other)
+            )))
+        }
+    };
+    let mut data = Vec::with_capacity(items.len());
+    for (i, item) in items.iter().enumerate() {
+        match item {
+            Edn::Integer(n) => match i8::try_from(*n) {
+                Ok(x) => data.push(x),
+                Err(_) => {
+                    return Err(refuse(format!(
+                        "wat.holon/Vector component {i} is {n}, outside i8 ({}..={})",
+                        i8::MIN,
+                        i8::MAX
+                    )))
+                }
+            },
+            other => {
+                return Err(refuse(format!(
+                    "wat.holon/Vector component {i} must be an integer, got {}",
+                    edn_shape_name(other)
+                )))
+            }
+        }
+    }
+    Ok(holon::Vector::from_data(data))
+}
+
 /// Decode a `#wat.holon/<name> <body>` DIRECTIVE tag (`Thermometer` /
 /// `SlotMarker`) into its `HolonAST`. `Ok(None)` for any other name under the
 /// `wat.holon` namespace — NOT an error; the caller (both [`edn_derive_holon`]
@@ -5321,6 +5384,69 @@ mod tests {
         let edn = wat_edn::parse_owned(edn_text).expect("parse EDN test input");
         let sym = SymbolTable::default();
         edn_to_typed_value(target, &edn, &sym)
+    }
+
+    // ─── Excursus 003 stone M — `#wat.holon/Vector [i8 …]` is a hypervector's DATA ──────────
+    //
+    // The wire/round-trip halves are `tests/comms/probe_ex003_stone_m_a_hypervector_is_data.rs`.
+    // The refusals live here: raised through `:wat::edn::read`, their face carries this file's
+    // `file:line` inside the message string, which no golden can pin — so they assert on the
+    // error KIND's payload, which carries no span.
+
+    /// The payload of an `UnsupportedTag` refusal from the untyped reader.
+    fn stone_m_refusal(edn_text: &str) -> String {
+        match read_edn(edn_text, None, None) {
+            Err(EdnReadError { kind: EdnReadErrorKind::UnsupportedTag(msg), .. }) => msg,
+            other => panic!("expected an UnsupportedTag refusal for {edn_text:?}; got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stone_m_a_hypervector_round_trips_through_the_writer_and_the_reader() {
+        let v = Value::wat__holon__Vector(Arc::new(holon::Vector::from_data(vec![1, -1, 0, 127, -128])));
+        let edn = value_to_edn_with(&v, None).expect("a hypervector renders");
+        let back = edn_to_value(&edn, None, None).expect("and reads back");
+        assert_eq!(back, v);
+    }
+
+    #[test]
+    fn stone_m_the_old_dim_form_is_refused_naming_the_body() {
+        assert_eq!(
+            stone_m_refusal("#wat.holon/Vector {:dim 4}"),
+            "wat.holon/Vector body must be a vector of i8 components, got Map"
+        );
+    }
+
+    #[test]
+    fn stone_m_an_out_of_range_component_is_refused_never_clamped() {
+        assert_eq!(
+            stone_m_refusal("#wat.holon/Vector [1 300]"),
+            "wat.holon/Vector component 1 is 300, outside i8 (-128..=127)"
+        );
+    }
+
+    #[test]
+    fn stone_m_a_non_integer_component_is_refused() {
+        assert_eq!(
+            stone_m_refusal("#wat.holon/Vector [1 1.5]"),
+            "wat.holon/Vector component 1 must be an integer, got Float"
+        );
+    }
+
+    #[test]
+    fn stone_m_the_typed_slot_decodes_the_tag_and_refuses_the_old_form() {
+        let t = TypeExpr::Path(":wat::holon::Vector".into());
+        let v = coerce(&t, "#wat.holon/Vector [1 -1 0]").expect("the typed slot decodes the tag");
+        assert_eq!(v, Value::wat__holon__Vector(Arc::new(holon::Vector::from_data(vec![1, -1, 0]))));
+        let e = coerce(&t, "#wat.holon/Vector {:dim 4}").expect_err("the old form is refused");
+        assert_eq!(e.expected, ":wat::holon::Vector");
+        // The SAME reader refused it: the typed error carries the untyped refusal verbatim (both
+        // raise from `decode_holon_vector_tag`, so even the span prefix is the same site).
+        let untyped = read_edn("#wat.holon/Vector {:dim 4}", None, None).expect_err("refused untyped too");
+        assert_eq!(e.got, format!("{untyped}"));
+        // A bare vector is a wat `Vec`, not a hypervector: the tag is what says which type.
+        let bare = coerce(&t, "[1 -1 0]").expect_err("a bare vector is not a hypervector");
+        assert_eq!(bare.got, "Vector");
     }
 
     #[test]
