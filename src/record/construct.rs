@@ -602,7 +602,11 @@ pub(crate) fn eval_kwargs_construct(
         }
     };
 
-    let rest = &args[1..];
+    // Excursus 003 stone N — the companion now forwards an explicit `:- [A…]` construction
+    // annotation (`src/macros/expand.rs`). The CHECKER binds and verifies it
+    // (`infer_kwargs_construct_check`); a value carries no type parameters at runtime, so here
+    // it is peeled through the one door and erased — never mistaken for a `:-` kwarg.
+    let (_spec, rest) = crate::types::peel_param_spec(&args[1..]);
     // Distinguish kwargs (`:f v :f v …`) from positional values — the SAME test
     // `build_insert_fact` uses (`matcher.rs`): an even count of args whose every
     // slot-0-of-pair is a keyword is kwargs; anything else is positional.

@@ -1,0 +1,9 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — KNOWN-OPEN ROW, pinned not cured. With no annotation, a bare variant literal
+;; still binds T to the VARIANT type `:p::E.A` (F-107 part 2 — the construction-site case of
+;; the-little-wat F-019), and the error blames `step` (part 4). Stone N does not touch this; the
+;; golden moves when F-019 lands, and that move is the signal.
+(:wat::core::defenum :p::E :wat::enum::Pure :A [] :B [n <- :wat::core::i64])
+(:wat::core::defstruct :p::Ops :- [T] [seed <- T  step <- [T :-> T]])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_ops (:p::Ops :seed (:p::E.A {}) :step (:wat::core::fn [x <- :p::E] -> :p::E x))]
+    nil))

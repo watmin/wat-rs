@@ -1,0 +1,5 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — before stone N this checked clean and RAN: `infer_enum_map_ctor` received
+;; the peeled annotation's context but never the annotation. Now refused at `v`.
+(:wat::core::defenum :t::Opt :- [T] :wat::enum::Pure :None [] :Some [v <- T])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_b (:t::Opt.Some :- [:wat::core::i64] {:v "str"})] nil))

@@ -1,0 +1,5 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — an annotation on a type with
+;; no type parameters cannot be honoured: refused.
+(:wat::core::defstruct :t::Plain [x <- :wat::core::i64])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_b (:t::Plain :- [:wat::core::i64] :x 1)] nil))

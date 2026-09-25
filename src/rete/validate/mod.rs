@@ -1057,7 +1057,15 @@ fn walk_nested_constructors(
     // (`(:wat::core::kwargs-construct x 1)`) still falls through (STOP-3).
     if let Some(raw) = items.get(type_idx).and_then(identity_text) {
         let head = crate::edn::render::canonical_identity(raw);
-        let args = &items[type_idx + 1..];
+        // Excursus 003 stone N — a LOWERED `kwargs-construct` (type_idx 1) may now carry the
+        // explicit `:- [A…]` the companion forwards (`src/macros/expand.rs`); the checker has
+        // bound and verified it, so peel it here rather than read `:-` as a field. The surface
+        // spelling (type_idx 0) is untouched — this stone did not change what reaches it.
+        let args = if type_idx == 1 {
+            crate::types::peel_param_spec(&items[type_idx + 1..]).1
+        } else {
+            &items[type_idx + 1..]
+        };
         // Bare aggregate-type constructor head. `lookup_fields` is the same door
         // `validate_then_form` uses (`:{fact_type}` key).
         if lookup_fields(types, &type_env_name(&head)).is_some() {

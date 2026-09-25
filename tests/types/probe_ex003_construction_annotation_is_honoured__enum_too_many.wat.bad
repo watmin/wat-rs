@@ -1,0 +1,5 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — three type arguments (one of them no type at all) on a one-parameter enum.
+;; Before stone N: checked clean. Now refused on arity before any argument is resolved.
+(:wat::core::defenum :t::Opt :- [T] :wat::enum::Pure :None [] :Some [v <- T])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_b (:t::Opt.Some :- [:wat::core::i64 :wat::core::String :no::Such] {:v 1})] nil))

@@ -1,0 +1,5 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — an annotation on a variant of
+;; a NON-generic enum cannot be honoured: refused. Before stone N: checked clean.
+(:wat::core::defenum :p::E :wat::enum::Pure :A [] :B [n <- :wat::core::i64])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_b (:p::E.B :- [:wat::core::i64] {:n 1})] nil))

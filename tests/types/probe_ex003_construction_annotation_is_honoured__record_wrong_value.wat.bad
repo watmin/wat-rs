@@ -1,0 +1,5 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — two type params, kwargs out of
+;; declared order: the refusal lands on `b`'s value, against the annotation's SECOND argument.
+(:wat::core::defrecord :t::Pair :- [A B] [a <- A b <- B])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_p (:t::Pair :- [:wat::core::String :wat::core::i64] :b "two" :a "one")] nil))

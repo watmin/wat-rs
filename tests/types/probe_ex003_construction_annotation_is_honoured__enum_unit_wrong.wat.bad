@@ -1,0 +1,8 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — a UNIT variant carries no field to disagree with, so only the annotation
+;; can bind T; against a declared `(:t::Opt :- [:wat::core::String])` return an i64 annotation is
+;; refused. Before stone N: checked clean.
+(:wat::core::defenum :t::Opt :- [T] :wat::enum::Pure :None [] :Some [v <- T])
+(:wat::core::defn :t::mk [] -> (:t::Opt :- [:wat::core::String])
+  (:t::Opt.None :- [:wat::core::i64] {}))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_n (:t::mk)] nil))

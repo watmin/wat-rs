@@ -598,12 +598,25 @@ pub(super) fn expand_form(
             // reference; the LATTER is exactly the value-application position 3 this
             // stone teaches. `peel_param_spec` (the one door, `types.rs`) tells them
             // apart: `is_type_reference` now requires the peeled REST to be empty too.
-            // When the rest is non-empty, the marker+bracket are dropped from the args
-            // handed to the companion macro — `(:user::R :- [T] :field v)` reaches the
-            // SAME kwargs-construct path `(:user::R :field v)` already does, and T is
-            // bound from the field VALUE exactly as the unmarked call already binds it
-            // (mirrors A's exemplar route: peel through the door, then let the existing,
-            // unmarked-form machinery do the rest — not a second binding mechanism).
+            // When the rest is non-empty, the call is a CONSTRUCTION and the macro receives
+            // its args RAW — marker, bracket and all.
+            //
+            // ⛔ Excursus 003 stone N (the-little-wat F-107 part 1) — this block used to DROP
+            // the marker+bracket here, "so T is bound from the field VALUE exactly as the
+            // unmarked call already binds it". That was the defect: `(:p::Ops :- [:p::E] …)`
+            // and `(:p::Ops :- [:wat::core::i64] …)` — a deliberately WRONG annotation —
+            // produced the byte-identical diagnostic, and `(:t::Box :- [:wat::core::i64] :x
+            // "str")` ran and stored a String. An annotation with no effect and no diagnostic.
+            // Now the companion splices it into `(:wat::core::kwargs-construct :T :- [A…] …)`,
+            // and `infer_kwargs_construct_check` (check.rs) carries it onto the synthetic
+            // `(:T' :- [A…] …)` prime call — the SAME call-position door that already binds
+            // (`instantiate_with_args`) and refuses too many / a non-generic `:T`. Still one
+            // binding mechanism; it is simply no longer bypassed.
+            //
+            // Measured before the change (an env-gated log on this exact branch, whole
+            // nextest run, 6260 tests): the ONLY forms that ever reached this strip were the
+            // stone's own reproduction files — no corpus macro call carried `:- [..]` with
+            // args, so handing the args through raw changes no existing verdict.
             //
             // Arc 294 item 9a (sequential registration): the `contains` probe + scoped
             // `get` keep the `&MacroDef` borrow alive only until `expand_macro_call`
@@ -615,7 +628,7 @@ pub(super) fn expand_form(
                 let is_type_reference = type_args.is_some() && rest_after_marker.is_empty();
                 if registry.contains(head) && !is_type_reference {
                     let head_span = head_span.clone();
-                    let args = rest_after_marker.to_vec();
+                    let args = items[1..].to_vec();
                     let expanded = {
                         let def = registry
                             .get(head)
@@ -669,7 +682,8 @@ pub(super) fn expand_form(
                         crate::types::peel_param_spec(&items[1..]);
                     let is_type_reference = type_args.is_some() && rest_after_marker.is_empty();
                     if registry.contains(&macro_name) && !is_type_reference {
-                        let args = rest_after_marker.to_vec();
+                        // Raw args, marker included — see the keyword arm above (stone N).
+                        let args = items[1..].to_vec();
                         let expanded = {
                             let def = registry
                                 .get(&macro_name)

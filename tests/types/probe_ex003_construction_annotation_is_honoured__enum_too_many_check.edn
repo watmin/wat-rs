@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :t::Opt.Some form: :t::Opt declares 1 type parameter(s) but 3 were supplied"
+      :location #wat.core/Span {
+        :file "tests/types/probe_ex003_construction_annotation_is_honoured__enum_too_many.wat.bad"
+        :line 5
+        :col 25
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 5
+            :col 37
+          }
+        }
+      }
+      :causes []
+      :head ":t::Opt.Some"
+      :reason ":t::Opt declares 1 type parameter(s) but 3 were supplied"
+      :remedies []
+    }
+  ]
+}

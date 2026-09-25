@@ -1,0 +1,26 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/ReturnTypeMismatch {
+      :message ":t::mk: body produces (:t::Opt.None :- [:wat::core::i64]); signature declares (:t::Opt :- [:wat::core::String])"
+      :location #wat.core/Span {
+        :file "tests/types/probe_ex003_construction_annotation_is_honoured__enum_unit_wrong.wat.bad"
+        :line 6
+        :col 3
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 6
+            :col 41
+          }
+        }
+      }
+      :causes []
+      :function ":t::mk"
+      :expected "(:t::Opt :- [:wat::core::String])"
+      :got "(:t::Opt.None :- [:wat::core::i64])"
+      :remedies []
+    }
+  ]
+}

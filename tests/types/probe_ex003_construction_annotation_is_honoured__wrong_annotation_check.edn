@@ -1,0 +1,47 @@
+#wat.check/CheckErrors {
+  :message "2 type-check errors"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":p::Ops: parameter #1 expects :wat::core::i64; got :p::E.A"
+      :location #wat.core/Span {
+        :file "tests/types/probe_ex003_construction_annotation_is_honoured__wrong_annotation.wat.bad"
+        :line 8
+        :col 62
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 8
+            :col 74
+          }
+        }
+      }
+      :causes []
+      :callee ":p::Ops"
+      :param "#1"
+      :expected ":wat::core::i64"
+      :got ":p::E.A"
+      :remedies []
+    }
+    #wat.check/TypeMismatch {
+      :message ":p::Ops: parameter #2 expects [:wat::core::i64 :-> :wat::core::i64]; got [:p::E :-> :p::E]"
+      :location #wat.core/Span {
+        :file "tests/types/probe_ex003_construction_annotation_is_honoured__wrong_annotation.wat.bad"
+        :line 8
+        :col 81
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 8
+            :col 121
+          }
+        }
+      }
+      :causes []
+      :callee ":p::Ops"
+      :param "#2"
+      :expected "[:wat::core::i64 :-> :wat::core::i64]"
+      :got "[:p::E :-> :p::E]"
+      :remedies []
+    }
+  ]
+}

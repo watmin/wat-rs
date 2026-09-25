@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":p::Ops: parameter #2 expects [:p::E.A :-> :p::E.A]; got [:p::E :-> :p::E]"
+      :location #wat.core/Span {
+        :file "tests/types/probe_ex003_construction_annotation_is_honoured__no_annotation_part2_open.wat.bad"
+        :line 8
+        :col 60
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 8
+            :col 100
+          }
+        }
+      }
+      :causes []
+      :callee ":p::Ops"
+      :param "#2"
+      :expected "[:p::E.A :-> :p::E.A]"
+      :got "[:p::E :-> :p::E]"
+      :remedies []
+    }
+  ]
+}

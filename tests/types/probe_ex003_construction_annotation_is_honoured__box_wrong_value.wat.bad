@@ -1,0 +1,7 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — `main` declares no return
+;; type that could pin T, so only the annotation can refuse this. Before stone N it RAN, rc 0,
+;; and stored a String in a `(:t::Box :- [:wat::core::i64])`.
+(:wat::core::defstruct :t::Box :- [T] [x <- T])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [b (:t::Box :- [:wat::core::i64] :x "str")
+                    _ (:wat::kernel::println (:t::Box/x b))] nil))

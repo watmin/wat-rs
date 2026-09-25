@@ -1,0 +1,9 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — a deliberately WRONG annotation. Before stone N it produced the
+;; byte-identical diagnostic the right one did (the annotation was discarded). Now it is refused
+;; AT `seed` (and `step`), each naming the mismatch against the annotated i64. No declared return
+;; type here, so the refusal can only have come from the annotation.
+(:wat::core::defenum :p::E :wat::enum::Pure :A [] :B [n <- :wat::core::i64])
+(:wat::core::defstruct :p::Ops :- [T] [seed <- T  step <- [T :-> T]])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_ops (:p::Ops :- [:wat::core::i64] :seed (:p::E.A {}) :step (:wat::core::fn [x <- :p::E] -> :p::E x))]
+    nil))

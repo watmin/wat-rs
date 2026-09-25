@@ -5834,7 +5834,7 @@ fn infer_list(
             });
             return CheckResult::errs(local_errors);
         }
-        if let Some(result) = infer_enum_map_ctor(k, args, head_span, env, locals, fresh, subst) {
+        if let Some(result) = infer_enum_map_ctor(k, type_args.as_deref(), args, head_span, env, locals, fresh, subst) {
             return result;
         }
 
@@ -6066,13 +6066,17 @@ fn infer_list(
         // is admitted by construction, not by a special case).
         if let Some(concrete) = &type_args {
             if concrete.len() > scheme.type_params.len() {
+                // Excursus 003 stone N — the kwargs construction `(:T :- [A…] …)` reaches here
+                // as the synthetic prime call `(:T' :- [A…] …)`; the prime is generated-code-only
+                // and must not reach a message the user reads (`canonical_ctor_callee`'s rule).
+                let callee = canonical_ctor_callee(k, env);
                 local_errors.push(CheckError {
                     span: head_span.clone(),
                     kind: CheckErrorKind::MalformedForm {
-                        head: k.clone(),
+                        head: callee.clone(),
                         reason: format!(
                             "{} declares {} type parameter(s) but {} were supplied",
-                            k,
+                            callee,
                             scheme.type_params.len(),
                             concrete.len()
                         ),
@@ -14092,8 +14096,24 @@ fn infer_aggregate_new_check(
 ///
 /// Must not synthesize a positional call to the same head: that would re-enter
 /// this intercept and refuse the form we just accepted.
+///
+/// Excursus 003 stone N (the-little-wat F-107 part 1, the variant half) — `type_args` is the
+/// call's explicit `:- [A…]`, already peeled and parsed by the call arm. It used to be dropped
+/// here: `(:t::Opt.Some :- [:wat::core::i64] {:v "str"})` checked clean, and so did
+/// `:- [:wat::core::i64 :wat::core::String :no::Such]` on a one-parameter enum. Now it binds the
+/// enum's params BEFORE any field value is unified, and too many (or any, on a non-generic enum)
+/// is refused — the same `>` rule the generic call arm applies (fewer stays legal: inference
+/// completes a partial application).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The call arm's peeled `type_args` joins the existing independent inputs (head, \
+              args, span, env and the three inference carriers); a params struct for one \
+              caller is indirection without a reader. `#[expect]` so a future narrowing \
+              surfaces this attribute as stale."
+)]
 fn infer_enum_map_ctor(
     k: &str,
+    type_args: Option<&[TypeExpr]>,
     args: &[WatAST],
     head_span: &Span,
     env: &CheckEnv,
@@ -14196,8 +14216,32 @@ fn infer_enum_map_ctor(
         return Some(CheckResult::errs(local_errors));
     }
 
+    if let Some(explicit) = type_args {
+        if explicit.len() > enum_type_params.len() {
+            for (_, val_ast) in &parsed {
+                let _ = infer(val_ast, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            }
+            local_errors.push(CheckError {
+                span: head_span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!(
+                        "{} declares {} type parameter(s) but {} were supplied",
+                        enum_name,
+                        enum_type_params.len(),
+                        explicit.len()
+                    ),
+                    remedies: vec![],
+                },
+            });
+            return Some(CheckResult::errs(local_errors));
+        }
+    }
     let (param_types, ret_type) = if let Some(scheme) = env.get(k) {
-        instantiate(scheme, fresh)
+        match type_args {
+            Some(explicit) => instantiate_with_args(scheme, explicit, fresh),
+            None => instantiate(scheme, fresh),
+        }
     } else if enum_type_params.is_empty() {
         (
             declared.iter().map(|(_, t)| t.clone()).collect(),
@@ -14205,8 +14249,9 @@ fn infer_enum_map_ctor(
         )
     } else {
         let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
-        for tp in &enum_type_params {
-            mapping.insert(tp.clone(), fresh.fresh());
+        for (i, tp) in enum_type_params.iter().enumerate() {
+            let bound = type_args.and_then(|ex| ex.get(i)).cloned().unwrap_or_else(|| fresh.fresh());
+            mapping.insert(tp.clone(), bound);
         }
         let field_tys = declared
             .iter()
@@ -14309,7 +14354,15 @@ fn infer_kwargs_construct_check(
     let prime_kw = format!("{}'", bare_k);
     let prime_head = WatAST::Keyword(prime_kw, args[0].span().clone());
 
-    let rest = &args[1..];
+    // Excursus 003 stone N (the-little-wat F-107 part 1) — an explicit `:- [A…]` at the
+    // construction site is HONOURED, never dropped. The macro expander now hands the companion
+    // its args raw (`src/macros/expand.rs`, the keyword-head macro arm), so the spec arrives here
+    // as `:T :- [A…] :f v …`. Peel it through the one door and carry the ORIGINAL marker +
+    // bracket nodes onto the synthetic `(:T' :- [A…] …)` below: the generic call arm then binds
+    // `:T`'s params from them BEFORE any field value is unified (`instantiate_with_args`), and
+    // refuses too many / a non-generic `:T` — the same door, not a second binding mechanism.
+    let (spec, rest) = crate::types::peel_param_spec(&args[1..]);
+    let spec_nodes: &[WatAST] = if spec.is_some() { &args[1..3] } else { &[] };
     // Same kwargs-vs-positional test the eval arm + `build_insert_fact` use.
     let is_kwargs = rest.len() >= 2
         && rest.len().is_multiple_of(2)
@@ -14418,8 +14471,9 @@ fn infer_kwargs_construct_check(
 
     // Reproduce the old `kwargs-lower` lowering: infer `(:T' <ordered values>)`, reusing
     // the whole call path (scheme instantiation + unification + concrete-ret).
-    let mut synthetic_items: Vec<WatAST> = Vec::with_capacity(ordered.len() + 1);
+    let mut synthetic_items: Vec<WatAST> = Vec::with_capacity(ordered.len() + 3);
     synthetic_items.push(prime_head);
+    synthetic_items.extend(spec_nodes.iter().cloned());
     synthetic_items.extend(ordered);
     let synthetic = WatAST::List(synthetic_items, head_span.clone());
 

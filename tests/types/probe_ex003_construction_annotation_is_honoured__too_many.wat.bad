@@ -1,0 +1,5 @@
+;; Fixture for probe_ex003_construction_annotation_is_honoured.rs — more type arguments than
+;; `:t::Box` declares: refused, naming the BARE type (never the generated prime `:t::Box'`).
+(:wat::core::defstruct :t::Box :- [T] [x <- T])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_b (:t::Box :- [:wat::core::i64 :wat::core::String] :x 1)] nil))

@@ -1208,7 +1208,13 @@ fn lower_construct(
     if let Some(TypeDef::Aggregate(a)) = types.get(head) {
         let names = a.names_arc();
         let class = head.strip_prefix(':').unwrap_or(head).to_string();
-        let args = &items[1..];
+        // Excursus 003 stone N — the companion now forwards an explicit `:- [A…]`
+        // construction annotation into `kwargs-construct` (`src/macros/expand.rs`). The
+        // checker has already bound and verified it (`infer_kwargs_construct_check`); a
+        // lowered construct carries no type parameters, so peel it through the one door
+        // rather than read `:-` as a field name. Driven: without this a rete defn body
+        // `(:rn::Rate :- [] :count k)` fell to `unknown aggregate :rn::Rate`.
+        let (_spec, args) = crate::types::peel_param_spec(&items[1..]);
         // BY NAME, against this type's declaration order — see `rete_kwargs_value_asts`. `None`
         // (undeclared / duplicate / missing field) falls to the same `Ok(None)` this fn already
         // uses for a construct it cannot lower.
