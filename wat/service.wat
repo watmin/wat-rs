@@ -1966,18 +1966,12 @@
                            ~@serve-op-arms))]
                      [:wat::spawn::ServiceEvent.Closed {:idx idx}
                        (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state)]
-                     ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
-                     ;; evict it. But its `cause` must NOT vanish (the old `_cause` silently
-                     ;; swallowed the death reason — the exact masking this arc forbids). There
-                     ;; is no reply target (the peer is dead) and the lineage peer is a
-                     ;; request/reply admin channel we must not desync, so surface the reason on
-                     ;; the honest loud sink (stderr) BEFORE evicting + continuing to serve. The
-                     ;; RICHER client-facing recv'-EOF crash-reason surfacing is a separate
-                     ;; follow-on strike; this arm's contract here is simply: do not DROP it.
-                     [:wat::spawn::ServiceEvent.Lost {:idx idx :cause cause}
-                       (:wat::core::do
-                         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))
-                         (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))]
+                     ;; 255.32 — a client's death belongs to its own owner. The server
+                     ;; reaps the dead handle and serves on. The reason is not this loop's
+                     ;; to read, and there is no eprintln: eprintln is the dying
+                     ;; declaration, and this loop must keep serving.
+                     [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
+                       (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state)]
                      ;; arc 278 no-hidden-failures — a peer that sent an UNDECODABLE message is
                      ;; STILL ALIVE (a bad message is not a death). Reply the rich decode reason
                      ;; to THAT client as `Reply::Failed[cause]` (its generated method raises with
