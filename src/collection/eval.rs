@@ -1471,10 +1471,15 @@ pub(crate) fn eval_vector_ctor(
     // untouched (no new validation on it) so the keyword path stays
     // byte-identical; a `List` is now actually parsed as a type form — not
     // merely shape-matched — so a malformed list is still rejected.
+    // the-little-wat F-203 — the fourth shape, the function-type BRACKET `[A … :-> R]` (arc
+    // 251.4c), goes through the same door. It is a `WatAST::Vector`, so it used to fall to the
+    // catch-all below: `--check` (which reads every shape through `parse_type_node`) accepted
+    // `(Vector :- [[i64 :-> i64]] …)` and the runtime refused it as "malformed". Additive: the
+    // Keyword and List arms are unchanged, and a malformed bracket is still rejected.
     match &args[0] {
         WatAST::Keyword(_, _) => {}
-        list @ WatAST::List(_, _) => {
-            crate::types::parse_type_node(list).map_err(|e| RuntimeError::new(
+        ty @ (WatAST::List(_, _) | WatAST::Vector(_, _)) => {
+            crate::types::parse_type_node(ty).map_err(|e| RuntimeError::new(
                 e.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::Vector".into(),
@@ -1586,10 +1591,15 @@ pub(crate) fn eval_hashset_ctor(
     // untouched (no new validation on it) so the keyword path stays
     // byte-identical; a `List` is now actually parsed as a type form — not
     // merely shape-matched — so a malformed list is still rejected.
+    // the-little-wat F-203 — the fourth shape, the function-type BRACKET `[A … :-> R]` (arc
+    // 251.4c), goes through the same door. It is a `WatAST::Vector`, so it used to fall to the
+    // catch-all below: `--check` (which reads every shape through `parse_type_node`) accepted
+    // `(Vector :- [[i64 :-> i64]] …)` and the runtime refused it as "malformed". Additive: the
+    // Keyword and List arms are unchanged, and a malformed bracket is still rejected.
     match &args[0] {
         WatAST::Keyword(_, _) => {}
-        list @ WatAST::List(_, _) => {
-            crate::types::parse_type_node(list).map_err(|e| RuntimeError::new(
+        ty @ (WatAST::List(_, _) | WatAST::Vector(_, _)) => {
+            crate::types::parse_type_node(ty).map_err(|e| RuntimeError::new(
                 e.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::HashSet".into(),
@@ -1967,6 +1977,53 @@ mod arc109_two_iii_ctor_guard_widening {
     /// keyword — a bare i64-shaped List) must still be rejected. Proves the `List` arm
     /// actually parses via `parse_type_node`, rather than accepting any `List`
     /// unconditionally.
+    /// F-203 (the-little-wat) — the function-type BRACKET as the element type. `--check`
+    /// accepts it through `parse_type_node`; the constructor must too, and must still refuse a
+    /// bracket that is not a function type.
+    fn fn_bracket() -> WatAST {
+        vect(vec![kw(":wat::core::i64"), kw(":->"), kw(":wat::core::i64")])
+    }
+
+    #[test]
+    fn f203_vector_ctor_accepts_fn_type_bracket_first_arg() {
+        let (env, sym) = env_sym();
+        let args = vec![fn_bracket()];
+        let v = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .unwrap_or_else(|e| panic!("a function-type bracket element type must eval: {e:?}"));
+        match v {
+            Value::Vec(xs) => assert_eq!(xs.len(), 0),
+            other => panic!("expected Vec, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn f203_hashset_ctor_accepts_fn_type_bracket_first_arg() {
+        let (env, sym) = env_sym();
+        let args = vec![fn_bracket()];
+        let v = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .unwrap_or_else(|e| panic!("a function-type bracket element type must eval: {e:?}"));
+        match v {
+            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 0),
+            other => panic!("expected HashSet, got {other:?}"),
+        }
+    }
+
+    /// F-203 negative control — a bracket with no `:->` is not a type, and is still refused.
+    #[test]
+    fn f203_vector_ctor_rejects_bracket_without_arrow() {
+        let (env, sym) = env_sym();
+        let args = vec![vect(vec![kw(":wat::core::i64"), kw(":wat::core::i64")])];
+        let err = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .expect_err("a bracket that is not a function type must still be rejected");
+        match err {
+            EvalBreak::Diagnostic(e) => match e.kind() {
+                RuntimeErrorKind::MalformedForm { head, .. } => assert_eq!(head, ":wat::core::Vector"),
+                other => panic!("expected MalformedForm, got {other:?}"),
+            },
+            other => panic!("expected Diagnostic, got {other:?}"),
+        }
+    }
+
     #[test]
     fn row2_vector_ctor_rejects_malformed_form_first_arg() {
         let (env, sym) = env_sym();

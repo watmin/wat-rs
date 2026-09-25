@@ -83,9 +83,15 @@ fail-fast = false
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
 
+# ⚠ RAISED A THIRD TIME, 2026-09-24 (the-little-wat branch, i7-1270P laptop, 4 test threads).
+#   It TIMED OUT at the 600s kill on a full floor. MEASURED, the gate ALONE: 557.912s
+#   (machine load ~6 from other work), against 62.8s on 2026-08-16 -- 706 .wat files under
+#   wat-scripts/ against 327: 2.2x the files, 8.9x the time. 42s of margin alone is no budget.
+#   Builder, 2026-09-24: "if we need to bump the timeouts, do it - there's a ~80% wall clock
+#   time reduction commit we've not got yet (and won't for a week or two)". Stopgap until then.
 [[profile.default.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
-slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
+slow-timeout = { period = "900s", terminate-after = 2 }   # warn 900s, kill 1800s
 priority = 100                                            # schedule first
 
 # ⏱ retirement_table_is_fully_reachable — STARTUP-bound, and the ARC GROWS ITS INPUT.

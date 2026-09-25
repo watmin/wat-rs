@@ -8234,6 +8234,12 @@ fn eval_persistentmap(
 /// (`wat-scripts/scratch-pad/probe-vector-fn-type-bracket.wat`) and then raises `MalformedForm`
 /// at eval time ("first argument must be a `(Head :- [T …])` type form"). `Partial`.
 ///
+/// **Amended 2026-09-24 (the-little-wat F-203):** `eval_vector_ctor`'s match now routes
+/// `List | Vector` through `parse_type_node`, so the probe above EVALUATES. The `MalformedForm`
+/// that remains fires only on a first argument `parse_type_node` rejects, which `--check`
+/// rejects through the same door -- so this ground no longer names a raise the checker leaves
+/// open. The `@Totality` below is left as it was: re-ruling it is the register's call.
+///
 /// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::core::Vector"` is
 /// present in the residue hand-list (`:501`), which already returns `true` for it there (ruled
 /// `Legal`, unlike the silent-refusal gap `ann-form`/`apply`/`PersistentVector`/`PersistentMap`
@@ -8375,7 +8381,10 @@ fn eval_hashmap(
 ///     proves. Measured: a well-typed `(HashSet :- [[:wat::core::i64 :-> :wat::core::bool]])` —
 ///     `T` spelled with the fn-type bracket surface — passes `--check` with zero errors
 ///     (`wat-scripts/scratch-pad/probe-hashset-fn-type-bracket.wat`) and raises `MalformedForm`
-///     at eval time.
+///     at eval time. **Amended 2026-09-24 (the-little-wat F-203): closed** -- the match routes
+///     `List | Vector` through `parse_type_node` and that probe evaluates. Raise 2 stands alone,
+///     and is why this entry stays `Partial`: a set of function values passes `--check` and
+///     fails on insert.
 ///  2. `eval_hashset_ctor` raises `TypeMismatch` on a non-hashable element via
 ///     `value_is_set_hashable` (`src/runtime.rs:6520-6522`, delegating to `value_is_hashable`,
 ///     `:6498-6514`). `infer_hashset_constructor` (`check.rs:12370-12430`) places NO hashability
