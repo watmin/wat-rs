@@ -1,0 +1,90 @@
+;; b3-thread-service-roundtrip-timing.wat — arc 255 B3 measurement strike (2026-09-24).
+;; Times a THREAD-locus echo service two ways, printed as nanoseconds:
+;;   launch-cycle — start (listener mint + Status.Started lineage handshake carrying the
+;;                  Shared Address) + connect + one echo + drop (RAII stop), averaged over K.
+;;   steady-rt    — one echo request/reply on an already-connected peer, averaged over N.
+;; B3 touches only mint/encode/decode/connect of a thread Address, so launch-cycle is the
+;; number that could move; steady-rt is the control (no per-message path changed).
+
+(:wat::core::defsurface :b3::Echo :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :b3::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defenum :b3::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                                                                                    :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(echo [self <- :b3::Echo  req <- :b3::Echo::EchoRequest] -> :b3::Echo::EchoResponse :max-request-bytes 524288)])
+
+(:wat::service::defservice :b3::echo
+  :satisfies :b3::Echo
+  :durable   []
+  :ephemeral []
+  :impls
+  [(echo [s ctx req]
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:b3::Echo::EchoResponse.Ok {:reply (:b3::Echo::EchoRequest/msg req)})}))])
+
+(:wat::core::defn :b3::connect-or-die
+  [a <- (:wat::kernel::Address :- [:b3::Echo::Op :b3::Echo::Reply :wat::kernel::Transport.Shared])]
+  -> (:wat::kernel::Peer :- [:b3::Echo::Op :b3::Echo::Reply])
+  (:wat::core::match (:wat::kernel::connect a)
+    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
+
+(:wat::core::defn :b3::echo-once
+  [p <- (:wat::kernel::Peer :- [:b3::Echo::Op :b3::Echo::Reply])]
+  -> :wat::core::String
+  (:wat::core::match (:b3::Echo/echo p (:b3::Echo::EchoRequest :msg "hi"))
+    [:wat::kernel::RecvOutcome.Message {:msg r}
+      (:wat::core::match r
+        [:b3::Echo::EchoResponse.Ok {:reply reply} reply]
+        [:b3::Echo::EchoResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "too large")]
+        [:b3::Echo::EchoResponse.RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "malformed")])]
+    [:wat::kernel::RecvOutcome.Lost {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message c))]
+    [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "stopped")]
+    [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "closed")]))
+
+;; one full launch cycle; the handle + peer drop when this fn returns (RAII stop/join).
+(:wat::core::defn :b3::cycle [] -> :wat::core::String
+  (:wat::core::let
+    [h (:b3::echo/start :locus (:wat::spawn::thread) :record (:b3::echo::Record))
+     p (:b3::connect-or-die (:b3::echo::Handle/addr h))
+     r (:b3::echo-once p)
+     _keep (:b3::echo::Handle/addr h)]   ;; keep the handle live past the echo
+    r))
+
+(:wat::core::defn :b3::cycles [k <- :wat::core::i64] -> :wat::core::nil
+  (:wat::core::if (:wat::core::= k 0)
+    nil
+    (:wat::core::do (:b3::cycle) (:b3::cycles (:wat::i64::- k 1)))))
+
+(:wat::core::defn :b3::rts
+  [p <- (:wat::kernel::Peer :- [:b3::Echo::Op :b3::Echo::Reply])
+   n <- :wat::core::i64]
+  -> :wat::core::nil
+  (:wat::core::if (:wat::core::= n 0)
+    nil
+    (:wat::core::do (:b3::echo-once p) (:b3::rts p (:wat::i64::- n 1)))))
+
+(:wat::core::defn :b3::now-ns [] -> :wat::core::i64
+  (:wat::time::epoch-nanos (:wat::time::now)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [k   200
+     n   20000
+     _w  (:b3::cycles 20)
+     t0  (:b3::now-ns)
+     _c  (:b3::cycles k)
+     t1  (:b3::now-ns)
+     h   (:b3::echo/start :locus (:wat::spawn::thread) :record (:b3::echo::Record))
+     p   (:b3::connect-or-die (:b3::echo::Handle/addr h))
+     _w2 (:b3::rts p 1000)
+     t2  (:b3::now-ns)
+     _r  (:b3::rts p n)
+     t3  (:b3::now-ns)
+     _k2 (:b3::echo::Handle/addr h)]
+    (:wat::core::do
+      (:wat::kernel::println (:wat::core::format "launch-cycle-ns {x}" :x (:wat::i64::/ (:wat::i64::- t1 t0) k)))
+      (:wat::kernel::println (:wat::core::format "steady-rt-ns {x}" :x (:wat::i64::/ (:wat::i64::- t3 t2) n))))))
