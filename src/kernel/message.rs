@@ -1357,6 +1357,57 @@ pub(crate) fn eval_peer_select_prime(
     }
 }
 
+/// Process-tier `poll` lineage (index 0): the owner's admin message, or the
+/// owner's drop. Both the first select and the spurious-`POLLIN` re-poll call
+/// this. `Ok` is an admin frame (raw bytes, trusted-wire decode). `Err` is
+/// the owner gone.
+fn process_lineage_event(
+    result: Result<Vec<u8>, crate::comms::RecvError>,
+    list_span: &Span,
+    types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::poll";
+    const SELECT_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
+    match result {
+        Ok(raw_bytes) => {
+            let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
+                EvalBreak::from(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "poll (process tier): admin message is not valid UTF-8".into(),
+                    },
+                ))
+            })?;
+            let msg = crate::edn::render::decode_trusted_wire(wire_str, types, ctx).map_err(|e| {
+                EvalBreak::from(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!(
+                            "poll (process tier): admin message decode failed: {}",
+                            e
+                        ),
+                    },
+                ))
+            })?;
+            Ok(Value::Enum(Arc::new(EnumValue {
+                type_path: SELECT_EVENT_TYPE.into(),
+                variant_name: "Admin".into(),
+                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Admin"),
+                fields: vec![msg],
+            })))
+        }
+        Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
+            type_path: SELECT_EVENT_TYPE.into(),
+            variant_name: "Shutdown".into(),
+            names: no_field_names(),
+            fields: vec![],
+        }))),
+    }
+}
+
 pub(crate) fn eval_poll_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -1770,42 +1821,12 @@ pub(crate) fn eval_poll_prime(
                         //   Err(_)        → ServiceEvent::Shutdown              (owner dropped handle)
                         // Previously always returned :Shutdown without inspecting `result`.
                         // [[arc-291-3a-i: admin/data facet split foundation]]
-                        match result {
-                            Ok(raw_bytes) => {
-                                let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
-                                    EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                                            head: OP.into(),
-                                            reason: "poll (process tier): admin message is not valid UTF-8".into(),
-                                        }))
-                                })?;
-                                let msg = crate::edn::render::decode_trusted_wire(
-                                    wire_str,
-                                    sym.types().map(|a| a.as_ref()),
-                                    sym.encoding_ctx().map(|a| a.as_ref()),
-                                )
-                                .map_err(|e| {
-                                    EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                                            head: OP.into(),
-                                            reason: format!(
-                                                "poll (process tier): admin message decode failed: {}",
-                                                e
-                                            ),
-                                        }))
-                                })?;
-                                Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE.into(),
-                                    variant_name: "Admin".into(),
-                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Admin"),
-                                    fields: vec![msg],
-                                }))
-                            }
-                            Err(_) => Value::Enum(Arc::new(EnumValue {
-                                type_path: SELECT_EVENT_TYPE.into(),
-                                variant_name: "Shutdown".into(),
-                                names: no_field_names(),
-                                fields: vec![],
-                            })),
-                        }
+                        process_lineage_event(
+                            result,
+                            list_span,
+                            sym.types().map(|a| a.as_ref()),
+                            sym.encoding_ctx().map(|a| a.as_ref()),
+                        )?
                     } else {
                         // ── Client peer arm: clients[k-1] fired (k = index, k ≥ 1) ──
                         // NB: process layout is 0=self-peer, 1..=N=clients (the listener
@@ -2017,12 +2038,12 @@ pub(crate) fn eval_poll_prime(
                                                 result: res2,
                                             } => {
                                                 if idx2.0 == 0 {
-                                                    Value::Enum(Arc::new(EnumValue {
-                                                        type_path: SELECT_EVENT_TYPE.into(),
-                                                        variant_name: "Shutdown".into(),
-                                                        names: no_field_names(),
-                                                        fields: vec![],
-                                                    }))
+                                                    process_lineage_event(
+                                                        res2,
+                                                        list_span,
+                                                        sym.types().map(|a| a.as_ref()),
+                                                        sym.encoding_ctx().map(|a| a.as_ref()),
+                                                    )?
                                                 } else {
                                                     let pidx = (idx2.0 - 1) as i64;
                                                     match res2 {
@@ -2120,5 +2141,39 @@ pub(crate) fn eval_poll_prime(
             };
             Ok(event_value)
         }
+    }
+}
+
+#[cfg(test)]
+mod process_lineage_event_tests {
+    use super::process_lineage_event;
+    use crate::comms::RecvError;
+    use crate::value::Value;
+
+    fn event(result: Result<Vec<u8>, RecvError>) -> Value {
+        process_lineage_event(result, &crate::rust_caller_span!(), None, None)
+            .expect("lineage event")
+    }
+
+    #[test]
+    fn an_admin_frame_is_admin() {
+        let ev = event(Ok(b"42".to_vec()));
+        let Value::Enum(e) = ev else {
+            panic!("an admin frame is a ServiceEvent");
+        };
+        assert_eq!(e.type_path, ":wat::spawn::ServiceEvent");
+        assert_eq!(e.variant_name, "Admin");
+        assert_eq!(e.fields, vec![Value::i64(42)]);
+    }
+
+    #[test]
+    fn a_lineage_error_is_shutdown() {
+        let ev = event(Err(RecvError::Disconnected));
+        let Value::Enum(e) = ev else {
+            panic!("a lineage error is a ServiceEvent");
+        };
+        assert_eq!(e.type_path, ":wat::spawn::ServiceEvent");
+        assert_eq!(e.variant_name, "Shutdown");
+        assert_eq!(e.fields, Vec::<Value>::new());
     }
 }
