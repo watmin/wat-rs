@@ -29,7 +29,7 @@
      _thr  (:wat::test::spawn-peer
              (:wat::spawn::thread::post-spawn
                (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil
-                 (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx 777) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] nil)))
+                 (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx 777) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])] nil)))
              (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
                nil))
      sentinel (:wat::core::match (:wat::kernel::recv rx)

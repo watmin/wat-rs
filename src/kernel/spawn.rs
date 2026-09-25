@@ -1190,9 +1190,10 @@ mod tests {
                  [:wat::kernel::RecvOutcome.Message {:msg m} \
                    (:wat::core::match (:wat::kernel::send self m) \
                      [:wat::kernel::SendOutcome.Sent {} nil] \
-                     [:wat::kernel::SendOutcome.Closed {} nil] \
+                     [:wat::kernel::SendOutcome.HandleClosed {} nil] \
                      [:wat::kernel::SendOutcome.Stopped {} nil] \
-                     [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] \
+                     [:wat::kernel::SendOutcome.Closed {:cause _c} nil] \
+                     [:wat::kernel::SendOutcome.Failed {:cause _c} nil])] \
                  [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))] \
                  [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message \"echo: stop requested before message — the peer was ALIVE\")] \
                  [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message \"echo: channel closed before message\")]))",

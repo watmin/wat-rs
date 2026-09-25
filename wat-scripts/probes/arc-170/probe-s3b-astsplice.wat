@@ -13,8 +13,8 @@
   [w <- (:wat::kernel::Process :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
   -> :wat::core::nil
   (:wat::core::let
-    [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
-     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 1 5)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+    [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 1 5)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      ra (:wat::kernel::recv w)
      a  (:wat::core::match ra
           [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -74,7 +74,7 @@
                      [pair (:wat::kernel::recv prn)
                       out  (:wat::core::Tuple (:wat::core::first pair)
                                               (:probe::__work (:wat::core::second pair)))
-                      _    (:wat::core::match (:wat::kernel::send prn out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                      _    (:wat::core::match (:wat::kernel::send prn out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                      (:probe::__runner prn)))
      main-def   `(:wat::core::defn :user::main [] -> :wat::core::nil
                    (:probe::__runner

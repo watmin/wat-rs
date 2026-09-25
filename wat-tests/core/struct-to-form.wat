@@ -29,11 +29,11 @@
                  nil))
              (:wat::core::match (:wat::kernel::send self 0)
                [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.Closed {} nil]
+               [:wat::kernel::SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless.
                [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))]
+               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))]
     ;; Assert the inner child succeeded — a clean completion crosses the wire
     ;; as Message; a crash reaches recv' as Lost carrying the death message.
     (:wat::core::match (:wat::kernel::recv p)

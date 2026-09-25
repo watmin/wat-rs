@@ -11990,8 +11990,8 @@ fn frame_names() -> Arc<Vec<String>> {
 // Arc 109 Stone 4a — the kernel error vocabulary — `thread_died_error_runtime` moved to
 // `src/kernel/error.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// Arc 109 Stone 4a — the kernel error vocabulary — `thread_died_error_shutdown` moved to
-// `src/kernel/error.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+// `thread_died_error_shutdown` is gone. A send stop is `SendOutcome::Stopped`.
+// A recv stop is `recv_outcome_shutdown`.
 
 // Arc 109 Stone 4a — the kernel error vocabulary — `eval_failure_message` moved to
 // `src/kernel/error.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -12112,11 +12112,10 @@ pub(crate) fn message_only_failure(message: String) -> Value {
 // Arc 109 Stone A — the kernel outcome vocabulary — `send_outcome_closed` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// Arc 109 Stone 4a — the kernel error vocabulary — `loci_died_disconnected` moved to
-// `src/kernel/error.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+// `loci_died_disconnected` is gone. A send whose far end left is
+// `SendOutcome::Closed` with a Failure cause. Recv still builds its own.
 
-// Arc 109 Stone 4a — the kernel error vocabulary — `loci_died_from_send_error` moved to
-// `src/kernel/error.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+// A send error is not a death report. The mapping that used to live here is gone.
 
 // Arc 109 Stone A — the kernel outcome vocabulary — `send_outcome_stopped` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -12124,8 +12123,8 @@ pub(crate) fn message_only_failure(message: String) -> Value {
 // Arc 109 Stone A — the kernel outcome vocabulary — `send_outcome_from_error` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// Arc 109 Stone A — the kernel outcome vocabulary — `send_outcome_lost` moved to
-// `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+// Arc 109 Stone A — the kernel outcome vocabulary — `send_outcome_closed` and
+// `send_outcome_failed` live in `src/kernel/outcome.rs`.
 
 // Arc 109 Stone A — the kernel outcome vocabulary — `TRY_SEND_OUTCOME_TYPE` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -12139,8 +12138,8 @@ pub(crate) fn message_only_failure(message: String) -> Value {
 // Arc 109 Stone A — the kernel outcome vocabulary — `try_send_outcome_closed` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// Arc 109 Stone A — the kernel outcome vocabulary — `try_send_outcome_lost` moved to
-// `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
+// Arc 109 Stone A — the kernel outcome vocabulary — `try_send_outcome_failed` lives in
+// `src/kernel/outcome.rs`.
 
 // Arc 109 Stone A — the kernel outcome vocabulary — `CLOSE_OUTCOME_TYPE` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.

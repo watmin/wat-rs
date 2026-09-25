@@ -36,11 +36,11 @@
              (:wat::test::assert-eq 4 (:wat::i64::+ 2 2))
              (:wat::core::match (:wat::kernel::send self 0)
                [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.Closed {} nil]
+               [:wat::kernel::SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless (never a `_`-swallow).
                [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))
+               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
             [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
             [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
@@ -73,11 +73,11 @@
              (:wat::test::assert-eq 99 (:wat::i64::+ 2 2))
              (:wat::core::match (:wat::kernel::send self 0)
                [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.Closed {} nil]
+               [:wat::kernel::SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless (never a `_`-swallow).
                [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))
+               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
             [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
             [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]

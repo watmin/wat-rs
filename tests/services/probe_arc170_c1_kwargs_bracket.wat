@@ -69,7 +69,7 @@
                           (:wat::core::let
                             [c (:wat::core::Option/expect held "Work before Setup")
                              r (:probe::work s :echo c)                   ;; ← companion :key val, held peer
-                             _ (:wat::core::match (:wat::kernel::send self r) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                             _ (:wat::core::match (:wat::kernel::send self r) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                             (:probe::serve self held))])]
                     [:wat::kernel::RecvOutcome.Lost {:cause cause}
                       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -86,8 +86,8 @@
             [:wat::core::Option.Some {:value p}
               (:wat::core::let
                 [_  (:probe::echo/grant eh [p])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Setup {:addr ea})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "a"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Setup {:addr ea})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "a"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
                  r1 (:wat::core::match (:wat::kernel::recv worker)
                       [:wat::kernel::RecvOutcome.Message {:msg m} m]
                       [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -96,7 +96,7 @@
                         (:wat::kernel::assertion-failed! :message "recv': stopped before reply a — the peer was ALIVE")]
                       [:wat::kernel::RecvOutcome.Closed {}
                         (:wat::kernel::assertion-failed! :message "recv': worker closed before reply a")])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "b"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "b"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
                  r2 (:wat::core::match (:wat::kernel::recv worker)
                       [:wat::kernel::RecvOutcome.Message {:msg m} m]
                       [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -105,7 +105,7 @@
                         (:wat::kernel::assertion-failed! :message "recv': stopped before reply b — the peer was ALIVE")]
                       [:wat::kernel::RecvOutcome.Closed {}
                         (:wat::kernel::assertion-failed! :message "recv': worker closed before reply b")])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "c"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "c"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
                  r3 (:wat::core::match (:wat::kernel::recv worker)
                       [:wat::kernel::RecvOutcome.Message {:msg m} m]
                       [:wat::kernel::RecvOutcome.Lost {:cause cause}

@@ -532,7 +532,7 @@
                  _  (:wat::core::match (:wat::kernel::send self-peer
                         (:wat::core::apply  lu-mk-kw (:wat::spawn::Bound/address b) []))
                       [:wat::kernel::SendOutcome.Sent {}   nil]
-                      [:wat::kernel::SendOutcome.Closed {} nil]   ;; parent's recv' already faces this
+                      [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; parent's recv' already faces this
                       ;; arc 278 #73 — a stop arrived mid-handshake. Same body as the two
                       ;; above, and the PRECONDITION is why that is legal here rather than a
                       ;; discard: this is the CHILD announcing readiness, and the parent's
@@ -540,7 +540,7 @@
                       ;; handshake — including its own Stopped. Deciding here would decide it
                       ;; twice. The child proceeds into `serve`, whose poll' faces the stop.
                       [:wat::kernel::SendOutcome.Stopped {} nil]
-                      [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                      [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                 ;; arc 278 the call context — `serve`'s wiring contract is now 5 args, not 4:
                 ;; `(serve self-peer listener clients next-id state) -> nil`. The extra `0` is
                 ;; the initial monotonic conn-id counter (defservice's serve loop threads it as
@@ -607,12 +607,12 @@
        ;; Closed/Lost on this handshake; the send' here just needs to proceed regardless.
        _    (:wat::core::match (:wat::kernel::send svc ship)
               [:wat::kernel::SendOutcome.Sent {}   nil]
-              [:wat::kernel::SendOutcome.Closed {} nil]   ;; the recv' below already faces this
+              [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; the recv' below already faces this
               ;; arc 278 #73 — same body, same precondition as the thread arm above: the
               ;; crash-aware `recv' svc` on the next line faces this handshake's terminal
               ;; outcomes, Stopped included. One decision point, not two.
               [:wat::kernel::SendOutcome.Stopped {} nil]
-              [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+              [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
        ;; arc 278 the recv'-outcome wall — recv' returns a matchable (RecvOutcome :- [Lu]). ::Message →
        ;; the child-minted launch status (extract-addr consumes it); ::Lost (the child crashed
        ;; before Started — the ProcessPanics envelope) → eprintln the cause (loud, terminal);

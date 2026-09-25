@@ -16,11 +16,11 @@
                   (:user::MyEnv/port
                     (:wat::program::Env/user-data (:wat::program::env))))
                 [:wat::kernel::SendOutcome.Sent {} nil]
-                [:wat::kernel::SendOutcome.Closed {} nil]
+                [:wat::kernel::SendOutcome.HandleClosed {} nil]
                 ;; arc 278 #73 — this is the worker's final send back to the parent;
                 ;; a stop here is terminal for the worker either way, same as Closed.
                 [:wat::kernel::SendOutcome.Stopped {} nil]
-                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
+                [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))
      got (:wat::core::match (:wat::kernel::recv peer)
            [:wat::kernel::RecvOutcome.Message {:msg m} m]
            [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -44,11 +44,11 @@
             (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send self 7)
                 [:wat::kernel::SendOutcome.Sent {} nil]
-                [:wat::kernel::SendOutcome.Closed {} nil]
+                [:wat::kernel::SendOutcome.HandleClosed {} nil]
                 ;; arc 278 #73 — this is the worker's final send back to the parent;
                 ;; a stop here is terminal for the worker either way, same as Closed.
                 [:wat::kernel::SendOutcome.Stopped {} nil]
-                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))]
+                [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))]
     ;; The peer must be KILLED before it can send its 7 — recv' must NOT deliver a smuggled ::Message.
     ;; The init-fn crash dies before the post-spawn send: on this tier the peer exits before buffering a
     ;; crash reason, so it surfaces as ::Closed (a clean-EOF kill); a reason-carrying tier would surface
@@ -74,11 +74,11 @@
                       :wat::program::EmptyEnv)
                     1 0))
                 [:wat::kernel::SendOutcome.Sent {} nil]
-                [:wat::kernel::SendOutcome.Closed {} nil]
+                [:wat::kernel::SendOutcome.HandleClosed {} nil]
                 ;; arc 278 #73 — this is the worker's final send back to the parent;
                 ;; a stop here is terminal for the worker either way, same as Closed.
                 [:wat::kernel::SendOutcome.Stopped {} nil]
-                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
+                [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))
      got (:wat::core::match (:wat::kernel::recv peer)
            [:wat::kernel::RecvOutcome.Message {:msg m} m]
            [:wat::kernel::RecvOutcome.Lost {:cause cause}

@@ -150,9 +150,9 @@
                (:wat::kernel::println echoed)))))
      _ (:wat::core::match (:wat::kernel::send p "echo me")
          [:wat::kernel::SendOutcome.Sent {} nil]
-         [:wat::kernel::SendOutcome.Closed {} nil]
+         [:wat::kernel::SendOutcome.HandleClosed {} nil]
          [:wat::kernel::SendOutcome.Stopped {} nil]
-         [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+         [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
     (:wat::core::match (:wat::kernel::recv-all p)
       [:wat::core::Result.Ok {:value outputs}
         (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "echo me"))]

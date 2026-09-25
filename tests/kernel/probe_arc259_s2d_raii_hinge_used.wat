@@ -9,8 +9,8 @@
               [:wat::kernel::RecvOutcome.Message {:msg m}
                 (:wat::core::match (:wat::kernel::send self m)
                   [:wat::kernel::SendOutcome.Sent {} nil]
-                  [:wat::kernel::SendOutcome.Closed {} nil]
-                  [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+                  [:wat::kernel::SendOutcome.HandleClosed {} nil]
+                  [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
                   [:wat::kernel::SendOutcome.Stopped {} nil])]  ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
               [:wat::kernel::RecvOutcome.Lost {:cause cause}
                 (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -20,8 +20,8 @@
                 (:wat::kernel::assertion-failed! :message "recv': self closed unexpectedly")])))
      _ (:wat::core::match (:wat::kernel::send peer 99)
          [:wat::kernel::SendOutcome.Sent {} nil]
-         [:wat::kernel::SendOutcome.Closed {} nil]
-         [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+         [:wat::kernel::SendOutcome.HandleClosed {} nil]
+         [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
          [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      got (:wat::core::match (:wat::kernel::recv peer)
            [:wat::kernel::RecvOutcome.Message {:msg m} m]

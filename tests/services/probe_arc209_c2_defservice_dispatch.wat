@@ -82,7 +82,7 @@
                 0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op.Increment {:req (:my::Counter::IncrementRequest :n 5)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op.Increment {:req (:my::Counter::IncrementRequest :n 5)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      r1   (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -91,7 +91,7 @@
               (:wat::kernel::assertion-failed! :message "recv': stopped before the Increment reply — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome.Closed {}
               (:wat::kernel::assertion-failed! :message "recv': c closed before the Increment reply")])
-     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op.Get {:req (:my::Counter::GetRequest)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op.Get {:req (:my::Counter::GetRequest)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      r2   (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause}

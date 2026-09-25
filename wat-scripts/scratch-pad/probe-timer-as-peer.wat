@@ -34,7 +34,7 @@
       (:probe::serve-thread self l (:wat::core::conj peers peer))]
     ;; THE PROOF: poll' delivered the timer's msg as a peer Message. Forward it up, then exit.
     [:wat::spawn::ServiceEvent.Message {:idx _idx :msg msg}
-      (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] nil)]
+      (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])] nil)]
     [:wat::spawn::ServiceEvent.Closed {:idx idx}
       (:probe::serve-thread self l (:wat::seq::remove-at peers idx))]
     [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
@@ -75,7 +75,7 @@
                  [:wat::spawn::ServiceEvent.Connection {:peer peer}
                    (:probe::serve-proc self l (:wat::core::conj peers peer))]
                  [:wat::spawn::ServiceEvent.Message {:idx _idx :msg msg}
-                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] nil)]
+                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])] nil)]
                  [:wat::spawn::ServiceEvent.Closed {:idx idx}
                    (:probe::serve-proc self l (:wat::seq::remove-at peers idx))]
                  [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}

@@ -24,8 +24,8 @@
       (:wat::core::match (:wat::kernel::try-send (:wat::core::nth peers 0) 999)
         [:wat::kernel::TrySendOutcome.Sent {} nil]
         [:wat::kernel::TrySendOutcome.WouldBlock {} nil]
-        [:wat::kernel::TrySendOutcome.Closed {} nil]
-        [:wat::kernel::TrySendOutcome.Lost {:cause _c} nil])]
+        [:wat::kernel::TrySendOutcome.HandleClosed {} nil]
+        [:wat::kernel::TrySendOutcome.Closed {:cause _c} nil] [:wat::kernel::TrySendOutcome.Failed {:cause _c} nil])]
     [:wat::spawn::ServiceEvent.Admin {:msg _m} (:se::serve self l peers)]
     [:wat::spawn::ServiceEvent.Connection {:peer peer}
       (:se::serve self l (:wat::core::conj peers peer))]
@@ -33,13 +33,13 @@
       (:wat::core::do
         (:wat::core::match (:wat::kernel::send (:wat::core::nth peers idx) msg)
           [:wat::kernel::SendOutcome.Sent {} nil]
-          [:wat::kernel::SendOutcome.Closed {} nil]
+          [:wat::kernel::SendOutcome.HandleClosed {} nil]
           ;; the world-stopping fact is caught above at the ServiceEvent::Shutdown arm
           ;; (poll' index 0), not here — this is one client's reply-send, so a stop mid
           ;; -send is discarded just like its Sent/Closed siblings; the unconditional
           ;; recurse below still runs either way (this probe measures REAP, not stop).
           [:wat::kernel::SendOutcome.Stopped {} nil]
-          [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+          [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
         (:se::serve self l peers))]
     [:wat::spawn::ServiceEvent.Closed {:idx idx}
       (:se::serve self l (:wat::seq::remove-at peers idx))]
@@ -52,9 +52,9 @@
   (:wat::core::do
     (:wat::core::match (:wat::kernel::send c 7)
       [:wat::kernel::SendOutcome.Sent {} nil]
-      [:wat::kernel::SendOutcome.Closed {} (:wat::kernel::println (:wat::string::concat label " send => CLOSED"))]
+      [:wat::kernel::SendOutcome.HandleClosed {} (:wat::kernel::println (:wat::string::concat label " send => CLOSED"))]
       [:wat::kernel::SendOutcome.Stopped {} (:wat::kernel::println (:wat::string::concat label " send => STOPPED"))]
-      [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+      [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome.Message {:msg m}
         (:wat::kernel::println (:wat::string::concat label

@@ -44,8 +44,8 @@
       (:wat::core::match (:wat::kernel::send self (work-fn item))
         [:wat::kernel::SendOutcome.Sent {}   (:wat::bracket::runner-loop self work-fn)]
         [:wat::kernel::SendOutcome.Stopped {} nil]                                        ;; arc 278 #73 — the WORLD is stopping → exit the runner loop
-        [:wat::kernel::SendOutcome.Closed {} (:wat::bracket::runner-loop self work-fn)]   ;; parent gone → next recv' faces it
-        [:wat::kernel::SendOutcome.Lost {:cause _c} (:wat::bracket::runner-loop self work-fn)])]
+        [:wat::kernel::SendOutcome.HandleClosed {} (:wat::bracket::runner-loop self work-fn)]   ;; parent gone → next recv' faces it
+        [:wat::kernel::SendOutcome.Closed {:cause _c} (:wat::bracket::runner-loop self work-fn)] [:wat::kernel::SendOutcome.Failed {:cause _c} (:wat::bracket::runner-loop self work-fn)])]
     [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
@@ -86,8 +86,8 @@
             (:wat::core::match (:wat::kernel::send self out)
               [:wat::kernel::SendOutcome.Sent {}   (:wat::bracket::process-runner self work-fn)]
               [:wat::kernel::SendOutcome.Stopped {} nil]                                           ;; arc 278 #73 — the WORLD is stopping → exit
-              [:wat::kernel::SendOutcome.Closed {} (:wat::bracket::process-runner self work-fn)]   ;; parent gone → next recv' faces it
-              [:wat::kernel::SendOutcome.Lost {:cause _c} (:wat::bracket::process-runner self work-fn)]))]
+              [:wat::kernel::SendOutcome.HandleClosed {} (:wat::bracket::process-runner self work-fn)]   ;; parent gone → next recv' faces it
+              [:wat::kernel::SendOutcome.Closed {:cause _c} (:wat::bracket::process-runner self work-fn)] [:wat::kernel::SendOutcome.Failed {:cause _c} (:wat::bracket::process-runner self work-fn)]))]
         ;; A non-dialing pool never sends :Setup (dials empty); the arm is total by
         ;; construction — ignore + recurse (D stays phantom for this runner).
         [:wat::bracket::PoolMsg.Setup {:deps _deps}
@@ -145,8 +145,8 @@
             (:wat::core::match (:wat::kernel::send self out)
               [:wat::kernel::SendOutcome.Sent {}   (:wat::bracket::process-dial-runner self work-fn ctx)]
               [:wat::kernel::SendOutcome.Stopped {} nil]                                                    ;; arc 278 #73 — the WORLD is stopping → exit
-              [:wat::kernel::SendOutcome.Closed {} (:wat::bracket::process-dial-runner self work-fn ctx)]   ;; parent gone → next recv' faces it
-              [:wat::kernel::SendOutcome.Lost {:cause _c} (:wat::bracket::process-dial-runner self work-fn ctx)]))])]
+              [:wat::kernel::SendOutcome.HandleClosed {} (:wat::bracket::process-dial-runner self work-fn ctx)]   ;; parent gone → next recv' faces it
+              [:wat::kernel::SendOutcome.Closed {:cause _c} (:wat::bracket::process-dial-runner self work-fn ctx)] [:wat::kernel::SendOutcome.Failed {:cause _c} (:wat::bracket::process-dial-runner self work-fn ctx)]))])]
     [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
@@ -215,8 +215,8 @@
               (:wat::core::match (:wat::kernel::send self out)
                 [:wat::kernel::SendOutcome.Sent {}   (:wat::bracket::thread-kwargs-runner self work-fn ctx)]
                 [:wat::kernel::SendOutcome.Stopped {} nil]
-                [:wat::kernel::SendOutcome.Closed {} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]
-                [:wat::kernel::SendOutcome.Lost {:cause _c} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]))])]
+                [:wat::kernel::SendOutcome.HandleClosed {} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]
+                [:wat::kernel::SendOutcome.Closed {:cause _c} (:wat::bracket::thread-kwargs-runner self work-fn ctx)] [:wat::kernel::SendOutcome.Failed {:cause _c} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]))])]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       [:wat::kernel::RecvOutcome.Stopped {} nil]
@@ -495,8 +495,8 @@
                     (:wat::core::match (:wat::kernel::send self out)
                       [:wat::kernel::SendOutcome.Sent {}   (:user::bracket::dial-runner self ctx)]
                       [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → exit
-                      [:wat::kernel::SendOutcome.Closed {} (:user::bracket::dial-runner self ctx)]   ;; parent gone → next recv' faces it
-                      [:wat::kernel::SendOutcome.Lost {:cause _c} (:user::bracket::dial-runner self ctx)]))])]
+                      [:wat::kernel::SendOutcome.HandleClosed {} (:user::bracket::dial-runner self ctx)]   ;; parent gone → next recv' faces it
+                      [:wat::kernel::SendOutcome.Closed {:cause _c} (:user::bracket::dial-runner self ctx)] [:wat::kernel::SendOutcome.Failed {:cause _c} (:user::bracket::dial-runner self ctx)]))])]
             ;; arc 278 the recv'-outcome wall — ::Lost → eprintln (terminal); ::Closed → exit.
             [:wat::kernel::RecvOutcome.Lost {:cause cause}
               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -616,8 +616,8 @@
                                                 {:pair (:wat::core::Tuple cursor (:wat::core::nth items cursor))}))
                           [:wat::kernel::SendOutcome.Sent {}   (:wat::core::+ cursor 1)]
                           [:wat::kernel::SendOutcome.Stopped {} (:wat::core::+ cursor 1)]  ;; arc 278 #73 — same: this loop's select' arm faces the stop
-                          [:wat::kernel::SendOutcome.Closed {} (:wat::core::+ cursor 1)]   ;; surfaces via this loop's own select' arm
-                          [:wat::kernel::SendOutcome.Lost {:cause _c} (:wat::core::+ cursor 1)])
+                          [:wat::kernel::SendOutcome.HandleClosed {} (:wat::core::+ cursor 1)]   ;; surfaces via this loop's own select' arm
+                          [:wat::kernel::SendOutcome.Closed {:cause _c} (:wat::core::+ cursor 1)] [:wat::kernel::SendOutcome.Failed {:cause _c} (:wat::core::+ cursor 1)])
                         cursor)]
             (:wat::bracket::collect-loop peers items
               (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m))]
@@ -738,8 +738,8 @@
                           [:wat::kernel::SendOutcome.Sent {}   nil]
                           [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
                           [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
-                      [:wat::kernel::SendOutcome.Closed {} nil]   ;; surfaces via collect-loop's select' arm
-                          [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))
+                      [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; surfaces via collect-loop's select' arm
+                          [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))
                       nil
                       setup-carrier)
                   ;; arc 278 the send'-outcome wall — the initial per-worker item primer. A dead
@@ -747,8 +747,8 @@
                   _ (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg.Work {:pair (:wat::core::Tuple i (:wat::core::nth items i))}))
                       [:wat::kernel::SendOutcome.Sent {}   nil]
                       [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
-                      [:wat::kernel::SendOutcome.Closed {} nil]   ;; surfaces via collect-loop's select' arm
-                      [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                      [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; surfaces via collect-loop's select' arm
+                      [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                  p))
              (:wat::core::range 0 n))
      pairs  (:wat::bracket::collect-loop peers items

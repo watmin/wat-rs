@@ -84,9 +84,9 @@
      ok (:probe::do-increments c 4 0)]
     (:wat::core::match (:wat::kernel::send self ok)
       [:wat::kernel::SendOutcome.Sent {}    nil]
-      [:wat::kernel::SendOutcome.Closed {}  nil]
+      [:wat::kernel::SendOutcome.HandleClosed {}  nil]
       [:wat::kernel::SendOutcome.Stopped {} nil]
-      [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
+      [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))
 
 ;; helper: recv' an i64 result from a joined worker thread peer.
 (:wat::core::defn :probe::join-count

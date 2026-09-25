@@ -22,16 +22,13 @@
 // `crate::value` types — see STOP-4): generic Value/EnumValue field-name +
 // Failure-building machinery shared by other impl homes, not this
 // vocabulary's to own. The died-error-cluster helpers
-// `loci_died_error_from_reason`/`loci_died_from_send_error` are genuinely
-// defined in `crate::kernel::error` — arc 109 Stone 4a homed the died-error
-// cluster (map item 4a) there (docs/arc/2026/04/109-kill-std/); a
-// stays-caller reaching into that sibling home is the ordinary direction,
-// not the reverse (`recv_outcome_lost` calls `loci_died_error_from_reason`;
-// `send_outcome_from_error` calls `loci_died_from_send_error`).
+// `loci_died_error_from_reason` is genuinely defined in `crate::kernel::error`
+// — arc 109 Stone 4a homed the died-error cluster there. `recv_outcome_lost`
+// calls it. A send outcome does not carry a death report.
 // `reply_failed_reason` (runtime.rs) is the protocol-tier `Reply::Failed`
 // detector `recv_outcome_from_decoded` uses to decide Lost vs Message; it is
 // not itself outcome vocabulary and stays put.
-use crate::kernel::error::{loci_died_error_from_reason, loci_died_from_send_error};
+use crate::kernel::error::loci_died_error_from_reason;
 use crate::runtime::{
     builtin_enum_variant_names, message_only_failure, no_field_names, reply_failed_reason,
 };
@@ -129,14 +126,36 @@ pub(crate) fn send_outcome_sent() -> Value {
     }))
 }
 
-/// `SendOutcome::Closed []` — peer already cleanly closed (the use-after-close
-/// case; was the "peer already closed" raise).
-pub(crate) fn send_outcome_closed() -> Value {
+/// `SendOutcome::HandleClosed` — this handle was already closed. Both loci.
+/// Nullary. Was `Closed`.
+pub(crate) fn send_outcome_handle_closed() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SEND_OUTCOME_TYPE.into(),
+        variant_name: "HandleClosed".into(),
+        names: no_field_names(),
+        fields: vec![],
+    }))
+}
+
+/// `SendOutcome::Closed [cause <- Failure]` — the far end is gone for good.
+/// The cause describes the departure. It is not a death reason.
+pub(crate) fn send_outcome_closed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: SEND_OUTCOME_TYPE.into(),
         variant_name: "Closed".into(),
-        names: no_field_names(),
-        fields: vec![],
+        names: builtin_enum_variant_names(SEND_OUTCOME_TYPE, "Closed"),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
+/// `SendOutcome::Failed [cause <- Failure]` — a process-locus io failure.
+/// No thread locus produces this.
+pub(crate) fn send_outcome_failed(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SEND_OUTCOME_TYPE.into(),
+        variant_name: "Failed".into(),
+        names: builtin_enum_variant_names(SEND_OUTCOME_TYPE, "Failed"),
+        fields: vec![message_only_failure(reason)],
     }))
 }
 
@@ -153,37 +172,19 @@ pub(crate) fn send_outcome_stopped() -> Value {
 
 /// THE ONE DOOR from a `comms::SendError<T>` to the wat-facing `SendOutcome`.
 ///
-/// Arc 278 #73. Every failing `send'` call site used to read
-/// `send_outcome_lost(loci_died_from_send_error(&e))` — which folded EVERY error,
-/// including `SendError::Shutdown`, into `Lost`. The stop fact was built correctly
-/// (`LociDiedError::Stopped`) and then posted inside a carrier whose type is named
-/// `LociDiedError`, so a caller matched "my peer died" over a peer that was alive.
-///
-/// The variant choice is now made HERE, once, by a full match with no wildcard, so a
-/// new `SendError` variant cannot be silently absorbed into `Lost` the way `Shutdown`
-/// was. `loci_died_from_send_error` above still owns the CAUSE mapping for the arms
-/// that genuinely carry one.
+/// `Shutdown` is a stop (process only). `Disconnected` is the far end gone.
+/// `Failed` is an io error. None of them is a death report.
 pub(crate) fn send_outcome_from_error<T>(e: &crate::comms::SendError<T>) -> Value {
     match e {
-        // Nothing died. The peer is alive and the channel is open.
+        // Nothing died. The peer is alive and the channel is open. Process only:
+        // the thread sender never builds Shutdown.
         crate::comms::SendError::Shutdown(_) => send_outcome_stopped(),
-        crate::comms::SendError::Disconnected(_) | crate::comms::SendError::Failed(_, _) => {
-            send_outcome_lost(loci_died_from_send_error(e))
+        // The far end left. A description, not a death report.
+        crate::comms::SendError::Disconnected(_) => {
+            send_outcome_closed("the far end is gone".to_string())
         }
+        crate::comms::SendError::Failed(_, reason) => send_outcome_failed(reason.clone()),
     }
-}
-
-/// `SendOutcome::Lost [cause <- LociDiedError]` — disconnected mid-send (was the
-/// "channel disconnected" raise). Arc 278 BRIEF-send-carries-its-cause (#70):
-/// widened from a flat `Failure` to the SAME loci-agnostic `LociDiedError` recv'
-/// already carries — the caller now MATCHES the cause instead of reading prose.
-pub(crate) fn send_outcome_lost(cause: Value) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: SEND_OUTCOME_TYPE.into(),
-        variant_name: "Lost".into(),
-        names: builtin_enum_variant_names(SEND_OUTCOME_TYPE, "Lost"),
-        fields: vec![cause],
-    }))
 }
 
 /// Arc 278 the send'-outcome wall Phase 3a — the type path of `try-send'`'s
@@ -215,27 +216,25 @@ pub(crate) fn try_send_outcome_would_block() -> Value {
     }))
 }
 
-/// `TrySendOutcome::Closed []` — peer already cleanly closed (the
-/// use-after-close case; cell `None`).
-pub(crate) fn try_send_outcome_closed() -> Value {
+/// `TrySendOutcome::HandleClosed` — this handle was already closed.
+pub(crate) fn try_send_outcome_handle_closed() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
-        variant_name: "Closed".into(),
+        variant_name: "HandleClosed".into(),
         names: no_field_names(),
         fields: vec![],
     }))
 }
 
-/// `TrySendOutcome::Lost [cause <- LociDiedError]` — receiver dropped mid-send
-/// (crossbeam `TrySendError::Disconnected` / a genuine process-tier write
-/// failure). Arc 278 BRIEF-send-carries-its-cause (#70): widened symmetric with
-/// `send_outcome_lost` above.
-pub(crate) fn try_send_outcome_lost(cause: Value) -> Value {
+/// `TrySendOutcome::Closed [cause <- Failure]` — the far end is gone.
+/// `TrySendResult` has no separate io arm, so this is the only departure
+/// a try-send produces.
+pub(crate) fn try_send_outcome_closed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
-        variant_name: "Lost".into(),
-        names: builtin_enum_variant_names(TRY_SEND_OUTCOME_TYPE, "Lost"),
-        fields: vec![cause],
+        variant_name: "Closed".into(),
+        names: builtin_enum_variant_names(TRY_SEND_OUTCOME_TYPE, "Closed"),
+        fields: vec![message_only_failure(reason)],
     }))
 }
 

@@ -21,11 +21,11 @@
                sum (:wat::i64::+ value 1)]
               (:wat::core::match (:wat::kernel::send self sum)
                 [:wat::kernel::SendOutcome.Sent {} nil]
-                [:wat::kernel::SendOutcome.Closed {} nil]
+                [:wat::kernel::SendOutcome.HandleClosed {} nil]
                 ;; arc 278 #73 — this is the worker's final send back to the parent; a
                 ;; stop here is terminal for the worker either way, same as Closed.
                 [:wat::kernel::SendOutcome.Stopped {} nil]
-                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
+                [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))
 
 (:wat::core::defn :my::compute_t1 [] -> :wat::core::i64
   (:wat::core::let
@@ -34,13 +34,13 @@
                _ack
                 (:wat::core::match (:wat::kernel::send peer 41)
                   [:wat::kernel::SendOutcome.Sent {} nil]
-                  [:wat::kernel::SendOutcome.Closed {} nil]
+                  [:wat::kernel::SendOutcome.HandleClosed {} nil]
                   ;; arc 278 #73 — uniform, and the precondition is the recv' right
                   ;; below: a stop that interrupted this write is still in force when
                   ;; the read parks, so the read returns Stopped and the caller is
                   ;; told once, by the arm below. Deciding here would decide it twice.
                   [:wat::kernel::SendOutcome.Stopped {} nil]
-                  [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                  [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                result
                 (:wat::core::match (:wat::kernel::recv peer)
                   [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -73,22 +73,22 @@
                        doubled (:wat::i64::* value 2)]
                       (:wat::core::match (:wat::kernel::send self doubled)
                         [:wat::kernel::SendOutcome.Sent {} nil]
-                        [:wat::kernel::SendOutcome.Closed {} nil]
+                        [:wat::kernel::SendOutcome.HandleClosed {} nil]
                         ;; arc 278 #73 — this is the worker's final send back to the
                         ;; parent; a stop here is terminal for the worker either way,
                         ;; same as Closed.
                         [:wat::kernel::SendOutcome.Stopped {} nil]
-                        [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))
+                        [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))
                _ack
                 (:wat::core::match (:wat::kernel::send peer 21)
                   [:wat::kernel::SendOutcome.Sent {} nil]
-                  [:wat::kernel::SendOutcome.Closed {} nil]
+                  [:wat::kernel::SendOutcome.HandleClosed {} nil]
                   ;; arc 278 #73 — uniform, and the precondition is the recv' right
                   ;; below: a stop that interrupted this write is still in force when
                   ;; the read parks, so the read returns Stopped and the caller is
                   ;; told once, by the arm below. Deciding here would decide it twice.
                   [:wat::kernel::SendOutcome.Stopped {} nil]
-                  [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                  [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                result
                 (:wat::core::match (:wat::kernel::recv peer)
                   [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -121,24 +121,24 @@
                      sum (:wat::i64::+ n delta)]
                     (:wat::core::match (:wat::kernel::send self sum)
                       [:wat::kernel::SendOutcome.Sent {} nil]
-                      [:wat::kernel::SendOutcome.Closed {} nil]
+                      [:wat::kernel::SendOutcome.HandleClosed {} nil]
                       ;; arc 278 #73 — this is the worker's final send back to the
                       ;; parent; a stop here is terminal for the worker either way,
                       ;; same as Closed.
                       [:wat::kernel::SendOutcome.Stopped {} nil]
-                      [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
+                      [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))
                peer
                 (:wat::test::spawn-peer (:wat::spawn::thread) body)
                _ack
                 (:wat::core::match (:wat::kernel::send peer 23)
                   [:wat::kernel::SendOutcome.Sent {} nil]
-                  [:wat::kernel::SendOutcome.Closed {} nil]
+                  [:wat::kernel::SendOutcome.HandleClosed {} nil]
                   ;; arc 278 #73 — uniform, and the precondition is the recv' right
                   ;; below: a stop that interrupted this write is still in force when
                   ;; the read parks, so the read returns Stopped and the caller is
                   ;; told once, by the arm below. Deciding here would decide it twice.
                   [:wat::kernel::SendOutcome.Stopped {} nil]
-                  [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                  [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                result
                 (:wat::core::match (:wat::kernel::recv peer)
                   [:wat::kernel::RecvOutcome.Message {:msg n} n]

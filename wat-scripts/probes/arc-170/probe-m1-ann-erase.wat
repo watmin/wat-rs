@@ -69,7 +69,7 @@
                                      (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                                    [:wat::kernel::RecvOutcome.Closed {}
                                      (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-                             _  (:wat::core::match (:wat::kernel::send self er) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                             _  (:wat::core::match (:wat::kernel::send self er) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                             (:probe::serve self held))])]
                     [:wat::kernel::RecvOutcome.Lost {:cause cause}
                       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -84,8 +84,8 @@
               (:wat::core::let
                 [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))
                  ;; parent sends a BARE-typed Setup; child decodes into concrete slot.
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg.Setup {:addr (:wat::core::first erased)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg.Work {:s "z"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg.Setup {:addr (:wat::core::first erased)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg.Work {:s "z"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                  r1 (:wat::core::match (:wat::kernel::recv worker)
                       [:wat::kernel::RecvOutcome.Message {:msg m} m]
                       [:wat::kernel::RecvOutcome.Lost {:cause cause}

@@ -56,7 +56,7 @@
                    (work-fn (:wat::core::first c) (:wat::core::second c) (:wat::core::second pair)))
              ;; arc 278 #73 — discard-only send; the recv' at the top of the next iteration
              ;; faces a stop as its own outcome.
-             _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+             _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
             (:probe::multi-dial-runner self work-fn ctx))])]
     [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]

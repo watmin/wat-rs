@@ -11,11 +11,10 @@
 //! layer's scope. Bodies verbatim; only the visibility keyword changed.
 
 use crate::ast::WatAST;
-use crate::kernel::error::loci_died_disconnected;
 use crate::kernel::outcome::{
     recv_outcome_closed, recv_outcome_from_decoded, recv_outcome_lost, recv_outcome_message,
-    recv_outcome_shutdown, send_outcome_closed, send_outcome_from_error, send_outcome_sent,
-    try_send_outcome_closed, try_send_outcome_lost, try_send_outcome_sent,
+    recv_outcome_shutdown, send_outcome_from_error, send_outcome_handle_closed, send_outcome_sent,
+    try_send_outcome_closed, try_send_outcome_handle_closed, try_send_outcome_sent,
     try_send_outcome_would_block,
 };
 use crate::runtime::{builtin_enum_variant_names, eval_inner, message_only_failure, no_field_names};
@@ -197,7 +196,7 @@ pub(crate) fn eval_peer_send_prime(
             let outcome = cell
                 .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
                     Ok(match opt_peer {
-                        None => send_outcome_closed(),
+                        None => send_outcome_handle_closed(),
                         Some(peer) => match peer.send(payload_val) {
                             Ok(()) => send_outcome_sent(),
                             Err(e) => send_outcome_from_error(&e),
@@ -233,7 +232,7 @@ pub(crate) fn eval_peer_send_prime(
             let outcome = cell
                 .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
                     match opt_bundle {
-                        None => Ok(send_outcome_closed()),
+                        None => Ok(send_outcome_handle_closed()),
                         Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                             Ok(match bundle.peer.send(edn_str.clone()) {
                                 Ok(()) => send_outcome_sent(),
@@ -279,7 +278,7 @@ pub(crate) fn eval_peer_send_prime(
             let outcome = cell
                 .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
                     Ok(match opt_peer {
-                        None => send_outcome_closed(),
+                        None => send_outcome_handle_closed(),
                         Some(peer) if peer.is_socket_tier() => {
                             // Socket-tier: encode with type registry in eval, ship the wire String.
                             let wire = crate::edn::render::value_to_edn_string_with(
@@ -376,7 +375,7 @@ pub(crate) fn eval_peer_try_send_prime(
                 .with_ref(OP, |opt_peer| {
                     match opt_peer {
                         // Already closed → Closed (never an error).
-                        None => try_send_outcome_closed(),
+                        None => try_send_outcome_handle_closed(),
                         Some(peer) if peer.is_socket_tier() => {
                             let wire = wire_pre.clone();
                             match peer.try_send_wire(wire) {
@@ -385,7 +384,7 @@ pub(crate) fn eval_peer_try_send_prime(
                                     try_send_outcome_would_block()
                                 }
                                 crate::kernel::peer::TrySendResult::Disconnected => {
-                                    try_send_outcome_lost(loci_died_disconnected())
+                                    try_send_outcome_closed("the far end is gone".to_string())
                                 }
                             }
                         }
@@ -395,7 +394,7 @@ pub(crate) fn eval_peer_try_send_prime(
                                 try_send_outcome_would_block()
                             }
                             crate::kernel::peer::TrySendResult::Disconnected => {
-                                try_send_outcome_lost(loci_died_disconnected())
+                                try_send_outcome_closed("the far end is gone".to_string())
                             }
                         },
                     }

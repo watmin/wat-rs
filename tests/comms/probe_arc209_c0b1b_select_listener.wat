@@ -17,7 +17,7 @@
       (:wat::core::match msg 
         [:user::Op.Compute {:n n}
           (:wat::core::let [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth clients idx)
-                                 (:wat::core::* n 2)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget reply; outcome ignored uniformly regardless of cause
+                                 (:wat::core::* n 2)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget reply; outcome ignored uniformly regardless of cause
             (:user::serve self l clients))])]
     [:wat::spawn::ServiceEvent.Closed {:idx idx}
       (:user::serve self l (:wat::seq::remove-at clients idx))]
@@ -34,7 +34,7 @@
             (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :user::Op])]))))
      c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c1 (:user::Op.Compute {:n 5})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
+     _    (:wat::core::match (:wat::kernel::send c1 (:user::Op.Compute {:n 5})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      r1   (:wat::core::match (:wat::kernel::recv c1)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -44,7 +44,7 @@
             [:wat::kernel::RecvOutcome.Closed {}
               (:wat::kernel::assertion-failed! :message "recv': c1 closed unexpectedly")])
      c2   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c2 (:user::Op.Compute {:n 7})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
+     _    (:wat::core::match (:wat::kernel::send c2 (:user::Op.Compute {:n 7})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      r2   (:wat::core::match (:wat::kernel::recv c2)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause}

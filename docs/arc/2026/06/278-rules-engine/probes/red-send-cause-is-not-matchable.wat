@@ -1,5 +1,9 @@
 ;; red-send-cause-is-not-matchable.wat — the RED probe for DESIGN-STONE-send-carries-its-cause.md (#70).
 ;;
+;; 255.36 — the send arm no longer matches LociDiedError. Stopped, Closed, and
+;; Failed are the facts, and Closed/Failed carry Failure. The recv control below
+;; is unchanged. The historical header is the probe as it was drawn.
+;;
 ;; ⛔ RED BY DESIGN, TODAY. Lives under docs/…/probes/ (NOT wat-scripts/) because
 ;;    `every_wat_scripts_file_loads` walks `wat-scripts` only — a deliberately-failing probe parked
 ;;    there would break that gate. Same reason as red-owner-signals-child.wat beside it.
@@ -41,23 +45,20 @@
                 (:wat::kernel::println "child up"))))]
     (:wat::core::match (:wat::kernel::send peer "ping")
       [:wat::kernel::SendOutcome.Sent {} nil]
-      [:wat::kernel::SendOutcome.Closed {} nil]
+      [:wat::kernel::SendOutcome.HandleClosed {} nil]
       ;; arc 278 #73 — orthogonal to this probe's gap (its subject is the Lost arm's
       ;; carrier type below, not this enum's exhaustiveness). Added only so the corpus
       ;; sweep doesn't overload this file with a SECOND, unrelated red — the deliberate
       ;; failure stays exactly where it was, in the nested cause match beneath ::Lost.
-      [:wat::kernel::SendOutcome.Stopped {} nil]
-      ;; ⛔ THE GAP. `cause` is a :wat::kernel::Failure today, so matching it against
-      ;;    LociDiedError's variants is a type error. AFTER #70 it is a LociDiedError and
-      ;;    `Stopped` vs `Disconnected` — the two states the send path currently conflates into
-      ;;    one literal string — become distinguishable at the wat surface.
-      [:wat::kernel::SendOutcome.Lost {:cause cause}
-        (:wat::core::match cause
-          [:wat::kernel::LociDiedError.Stopped {}
-            (:wat::kernel::println "the process is stopping")]
-          [:wat::kernel::LociDiedError.Disconnected {}
-            (:wat::kernel::println "the peer is gone")]
-          [_ (:wat::kernel::println "some other death")])])))
+      ;; 255.36 — the nested LociDiedError match was the one arm that read the
+      ;; cause differently for a stop, a departure, and anything else. Those
+      ;; are the variants now. A Failure cause does not carry them.
+      [:wat::kernel::SendOutcome.Stopped {}
+        (:wat::kernel::println "the process is stopping")]
+      [:wat::kernel::SendOutcome.Closed {:cause _cause}
+        (:wat::kernel::println "the peer is gone")]
+      [:wat::kernel::SendOutcome.Failed {:cause _cause}
+        (:wat::kernel::println "an io failure")])))
 
 ;; ── POSITIVE CONTROL — the recv side already carries a matchable cause. MUST type-check. ──────
 (:wat::core::defn :probe::recv-side-already-works [] -> :wat::core::nil

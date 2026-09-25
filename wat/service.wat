@@ -1724,29 +1724,29 @@
                                                 [:wat::service::Outcome.Reply {:state new-state :reply resp}
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
                                                     [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id new-state)]
-                                                    [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id new-state)]   ;; client gone → keep serving
+                                                    [:wat::kernel::SendOutcome.HandleClosed {} (~serve-name self l selectables next-id new-state)]   ;; this handle was already closed
                                                     [:wat::kernel::SendOutcome.Stopped {} nil]                                          ;; the WORLD is stopping → return, do not recurse
-                                                    [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id new-state)])]
+                                                    [:wat::kernel::SendOutcome.Closed {:cause _c} (~serve-name self l selectables next-id new-state)] [:wat::kernel::SendOutcome.Failed {:cause _c} (~serve-name self l selectables next-id new-state)])]
                                                 [:wat::service::Outcome.Stop {:state final-state :reply resp}
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
                                                     [:wat::kernel::SendOutcome.Sent {}   nil]
-                                                    [:wat::kernel::SendOutcome.Closed {} nil]   ;; client gone → still stopping
+                                                    [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; this handle was already closed
                                                     ;; uniform here and the precondition is the whole reason:
                                                     ;; this handler ALREADY decided to stop, so a stop arriving
                                                     ;; mid-reply changes nothing. Same body, stated cause.
                                                     [:wat::kernel::SendOutcome.Stopped {} nil]
-                                                    [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                                                    [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                                                 [:wat::service::Outcome.NoReply {:state new-state}
                                                   (~serve-name self l selectables next-id new-state)]
                                                 [:wat::service::Outcome.ReplyAndArm {:state new-state :reply resp :arms arms}
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
                                                     [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]
-                                                    [:wat::kernel::SendOutcome.Closed {} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]   ;; client gone → keep serving
+                                                    [:wat::kernel::SendOutcome.HandleClosed {} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]   ;; this handle was already closed
                                                     ;; the world is stopping → return WITHOUT arming: arming a
                                                     ;; new selectable on the way down would register work the
                                                     ;; loop is about to abandon.
                                                     [:wat::kernel::SendOutcome.Stopped {} nil]
-                                                    [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)])]
+                                                    [:wat::kernel::SendOutcome.Closed {:cause _c} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)] [:wat::kernel::SendOutcome.Failed {:cause _c} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)])]
                                                 [:wat::service::Outcome.NoReplyAndArm {:state new-state :arms arms}
                                                   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)])
                               ;; ── arc 278 — the REQUEST-MALFORMED sanitization wall (UNCONDITIONAL) ──
@@ -1828,9 +1828,9 @@
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
                                                      (~reply-variant-kw {:resp (~rm-ctor-kw {:path ~mpath-sym :expected ~mexp-sym :got ~mgot-sym})}))
                                                    [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
-                                                   [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                                                   [:wat::kernel::SendOutcome.HandleClosed {} (~serve-name self l selectables next-id state)]   ;; this handle was already closed
                                                    [:wat::kernel::SendOutcome.Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
-                                                   [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])])
+                                                   [:wat::kernel::SendOutcome.Closed {:cause _c} (~serve-name self l selectables next-id state)] [:wat::kernel::SendOutcome.Failed {:cause _c} (~serve-name self l selectables next-id state)])])
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::string::length (:wat::edn::write ~req-binder))]
                                                (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
@@ -1839,9 +1839,9 @@
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
                                                      (~reply-variant-kw {:resp (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})}))
                                                    [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
-                                                   [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                                                   [:wat::kernel::SendOutcome.HandleClosed {} (~serve-name self l selectables next-id state)]   ;; this handle was already closed
                                                    [:wat::kernel::SendOutcome.Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
-                                                   [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])
+                                                   [:wat::kernel::SendOutcome.Closed {:cause _c} (~serve-name self l selectables next-id state)] [:wat::kernel::SendOutcome.Failed {:cause _c} (~serve-name self l selectables next-id state)])
                                                  ~shape-guarded))]
                              (:wat::core::conj acc
                                `[~op-variant-kw {:req ~req-binder} ~guarded-arm])))))
@@ -1894,15 +1894,15 @@
                          [~admin-stop-kw {}
                            (:wat::core::match (:wat::kernel::send self (~status-stopped-kw {:resp (~stop-project-name state)}))
                              [:wat::kernel::SendOutcome.Sent {}   nil]
-                             [:wat::kernel::SendOutcome.Closed {} nil]   ;; owner's recv' already faces this
+                             [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; owner's recv' already faces this
                              [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
-                             [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                             [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                          [~admin-hibernate-kw {}
                            (:wat::core::match (:wat::kernel::send self (~status-hibernated-kw {:snapshot (~hibernate-project-name state)}))
                              [:wat::kernel::SendOutcome.Sent {}   nil]
-                             [:wat::kernel::SendOutcome.Closed {} nil]   ;; owner's recv' already faces this
+                             [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; owner's recv' already faces this
                              [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
-                             [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                             [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                          ;; arc 278: AllowPeer[pids] — fold (allow' l pid) over the vec on the
                          ;; serve loop's OWN listener l (process-tier gate), ack PeersAllowed up
                          ;; the lineage peer (request/reply — owner blocks so grant-before-dial
@@ -1920,9 +1920,9 @@
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-allowed-kw)
                                [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
-                               [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
+                               [:wat::kernel::SendOutcome.HandleClosed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
                                [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
-                               [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)]))]
+                               [:wat::kernel::SendOutcome.Closed {:cause _c} (~serve-name self l selectables next-id state)] [:wat::kernel::SendOutcome.Failed {:cause _c} (~serve-name self l selectables next-id state)]))]
                          ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
                          ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
                          ;; the lineage peer (request/reply — owner blocks so revoke-before-return
@@ -1940,9 +1940,9 @@
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-denied-kw)
                                [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
-                               [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
+                               [:wat::kernel::SendOutcome.HandleClosed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
                                [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
-                               [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)]))]
+                               [:wat::kernel::SendOutcome.Closed {:cause _c} (~serve-name self l selectables next-id state)] [:wat::kernel::SendOutcome.Failed {:cause _c} (~serve-name self l selectables next-id state)]))]
                          [~admin-init-kw ~init-arg-map-ast
                            (:wat::kernel::assertion-failed! :message "defservice serve: Admin::Init after startup (protocol error)")]
                          [~admin-resume-kw ~init-arg-map-ast
@@ -1983,9 +1983,9 @@
                        ;; either (same "reply to a gone client" doctrine); keep serving.
                        (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw {:cause cause}))
                          [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
-                         [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                         [:wat::kernel::SendOutcome.HandleClosed {} (~serve-name self l selectables next-id state)]   ;; this handle was already closed
                          [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
-                         [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])]
+                         [:wat::kernel::SendOutcome.Closed {:cause _c} (~serve-name self l selectables next-id state)] [:wat::kernel::SendOutcome.Failed {:cause _c} (~serve-name self l selectables next-id state)])]
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
                      ;; client (reply `Reply::Failed[cause]` — its generated method raises with the
@@ -2003,8 +2003,8 @@
                          (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw {:cause cause}))
                            [:wat::kernel::TrySendOutcome.Sent {}       nil]
                            [:wat::kernel::TrySendOutcome.WouldBlock {} nil]   ;; client not draining — evict anyway (it learns via EPIPE)
-                           [:wat::kernel::TrySendOutcome.Closed {}     nil]
-                           [:wat::kernel::TrySendOutcome.Lost {:cause _c}  nil])
+                           [:wat::kernel::TrySendOutcome.HandleClosed {}     nil]
+                           [:wat::kernel::TrySendOutcome.Closed {:cause _c}  nil] [:wat::kernel::TrySendOutcome.Failed {:cause _c}  nil])
                          (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))])
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
@@ -2124,7 +2124,7 @@
                           send-recv-form  `(:wat::core::let
                                              [~discard-sym (:wat::core::match (:wat::kernel::send c (~op-variant-kw {:req req}))
                                                              [:wat::kernel::SendOutcome.Sent {}   nil]
-                                                             [:wat::kernel::SendOutcome.Closed {} nil]
+                                                             [:wat::kernel::SendOutcome.HandleClosed {} nil]
                                                              ;; arc 278 #73 — uniform, and the precondition is
                                                              ;; the recv' on the very next line: a stop that
                                                              ;; interrupted this write is still in force when
@@ -2132,7 +2132,7 @@
                                                              ;; the caller is told once, by the arm below.
                                                              ;; Deciding here would decide it twice.
                                                              [:wat::kernel::SendOutcome.Stopped {} nil]
-                                                             [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                                                             [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                                               ~r-sym (:wat::kernel::recv c)]
                                              (:wat::core::match ~r-sym
                                                [:wat::kernel::RecvOutcome.Message {:msg recvd}
@@ -2206,9 +2206,9 @@
                           ;; below faces Lost/Closed; the send' just proceeds regardless.
                           [~stop-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-stop-kw)
                                                [:wat::kernel::SendOutcome.Sent {}   nil]
-                                               [:wat::kernel::SendOutcome.Closed {} nil]
+                                               [:wat::kernel::SendOutcome.HandleClosed {} nil]
                                                [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                               [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                                               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                            ~stop-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                           (:wat::core::match ~stop-r-sym 
                             [:wat::kernel::RecvOutcome.Message {:msg recvd}
@@ -2244,9 +2244,9 @@
                                ;; right below faces Lost/Closed; the send' just proceeds regardless.
                                [~hib-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-hibernate-kw)
                                                    [:wat::kernel::SendOutcome.Sent {}   nil]
-                                                   [:wat::kernel::SendOutcome.Closed {} nil]
+                                                   [:wat::kernel::SendOutcome.HandleClosed {} nil]
                                                    [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                                   [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                                                   [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                                 ~hib-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                                (:wat::core::match ~hib-r-sym 
                                  [:wat::kernel::RecvOutcome.Message {:msg recvd}
@@ -2290,9 +2290,9 @@
                           ;; below faces Lost/Closed; the send' just proceeds regardless.
                           [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw {:pids pids}))
                                                 [:wat::kernel::SendOutcome.Sent {}   nil]
-                                                [:wat::kernel::SendOutcome.Closed {} nil]
+                                                [:wat::kernel::SendOutcome.HandleClosed {} nil]
                                                 [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                                                [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                            ~grant-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                           (:wat::core::match ~grant-r-sym 
                             [:wat::kernel::RecvOutcome.Message {:msg recvd}
@@ -2334,9 +2334,9 @@
                            ;; below faces Lost/Closed; the send' just proceeds regardless.
                            [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw {:pids pids}))
                                                   [:wat::kernel::SendOutcome.Sent {}   nil]
-                                                  [:wat::kernel::SendOutcome.Closed {} nil]
+                                                  [:wat::kernel::SendOutcome.HandleClosed {} nil]
                                                   [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                                  [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                                                  [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                             ~revoke-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                            (:wat::core::match ~revoke-r-sym 
                              [:wat::kernel::RecvOutcome.Message {:msg recvd}
@@ -2493,13 +2493,13 @@
                            ~cm-und-sym  (:wat::core::match (:wat::kernel::send ~cm-self-sym
                                             (~status-started-kw {:addr (:wat::spawn::Bound/address ~cm-b-sym)}))
                                           [:wat::kernel::SendOutcome.Sent {}   nil]
-                                          [:wat::kernel::SendOutcome.Closed {} nil]
+                                          [:wat::kernel::SendOutcome.HandleClosed {} nil]
                                           ;; arc 278 #73 — a stop arrived as the child announced
                                           ;; readiness. Same body, and the precondition is that the
                                           ;; child proceeds into `serve`, whose poll' faces the stop
                                           ;; as its own event; the owner's recv' faces it too.
                                           [:wat::kernel::SendOutcome.Stopped {} nil]
-                                          [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                                          [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                           ;; arc 278 the call context — the process-tier child's OWN initial
                           ;; `serve` call: the empty selectables vector is now Tuple-entry typed,
                           ;; and next-id starts at 0 (the first connection mints id 0).

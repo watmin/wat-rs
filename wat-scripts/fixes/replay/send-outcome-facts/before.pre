@@ -1,0 +1,16 @@
+;; a comment keeps SendOutcome.Closed and SendOutcome.Lost
+(:wat::core::defenum :wat::kernel::SendOutcome :wat::enum::Pure
+  :Sent
+  :Closed
+  :Stopped
+  :Lost [cause <- :wat::kernel::LociDiedError])
+
+(:wat::core::defenum :wat::kernel::RecvOutcome :- [O] :wat::enum::Impure
+  :Lost [cause <- :wat::kernel::LociDiedError])
+
+(:wat::core::defn :user::go [o <- :wat::kernel::SendOutcome] -> :wat::core::String
+  (:wat::core::match o
+    [:wat::kernel::SendOutcome.Sent {} "up"]
+    [:wat::kernel::SendOutcome.Closed {} "same"]
+    [:wat::kernel::SendOutcome.Stopped {} "stop"]
+    [:wat::kernel::SendOutcome.Lost {:cause c} "same"]))

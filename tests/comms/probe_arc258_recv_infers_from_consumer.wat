@@ -13,7 +13,7 @@
                    addr (:wat::spawn::Bound/address b)
                    self (:wat::program::self-peer
                           (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64)
-                   _    (:wat::core::match (:wat::kernel::send self addr) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget address handoff; outcome ignored uniformly regardless of cause
+                   _    (:wat::core::match (:wat::kernel::send self addr) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget address handoff; outcome ignored uniformly regardless of cause
                   nil))))
      r    (:wat::kernel::recv svc)
      ;; arc 278 the recv'-outcome wall — recv' returns a matchable (RecvOutcome :- [Address']),

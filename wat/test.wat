@@ -380,9 +380,9 @@
        (:wat::core::do ~body
          (:wat::core::match (:wat::kernel::send self 0)
            [:wat::kernel::SendOutcome.Sent {}   nil]
-           [:wat::kernel::SendOutcome.Closed {} nil]   ;; parent's recv' already faces a gone self-peer
+           [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; parent's recv' already faces a gone self-peer
            [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same: the holder's recv' faces the stop
-           [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))))
+           [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))))
 
 (:wat::core::defmacro :wat::test::deftest
   [name <- :wat::WatAST

@@ -85,12 +85,13 @@
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
            [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': subprocess closed before replying")])]
-       [:wat::kernel::SendOutcome.Closed {}
+       [:wat::kernel::SendOutcome.HandleClosed {}
          (:wat::kernel::assertion-failed! :message "send': subprocess closed")]
        [:wat::kernel::SendOutcome.Stopped {}
          (:wat::kernel::assertion-failed! :message "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
-       [:wat::kernel::SendOutcome.Lost {:cause cause}
-         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]))
+       [:wat::kernel::SendOutcome.Closed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::SendOutcome.Failed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
 
    (:wat::core::defn :counter-proc::increment
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])
@@ -109,12 +110,13 @@
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
            [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': subprocess closed before replying")])]
-       [:wat::kernel::SendOutcome.Closed {}
+       [:wat::kernel::SendOutcome.HandleClosed {}
          (:wat::kernel::assertion-failed! :message "send': subprocess closed")]
        [:wat::kernel::SendOutcome.Stopped {}
          (:wat::kernel::assertion-failed! :message "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
-       [:wat::kernel::SendOutcome.Lost {:cause cause}
-         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]))
+       [:wat::kernel::SendOutcome.Closed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::SendOutcome.Failed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
 
    (:wat::core::defn :counter-proc::reset
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
@@ -132,12 +134,13 @@
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
            [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': subprocess closed before replying")])]
-       [:wat::kernel::SendOutcome.Closed {}
+       [:wat::kernel::SendOutcome.HandleClosed {}
          (:wat::kernel::assertion-failed! :message "send': subprocess closed")]
        [:wat::kernel::SendOutcome.Stopped {}
          (:wat::kernel::assertion-failed! :message "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
-       [:wat::kernel::SendOutcome.Lost {:cause cause}
-         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]))
+       [:wat::kernel::SendOutcome.Closed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::SendOutcome.Failed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
 
    (:wat::core::defn :counter-proc::shutdown
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
@@ -155,12 +158,13 @@
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
            [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': subprocess closed before replying")])]
-       [:wat::kernel::SendOutcome.Closed {}
+       [:wat::kernel::SendOutcome.HandleClosed {}
          (:wat::kernel::assertion-failed! :message "send': subprocess closed")]
        [:wat::kernel::SendOutcome.Stopped {}
          (:wat::kernel::assertion-failed! :message "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open")]
-       [:wat::kernel::SendOutcome.Lost {:cause cause}
-         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]))
+       [:wat::kernel::SendOutcome.Closed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::SendOutcome.Failed {:cause cause}
+         (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
 
 
 (:wat::test::deftest :counter-actor::process-proof

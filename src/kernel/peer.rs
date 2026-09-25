@@ -103,7 +103,7 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
             None => unreachable!(
                 "Thread::send on a drained peer — `close` takes the peer OUT of the cell \
                  (runtime.rs, opt_peer.take()) BEFORE draining, so a drained-but-cellular \
-                 peer cannot exist; the outer `None => send_outcome_closed()` answers first"
+                 peer cannot exist; the outer `None => send_outcome_handle_closed()` answers first"
             ),
         }
     }

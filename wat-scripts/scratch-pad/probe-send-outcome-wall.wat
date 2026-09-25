@@ -15,12 +15,12 @@
 ;; (mirrors the proven recv'-wall STOP0 probe — by the time `recv'` returns
 ;; `RecvOutcome::Lost`, the worker thread has fully unwound and dropped its channel
 ;; ends). A SECOND `send'` to that now-guaranteed-dead peer is exactly the pre-strike
-;; "channel disconnected" raise site — post-strike it returns `SendOutcome::Lost`, a
-;; matchable value.
+;; "channel disconnected" raise site — post 255.36 it returns `SendOutcome.Closed`
+;; (the far end is gone), a matchable value. `Failed` is the io arm. `HandleClosed`
+;; is this handle already closed, which this probe does not construct.
 ;;
-;; Runs to stdout: prints "PROBE-PASS: SendOutcome::Lost ..." on success (::Closed is
-;; also accepted — both are values, not raises, per the design's own "Closed or Lost"
-;; acceptance); ::Sent or any raise is a FAIL (assertion-failed!, non-zero exit).
+;; Runs to stdout: prints "PROBE-PASS: SendOutcome::Closed ..." when the far end is
+;; gone. ::Sent or any raise is a FAIL (assertion-failed!, non-zero exit).
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
@@ -43,10 +43,10 @@
      outcome (:wat::kernel::send p 42)]
     (:wat::core::match outcome
       [:wat::kernel::SendOutcome.Sent {}
-        (:wat::kernel::assertion-failed! :message "PROBE-FAIL: got SendOutcome::Sent to a dead peer — expected Closed/Lost")]
-      [:wat::kernel::SendOutcome.Closed {}
+        (:wat::kernel::assertion-failed! :message "PROBE-FAIL: got SendOutcome::Sent to a dead peer — expected Closed or Failed")]
+      [:wat::kernel::SendOutcome.HandleClosed {}
         (:wat::kernel::println
-          "PROBE-PASS: SendOutcome::Closed (a VALUE, not a raise) after send' to a dead peer")]
+          "PROBE-PASS: SendOutcome::HandleClosed (a VALUE, not a raise) after send' to a dead peer")]
       ;; arc 278 #73 judgment call (flagged, not silently decided): the design's own
       ;; framing generalizes past "Closed or Lost" — EVERY terminal send' outcome is a
       ;; matchable value, never a raise, and Stopped is no exception. No stop is ever
@@ -56,8 +56,12 @@
       [:wat::kernel::SendOutcome.Stopped {}
         (:wat::kernel::println
           "PROBE-PASS: SendOutcome::Stopped (a VALUE, not a raise) after send' to a dead peer")]
-      [:wat::kernel::SendOutcome.Lost {:cause cause}
+      [:wat::kernel::SendOutcome.Closed {:cause cause}
         (:wat::kernel::println
           (:wat::string::concat
-            "PROBE-PASS: SendOutcome::Lost (a VALUE, not a raise): "
-            (:wat::kernel::LociDiedError/message cause)))])))
+            "PROBE-PASS: SendOutcome::Closed (a VALUE, not a raise): "
+            (:wat::kernel::Failure/message cause)))] [:wat::kernel::SendOutcome.Failed {:cause cause}
+        (:wat::kernel::println
+          (:wat::string::concat
+            "PROBE-PASS: SendOutcome::Failed (a VALUE, not a raise): "
+            (:wat::kernel::Failure/message cause)))])))

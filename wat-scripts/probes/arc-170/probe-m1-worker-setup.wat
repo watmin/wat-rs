@@ -57,7 +57,7 @@
   [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])]
                         (:probe::serve self held))]))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
@@ -67,8 +67,8 @@
             [:wat::core::Option.Some {:value p}
               (:wat::core::let
                 [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; grant BEFORE the setup dial
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Setup {:addr ea})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])            ;; worker dials-and-holds (admitted)
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "a"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Setup {:addr ea})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])            ;; worker dials-and-holds (admitted)
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "a"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                  rr1 (:wat::kernel::recv worker)
                  r1  (:wat::core::match rr1
                        [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -78,7 +78,7 @@
                          (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                        [:wat::kernel::RecvOutcome.Closed {}
                          (:wat::kernel::assertion-failed! :message "recv': worker closed unexpectedly")])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "b"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "b"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                  rr2 (:wat::kernel::recv worker)
                  r2  (:wat::core::match rr2
                        [:wat::kernel::RecvOutcome.Message {:msg m} m]

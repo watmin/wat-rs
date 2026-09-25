@@ -5,7 +5,7 @@
   (:wat::core::let
     [;; arc 278 #73 — a stop here is terminal like Lost/Closed for this discard-only send; the
      ;; recv' below faces the stop as its own outcome.
-     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      ra (:wat::kernel::recv w)
      a  (:wat::core::match ra
           [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -31,7 +31,7 @@
                  [pair (:wat::kernel::recv self)
                   out  (:wat::core::Tuple (:wat::core::first pair)
                                           (:bracket::__work (:wat::core::second pair)))
-                  _    (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                  _    (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                  (:bracket::pool-runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::pool-runner

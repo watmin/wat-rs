@@ -35,17 +35,17 @@
                     (:wat::core::match (:wat::kernel::send sp
                                          (:wat::core::Tuple (:user::outcome-name (:wat::kernel::connect addr)) addr))
                       [:wat::kernel::SendOutcome.Sent {} nil]
-                      [:wat::kernel::SendOutcome.Closed {} nil]
+                      [:wat::kernel::SendOutcome.HandleClosed {} nil]
                       [:wat::kernel::SendOutcome.Stopped {} nil]
-                      [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                      [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                   [:wat::kernel::RecvOutcome.Lost {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message c))]
                   [:wat::kernel::RecvOutcome.Stopped {} nil]
                   [:wat::kernel::RecvOutcome.Closed {} nil])))))
      _s (:wat::core::match (:wat::kernel::send p a)
           [:wat::kernel::SendOutcome.Sent {} nil]
-          [:wat::kernel::SendOutcome.Closed {} (:wat::kernel::assertion-failed! :message "child closed")]
+          [:wat::kernel::SendOutcome.HandleClosed {} (:wat::kernel::assertion-failed! :message "child closed")]
           [:wat::kernel::SendOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "stopped")]
-          [:wat::kernel::SendOutcome.Lost {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message c))])
+          [:wat::kernel::SendOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::SendOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      back (:p29::recv-back p)
      parent (:wat::core::match (:wat::kernel::connect (:wat::core::second back))
               [:wat::kernel::ConnectOutcome.Connected {:peer _p} "Connected"]

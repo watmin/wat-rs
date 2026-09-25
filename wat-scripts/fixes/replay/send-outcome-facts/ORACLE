@@ -1,0 +1,10 @@
+# ORACLE for send-outcome-facts — HISTORY or header spec, never the tool.
+
+spec [:wat::kernel::SendOutcome.HandleClosed {} "same"] :: SendOutcome.Closed arm → a SendOutcome.HandleClosed arm (same body)
+spec [:wat::kernel::SendOutcome.Closed {:cause c} "same"] [:wat::kernel::SendOutcome.Failed {:cause c} "same"])) :: SendOutcome.Lost arm → two arms, Closed and Failed, each with the same body
+spec :HandleClosed :: a unit :Closed becomes :HandleClosed inside the SendOutcome defenum
+spec :Closed [cause <- :wat::kernel::Failure] :Failed [cause <- :wat::kernel::Failure]) :: :Lost becomes :Closed plus :Failed inside the SendOutcome defenum
+spec-before :Closed :: the SendOutcome defenum's unit :Closed variant
+spec-before :Lost [cause <- :wat::kernel::LociDiedError]) :: the SendOutcome defenum's :Lost variant
+spec-before [:wat::kernel::SendOutcome.Closed {} "same"] :: SendOutcome.Closed arm → a SendOutcome.HandleClosed arm (same body)
+spec-before [:wat::kernel::SendOutcome.Lost {:cause c} "same"])) :: SendOutcome.Lost arm → two arms, Closed and Failed, each with the same body

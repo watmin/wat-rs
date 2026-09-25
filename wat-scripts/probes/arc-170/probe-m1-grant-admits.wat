@@ -57,7 +57,7 @@
   [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])]
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])]
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
@@ -66,6 +66,6 @@
            [:wat::core::Option.None {}
              (:wat::kernel::assertion-failed! :message "peer-pid returned None on a process prober")])
      ;; hand A's addr down; the prober dials — served ONLY because we granted its pid.
-     _   (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+     _   (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      out (:wat::kernel::recv prober)]
     (:wat::kernel::println out)))

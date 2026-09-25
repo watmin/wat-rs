@@ -99,12 +99,12 @@
              (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) nil)
              (:wat::core::match (:wat::kernel::send self 0)
                [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.Closed {} nil]
+               [:wat::kernel::SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the class-guard panic above already
                ;; fired before this line could even run.
                [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))]
+               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected class-guard panic on wrong-class receiver; got Success")]
@@ -162,12 +162,12 @@
                (:wat::core::do (:wat::holon::to-holon p) nil))
              (:wat::core::match (:wat::kernel::send self 0)
                [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.Closed {} nil]
+               [:wat::kernel::SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the to-holon runtime error above already
                ;; fired before this line could even run.
                [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))]
+               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected to-holon runtime error on BASE record; got Success")]

@@ -3,9 +3,9 @@
 //! cluster-decomposes.md`, map item 4a). Sixteen items: the edge's four
 //! delegate fns (`eval_died_error_message` / `eval_died_error_to_failure` /
 //! `eval_failure_message` / `eval_failure_location`), the `loci_died_*`
-//! family (`loci_died_error_from_reason` / `loci_died_from_send_error` /
-//! `loci_died_disconnected`), the `thread_died_error_*` family (`panic` /
-//! `runtime` / `shutdown`), the chain/EDN helpers (`single_died_chain` /
+//! family (`loci_died_error_from_reason`), the
+//! `thread_died_error_*` family (`panic` / `runtime`), the chain/EDN helpers
+//! (`single_died_chain` /
 //! `thread_crash_panic_edn` / `thread_crash_runtime_edn`), and three
 //! private helpers (`died_error_payload_message` / `edn_is_loci_died_chain` /
 //! `failure_error_field`).
@@ -45,7 +45,7 @@
 use crate::ast::WatAST;
 use crate::runtime::{
     builtin_enum_variant_names, eval_inner, failure_value_from_assertion_payload,
-    message_only_failure, no_field_names, record_field_by_name,
+    message_only_failure, record_field_by_name,
 };
 use crate::span::Span;
 use crate::value::{
@@ -110,22 +110,6 @@ pub(crate) fn thread_died_error_runtime(message: String) -> Value {
         ),
         vec![Value::String(Arc::new(message))],
     )
-}
-
-/// Build a `:wat::kernel::LociDiedError::Stopped`
-/// (unit variant) enum value (arc 170 Slice A).
-/// Produced when the process-wide shutdown signal fires during recv, or
-/// (arc 278 send-mirrors-recv) when it fires while a `Sender::send` is
-/// polled-blocked waiting for pipe room — the wat-visible variant is
-/// `Stopped` (arc-170 intueri cast: nothing on the wat side is "shutting
-/// down", a stop was merely requested), while the Rust signal that triggers
-/// it keeps its own uniform `shutdown` vocabulary, hence this fn's name.
-/// Distinguishable from ChannelDisconnected: the channel partner did
-/// NOT drop — the process is stopping. Used by [`loci_died_from_send_error`]
-/// (send' side); the recv' side builds its own inline copy in
-/// `recv_outcome_shutdown`.
-pub(crate) fn thread_died_error_shutdown() -> Value {
-    loci_died_value(LociDiedError::Stopped, no_field_names(), vec![])
 }
 
 /// `(:wat::kernel::Failure/message f) -> :String` — arc 278 the string-wrap
@@ -552,39 +536,3 @@ pub(crate) fn loci_died_error_from_reason(reason: String, types: Option<&crate::
     )
 }
 
-/// `:wat::kernel::LociDiedError::Disconnected []` — the peer's receiving end is
-/// gone (EPIPE). Arc 278 BRIEF-send-carries-its-cause (#70) minted this as the
-/// only cause send' could honestly report; arc 278 send-mirrors-recv
-/// (`DESIGN-STONE-send-mirrors-recv.md`) has since given `comms::thread::
-/// Sender::send` and `comms::process::Sender::send` a real `SendError` enum
-/// (`Disconnected`/`Shutdown`/`FrameTooLarge`/`Failed`) mirroring `RecvError` —
-/// see [`loci_died_from_send_error`] for the full mapping. This fn now builds
-/// specifically the `Disconnected` cause, not a stand-in for "whatever send
-/// failed for."
-pub(crate) fn loci_died_disconnected() -> Value {
-    loci_died_value(LociDiedError::Disconnected, no_field_names(), vec![])
-}
-
-/// Map a `comms::SendError<T>` to its `:wat::kernel::LociDiedError` cause —
-/// arc 278 send-mirrors-recv. Mirrors the recv-side match on `RecvError` at
-/// this same call site's twin (`eval_peer_recv_prime`):
-/// - `Disconnected` → `LociDiedError::Disconnected` (EPIPE, honest as-is).
-/// - `Shutdown` → `LociDiedError::Stopped` — now producible, because
-///   `Sender::send` polls the shutdown broadcast mid-write instead of
-///   blocking uncancellably (the gap `loci_died_disconnected`'s old doc
-///   named: "not yet producible from any live send' call site").
-/// - `Failed(_, reason)` → `LociDiedError::RuntimeError(reason)`, carrying
-///   the real io error text instead of discarding it.
-///
-/// `SendError` has no `FrameTooLarge` arm (arc 278 "cut the cap, prove the
-/// poll arm" removed the sender-side pre-write cap check — the transport
-/// cannot know which *op* is being sent, so it can never hold the right
-/// budget; that check moves to the generated client method in a later
-/// strike). The receiver's `RecvError::FrameTooLarge` is unaffected.
-pub(crate) fn loci_died_from_send_error<T>(e: &crate::comms::SendError<T>) -> Value {
-    match e {
-        crate::comms::SendError::Disconnected(_) => loci_died_disconnected(),
-        crate::comms::SendError::Shutdown(_) => thread_died_error_shutdown(),
-        crate::comms::SendError::Failed(_, reason) => thread_died_error_runtime(reason.clone()),
-    }
-}

@@ -40,8 +40,8 @@
              (:wat::test::assert-eq 1 2)
              (:wat::core::match (:wat::kernel::send self 0)
                [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.Closed {} nil]
-               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+               [:wat::kernel::SendOutcome.HandleClosed {} nil]
+               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
                [:wat::kernel::SendOutcome.Stopped {} nil]))))] ;; arc 278 #73 — fire-and-forget completion signal; outcome ignored uniformly regardless of cause
     ;; Reproduce the old `RunResult/failure` assertion off the recv' outcome:
     ;; Lost = the child crashed = the failure was detected → 1 (the Some arm);

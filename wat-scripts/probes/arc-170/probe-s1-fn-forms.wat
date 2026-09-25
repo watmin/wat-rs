@@ -23,12 +23,12 @@
                [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
                (:wat::core::let
                  [item (:wat::kernel::recv self)
-                  _    (:wat::core::match (:wat::kernel::send self (:probe::work item)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                  _    (:wat::core::match (:wat::kernel::send self (:probe::work item)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                  (:probe::runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64))))))
-     _ (:wat::core::match (:wat::kernel::send w 3) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
-     _ (:wat::core::match (:wat::kernel::send w 5) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w 3) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w 5) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      ra (:wat::kernel::recv w)
      a  (:wat::core::match ra
           [:wat::kernel::RecvOutcome.Message {:msg m} m]

@@ -78,8 +78,8 @@
              (:wat::core::let [_ (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])] nil))))
      _ (:wat::core::match (:wat::kernel::send p (:w2a::R :val 42))
          [:wat::kernel::SendOutcome.Sent {} nil]
-         [:wat::kernel::SendOutcome.Closed {} nil]
-         [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+         [:wat::kernel::SendOutcome.HandleClosed {} nil]
+         [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
          [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
     nil))
 

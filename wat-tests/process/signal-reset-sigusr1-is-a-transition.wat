@@ -41,12 +41,13 @@
                   (:wat::kernel::assertion-failed! :message "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
                 [:wat::kernel::RecvOutcome.Closed {}
                   (:wat::kernel::assertion-failed! :message "recv: child closed unexpectedly")])]
-            [:wat::kernel::SendOutcome.Closed {}
+            [:wat::kernel::SendOutcome.HandleClosed {}
               (:wat::kernel::assertion-failed! :message "send: child closed unexpectedly")]
             [:wat::kernel::SendOutcome.Stopped {}
               (:wat::kernel::assertion-failed! :message "send: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
-            [:wat::kernel::SendOutcome.Lost {:cause cause}
-              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])]
+            [:wat::kernel::SendOutcome.Closed {:cause cause}
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::SendOutcome.Failed {:cause cause}
+              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])]
         [:wat::kernel::SignalOutcome.Failed {:cause cause}
           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
     (:wat::core::Vector :- [:wat::core::bool] true false)))

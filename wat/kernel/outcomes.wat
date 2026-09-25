@@ -299,28 +299,28 @@
 ;; closed" / "channel disconnected") — the last raise-that-masks. This makes
 ;; a send failure a matchable value instead, mirroring RecvOutcome exactly
 ;; except NON-parametric — send' carries no received payload, so no <O>:
-;;   :Sent   []                — delivered (the happy path).
-;;   :Closed []                — peer already cleanly closed (use-after-close;
-;;                                was the "peer already closed" raise).
-;;   :Lost   [cause <- LociDiedError] — disconnected mid-send; UNCONSTRUCTIBLE without
-;;                                a structured cause. Arc 278 BRIEF-send-carries-its-cause
-;;                                (#70): widened from the flat `Failure` to the SAME
-;;                                loci-agnostic `LociDiedError` recv' already carries —
-;;                                send' CAN distinguish a stop-woke-a-blocked-write
-;;                                (`Stopped`) from a genuine peer loss (`Disconnected`);
-;;                                it was simply discarding the distinction. Was the
-;;                                "channel disconnected" raise.
+;;   :Sent         []              — delivered. Both loci.
+;;   :HandleClosed []              — this handle was already closed (use-after-close,
+;;                                   cell None). Both loci. Nullary: every arm binds {}.
+;;   :Closed       [cause <- Failure] — the far end is gone for good. The cause is a
+;;                                   description of that departure, not a death reason.
+;;                                   Both loci (SendError::Disconnected). The field stays
+;;                                   because the old Lost arms bind {:cause …}.
+;;   :Stopped      []              — a stop was requested while parked. Process only.
+;;                                   The thread sender maps every crossbeam error to
+;;                                   Disconnected and never builds this.
+;;   :Failed       [cause <- Failure] — an io failure. Process only
+;;                                   (SendError::Failed). No thread locus produces it.
 ;; PURE — unlike RecvOutcome. (RecvOutcome :- [O]) is Impure ONLY because of its payload
 ;; `O` (the received message may be a live resource — a socket/file handle). SendOutcome
-;; is NON-parametric and holds only pure data: two nullary variants + `Lost[cause <-
-;; LociDiedError]`, and LociDiedError is Purity::Pure (a death report — crosses back to
-;; the owner as EDN data). A SendOutcome is fully EDN-reconstructable / wire-crossable;
+;; is NON-parametric and holds only pure data: nullary variants plus a Failure
+;; cause on Closed and Failed. A SendOutcome is fully EDN-reconstructable / wire-crossable;
 ;; marking it Impure would LIE (claim its values are locus-bound when they are not).
 ;; Registered as a builtin for the same load-order reason as RecvOutcome — send' is used
 ;; inside the stdlib before any wat defenum would load.
 (:wat::core::defenum :wat::kernel::SendOutcome :wat::enum::Pure
   :Sent
-  :Closed
+  :HandleClosed
 ;; Arc 278 #73 — the send-side twin of `RecvOutcome::Stopped` (see above for
 ;; the full argument). Landed in the SAME pass, deliberately: a half-fixed
 ;; pair is precisely how this arc got here — recv' was walled at R53 and the
@@ -330,7 +330,7 @@
 ;; `SendError::Shutdown` is a distinct variant (`comms/mod.rs`, built to
 ;; mirror `RecvError::Shutdown`) — and folded it into `Lost` anyway.
   :Stopped
-  :Lost [cause <- :wat::kernel::LociDiedError])
+  :Closed [cause <- :wat::kernel::Failure] :Failed [cause <- :wat::kernel::Failure])
 
 ;; :wat::kernel::TrySendOutcome — Arc 278 the send'-outcome wall Phase 3a
 ;; (BRIEF-send-wall-3a-try-send-outcome.md): `try-send'`'s OWN outcome type,
@@ -341,23 +341,23 @@
 ;; never returns it — Obvious/Simple/Honest all fail); mapping WouldBlock to
 ;; Lost FAILS Honest ("alive but not draining" is not "gone"). So try-send'
 ;; gets its own type:
-;;   :Sent       []                — delivered (the happy path).
-;;   :WouldBlock []                — channel full / receiver not draining
-;;                                    (crossbeam TrySendError::Full /
-;;                                    process-tier EWOULDBLOCK) — try-send' ONLY.
-;;   :Closed     []                — peer already cleanly closed (cell None).
-;;   :Lost       [cause <- LociDiedError] — receiver dropped mid-send (crossbeam
-;;                                    TrySendError::Disconnected / a genuine
-;;                                    process-tier write failure). Arc 278
-;;                                    BRIEF-send-carries-its-cause (#70): widened
-;;                                    symmetric with SendOutcome::Lost above.
-;; PURE for the same reason SendOutcome is (see above) — non-parametric, only
-;; pure data (three nullary variants + a pure `LociDiedError` record).
+;;   :Sent         []              — delivered.
+;;   :WouldBlock   []              — channel full / receiver not draining.
+;;                                   try-send' only.
+;;   :HandleClosed []              — this handle was already closed (cell None).
+;;   :Closed       [cause <- Failure] — the far end is gone. TrySendResult has no
+;;                                   separate io arm, so a try-send departure is
+;;                                   this variant. Failed is in the enum so a
+;;                                   match stays exhaustive; no try-send producer
+;;                                   builds it.
+;;   :Failed       [cause <- Failure] — an io failure. No current try-send
+;;                                   producer.
+;; PURE for the same reason SendOutcome is — non-parametric, only pure data.
 (:wat::core::defenum :wat::kernel::TrySendOutcome :wat::enum::Pure
   :Sent
   :WouldBlock
-  :Closed
-  :Lost [cause <- :wat::kernel::LociDiedError])
+  :HandleClosed
+  :Closed [cause <- :wat::kernel::Failure] :Failed [cause <- :wat::kernel::Failure])
 
 ;; :wat::kernel::CloseOutcome — Arc 278 peer-lifecycle Strike 2 (the close'
 ;; OUTCOME WALL, BRIEF-close-outcome-wall.md). `close'` (:wat::kernel::-restricted
@@ -555,8 +555,8 @@
 ;;   :Failed [failure <- Failure]  — UNCONSTRUCTIBLE without a structured cause;
 ;;                                    the first-class `:wat::kernel::Failure`
 ;;                                    carrier (never a flat String — wat is EDN
-;;                                    everywhere), the same carrier RecvOutcome::Lost
-;;                                    / SendOutcome::Lost / Reply::Failed use.
+;;                                    everywhere), the same carrier Reply::Failed
+;;                                    and SendOutcome's Closed and Failed use.
 ;;
 ;; PURE, for the same reason SendOutcome is: non-parametric, holding only pure
 ;; data (a nullary variant + a `Failure`, which is Nature::Record / pure EDN,

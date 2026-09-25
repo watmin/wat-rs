@@ -58,14 +58,14 @@
         [:probe-retag::Svc::Op.Tick {}
           (:wat::core::if (:wat::i64::>= client-idx 0)
             (:wat::core::let
-              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
               nil)
             (:probe-retag::serve-thread self l selectables true client-idx))]
         ;; the CLIENT delivered its :Ping (a SURFACE op — RE-TAGGED to Svc::Op::Ping):
         [:probe-retag::Svc::Op.Ping {}
           (:wat::core::if saw-tick
             (:wat::core::let
-              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
               nil)
             (:probe-retag::serve-thread self l selectables saw-tick idx))])]
     [:wat::spawn::ServiceEvent.Closed {:idx idx}
@@ -94,7 +94,7 @@
                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                   false -1))))
      c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op.Ping {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+     _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op.Ping {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      r    (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -134,13 +134,13 @@
                       [:probe-retag::Svc::Op.Tick {}
                         (:wat::core::if (:wat::i64::>= client-idx 0)
                           (:wat::core::let
-                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                             nil)
                           (:probe-retag::serve-proc self l selectables true client-idx))]
                       [:probe-retag::Svc::Op.Ping {}
                         (:wat::core::if saw-tick
                           (:wat::core::let
-                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                             nil)
                           (:probe-retag::serve-proc self l selectables saw-tick idx))])]
                   [:wat::spawn::ServiceEvent.Closed {:idx idx}
@@ -169,7 +169,7 @@
             [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
             [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])
      c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op.Ping {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+     _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op.Ping {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      r    (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]

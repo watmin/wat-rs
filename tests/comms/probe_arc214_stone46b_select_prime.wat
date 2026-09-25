@@ -17,8 +17,8 @@
             [:wat::kernel::RecvOutcome.Closed {}
               (:wat::kernel::assertion-failed! :message "recv': self closed unexpectedly")]))
         [:wat::kernel::SendOutcome.Sent {} nil]
-        [:wat::kernel::SendOutcome.Closed {} nil]
-        [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+        [:wat::kernel::SendOutcome.HandleClosed {} nil]
+        [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
         [:wat::kernel::SendOutcome.Stopped {} nil])))) ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
 
 (:wat::core::defn :user::compute [] -> (:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 :wat::core::nil])
@@ -26,8 +26,8 @@
                     b (:user::mk)
                     _ (:wat::core::match (:wat::kernel::send b 7)
                         [:wat::kernel::SendOutcome.Sent {} nil]
-                        [:wat::kernel::SendOutcome.Closed {} nil]
-                        [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+                        [:wat::kernel::SendOutcome.HandleClosed {} nil]
+                        [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
                         [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
                     picked (:wat::kernel::select [a b])]
     picked))

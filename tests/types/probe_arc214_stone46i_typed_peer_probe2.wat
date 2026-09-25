@@ -16,6 +16,6 @@
               [:wat::kernel::RecvOutcome.Closed {}
                 (:wat::kernel::assertion-failed! :message "recv': self closed before echo")]))
           [:wat::kernel::SendOutcome.Sent {} nil]
-          [:wat::kernel::SendOutcome.Closed {} nil]
+          [:wat::kernel::SendOutcome.HandleClosed {} nil]
           [:wat::kernel::SendOutcome.Stopped {} nil]
-          [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))))
+          [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))))

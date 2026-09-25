@@ -17,7 +17,7 @@
             [out (:wat::core::Tuple (:wat::core::first pair) (:wat::core::* (:wat::core::second pair) 2))
              ;; arc 278 #73 — discard-only send; the recv' at the top of the next iteration
              ;; faces a stop as its own outcome.
-             _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+             _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
             (:probe::serve self))]
         [:probe::PoolMsg.Setup {:deps _deps}
           (:probe::serve self)])]
@@ -35,7 +35,7 @@
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [sp <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:probe::PoolMsg :- [:wat::core::nil :wat::core::i64])])] -> :wat::core::nil
            (:probe::serve sp)))
-     _  (:wat::core::match (:wat::kernel::send w (:probe::PoolMsg.Work {:pair (:wat::core::Tuple 0 3)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+     _  (:wat::core::match (:wat::kernel::send w (:probe::PoolMsg.Work {:pair (:wat::core::Tuple 0 3)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      r0 (:wat::kernel::recv w)
      r  (:wat::core::match r0
           [:wat::kernel::RecvOutcome.Message {:msg m} m]

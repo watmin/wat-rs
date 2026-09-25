@@ -27,6 +27,6 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]
     (:wat::core::match (:wat::kernel::send p (:w2c_ctrl::R :val 42))
       [:wat::kernel::SendOutcome.Sent {} nil]
-      [:wat::kernel::SendOutcome.Closed {} nil]
-      [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+      [:wat::kernel::SendOutcome.HandleClosed {} nil]
+      [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
       [:wat::kernel::SendOutcome.Stopped {} nil]))) ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
