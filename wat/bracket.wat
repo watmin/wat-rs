@@ -590,7 +590,7 @@
 ;; remains because `map-worker` itself is the one caller for every D (nil OR `::Coords`) and
 ;; needs the same widening `collect-loop` already had.
 (:wat::core::defn :wat::bracket::collect-loop :- [D I O]
-  [peers     <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])])
+  [peers     <- (:wat::core::Vector :- [(:wat::spawn::Spawned :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])])
    items     <- (:wat::core::Vector :- [I])
    pairs-acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
    cursor    <- :wat::core::i64
@@ -704,7 +704,7 @@
      ;; — repeatedly `select'`-ed, must be eager) and later `sort-by`, so materialize here.
      peers (:wat::core::mapv
              (:wat::core::fn [i <- :wat::core::i64]
-                 -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])
+                 -> (:wat::spawn::Spawned :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])
                (:wat::core::let
                  [work-fn (worker-init i)                          ;; per-runner setup, once
                   ;; arc 170 closure #6 — label THIS runner with its own index before spawning
@@ -759,7 +759,7 @@
      ;; thread peer (None) skips. Runs BEFORE the return so no grant escapes the bracket.
      _revoke (:wat::core::foldl
                (:wat::core::fn [_acc <- :wat::core::nil
-                                p    <- (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])]
+                                p    <- (:wat::spawn::Spawned :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])]
                  -> :wat::core::nil
                  (:wat::core::match (:wat::kernel::peer-pid p)  
                    [:wat::core::Option.Some {:value pid} (revoke-fn grant-handles pid)]

@@ -11225,6 +11225,17 @@ fn infer_kernel_fn_forms(
 // Parametric{head:"wat::kernel::Thread"|"…Process'", args:[I,O]},
 // project I and/or O. Non-peer arg0 → TypeMismatch "peer ((Thread' :- [I O]) | (Process' :- [I O]))".
 
+/// 255.38 — an owner head satisfies the Spawned surface (the extend-type
+/// binder, read by `family_extends`). A counterparty is the Peer head.
+fn satisfies_spawned(head: &str, types: &TypeEnv) -> bool {
+    let fqdn = crate::types::parametric_head_fqdn(head);
+    crate::types::family_extends(&fqdn, ":wat::spawn::Spawned", types)
+}
+
+fn owner_or_peer_handle(head: &str, nargs: usize, types: &TypeEnv) -> bool {
+    nargs == 2 && (is_peer_head(head) || satisfies_spawned(head, types))
+}
+
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
 ///
 /// Returns `Ok((i_ty, o_ty))` on success. 255.30: purity is asked where a comm's
@@ -11261,13 +11272,10 @@ fn project_peer_io(
     let peer_surface = apply_subst(&peer_ty, subst);
     let peer_reduced = reduce(&peer_surface, subst, env.types());
     match peer_reduced {
-        // SocketPeer' is retired — connection peers are Peer'. Thread' and Process'
-        // derive Peer' (wat/spawn.wat), so a parent handle projects the same way.
+        // 255.38 — owner family (satisfies Spawned) or the Peer head. Thread
+        // and Process no longer derive Peer, so a parent handle is not a Peer.
         TypeExpr::Parametric { ref head, ref args }
-            if (head == "wat::kernel::Thread"
-                || head == "wat::kernel::Process"
-                || head == "wat::kernel::Peer")
-                && args.len() == 2 =>
+            if owner_or_peer_handle(head, args.len(), env.types()) =>
         {
             Ok((args[0].clone(), args[1].clone()))
         }
@@ -11277,7 +11285,7 @@ fn project_peer_io(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "peer".into(),
-                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))".into(),
+                    expected: "owner (Spawned) or peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))".into(),
                     got: format_type(&other),
                 },
             });
@@ -11702,13 +11710,9 @@ fn infer_close_prime(
     // in `Closed[exit <- (Option :- [i64])]`), not a bare `nil`/`i64`.
     let close_outcome = || TypeExpr::Path(":wat::kernel::CloseOutcome".into());
     let ret = match &peer_reduced {
+        // 255.38 — close is the owner family. A Peer is not a child to reap.
         TypeExpr::Parametric { head, args }
-            if head == "wat::kernel::Thread" && args.len() == 2 =>
-        {
-            close_outcome()
-        }
-        TypeExpr::Parametric { head, args }
-            if head == "wat::kernel::Process" && args.len() == 2 =>
+            if satisfies_spawned(head, env.types()) && args.len() == 2 =>
         {
             close_outcome()
         }
@@ -12270,10 +12274,7 @@ fn infer_select_prime(
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if (head == "wat::kernel::Thread"       // TODO(arc-109/arc-170 cleanup): remove Thread'/Process' here —
-                || head == "wat::kernel::Process"   //   the unified fd-backed Peer' end-state makes select' take
-                || head == "wat::kernel::Peer")     //   ONLY Peer'; the tier heads vanish. Kept now to unblock the
-                && targs.len() == 2 =>               //   loci-agnostic bracket (259 S3a). Peer' is I=targs[0], O=targs[1].
+            if owner_or_peer_handle(head, targs.len(), env.types()) =>
         {
             // I = args[0] (input to spawned fn from parent); O = args[1] (output back to parent).
             (targs[0].clone(), targs[1].clone())
@@ -12347,7 +12348,7 @@ fn infer_poll_prime(
                 let reduced = reduce(&surface, subst, env.types());
                 match &reduced {
                     TypeExpr::Parametric { head, args: targs }
-                        if head == "wat::kernel::Peer" && targs.len() == 2 =>
+                        if owner_or_peer_handle(head, targs.len(), env.types()) =>
                     {
                         targs[1].clone()
                     }
@@ -12412,7 +12413,7 @@ fn infer_poll_prime(
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if head == "wat::kernel::Peer" && targs.len() == 2 =>
+            if owner_or_peer_handle(head, targs.len(), env.types()) =>
         {
             (targs[0].clone(), targs[1].clone())
         }
@@ -12422,7 +12423,7 @@ fn infer_poll_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers element".into(),
-                    expected: "(Peer :- [I O])".into(),
+                    expected: "owner (Spawned) or (Peer :- [I O])".into(),
                     got: format_type(other),
                 },
             });

@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 208; // 255.30: 211 → 208 — ThreadSelfPeer left infer_poll_prime (4→3), infer_thread_prog_type (2→1), project_peer_io (4→3). 255.25: 215 → 211 — the transport-marker helpers compare through the denotation door.
+const LEDGER_TOTAL: usize = 198; // 255.38: 208 → 198 — owner/peer family rule left infer_poll_prime (3→1), infer_select_prime (4→1); infer_close_prime and project_peer_io left the ledger. 255.30: 211 → 208.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -775,7 +775,7 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "infer", 2, "Ax2"),
     ("src/check.rs", "infer_accept_prime", 1, "Ex1"),
     ("src/check.rs", "infer_allow_prime", 1, "Ex1"),
-    ("src/check.rs", "infer_close_prime", 2, "Ex2"),
+
     ("src/check.rs", "infer_config_set_bool", 1, "Ex1"),
     ("src/check.rs", "infer_defclause", 1, "Ax1"),
     ("src/check.rs", "infer_deny_prime", 1, "Ex1"),
@@ -784,10 +784,10 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "infer_match", 3, "Ax2+Ex1"),
     ("src/check.rs", "infer_nth", 1, "Ex1"),
     ("src/check.rs", "infer_option_try", 1, "Ex1"),
-    ("src/check.rs", "infer_poll_prime", 3, "Ex3"),
+    ("src/check.rs", "infer_poll_prime", 1, "Ex1"),
     ("src/check.rs", "infer_polymorphic_time_arith", 5, "Ax1+Ex4"),
     ("src/check.rs", "infer_positional_accessor", 1, "Ex1"),
-    ("src/check.rs", "infer_select_prime", 4, "Ex4"),
+    ("src/check.rs", "infer_select_prime", 1, "Ex1"),
     ("src/check.rs", "infer_signal", 1, "Ex1"),
     ("src/check.rs", "infer_thread_prog_type", 1, "Ex1"),
     ("src/check.rs", "infer_try", 1, "Ex1"),
@@ -803,7 +803,7 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "is_type_orderable", 1, "Ex1"),
     ("src/check.rs", "map_kv_of", 1, "Ex1"),
     ("src/check.rs", "preregister_defclause_in_env", 1, "Ax1"),
-    ("src/check.rs", "project_peer_io", 3, "Ex3"),
+
     ("src/check.rs", "set_elem_of", 1, "Ex1"),
     ("src/check.rs", "transport_marker", 1, "Ex1"),
     ("src/check.rs", "unify", 1, "Ex1"),

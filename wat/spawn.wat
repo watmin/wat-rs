@@ -250,22 +250,28 @@
   :Setup [deps <- :D]
   :Work  [pair <- (:wat::core::Tuple :- [:wat::core::i64 I])])
 
-;; ── Spawned — the owner-side spawn-handle marker ────────────────────────────
-;; Spawned — the owner-side spawn-handle marker (typesub/derive axis; no methods). Thread'/Process'/
-;; future-remote derive it so the locus-agnostic Handle field + Locus/spawn return can bind any of them.
-;; Lifecycle = close'/join (intrinsics). A new transport's handle joins with one more `derive`.
-(:wat::core::derive :wat::kernel::Thread  :wat::spawn::Spawned)
-(:wat::core::derive :wat::kernel::Process :wat::spawn::Spawned)
+;; ── Spawned :- [S R] — the owner family ─────────────────────────────────────
+;; A surface. S is what the owner sends, R what the owner receives. send and
+;; recv stay intrinsics: a counterparty can do those too. close is the owner
+;; lifecycle, and its result is CloseOutcome, which lives in outcomes.wat.
+;; That file loads AFTER this one (AcceptOutcome names Peer, and deporder
+;; attributes Peer to this file), so this surface cannot name CloseOutcome.
+;; owner-end? is the feature that consumes S and R: the value is the owner
+;; end. Thread and Process implement it. They do not derive Peer. A new
+;; locus joins with one extend-type.
+(:wat::core::defsurface :wat::spawn::Spawned :- [S R] :nature :wat::core::Struct
+  :features
+  [(owner-end? [self <- (:wat::spawn::Spawned :- [S R])] -> :wat::core::bool)])
 
-;; ── arc 291 3a-ii-β: Thread'/Process' ARE Peer's ────────────────────────────
-;; The owner-side spawn handle IS the parent end of the lineage channel — a peer.
-;; send'/recv'/poll' already operate on it (process `launch` does `recv' svc`/`send' svc`);
-;; these derives make the TYPE model say so, so a locus-agnostic `Handle.handle <- (Peer' :- […])`
-;; field binds ANY spawn handle. N-LOCI-GENERAL: a future remote locus joins the peer family
-;; with ONE more `derive` line — zero edits to the assignable rule, which is driven by THIS
-;; derive graph (check.rs `assignable`, the Parametric<:Parametric arm). Never a 2-only assumption.
-(:wat::core::derive :wat::kernel::Thread  :wat::kernel::Peer)
-(:wat::core::derive :wat::kernel::Process :wat::kernel::Peer)
+(:wat::core::extend-type :- [S R]
+  (:wat::kernel::Thread :- [S R])
+  (:wat::spawn::Spawned :- [S R])
+  (owner-end? [self] -> :wat::core::bool true))
+
+(:wat::core::extend-type :- [S R]
+  (:wat::kernel::Process :- [S R])
+  (:wat::spawn::Spawned :- [S R])
+  (owner-end? [self] -> :wat::core::bool true))
 
 ;; ── arc 293.W.2d / arc 278 — a wire-safe Peer' IS usable in-locus ────────────
 ;; THE LINE IS SHARED MEMORY OR NOT, and it is DIRECTIONAL:
@@ -326,7 +332,7 @@
 ;; T is the transport marker (Shared | Wire). 255.18: `Locus/launch` returns the full 5-arg form, T
 ;; from the locus's own binding; a 4-arg (Launched :- [S R Sh Lu]) is the checker's residual shorthand.
 (:wat::core::defstruct :wat::spawn::Launched :- [S R Sh Lu T]
-  [handle  <- (:wat::kernel::Peer :- [Sh Lu])
+  [handle  <- (:wat::spawn::Spawned :- [Sh Lu])
    address <- (:wat::kernel::Address :- [S R T])])
 
 ;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
@@ -440,7 +446,7 @@
    ;; carrier is never welded into this surface's return type, only named by it.
    (spawn-runner :- [D I O W] [self    <- (:wat::spawn::Locus :- [T])
                                work-fn <- :W]
-     -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])]))
+     -> (:wat::spawn::Spawned :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])]))
    ;; ── runner-count — the tier-blind pool-count reader ──
    ;; 255.19 — was a defclause keyed on the concrete loci ("a new locus type joins as one
    ;; more clause here"): a per-locus list OUTSIDE the surface, which a generic
@@ -651,11 +657,10 @@
 ;;                  the Err, surfaced, NEVER dropped (that is the whole point).
 ;; Composed from `recv'` (wat-first; recv' is native but recv-all' is a wat stdlib
 ;; defn). wat has no loop/recur, so the drain is a tail-recursive private helper
-;; (`recv-all-loop'`) that recv-all' seeds with an empty vector. `p` is typed
-;; `(Peer' :- [I O])`; Thread'/Process' derive Peer' (see the derives above), so a spawned
-;; process/thread peer drains through here unchanged.
+;; (`recv-all-loop'`) that recv-all' seeds with an empty vector. `p` is the
+;; owner end `(Spawned :- [I O])`: this drains the child the caller spawned.
 (:wat::core::defn :wat::kernel::recv-all-loop :- [I O]
-  [p   <- (:wat::kernel::Peer :- [I O])
+  [p   <- (:wat::spawn::Spawned :- [I O])
    acc <- (:wat::core::Vector :- [O])]
   -> (:wat::core::Result :- [(:wat::core::Vector :- [O]) :wat::kernel::LociDiedError])
   (:wat::core::match (:wat::kernel::recv p)
@@ -680,6 +685,6 @@
     [:wat::kernel::RecvOutcome.Closed {} (:wat::core::Result.Ok {:value acc})]))
 
 (:wat::core::defn :wat::kernel::recv-all :- [I O]
-  [p <- (:wat::kernel::Peer :- [I O])]
+  [p <- (:wat::spawn::Spawned :- [I O])]
   -> (:wat::core::Result :- [(:wat::core::Vector :- [O]) :wat::kernel::LociDiedError])
   (:wat::kernel::recv-all-loop p (:wat::core::Vector :- [:O])))

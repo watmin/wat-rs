@@ -2889,12 +2889,11 @@
 
      ;; ── C.3: Handle STRUCT ───────────────────────────────────────────────────────
      ;; (defstruct <fqdn>::Handle
-     ;;   [handle <- (Peer :- [Admin Status])
+     ;;   [handle <- (Spawned :- [Admin Status])
      ;;    addr   <- (:wat::kernel::Address :- [fqdn::Op fqdn::Reply])])
-     ;; arc 291 3a-ii-β: handle is the owner-only lineage peer (admin channel).
-     ;; (Peer :- [Admin Status]) — owner sends Admin (down), receives Status (up).
-     ;; (Thread :- [Admin Status]) and (Process :- [Admin Status]) both satisfy this field
-     ;; (send'/recv' intrinsics accept Thread|Process|Peer uniformly).
+     ;; 255.38: handle is the owner end (admin channel), not a counterparty Peer.
+     ;; (Spawned :- [Admin Status]) — owner sends Admin (down), receives Status (up).
+     ;; Thread and Process implement Spawned, so both satisfy this field.
      ;; addr carries the typed (Address :- [Op Reply]) for client connect'.
      ;;
      ;; ★ A STRUCT, NOT A RECORD — arc 278 2026-08-03, builder-ruled: "they are
@@ -2915,7 +2914,7 @@
      ;; identity 2c: handle-peer-ty is ANNOTATION-only (Handle struct field) — mints the
      ;; reference FORM, structurally off `admin-ty-ann`/`status-ty-ann` (both already
      ;; reference-form nodes — Arc 109 ③ retired the angle-string concat this used).
-     handle-peer-ty `(:wat::kernel::Peer :- [~admin-ty-ann ~status-ty-ann])
+     handle-peer-ty `(:wat::spawn::Spawned :- [~admin-ty-ann ~status-ty-ann])
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
      ;; Arc 109 ③ — `handle-tp-syms` always carries at least the transport marker, so the
      ;; binder splice is unconditional here (unlike `record-def`/`state-def`, which may be

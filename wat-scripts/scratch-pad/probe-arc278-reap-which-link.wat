@@ -52,7 +52,7 @@
 
 ;; Field-level discriminators: carry ONLY the lineage peer, or ONLY the address.
 (:wat::core::defn :rw::try-with-lineage [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
-                                        lp <- (:wat::kernel::Peer :- [:rw::bag-svc::Admin :rw::bag-svc::Status])
+                                        lp <- (:wat::spawn::Spawned :- [:rw::bag-svc::Admin :rw::bag-svc::Status])
                                         label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do (:rw::try c label) nil))
 
