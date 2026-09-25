@@ -1,0 +1,156 @@
+diff --git a/src/check.rs b/src/check.rs
+index 1bf62d291..1c543f66d 100644
+--- a/src/check.rs
++++ b/src/check.rs
+@@ -11225,6 +11225,20 @@ fn infer_kernel_fn_forms(
+ // Parametric{head:"wat::kernel::Thread"|"…Process'", args:[I,O]},
+ // project I and/or O. Non-peer arg0 → TypeMismatch "peer ((Thread' :- [I O]) | (Process' :- [I O]))".
+ 
++/// 255.37 — the owner family is a head that derives `:wat::spawn::Spawned`.
++/// The peer family is the Peer head itself, through the denotation door.
++fn derives_spawned(head: &str, types: &TypeEnv) -> bool {
++    crate::types::is_subtype(
++        &crate::types::parametric_head_fqdn(head),
++        ":wat::spawn::Spawned",
++        types,
++    )
++}
++
++fn owner_or_peer_handle(head: &str, nargs: usize, types: &TypeEnv) -> bool {
++    nargs == 2 && (is_peer_head(head) || derives_spawned(head, types))
++}
++
+ /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
+ ///
+ /// Returns `Ok((i_ty, o_ty))` on success. 255.30: purity is asked where a comm's
+@@ -11261,13 +11275,11 @@ fn project_peer_io(
+     let peer_surface = apply_subst(&peer_ty, subst);
+     let peer_reduced = reduce(&peer_surface, subst, env.types());
+     match peer_reduced {
+-        // SocketPeer' is retired — connection peers are Peer'. Thread' and Process'
+-        // derive Peer' (wat/spawn.wat), so a parent handle projects the same way.
++        // 255.37 — owner family (derives Spawned) or the Peer head. The
++        // Thread/Process-derives-Peer edges are gone, so a parent handle is not
++        // a Peer and this projection asks the family instead of the three names.
+         TypeExpr::Parametric { ref head, ref args }
+-            if (head == "wat::kernel::Thread"
+-                || head == "wat::kernel::Process"
+-                || head == "wat::kernel::Peer")
+-                && args.len() == 2 =>
++            if owner_or_peer_handle(head, args.len(), env.types()) =>
+         {
+             Ok((args[0].clone(), args[1].clone()))
+         }
+@@ -11277,7 +11289,7 @@ fn project_peer_io(
+                 kind: CheckErrorKind::TypeMismatch {
+                     callee: op.into(),
+                     param: "peer".into(),
+-                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))".into(),
++                    expected: "owner (Spawned) or peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))".into(),
+                     got: format_type(&other),
+                 },
+             });
+@@ -11702,13 +11714,9 @@ fn infer_close_prime(
+     // in `Closed[exit <- (Option :- [i64])]`), not a bare `nil`/`i64`.
+     let close_outcome = || TypeExpr::Path(":wat::kernel::CloseOutcome".into());
+     let ret = match &peer_reduced {
++        // 255.37 — close is the owner family. A Peer is not a child to reap.
+         TypeExpr::Parametric { head, args }
+-            if head == "wat::kernel::Thread" && args.len() == 2 =>
+-        {
+-            close_outcome()
+-        }
+-        TypeExpr::Parametric { head, args }
+-            if head == "wat::kernel::Process" && args.len() == 2 =>
++            if derives_spawned(head, env.types()) && args.len() == 2 =>
+         {
+             close_outcome()
+         }
+@@ -11718,7 +11726,7 @@ fn infer_close_prime(
+                 kind: CheckErrorKind::TypeMismatch {
+                     callee: OP.into(),
+                     param: "peer".into(),
+-                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]))".into(),
++                    expected: "owner handle ((Thread :- [I O]) | (Process :- [I O]), the Spawned family)".into(),
+                     got: format_type(other),
+                 },
+             });
+@@ -12270,10 +12278,7 @@ fn infer_select_prime(
+     let elem_reduced = reduce(&elem_surface, subst, env.types());
+     let (i_ty, o_ty) = match &elem_reduced {
+         TypeExpr::Parametric { head, args: targs }
+-            if (head == "wat::kernel::Thread"       // TODO(arc-109/arc-170 cleanup): remove Thread'/Process' here —
+-                || head == "wat::kernel::Process"   //   the unified fd-backed Peer' end-state makes select' take
+-                || head == "wat::kernel::Peer")     //   ONLY Peer'; the tier heads vanish. Kept now to unblock the
+-                && targs.len() == 2 =>               //   loci-agnostic bracket (259 S3a). Peer' is I=targs[0], O=targs[1].
++            if owner_or_peer_handle(head, targs.len(), env.types()) =>
+         {
+             // I = args[0] (input to spawned fn from parent); O = args[1] (output back to parent).
+             (targs[0].clone(), targs[1].clone())
+@@ -12347,7 +12352,7 @@ fn infer_poll_prime(
+                 let reduced = reduce(&surface, subst, env.types());
+                 match &reduced {
+                     TypeExpr::Parametric { head, args: targs }
+-                        if head == "wat::kernel::Peer" && targs.len() == 2 =>
++                        if owner_or_peer_handle(head, targs.len(), env.types()) =>
+                     {
+                         targs[1].clone()
+                     }
+@@ -12412,7 +12417,7 @@ fn infer_poll_prime(
+     let elem_reduced = reduce(&elem_surface, subst, env.types());
+     let (i_ty, o_ty) = match &elem_reduced {
+         TypeExpr::Parametric { head, args: targs }
+-            if head == "wat::kernel::Peer" && targs.len() == 2 =>
++            if owner_or_peer_handle(head, targs.len(), env.types()) =>
+         {
+             (targs[0].clone(), targs[1].clone())
+         }
+@@ -12422,7 +12427,7 @@ fn infer_poll_prime(
+                 kind: CheckErrorKind::TypeMismatch {
+                     callee: OP.into(),
+                     param: "peers element".into(),
+-                    expected: "(Peer :- [I O])".into(),
++                    expected: "owner (Spawned) or (Peer :- [I O])".into(),
+                     got: format_type(other),
+                 },
+             });
+diff --git a/wat/spawn.wat b/wat/spawn.wat
+index 7fb9f88f6..5852bb81f 100644
+--- a/wat/spawn.wat
++++ b/wat/spawn.wat
+@@ -250,22 +250,22 @@
+   :Setup [deps <- :D]
+   :Work  [pair <- (:wat::core::Tuple :- [:wat::core::i64 I])])
+ 
+-;; ── Spawned — the owner-side spawn-handle marker ────────────────────────────
+-;; Spawned — the owner-side spawn-handle marker (typesub/derive axis; no methods). Thread'/Process'/
+-;; future-remote derive it so the locus-agnostic Handle field + Locus/spawn return can bind any of them.
+-;; Lifecycle = close'/join (intrinsics). A new transport's handle joins with one more `derive`.
++;; ── Spawned :- [S R] — the owner family ─────────────────────────────────────
++;; A struct, not a record: a handle marker is not EDN, and a record would be
++;; pure. The param-spec cannot be phantom — an unused parameter is refused —
++;; so `sent` and `recv` write the discrimination the family carries. They are
++;; not a runtime layout. Thread and Process derive the head, so
++;; (Thread :- [S R]) satisfies (Spawned :- [S R]). A new locus joins with one
++;; more `derive`. Lifecycle verbs are close' and join.
++(:wat::core::defstruct :wat::spawn::Spawned :- [S R]
++  [sent <- S
++   recv <- R])
+ (:wat::core::derive :wat::kernel::Thread  :wat::spawn::Spawned)
+ (:wat::core::derive :wat::kernel::Process :wat::spawn::Spawned)
+ 
+-;; ── arc 291 3a-ii-β: Thread'/Process' ARE Peer's ────────────────────────────
+-;; The owner-side spawn handle IS the parent end of the lineage channel — a peer.
+-;; send'/recv'/poll' already operate on it (process `launch` does `recv' svc`/`send' svc`);
+-;; these derives make the TYPE model say so, so a locus-agnostic `Handle.handle <- (Peer' :- […])`
+-;; field binds ANY spawn handle. N-LOCI-GENERAL: a future remote locus joins the peer family
+-;; with ONE more `derive` line — zero edits to the assignable rule, which is driven by THIS
+-;; derive graph (check.rs `assignable`, the Parametric<:Parametric arm). Never a 2-only assumption.
+-(:wat::core::derive :wat::kernel::Thread  :wat::kernel::Peer)
+-(:wat::core::derive :wat::kernel::Process :wat::kernel::Peer)
++;; 255.37 — the two `derive … Peer` edges are deleted. An owner handle is not a
++;; Peer. send/recv/select/poll/close/try-send tell the families apart: a head
++;; that derives Spawned, or the Peer head itself.
+ 
+ ;; ── arc 293.W.2d / arc 278 — a wire-safe Peer' IS usable in-locus ────────────
+ ;; THE LINE IS SHARED MEMORY OR NOT, and it is DIRECTIONAL:
