@@ -1294,7 +1294,7 @@ fn startup_from_forms_post_config(
     // The resolve error is NOT swallowed: if the check is clean it is re-raised unchanged,
     // so a genuine unresolved reference (a real typo, a missing import) reports exactly as
     // before. Only the case where a located cause EXISTS changes.
-    let check_result = check_program(&bundle.residue, &bundle.symbols, &bundle.types);
+    let check_result = check_program(&bundle.residue, &bundle.symbols, &bundle.types, &bundle.macros);
     match (check_result, bundle.deferred_resolve.take()) {
         (Err(check_err), Some(resolve_err)) => {
             // ★ THE CAUSE OUTRANKS THE SYMPTOM ONLY WHEN IT IS A DIFFERENT CAUSE.

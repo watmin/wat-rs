@@ -7,7 +7,7 @@
      (:wat::core::do
        (:wat::core::do
          (:wat::core::do
-           (:wat::core::defmacro :t::deep-answer [] -> :wat::WatAST 42))))))
+           (:wat::core::defmacro :t::deep-answer [] -> :wat::core::i64 42))))))
 
 ;; expand at top level -> the deeply-nested defmacro must hoist + register
 (:t::gen-deep)

@@ -368,7 +368,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
             if let Ok(world) = &outcome {
                 crate::check::type_record::start();
                 let rechecked =
-                    crate::check::check_program(world.program(), world.symbols(), world.types());
+                    crate::check::check_program(world.program(), world.symbols(), world.types(), world.macros());
                 if let Some(rec) = crate::check::type_record::finish() {
                     let errors = match &rechecked {
                         Ok(()) => 0,

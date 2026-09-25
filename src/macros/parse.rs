@@ -158,13 +158,27 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         return Err(MacroError { span: arrow_item.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected `->` symbol after argspec Vector".into() } });
     }
 
-    // Return-type keyword.
-    match &rettype_item {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected return-type keyword after `->`".into() } });
+    // Return type: a keyword, a symbol, or a type form `(Head :- [T …])`.
+    // Same slots `parse_fn_signature_prefix` accepts. The body is held to
+    // this type by `check_function_body`.
+    let ret_type = match &rettype_item {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
+            crate::types::parse_type_node(&rettype_item).map_err(|te| MacroError {
+                span: te.span().clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: format!("invalid macro return type: {te}"),
+                },
+            })?
         }
-    }
+        other => {
+            return Err(MacroError {
+                span: other.span().clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: "expected a return type after `->`".into(),
+                },
+            });
+        }
+    };
 
     // Route argspec through canonical parser — third major consumer after fn + defclause.
     // `allow_rest_binder: true` mirrors defclause (arc 174 / Stone 241.3/241.4).
@@ -217,21 +231,8 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
             });
         }
     }
-    if let WatAST::Keyword(ret_kw, ret_span) = &rettype_item {
-        if ret_kw != ":wat::WatAST" {
-            return Err(MacroError {
-                span: ret_span.clone(),
-                kind: MacroErrorKind::MalformedDefmacro {
-                    reason: format!(
-                        "macro return type is declared `{ret_kw}`, but a macro always expands to a \
-                         form — its return type must be `:wat::WatAST`"
-                    ),
-                },
-            });
-        }
-    }
-
-    // Extract param names only — MacroDef carries names, not types.
+    // Extract param names only — a parameter always binds a form, so the
+    // type is not stored beside the name. The declared return is.
     // Bare derivation: macro substitution keys are bare (expansion-time pattern match).
     let params: Vec<String> = spec.fixed_params.into_iter().map(|(ident, _ty)| ident.as_str().to_owned()).collect();
     let rest_param: Option<String> = spec.rest_param.map(|(ident, _ty)| ident.as_str().to_owned());
@@ -250,6 +251,7 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         name,
         params,
         rest_param,
+        ret_type,
         body: body_item,
         span: list_span,
         source_form,

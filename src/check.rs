@@ -39,10 +39,9 @@
 //!   first-class type form in the grammar; its check-layer surface
 //!   is intentionally permissive — full subtype/variant discipline
 //!   is outside the check layer by design.
-//! - **Typed-macro parameter checks (058-032).** Macros expand before
-//!   check; macro-definition-time checks (`(:AST :- [T])` against body
-//!   positions) are outside the check layer by design (expansion-time
-//!   discipline is a separate concern if pursued).
+//! - **Macro parameters stay forms.** A parameter binds `:wat::WatAST`
+//!   and a rest parameter a vector of forms. The body is held to the
+//!   declared return by `check_function_body`, the same door as a `defn`.
 //! - **Numeric promotion.** `:i64` does not promote to `:f64` statically;
 //!   mixing numeric types in arithmetic is rejected.
 
@@ -650,6 +649,7 @@ pub fn check_program(
     forms: &[WatAST],
     sym: &SymbolTable,
     types: &TypeEnv,
+    macros: &crate::macros::MacroRegistry,
 ) -> Result<(), CheckErrors> {
     // Arc 157 — `env` must be `mut` so `defined_values` / `defined_value_spans`
     // can be updated incrementally as top-level `def` forms are processed.
@@ -832,6 +832,11 @@ pub fn check_program(
             }
         }
     }
+
+    // Every macro, used or not. The body is held to `ret_type` by the same
+    // door as a `defn`. Parameters bind forms; a rest parameter binds a
+    // vector of forms.
+    check_registered_macros(macros, &env, &mut fresh, &mut errors);
 
     if errors.is_empty() {
         Ok(())
@@ -1861,6 +1866,49 @@ fn collect_process_stdin_and_joins(
     }
 }
 
+
+fn check_registered_macros(
+    macros: &crate::macros::MacroRegistry,
+    env: &CheckEnv,
+    fresh: &mut InferCtx,
+    errors: &mut Vec<CheckError>,
+) {
+    let watast = TypeExpr::Path(":wat::WatAST".into());
+    let mut defs: Vec<&crate::macros::MacroDef> = macros.iter().collect();
+    defs.sort_by(|a, b| a.name.cmp(&b.name));
+    for def in defs {
+        let param_types = vec![watast.clone(); def.params.len()];
+        let params: Vec<crate::scope::Identifier> = def
+            .params
+            .iter()
+            .map(|name| crate::scope::Identifier::bare(name))
+            .collect();
+        let rest_param_type = def.rest_param.as_ref().map(|_| TypeExpr::Parametric {
+            head: "wat::core::Vector".into(),
+            args: vec![watast.clone()],
+        });
+        let func = Function {
+            name: Some(def.name.clone()),
+            params,
+            type_params: vec![],
+            param_types: param_types.clone(),
+            ret_type: def.ret_type.clone(),
+            rest_param: def.rest_param.clone(),
+            rest_param_type: rest_param_type.clone(),
+            body: FunctionBody::Wat(std::sync::Arc::new(def.body.clone())),
+            closed_env: None,
+            rete: None,
+            synthesized_for: None,
+        };
+        let scheme = TypeScheme {
+            type_params: vec![],
+            params: param_types,
+            ret: def.ret_type.clone(),
+            rest_param_type,
+        };
+        check_function_body(&def.name, &func, &def.body, &scheme, env, fresh, errors);
+    }
+}
 
 fn check_function_body(
     path: &str,
@@ -21163,6 +21211,15 @@ fn register_builtins(env: &mut CheckEnv) {
     env.register(":wat::core::keyword-node".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+    // Never returns. `:T` unifies with the other arm, the same scheme as
+    // `assertion-failed!`. The doc's `:wat::core::nil` is the placeholder a
+    // language with no `Never` writes.
+    env.register(":wat::core::macro-error".into(), TypeScheme {
+        type_params: vec!["T".into()],
+        params: vec![TypeExpr::Path(":wat::core::String".into())],
+        ret: TypeExpr::Path(":T".into()),
+        rest_param_type: None,
+    });
     // Arc 251 head role-inversion — a rust-scheme call-head Keyword node → a faithful-Clojure
     // Symbol node (the inverse of `ns_to_wat_path`'s grammar; the kind change IS the inversion).
     // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,to-type-form-colon}`
@@ -23637,7 +23694,7 @@ pub(crate) mod tests {
             register_types(expanded, &mut types).expect("register user types");
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(rest_post_types, &mut sym).expect("register defines");
-        check_program(&rest, &sym, &types)
+        check_program(&rest, &sym, &types, &macros)
     }
 
     // ─── Arc 170 #13 — the ONE door (register_defclause) gates ────────────
@@ -23678,7 +23735,7 @@ pub(crate) mod tests {
         let rest_post_types =
             register_types(expanded, &mut types).expect("register caller types");
         let rest = register_defines(rest_post_types, &mut sym).expect("register caller defines");
-        check_program(&rest, &sym, &types)
+        check_program(&rest, &sym, &types, &macros)
     }
 
     /// **The acceptance-condition gate.** A defclause registered with

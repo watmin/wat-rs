@@ -581,18 +581,28 @@ fn variadic_macro_arity_too_few_uses_arity_too_few_variant() {
 
 #[test]
 fn program_body_producing_non_ast_rejected() {
-    // Arc 249 stone 249.2b-ii: a program body (non-quasiquote) IS evaluated
-    // by macro_eval. A body that produces a non-AST result (e.g. a Vec) still
-    // errors — with MalformedTemplate (value_to_watast rejects Vec).
-    let err = expand_src(
+    // A macro declares the type its body produces. A body that produces a
+    // Vector while declaring `:wat::WatAST` is refused by the type check,
+    // which names the macro, the declared type, and the body's type. The
+    // expansion renderer writes a Vector when the declaration says so; a
+    // value with no syntax is the only refusal left at expansion.
+    let err = crate::check::tests::check(
         r#"
-        (:wat::core::defmacro :my::m [x <- :wat::WatAST] -> :wat::WatAST
-          (:wat::core::Vector :- [:bogus] x))
-        (:my::m 1)
+        (:wat::core::defmacro :my::m [] -> :wat::WatAST
+          (:wat::core::Vector :- [:wat::core::i64] 1 2))
         "#,
     )
     .unwrap_err();
-    assert!(matches!(err, MacroError { kind: MacroErrorKind::MalformedTemplate { .. }, .. }));
+    let hit = err.0.iter().find_map(|e| match &e.kind {
+        crate::check::CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
+            if function == ":my::m" && expected == ":wat::WatAST" =>
+        {
+            Some(got.clone())
+        }
+        _ => None,
+    });
+    let got = hit.unwrap_or_else(|| panic!("{err}"));
+    assert_eq!(got, "(:wat::core::Vector :- [:wat::core::i64])");
 }
 
 #[test]

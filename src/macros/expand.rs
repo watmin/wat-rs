@@ -1268,9 +1268,10 @@ fn expand_program_body(
             },
         })?;
 
-    // Convert the result Value to a WatAST expansion form.
-    // value_to_watast handles: i64/f64/bool/String/keyword/nil literals, wat__WatAST (direct),
-    // holon__HolonAST (via holon_to_watast). Other shapes (Struct/Enum/Vec/HashMap) error.
+    // The expansion is that value's syntax, from the one renderer. A value
+    // with no syntax (a handle, an fd, a host opaque) is the only refusal
+    // left here, and the error names this macro and that value. A body whose
+    // type is not the declared return is refused by the type check, earlier.
     crate::runtime::value_to_watast(
         &format!("macro {} body result", macro_name),
         result_tv.value_owned(),
