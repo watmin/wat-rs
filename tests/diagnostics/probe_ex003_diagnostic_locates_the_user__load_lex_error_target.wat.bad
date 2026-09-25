@@ -1,0 +1,4 @@
+;; SPECIMEN target — excursus 003 stone P (loaded via load-file! by the sibling .wat above). A
+;; name ending in `<` is a lex error (same shape as the f091 fixture beside it).
+;; ⛔ Do not "fix" the name — the name being illegal is the point.
+(:wat::core::defn :u::o< [a <- :wat::core::i64] -> :wat::core::i64 a)

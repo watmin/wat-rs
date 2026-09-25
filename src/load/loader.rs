@@ -433,11 +433,12 @@ impl crate::edn::contract::ToEdn for LoadError {
     }
 }
 
-impl From<LoadFetchError> for LoadError {
-    fn from(e: LoadFetchError) -> Self {
-        LoadError::new(crate::rust_caller_span!(), LoadErrorKind::Fetch(e))
-    }
-}
+// The-little-wat stone P: `From<LoadFetchError> for LoadError` used to live here, stamping
+// `crate::rust_caller_span!()` on every fetch failure — naming wat-rs's own `loader.rs`
+// instead of the user's `load-file!` call. Deleted outright (not patched): with no blanket
+// `From`, no future `?` on a `LoadFetchError` can silently reach for the sentinel again; every
+// site that used to lean on it now maps explicitly through the `form_span` it already had in
+// reach (`fetch_source`, `fetch_payload`, and the two verification sites below).
 
 /// Drive recursive load resolution.
 ///
@@ -496,7 +497,7 @@ fn process_single_load(
     stack: &mut Vec<String>,
     out: &mut Vec<WatAST>,
 ) -> Result<(), LoadError> {
-    let fetched = fetch_source(&spec.source, base_canonical, loader)?;
+    let fetched = fetch_source(&spec.source, base_canonical, loader, form_span.clone())?;
 
     if stack.iter().any(|p| p == &fetched.canonical_path) {
         let mut cycle = stack.clone();
@@ -516,13 +517,13 @@ fn process_single_load(
     }
 
     // Digest-mode verification runs PRE-PARSE against raw bytes.
-    verify_pre_parse(&fetched, &spec.verification, base_canonical, loader)?;
+    verify_pre_parse(&fetched, &spec.verification, base_canonical, loader, form_span.clone())?;
 
     visited.insert(fetched.canonical_path.clone());
     stack.push(fetched.canonical_path.clone());
 
     let loaded_forms = parse_all_with_file(&fetched.source, &span_display_path(&fetched.canonical_path)).map_err(|err| LoadError::new(
-        crate::rust_caller_span!(),
+        form_span.clone(),
         LoadErrorKind::Parse {
             path: fetched.canonical_path.clone(),
             err,
@@ -537,6 +538,7 @@ fn process_single_load(
         &spec.verification,
         base_canonical,
         loader,
+        form_span.clone(),
     )?;
 
     // Inner process_forms derives each nested form's span from the form itself.
@@ -560,13 +562,16 @@ fn fetch_source(
     iface: &SourceInterface,
     base_canonical: Option<&str>,
     loader: &dyn SourceLoader,
+    form_span: Span,
 ) -> Result<LoadedSource, LoadError> {
     match iface {
         SourceInterface::String(s) => Ok(LoadedSource {
             canonical_path: synthetic_string_path(s),
             source: s.clone(),
         }),
-        SourceInterface::FilePath(p) => Ok(loader.fetch_source_file(p, base_canonical)?),
+        SourceInterface::FilePath(p) => loader
+            .fetch_source_file(p, base_canonical)
+            .map_err(|e| LoadError::new(form_span, LoadErrorKind::Fetch(e))),
     }
 }
 
@@ -576,10 +581,13 @@ fn fetch_payload(
     iface: &PayloadInterface,
     base_canonical: Option<&str>,
     loader: &dyn SourceLoader,
+    form_span: Span,
 ) -> Result<String, LoadError> {
     match iface {
         PayloadInterface::String(s) => Ok(s.clone()),
-        PayloadInterface::FilePath(p) => Ok(loader.fetch_payload_file(p, base_canonical)?),
+        PayloadInterface::FilePath(p) => loader
+            .fetch_payload_file(p, base_canonical)
+            .map_err(|e| LoadError::new(form_span, LoadErrorKind::Fetch(e))),
     }
 }
 
@@ -599,15 +607,16 @@ fn verify_pre_parse(
     verification: &Option<VerificationSpec>,
     base_canonical: Option<&str>,
     loader: &dyn SourceLoader,
+    form_span: Span,
 ) -> Result<(), LoadError> {
     match verification {
         None => Ok(()),
         Some(VerificationSpec::Digest { algo, payload }) => {
-            let hex = fetch_payload(payload, base_canonical, loader)?;
+            let hex = fetch_payload(payload, base_canonical, loader, form_span.clone())?;
             let hex_trimmed = hex.trim();
             crate::hash::verify_source_hash(fetched.source.as_bytes(), algo, hex_trimmed).map_err(
                 |err| LoadError::new(
-                    crate::rust_caller_span!(),
+                    form_span,
                     LoadErrorKind::VerificationFailed {
                         path: fetched.canonical_path.clone(),
                         err,
@@ -625,12 +634,13 @@ fn verify_post_parse(
     verification: &Option<VerificationSpec>,
     base_canonical: Option<&str>,
     loader: &dyn SourceLoader,
+    form_span: Span,
 ) -> Result<(), LoadError> {
     match verification {
         None | Some(VerificationSpec::Digest { .. }) => Ok(()),
         Some(VerificationSpec::Signed { algo, sig, pubkey }) => {
-            let sig_b64 = fetch_payload(sig, base_canonical, loader)?;
-            let pk_b64 = fetch_payload(pubkey, base_canonical, loader)?;
+            let sig_b64 = fetch_payload(sig, base_canonical, loader, form_span.clone())?;
+            let pk_b64 = fetch_payload(pubkey, base_canonical, loader, form_span.clone())?;
             crate::hash::verify_program_signature(
                 forms,
                 algo,
@@ -638,7 +648,7 @@ fn verify_post_parse(
                 pk_b64.trim(),
             )
             .map_err(|err| LoadError::new(
-                crate::rust_caller_span!(),
+                form_span,
                 LoadErrorKind::VerificationFailed {
                     path: canonical_path.to_string(),
                     err,
@@ -1394,7 +1404,6 @@ mod tests {
         // ── Row 1: the converted spelling is a load form, and it names the file.
         let sym_err = resolve_mem(r#"(wat/load-file! "missing.wat")"#, &[])
             .expect_err("a SYMBOL-headed load of a missing file must FAIL, not vanish");
-        let sym_msg = sym_err.to_string();
         match &*sym_err.kind {
             // Exact, not `contains`: the diagnostic must NAME THE MISSING FILE, and the
             // whole scalar is pinned so an appended or reworded message cannot pass.
@@ -1408,15 +1417,29 @@ mod tests {
             ),
         }
 
-        // ── Row 2: the keyword spelling is unchanged — same diagnostic, byte for byte.
+        // ── Row 2: the keyword spelling reaches the SAME fetch diagnostic, byte for byte.
+        //
+        // Stone P (the-little-wat): `LoadError`'s `:location` is now the load FORM's own
+        // span (real line/col), not the `rust_caller_span!()` sentinel every spelling used
+        // to share regardless of what it actually parsed. `wat/load-file!` and
+        // `:wat::load-file!` are different lengths, so their forms legitimately end at
+        // different columns now — comparing the whole `Display` (which embeds `:location`)
+        // would make this test pin a coincidence of the OLD sentinel, not the real
+        // invariant. What must still be byte-for-byte identical between the two spellings
+        // is the FETCH diagnostic itself; that is what this compares.
         let kw_err = resolve_mem(r#"(:wat::load-file! "missing.wat")"#, &[])
             .expect_err("the keyword-headed load of a missing file still fails");
-        assert_eq!(
-            kw_err.to_string(),
-            sym_msg,
-            "the two spellings are ONE identity: the symbol form must produce the \
-             keyword form's diagnostic byte-for-byte"
-        );
+        match &*kw_err.kind {
+            LoadErrorKind::Fetch(fetch) => assert_eq!(
+                fetch.to_string(),
+                "load: file not found: missing.wat",
+                "the two spellings are ONE identity: the keyword form must reach the same \
+                 fetch diagnostic as the symbol form, byte for byte"
+            ),
+            other => panic!(
+                "keyword head must reach the FETCH, not be declined as 'not a load form'; got {other:?}"
+            ),
+        }
 
         // ── Row 3: an unrelated symbol head is NOT a load form. It passes through
         //    untouched (`process_forms`' else-branch), exactly as it does today —

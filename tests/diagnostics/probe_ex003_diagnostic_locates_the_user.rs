@@ -10,7 +10,16 @@
 //!   which of 532 files raised `lex error at byte 258` meant grepping all 532 OUTSIDE wat.
 //!   **CURED** by excursus 003 stone O; `f091` below now pins the cure.
 //!
-//! Both reproduced at HEAD when this probe was banked. ⭐ F-006's span had already MOVED — their
+//! A third mechanism joined the same census (154 of 166 errors already located in the user's
+//! file; the loader was 1 of the misses), found and cured directly as stone P rather than first
+//! banked as a the-little-wat finding:
+//!
+//! - **Stone P** — `(:wat::load-file! "no-such-file.wat")` carried `:file "src/load/loader.rs"`:
+//!   `From<LoadFetchError> for LoadError` stamped `crate::rust_caller_span!()` on every fetch
+//!   failure even though `process_single_load` already held the `load-file!` form's own span.
+//!   **CURED** by excursus 003 stone P; `stone_p_*` below pin the cure.
+//!
+//! Both F-006 and F-091 reproduced at HEAD when this probe was banked. ⭐ F-006's span had already MOVED — their
 //! ledger records `src/check.rs:15141`, it was `15285` the day it was driven. The line drifted;
 //! the defect did not. A stale line number in a ledger reads exactly like a fixed defect, which
 //! is why these are driven and not quoted.
@@ -42,6 +51,30 @@
 //! mid-boundary (see `crates/wat-reader/tests/reader_totality.rs`), so this cure names the file,
 //! line and column and does not also claim to bound a range.
 //!
+//! ## What stone P changed, and the ONE site it could not cure the same way
+//!
+//! `impl From<LoadFetchError> for LoadError` (`src/load/loader.rs`) is DELETED outright, not
+//! patched — with no blanket `From`, no future `?` on a `LoadFetchError` can silently reach for
+//! the sentinel again. `fetch_source` / `fetch_payload` now take the caller's `form_span` and
+//! `map_err` explicitly; `verify_pre_parse` / `verify_post_parse` gained a `form_span` parameter
+//! for the same reason; the `LoadErrorKind::Parse` site in `process_single_load` swapped its
+//! `rust_caller_span!()` for the same `form_span`. All four sites the brief named had a real
+//! `load-file!` form span in reach.
+//!
+//! A FIFTH call site did not: `crates/wat-macros/src/lib.rs`'s `wat::main! { loader: … }`
+//! expansion built a `LoadError` from `ScopedLoader::new`'s failure via `LoadError::from(e)` —
+//! the deleted blanket `From` — and this fires BEFORE any `.wat` form is ever read, when the
+//! `loader:` ROOT PATH itself (a Rust-side macro argument, not wat source) fails to canonicalize.
+//! No `form_span` exists here BY CONSTRUCTION, not by an oversight: there is no form yet. The
+//! fix is an EXPLICIT `LoadError::new(::wat::rust_caller_span!(), …)` at that one site — not a
+//! silent `?`, and driven, not assumed: because the tokens are built by `quote!` inside a
+//! `#[proc_macro]`, `rust_caller_span!()`'s `file!()`/`line!()` resolve to the CONSUMER crate's
+//! own `wat::main! { … }` invocation (its call-site span), not to `wat-macros/src/lib.rs` — e.g.
+//! a broken `loader: "does-not-exist"` in `examples/with-loader/src/main.rs` reports `:location
+//! #wat.core/Span {:file "examples/with-loader/src/main.rs" :line 1 :col 1}`, the embedding
+//! program's own macro call, never wat-rs's own source. That is the one recoverable location a
+//! misconfigured loader root has.
+//!
 //! ## The root: the sentinel is a CONVENTION, NOT A SHAPE
 //!
 //! `src/check/error.rs` states the doctrine: *"`crate::rust_caller_span!()` is the explicit
@@ -65,10 +98,11 @@
 //! would survive into a captured golden today. Keying on the `.rs` suffix alone covers both
 //! without enumerating roots, and closes that hole by construction.
 //!
-//! ## ⛔ Both known defects this probe was banked to pin are now CURED — every test below asserts
-//! the cured shape. That is not a reason to delete it: it is the standing regression fixture.
+//! ## ⛔ Every defect this probe was banked (or later extended) to pin is now CURED — every test
+//! below asserts the cured shape. That is not a reason to delete it: it is the standing
+//! regression fixture.
 //!
-//! All five assert the CURED shape (no `.rs` `:file`), and the first of them is a NEGATIVE
+//! All seven assert the CURED shape (no `.rs` `:file`), and the first of them is a NEGATIVE
 //! CONTROL that must pass in every world: without it the detector could pass by flagging every
 //! diagnostic, and would stay green after a "cure" that broke user spans.
 //! `[[a-resolver-whose-halves-overlap-proves-nothing]]`
@@ -77,8 +111,11 @@
 //! back to `crate::rust_caller_span!()` in `src/check.rs` turns all three RED and leaves the
 //! control green. `f091` (stone O) has its own mutation: forcing `From<LocatedLexError> for
 //! ParseError` (`crates/wat-reader/src/parser.rs`) back to `crate::rust_caller_span!()` turns
-//! ONLY `f091` RED and leaves the control and the three stone-B tests green. A gate that has
-//! never failed is not a gate.
+//! ONLY `f091` RED and leaves the control and the three stone-B tests green. The two `stone_p_*`
+//! tests have their own mutation: restoring `impl From<LoadFetchError> for LoadError` (with
+//! `rust_caller_span!()`, `src/load/loader.rs`) and having `fetch_source` lean on `?` again turns
+//! ONLY the two `stone_p_*` tests RED, leaving the control, the three stone-B tests, and `f091`
+//! green. A gate that has never failed is not a gate.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -234,4 +271,38 @@ fn variant_singleton_a_refusal_names_the_enums_declaration() {
 #[test]
 fn f091_a_lex_error_names_the_users_own_file() {
     assert_locates_the_user("f091_lex_error", "wat.bad", "F-091 (lex error, AngleTypeHeadInName)");
+}
+
+/// Stone P — `(:wat::load-file! "does-not-exist-stone-p.wat")`. `From<LoadFetchError> for
+/// LoadError` used to name `src/load/loader.rs` (`rust_caller_span!()`) even though
+/// `process_single_load` already held the `load-file!` form's own span.
+#[test]
+fn stone_p_a_missing_load_names_the_load_call() {
+    assert_locates_the_user(
+        "load_missing",
+        "wat",
+        "stone P (LoadErrorKind::Fetch, missing file)",
+    );
+}
+
+/// Stone P — a lex error in a LOADED file. `assert_locates_the_user` alone cannot tell "two
+/// different non-`.rs` files" from "the same file twice", so this checks the split directly: the
+/// OUTER `:location` must be the `load-file!` call (this fixture); the nested `:cause`'s own
+/// `:location` (stone O's `LocatedLexError`) must be the LOADED file's real line/col — outer is
+/// where the user asked to load, inner is where it broke.
+#[test]
+fn stone_p_a_lex_error_in_a_loaded_file_locates_outer_and_cause() {
+    let err = stderr_of("load_lex_error", "wat");
+    let files = span_files(&err);
+    assert_eq!(
+        files,
+        vec![
+            "tests/diagnostics/probe_ex003_diagnostic_locates_the_user__load_lex_error.wat"
+                .to_string(),
+            "tests/diagnostics/probe_ex003_diagnostic_locates_the_user__load_lex_error_target.wat.bad"
+                .to_string(),
+        ],
+        "stone P (LoadErrorKind::Parse, lex error in loaded file): expected exactly the outer \
+         load-file! call's file followed by the loaded file's own lex-error location.\n{err}"
+    );
 }

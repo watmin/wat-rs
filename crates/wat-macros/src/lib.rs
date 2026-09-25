@@ -552,7 +552,21 @@ pub fn main(input: TokenStream) -> TokenStream {
                     ::wat::load::loader::ScopedLoader::new(__wat_loader_root).map_err(|e| {
                         ::wat::host::guest::GuestError::Startup(::std::boxed::Box::new(
                             ::wat::freeze::StartupError::Load(
-                                ::wat::load::loader::LoadError::from(e),
+                                // The-little-wat stone P: `From<LoadFetchError> for LoadError`
+                                // is gone (see loader.rs) — every conversion now names its
+                                // own span explicitly. THIS site genuinely has no wat-form
+                                // span to give: the failure is `ScopedLoader::new` rejecting
+                                // the `loader:` ROOT PATH itself, which happens before any
+                                // `.wat` source is even read. `rust_caller_span!()` here
+                                // expands inside the CONSUMER crate's `wat::main! {}`
+                                // invocation (quote!'s tokens carry that call-site span), so
+                                // it names the embedding Rust program's own macro call — not
+                                // wat-rs's `lib.rs` — which is the one recoverable location
+                                // for a misconfigured loader root.
+                                ::wat::load::loader::LoadError::new(
+                                    ::wat::rust_caller_span!(),
+                                    ::wat::load::loader::LoadErrorKind::Fetch(e),
+                                ),
                             ),
                         ))
                     })?,
