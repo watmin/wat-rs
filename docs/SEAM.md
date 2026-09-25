@@ -21,8 +21,8 @@ ls -dt docs/arc/2026/*/*/ | head -6      # which arcs moved most recently
 git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # the ignore ledger, live
 ```
 
-**Stamp: written against HEAD `12c9fde89` (2026-09-24, late).** `main` == `origin/main` at that commit.
-Release floor at `12c9fde89`: **6094 passed / 22 skipped**, clippy 0, census 215 non-zero, delta NEW 2 / RECOVERY 0, ledger 211.
+**Stamp: written against HEAD `16d093e90` (2026-09-25).** `main` == `origin/main` at that commit.
+Release floor at `fda59f3e9`: **6116 passed / 22 skipped**, clippy 0, census 216 non-zero, delta NEW 2 / RECOVERY 0, ledger 208.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
@@ -49,8 +49,13 @@ declaration.** The C-a → C-b → C-c cure is now mostly landed:
 | 255.25 | `:wat::kernel::Transport` Pure enum `{Shared, Wire}` (ruled); the child main says `Wire` |
 | 255.26 | a builtin is structured OR a leaf (**the debug build had been red since `10599eb36`**) |
 | 255.27 | the transport special cases are deleted and **D2 lands**; the kwargs hole is closed |
+| 255.28 | purity sees through a generic type |
+| 255.29 | a thread address is data (`ThreadAddressWire`, no auth: builder, *"auth on threads is nonsense"*); `Shared` is pure |
+| 255.30 | ⭐ `ThreadSelfPeer` is gone. **RULED: only data crosses a comm, on every locus; resources live only in `:ephemeral`** |
 
-**THE QUEUE, from the WEIGHs:**
+**THE QUEUE, from the WEIGHs** (executor since 255.29: grok via pulsare; the orchestrator re-runs every SCORE):
+
+0. From 255.29/.30: rename the negative row `probe_arc255_30_struct_on_thread_peer.wat` to `.wat.bad` (census baseline **216** until then) · a send-time purity check read an **open type variable as impure** · a `Process` spawn's `I`/`O` are bound at the first send and never re-checked · the ZERO-MUTEX registry (builder's call) · 255.28's substitution path may now lack a refused row.
 
 1. ⛔ **255.27 survivor 1: what IS a transport-agnostic sink address?** The 2-argument `(Address :- [S R])`
    means "either transport" at 6 stdlib sites and about 56 corpus files. Some of them (`:init` params,
