@@ -1,5 +1,10 @@
 # DESIGN — the error envelope and its frames
 
+> ⭐ **RULED 2026-09-24 — D1, D2, D3, D4 accepted as written.** Builder: *"let's go with this list - we
+> can tweak D3 later if it impedes our ability to investigate"*. D3 ships with ONE Rust frame (the
+> raising site); a full native backtrace stays available as a later change if the one frame proves too
+> little to investigate with.
+
 **Drawn 2026-09-25, for the builder's ruling before anything is built.** Grounded in two read-only
 reports committed at `5459ecc3c`: `AUDIT-error-shapes-and-backtraces.md` (the measurement map) and
 `reports/conformare.md` (the ward). Every claim below was re-checked against the code by the
