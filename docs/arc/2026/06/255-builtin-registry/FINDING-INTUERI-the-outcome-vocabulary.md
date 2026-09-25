@@ -107,3 +107,36 @@ The `PeerCrashed` sentinel is intercepted only in `Peer::recv`/`recv_wire`. The 
 (`message.rs:1191`, `:1277`, `:1745`) do not check for it. A caller that `select'`s over client
 connections could read a server crash as `ServiceEvent.Message` carrying `:wat::kernel::__peer_crashed__`.
 Not measured.
+
+---
+
+## ⭐⭐ RULING (builder, 2026-09-25) — the supervisor pattern: who may know a death's reason
+
+> *"the server does not receive a client's death reason as it cannot use that meaningfully.. the client
+> just goes away and the server must reap their resources once they observe a dead handle. a dead
+> service should optimistically notify all connected clients that its crashing without providing a
+> reason, the reason may only be provided to the admin handle who owns the service (supervisor
+> pattern)"*
+
+Also: *"eprintln must be our final statement just before we ungracefully terminate"* (R51). A service
+that must keep serving never `eprintln`s.
+
+**A death's reason goes to exactly one party: the owner/supervisor, through the admin handle.**
+
+| vantage | a client dies | the service dies |
+|---|---|---|
+| **the server** (serving clients) | the client **just goes away**: `Closed`, **no reason**. The server **reaps** its resources on observing the dead handle | — |
+| **a client** (of a service) | — | an **optimistic, reasonless** notice that the service is crashing (the reason-free `PeerCrashed` broadcast is this mechanism) |
+| **the owner/supervisor** (holds the admin handle, i.e. `Thread'`/`Process'`) | the owner of *that client* gets the reason | **the reason**: `LociDiedError`, through the crash channel |
+
+**What this changes in the ward's proposed vocabulary:**
+
+- **`ServiceEvent` (the server vantage) carries no `Died [cause]` for a client.** A client's death is
+  `Closed`, and the server reaps.
+- `select'` over **owner handles** (`Thread'`/`Process'`) is the supervisor vantage. There, `Died [LociDiedError]`
+  is correct.
+- **A client's recv/send on a service that crashed** gets a reasonless "the service died" fact, distinct
+  from a clean `Closed`, and never the reason.
+- **`LociDiedError` appears only at the supervisor vantage.**
+- ⛔ The `wat/service.wat` `ServiceEvent.Lost` arm's promise to surface the reason on stderr is **void by
+  ruling**. The arm **reaps and continues**, with no reason and no `eprintln`.
