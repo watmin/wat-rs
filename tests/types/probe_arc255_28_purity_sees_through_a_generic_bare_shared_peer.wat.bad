@@ -1,0 +1,8 @@
+;; Stone 255.28 — CONTROL A (peer payload): a wire peer produced over the bare Shared address is
+;; refused by the §7 peer wall at the producer. Refused before and after the stone.
+(:wat::core::defn :probe::bare-peer [] -> :wat::core::nil
+  (:wat::core::let
+    [_self (:wat::program::self-peer
+             (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])
+             :wat::core::i64)]
+    nil))

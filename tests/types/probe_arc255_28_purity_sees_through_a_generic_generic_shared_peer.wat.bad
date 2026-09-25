@@ -1,0 +1,8 @@
+;; Stone 255.28 — SUBJECT B (peer payload): the same Shared address through the `Pure` generic
+;; enum, as a wire peer's payload. Pre-stone ACCEPTED (only the argument was asked); now refused.
+(:wat::core::defenum :probe::E :- [T] :wat::enum::Pure
+  :Started [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 T])])
+(:wat::core::defn :probe::generic-peer [] -> :wat::core::nil
+  (:wat::core::let
+    [_self (:wat::program::self-peer (:probe::E :- [:wat::kernel::Transport.Shared]) :wat::core::i64)]
+    nil))

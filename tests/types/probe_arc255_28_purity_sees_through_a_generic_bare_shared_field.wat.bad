@@ -1,0 +1,4 @@
+;; Stone 255.28 — CONTROL A (record field): the bare Shared address as a pure `Record` field is
+;; refused (`is_pure_type`'s `Address` arm). Refused before and after the stone.
+(:wat::core::defrecord :probe::HoldsBare
+  [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])])

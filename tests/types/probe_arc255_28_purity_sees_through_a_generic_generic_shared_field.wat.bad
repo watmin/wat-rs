@@ -1,0 +1,8 @@
+;; Stone 255.28 — SUBJECT B (record field): the SAME Shared address, reached only through a
+;; `Pure` generic enum's type argument (the defservice `Status` shape). Pre-stone the purity
+;; wall asked only the argument (`Transport.Shared`, a pure marker) and ACCEPTED it; now the
+;; argument is substituted into `:Started`'s field and the address is seen: refused.
+(:wat::core::defenum :probe::E :- [T] :wat::enum::Pure
+  :Started [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 T])])
+(:wat::core::defrecord :probe::HoldsGeneric
+  [status <- (:probe::E :- [:wat::kernel::Transport.Shared])])

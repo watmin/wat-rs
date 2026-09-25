@@ -14963,6 +14963,15 @@ fn is_registered_rust_opaque(path: &str) -> bool {
 }
 
 /// (Arc 293.W.2b — renamed from `is_pure_type`; the cause is purity, not movement.)
+///
+/// Stone 255.28 — a parametric type's purity is its DECLARATION's purity, instantiated. For
+/// `(Head :- [A…])` naming a declared `Aggregate`/`Enum`, the declared nature/purity marker
+/// decides first (a `Struct` or an `Impure` enum is impure whatever its arguments), then the
+/// arguments are substituted into every declared field / tagged-variant field and each must be
+/// pure. Before this stone only the arguments were asked, so a Shared `Address` reached through
+/// a `Pure` generic enum (`(E :- [Transport.Shared])` whose variant field is
+/// `(Address :- [… T])`) read PURE — the defservice `Status` shape
+/// (`FINDING-what-relies-on-the-thread-escape-hatch.md`).
 pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
     // Canonicalize: expand aliases and walk through any substitution.
     let ty = reduce(ty, &Subst::new(), types);
@@ -15020,11 +15029,18 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                         _ => args.iter().all(|a| is_pure_type(a, types)),
                     }
                 }
-                // Pure container: pure iff all type args are pure.
-                // (Vector :- [T]), (List :- [T]), (Option :- [T]), (Result :- [T E]), (HashMap :- [K V]),
-                // (HashSet :- [T]), (Tuple :- […]) — any other parametric is conservatively
-                // pure-if-args-pure (falls through to the arg check).
-                _ => args.iter().all(|a| is_pure_type(a, types)),
+                // A builtin container — (Vector :- [T]), (HashMap :- [K V]), (HashSet :- [T]),
+                // (Tuple :- […]) — has no declaration in the TypeEnv: its fields ARE its
+                // arguments, so it is pure iff all type args are pure.
+                //
+                // Stone 255.28 — a head the TypeEnv DECLARES (a user/stdlib `Aggregate` or `Enum`,
+                // e.g. `:wat::core::Option`, a defservice `Status`) is additionally asked its
+                // declaration, instantiated (`declared_instance_is_pure`). The arguments are still
+                // asked first, so this only ever narrows the old verdict, never widens it.
+                _ => {
+                    args.iter().all(|a| is_pure_type(a, types))
+                        && declared_instance_is_pure(head, args, types)
+                }
             }
         }
         TypeExpr::Path(p) => {
@@ -15129,6 +15145,74 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
             }
         }
     }
+}
+
+thread_local! {
+    /// Stone 255.28 — the declared heads `declared_instance_is_pure` is asking right now.
+    static PURITY_VISITING: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Stone 255.28 — `(Head :- [A…])`'s declaration, instantiated. `head` is the Parametric head
+/// (bare or colon-prefixed; `parametric_head_fqdn` is the one door to the TypeEnv key).
+///
+/// - A declared `Aggregate`: its `nature` decides first (`Struct` is impure whatever its
+///   arguments); then every field type, with the declared `type_params` substituted by `args`,
+///   must be pure.
+/// - A declared `Enum`: its `purity` marker decides first (`Impure` is impure); then every tagged
+///   variant's field types, substituted, must be pure.
+/// - Anything else (a builtin container with no declaration, a surface, …) is not narrowed here:
+///   `true`, leaving the caller's "pure iff args pure".
+///
+/// An unbound type variable stays decided at instantiation: substituting `:T` for `:T` leaves a
+/// path the TypeEnv does not know, which `is_pure_type`'s `None` arm reads as a formal parameter.
+/// Re-entering a head already being asked answers `true` (the recursion guard): a
+/// self-referential generic (`(Chain :- [T])` with a field `(Chain :- [T])`, or a growing
+/// `(Chain :- [(Vector :- [T])])`) meets its own head again, and its impurity, if any, is decided
+/// by the enclosing visit's other fields and by the arguments, which the caller always asks.
+///
+/// The guard is a thread-local stack rather than a parameter so `is_pure_type` keeps its
+/// signature and its body (every consumer, and the keyword-heresy ledger's row for it, unchanged).
+fn declared_instance_is_pure(
+    head: &str,
+    args: &[TypeExpr],
+    types: &TypeEnv,
+) -> bool {
+    use crate::types::{parametric_head_fqdn, substitute_type_params, EnumVariant, TypeDef};
+    let key = parametric_head_fqdn(head);
+    let (params, fields): (&[String], Vec<&TypeExpr>) = match types.get(&key) {
+        Some(TypeDef::Aggregate(a)) => {
+            if !a.nature.is_pure() {
+                return false;
+            }
+            (&a.type_params, a.field_types().collect())
+        }
+        Some(TypeDef::Enum(e)) => {
+            if !e.purity.is_pure() {
+                return false;
+            }
+            let fields = e
+                .variants
+                .iter()
+                .flat_map(|v| match v {
+                    EnumVariant::Tagged { fields, .. } => fields.iter().map(|(_, t)| t).collect(),
+                    EnumVariant::Unit(_) => Vec::new(),
+                })
+                .collect();
+            (&e.type_params, fields)
+        }
+        _ => return true,
+    };
+    if PURITY_VISITING.with(|v| v.borrow().contains(&key)) {
+        return true;
+    }
+    let mapping: HashMap<String, TypeExpr> =
+        params.iter().cloned().zip(args.iter().cloned()).collect();
+    PURITY_VISITING.with(|v| v.borrow_mut().push(key));
+    let pure = fields
+        .into_iter()
+        .all(|f| is_pure_type(&substitute_type_params(f, &mapping), types));
+    PURITY_VISITING.with(|v| v.borrow_mut().pop());
+    pure
 }
 
 /// Arc 293.W — THE CONTAINMENT RULE post-registration pass.

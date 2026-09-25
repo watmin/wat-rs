@@ -1,0 +1,7 @@
+;; Stone 255.28 — a generic `Struct` instantiated with PURE arguments is still impure: the
+;; declared nature decides first. Pre-stone `(Box :- [i64])` read pure (args only) and was
+;; admitted into a pure `Record`.
+(:wat::core::defstruct :probe::Box :- [T]
+  [v <- :T])
+(:wat::core::defrecord :probe::HoldsBox
+  [box <- (:probe::Box :- [:wat::core::i64])])

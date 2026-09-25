@@ -1,0 +1,7 @@
+;; Stone 255.28 — the enum half of "the declaration decides first": a generic `Impure` enum
+;; instantiated with pure arguments is still impure. Pre-stone it read pure (args only).
+(:wat::core::defenum :probe::Lease :- [T] :wat::enum::Impure
+  :Held [v <- :T]
+  :Free [])
+(:wat::core::defrecord :probe::HoldsLease
+  [lease <- (:probe::Lease :- [:wat::core::i64])])
