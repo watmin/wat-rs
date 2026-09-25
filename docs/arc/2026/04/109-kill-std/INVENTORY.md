@@ -1883,8 +1883,8 @@ The doctrine EXPOSES inconsistency in shipped substrate where constructors were 
 | `:wat::core::Option/try` | unwraps existing Option (returns from fn if None) |
 | `:wat::core::Result/expect` / `/try` | unwrap existing Result |
 | `:wat::core::Uuid/to-string` | formats existing Uuid |
-| `:wat::core::keyword/from-string` | constructor — should migrate to `::from-string`; pre-doctrine artifact |
-| `:wat::core::keyword/to-string` | takes a keyword (instance) → String; could go either way (parameter-name suggests instance) — audit case-by-case |
+| `:wat::core::keyword/from-name` | constructor — should migrate to `::from-string`; pre-doctrine artifact |
+| `:wat::core::keyword/name` | takes a keyword (instance) → String; could go either way (parameter-name suggests instance) — audit case-by-case |
 
 The audit is NOT exhaustive — sonnet/future-arc sweep will enumerate every `/` registration in check.rs + classify. Pre-doctrine `/` constructors are technical debt; sweep when convenient.
 

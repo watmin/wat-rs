@@ -24,7 +24,7 @@ that auto-gathers rules (`collect-rules`) is stone 5b — NOT here; 5a's probe c
 
 ## Part 1 — `query` (do this first; it's small + unblocks the probe's query tests)
 `(:wat::core::defn :wat::rete::query [session <- :wat::rete::Session  ty <- :wat::core::keyword] -> :wat::core::PersistentVector ...)`:
-- normalize `ty` to the `(:wat::core::type fact)` string: `(:wat::core::keyword/to-string ty)`, then strip a
+- normalize `ty` to the `(:wat::core::type fact)` string: `(:wat::core::keyword/name ty)`, then strip a
   leading `:` if present (so `:weather::ColdAndWindy` → `"weather::ColdAndWindy"`; confirm `keyword/to-string`'s
   exact output and strip iff needed).
 - flatten `production-memory` values into one `PV<:wat::Record>` (foldl over

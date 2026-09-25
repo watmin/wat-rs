@@ -1,7 +1,7 @@
 ;; probe-arc278-child-entry-static-call.wat — THE DISCONFIRMING PROBE for the child-entry strike.
 ;;
 ;; THE STRIKE IT GUARDS. `defservice`'s generated child main reaches its own internals through
-;; `(:wat::core::apply (:wat::core::keyword/from-string "<fqdn>::serve") …)` — a call that exists
+;; `(:wat::core::apply (:wat::core::keyword/from-name "<fqdn>::serve") …)` — a call that exists
 ;; BECAUSE it does not resolve statically, so no closure walk can follow it. The strike replaces
 ;; that with a per-service `<fqdn>::child-entry` — a REAL parent defn that names `serve` and
 ;; `dispatch-admin` statically — so ONE `fn-forms` over it reaches everything and the

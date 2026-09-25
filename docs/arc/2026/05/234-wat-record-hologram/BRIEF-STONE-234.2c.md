@@ -54,7 +54,7 @@ to:
 ```
 
 The expand-time substitutions:
-- `"myapp::Voltage"` (the class FQDN string) is built at expand time via `~(:wat::core::keyword/to-string fqdn)` — same pattern as 234.2b's predicate body
+- `"myapp::Voltage"` (the class FQDN string) is built at expand time via `~(:wat::core::keyword/name fqdn)` — same pattern as 234.2b's predicate body
 - The accessor name (`:myapp::Voltage/magnitude`) embeds in the message prefix as a literal string built via `~(:wat::core::string::concat ...)` at expand time
 - The positional index `0` (or whatever `fi` resolves to) stays as the field-at second arg
 

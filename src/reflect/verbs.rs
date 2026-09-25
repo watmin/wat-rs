@@ -1611,7 +1611,7 @@ pub(crate) fn eval_is_type(
 /// @ret     (:wat::core::Option :- [:wat::core::keyword]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::core::Option::Some) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Option
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::cache::Cache::GetRequest) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
-/// @example (:wat::core::match (:wat::runtime::variant-parent-of (:wat::keyword::from-string "wat::core::Result.Ok")) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Result
+/// @example (:wat::core::match (:wat::runtime::variant-parent-of (:wat::keyword::from-name "wat::core::Result.Ok")) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Result
 /// @see     :wat::runtime::is-type?
 /// @see     :wat::runtime::type-of
 #[wat_intrinsic(":wat::runtime::variant-parent-of")]
@@ -1686,7 +1686,7 @@ pub(crate) fn eval_variant_parent_of(
 ///
 /// Both args are literal-or-computed — the same door as `variant-parent-of` (arc 166's
 /// `eval_lookup_define`, NOT `is-type?`'s literal-only one). `service.wat` passes a COMPUTED
-/// enum keyword (built via `keyword::from-string` over an interpolated string); a literal-only
+/// enum keyword (built via `keyword::from-name` over an interpolated string); a literal-only
 /// door would be unusable by its only caller — the mistake this arc already made once
 /// (`variant-parent-of` shipped literal-only, passed every gate, and was unusable by its only
 /// caller) and is not making twice.
@@ -1707,7 +1707,7 @@ pub(crate) fn eval_variant_parent_of(
 /// @arg     variant_kw_ast :wat::core::keyword the bare variant leaf (a literal keyword, or an expression yielding one)
 /// @ret     :wat::core::keyword the composed variant name, `enum_path.variant_leaf` (`wat_reader::identifier::compose_variant`)
 /// @example (:wat::runtime::compose-variant :wat::cache::Lru :Hit) #=> :wat::cache::Lru.Hit
-/// @example (:wat::runtime::compose-variant (:wat::keyword::from-string "wat::cache::Lru") :Hit) #=> wat::cache::Lru.Hit
+/// @example (:wat::runtime::compose-variant (:wat::keyword::from-name "wat::cache::Lru") :Hit) #=> wat::cache::Lru.Hit
 /// @see     :wat::runtime::variant-parent-of
 #[wat_intrinsic(":wat::runtime::compose-variant")]
 pub(crate) fn eval_compose_variant(
@@ -1752,8 +1752,8 @@ pub(crate) fn eval_compose_variant(
     // The variant LEAF is colon-free: a keyword's stored spelling carries its `:`
     // (`:PeersDenied`), and composing that verbatim yields `…Status.:PeersDenied` — a name
     // whose decomposed variant can never match the enum's declared `PeersDenied`. The enum
-    // path KEEPS its colon; it is an FQDN. Same boundary `keyword::from-string` polices on
-    // the way in (it refuses a leading colon) and `keyword::to-string` on the way out.
+    // path KEEPS its colon; it is an FQDN. Same boundary `keyword::from-name` polices on
+    // the way in (it refuses a leading colon) and `keyword::name` on the way out.
     let composed = wat_reader::identifier::compose_variant(
         &enum_kw,
         variant_kw.strip_prefix(':').unwrap_or(&variant_kw),

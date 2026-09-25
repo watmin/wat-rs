@@ -14,7 +14,7 @@ use crate::span::Span;
 /// - `Provenance::Literal { span }` — the value appeared as a literal in source.
 /// - `Provenance::SymbolBound { binding_span, head_span }` — bound via let-symbol lookup.
 /// - `Provenance::RuntimeBuilt { producer, call_span }` — built by `from-holon`, `edn::read`,
-///   `keyword-node`, `keyword/from-string`/`to-symbol`/`to-type-form`/`to-type-form-colon`,
+///   `keyword-node`, `keyword/from-string`, `keyword/from-name`, `to-symbol`/`to-type-form`/`to-type-form-colon`,
 ///   mailbox payload, etc. Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning
 ///   signature (sniffed from the handler's own declared return type,
 ///   `crates/wat-macros/src/wat_intrinsic.rs`), so a registry-routed producer CAN stamp this
@@ -32,8 +32,8 @@ pub enum Provenance {
     /// was defined; head_span is where the symbol appeared in the call.
     SymbolBound { binding_span: Span, head_span: Span },
     /// Value was constructed by a producer function at runtime.
-    /// E.g., `(keyword/from-string s)` returns a keyword with
-    /// `RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span }`.
+    /// E.g., `(keyword/from-name s)` returns a keyword with
+    /// `RuntimeBuilt { producer: ":wat::keyword::from-name", call_span }`.
     RuntimeBuilt { producer: &'static str, call_span: Span },
 }
 

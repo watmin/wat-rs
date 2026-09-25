@@ -49,13 +49,13 @@ Mirror the predecessor verbatim for the pieces that work, ADD per-field accessor
               (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                 <emit symbol AST for field name at index fi>))]
          (:wat::holon::Bind                        ;; holon_form
-           (:wat::holon::Atom (:wat::holon::to-holon ~(:wat::core::keyword/to-string fqdn)))
+           (:wat::holon::Atom (:wat::holon::to-holon ~(:wat::core::keyword/name fqdn)))
            (:wat::core::Result/expect -> :wat::holon::HolonAST
              (:wat::holon::Bundle
                [~@<field-Binds vector, same as 227 v3 lines 122-145>])
              ~(:wat::core::string::concat
                  "Record::def "
-                 (:wat::core::keyword/to-string fqdn)
+                 (:wat::core::keyword/name fqdn)
                  " instance: Bundle capacity exceeded")))))
 
      ;; ─── Per-field accessors (spliced; one per field) ─────────────
@@ -68,7 +68,7 @@ Mirror the predecessor verbatim for the pieces that work, ADD per-field accessor
      (:wat::core::defn ~(<predicate-name-from-fqdn>) [v <- :wat::Record] -> :wat::core::bool
        (:wat::core::=
          (:wat::core::type v)
-         ~(:wat::core::keyword/to-string fqdn)))))
+         ~(:wat::core::keyword/name fqdn)))))
 ```
 
 ### Three accessor parts (per-field, in the `:wat::core::map` body)
@@ -81,7 +81,7 @@ For field at position `fi`:
    name-h     (:wat::core::Option/expect -> :wat::holon::HolonAST
                 (:wat::core::Vector/get children idx)
                 "Record::def: field name index out of range")
-   name-s     (:wat::core::keyword/to-string
+   name-s     (:wat::core::keyword/name
                 (:wat::holon::from-holon name-h))
 
    ;; Type-keyword at children-index (idx + 2)
@@ -91,9 +91,9 @@ For field at position `fi`:
    type-w     (:wat::holon::to-wat type-h)
 
    ;; Accessor name = "<fqdn-str>/<field-name>" → keyword
-   accessor-name (:wat::core::keyword/from-string
+   accessor-name (:wat::core::keyword/from-name
                    (:wat::core::string::concat
-                     (:wat::core::keyword/to-string fqdn)
+                     (:wat::core::keyword/name fqdn)
                      "/"
                      name-s))]
   (:wat::core::quasiquote

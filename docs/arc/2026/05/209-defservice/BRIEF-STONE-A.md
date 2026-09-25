@@ -78,11 +78,11 @@ Shape (sketch; sonnet refines via substrate-internal discovery + the production 
   `(~(:wat::core::keyword/of svc
        (:wat::core::string::concat
          "::-start-"
-         (:wat::core::keyword/to-string tier)))
+         (:wat::core::keyword/name tier)))
     ~state))
 ```
 
-**Sonnet's substrate-internal discovery:** verify the EXACT shape of `:wat::core::keyword/to-string`, `:wat::core::string::concat`, and `keyword/of`'s call signature at expand time. Adjust the macro body to match. The production precedent at `wat/runtime.wat:17-32` is the canonical reference for substrate-call-at-expand-time patterns.
+**Sonnet's substrate-internal discovery:** verify the EXACT shape of `:wat::core::keyword/name`, `:wat::core::string::concat`, and `keyword/of`'s call signature at expand time. Adjust the macro body to match. The production precedent at `wat/runtime.wat:17-32` is the canonical reference for substrate-call-at-expand-time patterns.
 
 **Edge cases sonnet handles:**
 - If `tier` is not `:thread`, `:process`, or `:remote`, what happens? Defer to the dispatched fn's resolution: if `:service::-start-foo` doesn't exist, type-checker errors at the call site. Don't add expand-time validation in this stone; it's the substrate's job to catch unknown keywords. (Future: arc could add an expand-time whitelist check; OUT OF SCOPE here.)
@@ -155,7 +155,7 @@ After all 4 tasks, workspace tests must remain green at baseline ± 0 new failur
 
 1. **`keyword/of` doesn't accept the AST shapes the macro produces** — sonnet finds at expand time that keyword/of needs different inputs than the BRIEF sketches. STOP, surface, orchestrator decides (likely: use existing helpers per production precedent at wat/runtime.wat).
 2. **Walker reshape requires bigger surface changes** than List arm detection (e.g., needing to track ancestor context across multiple AST levels). STOP, surface.
-3. **`:wat::core::string::concat` or `:wat::core::keyword/to-string` doesn't exist or has different signature** than sketched. STOP, surface, propose alternative (e.g., a single `keyword/extend` primitive if it exists).
+3. **`:wat::core::string::concat` or `:wat::core::keyword/name` doesn't exist or has different signature** than sketched. STOP, surface, propose alternative (e.g., a single `keyword/extend` primitive if it exists).
 4. **Negative test reveals walker fires on the new 3-arg form** (because the walker still sees the bare keyword). Mechanism gap; STOP + surface.
 5. **More than 100 line changes to walker** than sketched. Sketch predicted ~30-50 lines; if substantially more, surface scope concern.
 

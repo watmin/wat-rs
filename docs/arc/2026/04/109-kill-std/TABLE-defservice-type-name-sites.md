@@ -9,7 +9,7 @@
 >   RETURN-type slot (`-> ~state-ty`), on the same line as the `[ai <- ~admin-ty]` param this table
 >   *did* record under `admin-ty`. Classified ANNOTATION, unambiguous.
 > - `record-ty` has an **OTHER** consumption this table did not list:
->   `(:wat::core::keyword/to-string record-ty)` — a macro-expand-time value read feeding a
+>   `(:wat::core::keyword/name record-ty)` — a macro-expand-time value read feeding a
 >   string-equality check on the user's `:hibernate` return type. Never spliced into emitted code.
 >   Same class as `surface-kw` / `launch-head-kw`. **Its destination is UNRESOLVED** and must be
 >   ruled before either `record-ty` alias's shape can move.
@@ -21,14 +21,14 @@ changed.
 
 Every built name in `defservice` is minted the same mechanical way: a string is assembled
 (`string::interpolate`/`string::concat`) and turned into a node with
-`(:wat::core::keyword/from-string ...)`. That call is the one anchor point common to every built
+`(:wat::core::keyword/from-name ...)`. That call is the one anchor point common to every built
 name in the file, so the population is defined as: **every `let`-local binding in `wat/service.wat`
-whose right-hand side is a call to `:wat::core::keyword/from-string`.**
+whose right-hand side is a call to `:wat::core::keyword/from-name`.**
 
 Command:
 
 ```
-grep -noE '^\s*\[?[A-Za-z_][A-Za-z0-9_-]*\s+\(:wat::core::keyword/from-string' wat/service.wat
+grep -noE '^\s*\[?[A-Za-z_][A-Za-z0-9_-]*\s+\(:wat::core::keyword/from-name' wat/service.wat
 ```
 
 (the `\[?` also catches the two bindings written inside a `let`-vector destructure, `[sf-kw (...)]`
@@ -39,11 +39,11 @@ and `[req-ty (...)]`, which a plain leading-whitespace match misses).
 scopes inside two different `foldl` loop bodies; a shared name, not a shared binding, so each
 occurrence is its own row below).
 
-Sanity check: `grep -c ':wat::core::keyword/from-string' wat/service.wat` → **126** total
+Sanity check: `grep -c ':wat::core::keyword/from-name' wat/service.wat` → **126** total
 occurrences. 126 − 94 = 32 lines are not bindings; all 32 were read by hand (none were comments —
-a stricter token match than my first attempts, `:wat::core::keyword/from-string` in full, excludes
+a stricter token match than my first attempts, `:wat::core::keyword/from-name` in full, excludes
 the 3 comment-only hits that a bare `keyword/from-string` substring match picks up). All 32 are
-`(:wat::core::keyword/from-string ~some-str-binding)` calls **spliced into the generated program
+`(:wat::core::keyword/from-name ~some-str-binding)` calls **spliced into the generated program
 itself** — i.e. the macro emits a call to `keyword/from-string` that runs at the SERVICE's own
 runtime, not at macro-expand time (`wat/service.wat:884-886` explains why: a spliced literal
 keyword would resolve to the already-existing Fn/macro, not a keyword, so the emitted code has to
@@ -288,7 +288,7 @@ explicitly rather than leaving them to look like tool failure.
 
 ## Report summary (see also the narrative sections above)
 
-- **Command / count**: `grep -noE '^\s*\[?[A-Za-z_][A-Za-z0-9_-]*\s+\(:wat::core::keyword/from-string' wat/service.wat` → **94** bindings (verified against the raw `keyword/from-string` occurrence count of 126; the 32-line gap is fully accounted for as runtime-emission call sites, not additional bindings).
+- **Command / count**: `grep -noE '^\s*\[?[A-Za-z_][A-Za-z0-9_-]*\s+\(:wat::core::keyword/from-name' wat/service.wat` → **94** bindings (verified against the raw `keyword/from-string` occurrence count of 126; the 32-line gap is fully accounted for as runtime-emission call sites, not additional bindings).
 - **What the command cannot see**: a type name built through any OTHER constructor (checked by full-file read, found none); a name/call split across a line boundary (believed absent, not proven); two same-named bindings in different scopes look identical to a name-only tool (5 such pairs found by hand).
 - **Role distribution** (36 in-scope bindings, 73 consumption rows): ANNOTATION dominates (14 single-role + shares of the 7 multi-role bindings); RUNTIME-ARG 6 single-role + shares of 3 multi-role; DECL-NAME never appears alone — always paired with at least ANNOTATION; CTOR-ARG appears in 2 bindings (1 single-role, 1 shared with ANNOTATION); OTHER: 6 (2 structurally novel — `surface-kw`, `launch-head-kw` — and 4 dead).
 - **Every OTHER row**: `reply-name`, `peer-ty`, `vector-ty`, `resp-ty`(:1889) — all dead (STOP-1); `surface-kw` — macro-expand-time-only helper argument; `launch-head-kw` — generic call-head with type args baked into the string.

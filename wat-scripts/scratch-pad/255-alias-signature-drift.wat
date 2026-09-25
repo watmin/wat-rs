@@ -18,14 +18,14 @@
 (:wat::core::defn :drift::render [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::string::concat
     (:wat::string::concat
-      (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "|")
+      (:wat::string::concat (:wat::keyword::name (:wat::intrinsic::Row/name r)) "|")
       (:wat::string::concat (:wat::i64::to-string (:wat::intrinsic::Row/arity r)) "|"))
     (:wat::core::match (:wat::intrinsic::Row/alias-of r)
       [:wat::core::Option.Some {:value t} t] [:wat::core::Option.None {} ""])))
 
 (:wat::core::defn :drift::plain [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::string::concat
-    (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "@")
+    (:wat::string::concat (:wat::keyword::name (:wat::intrinsic::Row/name r)) "@")
     (:wat::i64::to-string (:wat::intrinsic::Row/arity r))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

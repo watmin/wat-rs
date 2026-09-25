@@ -124,7 +124,7 @@ Substrate primitives verified (grep'd 2026-05-22):
   -> :wat::core::bool
   (:wat::core::List/contains?
     (:wat::holon::lineage-chain instance)
-    (:wat::core::keyword/to-string target)))
+    (:wat::core::keyword/name target)))
 ```
 
 Pure composition. No new substrate primitives beyond `lineage-chain` (which might itself be expressible via `extract_classifier` + recursive Bind walk).

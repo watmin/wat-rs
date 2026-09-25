@@ -157,8 +157,8 @@
      ;; `compose-variant` wants a plain `:wat::core::keyword` VALUE (a runtime value it can
      ;; splice), not a `keyword-node` WatAST wrapper (`resp-kw` above is a node, kept as-is for
      ;; its own `~resp-kw` splice sites at the `defenum`/return-type positions below) — so the
-     ;; enum path is built again here as a plain keyword, same string, `keyword::from-string`.
-     resp-plain-kw (:wat::keyword::from-string (:wat::string::concat name-str "::SiftRulesResponse"))
+     ;; enum path is built again here as a plain keyword, same string, `keyword::from-name`.
+     resp-plain-kw (:wat::keyword::from-name (:wat::string::concat name-str "::SiftRulesResponse"))
      resp-ded-kw (:wat::runtime::compose-variant resp-plain-kw :Deductions)
      resp-fat-kw (:wat::runtime::compose-variant resp-plain-kw :Fatal)
      resp-rtl-kw (:wat::runtime::compose-variant resp-plain-kw :RequestTooLarge)

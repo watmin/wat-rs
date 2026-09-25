@@ -116,7 +116,7 @@ Expands to (one dispatcher per method):
     [classifier-opt (:wat::holon::extract-classifier self)
      classifier (:wat::core::Option/expect -> :wat::core::String classifier-opt "Formattable/format: no classifier on arg")
      mangled-str (:wat::core::string::concat classifier "/Formattable-format")
-     mangled-kw (:wat::core::keyword/from-string mangled-str)]
+     mangled-kw (:wat::core::keyword/from-name mangled-str)]
     (:wat::core::apply -> :wat::core::String mangled-kw [self])))
 ```
 

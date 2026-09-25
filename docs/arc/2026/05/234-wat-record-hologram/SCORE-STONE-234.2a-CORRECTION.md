@@ -130,7 +130,7 @@ The probe was authored with `/` form (slash, method syntax):
 - `:wat::core::i64/to-string` — DOES NOT EXIST in runtime
 - `:wat::core::bool/to-string` — DOES NOT EXIST in runtime
 
-Note: `:wat::core::keyword/to-string` (slash form) DOES exist (runtime.rs line 5164) because keyword's to-string uses method syntax. The probe author applied the keyword pattern to i64 and bool, but those primitives use path syntax.
+Note: `:wat::core::keyword/name` (slash form) DOES exist (runtime.rs line 5164) because keyword's to-string uses method syntax. The probe author applied the keyword pattern to i64 and bool, but those primitives use path syntax.
 
 ### Why it was masked
 
@@ -344,7 +344,7 @@ The orchestrator decides the path forward: add the two runtime functions, or cor
 - `src/check.rs` — the ONLY modified Rust file
 - `src/runtime.rs` line 5154 — `:wat::core::i64::to-string` (exists; `::` form)
 - `src/runtime.rs` line 5161 — `:wat::core::bool::to-string` (exists; `::` form)
-- `src/runtime.rs` line 5164 — `:wat::core::keyword/to-string` (exists; `/` form — the pattern the probe author generalized from)
+- `src/runtime.rs` line 5164 — `:wat::core::keyword/name` (exists; `/` form — the pattern the probe author generalized from)
 - `feedback_sonnet_writes_substrate.md` — orchestrator briefs; sonnet writes
 - `feedback_inscription_immutable.md` — SCORE-STONE-234.2a.md stays unchanged
 - `feedback_no_broken_commits.md` — do not commit broken state; STOP-7 prevents atomic commit

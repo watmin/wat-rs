@@ -5,15 +5,15 @@
 ;; it is registry-routed) and observed to stamp `Provenance::RuntimeBuilt` when actually
 ;; invoked (proving it behaves as a producer) — the two facts Stone E-iv found split apart
 ;; (registered ⇒ Unknown provenance, never RuntimeBuilt). This scratch prints both, back to
-;; back, for one re-stamped keyword verb (`:wat::keyword::from-string`).
+;; back, for one re-stamped keyword verb (`:wat::keyword::from-name`).
 ;;
 ;; Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the ephemeral session tmp).
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println "── metadata-of :wat::keyword::from-string (it IS registered) ──")
-    (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::keyword::from-string))
+    (:wat::kernel::println "── metadata-of :wat::keyword::from-name (it IS registered) ──")
+    (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::keyword::from-name))
     (:wat::kernel::println "── let-bound call head, forced NotCallable (it STAMPS RuntimeBuilt) ──")
     (:wat::core::let
-        [head (:wat::keyword::from-string "ns::nonexistent-verb")]
+        [head (:wat::keyword::from-name "ns::nonexistent-verb")]
         (head 1 2))))

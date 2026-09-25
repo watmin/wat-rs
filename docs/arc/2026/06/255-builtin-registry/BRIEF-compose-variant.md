@@ -44,7 +44,7 @@ on any `DocError`. Axes: `@Category Reflection`, `@Purity Pure`, `@Determinism D
 `@example` mandatory — `Pure ∧ Deterministic` earns no `@example-norun`.
 
 **③ Give it at least two examples: one LITERAL and one COMPUTED**
-(`(:wat::keyword::from-string …)`). The computed row is the one `service.wat` depends on, and an
+(`(:wat::keyword::from-name …)`). The computed row is the one `service.wat` depends on, and an
 example set that only exercises literals is how ① shipped broken.
 
 ⚠ **It composes; it does not validate.** Total — no type-env lookup, no `Option`. A name composed
@@ -55,7 +55,7 @@ for an enum that does not exist simply fails where it is used.
 Thirteen `string::interpolate` templates spell the variant separator inside a string literal:
 
 ```wat
-admin-init-kw (:wat::keyword::from-string
+admin-init-kw (:wat::keyword::from-name
                 (:wat::string::interpolate "{b}::Admin::Init" :b fqdn-base))
 ```
 
@@ -63,12 +63,12 @@ becomes
 
 ```wat
 admin-init-kw (:wat::runtime::compose-variant
-                (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                (:wat::keyword::from-name (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
                 :Init)
 ```
 
 `"{b}::Admin"` stays `::` — that is the enum's own namespace path, not a variant boundary. One site,
-`status-started-str`, wants a String: wrap the composed keyword in `:wat::keyword::to-string`.
+`status-started-str`, wants a String: wrap the composed keyword in `:wat::keyword::name`.
 
 **When you are done, `grep -nE '\{b\}::[A-Z][A-Za-z0-9]*::' wat/service.wat` must return nothing** —
 the file no longer knows what the variant separator is.

@@ -48,7 +48,7 @@ After:
 Removed:
 ```wat
      (:wat::core::defn ~(:wat::core::let
-                           [fqdn-str  (:wat::core::keyword/to-string fqdn)
+                           [fqdn-str  (:wat::core::keyword/name fqdn)
                             parts     (:wat::core::string::split fqdn-str "::")
                             n         (:wat::core::Vector/length parts)
                             basename  (:wat::core::Option/expect -> :wat::core::String
@@ -56,7 +56,7 @@ Removed:
                                         "Record::def: FQDN must have at least one segment")
                             pfx-parts (:wat::core::take parts (:wat::core::i64::-'2 n 1))
                             pfx-str   (:wat::core::string::join "::" pfx-parts)]
-                           (:wat::core::keyword/from-string
+                           (:wat::core::keyword/from-name
                              (:wat::core::string::concat pfx-str "::" "is-" basename "?")))
                        [v <- :wat::Record] -> :wat::core::bool
        (:wat::core::conforms? v ~fqdn))))

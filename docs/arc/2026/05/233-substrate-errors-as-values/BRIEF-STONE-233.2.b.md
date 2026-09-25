@@ -2,7 +2,7 @@
 
 ## What we're doing
 
-`eval_keyword_from_string` wraps its return value in `Value::Tracked` with `Provenance::RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span }`. Probe 6 (committed at `b866305` as design substrate) demonstrates that the resulting `NotCallable` error message now includes producer info — closing the load-bearing runtime-built case from INVENTORY § O three-case table.
+`eval_keyword_from_string` wraps its return value in `Value::Tracked` with `Provenance::RuntimeBuilt { producer: ":wat::core::keyword/from-name", call_span }`. Probe 6 (committed at `b866305` as design substrate) demonstrates that the resulting `NotCallable` error message now includes producer info — closing the load-bearing runtime-built case from INVENTORY § O three-case table.
 
 Also extend `ValueSnapshot::Display` to render `Provenance::RuntimeBuilt` inline (currently Display just shows `{type_name} `{rendered}``). Format: `{type_name} `{rendered}` (built by {producer} at {file}:{line}:{col})`.
 
@@ -38,7 +38,7 @@ let kw = Value::wat__core__keyword(Arc::new(format!(":{}", s)));
 Ok(Value::Tracked {
     inner: Box::new(kw),
     provenance: Provenance::RuntimeBuilt {
-        producer: ":wat::core::keyword/from-string",
+        producer: ":wat::core::keyword/from-name",
         call_span: list_span.clone(),
     },
 })

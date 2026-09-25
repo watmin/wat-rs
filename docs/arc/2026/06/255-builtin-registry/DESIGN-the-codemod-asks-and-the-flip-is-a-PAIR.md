@@ -83,8 +83,8 @@ for each path on stdin:
   for each distinct leaf name `full`:
       bare   = (:wat::string::subs full 1 (:wat::string::length full))
                                     → "wat::core::Option::Some"    ⚠ from-string REFUSES a colon
-      ask    = (:wat::runtime::variant-parent-of (:wat::keyword::from-string bare))
-      Some p → parent = (:wat::keyword::to-string p) → "wat::core::Option"  ⚠ NO leading colon
+      ask    = (:wat::runtime::variant-parent-of (:wat::keyword::from-name bare))
+      Some p → parent = (:wat::keyword::name p) → "wat::core::Option"  ⚠ NO leading colon
                leaf   = (subs bare (+ (length parent) 2) (length bare))     → "Some"
                new    = (:wat::string::concat ":" parent "." leaf)          → ":wat::core::Option.Some"
                src    = (:wat::fix::rename-keyword-exact full new src)

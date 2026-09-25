@@ -116,7 +116,7 @@ fn probe_5_provenance_variants_render_with_tags() {
 
     // Also test RuntimeBuilt — populated by 5 producers
     let prov_rb = Provenance::RuntimeBuilt {
-        producer: ":wat::core::keyword/from-string",
+        producer: ":wat::core::keyword/from-name",
         call_span: span.clone(),
     };
     let edn_rb = wat::edn::error::provenance_to_edn(&prov_rb);

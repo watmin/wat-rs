@@ -29,7 +29,7 @@ discovering, or building — **only the spelling is wrong.** The proposal is the
 constructor"; it is:
 
 ```clojure
-(:wat::core::keyword/from-string "something")     ;; today
+(:wat::core::keyword/from-name "something")     ;; today
 (:wat::core::keyword "something")                 ;; the type IS its own constructor
 ```
 
@@ -60,7 +60,7 @@ verb-equals-type working today.
 :wat::core::List/of              queued for retirement (seam)
 :wat::core::char/of              queued for retirement (seam)
 :wat::core::keyword/of           RETIRED by STONE-defservice-emits-the-binder
-:wat::core::keyword/from-string  ← 9 references. NOT examined by anyone yet.
+:wat::core::keyword/from-name  ← 9 references. NOT examined by anyone yet.
 ```
 
 `keyword/from-string` is the clearest case of the four, because its declared signature is ALREADY

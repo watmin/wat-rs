@@ -41,7 +41,7 @@ Mode A target: **11/11 PASS**. Every row binds to a specific verification comman
 
 - **T3 per-field accessor splice into `do` body** — `~@(:wat::core::map ...)` splicing a vector of `defn` ASTs into the top-level `(:wat::core::do ...)` body has not been empirically proven for THIS specific composition (defn ASTs at the splice point). If it fails: surface immediately; do NOT workaround via Vector wrapping or alternative pattern. The substrate either supports it or a substrate-extension stone is needed. The 227 v3 pattern splices Bind ASTs into Bundle — similar but at a different level. **Trust the substrate-as-teacher cascade.**
 
-- **`:wat::core::keyword/from-string` returning a usable head for `defn` accessor name** — the predicate name uses this pattern (227 v3); the accessor name is similar. Should work uniformly; surface if it doesn't.
+- **`:wat::core::keyword/from-name` returning a usable head for `defn` accessor name** — the predicate name uses this pattern (227 v3); the accessor name is similar. Should work uniformly; surface if it doesn't.
 
 - **`:wat::holon::to-wat` round-trip on type-keyword for accessor signature** — produces a WatAST::Keyword usable in the `-> :T` position of a `defn` signature. The 227 v3 macro does this for the field-name `var-w` (line 137) which appears in vector position; 234.2b uses it for type position. The vector-vs-type distinction might matter; surface if it does.
 

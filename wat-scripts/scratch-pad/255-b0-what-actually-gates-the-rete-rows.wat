@@ -23,7 +23,7 @@
 
 (:wat::core::defn :b0::render [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::string::concat
-    (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "  ->  ")
+    (:wat::string::concat (:wat::keyword::name (:wat::intrinsic::Row/name r)) "  ->  ")
     (:b0::target r)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

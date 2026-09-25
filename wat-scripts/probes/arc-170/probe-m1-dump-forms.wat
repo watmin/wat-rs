@@ -25,7 +25,7 @@
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
-     forms (:wat::kernel::fn-forms wf (:wat::keyword::from-string "user::bracket::work-fn"))]
+     forms (:wat::kernel::fn-forms wf (:wat::keyword::from-name "user::bracket::work-fn"))]
     (:wat::core::foldl
       (:wat::core::fn [_a <- :wat::core::nil  f <- :wat::WatAST] -> :wat::core::nil
         (:wat::core::let

@@ -29,7 +29,7 @@ pub enum Provenance {
 
     /// RuntimeBuilt — value was constructed by a producer function at runtime.
     /// E.g., `(keyword/from-string s)` returns a keyword with
-    /// `RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span: <the call's span> }`.
+    /// `RuntimeBuilt { producer: ":wat::core::keyword/from-name", call_span: <the call's span> }`.
     RuntimeBuilt { producer: &'static str, call_span: Span },
 }
 ```
@@ -115,7 +115,7 @@ One new variant. Provenance is OPT-IN: producers that care wrap their return val
 | Stone | Purpose | Size | Status |
 |---|---|---|---|
 | 233.2.a | **Mint Provenance enum + Value::Tracked variant + transparency contracts** — Add Provenance enum (4 variants: Unknown, Literal, SymbolBound, RuntimeBuilt). Add Value::Tracked variant. Implement transparency: Eq/Hash/PartialEq/Display/Debug/HolonRepresentable all unwrap Tracked. Add `Value::inner()` + `Value::provenance()` helpers. ValueSnapshot::of extracts provenance from Tracked. Lib tests all pass (baseline maintained); no actual producers wrap yet (Provenance always Unknown in real use). | medium (one variant + transparency sweep) | ✓ SHIPPED at `7cfeff1` |
-| 233.2.b | **Tag at the keyword/from-string producer** — `eval_keyword_from_string` wraps return value in `Value::Tracked` with `Provenance::RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span }`. Probe asserts error message includes producer info when a runtime-built keyword reaches NotCallable. The minimum-viable producer tag. | small | ✓ SHIPPED at `9cc278c` |
+| 233.2.b | **Tag at the keyword/from-string producer** — `eval_keyword_from_string` wraps return value in `Value::Tracked` with `Provenance::RuntimeBuilt { producer: ":wat::core::keyword/from-name", call_span }`. Probe asserts error message includes producer info when a runtime-built keyword reaches NotCallable. The minimum-viable producer tag. | small | ✓ SHIPPED at `9cc278c` |
 | 233.2.c | **Tag at additional producers** — `eval_from_holon`, EDN-reader, mailbox-recv, possibly more. Each producer site small + isolated. Honest delta if a producer's source-span isn't available cleanly. | medium (one site per producer; sweep) | ✓ SHIPPED at `c0f41f6` |
 | **233.2.d** | **Substrate-symmetry — uniform `list_span` threading.** ~245 dispatch arms gain uniform `list_span: &Span` parameter per canonical template. Pure plumbing sweep; closes the asymmetry surfaced during 233.2.c's `eval_edn_read` plumb. See [DESIGN-STONE-233.2.d.md](DESIGN-STONE-233.2.d.md). | large (mechanical; ~245 sites; substrate-as-teacher iteration) | ✓ SHIPPED at `c4dc8f4` |
 | **233.2.f** | **apply Tracked-unwrap defect fix.** Two `.inner()` insertions in `eval_apply` (src/runtime.rs:7433 + 7438). Defect surfaced via Stone 233.2.d Row 6 honest delta. | small | ✓ SHIPPED at `51d83e1` |
@@ -164,7 +164,7 @@ Each sub-stone is independently verifiable + shippable. Calibration discipline h
 
 ## Open question (for user)
 
-**Producer scope for 233.2.b:** start with `:wat::core::keyword/from-string` alone (highest payoff; the case from arc 232.0)? Or tag all known producers in one sub-stone (233.2.b/c collapse into one)?
+**Producer scope for 233.2.b:** start with `:wat::core::keyword/from-name` alone (highest payoff; the case from arc 232.0)? Or tag all known producers in one sub-stone (233.2.b/c collapse into one)?
 
 My read: ship 233.2.b with just `keyword/from-string`; the calibration win + the probe proof land cleanly; 233.2.c sweeps remaining producers with the pattern established.
 

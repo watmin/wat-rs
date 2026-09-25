@@ -9,8 +9,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:probe::check (:wat::core::= (:wat::keyword::to-string :foo) "foo") "to-string")
-    (:probe::check (:wat::core::= (:wat::keyword::from-string "foo") :foo) "from-string")
+    (:probe::check (:wat::core::= (:wat::keyword::name :foo) "foo") "to-string")
+    (:probe::check (:wat::core::= (:wat::keyword::from-name "foo") :foo) "from-string")
     (:probe::check
       (:wat::core::= (:wat::core::ast-kind (:wat::keyword::to-symbol (:wat::core::keyword-node ":wat::core::Bytes::to-hex")))
                       "symbol")

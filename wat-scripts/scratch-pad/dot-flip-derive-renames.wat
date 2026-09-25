@@ -1,7 +1,7 @@
 ;; wat-scripts/scratch-pad/dot-flip-derive-renames.wat — the dot flip's DERIVATION.
 ;;
 ;; Reads a vector of BARE namespaced names on stdin (no leading colon — that is what
-;; `keyword::from-string` accepts) and prints one line per CONFIRMED variant:
+;; `keyword::from-name` accepts) and prints one line per CONFIRMED variant:
 ;;
 ;;     :old::spelling :new.spelling
 ;;
@@ -19,10 +19,10 @@
 
 (:wat::core::defn :user::pair-for [bare <- :wat::core::String] -> :wat::core::String
   (:wat::core::match
-    (:wat::runtime::variant-parent-of (:wat::keyword::from-string bare))
+    (:wat::runtime::variant-parent-of (:wat::keyword::from-name bare))
     [:wat::core::Option.Some {:value parent}
       (:wat::core::let
-        [p (:wat::keyword::to-string parent)
+        [p (:wat::keyword::name parent)
          start (:wat::i64::+ (:wat::string::length p) 2)
          leaf (:wat::string::subs bare start (:wat::string::length bare))]
         (:wat::string::concat ":" bare " :" p "." leaf))]

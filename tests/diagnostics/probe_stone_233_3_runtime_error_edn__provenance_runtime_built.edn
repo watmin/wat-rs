@@ -1,5 +1,5 @@
 #wat.kernel/RuntimeBuilt {
-  :producer ":wat::core::keyword/from-string"
+  :producer ":wat::core::keyword/from-name"
   :call-span #wat.core/Span {
     :file "test.wat"
     :line 4

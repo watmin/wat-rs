@@ -42,7 +42,7 @@ handlers to change; the default arm must keep every existing handler compiling u
 Stone E-iv recorded exactly what it lost, from the golden whose NAME is `renders_runtime_built_keyword`:
 
 ```
-BEFORE   "(built by :wat::core::keyword/from-string ...)"
+BEFORE   "(built by :wat::core::keyword/from-name ...)"
          :provenance RuntimeBuilt { :producer "…/from-string" :call-span … }
 AFTER    "(bound from tests/…/p2.wat:4:8 ...)"
          :provenance SymbolBound { :binding-span … :head-span … }

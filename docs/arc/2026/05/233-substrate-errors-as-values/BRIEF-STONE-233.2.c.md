@@ -50,7 +50,7 @@ After this stone: every wat-callable producer that introduces a runtime-derived 
 
 - `:wat::kernel::select` — produces a Value but the "producer" is one of N candidate channels; trickier shape (which channel produced it? requires additional bookkeeping). Defer.
 - `:wat::io::IOReader/read*` — produces String from external IO. Bytes/io sources are typically the read FN itself but the actual bytes provenance is harder. Defer to v2.
-- `:wat::core::keyword/to-string` — produces String from keyword. Less interesting (the keyword's content IS the resulting string). Defer.
+- `:wat::core::keyword/name` — produces String from keyword. Less interesting (the keyword's content IS the resulting string). Defer.
 
 ## Implementation surface
 

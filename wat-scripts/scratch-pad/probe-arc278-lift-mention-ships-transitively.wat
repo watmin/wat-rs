@@ -45,17 +45,17 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [pc (:wat::kernel::fn-forms :usr::pc
-          (:wat::keyword::from-string "user::root-pc"))
+          (:wat::keyword::from-name "user::root-pc"))
      _p (:wat::kernel::println
           (:wat::string::concat "PC        (both in call position) forms="
             (:wat::i64::to-string (:wat::core::length pc))))
      bs (:wat::kernel::fn-forms :usr::rule-base
-          (:wat::keyword::from-string "user::root-bs"))
+          (:wat::keyword::from-name "user::root-bs"))
      _b (:wat::kernel::println
           (:wat::string::concat "BASE      (quote only)            forms="
             (:wat::i64::to-string (:wat::core::length bs))))
      mn (:wat::kernel::fn-forms :usr::rule-mentioned
-          (:wat::keyword::from-string "user::root-mn"))
+          (:wat::keyword::from-name "user::root-mn"))
      _m (:wat::kernel::println
           (:wat::string::concat "MENTION-1 (one mention of $where0) forms="
             (:wat::i64::to-string (:wat::core::length mn))))]

@@ -64,7 +64,7 @@ fn probe_1_bound_keyword_invokes_substrate_verb() {
 //
 // Original: runtime-built keyword as head → FAIL NotCallable.
 // Rewritten: use (:wat::core::apply -> :T plus [2 3]) → PASS.
-// keyword/from-string builds a Value::keyword (never lifted to fn);
+// keyword/from-name builds a Value::keyword (never lifted to fn);
 // eval_apply accepts keyword values directly via the substrate-impl path.
 #[test]
 fn probe_2_runtime_built_keyword_invokes_substrate_verb() {
@@ -76,7 +76,7 @@ fn probe_2_runtime_built_keyword_invokes_substrate_verb() {
 // Original: mangled-namespace user defn as head → FAIL NotCallable.
 // Rewritten: use (:wat::core::apply -> :T verb ["world"]) → PASS.
 // Mirrors defprotocol's dispatch pattern: build FQDN keyword at runtime +
-// invoke via apply. keyword/from-string returns a raw keyword value
+// invoke via apply. keyword/from-name returns a raw keyword value
 // (NOT lifted to fn) so eval_apply dispatches via sym.functions.
 #[test]
 fn probe_3_mangled_namespace_invokes_user_defn() {

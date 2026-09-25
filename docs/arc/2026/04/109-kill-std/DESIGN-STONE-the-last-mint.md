@@ -32,7 +32,7 @@ The code says so itself, at the mint:
 > the service's own binders (`{b}/{op}{p}`), exactly as `/start`, `/stop`, `/grant` do."*
 
 ```clojure
-method-name (:wat::core::keyword/from-string
+method-name (:wat::core::keyword/from-name
               (:wat::core::string::interpolate "{b}/{op-str}{p}" :b fqdn-base :op-str op-str :p fqdn-tp))
 ```
 

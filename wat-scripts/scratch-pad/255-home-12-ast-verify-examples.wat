@@ -6,13 +6,13 @@
 ;; cause" — a DIFFERENT, already-known defect, not this stone's). Scratch, per holon/CLAUDE.md's
 ;; `.wat` scratch convention.
 
-;; Compared as STRINGS (via keyword::to-string), not bare `:wat::core::…` fqdn keywords —
+;; Compared as STRINGS (via keyword::name, the colon-free text), not bare `:wat::core::…` fqdn keywords —
 ;; a bare fqdn keyword that ALSO names a registered intrinsic resolves to a first-class
 ;; function-value reference at check time (its `[:- :->]` type), not a plain keyword literal,
 ;; which broke an earlier draft of this probe with 9 unrelated `:wat::core::vec` TypeMismatch
 ;; errors. Comparing plain strings sidesteps that resolution entirely.
 (:wat::core::defn :user::mine? [ex <- :wat::intrinsic::Example] -> :wat::core::bool
-  (:wat::core::let [name (:wat::keyword::to-string (:wat::intrinsic::Example/fqdn ex))]
+  (:wat::core::let [name (:wat::keyword::name (:wat::intrinsic::Example/fqdn ex))]
     (:wat::core::or
       (:wat::string::starts-with? name "wat::core::ast")
       (:wat::core::or
@@ -33,7 +33,7 @@
           (:wat::core::do
             (:wat::kernel::println
               (:wat::string::interpolate "fqdn={fqdn} run={run} pure={pure} det={det}"
-                :fqdn (:wat::keyword::to-string (:wat::intrinsic::Example/fqdn ex))
+                :fqdn (:wat::keyword::name (:wat::intrinsic::Example/fqdn ex))
                 :run (:wat::edn::write (:wat::intrinsic::Example/run ex))
                 :pure (:wat::edn::write (:wat::intrinsic::Example/pure ex))
                 :det (:wat::edn::write (:wat::intrinsic::Example/deterministic ex))))

@@ -70,8 +70,8 @@ init-param   ;; the single [name <- :T] binder triple from init-fn-node's params
 start-params `[locus <- :wat::spawn::Locus  ~@init-param]
 start-body   `(:wat::core::let
                 [~lr-sym (~launch-head-kw locus ~ship-ref
-                           (:wat::core::keyword/from-string ~init-name-str)
-                           (:wat::core::keyword/from-string ~serve-name-str)
+                           (:wat::core::keyword/from-name ~init-name-str)
+                           (:wat::core::keyword/from-name ~serve-name-str)
                            (~service-forms-kw))]
                 (~handle-name (Launched/handle ~lr-sym) (Launched/address ~lr-sym)))
 

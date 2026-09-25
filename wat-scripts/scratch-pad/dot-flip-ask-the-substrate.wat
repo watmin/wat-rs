@@ -4,13 +4,13 @@
 ;; `::Record::def` is a surface method, and they are textually identical. The substrate
 ;; is ASKED instead, per `:wat::runtime::variant-parent-of`.
 ;;
-;; `keyword::from-string` refuses a leading colon; the answer carries one.
+;; `keyword::from-name` refuses a leading colon; the answer carries one.
 
 (:wat::core::defn :user::ask [bare <- :wat::core::String] -> :wat::core::String
   (:wat::core::match
-    (:wat::runtime::variant-parent-of (:wat::keyword::from-string bare))
+    (:wat::runtime::variant-parent-of (:wat::keyword::from-name bare))
     [:wat::core::Option.Some {:value parent}
-      (:wat::string::concat ":" bare "  VARIANT of " (:wat::keyword::to-string parent))]
+      (:wat::string::concat ":" bare "  VARIANT of " (:wat::keyword::name parent))]
     [:wat::core::Option.None {}
       (:wat::string::concat ":" bare "  -- not a variant")]))
 

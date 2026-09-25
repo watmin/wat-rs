@@ -22,16 +22,16 @@ Once row B is green, promote that macro body to `wat/core.wat` (beside the threa
 (:wat::core::defmacro :wat::core::keyword/of
   [head <- :wat::holon::HolonAST & args <- :AST<wat::holon::Holons>]
   -> :AST<wat::holon::HolonAST>
-  (:wat::core::let [head-text (:wat::core::keyword/to-string head)
+  (:wat::core::let [head-text (:wat::core::keyword/name head)
                     arg-texts (:wat::core::map
                                 (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String
-                                   (:wat::core::keyword/to-string a))
+                                   (:wat::core::keyword/name a))
                                 args)
                     joined (:wat::core::string::join arg-texts ",")
                     full (:wat::core::string::concat head-text
                            (:wat::core::string::concat "<"
                              (:wat::core::string::concat joined ">")))]
-    `~(:wat::core::keyword/from-string full)))
+    `~(:wat::core::keyword/from-name full)))
 ```
 
 (Adjust to whatever row B proved actually works — the probe is the source of truth. Registers via `register_stdlib`, like the threading macros + defn.)

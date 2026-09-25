@@ -52,8 +52,8 @@ full algorithm — copy it — is in the DESIGN's "The algorithm" section.
    _ops-kw <- :wat::holon::HolonAST  ops <- :wat::holon::HolonAST]
   -> :wat::holon::HolonAST
   (:wat::core::let
-    [enum-name (:wat::core::keyword/from-string
-                 (:wat::core::string::concat (:wat::core::keyword/to-string fqdn) "::Op"))
+    [enum-name (:wat::core::keyword/from-name
+                 (:wat::core::string::concat (:wat::core::keyword/name fqdn) "::Op"))
      clauses   (:wat::core::ast->children ops)
      variants  (:wat::core::foldl <op->tokens-fn> (:wat::core::Vector :wat::WatAST) clauses)]
     `(:wat::core::do

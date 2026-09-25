@@ -79,7 +79,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 # Every distinct namespaced keyword token in a file, as a well-formed candidate: an identifier
 # segment is [A-Za-z_][A-Za-z0-9_?!*+=-]*, segments joined by exactly "::". This char class never
-# admits '<', '>', or '/' (arc 109's wall; a leading-colon check in keyword::from-string) — so no
+# admits '<', '>', or '/' (arc 109's wall; a leading-colon check in keyword::from-name) — so no
 # post-hoc filter is needed, the well-formedness is structural. A malformed candidate would abort
 # the run rather than answer None (DESIGN), so this is deliberately conservative, not permissive.
 TOKEN_RE=':[A-Za-z_][A-Za-z0-9_?!*+=-]*(::[A-Za-z_][A-Za-z0-9_?!*+=-]*)+'

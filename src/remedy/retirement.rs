@@ -304,8 +304,8 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // handler bodies untouched (`eval_keyword_to_string`/`eval_keyword_from_string` stay in
     // `runtime.rs`; `eval_keyword_to_symbol`/`eval_keyword_to_type_form`/
     // `eval_keyword_to_type_form_colon` stay in `edn/render.rs`).
-    RetirementEntry { retired: ":wat::core::keyword/to-string",         replacement: ":wat::keyword::to-string",         note: None },
-    RetirementEntry { retired: ":wat::core::keyword/from-string",       replacement: ":wat::keyword::from-string",       note: None },
+    RetirementEntry { retired: ":wat::core::keyword/to-string",         replacement: ":wat::keyword::name",         note: None },
+    RetirementEntry { retired: ":wat::core::keyword/from-string",       replacement: ":wat::keyword::from-name",       note: None },
     RetirementEntry { retired: ":wat::core::keyword/to-symbol",         replacement: ":wat::keyword::to-symbol",         note: None },
     RetirementEntry { retired: ":wat::core::keyword/to-type-form",      replacement: ":wat::keyword::to-type-form",      note: None },
     RetirementEntry { retired: ":wat::core::keyword/to-type-form-colon", replacement: ":wat::keyword::to-type-form-colon", note: None },

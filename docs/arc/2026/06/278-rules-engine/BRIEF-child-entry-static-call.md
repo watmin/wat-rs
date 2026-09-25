@@ -6,7 +6,7 @@ runs today): `wat-scripts/scratch-pad/probe-arc278-child-entry-static-call.wat`.
 ## The work, in one paragraph
 
 `defservice` currently generates a child `:user::main` that reaches its own service internals
-through `(:wat::core::apply (:wat::core::keyword/from-string "…") …)`, and ships those internals as
+through `(:wat::core::apply (:wat::core::keyword/from-name "…") …)`, and ships those internals as
 a **hand-enumerated** `<fqdn>::service-forms` bundle. Replace both: emit a per-service
 **`<fqdn>::child-entry`** — an ordinary parent `defn` that names `dispatch-admin` and `serve`
 **statically** — and make the shipped `:user::main` a one-liner that calls it with the rendezvous

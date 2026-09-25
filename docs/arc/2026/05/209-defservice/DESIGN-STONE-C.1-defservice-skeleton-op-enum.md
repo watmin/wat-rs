@@ -114,8 +114,8 @@ Three premises, all proven by probe (NOT assumed — FM-2-bis):
   -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, params are node-values, nested quasiquote at the end.
   (:wat::core::let
-    [enum-name (:wat::core::keyword/from-string
-                 (:wat::core::string::concat (:wat::core::keyword/to-string fqdn) "::Op"))
+    [enum-name (:wat::core::keyword/from-name
+                 (:wat::core::string::concat (:wat::core::keyword/name fqdn) "::Op"))
      clauses   (:wat::core::ast->children ops)            ;; list of op-List nodes
      variants  (:wat::core::foldl <op->tokens> (:wat::core::Vector :wat::WatAST) clauses)]
     `(:wat::core::defenum ~enum-name ~@variants)))   ;; SHIPPED: bare defenum, NOT a do-wrapper

@@ -104,7 +104,7 @@ is a correct interim state. Tracked as the successor stone, gated on 255; NOT de
   keyword that IS a marker stays one.* A blanket `_`-removal would break these.
 - **`#95`** — `infer_list`'s gate. Measured separately: 10 lines, 0 compiler errors, floor 5206/5206.
 - **The wat macros** (`wat/Record.wat:171`, `wat/core.wat:2048` reading a name via
-  `:wat::keyword::to-string`) — that is the `wat.symbol/*` vocabulary stone, and it is a NAME
+  `:wat::keyword::name`) — that is the `wat.symbol/*` vocabulary stone, and it is a NAME
   problem, cut above.
 
 ## The room map (hand-classified from a grep — THE COMPILER IS THE AUTHORITY)

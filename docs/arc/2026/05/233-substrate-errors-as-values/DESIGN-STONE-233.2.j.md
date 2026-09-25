@@ -134,7 +134,7 @@ Ok(Value::Tracked {
 
 // After
 Ok(TrackedValue::new(kw, Provenance::RuntimeBuilt {
-    producer: ":wat::core::keyword/from-string",
+    producer: ":wat::core::keyword/from-name",
     call_span: list_span.clone(),
 }))
 ```
@@ -185,7 +185,7 @@ Pattern-match arms on `Value::Tracked` may still exist (e.g., Hash/Eq/Display im
 Write `tests/probe_stone_233_2_j_producer_migration.rs` with these contracts BEFORE the BRIEF:
 
 1. **Producer return type:** `eval_keyword_from_string` returns `Result<TrackedValue, RuntimeError>` (via TypeId or trait check)
-2. **Producer provenance attached:** call `:wat::core::keyword/from-string "foo"` via `eval(...)`; result.provenance() matches `RuntimeBuilt { producer: ":wat::core::keyword/from-string", ... }`
+2. **Producer provenance attached:** call `:wat::core::keyword/from-name "foo"` via `eval(...)`; result.provenance() matches `RuntimeBuilt { producer: ":wat::core::keyword/from-name", ... }`
 3. **eval_inner cascade:** `eval_inner` return type is `Result<TrackedValue, RuntimeError>` (compile-time check via const fn or trait)
 4. **Value::Tracked unreachable:** static scan asserts zero `Value::Tracked { ... }` construction sites in src/ (excluding comments + match arms)
 5. **ValueSnapshot::of_tracked round-trip:** producer-tagged TrackedValue → ValueSnapshot::of_tracked → Display includes provenance string

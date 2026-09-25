@@ -6,18 +6,18 @@
 ;; the Op variant and the Record accessor. This mirrors the C.3 target expansion in miniature.
 (:wat::core::defmacro :t::mk [base <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::let
-    [base-str (:wat::keyword::to-string base)
-     req-name (:wat::keyword::from-string (:wat::string::concat base-str "::Req"))
-     op-name  (:wat::keyword::from-string (:wat::string::concat base-str "::Op"))
+    [base-str (:wat::keyword::name base)
+     req-name (:wat::keyword::from-name (:wat::string::concat base-str "::Req"))
+     op-name  (:wat::keyword::from-name (:wat::string::concat base-str "::Op"))
      ;; `::` composes a NAMESPACE; `/` selects a MEMBER OF A TYPE. `<base>/go` claimed a member of
      ;; a type `demo` that does not exist — the five sibling names below already build with `::`
      ;; (and `::Req/n` uses both correctly in one string). Only this one departed, and the
      ;; namespacing wall rejects it at registration.
-     go-name  (:wat::keyword::from-string (:wat::string::concat base-str "::go"))
+     go-name  (:wat::keyword::from-name (:wat::string::concat base-str "::go"))
      ;; the wrapped-record field type keyword for the Op variant: :<base>::Req
-     req-ty   (:wat::keyword::from-string (:wat::string::concat base-str "::Req"))
+     req-ty   (:wat::keyword::from-name (:wat::string::concat base-str "::Req"))
      ;; the accessor: :<base>::Req/n
-     acc-name (:wat::keyword::from-string (:wat::string::concat base-str "::Req/n"))
+     acc-name (:wat::keyword::from-name (:wat::string::concat base-str "::Req/n"))
      ;; the Op.Go variant constructor keyword: :<base>::Op.Go — routed through the
      ;; composition door (arc 255, `:wat::runtime::compose-variant`) rather than a
      ;; hardcoded `::` in the concatenated string; `op-name` is already the Op enum's FQDN.

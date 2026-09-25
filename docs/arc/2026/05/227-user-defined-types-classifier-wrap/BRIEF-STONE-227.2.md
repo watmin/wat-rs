@@ -98,7 +98,7 @@ Most existing probes use the opaque-payload pattern → migrate to single-field 
 
 - `:wat::core::defmacro` with fixed-arity head (matches v2's 2-arg shape)
 - `:wat::core::quasiquote` + `:wat::core::unquote` + `:wat::core::splice` (`~@`)
-- `:wat::core::keyword/to-string` + `:wat::core::keyword/from-string` + `:wat::core::keyword/of`
+- `:wat::core::keyword/name` + `:wat::core::keyword/from-name` + `:wat::core::keyword/of`
 - `:wat::core::string::split` + `string::join` + `string::concat`
 - `:wat::core::Vector/length` / `last` / `take` / `map`
 - `:wat::core::Option/expect`

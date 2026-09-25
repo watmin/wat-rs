@@ -215,6 +215,16 @@ filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
 priority = 98                                             # just below the lint binary
 
+# 2026-09-25 — excursus 007 stone 1 re-strike. `wat_value_ui` alone on this
+# machine was 25.6s against a 30s kill (excursus 004's measurement). The floor
+# `.floor/2026-09-25T20-51-56Z` spent 22.29s compiling the trybuild crate, then
+# `(test timed out)` at 30.005s. Warn 90s / kill 180s is about 3x the alone
+# number. Only this test: `to_edn_derive_ui` passed that floor at 28.142s, and
+# the c5c/c5b rows stay on the parked 004 branch.
+[[profile.default.overrides]]
+filter = 'test(wat_value_ui)'
+slow-timeout = { period = "90s", terminate-after = 2 }
+
 [[profile.ci.overrides]]
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
@@ -242,6 +252,12 @@ priority = 99
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98
+
+# 2026-09-25 — same `wat_value_ui` deadline as profile.default. A deadline only
+# the dev profile can meet is not one.
+[[profile.ci.overrides]]
+filter = 'test(wat_value_ui)'
+slow-timeout = { period = "90s", terminate-after = 2 }
 
 # 296 Stone K, move 3 — the slow profile. `all()` re-admits everything
 # `[profile.default]`'s `default-filter` excludes EXCEPT the three STOP-2
@@ -275,3 +291,8 @@ priority = 99
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98
+
+# 2026-09-25 — same `wat_value_ui` deadline as profile.default.
+[[profile.slow.overrides]]
+filter = 'test(wat_value_ui)'
+slow-timeout = { period = "90s", terminate-after = 2 }

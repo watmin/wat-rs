@@ -133,7 +133,7 @@ The macro is correct. The expansion for probe 5 generates:
 ```wat
 (:wat::core::defn :myapp::Triple [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool] -> :wat::Record
   (:wat::Record::of
-    (:wat::core::keyword/from-string "myapp::Triple")
+    (:wat::core::keyword/from-name "myapp::Triple")
     [a b c]          ;; <- heterogeneous Vector<T> fails type-check
     (:wat::holon::Bind
       (:wat::holon::Atom (:wat::holon::to-holon "myapp::Triple"))
@@ -207,11 +207,11 @@ Inside the generated `defn :myapp::Voltage` body, `~fqdn` unquotes to `:myapp::V
 
 ### Fix applied
 
-Replace `~fqdn` with `(:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))` in the class arg position:
+Replace `~fqdn` with `(:wat::core::keyword/from-name ~(:wat::core::keyword/name fqdn))` in the class arg position:
 
 ```wat
 (:wat::Record::of
-  (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
+  (:wat::core::keyword/from-name ~(:wat::core::keyword/name fqdn))
   ...)
 ```
 
@@ -278,7 +278,7 @@ DESIGN D5 says "pass `~fqdn` directly." This is incorrect for the class arg when
 
 Probe result: 0/6 PASS. Error: `TypeMismatch { callee: ":wat::Record::of", param: "#1", expected: ":wat::core::keyword", got: ":wat::core::Fn(...)` }`. Class keyword ambiguity trap-door (not in T1-T8; novel).
 
-**Fix:** Replace `~fqdn` class arg with `(:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))`.
+**Fix:** Replace `~fqdn` class arg with `(:wat::core::keyword/from-name ~(:wat::core::keyword/name fqdn))`.
 
 ### Round 2 — After keyword fix
 

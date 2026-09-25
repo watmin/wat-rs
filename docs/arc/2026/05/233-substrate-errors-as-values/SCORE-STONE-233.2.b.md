@@ -85,7 +85,7 @@ test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
     Ok(Value::Tracked {
         inner: Box::new(kw),
         provenance: Provenance::RuntimeBuilt {
-            producer: ":wat::core::keyword/from-string",
+            producer: ":wat::core::keyword/from-name",
             call_span: list_span.clone(),
         },
     })
@@ -109,7 +109,7 @@ test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 ### Row 7 — Producer string is canonical
 
-**Command:** `grep -A 30 "fn eval_keyword_from_string" src/runtime.rs | grep -c '":wat::core::keyword/from-string"'`
+**Command:** `grep -A 30 "fn eval_keyword_from_string" src/runtime.rs | grep -c '":wat::core::keyword/from-name"'`
 
 **Output:** `2`
 
@@ -164,7 +164,7 @@ impl std::fmt::Display for ValueSnapshot {
 
 **Output:**
 ```
-Probe 6 error: eval: NotCallable { got: ValueSnapshot { type_name: "wat::core::keyword", rendered: ":ns::nonexistent-verb", provenance: RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span: Span { file: "<entry>", line: 4, col: 11 } } }, span: Span { file: "<runtime>", line: 0, col: 0 } }
+Probe 6 error: eval: NotCallable { got: ValueSnapshot { type_name: "wat::core::keyword", rendered: ":ns::nonexistent-verb", provenance: RuntimeBuilt { producer: ":wat::core::keyword/from-name", call_span: Span { file: "<entry>", line: 4, col: 11 } } }, span: Span { file: "<runtime>", line: 0, col: 0 } }
 test probe_6_runtime_built_keyword_renders_producer_info ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.01s
@@ -215,7 +215,7 @@ let kw = Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str())));
 Ok(Value::Tracked {
     inner: Box::new(kw),
     provenance: Provenance::RuntimeBuilt {
-        producer: ":wat::core::keyword/from-string",
+        producer: ":wat::core::keyword/from-name",
         call_span: list_span.clone(),
     },
 })
@@ -254,6 +254,6 @@ None fired.
 
 2. **EXPECTATIONS rows 5 and 6 verification commands use `-A 30` but function is 40 lines** — The `fn eval_keyword_from_string` signature is at line 7266; the `Value::Tracked` / `Provenance::RuntimeBuilt` constructions are at lines 7299–7303. The `-A 30` window covers lines 7266–7296, just missing the tail. Used `-A 50` for corrected verification. Implementation is correct; calibration gap is in the verification command.
 
-3. **Row 7 passed with `-A 30`** — The `eval_one_arg` call at the top of `eval_keyword_from_string` uses `":wat::core::keyword/from-string"` as the op-name string (within the first 30 lines). That's 1 hit. The `producer:` field usage at line 7302 is beyond 30 lines but the grep happens to see it through the overlap with scanning `eval_keyword_to_string`. Count of 2 satisfied ≥ 2.
+3. **Row 7 passed with `-A 30`** — The `eval_one_arg` call at the top of `eval_keyword_from_string` uses `":wat::core::keyword/from-name"` as the op-name string (within the first 30 lines). That's 1 hit. The `producer:` field usage at line 7302 is beyond 30 lines but the grep happens to see it through the overlap with scanning `eval_keyword_to_string`. Count of 2 satisfied ≥ 2.
 
-4. **Probe 6 error message is fully rich** — The Debug output in the test shows `provenance: RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span: Span { file: "<entry>", line: 4, col: 11 } }`. The Display output (what user sees in errors) would render as `wat::core::keyword \`:ns::nonexistent-verb\` (built by :wat::core::keyword/from-string at <entry>:4:11)`. Both the `ns::nonexistent-verb` and `keyword/from-string` assertions in Probe 6 are satisfied.
+4. **Probe 6 error message is fully rich** — The Debug output in the test shows `provenance: RuntimeBuilt { producer: ":wat::core::keyword/from-name", call_span: Span { file: "<entry>", line: 4, col: 11 } }`. The Display output (what user sees in errors) would render as `wat::core::keyword \`:ns::nonexistent-verb\` (built by :wat::core::keyword/from-name at <entry>:4:11)`. Both the `ns::nonexistent-verb` and `keyword/from-string` assertions in Probe 6 are satisfied.

@@ -12,8 +12,8 @@
 
 | Row | What | Pass criterion |
 |-----|------|----------------|
-| A | `:wat::core::keyword/to-string` runtime primitive registered + dispatched | grep `keyword/to-string` in src/ + Rust unit test |
-| B | `:wat::core::keyword/from-string` runtime primitive registered + dispatched | grep + Rust unit test |
+| A | `:wat::core::keyword/name` runtime primitive registered + dispatched | grep `keyword/to-string` in src/ + Rust unit test |
+| B | `:wat::core::keyword/from-name` runtime primitive registered + dispatched | grep + Rust unit test |
 | C | `keyword/to-string` returns text WITHOUT leading colon | unit test asserting `to-string(:foo) == "foo"` not `":foo"` |
 | D | Round-trip `(from-string (to-string k)) = k` works for ≥ 3 sample keywords | unit test |
 | E | `:wat::core::keyword/of` macro special form recognized in `expand_form` | grep + macro-expansion unit test |

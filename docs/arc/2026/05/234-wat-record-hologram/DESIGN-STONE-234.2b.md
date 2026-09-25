@@ -115,7 +115,7 @@ The substrate primitive `:wat::Record/field-at` has TypeScheme `:wat::Record × 
 
 Predicate body uses `:wat::core::=` on `(:wat::core::type v)` (returns the record's class FQDN String per Stone 234.0/234.1 dispatch) vs the declared class FQDN String literal.
 
-The literal String is computed at expand time via `:wat::core::keyword/to-string fqdn` (strips leading `:`). Same pattern as 227 v3 uses for `:wat::holon::is?`.
+The literal String is computed at expand time via `:wat::core::keyword/name fqdn` (strips leading `:`). Same pattern as 227 v3 uses for `:wat::holon::is?`.
 
 ### D9 — Predicate name follows the `:ns::is-Name?` shape
 
@@ -123,7 +123,7 @@ Predicate name = the user-declared FQDN's namespace + `::is-` + last-segment + `
 - `:myapp::Voltage` → `:myapp::is-Voltage?`
 - `:foo::bar::Sensor` → `:foo::bar::is-Sensor?`
 
-Computed at expand time via `:wat::core::keyword/to-string` + `:wat::core::string::split "::"` + `:wat::core::Vector/take` + `:wat::core::Vector/last` + `:wat::core::string::join` + `:wat::core::string::concat` + `:wat::core::keyword/from-string`. Same pattern as 227 v3 lines 151-161.
+Computed at expand time via `:wat::core::keyword/name` + `:wat::core::string::split "::"` + `:wat::core::Vector/take` + `:wat::core::Vector/last` + `:wat::core::string::join` + `:wat::core::string::concat` + `:wat::core::keyword/from-name`. Same pattern as 227 v3 lines 151-161.
 
 ### D10 — Runtime class-safety check in accessor body is OUT OF SCOPE
 

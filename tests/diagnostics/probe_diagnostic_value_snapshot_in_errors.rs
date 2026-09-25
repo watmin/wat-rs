@@ -84,7 +84,7 @@ fn probe_1_not_callable_renders_offending_keyword() {
 
 // ─── Probe 2: NotCallable renders runtime-built keyword content ─────────────
 //
-// Keyword built at runtime via keyword/from-string, then attempted as call
+// Keyword built at runtime via keyword/from-name, then attempted as call
 // head (NOT via apply). Should hit NotCallable with the runtime-built
 // keyword value rendered in the error.
 //
@@ -177,10 +177,9 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 // (closes the "what value" gap).
 // After Stone 233.2.a: substrate has Value::Tracked + Provenance::RuntimeBuilt
 // (scaffolding; no producers tag yet).
-// After Stone 233.2.b: eval_keyword_from_string wraps return in
-// Value::Tracked { provenance: Provenance::RuntimeBuilt { producer:
-// ":wat::core::keyword/from-string", call_span } }. ValueSnapshot::Display
-// renders producer info inline.
+// After Stone 233.2.b: the colon-free constructor (then `keyword/from-string`)
+// wrapped its return in RuntimeBuilt. The live producer this golden records is
+// `:wat::keyword::from-name`. ValueSnapshot::Display renders producer info inline.
 //
 // Arc 255 Stone E-iv moved `keyword/from-string`'s dispatch route onto the
 // `#[wat_intrinsic]` registry, whose `NativeHandler` signature at the time had no slot for a
@@ -188,9 +187,9 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 // shape, with an honest `⚠ REGRESSED` comment recording the mechanism (see arc 255 Stone G's
 // commit / `probe_stone_233_2_j_producer_migration.rs` probe 2 for the full account).
 // Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning signature (sniffed from the
-// handler's own declared return type), so `src/intrinsic/keyword.rs`'s `from-string` handler
-// stamps `Provenance::RuntimeBuilt` again — this probe's golden is RESTORED to that shape,
-// now under the new `:wat::keyword::from-string` spelling.
+// handler's own declared return type), so `src/intrinsic/keyword.rs`'s `from-name` handler
+// (then called `from-string`) stamps `Provenance::RuntimeBuilt` again — this probe's golden
+// records producer `:wat::keyword::from-name`.
 #[test]
 fn probe_6_runtime_built_keyword_renders_producer_info() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat (same WAT as probe_2)

@@ -831,9 +831,9 @@
                     ;; return-type-of raises "unknown type" itself if head-fn is STILL a bare
                     ;; keyword (a genuinely unrecognised head) — no separate check needed here.
                     ret-ty    (:wat::runtime::return-type-of head-fn)
-                    ;; `keyword/from-string` wants COLON-FREE input (it adds the sigil itself);
+                    ;; `keyword/from-name` wants COLON-FREE input (it adds the sigil itself);
                     ;; `return-type-of` already returns a colon-free FQDN — do not re-prepend one.
-                    ret-kw    (:wat::keyword::from-string ret-ty)
+                    ret-kw    (:wat::keyword::from-name ret-ty)
                     ;; raises unless ret-kw names a registered record/struct — "produces a fact."
                     _fact-ty  (:wat::runtime::field-names-of ret-kw)]
     acc))

@@ -43,7 +43,7 @@ default rides BOTH pair tiers, so a `to-record`'d value at either tier inherits 
   [surf <- :wat::WatAST  & methods <- :wat::core::Vector<wat::WatAST>]   ; match defservice's variadic shape
   -> :wat::WatAST
   (:wat::core::let
-    [surf-str   (:wat::core::keyword/to-string surf)                      ; "k5::HasX"  (no leading colon — confirm)
+    [surf-str   (:wat::core::keyword/name surf)                      ; "k5::HasX"  (no leading colon — confirm)
      core-node  (:wat::core::keyword-node
                   (:wat::core::string::concat ":" (:wat::core::string::concat surf-str "$core-record")))
      holon-node (:wat::core::keyword-node

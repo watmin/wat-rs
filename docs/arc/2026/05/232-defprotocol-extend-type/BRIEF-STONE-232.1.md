@@ -119,7 +119,7 @@ git -C /home/watmin/work/holon/holon-rs/ status --short                         
 - **Mangled name convention** — `:NS::Type/Protocol-method` per D2 in sub-DESIGN. Single hyphen between protocol+method. Type and Protocol use full names (no abbreviations). Verify with FM 2-bis probe output: probe 3's error names `:myapp::Unhandled/Formattable-format` — that's the exact shape.
 - **Dispatcher self-parameter type** — `[self <- :wat::holon::HolonAST]` per D8. Per-class impls also typed as HolonAST to avoid subtyping questions in v1.
 - **Method-name validation deferral** — D7 says compile-time validation is preferred but MAY defer if complex. If you attempt + scope creeps, defer + document in SCORE; runtime UnknownFunction is honest.
-- **Macro-time string building** — verify defrecord.wat's pattern: `:wat::core::keyword/to-string` (keyword → string for splicing into mangled name) + `:wat::core::string::concat` (string building) + `:wat::core::keyword/from-string` (string → keyword for emitting at name position).
+- **Macro-time string building** — verify defrecord.wat's pattern: `:wat::core::keyword/name` (keyword → string for splicing into mangled name) + `:wat::core::string::concat` (string building) + `:wat::core::keyword/from-name` (string → keyword for emitting at name position).
 
 ## Scope reminders
 

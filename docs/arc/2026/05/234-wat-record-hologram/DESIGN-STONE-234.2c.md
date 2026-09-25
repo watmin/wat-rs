@@ -88,7 +88,7 @@ This makes the diagnostic immediately actionable — user sees the wrong call si
 
 ### D4 — Macro-expand-time work: class FQDN string literal
 
-The macro expands `~(:wat::core::keyword/to-string fqdn)` to produce the literal class FQDN string for the equality comparison + the message prefix. Same pattern as 234.2b's predicate body (which already uses this pattern at the message-build site).
+The macro expands `~(:wat::core::keyword/name fqdn)` to produce the literal class FQDN string for the equality comparison + the message prefix. Same pattern as 234.2b's predicate body (which already uses this pattern at the message-build site).
 
 ### D5 — Zero-field record case unchanged
 

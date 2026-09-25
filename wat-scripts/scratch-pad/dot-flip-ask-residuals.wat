@@ -3,9 +3,9 @@
 ;; prints "<bare> -> <parent or NONE>".
 (:wat::core::defn :user::ask [bare <- :wat::core::String] -> :wat::core::String
   (:wat::core::match
-    (:wat::runtime::variant-parent-of (:wat::keyword::from-string bare))
+    (:wat::runtime::variant-parent-of (:wat::keyword::from-name bare))
     [:wat::core::Option.Some {:value parent}
-      (:wat::string::concat bare (:wat::string::concat "  VARIANT of " (:wat::keyword::to-string parent)))]
+      (:wat::string::concat bare (:wat::string::concat "  VARIANT of " (:wat::keyword::name parent)))]
     [:wat::core::Option.None {}
       (:wat::string::concat bare "  -- NONE")]))
 

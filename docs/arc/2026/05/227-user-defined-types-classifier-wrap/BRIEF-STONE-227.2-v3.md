@@ -78,7 +78,7 @@ Adapt for defrecord field-bind synthesis: each iteration produces a WatAST repre
   `(:wat::core::do
      (:wat::core::defn ~fqdn [~@fields] -> :wat::holon::HolonAST
        (:wat::holon::Bind
-         (:wat::holon::Atom (:wat::holon::to-holon ~(:wat::core::keyword/to-string fqdn)))
+         (:wat::holon::Atom (:wat::holon::to-holon ~(:wat::core::keyword/name fqdn)))
          (:wat::core::Result/expect -> :wat::holon::HolonAST
            (:wat::holon::Bundle
              [~@(:wat::core::let
@@ -92,11 +92,11 @@ Adapt for defrecord field-bind synthesis: each iteration produces a WatAST repre
                                        (:wat::holon::Atom (:wat::holon::to-holon
                                                             (:wat::core::unquote (var-of pair))))))))]
                   field-binds)])
-           ~(:wat::core::string::concat "defrecord " (:wat::core::keyword/to-string fqdn)
+           ~(:wat::core::string::concat "defrecord " (:wat::core::keyword/name fqdn)
                                        " instance: Bundle capacity exceeded"))))
      (:wat::core::defn ~<predicate-fqdn-derived-via-existing-code>
                        [v <- :wat::holon::HolonAST] -> :wat::core::bool
-       (:wat::holon::is? v ~(:wat::core::keyword/to-string fqdn)))))
+       (:wat::holon::is? v ~(:wat::core::keyword/name fqdn)))))
 ```
 
 The exact iteration over `fields` and the `name-of`/`var-of` decomposition is sonnet's specific work — but the SHAPE is locked by the probes. Sonnet must compose using `:wat::core::map` + runtime quasiquote + `~@(let ...)` splice + `Result/expect`. NO substitute composition.

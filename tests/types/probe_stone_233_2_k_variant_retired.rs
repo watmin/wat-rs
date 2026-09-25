@@ -131,16 +131,16 @@ fn probe_2_value_enum_has_no_tracked_variant() {
 // "Unknown promotes to SymbolBound at lookup" branch) with an honest `⚠ REGRESSED` comment.
 // Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning signature (sniffed from the
 // handler's own declared return type, `crates/wat-macros/src/wat_intrinsic.rs`), so
-// `src/intrinsic/keyword.rs`'s `from-string` handler forwards its own
-// `Provenance::RuntimeBuilt` again — `Environment::lookup`'s `RuntimeBuilt => replace with the
-// SAME RuntimeBuilt` arm (`src/value/environment.rs`) now fires instead, so this probe is
-// RESTORED to assert `RuntimeBuilt` survives the let-binding, under the new
-// `:wat::keyword::from-string` spelling.
+// `src/intrinsic/keyword.rs`'s `from-name` handler (the colon-free constructor; then called
+// `from-string`) forwards its own `Provenance::RuntimeBuilt` again — `Environment::lookup`'s
+// `RuntimeBuilt => replace with the SAME RuntimeBuilt` arm (`src/value/environment.rs`) now
+// fires instead, so this probe is RESTORED to assert `RuntimeBuilt` survives the let-binding,
+// producer `:wat::keyword::from-name`.
 #[test]
 fn probe_3_producer_provenance_survives_let_binding() {
     let world = startup_bare().expect("startup");
 
-    // Bind keyword/from-string result to a let; then reference it via Symbol
+    // Bind keyword/from-name result to a let; then reference it via Symbol
     // lookup. Provenance must flow through env.
     //
     // The expression lives in a co-located FRAGMENT (never an inlined Rust string) — see that
@@ -163,12 +163,12 @@ fn probe_3_producer_provenance_survives_let_binding() {
     assert!(
         matches!(
             tv.provenance(),
-            Provenance::RuntimeBuilt { producer, .. } if *producer == ":wat::keyword::from-string"
+            Provenance::RuntimeBuilt { producer, .. } if *producer == ":wat::keyword::from-name"
         ),
-        "Stone 233.2.k / arc 255 Stone G: keyword/from-string stamps its own RuntimeBuilt \
+        "Stone 233.2.k / arc 255 Stone G: keyword/from-name stamps its own RuntimeBuilt \
          provenance at construction, and Environment::lookup's RuntimeBuilt arm replaces it with \
          the SAME RuntimeBuilt (not SymbolBound) at the let-binding reference; expected \
-         Provenance::RuntimeBuilt {{ producer: \":wat::keyword::from-string\", .. }}; got {:?}",
+         Provenance::RuntimeBuilt {{ producer: \":wat::keyword::from-name\", .. }}; got {:?}",
         tv.provenance()
     );
 }

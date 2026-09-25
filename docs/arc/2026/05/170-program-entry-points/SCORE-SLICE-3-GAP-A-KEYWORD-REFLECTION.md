@@ -8,8 +8,8 @@
 
 | Row | What | Pass criterion | Result |
 |-----|------|----------------|--------|
-| A | `:wat::core::keyword/to-string` registered + dispatched | `grep -n "keyword/to-string" src/runtime.rs src/check.rs` | PASS — dispatch arm at runtime.rs:3338; scheme at check.rs:11219 |
-| B | `:wat::core::keyword/from-string` registered + dispatched | grep | PASS — dispatch arm at runtime.rs:3339; scheme at check.rs:11228 |
+| A | `:wat::core::keyword/name` registered + dispatched | `grep -n "keyword/to-string" src/runtime.rs src/check.rs` | PASS — dispatch arm at runtime.rs:3338; scheme at check.rs:11219 |
+| B | `:wat::core::keyword/from-name` registered + dispatched | grep | PASS — dispatch arm at runtime.rs:3339; scheme at check.rs:11228 |
 | C | `keyword/to-string` returns text WITHOUT leading colon | unit test `keyword_to_string_strips_leading_colon` | PASS — `(:keyword/to-string :foo)` → `"foo"` (not `":foo"`) |
 | D | Round-trip `(from-string (to-string k)) = k` works for ≥ 3 sample keywords | unit test `keyword_reflection_round_trip` | PASS — 3 cases: `:foo`, `:wat::core::i64`, `:wat::kernel::Receiver<wat::core::i64>` |
 | E | `:wat::core::keyword/of` macro special-form recognized in `expand_form` | `grep -n "keyword/of" src/macros.rs` | PASS — check at macros.rs:537-539; construct_keyword_of at macros.rs:578 |

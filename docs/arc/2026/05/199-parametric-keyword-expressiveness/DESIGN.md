@@ -4,8 +4,8 @@
 >
 > Post-DESIGN-sketch investigation revealed every primitive arc 199 would have minted ALREADY EXISTS:
 >
-> - `:wat::core::keyword/from-string` (src/check.rs:11931) — String → keyword Value
-> - `:wat::core::keyword/to-string` (src/check.rs:11923) — keyword → String
+> - `:wat::core::keyword/from-name` (src/check.rs:11931) — String → keyword Value
+> - `:wat::core::keyword/name` (src/check.rs:11923) — keyword → String
 > - `:wat::core::string::concat` (src/check.rs:4653) — variadic String concat
 > - **Computed unquote at macro expand time** (arc 143 slice 2, src/macros.rs:1010+) — `~(:keyword/op args...)` in a defmacro template substitutes macro params, runs `crate::runtime::eval` on the substituted expression at expand time, then `value_to_watast` converts the result to a `WatAST` node that lands at the `~(...)` position
 > - `value_to_watast` (src/runtime.rs:8815) — `Value::wat__core__keyword(k) → WatAST::Keyword(k)` is the working conversion

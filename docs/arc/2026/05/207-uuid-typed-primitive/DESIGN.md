@@ -52,7 +52,7 @@ User check 2026-05-17: *"do we need a v4 and v5 type?.. they are all uuid with j
 
 ## Naming convention notes
 
-- `from-string` / `to-string` matches existing substrate convention (`:wat::core::keyword/from-string` + `keyword/to-string`). NOT `from-str` / `to-str` (abbreviation form not used elsewhere).
+- `from-string` / `to-string` matches existing substrate convention (`:wat::core::keyword/from-name` + `keyword/to-string`). NOT `from-str` / `to-str` (abbreviation form not used elsewhere).
 - Arc 207 RENAMES arc 206's namespace-form verbs (`:wat::core::uuid::v4` → `:wat::core::Uuid/v4`; same for v5). Per `feedback_refuse_easy_solutions`: NO parallel namespace+Type forms kept for "compatibility." The namespace-form was correct when UUIDs were String-typed (free functions in a namespace); now that Uuid is a type, constructors on the type IS the honest form. Telemetry's wat-side alias (`:wat::telemetry::uuid::v4`) updates its target accordingly.
 - Equality requires ONE explicit `values_equal` arm addition (Pattern B's mechanical extension, per slice 1 audit). NOT automatic — DESIGN's initial "falls out from dispatch" framing was over-optimistic; corrected. Comparison (ordering) intentionally absent — UUIDs are identifiers not ordinals (same as keyword, Enum, Struct). Hash (`hashmap_key`) intentionally absent from slice 2 — latent gap, in-scope ADD in slice 4 if consumer ripple surfaces `HashMap<:Uuid, T>` demand.
 

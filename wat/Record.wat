@@ -64,7 +64,7 @@
 ;;     ;;    auto-minted elsewhere — same as BASE)
 ;;     )
 ;;
-;; Naming rules (derived at macro-expand time via keyword/to-string + string manipulation):
+;; Naming rules (derived at macro-expand time via keyword/name + string manipulation):
 ;;
 ;;   | Input FQDN            | Constructor           | Predicate                  | Classifier string      |
 ;;   |-----------------------|-----------------------|----------------------------|------------------------|
@@ -168,7 +168,7 @@
                     (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::keyword::to-string fqdn)
+     fqdn-str      (:wat::keyword::name fqdn)
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
@@ -264,7 +264,7 @@
                     (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::keyword::to-string fqdn)
+     fqdn-str      (:wat::keyword::name fqdn)
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).

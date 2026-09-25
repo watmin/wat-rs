@@ -517,7 +517,7 @@
 ;; EXTRACTION from WatAST params:
 ;;   n-pos-int: (Option/expect (string::to-i64 (write-forms n-pos)) "...")
 ;;   fnames:    (ast->children field-names)   — field-names is already a Vector node
-;;   ns-kw:     (keyword/from-string (keyword/to-string ns))
+;;   ns-kw:     (keyword/from-name (keyword/name ns))
 ;;
 ;; NOTE: strip-leading-colon (Arc 260.1b Part A) is a defn and cannot be called
 ;; from a macro program-body (not in is_pure_total). The `:foo-bar` → `foo-bar` strip
@@ -537,7 +537,7 @@
                    "kwargs-lower: n-pos must be an integer literal")
      fnames     (:wat::core::ast->children field-names)
      nf         (:wat::core::length fnames)
-     ns-kw      (:wat::keyword::from-string (:wat::keyword::to-string ns))
+     ns-kw      (:wat::keyword::from-name (:wat::keyword::name ns))
      ;; Split call-args into positional and tail.
      ;; Arc 118.2a — was `(:wat::core::take call-args n-pos-int)` / `(:wat::core::drop …)`. Both
      ;; flipped LAZY; this is `:wat::core::kwargs-lower`, a program-body macro forwarded to from
@@ -679,7 +679,7 @@
     [;; Arc 300.1 — faithful-Clojure def-name: a namespaced Symbol name
      ;; (`user/main`, `my/ctor`) is the keyword FQDN's twin. Rebuild it as a
      ;; Keyword node (`:user::main`) so BOTH branches below (kwargs + backward-
-     ;; compat) consume a keyword uniformly — `keyword/to-string name` and
+     ;; compat) consume a keyword uniformly — `keyword/name name` and
      ;; `~name` both expect a keyword. Bare (no `/`) → `:name`. Additive: a
      ;; Keyword name (the rust-scheme surface) passes straight through.
      name
@@ -752,13 +752,13 @@
      ;; `try_parse_fn_shape_def`, `src/runtime.rs`) so every spelling of the rule reads
      ;; identically. `name-str` was already computed above as part of the name
      ;; normalization; reused here rather than recomputed.
-     name-str-parametric? (:wat::string::ends-with? (:wat::keyword::to-string name) ">")
+     name-str-parametric? (:wat::string::ends-with? (:wat::keyword::name name) ">")
      _binder-contradiction-check
                   (:wat::core::if (:wat::core::if has-binder name-str-parametric? false)
                     (:wat::core::macro-error
                       (:wat::string::interpolate
                         "defn: declaration `{name-str}` carries BOTH a name-embedded `<...>` type-param spelling and a `:- [...]` binder — pick one; a declaration with both is a contradiction, never something to silently resolve"
-                        :name-str (:wat::keyword::to-string name)))
+                        :name-str (:wat::keyword::name name)))
                     nil)
      params-vec   (:wat::core::first rest2)
      params-ch    (:wat::core::ast->children params-vec)
@@ -787,7 +787,7 @@
       
       ;; ── KWARGS BRANCH (Arc 260.1a) ───────────────────────────────────────────
       (:wat::core::let
-        [name-str        (:wat::keyword::to-string name)
+        [name-str        (:wat::keyword::name name)
          ;; ── Arc 278 parametric names: the name / type-param SPLIT ────────────────────
          ;; A kwargs defn MAY be generic (`:my::svc/start :- [T]` — this comment used to add
          ;; "every parametric `defservice`'s auto start/resume is exactly this"). STONE-
@@ -839,9 +839,9 @@
          ;; :<name>::Kwargs — the minted bundle type. STONE-the-dormant-minter — always
          ;; the BARE name now (`name-tp` is always ""); a non-empty `binder-names-ch`
          ;; rides as a `:- [...]` sibling on `record-def` (below), not name-embedded.
-         kwargs-ty       (:wat::keyword::from-string
+         kwargs-ty       (:wat::keyword::from-name
                            (:wat::string::interpolate "{b}::Kwargs{p}" :b name-base :p name-tp))
-         kwargs-ty-str   (:wat::keyword::to-string kwargs-ty)
+         kwargs-ty-str   (:wat::keyword::name kwargs-ty)
          ;; the BARE bundle name — the CONSTRUCTOR head and the ACCESSOR prefix, both of
          ;; which key on the base (identity when the defn is monomorphic).
          kwargs-ty-base-str (:wat::string::interpolate "{b}::Kwargs" :b name-base)
@@ -970,7 +970,7 @@
                                  ;; any macro-emission depth.
                                  binder-sym    fname-node
                                  ;; Accessor keyword: :<name>::Kwargs/<field-name>
-                                 accessor-kw   (:wat::keyword::from-string
+                                 accessor-kw   (:wat::keyword::from-name
                                                  (:wat::string::concat kwargs-ty-base-str
                                                    (:wat::string::interpolate "/{fname-str}" :fname-str fname-str)))
                                  ;; Accessor call: (:<name>::Kwargs/<field> __kwargs__)
@@ -1439,10 +1439,10 @@
 ;;
 ;; cond is TOTAL: a terminal (:else body) arm is required.
 ;;
-;; EMPTY clause list → expansion-time MacroError via keyword/from-string:
-;;   (:wat::core::keyword/from-string ":else ...") rejects ':'-prefixed input with a
-;;   RuntimeError (via EvalBreak::Diagnostic), which propagates as StartupError::Macro
-;;   rather than panic_any, so run_err can capture it. The error message contains ":else".
+;; EMPTY clause list → expansion-time MacroError (`:wat::core::macro-error`):
+;;   the body calls macro-error; the message contains ":else". The retired sentinel
+;;   minted a keyword instead (then `keyword/from-string`, the colon-free constructor
+;;   now named `from-name`) and is not this path.
 ;; :else arm → emit its body unconditionally (terminal).
 ;; test arm → (if test body (cond rest…)) and re-expand to fixpoint.
 ;;
@@ -1722,7 +1722,7 @@
                         key   (:wat::core::if
                                 (:wat::core::= (:wat::core::ast-kind k-ast) "keyword")
                                 
-                                (:wat::keyword::to-string k-ast)
+                                (:wat::keyword::name k-ast)
                                 (:wat::core::macro-error
                                   "format: kwargs key must be a keyword (e.g. :name)"))
                         val   (:wat::core::Option/expect  
@@ -2045,7 +2045,7 @@
                     (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::keyword::to-string fqdn)
+     fqdn-str      (:wat::keyword::name fqdn)
      ;; Arc 294 item 9a — a GENERIC type name (`:ns::T<A,B>`) registers its kwargs
      ;; companion macro + references its positional prime under the BARE name
      ;; (`:ns::T` / `:ns::T'`), matching register_aggregate_methods (runtime.rs:
@@ -2090,10 +2090,10 @@
   [surf <- :wat::WatAST  & methods <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
-    [surf-str   (:wat::keyword::to-string surf)            ;; "k5::HasX" (no leading colon)
-     core-kw    (:wat::keyword::from-string
+    [surf-str   (:wat::keyword::name surf)            ;; "k5::HasX" (no leading colon)
+     core-kw    (:wat::keyword::from-name
                   (:wat::string::interpolate "{surf-str}$core-record" :surf-str surf-str))
-     holon-kw   (:wat::keyword::from-string
+     holon-kw   (:wat::keyword::from-name
                   (:wat::string::interpolate "{surf-str}$holon-record" :surf-str surf-str))]
     `(:wat::core::do
        (:wat::core::extend-type ~core-kw  ~surf ~@methods)

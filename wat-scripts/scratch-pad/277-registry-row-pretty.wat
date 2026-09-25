@@ -43,7 +43,7 @@
      mine  (:wat::core::into (:wat::core::Vector :- [:wat::intrinsic::Example])
              (:wat::core::filter
                (:wat::core::fn [e <- :wat::intrinsic::Example] -> :wat::core::bool
-                 (:wat::core::= (:wat::keyword::to-string (:wat::intrinsic::Example/fqdn e)) want))
+                 (:wat::core::= (:wat::keyword::name (:wat::intrinsic::Example/fqdn e)) want))
                all))]
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::nil  e <- :wat::intrinsic::Example] -> :wat::core::nil

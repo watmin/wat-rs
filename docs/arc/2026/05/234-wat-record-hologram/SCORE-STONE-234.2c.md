@@ -117,7 +117,7 @@ Total compile rounds: 2. Total iteration cycles: 1 fix.
 - `fqdn-str` already bound in outer let — referenced inside inner let body
 - `(:wat::core::quasiquote ... (:wat::core::unquote ...) ...)` pattern — extended without breaking
 - `(:wat::core::string::concat ...)` at expand time for msg-prefix — same pattern as predicate-name build in 234.2b
-- `(:wat::core::keyword/to-string fqdn)` already in scope as `fqdn-str` — no duplication needed
+- `(:wat::core::keyword/name fqdn)` already in scope as `fqdn-str` — no duplication needed
 
 The 234.2b shape reuse was effective. Mechanical work as predicted.
 

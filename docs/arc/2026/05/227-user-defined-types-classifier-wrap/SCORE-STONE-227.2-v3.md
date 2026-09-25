@@ -117,7 +117,7 @@ The v3 defrecord macro's constructor branch uses this pattern (mirroring probe_d
                                 name-h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                          (:wat::core::Vector/get children idx)
                                          "defrecord: field name index out of range")
-                                name-s (:wat::core::keyword/to-string
+                                name-s (:wat::core::keyword/name
                                          (:wat::holon::from-holon name-h))
                                 var-w  (:wat::holon::to-wat name-h)]
                                (:wat::core::quasiquote

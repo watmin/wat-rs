@@ -12,7 +12,7 @@ Mode A target: **12/12 PASS**. Every row binds to a specific verification comman
 | 4 | Clippy no new warnings | `cargo clippy --release --lib -p wat -- -D warnings 2>&1 \| grep -c "warning"` | ≤ 52 (baseline match) |
 | 5 | eval_keyword_from_string wraps return in Tracked | `grep -A 30 "fn eval_keyword_from_string" src/runtime.rs \| grep -c "Value::Tracked"` | ≥ 1 |
 | 6 | Provenance::RuntimeBuilt used at the wrap site | `grep -A 30 "fn eval_keyword_from_string" src/runtime.rs \| grep -c "Provenance::RuntimeBuilt"` | ≥ 1 |
-| 7 | Producer string is canonical | `grep -A 30 "fn eval_keyword_from_string" src/runtime.rs \| grep -c '":wat::core::keyword/from-string"'` | ≥ 2 (existing op string + new producer string) |
+| 7 | Producer string is canonical | `grep -A 30 "fn eval_keyword_from_string" src/runtime.rs \| grep -c '":wat::core::keyword/from-name"'` | ≥ 2 (existing op string + new producer string) |
 | 8 | ValueSnapshot::Display extended for Provenance | `grep -A 30 "impl std::fmt::Display for ValueSnapshot" src/runtime.rs \| grep -c "Provenance::"` | ≥ 1 |
 | 9 | Display covers all 4 Provenance variants | `grep -A 40 "impl std::fmt::Display for ValueSnapshot" src/runtime.rs \| grep -cE "Provenance::(Unknown\|Literal\|SymbolBound\|RuntimeBuilt)"` | ≥ 4 |
 | 10 | **Probe 6 flips FAIL → PASS** | `cargo test --release --test probe_diagnostic_value_snapshot_in_errors probe_6 -- --nocapture 2>&1 \| tail -3` | `test result: ok. 1 passed` |

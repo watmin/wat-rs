@@ -13,7 +13,7 @@ Arc 255's dot-flip minted `:wat::runtime::variant-parent-of` so wat could ASK wh
 inside a string.
 
 ```wat
-admin-init-kw (:wat::keyword::from-string
+admin-init-kw (:wat::keyword::from-name
                 (:wat::string::interpolate "{b}::Admin::Init" :b fqdn-base))
 ```
 
@@ -57,7 +57,7 @@ would be a different verb (`compose-variant-checked`) and no caller has asked fo
 
 ```wat
 admin-init-kw (:wat::runtime::compose-variant
-                (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                (:wat::keyword::from-name (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
                 :Init)
 ```
 
@@ -67,7 +67,7 @@ joins. The file stops knowing what the separator is, which is the property the w
 been buying everywhere else.
 
 One site (`status-started-str`) wants a String rather than a keyword; it takes
-`:wat::keyword::to-string` over the composed keyword.
+`:wat::keyword::name` over the composed keyword.
 
 ## Acceptance
 

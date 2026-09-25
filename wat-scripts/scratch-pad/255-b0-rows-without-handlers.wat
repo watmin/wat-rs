@@ -18,6 +18,6 @@
         "rows with NO native handler: " (:wat::i64::to-string (:wat::core::length hl))))
       (:wat::core::mapv
         (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
-          (:wat::kernel::println (:wat::keyword::to-string (:wat::intrinsic::Row/name r))))
+          (:wat::kernel::println (:wat::keyword::name (:wat::intrinsic::Row/name r))))
         hl)
       (:wat::kernel::println ""))))

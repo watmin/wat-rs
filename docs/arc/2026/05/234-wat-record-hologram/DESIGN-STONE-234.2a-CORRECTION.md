@@ -166,7 +166,7 @@ Defines `:myapp::Triple [a <- :wat::core::i64  b <- :wat::core::String  c <- :wa
 
 ```
 (:wat::Record::of
-  (:wat::core::keyword/from-string "myapp::Triple")
+  (:wat::core::keyword/from-name "myapp::Triple")
   [a b c]              ; heterogeneous Vec — currently TypeMismatch
   <holon-form>)
 ```

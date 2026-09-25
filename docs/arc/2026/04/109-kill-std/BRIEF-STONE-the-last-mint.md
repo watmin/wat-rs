@@ -11,7 +11,7 @@ Copy the report shape of `SCORE-STONE-the-last-comma-lives-in-a-symbol.md`.
 `wat/service.wat:1996`:
 
 ```clojure
-method-name (:wat::core::keyword/from-string
+method-name (:wat::core::keyword/from-name
               (:wat::core::string::interpolate "{b}/{op-str}{p}" :b fqdn-base :op-str op-str :p fqdn-tp))
 ```
 

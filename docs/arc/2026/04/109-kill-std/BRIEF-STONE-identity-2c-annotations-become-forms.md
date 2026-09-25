@@ -12,11 +12,11 @@ in your report which you re-located that way.
 ## The work
 
 `defservice` builds type names as strings and mints them with
-`(:wat::core::keyword/from-string <str>)` — a KEYWORD carrying the angle spelling
+`(:wat::core::keyword/from-name <str>)` — a KEYWORD carrying the angle spelling
 `Head<A,B>`. For every binding the table classifies **ANNOTATION**, mint the reference FORM instead:
 
 ```clojure
-(:wat::core::keyword/to-type-form-colon (:wat::core::keyword/from-string <str>))
+(:wat::core::keyword/to-type-form-colon (:wat::core::keyword/from-name <str>))
 ```
 
 The string building is untouched. `keyword/to-type-form-colon` is F5-admitted

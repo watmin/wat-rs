@@ -39,7 +39,7 @@ BEFORE freeze (`src/freeze/env.rs:144`, `:278`) and carries its own type-check a
 the misfiling permanent.
 
 **3. The coercion fork is LIVE — this is the seam's own item 8.** `to-i64`/`to-f64`/`to-bool` name
-the **target**, from the string side. The tree simultaneously carries `:wat::core::keyword/from-string`
+the **target**, from the string side. The tree simultaneously carries `:wat::core::keyword/from-name`
 and `:wat::core::char/of` — naming the **source**, from the type side. Two conventions, unresolved.
 Move these three into `:wat::string::` and they migrate TWICE, which is the exact thing E exists to
 prevent ("final names with final signatures, once instead of twice").

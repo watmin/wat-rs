@@ -4,7 +4,7 @@
 
 Fix `eval_apply`'s head-value pattern matches (`src/runtime.rs:7433` + `src/runtime.rs:7438`) to use `Value::inner()` before matching. Currently both `match head_val` sites pattern-match on the OUTER variant — a `Value::Tracked { inner: Box::new(Value::wat__core__keyword(...)), .. }` wrapping (introduced by Stone 233.2.b/c producer tags) falls through to the type-mismatch arm despite the inner type matching exactly.
 
-**The defect surfaced during Stone 233.2.d verification** — `probe_diagnostic_dynamic_keyword_invocation` probe_2 + probe_3 fail with `TypeMismatch { expected: "wat::core::keyword", got: ValueSnapshot { type_name: "wat::core::keyword", rendered: ":ns::greeting", provenance: RuntimeBuilt { producer: ":wat::core::keyword/from-string", ... } } }`. The dishonest signal is unmissable: `expected` and `got.type_name` MATCH yet TypeMismatch still fires.
+**The defect surfaced during Stone 233.2.d verification** — `probe_diagnostic_dynamic_keyword_invocation` probe_2 + probe_3 fail with `TypeMismatch { expected: "wat::core::keyword", got: ValueSnapshot { type_name: "wat::core::keyword", rendered: ":ns::greeting", provenance: RuntimeBuilt { producer: ":wat::core::keyword/from-name", ... } } }`. The dishonest signal is unmissable: `expected` and `got.type_name` MATCH yet TypeMismatch still fires.
 
 After this stone: `probe_diagnostic_dynamic_keyword_invocation` flips from 6/8 → 8/8. Stone 233.2.a transparency contract (`Value::inner()` unwraps Tracked) becomes the load-bearing convention for any code that pattern-matches a Value to extract its underlying variant.
 

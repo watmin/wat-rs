@@ -2117,8 +2117,8 @@ Opened arc 199 (parametric-keyword expressiveness in defmacro) earlier same day 
 
 **Then user asked me to investigate existing substrate machinery.** Findings:
 
-- `:wat::core::keyword/from-string` (src/check.rs:11931) — String → keyword Value (adds `:` prefix; rejects `:`-prefixed input)
-- `:wat::core::keyword/to-string` (src/check.rs:11923) — keyword → String (strips `:` prefix)
+- `:wat::core::keyword/from-name` (src/check.rs:11931) — String → keyword Value (adds `:` prefix; rejects `:`-prefixed input)
+- `:wat::core::keyword/name` (src/check.rs:11923) — keyword → String (strips `:` prefix)
 - `:wat::core::string::concat` (src/check.rs:4653) — variadic String concat
 - **Computed unquote at macro expand time** — arc 143 slice 2 (src/macros.rs:1010+). When `~(:keyword/op args...)` appears in a defmacro template, the expander substitutes macro params into the expression, calls `crate::runtime::eval` AT EXPAND TIME, then `value_to_watast` converts the result to a `WatAST` node landing at the `~(...)` position.
 - `value_to_watast` (src/runtime.rs:8815) — `Value::wat__core__keyword(k) → WatAST::Keyword(k)` is the working conversion.

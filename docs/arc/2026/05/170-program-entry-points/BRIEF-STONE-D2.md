@@ -93,7 +93,7 @@ Key shapes:
 
 Per arc 199 rejection: substrate already has everything via:
 - Arc 143 slice 2's computed unquote at expand time (`~(...)` calls arbitrary substrate primitives, converts result via `value_to_watast`)
-- `:wat::core::keyword/from-string` + `:wat::core::keyword/to-string` + `:wat::core::string::concat`
+- `:wat::core::keyword/from-name` + `:wat::core::keyword/name` + `:wat::core::string::concat`
 - `value_to_watast` lifts `Value::wat__core__keyword` → `WatAST::Keyword` and `Value::holon__HolonAST` → corresponding WatAST shape (arc 143 used HolonAST::symbol for bare-name symbol references)
 
 D2's iteration over the factory-specs Vector at expand time requires either:

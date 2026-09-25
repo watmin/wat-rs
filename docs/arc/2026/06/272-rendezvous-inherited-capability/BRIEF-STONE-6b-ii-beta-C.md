@@ -44,7 +44,7 @@ PLUS a generated agnostic child `:user::main`:
          _    (:wat::kernel::send' self (:wat::spawn::Bound/address b))
          st   (:wat::kernel::recv' self)]
         (:wat::core::apply -> :wat::core::nil
-          (:wat::core::keyword/from-string ~serve-name-str) self
+          (:wat::core::keyword/from-name ~serve-name-str) self
           (:wat::spawn::Bound/listener b)
           (:wat::core::Vector ~peer-ty)
           st [])))))

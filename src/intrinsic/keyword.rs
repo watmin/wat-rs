@@ -52,7 +52,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 
 // ─── the 5 verbs ────────────────────────────────────────────────────────────
 
-/// `(:wat::keyword::to-string k)` → the text of keyword `k`, without its leading colon sigil.
+/// `(:wat::keyword::to-string k)` → the keyword as written, colon included. Agrees with `str`.
 ///
 /// **Expand-time ground —** keyword ops: pure. Safe to evaluate while a `defmacro` body is
 /// being expanded. Ruling relocated from `macros/eval.rs`'s expand-time allow-list (arc 255
@@ -66,9 +66,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     k :wat::core::keyword the keyword probed
-/// @ret     :wat::core::String the text of `k`, without the leading colon
-/// @example (:wat::keyword::to-string :foo) #=> "foo"
-/// @example (:wat::keyword::to-string :wat::core::i64) #=> "wat::core::i64"
+/// @ret     :wat::core::String the keyword as written, leading colon included
+/// @example (:wat::keyword::to-string :foo) #=> ":foo"
+/// @example (:wat::keyword::to-string :wat::core::i64) #=> ":wat::core::i64"
 /// @see     :wat::keyword::from-string
 #[wat_intrinsic(":wat::keyword::to-string")]
 pub(crate) fn eval_keyword_to_string_home(
@@ -80,9 +80,9 @@ pub(crate) fn eval_keyword_to_string_home(
     crate::runtime::eval_keyword_to_string(std::slice::from_ref(k), span, env, sym)
 }
 
-/// `(:wat::keyword::from-string s)` → a keyword `Value` built from text `s`. `s` MUST NOT start
-/// with `:` (the sigil, not part of the payload) — raises a diagnostic naming the offending
-/// input otherwise. Round-trips with `to-string`: `(from-string (to-string k)) == k`.
+/// `(:wat::keyword::from-string s)` → a keyword built from its written form. `s` MUST start
+/// with `:` — raises a diagnostic naming the input otherwise. Round-trips with `to-string`:
+/// `(from-string (to-string k)) == k`.
 ///
 /// **Expand-time ground —** a pure constructor, routed via the intrinsic registry. Safe to
 /// evaluate while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
@@ -95,10 +95,10 @@ pub(crate) fn eval_keyword_to_string_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the colon-free keyword text
-/// @ret     :wat::core::keyword a keyword built from `s`
-/// @example (:wat::keyword::from-string "foo") #=> :foo
-/// @example (:wat::keyword::from-string "wat::core::i64") #=> :wat::core::i64
+/// @arg     s :wat::core::String the keyword as written, leading colon included
+/// @ret     :wat::core::keyword the keyword `s` names
+/// @example (:wat::keyword::from-string ":foo") #=> :foo
+/// @example (:wat::keyword::from-string ":wat::core::i64") #=> :wat::core::i64
 /// @see     :wat::keyword::to-string
 #[wat_intrinsic(":wat::keyword::from-string")]
 pub(crate) fn eval_keyword_from_string_home(
@@ -108,6 +108,59 @@ pub(crate) fn eval_keyword_from_string_home(
     span: &Span,
 ) -> Result<TrackedValue, EvalBreak> {
     crate::runtime::eval_keyword_from_string(std::slice::from_ref(s), span, env, sym)
+}
+
+/// `(:wat::keyword::name k)` → the keyword's name, without the leading colon.
+///
+/// **Expand-time ground —** keyword ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded. Same ruling as `to-string`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     k :wat::core::keyword the keyword probed
+/// @ret     :wat::core::String the name of `k`, without the leading colon
+/// @example (:wat::keyword::name :foo) #=> "foo"
+/// @example (:wat::keyword::name :wat::core::i64) #=> "wat::core::i64"
+/// @see     :wat::keyword::from-name
+#[wat_intrinsic(":wat::keyword::name")]
+pub(crate) fn eval_keyword_name_home(
+    k: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_keyword_name(std::slice::from_ref(k), span, env, sym)
+}
+
+/// `(:wat::keyword::from-name s)` → a keyword built from its name. `s` MUST NOT start with
+/// `:` — raises a diagnostic naming the input otherwise. Round-trips with `name`:
+/// `(from-name (name k)) == k`.
+///
+/// **Expand-time ground —** a pure constructor. Same ruling as `from-string`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     s :wat::core::String the keyword's name, without a leading colon
+/// @ret     :wat::core::keyword the keyword named by `s`
+/// @example (:wat::keyword::from-name "foo") #=> :foo
+/// @example (:wat::keyword::from-name "wat::core::i64") #=> :wat::core::i64
+/// @see     :wat::keyword::name
+#[wat_intrinsic(":wat::keyword::from-name")]
+pub(crate) fn eval_keyword_from_name_home(
+    s: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<TrackedValue, EvalBreak> {
+    crate::runtime::eval_keyword_from_name(std::slice::from_ref(s), span, env, sym)
 }
 
 /// `(:wat::keyword::to-symbol kw-node)` → convert a wat rust-scheme call-head Keyword FORM node

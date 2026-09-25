@@ -111,7 +111,7 @@ and its `rest.extend` (`:3293`). Nothing else in that function moves — `op_bud
 At each of the four decode blocks, the value goes back to a literal constructor call:
 
 ```clojure
-(:wat::core::keyword/from-string
+(:wat::core::keyword/from-name
   (:wat::core::string::concat proto-base
     (:wat::core::string::interpolate "::{vp}Response::RequestTooLarge" :vp variant-pascal)))
 ```

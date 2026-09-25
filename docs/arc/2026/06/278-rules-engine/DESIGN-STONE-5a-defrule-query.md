@@ -59,7 +59,7 @@ enumerate or reflect over functions — that's `collect-rules` = **5b** (a Rust 
 ## `query` — read derived facts (pure wat)
 
 `(:wat::rete::query [session <- :wat::rete::Session  ty <- :wat::core::keyword] -> :wat::core::PersistentVector)`:
-- normalize the type keyword to the `(:wat::core::type fact)` string form: `(:wat::core::keyword/to-string ty)`
+- normalize the type keyword to the `(:wat::core::type fact)` string form: `(:wat::core::keyword/name ty)`
   then strip a leading `:` if present → e.g. `"weather::ColdAndWindy"`.
 - flatten `production-memory`'s values into one `PV<:wat::Record>` (the 4c idiom:
   `foldl` over `(:wat::core::PersistentMap/values (:wat::rete::Session/production-memory session))`, inner

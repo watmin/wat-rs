@@ -224,6 +224,6 @@ The duck has a measurable shape; users name new ducks in namespaces they own.
 - Investigate `wat/holon/` and `wat/core/` for defmacro precedents (defservice, defn-restricted, defn template, etc.)
 - The `:wat::core::defmacro` form is the substrate primitive
 - `:wat::core::quasiquote` + `:wat::core::unquote` for template construction
-- Keyword manipulation: investigate what's available — likely `:wat::core::keyword/to-string`, `:wat::core::string/concat`, `:wat::core::keyword/from-string` or similar; arc 201 reflection layer may provide
+- Keyword manipulation: investigate what's available — likely `:wat::core::keyword/name`, `:wat::core::string/concat`, `:wat::core::keyword/from-name` or similar; arc 201 reflection layer may provide
 - The constructor side uses `:wat::holon::Bind` + `:wat::holon::Atom` (both narrow constructors post-arc-225)
 - The predicate side uses `:wat::holon::is?` from arc 226

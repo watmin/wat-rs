@@ -7,14 +7,14 @@ whole job.
 ## Why this exists
 
 `wat/service.wat`'s `defservice` macro builds type names as STRINGS and turns them into nodes with
-`:wat::core::keyword/from-string`. Arc 109 is migrating the language off the angle spelling
+`:wat::core::keyword/from-name`. Arc 109 is migrating the language off the angle spelling
 (`Head<A,B>`) onto the `:-` form (`(Head :- [A B])`), so every one of those built names must change —
 but **not all of them the same way**, and a uniform conversion would break things silently.
 
 Measured proof that a uniform conversion is wrong — the SAME binding, two consumers:
 
 ```clojure
-service-op-decl-kw   (:wat::core::keyword/from-string service-op-ty-str)      ; service.wat:1165
+service-op-decl-kw   (:wat::core::keyword/from-name service-op-ty-str)      ; service.wat:1165
 
 ;; :1248 — a DECLARATION NAME slot. Under `:-` this must be a BINDER: `name :- [K V]`
 `(:wat::core::defenum ~service-op-decl-kw :wat::enum::Pure ~@service-op-variant-items)

@@ -8,10 +8,11 @@
 (:wat::core::defn :user::add [] -> :wat::core::i64
   (:wat::core::+ 2 3))
 
-;; keyword/from-string is a producer (Stone 233.2.b) — wraps its return with
-;; RuntimeBuilt provenance naming the producer.
+;; keyword/from-name is a producer (Stone 233.2.b's colon-free constructor; then
+;; called keyword/from-string) — wraps its return with RuntimeBuilt provenance
+;; naming :wat::keyword::from-name.
 (:wat::core::defn :user::kw-from-string [] -> :wat::core::keyword
-  (:wat::keyword::from-string "wat::core::nil"))
+  (:wat::keyword::from-name "wat::core::nil"))
 
 (:wat::core::defn :user::hello [] -> :wat::core::String
   "hello")

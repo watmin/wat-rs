@@ -116,7 +116,7 @@
       :wat::core::Option.None)))
 
 (:wat::core::defn :user::kw-name-text [k <- :wat::core::keyword] -> :wat::core::String
-  (:wat::keyword::to-string k))
+  (:wat::keyword::name k))
 
 (:wat::core::defn :user::variant-field-names
   [v <- :wat::runtime::TypeVariant]

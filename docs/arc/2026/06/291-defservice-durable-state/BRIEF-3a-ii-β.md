@@ -82,7 +82,7 @@ the enum variant is a LIVE user capability and STAYS). Remove, in `wat/service.w
 
 ```clojure
 ;; service.wat — new let-bindings near the α admin keywords (~:236):
-lineage-final-kw (:wat::core::keyword/from-string
+lineage-final-kw (:wat::core::keyword/from-name
                    (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Final" :fqdn-str fqdn-str))
 ;; serve-body Admin arm (replaces the stub):
 ((:wat::spawn::ServiceEvent::Admin admin-msg)

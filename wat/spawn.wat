@@ -266,7 +266,8 @@
 ;; 2026-08-03). A subtype edge does not touch a head-keyed match; only ADDRESSES cross (293.W).
 ;;
 ;; WHY IT WAS NEEDED (arc 278): defservice's generated child main reached `serve` through
-;; `(apply (keyword/from-string …))` — a call that existed BECAUSE it did not resolve statically,
+;; `(apply (keyword/from-string …))` — a call that existed BECAUSE it did not resolve statically
+;; (that colon-free constructor is now `keyword/from-name`),
 ;; so no closure walk could follow it. The process tier holds a `Peer'` and `serve` declares a
 ;; `ThreadSelfPeer'`; this edge is what lets that call be STATIC.
 (:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)

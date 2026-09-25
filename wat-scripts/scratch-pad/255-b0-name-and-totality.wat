@@ -11,7 +11,7 @@
 
 (:wat::core::defn :tot::render [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::string::concat
-    (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "|")
+    (:wat::string::concat (:wat::keyword::name (:wat::intrinsic::Row/name r)) "|")
     (:wat::core::match (:wat::intrinsic::Row/totality r)
       [:wat::runtime::Totality.Total {}      "Total"]
       [:wat::runtime::Totality.Preserving {} "Preserving"]

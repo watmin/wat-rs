@@ -19301,12 +19301,8 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 170 slice 3 Gap A — keyword reflection primitives.
-    // keyword/to-string: keyword → String (colon-free text).
-    // keyword/from-string: String → keyword (inverse; rejects ':'-prefixed input).
-    // Arc 255 Stone E-iv — `:wat::core::keyword/{to-string,from-string}` RETIRED this stone;
-    // `:wat::keyword::{to-string,from-string}` (registered here, VERBATIM schemes — name-only
-    // rename) are their replacements (see `src/remedy/retirement.rs`).
+    // Keyword reflection. `to-string`/`from-string` are the written form (colon
+    // included). `name`/`from-name` are the colon-free name.
     let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
     env.register(
         ":wat::keyword::to-string".to_string(),
@@ -19319,6 +19315,24 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     env.register(
         ":wat::keyword::from-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: keyword_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::keyword::name".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![keyword_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::keyword::from-name".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],

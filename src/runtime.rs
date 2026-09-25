@@ -4894,25 +4894,67 @@ fn eval_bool_to_string(
     )))
 }
 
-// ─── Arc 170 slice 3 Gap A — keyword reflection primitives ───────────────
+// ─── keyword reflection ──────────────────────────────────────────────────
 //
-// `:wat::keyword::to-string`  → extracts keyword text WITHOUT leading colon.
-// `:wat::keyword::from-string` → constructs a keyword Value from text;
-//     text MUST NOT start with ':' (diagnostic error if it does).
-//
-// These two primitives are the substrate that keyword/of (macro special-form)
-// is built on top of conceptually. They also stand as first-class runtime
-// verbs usable in user code.
+// `:wat::keyword::to-string`  → the keyword as written, colon included.
+// `:wat::keyword::from-string` → the inverse; the text MUST start with ':'.
+// `:wat::keyword::name`       → the name, colon stripped.
+// `:wat::keyword::from-name`  → the inverse; the text MUST NOT start with ':'.
 
-/// `(:wat::keyword::to-string k)` — extract the text of a keyword value,
-/// without the leading colon sigil.
-///
-/// Examples:
-///   `(keyword/to-string :foo)`            → `"foo"`
-///   `(keyword/to-string :wat::core::i64)` → `"wat::core::i64"`
-// Arc 255 Stone E-iv — bumped to `pub(crate)` so `src/intrinsic/keyword.rs`'s registry-home
-// shim (`:wat::keyword::to-string`) can call the SAME algorithm; the algorithm stays here
-// (untouched), only its home's dispatch route moves.
+fn keyword_written(op: &str, v: &Value, span: &Span) -> Result<String, EvalBreak> {
+    match v {
+        Value::wat__core__keyword(k) => Ok(k.to_string()),
+        // A macro body binds a keyword argument as a form. The form's text
+        // is the keyword as written, colon included, same as the value.
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::Keyword(k, _) => Ok(k.clone()),
+            _ => Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: op.into(),
+                    expected: "keyword",
+                    got: Box::new(ValueSnapshot::of(v)),
+                },
+            )
+            .into()),
+        },
+        _ => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "keyword",
+                got: Box::new(ValueSnapshot::of(v)),
+            },
+        )
+        .into()),
+    }
+}
+
+fn eval_one_keyword(
+    op: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<String, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: op.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let arg_span = args[0].span().clone();
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    keyword_written(op, &v, &arg_span)
+}
+
+/// `(:wat::keyword::to-string k)` — the keyword as written, colon included.
+/// Agrees with `str`.
 pub(crate) fn eval_keyword_to_string(
     args: &[WatAST],
     list_span: &Span,
@@ -4930,63 +4972,32 @@ pub(crate) fn eval_keyword_to_string(
         )
         .into());
     }
-    let arg_span = args[0].span().clone();
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    // The keyword string always starts with ':'; strip it.
-    let raw: String = match &v {
-        Value::wat__core__keyword(k) => k.to_string(),
-        // Arc 249 Stone 249.4a — keyword FORM-value (bound in a macro body as
-        // Value::wat__WatAST(Keyword)): same stripping as the keyword-value arm.
-        Value::wat__WatAST(ast) => match &**ast {
-            WatAST::Keyword(k, _) => k.clone(),
-            _ => {
-                return Err(RuntimeError::new(
-                    arg_span,
-                    RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::keyword::to-string".into(),
-                        expected: "keyword",
-                        got: Box::new(ValueSnapshot::of(&v)),
-                    },
-                )
-                .into())
-            }
-        },
-        _ => {
-            return Err(RuntimeError::new(
-                arg_span,
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::keyword::to-string".into(),
-                    expected: "keyword",
-                    got: Box::new(ValueSnapshot::of(&v)),
-                },
-            )
-            .into())
-        }
-    };
-    let text = raw.strip_prefix(':').unwrap_or(&raw);
-    Ok(Value::String(Arc::new(text.to_string())))
+    let written = eval_one_keyword(":wat::keyword::to-string", args, list_span, env, sym)?;
+    Ok(Value::String(Arc::new(written)))
 }
 
-/// `(:wat::keyword::from-string s)` — construct a keyword Value from
-/// a text string. The text MUST NOT start with ':' (the colon is the sigil,
-/// not part of the payload). Returns a MalformedForm error with a helpful
-/// diagnostic if the string starts with ':'.
-///
-/// Round-trip property: `(from-string (to-string k)) == k` for any keyword `k`.
-// Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
-// Arc 255 Stone E-iv — bumped to `pub(crate)` so `src/intrinsic/keyword.rs`'s registry-home
-// shim (`:wat::keyword::from-string`) can call the SAME algorithm.
-// Arc 255 Stone G — the shim now forwards this fn's returned `TrackedValue` un-rewrapped
-// (`NativeHandler` sniffs the handler's declared return type), so the registry-routed call
-// carries this fn's own `RuntimeBuilt` provenance again, not `Provenance::Unknown`.
-pub(crate) fn eval_keyword_from_string(
+/// `(:wat::keyword::name k)` — the keyword's name, without the leading colon.
+pub(crate) fn eval_keyword_name(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let written = eval_one_keyword(":wat::keyword::name", args, list_span, env, sym)?;
+    let text = written.strip_prefix(':').unwrap_or(&written);
+    Ok(Value::String(Arc::new(text.to_string())))
+}
+
+fn eval_keyword_constructor(
+    op: &'static str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    require_colon: bool,
 ) -> Result<TrackedValue, EvalBreak> {
     let s = eval_one_arg(
-        ":wat::keyword::from-string",
+        op,
         args,
         list_span,
         env,
@@ -4998,32 +5009,85 @@ pub(crate) fn eval_keyword_from_string(
         },
     )?;
     if angle_type_head_in_name(&s) {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::keyword::from-string".into(),
-            reason: angle_minted_name_reason(&s),
-        })
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: angle_minted_name_reason(&s),
+            },
+        )
         .into());
     }
-    if s.starts_with(':') {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::keyword::from-string".into(),
-            reason: format!(
-                "input string {:?} starts with ':' — keyword text must not include the leading colon sigil; \
-                 use keyword/to-string to produce a colon-free string, or strip the ':' before calling from-string",
+    let has_colon = s.starts_with(':');
+    if require_colon != has_colon {
+        let reason = if require_colon {
+            format!(
+                "input string {:?} has no leading ':' — :wat::keyword::from-string requires the keyword as written",
                 s.as_str()
             )
-        }).into());
+        } else {
+            format!(
+                "input string {:?} starts with ':' — :wat::keyword::from-name requires the keyword's name, without the colon",
+                s.as_str()
+            )
+        };
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason,
+            },
+        )
+        .into());
     }
-    // Prepend ':' to form the canonical keyword string.
-    // Arc 233 Stone 233.2.j: construct TrackedValue directly (no Value::Tracked wrap).
-    let kw = Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str())));
+    let text = if require_colon {
+        s.as_str().to_string()
+    } else {
+        format!(":{}", s.as_str())
+    };
     Ok(TrackedValue::new(
-        kw,
+        Value::wat__core__keyword(Arc::new(text)),
         Provenance::RuntimeBuilt {
-            producer: ":wat::keyword::from-string",
+            producer: op,
             call_span: list_span.clone(),
         },
     ))
+}
+
+/// `(:wat::keyword::from-string s)` — a keyword from its written form.
+/// `s` MUST start with `:`. `(from-string (to-string k))` is `k`.
+pub(crate) fn eval_keyword_from_string(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<TrackedValue, EvalBreak> {
+    eval_keyword_constructor(
+        ":wat::keyword::from-string",
+        args,
+        list_span,
+        env,
+        sym,
+        true,
+    )
+}
+
+/// `(:wat::keyword::from-name s)` — a keyword from its name.
+/// `s` MUST NOT start with `:`. `(from-name (name k))` is `k`.
+pub(crate) fn eval_keyword_from_name(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<TrackedValue, EvalBreak> {
+    eval_keyword_constructor(
+        ":wat::keyword::from-name",
+        args,
+        list_span,
+        env,
+        sym,
+        false,
+    )
 }
 
 // ─── Arc 232 Stone 232.0 — :wat::core::apply ────────────────────────────────
@@ -20726,26 +20790,26 @@ mod tests {
     // ─── Arc 170 slice 3 Gap A — keyword reflection primitives ─────────
 
     #[test]
-    fn keyword_to_string_strips_leading_colon() {
+    fn keyword_name_drops_the_colon() {
         // Arc 109 "annihilate the angle bracket" — the third case used a
         // parametric keyword literal (`:wat::core::Vector<wat::core::i64>`);
         // a parametric type is no longer spellable as a single Keyword at
         // all (only the `:-` reference FORM survives, which is a List, not
-        // a Keyword, and `keyword/to-string` operates on a Keyword). The
+        // a Keyword, and `keyword/name` operates on a Keyword). The
         // subject here — strip-leading-colon on a multi-segment `::` path
         // — is unaffected by the angle bracket, so it keeps exercising a
         // plain multi-segment keyword instead.
         assert_eq!(
-            expect_string(eval_expr("(:wat::keyword::to-string :foo)").unwrap()),
+            expect_string(eval_expr("(:wat::keyword::name :foo)").unwrap()),
             "foo"
         );
         assert_eq!(
-            expect_string(eval_expr("(:wat::keyword::to-string :wat::core::i64)").unwrap()),
+            expect_string(eval_expr("(:wat::keyword::name :wat::core::i64)").unwrap()),
             "wat::core::i64"
         );
         assert_eq!(
             expect_string(
-                eval_expr("(:wat::keyword::to-string :wat::core::Vector)")
+                eval_expr("(:wat::keyword::name :wat::core::Vector)")
                     .unwrap()
             ),
             "wat::core::Vector"
@@ -20753,13 +20817,13 @@ mod tests {
     }
 
     #[test]
-    fn keyword_from_string_prepends_colon() {
-        let result = eval_expr(r#"(:wat::keyword::from-string "foo")"#).unwrap();
+    fn keyword_from_name_prepends_colon() {
+        let result = eval_expr(r#"(:wat::keyword::from-name "foo")"#).unwrap();
         match result {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":foo"),
             other => panic!("expected keyword; got {:?}", other),
         }
-        let result2 = eval_expr(r#"(:wat::keyword::from-string "wat::core::i64")"#).unwrap();
+        let result2 = eval_expr(r#"(:wat::keyword::from-name "wat::core::i64")"#).unwrap();
         match result2 {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::core::i64"),
             other => panic!("expected keyword; got {:?}", other),
@@ -20770,7 +20834,7 @@ mod tests {
     fn keyword_reflection_round_trip() {
         // Arc 109 "annihilate the angle bracket" — the third case used a
         // parametric keyword literal; see the comment on
-        // `keyword_to_string_strips_leading_colon` above for why a
+        // `keyword_name_drops_the_colon` above for why a
         // parametric type cannot be spelled as a single Keyword any more.
         // The subject (round-trip through a multi-segment `::` path) is
         // unaffected, so it keeps exercising a plain multi-segment
@@ -20784,14 +20848,12 @@ mod tests {
             ),
         ];
         for (kw, expected_text) in &cases {
-            // to-string strips colon
             let text = expect_string(
-                eval_expr(&format!("(:wat::keyword::to-string {})", kw)).unwrap(),
+                eval_expr(&format!("(:wat::keyword::name {})", kw)).unwrap(),
             );
-            assert_eq!(&text, expected_text, "to-string({}) should strip ':'", kw);
-            // from-string(to-string(k)) == k
+            assert_eq!(&text, expected_text, "name({}) should drop ':'", kw);
             let roundtrip = eval_expr(&format!(
-                r#"(:wat::keyword::from-string (:wat::keyword::to-string {}))"#,
+                r#"(:wat::keyword::from-name (:wat::keyword::name {}))"#,
                 kw
             ))
             .unwrap();
@@ -20805,16 +20867,59 @@ mod tests {
     }
 
     #[test]
-    fn keyword_from_string_rejects_colon_prefix() {
-        let err = eval_expr(r#"(:wat::keyword::from-string ":foo")"#).unwrap_err();
-        let msg = format!("{}", err);
-        // rune:lint(loose-assert) — Display embeds a Rust source file path/line/col prefix
-        // (e.g. "src/runtime.rs:N:col:end_col:"); the line number shifts when lines are added
-        // above the eval_expr call site, making full assert_eq! infeasible
-        assert!(
-            msg.contains("starts with ':'"),
-            "expected 'starts with \":\"' in error; got: {}",
-            msg
+    fn keyword_from_name_rejects_a_written_form() {
+        let err = eval_expr(r#"(:wat::keyword::from-name ":foo")"#).unwrap_err();
+        let EvalBreak::Diagnostic(e) = err else {
+            panic!("expected a diagnostic");
+        };
+        let RuntimeErrorKind::MalformedForm { reason, .. } = e.kind() else {
+            panic!("expected MalformedForm, got {}", e);
+        };
+        assert_eq!(
+            reason,
+            "input string \":foo\" starts with ':' — :wat::keyword::from-name requires the keyword's name, without the colon"
+        );
+    }
+
+    #[test]
+    fn keyword_to_string_is_the_written_form() {
+        // `to-string` is the keyword value's own text, colon included.
+        // `:foo` agrees with `str`. A namespaced keyword's `str` is the
+        // dot spelling; `to-string` keeps the `::` the value stores.
+        let written_foo = expect_string(
+            eval_expr("(:wat::keyword::to-string :foo)").unwrap(),
+        );
+        let str_foo = expect_string(eval_expr("(:wat::core::str :foo)").unwrap());
+        assert_eq!(written_foo, ":foo");
+        assert_eq!(str_foo, ":foo");
+        for src in [":wat::core::i64", ":user::E.V"] {
+            let written = expect_string(
+                eval_expr(&format!("(:wat::keyword::to-string {src})")).unwrap(),
+            );
+            assert_eq!(written, src, "to-string {src}");
+            let roundtrip = eval_expr(&format!(
+                r#"(:wat::keyword::from-string (:wat::keyword::to-string {src}))"#
+            ))
+            .unwrap();
+            match roundtrip {
+                Value::wat__core__keyword(k) => assert_eq!(k.as_str(), src),
+                other => panic!("expected keyword for {src}; got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn keyword_from_string_rejects_a_bare_name() {
+        let err = eval_expr(r#"(:wat::keyword::from-string "foo")"#).unwrap_err();
+        let EvalBreak::Diagnostic(e) = err else {
+            panic!("expected a diagnostic");
+        };
+        let RuntimeErrorKind::MalformedForm { reason, .. } = e.kind() else {
+            panic!("expected MalformedForm, got {}", e);
+        };
+        assert_eq!(
+            reason,
+            "input string \"foo\" has no leading ':' — :wat::keyword::from-string requires the keyword as written"
         );
     }
 

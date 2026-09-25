@@ -6,10 +6,10 @@ This gap blocks not just Phase D's Layer 2 ergonomic shape (it forced full chann
 
 ## What ships (three pieces; locked names per `/gaze` ward)
 
-### 1. `:wat::core::keyword/to-string`  — runtime primitive
+### 1. `:wat::core::keyword/name`  — runtime primitive
 
 ```
-(:wat::core::keyword/to-string  (k :wat::core::keyword) -> :wat::core::String)
+(:wat::core::keyword/name  (k :wat::core::keyword) -> :wat::core::String)
 ```
 
 Extracts the keyword's text content **without the leading colon**. The colon is sigil; the text carries the name.
@@ -19,10 +19,10 @@ Examples:
 - `(keyword/to-string :Foo)` → `"Foo"`
 - `(keyword/to-string :wat::core::Vector<wat::core::i64>)` → `"wat::core::Vector<wat::core::i64>"`
 
-### 2. `:wat::core::keyword/from-string`  — runtime primitive
+### 2. `:wat::core::keyword/from-name`  — runtime primitive
 
 ```
-(:wat::core::keyword/from-string  (s :wat::core::String) -> :wat::core::keyword)
+(:wat::core::keyword/from-name  (s :wat::core::String) -> :wat::core::keyword)
 ```
 
 Constructs a keyword Value from its text. Inverse of `keyword/to-string` — clean round-trip: `(from-string (to-string k)) = k` for any keyword `k`.
@@ -143,8 +143,8 @@ Update T18 + T18b in `tests/wat_arc170_program_contracts.rs` to pass inner eleme
 
 | Row | What | Pass criterion |
 |-----|------|----------------|
-| A | `:wat::core::keyword/to-string` registered + dispatched | grep + unit test |
-| B | `:wat::core::keyword/from-string` registered + dispatched | grep + unit test |
+| A | `:wat::core::keyword/name` registered + dispatched | grep + unit test |
+| B | `:wat::core::keyword/from-name` registered + dispatched | grep + unit test |
 | C | `keyword/to-string` returns text WITHOUT leading colon | unit test |
 | D | Round-trip `(from-string (to-string k)) = k` works | unit test |
 | E | `:wat::core::keyword/of` special-form handled in `expand_form` | grep |

@@ -29,8 +29,8 @@ distinct slash-bearing FQDN literals. Of those, **18 have a receiver that is not
 across **7 receiver segments**:
 
 ```
-:wat::core::__internal/primitive      :wat::core::keyword/from-string
-:wat::core::__internal/registered     :wat::core::keyword/to-string
+:wat::core::__internal/primitive      :wat::core::keyword/from-name
+:wat::core::__internal/registered     :wat::core::keyword/name
 :wat::core::__internal/special-form   :wat::core::keyword/to-symbol
 :wat::core::__internal/type-decl      :wat::core::keyword/to-type-form
 :wat::core::and/or                    :wat::core::keyword/to-type-form-colon
