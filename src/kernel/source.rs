@@ -19,11 +19,11 @@ use crate::span::Span;
 use crate::value::{snapshot_call_stack, EvalBreak, RuntimeError, RuntimeErrorKind, Value};
 use std::sync::Arc;
 
-/// `(:wat::kernel::here) -> :wat::kernel::Location` — arc 296.
+/// `(:wat::kernel::here) -> :wat::core::Span` — arc 296.
 ///
 /// Returns the source coordinate of the `(here)` form itself —
-/// the `list_span` of the call site — as a `:wat::kernel::Location`
-/// record `{file, line, col}`. Arity 0; any arguments are an error.
+/// the `list_span` of the call site — as a `:wat::core::Span`
+/// record `{file, line, col, end}`. Arity 0; any arguments are an error.
 pub(crate) fn eval_kernel_here(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::here";
     if !args.is_empty() {

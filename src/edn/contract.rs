@@ -54,7 +54,7 @@ pub use wat_edn::ToEdn;
 /// - `message()` — the human-readable error message; typically
 ///   `self.to_string()` via the type's `Display` impl.
 /// - `location()` — the primary source location as a
-///   `#wat.kernel/Location {:file :line :col}` map, or `nil` when the
+///   `#wat.core/Span {:file :line :col :end}` record, or `nil` when the
 ///   error has no recoverable span (elide-when-unknown discipline, same as
 ///   `push_span_field`).
 /// - `causes()` — the nested error chain as an EDN vector; `[]` for leaf

@@ -10,7 +10,7 @@
 ;;   (:wat::core::defsurface :wat::core::Error
 ;;     :nature :wat::core::Record
 ;;     :features [message  <- :wat::core::String
-;;                location <- :wat::kernel::Location
+;;                location <- :wat::core::Span
 ;;                causes   <- (:wat::core::Vector :- [wat::core::Error])])
 ;;
 ;; Three things proved:
@@ -21,7 +21,7 @@
 
 (:wat::core::defrecord :probe::BadInput
   [message  <- :wat::core::String
-   location <- :wat::kernel::Location
+   location <- :wat::core::Span
    causes   <- (:wat::core::Vector :- [:wat::core::Error])
    field    <- :wat::core::String])
 

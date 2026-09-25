@@ -1957,7 +1957,7 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
 /// The SAME walk `pure?`/`deterministic?`/`total?`/`primitive?` run, surfacing the
 /// violation instead of discarding it: `:wat::core::None` ⟺ `(pure? e)` / `(deterministic? e)` would
 /// be `true` for the requested axis; `Some(v)` names the offending head (`v/head`), echoes the axis
-/// back (`v/axis`), and carries a `:wat::kernel::Location` at `v/span` (native stubs use
+/// back (`v/axis`), and carries a `:wat::core::Span` at `v/span` (native stubs use
 /// `rust_caller_span` so the field is never omitted).
 ///
 /// Builder-ruled (CLOSED-SET RULE, REALIZATIONS.md:2676): the axis argument is the

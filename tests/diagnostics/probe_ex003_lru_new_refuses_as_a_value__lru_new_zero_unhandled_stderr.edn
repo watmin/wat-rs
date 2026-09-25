@@ -2,10 +2,16 @@
   #wat.kernel/AssertionFailure {
     :thread "main"
     :message ":wat::cache::Lru/new refused the capacity: it must be positive"
-    :location #wat.kernel/Location {
+    :location #wat.core/Span {
       :file "tests/diagnostics/probe_ex003_lru_new_refuses_as_a_value__lru_new_zero_unhandled.wat"
       :line 12
       :col 14
+      :end #wat.core/Option.Some {
+        :value #wat.core/Pos {
+          :line 12
+          :col 79
+        }
+      }
     }
     :actual nil
     :expected nil
@@ -25,10 +31,16 @@
         :value #wat.kernel/Failure {
           :error #wat.core/Fault {
             :message ":wat::cache::Lru/new refused the capacity: it must be positive"
-            :location #wat.kernel/Location {
+            :location #wat.core/Span {
               :file "tests/diagnostics/probe_ex003_lru_new_refuses_as_a_value__lru_new_zero_unhandled.wat"
               :line 12
               :col 14
+              :end #wat.core/Option.Some {
+                :value #wat.core/Pos {
+                  :line 12
+                  :col 79
+                }
+              }
             }
             :causes []
           }

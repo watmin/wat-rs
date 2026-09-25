@@ -52,14 +52,16 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
     )
 }
 
-/// Recursively collect the `:file` value of every `#wat.kernel/Location {…}`
+/// Recursively collect the `:file` value of every `#wat.core/Span {…}`
 /// node found anywhere in `v` — structural, never a substring/`.contains()`
 /// scan of the rendered text (`no_loose_string_assert` is armed and has fired
-/// on this arc twice).
+/// on this arc twice). Excursus 003 D1 — was the narrower three-field
+/// "a location" record (no `end`), retired in favour of this one shape
+/// everywhere a location appears.
 fn find_location_files(v: &wat_edn::OwnedValue, out: &mut Vec<String>) {
     use wat_edn::Value::*;
     if let Tagged(t, body) = v {
-        if t.namespace() == "wat.kernel" && t.name() == "Location" {
+        if t.namespace() == "wat.core" && t.name() == "Span" {
             if let Map(fields) = body.as_ref() {
                 for (k, fv) in fields {
                     if let (Keyword(kw), String(s)) = (k, fv) {
@@ -96,7 +98,7 @@ fn assert_location_names_the_child_not_the_decoder(msg: &str) {
     assert_eq!(
         files.len(),
         1,
-        "expected exactly one #wat.kernel/Location in the crash chain — msg: {msg}"
+        "expected exactly one #wat.core/Span in the crash chain — msg: {msg}"
     );
     assert_eq!(
         files[0], CHILD_PROGRAM_FILE,

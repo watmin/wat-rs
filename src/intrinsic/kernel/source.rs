@@ -52,8 +52,9 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
-/// `(:wat::kernel::here)` → `:wat::kernel::Location`. Returns the source
-/// coordinate of the `(here)` form itself — `{file, line, col}`.
+/// `(:wat::kernel::here)` → `:wat::core::Span`. Returns the source
+/// coordinate of the `(here)` form itself — `{file, line, col, end}` (`end`
+/// is `Some` here: the call form's own span is a real wat-parsed range).
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -61,8 +62,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @ret     :wat::kernel::Location the call form's own source coordinate
-/// @example (:wat::i64::> (:wat::kernel::Location/line (:wat::kernel::here)) 0) #=> true
+/// @ret     :wat::core::Span the call form's own source coordinate
+/// @example (:wat::i64::> (:wat::core::Span/line (:wat::kernel::here)) 0) #=> true
 // Registered `TypeScheme` — `check.rs:16158` — gate LIVE.
 //
 // Deciding line for `@Category Reflection`: `runtime.rs:16256`
@@ -71,7 +72,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 //
 // Deciding line for `@Purity Pure` / `@Determinism Deterministic`: `list_span`
 // is a lexical fact of the AST node, fixed at parse time — no I/O, no
-// mutation, and the same call form always yields the same Location.
+// mutation, and the same call form always yields the same Span.
 #[wat_intrinsic(":wat::kernel::here")]
 pub(crate) fn eval_kernel_here(
     env: &Environment, // rune:lint(unused-env) — reads only the call form's own span

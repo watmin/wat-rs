@@ -37,7 +37,7 @@
 ;; callee's fixed one). Boot-fixed BY NATURE — a process is spawned exactly once, so unlike
 ;; a per-work-unit value this can never go stale in a `ps` line an operator trusts.
 ;;
-;; LIFTED FLAT (`:file`/`:line`), not nested in a `:wat::kernel::Location`: an operator
+;; LIFTED FLAT (`:file`/`:line`), not nested in a `:wat::core::Span`: an operator
 ;; reads this under pressure, and the flat kwargs map is what stays legible. `col` is
 ;; dropped deliberately — nobody reads a column out of `ps`.
 

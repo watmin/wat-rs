@@ -1,9 +1,10 @@
 #wat.core/Fault {
   :message "1 unresolved reference"
-  :location #wat.kernel/Location {
+  :location #wat.core/Span {
     :file "<runtime>"
     :line 0
     :col 0
+    :end #wat.core/Option.None {}
   }
   :causes [
     #wat.resolve/UnresolvedReferences {

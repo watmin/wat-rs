@@ -2,10 +2,12 @@
 ;; declared in wat (wat is the source of truth).
 ;;
 ;; Seven Rust-registered aggregates (`register_builtin_types`, src/types.rs)
-;; whose file placement is NOT the :wat::core::Error dependency edge that
-;; sent :wat::kernel::Location to wat/core.wat — these seven are declared
-;; here instead, in dependency order (each later form references an earlier
-;; one). Zero transcription: the field names/types below came from the
+;; whose file placement is NOT the :wat::core::Error dependency edge that once
+;; sent the narrower three-field "a location" record to wat/core.wat (retired
+;; outright at excursus 003 D1 — :wat::core::Span, already resident there,
+;; replaces it) — these seven are declared here instead, in dependency order
+;; (each later form references an earlier one). Zero transcription: the field
+;; names/types below came from the
 ;; registry describing itself (`:wat::runtime::field-names-of` /
 ;; `field-types-of`), not from anyone reading src/types.rs by eye.
 
@@ -154,7 +156,7 @@
 (:wat::core::defrecord :wat::kernel::AssertionFailure
   [thread         <- :wat::core::String
    message        <- :wat::core::String
-   location       <- (:wat::core::Option :- [:wat::kernel::Location])
+   location       <- (:wat::core::Option :- [:wat::core::Span])
    actual         <- (:wat::core::Option :- [:wat::core::String])
    expected       <- (:wat::core::Option :- [:wat::core::String])
    frames         <- (:wat::core::Vector :- [:wat::kernel::Frame])

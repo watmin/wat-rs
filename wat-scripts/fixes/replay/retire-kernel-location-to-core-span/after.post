@@ -1,0 +1,3 @@
+
+(:wat::core::defrecord :u::Holder [location <- :wat::core::Span])
+(:wat::core::defn :u::line-of [loc <- :wat::core::Span] -> :wat::core::i64 (:wat::core::Span/line loc))

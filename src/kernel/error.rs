@@ -33,7 +33,7 @@
 //! convention, not a membership test.
 //!
 //! The `:wat::core::Fault`/`Failure` diagnostic vocabulary this cluster
-//! CALLS (`fault_value`, `failure_names`, `location_names`, `frame_names`,
+//! CALLS (`fault_value`, `failure_names`, `span_names`, `frame_names`,
 //! `failure_value_from_assertion_payload`, `record_field_by_name`, …) stays
 //! in `runtime.rs` — map item 4d, the genuinely shared residue consumed by
 //! `edn`/`host`/`types`/`resolve`/`assertion`/`comms`/`kernel`/`distribution`,
@@ -158,10 +158,10 @@ pub(crate) fn eval_failure_message(
     }
 }
 
-/// `(:wat::kernel::Failure/location f) -> (:Option :- [:wat::kernel::Location])` — arc 278
+/// `(:wat::kernel::Failure/location f) -> (:Option :- [:wat::core::Span])` — arc 278
 /// the string-wrap annihilation. DERIVED accessor: reads `error.location` (a
-/// mandatory `:wat::kernel::Location` on the error) and wraps it in `Some` to keep
-/// the accessor's historic `(Option :- [Location])` return shape.
+/// mandatory `:wat::core::Span` on the error) and wraps it in `Some` to keep
+/// the accessor's historic `(Option :- [Span])` return shape.
 pub(crate) fn eval_failure_location(
     args: &[WatAST],
     env: &Environment,
@@ -177,8 +177,8 @@ pub(crate) fn eval_failure_location(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Location at :wat::core::Error/location",
-                got: Box::new(ValueSnapshot::unavailable("error has no Location field")),
+                expected: "Span at :wat::core::Error/location",
+                got: Box::new(ValueSnapshot::unavailable("error has no Span field")),
             },
         )
         .into()),

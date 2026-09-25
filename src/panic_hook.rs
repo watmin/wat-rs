@@ -153,12 +153,12 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     let message_val = OwnedValue::String(Cow::Owned(payload.message.clone()));
 
     // ── :location ────────────────────────────────────────────────────
-    // Arc 278 the LociDiedError stone — the registered `AssertionFailure`
-    // record declares `:location` as `(Option :- [:wat::kernel::Location])` (NOT a
-    // bare `#wat.core/Span`). Emit the `#wat.kernel/Location {:file :line :col}`
-    // record when present, nil when absent (the human-facing nil-convention).
+    // Excursus 003 D1 — the registered `AssertionFailure` record now declares
+    // `:location` as `(Option :- [:wat::core::Span])`, the same shape every other
+    // `:location` floor field carries. Emit `#wat.core/Span {:file :line :col :end}`
+    // when present, nil when absent (the human-facing nil-convention).
     let location_val = match &payload.location {
-        Some(span) => location_to_edn(span),
+        Some(span) => crate::edn::contract::location_from_span(span),
         None => OwnedValue::Nil,
     };
 
@@ -214,21 +214,6 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
         (OwnedValue::Keyword(Keyword::new("frames")), frames_val),
         (OwnedValue::Keyword(Keyword::new("upstream-chain")), chain_val),
     ])
-}
-
-/// Convert a [`Span`](crate::span::Span) to a `#wat.kernel/Location {:file :line
-/// :col}` tagged record — the registered `:wat::kernel::Location` shape (arc 278
-/// the LociDiedError stone). Was `span.to_edn()` (a `#wat.core/Span`); the
-/// `AssertionFailure` record declares its `:location` as `Option<Location>`.
-fn location_to_edn(span: &crate::span::Span) -> OwnedValue {
-    OwnedValue::Tagged(
-        Tag::ns("wat.kernel", "Location"),
-        Box::new(OwnedValue::Map(vec![
-            (OwnedValue::Keyword(Keyword::new("file")), OwnedValue::String(Cow::Owned((*span.file).clone()))),
-            (OwnedValue::Keyword(Keyword::new("line")), OwnedValue::Integer(span.line)),
-            (OwnedValue::Keyword(Keyword::new("col")), OwnedValue::Integer(span.col)),
-        ])),
-    )
 }
 
 /// Convert a [`FrameInfo`] to a `#wat.kernel/Frame {:file :line :symbol}` tagged
@@ -323,18 +308,25 @@ mod tests {
         let msg = get_field(&pairs, "message");
         assert_eq!(msg.as_str(), Some("assert-eq failed"), "message: {:?}", msg);
 
-        // :location is a #wat.kernel/Location tagged record (arc 278 — the
-        // registered AssertionFailure record's Option<Location> field shape).
+        // :location is a #wat.core/Span tagged record (excursus 003 D1 — the
+        // registered AssertionFailure record's Option<Span> field shape; was
+        // Option<Location>, the narrower three-field record, retired outright).
         let loc = get_field(&pairs, "location");
-        let (loc_tag, loc_body) = loc.as_tagged().expect("location is a tagged Location");
-        assert_eq!(loc_tag.to_string(), "#wat.kernel/Location", "location tag: {:?}", loc_tag);
-        let loc_pairs = loc_body.as_map().expect("Location body is a map");
+        let (loc_tag, loc_body) = loc.as_tagged().expect("location is a tagged Span");
+        assert_eq!(loc_tag.to_string(), "#wat.core/Span", "location tag: {:?}", loc_tag);
+        let loc_pairs = loc_body.as_map().expect("Span body is a map");
         let file_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("file")).map(|(_, v)| v).expect(":file");
         assert_eq!(file_val.as_str(), Some("wat-tests/foo.wat"), "file: {:?}", file_val);
         let line_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("line")).map(|(_, v)| v).expect(":line");
         assert_eq!(line_val.as_i64(), Some(12), "line: {:?}", line_val);
         let col_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("col")).map(|(_, v)| v).expect(":col");
         assert_eq!(col_val.as_i64(), Some(5), "col: {:?}", col_val);
+        // :end is `#wat.core/Option.None {}` for `mk_span`'s point-span (no end
+        // line/col supplied) — `Span: ToEdn`'s own `Option<Pos>` encoding, never a
+        // bare `nil` (arc 296's "absence spoken as a tagged None", derive_tests.rs).
+        let end_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("end")).map(|(_, v)| v).expect(":end");
+        let (end_tag, _) = end_val.as_tagged().expect("end is a tagged Option");
+        assert_eq!(end_tag.to_string(), "#wat.core/Option.None", "end tag: {:?}", end_tag);
 
         // :actual and :expected
         let actual = get_field(&pairs, "actual");

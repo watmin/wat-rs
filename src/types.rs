@@ -2270,20 +2270,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::kernel::LociDiedError"
     );
 
-    // :wat::kernel::Location — a point in a source file. Populated by
-    // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
-    // location, and by future assertion primitives whose failure-payload
-    // needs to cite file:line:col.
-    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
-    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Location …)`
-    // in `wat/core.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
-    // Rust consumes it. Change the field list in the `.wat` and this registration follows —
-    // there is no second copy to drift, and `include_str!` makes rustc rebuild when it moves.
-    //
-    // This is the first row converted, and it is the PROOF for the other twelve: if the emitted
-    // registration were not identical to the literal it replaced, the corpus's own re-declaration
-    // would stop hitting arc 054's `Existing::Equivalent` arm and the stdlib would fail to load.
-    ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::kernel::Location");
+    // The narrower three-field "a location" record that once lived here — RETIRED, excursus
+    // 003 envelope step 1 (D1). Every use site now carries `:wat::core::Span` instead (see the
+    // registration a few lines below — unchanged by this stone, already generated from
+    // `wat/core.wat`). No replacement registration belongs here: Span's is the only one.
 
     // :wat::kernel::Frame — one entry on the wat call stack, captured by
     // `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline
@@ -2305,8 +2295,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `#[derive(ToEdn)]` in `wat-reader` (`#wat.core/Span {:file :line :col :end}`)
     // but that derive is WRITE-ONLY (no `EdnSchema` submit) — so `edn_to_value`
     // STRICT could not reconstruct a `:location` back to a typed record; it hit
-    // `UnknownTag`. Hand-register the decode schema here (the `:wat::kernel::Location`
-    // exemplar above), so a `:wat::core::Error` floor record round-trips fully:
+    // `UnknownTag`. Hand-register the decode schema here, so a `:wat::core::Error`
+    // floor record round-trips fully:
     // `:message` (String), `:location` (this Span), `:causes` ((Vector :- [Error])).
     // `:end` is `(Option :- [:wat::core::Pos])` (Pos is registered via the EdnSchema
     // drain below); `None` for the `rust_caller_span!()` point-spans.

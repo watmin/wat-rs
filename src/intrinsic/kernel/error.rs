@@ -128,10 +128,10 @@ pub(crate) fn eval_failure_message(
     crate::kernel::error::eval_failure_message(std::slice::from_ref(f), env, sym, list_span)
 }
 
-/// `(:wat::kernel::Failure/location f)` → `(:wat::core::Option :- [wat::kernel::Location])`.
+/// `(:wat::kernel::Failure/location f)` → `(:wat::core::Option :- [wat::core::Span])`.
 /// DERIVED accessor — reads `error.location` (a mandatory
-/// `:wat::kernel::Location` on the error) and wraps it in `Some` to keep the
-/// accessor's historic `Option<Location>` return shape.
+/// `:wat::core::Span` on the error) and wraps it in `Some` to keep the
+/// accessor's historic `Option<Span>` return shape.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -140,8 +140,8 @@ pub(crate) fn eval_failure_message(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a location from
-/// @ret     (:wat::core::Option :- [:wat::kernel::Location]) `Some` of `f`'s `error.location`
-/// @example (:wat::kernel::Failure/location (:wat::kernel::Failure :error (:wat::core::Fault :message "boom" :location (:wat::kernel::Location :file "test" :line 1 :col 1) :causes (:wat::core::Vector :- [:wat::core::Error])) :frames (:wat::core::Vector :- [:wat::kernel::Frame]) :actual :wat::core::Option::None :expected :wat::core::Option::None)) #=> (:wat::core::Option::Some {:value (:wat::kernel::Location :file "test" :line 1 :col 1)})
+/// @ret     (:wat::core::Option :- [:wat::core::Span]) `Some` of `f`'s `error.location`
+/// @example (:wat::kernel::Failure/location (:wat::kernel::Failure :error (:wat::core::Fault :message "boom" :location (:wat::core::Span :file "test" :line 1 :col 1 :end :wat::core::Option::None) :causes (:wat::core::Vector :- [:wat::core::Error])) :frames (:wat::core::Vector :- [:wat::kernel::Frame]) :actual :wat::core::Option::None :expected :wat::core::Option::None)) #=> (:wat::core::Option::Some {:value (:wat::core::Span :file "test" :line 1 :col 1 :end :wat::core::Option::None)})
 // Deciding line for `@Category Projection`: `runtime.rs:27452`
 // `eval_failure_location` reads `record_field_by_name(&error, "location", …)`
 // off the `error` field already held by `f` — same one-hop-deeper

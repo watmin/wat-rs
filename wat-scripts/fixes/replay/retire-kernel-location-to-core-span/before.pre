@@ -1,0 +1,3 @@
+(:wat::core::defrecord :wat::kernel::Location [file <- :wat::core::String line <- :wat::core::i64 col <- :wat::core::i64])
+(:wat::core::defrecord :u::Holder [location <- :wat::kernel::Location])
+(:wat::core::defn :u::line-of [loc <- :wat::kernel::Location] -> :wat::core::i64 (:wat::kernel::Location/line loc))

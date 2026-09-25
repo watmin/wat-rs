@@ -10,4 +10,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [loc (:wat::kernel::here)]
-    (:wat::test::assert-true (:wat::core::> (:wat::kernel::Location/line loc) 0))))
+    (:wat::test::assert-true (:wat::core::> (:wat::core::Span/line loc) 0))))

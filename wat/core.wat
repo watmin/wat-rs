@@ -2099,17 +2099,6 @@
        (:wat::core::extend-type ~core-kw  ~surf ~@methods)
        (:wat::core::extend-type ~holon-kw ~surf ~@methods))))
 
-;; ─── Arc 296: :wat::kernel::Location — moving the source of truth to wat ──
-;;
-;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
-;; Arc 296 moves the source of truth for wat's own aggregate types from the
-;; hand-written Rust literal to a wat declaration; the Rust side is meant to
-;; become generated FROM this form rather than hand-maintained alongside it.
-;;
-;; A point in a source file: populated by `:wat::kernel::run-sandboxed` when
-;; a panic carries a PanicInfo location, and by assertion primitives whose
-;; failure-payload needs to cite file:line:col.
-;;
 ;; ─── Arc 296 H-3: :wat::core::Option / :wat::core::Result ────────────────────
 ;;
 ;; Named as this file's builtins by `src/load/stdlib.rs` ("Result/Option") long
@@ -2137,18 +2126,21 @@
 (:wat::core::typealias :wat::core::Bytes
   (:wat::core::Vector :- [:wat::core::u8]))
 
-;; Placed here, near the top of core.wat and before :wat::core::Error below:
-;; the :wat::core::Error surface's `location` feature is typed
-;; :wat::kernel::Location, so core.wat genuinely depends on this type — that
-;; measured dependency edge is why Location lives here rather than alongside
-;; its seven kernel-diagnostics siblings in wat/kernel/diagnostics.wat.
+;; Placed here, near the top of core.wat: :wat::holon::Holons is a
+;; `:wat::holon::*`-namespaced type hosted OUTSIDE its own namespace's file —
+;; exactly the shape a genuine dependency edge earns, not a convention. (The
+;; original precedent for that shape retired at excursus 003 D1: the narrower
+;; three-field "a location" record once sat a few lines below for the
+;; identical reason, forced early by :wat::core::Error's own `location` field.
+;; :wat::core::Error's `location` is `:wat::core::Span` now, which needs no
+;; cross-namespace argument to live here — it already is `:wat::core::*`.)
 ;; ⛔ HOSTED HERE, NOT IN wat/holon.wat — arc 296 K, and the load-order gate said so:
 ;;   wat/holon/Ngram.wat @16 -> wat/holon.wat @27 [:wat::holon::Holons]
 ;; The holon OPERATOR files (Ngram/Bigram/Trigram/…) load BEFORE wat/holon.wat and annotate
 ;; with this alias (`Ngram.wat:34`). As a Rust builtin it had no position at all; declaring it
-;; in wat gave it one, and the one it needs is earlier than its family file. core.wat is the
-;; precedented cross-namespace host — it already declares `:wat::kernel::Location` below, and
-;; its own load-set entry records that it reaches `:wat::holon::HolonAST` (a builtin).
+;; in wat gave it one, and the one it needs is earlier than its family file. core.wat's own
+;; load-set entry records that it reaches `:wat::holon::HolonAST` (a builtin) — the dependency
+;; edge that earns Holons its place here.
 
 ;; :wat::holon::Holons — arc 033. The ubiquitous "list of holons" shape that
 ;; Bundle takes as input and that every encode-*-facts vocab function returns.
@@ -2158,15 +2150,10 @@
 (:wat::core::typealias :wat::holon::Holons
   (:wat::core::Vector :- [:wat::holon::HolonAST]))
 
-(:wat::core::defrecord :wat::kernel::Location
-  [file <- :wat::core::String
-   line <- :wat::core::i64
-   col  <- :wat::core::i64])
-
 ;; ─── Arc 296 S3: :wat::core::Error stdlib surface ────────────────────────────
 ;;
 ;; The canonical contract for error records: a message (human-readable String),
-;; a source location (kernel::Location — the call site or origin), and a
+;; a source location (:wat::core::Span — the call site or origin), and a
 ;; recursive causes chain ((Vector :- [Error]) — zero or more contributing errors).
 ;;
 ;; :nature :wat::core::Record — pure; the surface and its backing records may
@@ -2177,12 +2164,12 @@
 ;; for Record-natured surfaces) + S2 (infer_list_constructor surface path).
 ;;
 ;; Load-order: :wat::core::String and :wat::core::Vector are available at the
-;; top of this file; :wat::kernel::Location is a Rust builtin registered before
+;; top of this file; :wat::core::Span is a Rust builtin registered before
 ;; any stdlib wat loads — all three dependencies are satisfied here.
 (:wat::core::defsurface :wat::core::Error
   :nature :wat::core::Record
   :features [message  <- :wat::core::String
-             location <- :wat::kernel::Location
+             location <- :wat::core::Span
              causes   <- (:wat::core::Vector :- [:wat::core::Error])])
 
 ;; ─── Arc 296 S3: :wat::core::Fault — canonical minimal error record ──────────
@@ -2198,7 +2185,7 @@
 ;; the constructor's own location.
 (:wat::core::defrecord :wat::core::Fault
   [message  <- :wat::core::String
-   location <- :wat::kernel::Location
+   location <- :wat::core::Span
    causes   <- (:wat::core::Vector :- [:wat::core::Error])])
 
 (:wat::core::defmacro :wat::core::Fault/of

@@ -896,19 +896,21 @@ fn make_simple_edn(variant: &str, key: &str, value: &str) -> wat_edn::OwnedValue
 }
 
 /// Extract `file:line:col` from the Failure's `location` field
-/// (Option<Location { file, line, col }>). Returns `None` when the
+/// (Option<Span { file, line, col, end }>). Returns `None` when the
 /// location is `:None` or the inner shape is malformed.
 fn failure_location(v: &Value) -> Option<String> {
     // Arc 278 the string-wrap annihilation — the location now lives on the
-    // Failure's `error` (:wat::core::Error) as a MANDATORY bare `:wat::kernel::Location`
-    // (Fault's `location` is not `Option`). Accept a bare Location directly; still
-    // unwrap an `Option<Location>` if handed one (defensive / legacy callers).
+    // Failure's `error` (:wat::core::Error) as a MANDATORY bare `:wat::core::Span`
+    // (Fault's `location` is not `Option`). Accept a bare Span directly; still
+    // unwrap an `Option<Span>` if handed one (defensive / legacy callers). Excursus
+    // 003 D1 — the narrower three-field "a location" record this used to check for
+    // is retired in favour of this one shape everywhere.
     let loc = match v {
         Value::Option(opt) => match opt.as_ref().as_ref()? {
-            Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::kernel::Location" => a,
+            Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::core::Span" => a,
             _ => return None,
         },
-        Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::kernel::Location" => a,
+        Value::Aggregate(a) if a.nature == Nature::Record && a.class.as_ref() == "wat::core::Span" => a,
         _ => return None,
     };
     let file = match loc.fields.first()? {
@@ -1038,14 +1040,17 @@ mod arc116_diagnostic_tests {
     ) -> Value {
         // Arc 278 the string-wrap annihilation — the location + message live on the
         // Failure's mandatory `error` (:wat::core::Fault [message, location, causes]).
-        // Fault's location is a bare (non-Option) Location; synthesize a `<runtime>`
-        // Location when the caller supplies none.
+        // Fault's location is a bare (non-Option) Span; synthesize a `<runtime>`
+        // Span when the caller supplies none. Excursus 003 D1 — was the narrower
+        // three-field "a location" record (no `end`); this helper's own `end` is
+        // always `None` (it never had one to carry).
         let (loc_file, loc_line, loc_col) = location.unwrap_or(("<runtime>", 0, 0));
         let location_value = Value::Aggregate(Arc::new(
-            AggregateValue::record("wat::kernel::Location".into(), crate::runtime::location_names(), Arc::new(vec![
+            AggregateValue::record("wat::core::Span".into(), crate::runtime::span_names(), Arc::new(vec![
                 Value::String(Arc::new(loc_file.to_string())),
                 Value::i64(loc_line),
                 Value::i64(loc_col),
+                Value::Option(Arc::new(None)),
             ])),
         ));
         let error_field = Value::Aggregate(Arc::new(

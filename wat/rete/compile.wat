@@ -263,7 +263,7 @@
 (:wat::core::defrecord :wat::rete::AxisViolation
   [head <- :wat::core::String
    axis <- :wat::rete::Axis
-   span <- :wat::kernel::Location])
+   span <- :wat::core::Span])
 
 ;; first-failing-axis — given the SAME booleans a fence's `and` already computed, names WHICH axis
 ;; to explain, mirroring `and`'s left-to-right short-circuit: report the FIRST conjunct that failed,

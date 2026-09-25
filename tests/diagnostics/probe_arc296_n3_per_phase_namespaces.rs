@@ -3,7 +3,7 @@
 //!
 //! Today every error serializes under `#wat.kernel/<Variant>`. N3 gives each top-level
 //! family its phase namespace so a nested error chain reads its own phases:
-//!   #wat.macro/… {:cause #wat.runtime/… {:… #wat.kernel/Location {…}}}
+//!   #wat.macro/… {:cause #wat.runtime/… {:… #wat.kernel/Frame {…}}}
 //! and `wat.kernel` stops being an error catch-all — it means "a shared value type".
 //!
 //! Behavioral RED (compiles at HEAD; names no new type — reads the written tag prefix):

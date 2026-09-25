@@ -153,7 +153,7 @@
 ;; reason about coverage; `run-one` ALSO prints it to stderr unconditionally, because an opt-in
 ;; fact does nothing for a consumer who does not know to opt in — the exact way today's silence
 ;; works. `reason`/`line`/`col` come straight off the parser's own `:wat::core::Error` cause
-;; (`Error/message`, `Error/location` -> `:wat::kernel::Location/line`+`/col`); nothing is
+;; (`Error/message`, `Error/location` -> `:wat::core::Span/line`+`/col`); nothing is
 ;; invented here. See DESIGN-STONE-wat-grep-never-lies.md F1.
 (:wat::core::defrecord :wat::grep::Unreadable
   [file   <- :wat::core::String
@@ -299,7 +299,7 @@
 ;; string that will not parse is a RESULT the extractor carries, never a crash: Malformed yields
 ;; an EMPTY fact base (as before) PLUS the `Unreadable` fact that says so out loud — F1. The
 ;; cause is already in hand at the match arm; `Error/message` is the reason, `Error/location`'s
-;; `:wat::kernel::Location` is the line/col, straight off the parser's own diagnostic (mirrors
+;; `:wat::core::Span` is the line/col, straight off the parser's own diagnostic (mirrors
 ;; `wat/fix.wat:351`'s ONE difference: fix.wat raises immediately, an APPLIER's contract; grep
 ;; reports and keeps going, a FINDER's contract — see run-one/run for where that fires).
 ;; ⚠ `path` is not decoration: it is the file's IDENTITY, and a signature that took only `src`
@@ -330,8 +330,8 @@
                       (:wat::grep::Unreadable
                         :file   path
                         :reason (:wat::core::Error/message __cause)
-                        :line   (:wat::kernel::Location/line (:wat::core::Error/location __cause))
-                        :col    (:wat::kernel::Location/col  (:wat::core::Error/location __cause)))))])
+                        :line   (:wat::core::Span/line (:wat::core::Error/location __cause))
+                        :col    (:wat::core::Span/col  (:wat::core::Error/location __cause)))))])
      acc (:wat::grep::FactsOfResult/acc result)]
     (:wat::grep::Facts
       :source     (:wat::grep::Source :file path)

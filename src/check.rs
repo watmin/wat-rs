@@ -18891,14 +18891,14 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // :wat::kernel::here — arc 296. Returns the source coordinate of the
-    // `(here)` form itself as a `:wat::kernel::Location` record
-    // `{file, line, col}`. Nullary: [] -> :wat::kernel::Location.
+    // `(here)` form itself as a `:wat::core::Span` record
+    // `{file, line, col, end}`. Nullary: [] -> :wat::core::Span.
     env.register(
         ":wat::kernel::here".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![],
-            ret: TypeExpr::Path(":wat::kernel::Location".into()),
+            ret: TypeExpr::Path(":wat::core::Span".into()),
             rest_param_type: None,
         },
     );
@@ -20825,7 +20825,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![TypeExpr::Path(":wat::core::Record".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
-                args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
+                args: vec![TypeExpr::Path(":wat::core::Span".into())],
             },
             rest_param_type: None,
         },

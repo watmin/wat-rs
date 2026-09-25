@@ -5,10 +5,16 @@
       :value #wat.kernel/Failure {
         :error #wat.core/Fault {
           :message "boom"
-          :location #wat.kernel/Location {
+          :location #wat.core/Span {
             :file "<spawn-process-program>"
             :line 3
             :col 34
+            :end #wat.core/Option.Some {
+              :value #wat.core/Pos {
+                :line 3
+                :col 57
+              }
+            }
           }
           :causes []
         }

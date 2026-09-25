@@ -588,7 +588,7 @@ pub(crate) fn fault_names() -> Arc<Vec<String>> {
 
 /// Convert a `RuntimeError` into a `:wat::core::Fault` (`wat/core.wat`) — the canonical minimal
 /// record that structurally satisfies the `:wat::core::Error` surface: `message`, `location` (a
-/// `:wat::kernel::Location`, via [`value_from_span`]), `causes` (empty — a Fault is a leaf).
+/// `:wat::core::Span`, via [`value_from_span`]), `causes` (empty — a Fault is a leaf).
 /// Chosen over round-tripping `RuntimeError`'s own `WatError::error_edn()` through `edn_to_value`,
 /// which would require every possible `RuntimeErrorKind` variant tag to be independently
 /// EDN-decodable; `Fault` is already a single, simple, always-registered record.
@@ -11920,7 +11920,7 @@ pub(crate) fn failure_names() -> Arc<Vec<String>> {
 /// Arc 278 — build a `:wat::core::Fault` `Value::Aggregate(Record)` from a
 /// human message + an optional source location. Field order matches the
 /// `:wat::core::Fault` registration (core.wat): `(message, location, causes)`.
-/// `location` is a MANDATORY `:wat::kernel::Location` (not `Option`); when the
+/// `location` is a MANDATORY `:wat::core::Span` (not `Option`); when the
 /// panic carried no span (transport/synthetic failures — disconnected, shutdown,
 /// service crash), a synthetic `<runtime>` location marks it honestly. `causes`
 /// is an empty `(Vector :- [Error])`. This is the canonical synthesizer for every
@@ -11971,29 +11971,60 @@ pub(crate) fn record_field_by_name(
     }
 }
 
-/// Convert a `Span` into a `:wat::kernel::Location` `Value::Aggregate(Record)`.
-/// Field order: `(file, line, col)`.
-/// Arc 293.W.2b — Location is now Nature::Record (pure EDN data).
-pub(crate) fn value_from_span(span: crate::span::Span) -> Value {
+/// Convert a `crate::span::Pos` (end-of-span line/col, no file) into a
+/// `:wat::core::Pos` `Value::Aggregate(Record)`. Field order: `(line, col)` —
+/// mirrors the struct's own field order (`wat-reader/src/span.rs`); `Pos` has
+/// no wat declaration of its own to read names from (`#[derive(Edn)]`
+/// registers it via the `EdnSchema` inventory drain, not `wat_field_names_from!`),
+/// so the two literal names are hand-spelled here, matching that derive's keys.
+fn value_from_pos(pos: crate::span::Pos) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::kernel::Location".into(),
-        location_names(),
+        "wat::core::Pos".into(),
+        pos_names(),
+        Arc::new(vec![Value::i64(pos.line), Value::i64(pos.col)]),
+    )))
+}
+
+fn pos_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(&["line", "col"]))
+        .clone()
+}
+
+/// Convert a `Span` into a `:wat::core::Span` `Value::Aggregate(Record)`.
+/// Field order: `(file, line, col, end)`. Excursus 003 envelope step 1 (D1) —
+/// this fn used to build the narrower three-field "a location" record (no `end`),
+/// now retired outright in favour of this one shape everywhere; every call site
+/// of this fn gets the fourth field for free. `end` is
+/// carried through when the `Span` in hand has one (a wat-originated span,
+/// e.g. `(:wat::kernel::here)`'s own call-form span) — never dropped to imitate
+/// the old three-field shape.
+/// Arc 293.W.2b — Span is Nature::Record (pure EDN data).
+pub(crate) fn value_from_span(span: crate::span::Span) -> Value {
+    let end_value = match span.end {
+        Some(pos) => Value::Option(Arc::new(Some(value_from_pos(pos)))),
+        None => Value::Option(Arc::new(None)),
+    };
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::core::Span".into(),
+        span_names(),
         Arc::new(vec![
             Value::String(Arc::new((*span.file).clone())),
             Value::i64(span.line),
             Value::i64(span.col),
+            end_value,
         ]),
     )))
 }
 
 ::wat_source_derive::wat_field_names_from!(
-    LOCATION_FIELDS,
+    SPAN_FIELDS,
     "wat/core.wat",
-    ":wat::kernel::Location"
+    ":wat::core::Span"
 );
-pub(crate) fn location_names() -> Arc<Vec<String>> {
+pub(crate) fn span_names() -> Arc<Vec<String>> {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(LOCATION_FIELDS))
+    N.get_or_init(|| crate::value::value::names_arc_from_static(SPAN_FIELDS))
         .clone()
 }
 

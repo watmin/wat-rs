@@ -66,15 +66,15 @@ fn failing_deftest_is_reported_as_failed() {
         },
         "assert-eq failed"
     );
-    // :wat::kernel::Location — fields [file, line, col]. The fixture's false assertion
+    // :wat::core::Span — fields [file, line, col, end]. The fixture's false assertion
     // is the SECOND deftest in the co-located .wat.
-    let loc = aggregate_fields(&fault[1], "wat::kernel::Location");
+    let loc = aggregate_fields(&fault[1], "wat::core::Span");
     assert_eq!(
         match &loc[0] {
             Value::String(s) => std::path::Path::new(&**s)
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned()),
-            other => panic!("Location.file must be a String; got {other:?}"),
+            other => panic!("Span.file must be a String; got {other:?}"),
         },
         Some("probe_deftest_verdict_wall.wat".to_string())
     );

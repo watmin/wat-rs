@@ -1,0 +1,15 @@
+# ORACLE for retire-kernel-location-to-core-span — HISTORY or header spec, never the tool.
+
+# spec: this codemod ships WITH the D1 surface change it migrates for (excursus 003 envelope
+# step 1), so there is no prior commit in which the after-shape exists. The oracle is the
+# header's own SPEC quote.
+
+spec-before   (:wat::core::defrecord :wat::kernel::Location [file <- :wat::core::String line <- :wat::core::i64 col <- :wat::core::i64]) :: the standalone `(:wat::core::defrecord :wat::kernel::Location …)` declaration is deleted from the file that declares it
+
+spec-before   (:wat::core::defrecord :u::Holder [location <- :wat::kernel::Location]) :: is renamed to `:wat::core::Span`
+
+spec-before   (:wat::core::defn :u::line-of [loc <- :wat::kernel::Location] -> :wat::core::i64 (:wat::kernel::Location/line loc)) :: is renamed to `:wat::core::Span`
+
+spec   (:wat::core::defrecord :u::Holder [location <- :wat::core::Span]) :: is renamed to `:wat::core::Span`
+
+spec   (:wat::core::defn :u::line-of [loc <- :wat::core::Span] -> :wat::core::i64 (:wat::core::Span/line loc)) :: is renamed to `:wat::core::Span`
