@@ -4,7 +4,7 @@
 ;; Arc 278 peer-lifecycle Strike 3 — the accept' OUTCOME WALL. `accept'` used to
 ;; return a bare `(Peer' :- [R S])` and RAISE on its handleable failures; it now returns a
 ;; matchable `(:wat::kernel::AcceptOutcome :- [R S])` (::Accepted[(Peer' :- [R S])] · ::Closed ·
-;; ::Failed[Failure]). These fns RETURN the raw AcceptOutcome so the Rust probe can
+;; ::Stopped · ::Failed[Failure]). These fns RETURN the raw AcceptOutcome so the Rust probe can
 ;; assert on it STRUCTURALLY (Value::Enum field extraction).
 ;;
 ;; Thread tier is single-threaded-drivable: `listener'` mints a bounded(1) crossbeam
@@ -29,9 +29,9 @@
   (:wat::spawn::Bound/listener
     (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)))
 
-;; CLEAN TERMINAL → AcceptOutcome::Closed[]. accept' on a listener whose address
-;; (the only rendezvous Sender) was dropped → crossbeam recv Disconnected → Closed,
-;; NOT a raise the server loop unwinds past.
+;; GONE FOR GOOD → AcceptOutcome::Closed. accept' on a listener whose address
+;; (the only rendezvous Sender) was dropped → crossbeam recv Disconnected → Closed.
+;; A stop is Stopped, not this arm. Not a raise the server loop unwinds past.
 (:wat::core::defn :user::accept-closed [] -> (:wat::kernel::AcceptOutcome :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [l (:user::orphaned-listener)]

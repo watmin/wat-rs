@@ -14,6 +14,8 @@
                           [:wat::kernel::AcceptOutcome.Accepted {:peer p} p]
                           [:wat::kernel::AcceptOutcome.Closed {}
                             (:wat::kernel::assertion-failed! :message "accept': listener closed before a client connected")]
+                          [:wat::kernel::AcceptOutcome.Stopped {}
+                            (:wat::kernel::assertion-failed! :message "accept': listener closed before a client connected")]
                           [:wat::kernel::AcceptOutcome.Failed {:cause cause}
                             (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
                    n    (:wat::core::match (:wat::kernel::recv conn)

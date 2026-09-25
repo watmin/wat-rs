@@ -331,9 +331,8 @@ pub(crate) fn accept_outcome_accepted(peer_val: Value) -> Value {
     }))
 }
 
-/// `AcceptOutcome::Closed []` — the listener's rendezvous shut down / address dropped
-/// (clean; no peer). The reason-free terminal (was the "address dropped or shutdown" /
-/// "interrupted by shutdown" raise).
+/// `AcceptOutcome::Closed` — every sender dropped. Thread locus only. Nullary:
+/// no consuming arm binds a field. The listener is gone for good.
 pub(crate) fn accept_outcome_closed() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ACCEPT_OUTCOME_TYPE.into(),
@@ -343,10 +342,22 @@ pub(crate) fn accept_outcome_closed() -> Value {
     }))
 }
 
-/// `AcceptOutcome::Failed [cause <- Failure]` — a decode / select / peer_cred / socket-wrap
-/// io error carrying its structured cause. Built via `message_only_failure` — the SAME
-/// structured carrier `send'`/`recv'`/`close'` `Lost`/`Failed` use; never a hand-rolled
-/// `struct-new` Failure (R57's Struct-Failure mask).
+/// `AcceptOutcome::Stopped` — a stop was requested. Thread and process. Nullary,
+/// same shape as `Closed`. Nothing was dropped.
+pub(crate) fn accept_outcome_stopped() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ACCEPT_OUTCOME_TYPE.into(),
+        variant_name: "Stopped".into(),
+        names: no_field_names(),
+        fields: vec![],
+    }))
+}
+
+/// `AcceptOutcome::Failed [cause <- Failure]` — a process-locus io error (`select`,
+/// `peer_cred`, socket wrap, `accept`). No thread locus produces this. Built via
+/// `message_only_failure` — the SAME structured carrier `send'`/`recv'`/`close'`
+/// `Lost`/`Failed` use; never a hand-rolled `struct-new` Failure (R57's
+/// Struct-Failure mask).
 pub(crate) fn accept_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ACCEPT_OUTCOME_TYPE.into(),

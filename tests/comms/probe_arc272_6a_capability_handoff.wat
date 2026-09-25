@@ -21,6 +21,8 @@
                           [:wat::kernel::AcceptOutcome.Accepted {:peer p} p]
                           [:wat::kernel::AcceptOutcome.Closed {}
                             (:wat::kernel::assertion-failed! :message "accept': listener closed before the parent dialed")]
+                          [:wat::kernel::AcceptOutcome.Stopped {}
+                            (:wat::kernel::assertion-failed! :message "accept': listener closed before the parent dialed")]
                           [:wat::kernel::AcceptOutcome.Failed {:cause cause}
                             (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
                    n    (:wat::core::match (:wat::kernel::recv c)

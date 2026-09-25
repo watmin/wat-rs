@@ -463,12 +463,16 @@
 ;; uncatchable on purpose, a thing that must never happen" — those become a matchable
 ;; outcome; only the must-never-happen raises (arity, listener-type-mismatch, and the
 ;; in-process malformed-connect-request substrate bug) stay raises. Shape (RULED):
-;;   :Accepted [peer <- (Peer' :- [R S])]  — an AUTHORIZED peer connected (the happy path).
-;;   :Closed   []                    — the listener's rendezvous shut down / address
-;;                                     dropped (clean; no peer). The reason-free terminal.
-;;   :Failed   [cause <- Failure]    — a decode / select / peer_cred / socket-wrap io
-;;                                     error; the structured-cause carrier (never a flat
-;;                                     String — built via `message_only_failure`).
+;;   :Accepted [peer <- (Peer' :- [R S])]  — a peer was admitted. Both loci.
+;;   :Closed   []                    — the listener is gone for good: every sender
+;;                                     dropped. Thread locus only. Nullary: no
+;;                                     consuming arm binds a field.
+;;   :Stopped  []                    — a stop was requested. Nothing closed.
+;;                                     Thread (shutdown recv) and process (select
+;;                                     shutdown). Nullary, same shape as Closed.
+;;   :Failed   [cause <- Failure]    — an io failure. Process locus only
+;;                                     (select, peer_cred, socket wrap, accept).
+;;                                     The thread recv cannot produce one.
 ;; `Rejected` is CUT: the security gate BOUNCES a stranger INTERNALLY (process tier:
 ;; drop + re-poll; thread tier: no gate — the crossbeam handle IS the grant), so no
 ;; tier returns a security-reject to the caller — a `Rejected` variant would never be
@@ -481,6 +485,7 @@
 (:wat::core::defenum :wat::kernel::AcceptOutcome :- [R S] :wat::enum::Impure
   :Accepted [peer <- (:wat::kernel::Peer :- [:R :S])]
   :Closed
+  :Stopped
   :Failed [cause <- :wat::kernel::Failure])
 
 ;; (:wat::kernel::ConnectOutcome :- [S R]) — Arc 278 peer-lifecycle Strike 4 (the connect'

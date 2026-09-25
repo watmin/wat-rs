@@ -22,6 +22,8 @@
              [:wat::kernel::AcceptOutcome.Accepted {:peer p} p]
              [:wat::kernel::AcceptOutcome.Closed {}
                (:wat::kernel::assertion-failed! :message "accept': listener closed before the hook channel was accepted")]
+             [:wat::kernel::AcceptOutcome.Stopped {}
+               (:wat::kernel::assertion-failed! :message "accept': listener closed before the hook channel was accepted")]
              [:wat::kernel::AcceptOutcome.Failed {:cause _c}
                (:wat::kernel::assertion-failed! :message "accept': failed accepting the hook channel")])
      _thr  (:wat::test::spawn-peer

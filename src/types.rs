@@ -2822,12 +2822,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // uncatchable on purpose, a thing that must never happen" — those become a matchable
     // outcome; only the must-never-happen raises (arity, listener-type-mismatch, and the
     // in-process malformed-connect-request substrate bug) stay raises. Shape (RULED):
-    //   :Accepted [peer <- (Peer' :- [R S])]  — an AUTHORIZED peer connected (the happy path).
-    //   :Closed   []                    — the listener's rendezvous shut down / address
-    //                                     dropped (clean; no peer). The reason-free terminal.
-    //   :Failed   [cause <- Failure]    — a decode / select / peer_cred / socket-wrap io
-    //                                     error; the structured-cause carrier (never a flat
-    //                                     String — built via `message_only_failure`).
+    //   :Accepted [peer <- (Peer' :- [R S])]  — a peer was admitted. Both loci.
+    //   :Closed   []                    — every sender dropped. Thread locus only.
+    //   :Stopped  []                    — a stop was requested. Thread and process.
+    //   :Failed   [cause <- Failure]    — an io failure. Process locus only.
     // `Rejected` is CUT: the security gate BOUNCES a stranger INTERNALLY (process tier:
     // drop + re-poll; thread tier: no gate — the crossbeam handle IS the grant), so no
     // tier returns a security-reject to the caller — a `Rejected` variant would never be

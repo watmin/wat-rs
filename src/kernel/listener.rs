@@ -44,13 +44,22 @@ use crate::span::Span;
 /// raises (which stay `EvalBreak`). `accept` returns `Result<Result<Peer, AcceptFail>,
 /// EvalBreak>`: the outer `Err` is an uncatchable raise (an in-process substrate bug — a
 /// malformed connect-request, an arity/type mismatch), the inner `Err(AcceptFail)` is a
-/// handleable outcome the eval layer maps to `Closed`/`Failed`.
+/// handleable outcome the eval layer maps to `Closed`/`Stopped`/`Failed`.
 pub enum AcceptFail {
-    /// The listener's rendezvous shut down / address dropped (clean; no peer) —
-    /// maps to `AcceptOutcome::Closed[]`.
+    /// Every sender on the rendezvous is gone. The listener does not come back.
+    /// Thread locus only (`RecvOutcome::Disconnected`). No process locus produces
+    /// this: a process accept's terminal is a stop. Maps to `AcceptOutcome::Closed`,
+    /// which stays nullary — no consuming arm binds a field on it.
     Closed,
-    /// A decode / select / peer_cred / socket-wrap io error carrying its reason —
-    /// maps to `AcceptOutcome::Failed[cause <- Failure]` (via `message_only_failure`).
+    /// A stop was requested. Nothing was dropped: the listener is still there.
+    /// Thread locus (`RecvOutcome::Shutdown`) and process locus
+    /// (`SelectOutcome::Shutdown`). Maps to `AcceptOutcome::Stopped`, nullary,
+    /// same shape as `Closed`.
+    Stopped,
+    /// An io failure. Process locus only (`select`, `peer_cred`, socket wrap,
+    /// `accept`). The thread arm does not produce this: `thread::Receiver::recv`
+    /// returns only a value, `Disconnected`, or `Shutdown`. Maps to
+    /// `AcceptOutcome::Failed[cause <- Failure]` (via `message_only_failure`).
     Failed(String),
 }
 
@@ -69,7 +78,7 @@ pub trait CommListener: Send + Sync {
     /// Block until a connection arrives; wrap + return the server-side Peer.
     ///
     /// Arc 278 the accept' OUTCOME WALL: `Ok(Ok(peer))` = an authorized peer;
-    /// `Ok(Err(AcceptFail))` = a handleable failure (→ `Closed`/`Failed`);
+    /// `Ok(Err(AcceptFail))` = a handleable failure (→ `Closed`/`Stopped`/`Failed`);
     /// `Err(EvalBreak)` = a must-never-happen raise (a malformed connect-request
     /// substrate bug — the crossbeam `connect'` built a bad request).
     fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Result<Peer, AcceptFail>, EvalBreak>;
@@ -123,20 +132,32 @@ impl CommListener for CrossbeamListener {
             sym.encoding_ctx().map(|a| a.as_ref()),
         ) {
             crate::channel::RecvOutcome::Value(v) => v,
-            // Arc 278 the accept' OUTCOME WALL — HANDLEABLE: the rendezvous is gone
-            // (address dropped or shutdown). A clean terminal → AcceptOutcome::Closed,
-            // not a raise the reader unwinds past.
-            crate::channel::RecvOutcome::Disconnected
-            | crate::channel::RecvOutcome::Shutdown => {
+            // Every sender dropped. The rendezvous does not come back.
+            // AcceptOutcome::Closed. A stop is the other arm.
+            crate::channel::RecvOutcome::Disconnected => {
                 return Ok(Err(AcceptFail::Closed));
             }
-            // HANDLEABLE: a decode error on the connect-request — a real io failure with
-            // a reason → AcceptOutcome::Failed[cause].
+            // A substrate stop. The sender may still be alive. AcceptOutcome::Stopped.
+            crate::channel::RecvOutcome::Shutdown => {
+                return Ok(Err(AcceptFail::Stopped));
+            }
+            // Measured unreachable. `comms::thread::Receiver::recv` returns only
+            // `Ok`, `RecvError::Disconnected`, or `RecvError::Shutdown`
+            // (`src/comms/thread.rs`). `Failed` and `PeerCrashed` are what
+            // `typed_recv` folds into `DecodeError`, and this receiver is a
+            // thread receiver, so it never takes that fold. A decode error here
+            // is a substrate bug, not an io failure this locus can report.
             crate::channel::RecvOutcome::DecodeError(msg) => {
-                return Ok(Err(AcceptFail::Failed(format!(
-                    "accept: rendezvous recv decode error: {}",
-                    msg
-                ))));
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!(
+                            "thread accept received a decode error, which this locus cannot produce: {msg}"
+                        ),
+                    },
+                )
+                .into());
             }
         };
         // Unpack + wrap the server Peer'<R,S> end on THIS thread.
@@ -461,10 +482,11 @@ impl CommListener for SocketListener {
                         }
                     }
                 }
-                // HANDLEABLE: the reactor was shut down mid-accept → AcceptOutcome::Closed
-                // (a clean terminal; no peer), not a raise.
+                // A stop. On this locus nothing else maps to Closed: the listen
+                // socket going away is an io error (Failed), and a dropped
+                // address is not a thing a process listener observes.
                 crate::comms::SelectOutcome::Shutdown => {
-                    return Ok(Err(AcceptFail::Closed));
+                    return Ok(Err(AcceptFail::Stopped));
                 }
                 crate::comms::SelectOutcome::Recv { .. } => {
                     unreachable!("accept Select has no receivers")
@@ -531,7 +553,8 @@ impl Listener {
     /// Dispatch accept to the concrete impl and build the matchable
     /// `:wat::kernel::AcceptOutcome<R,S>` `Value` for the eval layer (Arc 278 the accept'
     /// OUTCOME WALL). `Ok(peer)` → `Accepted[peer]` (the `Peer` wrapped as a
-    /// `PEER_TYPE_PATH` opaque); `Err(AcceptFail::Closed)` → `Closed[]`;
+    /// `PEER_TYPE_PATH` opaque); `Err(AcceptFail::Closed)` → `Closed`;
+    /// `Err(AcceptFail::Stopped)` → `Stopped`;
     /// `Err(AcceptFail::Failed(reason))` → `Failed[cause <- Failure]` (via
     /// `message_only_failure`). A must-never-happen raise stays an `EvalBreak` (the `?`).
     /// Process tier only. A thread listener has no kernel accept queue:
@@ -553,6 +576,7 @@ impl Listener {
                 Ok(crate::kernel::outcome::accept_outcome_accepted(peer_val))
             }
             Err(AcceptFail::Closed) => Ok(crate::kernel::outcome::accept_outcome_closed()),
+            Err(AcceptFail::Stopped) => Ok(crate::kernel::outcome::accept_outcome_stopped()),
             Err(AcceptFail::Failed(reason)) => Ok(crate::kernel::outcome::accept_outcome_failed(reason)),
         }
     }

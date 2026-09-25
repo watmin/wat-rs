@@ -8174,7 +8174,7 @@ const MUST_USE_TYPES: &[&str] = &[
 ///
 /// `(:wat::kernel::AcceptOutcome :- [R S])` (arc 278 peer-lifecycle Strike 3 — the accept'
 /// OUTCOME WALL) — parametric like (RecvOutcome :- [O]) (`Accepted` holds a live `(Peer' :- [R S])`).
-/// A *faced* `accept'` (matched over `Accepted`/`Closed`/`Failed`) has the Peer' / an
+/// A *faced* `accept'` (matched over `Accepted`/`Closed`/`Stopped`/`Failed`) has the Peer' / an
 /// arm-joined type, never `(AcceptOutcome :- [R S])`, so this fires only on a raw dropped
 /// `accept'`, closing the swallow door on the rendezvous-drop/decode/select/peer_cred
 /// failures the wall converted from raises.
@@ -10709,7 +10709,7 @@ fn infer_accept_prime(
             // Arc 278 the accept' OUTCOME WALL — accept' no longer returns the bare
             // (Peer' :- [R S]) and raises on rendezvous-drop/decode/select/peer_cred failure; it
             // returns a matchable `(:wat::kernel::AcceptOutcome :- [R S])` (::Accepted[(Peer' :- [R S])]
-            // · ::Closed · ::Failed[Failure]) so a masked accept failure is structurally
+            // · ::Closed · ::Stopped · ::Failed[Failure]) so a masked accept failure is structurally
             // unrepresentable. The peer still flows to the consumer via the ::Accepted arm.
             TypeExpr::Parametric { head: "wat::kernel::AcceptOutcome".into(), args: vec![r_ty, s_ty] }
         }

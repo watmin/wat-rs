@@ -88,12 +88,14 @@ fn accept_authorized_peer_yields_accepted() {
 // ─── clean terminal → Closed[] (single-threaded; runs in the floor) ────────────
 
 /// `accept'` on a listener whose address (the only rendezvous Sender) was dropped
-/// before the accept → crossbeam recv Disconnected → `AcceptOutcome::Closed[]`, a
-/// clean terminal, NOT a raise the server loop unwinds past.
+/// before the accept → crossbeam recv Disconnected → `AcceptOutcome::Closed`.
+/// The listener is gone for good. A stop is `Stopped`, not this variant.
+/// Not a raise the server loop unwinds past.
 ///
 /// RED before the wall: `accept'` RAISED ("rendezvous recv failed — address was
-/// dropped or shutdown") instead of returning `Closed`, so `call_beside_value` returns
-/// `Err` and the `unwrap_or_else` panics. GREEN after.
+/// dropped or shutdown") instead of returning an outcome, so `call_beside_value`
+/// returns `Err` and the `unwrap_or_else` panics. GREEN after. Stone 255.35
+/// kept this drop on `Closed` and moved the stop off it.
 #[test]
 fn accept_on_dropped_rendezvous_yields_closed() {
     let v = call_beside_value(file!(), ":user::accept-closed")
