@@ -224,11 +224,11 @@ pub enum PeerDeath {
 /// - `Ok(reason)` → [`PeerDeath::Lost`]`(reason)` — abnormal exit with a
 ///   crash reason string (use `message_only_failure` to cook into a `Failure`
 ///   if a `Value` is needed).
-/// - `Err(RecvError::Failed(reason))` → [`PeerDeath::Lost`]`(reason)` — arc 278
-///   no-hidden-failures (transport-tier twin): the crash/err channel itself hit
-///   a raw wire failure (io error / invalid UTF-8 / decode failure) while being
-///   read for a death reason. That failure carries information — folding it
-///   into `Closed` would mislabel a genuine error as a clean exit.
+/// - `Err(RecvError::Failed(reason))` → [`PeerDeath::Lost`]`(reason)` — the
+///   crash channel's own read broke (io). That is not a clean exit.
+/// - `Err(RecvError::Malformed(reason))` → [`PeerDeath::Lost`]`(reason)` — the
+///   crash channel delivered a bad message. The far end's bytes arrived; this
+///   is not a clean exit either.
 /// - `Err(RecvError::Shutdown)` → [`PeerDeath::Shutdown`] — arc 278 #73: a stop
 ///   was requested. NOTHING DIED; the peer is alive and the channel is open.
 ///   This used to fall into the wildcard below and come out as a clean EOF —
@@ -243,7 +243,9 @@ pub enum PeerDeath {
 pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) -> PeerDeath {
     match crash_recv {
         Ok(reason) => PeerDeath::Lost(reason),
-        Err(crate::comms::RecvError::Failed(reason)) => PeerDeath::Lost(reason),
+        Err(crate::comms::RecvError::Failed(reason) | crate::comms::RecvError::Malformed(reason)) => {
+            PeerDeath::Lost(reason)
+        }
         Err(crate::comms::RecvError::Shutdown) => PeerDeath::Shutdown,
         Err(_) => PeerDeath::Closed,
     }
@@ -263,35 +265,34 @@ pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) 
 /// EOF/shutdown (`Err(_)`) reads `err` — there the child has exited, so the read
 /// returns promptly (buffered reason → `Lost`, or EOF → `Closed`).
 ///
-/// Arc 278 no-hidden-failures (transport-tier twin): `RecvError::Failed(reason)`
-/// on the OUTPUT channel is handled the same way as `FrameTooLarge` — it is
-/// itself a genuine, informative failure (io error / invalid UTF-8 / decode
-/// failure), not a signal that the child has exited, so reading `err` here
-/// would be exactly as unfounded (and exactly as deadlock-risking, since
-/// nothing establishes the child is dead) as it is for `FrameTooLarge`.
-/// Surface the output channel's own reason as `Lost` directly.
+/// Arc 278 no-hidden-failures (transport-tier twin): `RecvError::Failed` and
+/// `RecvError::Malformed` on the OUTPUT channel are handled the same way as
+/// `FrameTooLarge`. Each is itself the fact (the transport broke, or this
+/// message was bad). Neither says the child has exited, so reading `err`
+/// here would be as unfounded, and as deadlock-risking, as it is for
+/// `FrameTooLarge`. Surface the output channel's own reason as `Lost`.
+///
+/// A true EOF falls through to [`classify_peer_death`] on the crash channel.
+/// That is the one classification: a crash-channel io failure is `Lost`,
+/// not `Closed`. The old arm here folded every `Err` except `Shutdown` into
+/// `Closed`, so the same `Failed` that `classify_peer_death` calls `Lost`
+/// was reported as a clean exit.
 pub fn classify_peer_error(
     output_err: &crate::comms::RecvError,
     err: &crate::comms::process::Receiver<String>,
 ) -> PeerDeath {
     match output_err {
         crate::comms::RecvError::FrameTooLarge => PeerDeath::Lost(output_err.to_string()),
-        crate::comms::RecvError::Failed(reason) => PeerDeath::Lost(reason.clone()),
+        crate::comms::RecvError::Failed(reason) | crate::comms::RecvError::Malformed(reason) => {
+            PeerDeath::Lost(reason.clone())
+        }
         // Arc 278 #73 — a stop woke this parked read. The child is ALIVE, exactly as
         // it is under `FrameTooLarge`, so reading `err` here is both unfounded (nothing
         // establishes the child has exited) and deadlock-risking. Return the fact
         // WITHOUT touching `err`. This arm is why the wildcard below can no longer
         // reach `Shutdown`: it used to, and it reported a live peer as a clean EOF.
         crate::comms::RecvError::Shutdown => PeerDeath::Shutdown,
-        _ => match err.recv() {
-            Ok(reason) => PeerDeath::Lost(reason),
-            // The OUTPUT channel saw a true EOF and the crash channel is being read
-            // for a buffered reason. A stop arriving *here* is still a stop — the
-            // child has exited, but the reason we would otherwise report ("clean
-            // close") is not what happened to THIS read.
-            Err(crate::comms::RecvError::Shutdown) => PeerDeath::Shutdown,
-            Err(_) => PeerDeath::Closed,
-        },
+        _ => classify_peer_death(err.recv()),
     }
 }
 

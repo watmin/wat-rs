@@ -709,11 +709,12 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// Returns `Err(RecvError::Disconnected)` on a genuine clean peer-close
     /// (EOF; read returns 0) or substrate shutdown (cascade-arm fires;
     /// Stone B — that's `Err(RecvError::Shutdown)`). Returns
-    /// `Err(RecvError::Failed(reason))` on io_uring submission/completion
-    /// failure, on UTF-8 decode failure, on EDN parse failure, or on
-    /// `T::from_wire` failure — arc 278 no-hidden-failures: a raw
-    /// transport error carries its reason instead of collapsing into a
-    /// mute `Disconnected`.
+    /// `Err(RecvError::Failed(reason))` on an io_uring submission/completion
+    /// failure (the transport; the far end's fate is unknown). Returns
+    /// `Err(RecvError::Malformed(reason))` on UTF-8 decode failure, on a
+    /// frame-scan rejection, or on `T::from_wire` failure — the far end is
+    /// alive and this message was bad. Arc 278 no-hidden-failures: either
+    /// carries its reason instead of collapsing into a mute `Disconnected`.
     pub fn recv(&self) -> Result<T, RecvError> {
         // Fast path — accumulator already has a complete frame.
         if let Some(frame) = self.take_buffered_frame()? {
@@ -900,8 +901,10 @@ impl<T: EdnRepresentable> Receiver<T> {
     ///
     /// Returns `Err(RecvError::Disconnected)` on a genuine clean EOF; returns
     /// `Err(RecvError::Shutdown)` when the substrate cascade fires; returns
-    /// `Err(RecvError::Failed(reason))` on UTF-8 decode failure or a raw
-    /// io_uring read error — arc 278 no-hidden-failures: the reason travels
+    /// `Err(RecvError::Malformed(reason))` on UTF-8 decode failure (the
+    /// message was bad; the far end is alive) or
+    /// `Err(RecvError::Failed(reason))` on a raw io_uring read error (the
+    /// transport broke). Arc 278 no-hidden-failures: the reason travels
     /// instead of collapsing into a mute `Disconnected`.
     ///
     /// `pub(crate)` — only `kernel::peer::Peer::recv_wire` calls this, and only
@@ -909,9 +912,7 @@ impl<T: EdnRepresentable> Receiver<T> {
     pub(crate) fn recv_wire_raw(&self) -> Result<String, RecvError> {
         // Fast path — accumulator already holds a complete frame.
         if let Some(frame) = self.take_buffered_frame()? {
-            return std::str::from_utf8(&frame).map(str::to_owned).map_err(|e| {
-                RecvError::Failed(format!("invalid UTF-8 in frame: {e}"))
-            });
+            return std::str::from_utf8(&frame).map(str::to_owned).map_err(malformed_utf8);
         }
 
         let read_fd = self.poll_fd();
@@ -933,9 +934,7 @@ impl<T: EdnRepresentable> Receiver<T> {
                 return Err(RecvError::Disconnected);
             }
             if let Some(frame) = self.take_buffered_frame()? {
-                return std::str::from_utf8(&frame).map(str::to_owned).map_err(|e| {
-                    RecvError::Failed(format!("invalid UTF-8 in frame: {e}"))
-                });
+                return std::str::from_utf8(&frame).map(str::to_owned).map_err(malformed_utf8);
             }
         }
     }
@@ -1118,19 +1117,21 @@ fn wait_for_data_or_cascade(
 /// Decode a newline-framed payload to `T` via the wire chain:
 /// UTF-8 bytes → EDN string → T (via `T::from_wire`).
 ///
-/// Returns `Err(RecvError::Failed(reason))` on any layer's failure (utf8,
-/// EDN parse, or `T::from_wire`) — arc 278 no-hidden-failures: the
-/// channel is in an honest but unrecoverable state per this call, and the
-/// reason travels with it instead of collapsing into a mute `Disconnected`
-/// (this function never produces `Disconnected` — a decode failure is never
-/// a clean close).
+/// Returns `Err(RecvError::Malformed(reason))` on any layer's failure (utf8
+/// or `T::from_wire`) — the bytes arrived and this message was bad. Arc 278
+/// no-hidden-failures: the reason travels with it instead of collapsing into
+/// a mute `Disconnected` (this function never produces `Disconnected` or
+/// `Failed` — a decode failure is not a clean close and not a transport break).
+fn malformed_utf8(e: std::str::Utf8Error) -> RecvError {
+    RecvError::Malformed(format!("invalid UTF-8 in frame: {e}"))
+}
+
 fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
-    let s = std::str::from_utf8(bytes)
-        .map_err(|e| RecvError::Failed(format!("invalid UTF-8 in frame: {e}")))?;
+    let s = std::str::from_utf8(bytes).map_err(malformed_utf8)?;
     // Stone 214 1b-ii-β.0: the wire is plain EDN (`from_wire`). For `String` this is
     // raw passthrough — a forms-server's plain `42\n` decodes byte-for-byte, no holon
     // tag required (the `recv'` boundary codec runs `edn_string_to_value` upstream).
-    T::from_wire(s).map_err(|e| RecvError::Failed(format!("wire decode failed: {e}")))
+    T::from_wire(s).map_err(|e| RecvError::Malformed(format!("wire decode failed: {e}")))
 }
 
 /// Pull the first COMPLETE EDN value-frame out of `acc`, routing through
@@ -1146,14 +1147,13 @@ fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
 ///   `DEFAULT_MAX_FRAME_BYTES` before a complete frame was found (the peer
 ///   is still alive; see the FrameTooLarge arm below for why this must NOT
 ///   fold into `Disconnected` or `Failed`).
-/// - `Err(RecvError::Failed(reason))` — `Malformed` (a wire-level error —
-///   currently only non-UTF-8 bytes; a genuine EDN *syntax* error reaches
-///   the caller as `Ok(Some(frame))` and surfaces as a decode error at
-///   `from_wire`, since `String` wire content is raw passthrough, not EDN).
-///   Arc 278 no-hidden-failures: `reason` is `FrameScan::Malformed`'s carried
-///   message (e.g. "non-UTF-8 bytes in frame") — the channel is in an
-///   unrecoverable state for this frame, and the caller can tell that apart
-///   from a clean close.
+/// - `Err(RecvError::Malformed(reason))` — a wire-level error, currently
+///   only non-UTF-8 bytes; a genuine EDN *syntax* error reaches the caller
+///   as `Ok(Some(frame))` and surfaces as a decode error at `from_wire`,
+///   since `String` wire content is raw passthrough, not EDN. Arc 278
+///   no-hidden-failures: `reason` is `FrameScan::Malformed`'s carried
+///   message (e.g. "non-UTF-8 bytes in frame"). The far end may still be
+///   alive. This is not a transport break (`Failed`) and not a clean close.
 ///
 /// Previously returned `Option<Frame>` and split on the FIRST `'\n'`. That
 /// split-on-first-newline strategy was correct only when all EDN values were
@@ -1202,12 +1202,10 @@ fn take_frame(acc: &mut Vec<u8>, max_frame_bytes: usize) -> Result<Option<Frame>
             }
             Err(RecvError::FrameTooLarge)
         }
-        // Malformed: wire-level encoding error (non-UTF-8); the peer may or may
-        // not be alive. Arc 278 no-hidden-failures: carry FrameScan::Malformed's
-        // own message (e.g. "non-UTF-8 bytes in frame") via Failed instead of
-        // muting it into Disconnected — this is a genuine wire break, not a
-        // clean close.
-        FrameScan::Malformed(reason) => Err(RecvError::Failed(reason)),
+        // Malformed: wire-level encoding error (non-UTF-8). The source is
+        // FrameScan::Malformed, which next_complete_frame returns only from
+        // from_utf8's Err — not from an io error. The peer may still be alive.
+        FrameScan::Malformed(reason) => Err(RecvError::Malformed(reason)),
     }
 }
 
@@ -2145,5 +2143,56 @@ mod timer_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod malformed_routes {
+    use super::{decode_frame, malformed_utf8, take_frame};
+    use crate::comms::{EdnRepresentable, RecvError, WireError};
+
+    #[derive(Debug)]
+    struct RejectsWire;
+
+    impl EdnRepresentable for RejectsWire {
+        fn to_wire(&self) -> String {
+            String::new()
+        }
+
+        fn from_wire(_s: &str) -> Result<Self, WireError> {
+            Err(WireError::new("no"))
+        }
+    }
+
+    #[test]
+    fn a_non_utf8_frame_scan_is_malformed() {
+        let mut acc = vec![0x80, 0x81, b'\n'];
+        assert_eq!(
+            take_frame(&mut acc, 1024),
+            Err(RecvError::Malformed("non-UTF-8 bytes in frame".to_string()))
+        );
+    }
+
+    #[test]
+    fn decode_frame_invalid_utf8_is_malformed() {
+        let mut bytes = [0u8];
+        bytes[0] = 0x80;
+        let utf8 = std::str::from_utf8(&bytes).unwrap_err();
+        assert_eq!(
+            malformed_utf8(utf8),
+            decode_frame::<String>(&bytes).unwrap_err()
+        );
+        assert_eq!(
+            decode_frame::<String>(&bytes).unwrap_err(),
+            RecvError::Malformed(format!("invalid UTF-8 in frame: {utf8}"))
+        );
+    }
+
+    #[test]
+    fn decode_frame_from_wire_is_malformed() {
+        assert_eq!(
+            decode_frame::<RejectsWire>(b"ok").unwrap_err(),
+            RecvError::Malformed("wire decode failed: no".to_string())
+        );
     }
 }

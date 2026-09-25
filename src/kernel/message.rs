@@ -599,7 +599,8 @@ pub(crate) fn eval_peer_recv_prime(
                                 ),
                                 Err(e) => Ok(match &e {
                                     // A raw wire failure carries its real reason.
-                                    crate::comms::RecvError::Failed(reason) => recv_outcome_lost(
+                                    crate::comms::RecvError::Failed(reason)
+                                    | crate::comms::RecvError::Malformed(reason) => recv_outcome_lost(
                                         reason.clone(),
                                         sym.types().map(|a| a.as_ref()),
                                     ),
@@ -628,7 +629,8 @@ pub(crate) fn eval_peer_recv_prime(
                         Some(peer) => Ok(match peer.recv() {
                             Ok(v) => recv_outcome_from_decoded(v, sym.types().map(|a| a.as_ref())),
                             Err(e) => match &e {
-                                crate::comms::RecvError::Failed(reason) => recv_outcome_lost(
+                                crate::comms::RecvError::Failed(reason)
+                                | crate::comms::RecvError::Malformed(reason) => recv_outcome_lost(
                                     reason.clone(),
                                     sym.types().map(|a| a.as_ref()),
                                 ),
@@ -1878,9 +1880,10 @@ pub(crate) fn eval_poll_prime(
                             })),
                             // Genuine clean EOF (Disconnected / Shutdown), a reason-free abnormal
                             // reset (PeerCrashed — administrative, owner-crash-channel only), or a
-                            // raw transport Failed(reason) (kept at the HEAD `Closed` path — its
-                            // reason-surfacing is a separate stone, NOT this over-FOO disposition).
-                            // A bare Peer' has no crash channel here → clean `Closed`.
+                            // raw transport Failed / a bad-message Malformed (kept at the HEAD
+                            // `Closed` path — reason-surfacing is a separate stone, NOT this
+                            // over-FOO disposition). A bare Peer' has no crash channel here →
+                            // clean `Closed`.
                             // ServiceEvent::Closed [idx <- i64]
                             Err(_) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),

@@ -10,8 +10,8 @@
 //! terminated with `\n` so the framer sees a complete frame) makes
 //! `comms::process::Receiver::recv()` return a MUTE `Err(RecvError::Disconnected)`
 //! — the caller cannot tell this apart from a genuine clean peer close.
-//! GREEN once the frame-scan malformed / decode-error paths bind the
-//! detail into `RecvError::Failed(reason)`.
+//! GREEN once the frame-scan path binds the detail. Stone 255.40: that
+//! binding is `RecvError::Malformed`, not `Failed` (`Failed` is io only).
 //!
 //! Modeled on `tests/comms/probe_truncated_frame_disconnects.rs`'s raw-pipe
 //! harness (raw fds, no WAT runtime, no spawned process).
@@ -20,10 +20,10 @@ use std::os::fd::{FromRawFd, OwnedFd};
 use wat::comms::{RecvError, process::sender_receiver_from_split_fds};
 
 /// Writing an invalid-UTF-8, newline-terminated frame → the receiver's
-/// `recv()` error must be `RecvError::Failed(reason)` with the decode
-/// detail in `reason` (NOT a bare `Disconnected` / "peer closed" mask).
+/// `recv()` error is `RecvError::Malformed` with the frame-scan's own
+/// message (NOT `Failed`, and NOT a bare `Disconnected`).
 #[test]
-fn invalid_utf8_frame_surfaces_failed_with_reason() {
+fn invalid_utf8_frame_surfaces_malformed() {
     let mut fds = [0i32; 2];
     assert_eq!(
         unsafe { libc::pipe(fds.as_mut_ptr()) },
@@ -49,25 +49,8 @@ fn invalid_utf8_frame_surfaces_failed_with_reason() {
     // `probe_truncated_frame_disconnects.rs` and stays `Disconnected`.
     let _keep_alive = sender;
 
-    match receiver.recv() {
-        Ok(s) => panic!(
-            "invalid-UTF-8 frame: recv must return Err(Failed(reason)), not decode to a \
-             value; got Ok({s:?})"
-        ),
-        Err(RecvError::Failed(reason)) => {
-            assert!(
-                // rune:lint(loose-assert) — asserts RecvError::Failed's reason NAMES the utf-8
-                // decode detail; the exact text wraps std::str::Utf8Error's Display (an impl
-                // detail, not under test), not a deterministic value that owes assert_eq!.
-                reason.to_lowercase().contains("utf-8") || reason.to_lowercase().contains("utf8"),
-                "RecvError::Failed's reason must CONTAIN the utf-8/decode detail, not a generic \
-                 message; got: {reason:?}"
-            );
-        }
-        Err(other) => panic!(
-            "THE LAW (wat never hides a failure) — transport-tier twin: an invalid-UTF-8 frame \
-             must surface as Err(RecvError::Failed(reason)) carrying the decode detail, not a \
-             mute mask. Got Err({other:?})"
-        ),
-    }
+    assert_eq!(
+        receiver.recv(),
+        Err(RecvError::Malformed("non-UTF-8 bytes in frame".to_string()))
+    );
 }

@@ -155,7 +155,11 @@ pub fn typed_recv(
                 // frame) carries its reason through RecvOutcome::DecodeError
                 // (the one reason-carrying shape this enum already has) instead
                 // of collapsing into a mute Disconnected.
-                Err(crate::comms::RecvError::Failed(reason)) => RecvOutcome::DecodeError(reason),
+                // Io and a bad message both already landed here as Failed.
+                // Malformed keeps that same outcome; the split is on RecvError.
+                Err(crate::comms::RecvError::Failed(reason) | crate::comms::RecvError::Malformed(reason)) => {
+                    RecvOutcome::DecodeError(reason)
+                }
                 // Arc 278 RST stone: `PeerCrashed` is a `Peer'`-messaging-only
                 // signal (`kernel::peer::Peer::notify_peer_crashed_best_effort`
                 // sends the reserved sentinel; nothing else ever does) — a bare

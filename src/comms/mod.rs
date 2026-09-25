@@ -346,7 +346,8 @@ pub enum RecvError {
     /// A genuine CLEAN close ONLY: all senders dropped / the peer closed the
     /// write-end with no error (EOF / data arm). NEVER produced for a raw
     /// transport failure (io error, invalid UTF-8, undecodable/malformed
-    /// frame) — those carry a reason via [`RecvError::Failed`] instead, per
+    /// frame) — an io failure carries a reason via [`RecvError::Failed`], and a
+    /// bad message via [`RecvError::Malformed`], per
     /// the arc 278 no-hidden-failures law (the transport-tier twin of the
     /// service-reply / crash-reason mechanisms). Mute-collapsing a real
     /// error into `Disconnected` is exactly the mislabeling this variant's
@@ -362,14 +363,15 @@ pub enum RecvError {
     /// Stays its own variant — NEVER folded into `Failed` (callers must not
     /// read the err channel for it; see the doc above).
     FrameTooLarge,
-    /// A raw transport failure with a carried reason: an io_uring
-    /// submission/read error, invalid UTF-8 in a frame, a wire (EDN)
-    /// decode failure, or a frame-scan malformed-frame rejection. The
-    /// `String` is the underlying error's `to_string()` (or an equivalent
-    /// diagnostic) so a caller can tell a genuine wire break apart from a
-    /// clean peer close instead of both collapsing to a mute
-    /// `Disconnected`. Arc 278 no-hidden-failures — the transport-tier twin.
+    /// The transport broke. The far end's fate is unknown. An io_uring
+    /// submission, read, or poll error — not a bad message. Invalid UTF-8,
+    /// a wire decode failure, and a frame-scan rejection are
+    /// [`RecvError::Malformed`]: the far end is alive and this message was bad.
     Failed(String),
+    /// This message was bad. Invalid UTF-8, a wire (`from_wire`) decode
+    /// failure, or [`crate::edn::render::FrameScan::Malformed`]. The far end
+    /// is alive. Distinct from [`RecvError::Failed`], which is the transport.
+    Malformed(String),
     /// The far side crashed abnormally (an unhandled panic mid-handler),
     /// NOT a clean close. Distinct from `Disconnected` (a genuine clean
     /// FIN — the far side exited with no error) — `PeerCrashed` is the
@@ -422,6 +424,7 @@ impl std::fmt::Display for RecvError {
             RecvError::Shutdown => f.write_str("substrate shutdown"),
             RecvError::FrameTooLarge => f.write_str("frame exceeded cap (message larger than the receiver's max-message-bytes budget)"),
             RecvError::Failed(reason) => write!(f, "transport failed: {reason}"),
+            RecvError::Malformed(reason) => write!(f, "malformed message: {reason}"),
             RecvError::PeerCrashed => f.write_str("peer crashed (abnormal far-side crash — no reason; the crash reason is administrative and travels only to the owner's crash channel)"),
         }
     }
