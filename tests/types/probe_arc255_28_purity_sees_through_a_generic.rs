@@ -9,31 +9,30 @@
 //! nature was never asked. Now a declared head's purity is its declaration's purity, instantiated.
 //!
 //! Rows (fixtures beside this file, `probe_arc255_28_purity_sees_through_a_generic_*`; pre = the
-//! `79febbaba` binary, before the stone):
+//! `79febbaba` binary, before 255.28):
 //! - `bare_shared_field` / `bare_shared_peer` — CONTROL A: the bare Shared address as a pure
-//!   `Record` field, and as a wire peer's payload at the `self-peer` producer. Refused pre and post.
+//!   `Record` field, and as a wire peer's payload at the `self-peer` producer. Refused by 255.28.
+//!   Inverted by 255.29: a Shared address is data, so both are accepted.
 //! - ⭐ `generic_shared_field` / ⭐ `generic_shared_peer` — SUBJECT B: the same address through the
-//!   `Pure` generic enum, in the same two positions. Pre: ACCEPTED. Now refused.
+//!   `Pure` generic enum, in the same two positions. 255.28 refused them (pre-255.28: accepted).
+//!   Inverted by 255.29: the substituted address is pure, so both are accepted.
 //! - `generic_wire_field` / `generic_wire_peer` — the `Transport.Wire` twins: accepted.
 //! - `generic_struct_field` — a generic `Struct` over `i64`: impure (pre: accepted).
 //! - `generic_impure_enum_field` — a generic `Impure` enum over `i64`: impure (pre: accepted).
 //! - `unbound_var` — a generic record whose field is `(E :- [T])`, `T` unbound: accepted; purity
 //!   is decided at instantiation. Its twin `unbound_var_instantiated_shared` (two generic layers,
-//!   over Shared) is refused (pre: accepted).
+//!   over Shared) was refused by 255.28 and is accepted after 255.29.
 //! - `self_referential` — a self-referential generic over Wire: terminates, accepted. Its twin
-//!   `self_referential_shared` is refused (pre: accepted) — the recursion guard swallows nothing.
+//!   `self_referential_shared` was refused by 255.28 and is accepted after 255.29 — the recursion
+//!   guard still walks the chain; the address it finds is now pure.
 //
 // rune:lint(no-inlined-wat) — the `(:probe::… :- [...])` literals below are golden rendered TYPE
 // NAMES the checker prints, compared by equality; not wat source that is evaluated.
 
-use wat::check::error::{CheckErrorKind, CheckErrors};
 use wat::freeze::{startup_from_file, StartupError};
 use wat::types::TypeErrorKind;
 
 const DIR: &str = "tests/types/probe_arc255_28_purity_sees_through_a_generic";
-
-const SHARED_ADDRESS: &str =
-    "(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])";
 
 fn accepted(suffix: &str) {
     let path = format!("{DIR}_{suffix}.wat");
@@ -55,55 +54,24 @@ fn refused_impure_field(suffix: &str) -> (String, String, String) {
     }
 }
 
-/// The §7 peer wall at the `self-peer` producer: exactly one refusal, naming `payload`.
-fn refused_impure_peer(suffix: &str, payload: &str) {
-    let path = format!("{DIR}_{suffix}.wat.bad");
-    let err = startup_from_file(&path).expect_err(&format!("{path} must fail check"));
-    let StartupError::Check(CheckErrors(errs)) = err else {
-        panic!("{path}: expected a type-check error, got {err:?}");
-    };
-    assert_eq!(errs.len(), 1, "{path}: {errs:?}");
-    let expected = format!(
-        "a wire peer (Peer<I,O>) carries only pure data — type {payload} is not \
-         pure (§7 purity wall). If this peer is used only within a thread \
-         (in-locus, shared memory), use ThreadSelfPeer<I,O> — any I/O types \
-         are allowed in-locus. If this peer must cross a process boundary \
-         (wire), redesign I/O types to use records, scalars, or pure enums \
-         (no Sender/Receiver/handle fields)."
-    );
-    match &errs[0].kind {
-        CheckErrorKind::MalformedForm { head, reason, .. } => {
-            assert_eq!(head, ":wat::program::self-peer");
-            assert_eq!(reason, &expected);
-        }
-        other => panic!("{path}: expected MalformedForm from self-peer, got {other:?}"),
-    }
+#[test]
+fn control_a_the_bare_shared_address_is_a_pure_field() {
+    accepted("bare_shared_field");
 }
 
 #[test]
-fn control_a_the_bare_shared_address_is_an_impure_field() {
-    let (aggregate, field, field_ty) = refused_impure_field("bare_shared_field");
-    assert_eq!(aggregate, ":probe::HoldsBare");
-    assert_eq!(field, "addr");
-    assert_eq!(field_ty, SHARED_ADDRESS);
+fn control_a_the_bare_shared_address_is_a_pure_peer_payload() {
+    accepted("bare_shared_peer");
 }
 
 #[test]
-fn control_a_the_bare_shared_address_is_an_impure_peer_payload() {
-    refused_impure_peer("bare_shared_peer", SHARED_ADDRESS);
+fn a_shared_address_through_a_pure_generic_enum_is_a_pure_field() {
+    accepted("generic_shared_field");
 }
 
 #[test]
-fn a_shared_address_through_a_pure_generic_enum_is_an_impure_field() {
-    let (aggregate, field, field_ty) = refused_impure_field("generic_shared_field");
-    assert_eq!(aggregate, ":probe::HoldsGeneric");
-    assert_eq!(field, "status");
-    assert_eq!(field_ty, "(:probe::E :- [:wat::kernel::Transport.Shared])");
-}
-
-#[test]
-fn a_shared_address_through_a_pure_generic_enum_is_an_impure_peer_payload() {
-    refused_impure_peer("generic_shared_peer", "(:probe::E :- [:wat::kernel::Transport.Shared])");
+fn a_shared_address_through_a_pure_generic_enum_is_a_pure_peer_payload() {
+    accepted("generic_shared_peer");
 }
 
 #[test]
@@ -138,11 +106,8 @@ fn an_unbound_type_variable_is_decided_at_instantiation() {
 }
 
 #[test]
-fn the_unbound_generic_instantiated_over_shared_is_impure() {
-    let (aggregate, field, field_ty) = refused_impure_field("unbound_var_instantiated_shared");
-    assert_eq!(aggregate, ":probe::HoldsCarrier");
-    assert_eq!(field, "carrier");
-    assert_eq!(field_ty, "(:probe::Carrier :- [:wat::kernel::Transport.Shared])");
+fn the_unbound_generic_instantiated_over_shared_is_pure() {
+    accepted("unbound_var_instantiated_shared");
 }
 
 #[test]
@@ -151,9 +116,6 @@ fn a_self_referential_generic_terminates() {
 }
 
 #[test]
-fn a_self_referential_generic_over_shared_is_impure() {
-    let (aggregate, field, field_ty) = refused_impure_field("self_referential_shared");
-    assert_eq!(aggregate, ":probe::HoldsChain");
-    assert_eq!(field, "chain");
-    assert_eq!(field_ty, "(:probe::Chain :- [:wat::kernel::Transport.Shared])");
+fn a_self_referential_generic_over_shared_is_pure() {
+    accepted("self_referential_shared");
 }

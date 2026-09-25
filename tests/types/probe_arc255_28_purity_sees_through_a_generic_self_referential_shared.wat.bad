@@ -1,8 +1,0 @@
-;; Stone 255.28 — the recursion guard does not swallow impurity: the same self-referential
-;; generic over `Transport.Shared` is refused. Pre-stone accepted.
-(:wat::core::defenum :probe::Chain :- [T] :wat::enum::Pure
-  :Link [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 T])
-         next <- (:probe::Chain :- [T])]
-  :End [])
-(:wat::core::defrecord :probe::HoldsChain
-  [chain <- (:probe::Chain :- [:wat::kernel::Transport.Shared])])

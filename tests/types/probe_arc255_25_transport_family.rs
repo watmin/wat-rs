@@ -8,10 +8,9 @@
 //! `(:wat::core::defenum :wat::kernel::Transport :wat::enum::Pure :Shared [] :Wire [])`.
 //!
 //! Rows (the purity rows the brief fixed before the strike):
-//! - `address_shared_field` — `(Address :- [S R Transport.Shared])` is an in-process resource:
-//!   IMPURE, refused as a pure `Record` field (`is_pure_type`'s `Address` arm, keyed on
-//!   `is_shared_marker`). Pre-stone, the same row spelled `:wat::kernel::Shared` was refused
-//!   the same way — the property is kept across the respelling.
+//! - `address_shared_field` — `(Address :- [S R Transport.Shared])` is data (stone 255.29:
+//!   a thread address has a portable form). ACCEPTED as a pure `Record` field. Pre-255.29
+//!   the same row was `.wat.bad` and refused (`ImpureFieldInPureAggregate`).
 //! - `address_wire_field` — the twin on `Transport.Wire`: pure, accepted.
 //! - `markers_are_pure` — `Transport.Shared`, `Transport.Wire`, and `Transport` itself as
 //!   fields: accepted. Pre-stone, `:wat::kernel::Shared` as a field was REFUSED
@@ -46,17 +45,9 @@ fn refused_impure_field(suffix: &str) -> (String, String, String) {
 }
 
 #[test]
-fn an_address_on_the_shared_transport_is_impure() {
-    let (aggregate, field, field_ty) = refused_impure_field("address_shared_field");
-    assert_eq!(aggregate, ":probe::HoldsShared");
-    assert_eq!(field, "addr");
-    // rune:lint(no-inlined-wat) — the `(:wat::kernel::Address :- [...])` literal below is the
-    // golden rendered TYPE NAME the checker prints, compared by equality; not wat source that is
-    // evaluated.
-    assert_eq!(
-        field_ty,
-        "(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])"
-    );
+fn an_address_on_the_shared_transport_is_pure() {
+    // 255.29 — Shared is data. The pre-stone refusal is the row this inverts.
+    accepted("address_shared_field");
 }
 
 #[test]

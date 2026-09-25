@@ -207,16 +207,61 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
     Ok((minter_pid, name_bytes))
 }
 
+// ─── Stone 255.29 — ThreadAddressWire ────────────────────────────────────────
+const THREAD_ADDRESS_WIRE_CLASS: &str = "wat::kernel::ThreadAddressWire";
+::wat_source_derive::wat_field_names_from!(
+    THREAD_ADDRESS_WIRE_FIELDS, "wat/spawn.wat", ":wat::kernel::ThreadAddressWire"
+);
+fn thread_address_wire_names() -> std::sync::Arc<Vec<String>> {
+    static N: std::sync::OnceLock<std::sync::Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(THREAD_ADDRESS_WIRE_FIELDS)).clone()
+}
+fn thread_address_wire_to_record(minter_pid: i32, id: u64) -> Value {
+    Value::Aggregate(std::sync::Arc::new(AggregateValue::record(
+        THREAD_ADDRESS_WIRE_CLASS.into(),
+        thread_address_wire_names(),
+        std::sync::Arc::new(vec![Value::i64(minter_pid as i64), Value::i64(id as i64)]),
+    )))
+}
+fn thread_address_wire_from_record(agg: &AggregateValue) -> Result<(i32, u64), EdnReadError> {
+    if agg.class.as_ref() != THREAD_ADDRESS_WIRE_CLASS {
+        return Err(cap_decode_error(format!(
+            "#wat.kernel/Address (wrong record class: {})",
+            agg.class
+        )));
+    }
+    if agg.fields.len() != 2 {
+        return Err(cap_decode_error(
+            "#wat.kernel/Address (ThreadAddressWire must have 2 fields)",
+        ));
+    }
+    let f = |i: usize, what: &str| match &agg.fields[i] {
+        Value::i64(n) => Ok(*n),
+        _ => Err(cap_decode_error(format!(
+            "#wat.kernel/Address (ThreadAddressWire {what} must be i64)"
+        ))),
+    };
+    Ok((f(0, "minter-pid")? as i32, f(1, "id")? as u64))
+}
+
 /// `Address'` (arc 272 6c.2 D1) — the kernel-minted abstract UDS address. The first inhabitant of
 /// the waist. Portable as a process-tier socket address: carries the minter pid + name bytes as a
 /// registered `SocketAddressWire` base record (the general record encode/decode path handles
-/// field naming). A thread-tier `Address'` (a crossbeam `Sender`) has no portable form →
-/// `encode` returns `None`.
+/// field naming). A thread-tier `Address'` encodes as `ThreadAddressWire`
+/// (minter pid + listener id). `portable_form` stays socket-only, so
+/// `address-wire?` stays false for a thread address.
 fn address_codec() -> CapCodec {
     CapCodec {
         type_path: crate::kernel::spawn::ADDRESS_TYPE_PATH,
         encode: |inner, types| {
             let addr = inner.payload.downcast_ref::<crate::kernel::address::Address>()?;
+            if let Some((minter_pid, id)) = addr.thread_portable_form() {
+                return crate::edn::render::value_to_edn_with(
+                    &thread_address_wire_to_record(minter_pid, id),
+                    Some(types),
+                )
+                .ok();
+            }
             let (minter_pid, name_bytes) = addr.portable_form()?;
             // `.ok()` not `?`: this codec's contract is `Option`, and an address record is
             // built from primitives here, so an encode failure would be a substrate bug rather
@@ -236,6 +281,15 @@ fn address_codec() -> CapCodec {
             let record_val = crate::edn::render::edn_to_value(body, Some(types), None).map_err(|_| {
                 cap_decode_error("#wat.kernel/Address (body failed edn_to_value)")
             })?;
+            if let Value::Aggregate(agg) = &record_val {
+                if agg.class.as_ref() == THREAD_ADDRESS_WIRE_CLASS {
+                    let (minter_pid, id) = thread_address_wire_from_record(agg)?;
+                    return Ok(crate::rust_deps::marshal::make_rust_opaque(
+                        crate::kernel::spawn::ADDRESS_TYPE_PATH,
+                        crate::kernel::address::Address::from_thread_wire(minter_pid, id),
+                    ));
+                }
+            }
             let (minter_pid, name_bytes) = socket_address_wire_from_record(&record_val)?;
             let addr = crate::kernel::address::Address::from_socket_name_bytes(name_bytes, minter_pid);
             Ok(crate::rust_deps::marshal::make_rust_opaque(

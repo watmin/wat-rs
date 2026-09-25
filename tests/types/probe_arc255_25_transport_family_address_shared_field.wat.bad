@@ -1,6 +1,0 @@
-;; Stone 255.25 (C-b4) — the markers are a Transport. NEGATIVE: an address on the SHARED
-;; transport is an in-process resource, so it is IMPURE — refused as a pure `Record` field.
-;; (`is_pure_type`'s `Address` arm keys on `is_shared_marker`, which now names
-;; `:wat::kernel::Transport.Shared`.) The positive twin is _address_wire_field.wat.
-(:wat::core::defrecord :probe::HoldsShared
-  [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])])

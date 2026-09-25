@@ -15013,19 +15013,12 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::kernel::Peer"
                 | "wat::kernel::Thread"
                 | "wat::kernel::Process" => false,
-                // 293.W.2f — (Address :- [_ _ Shared]) is an in-locus resource (impure).
-                // (Address :- [_ _ Wire]) stays pure (it already crosses as SocketAddressWire).
-                // 2-arg (Address :- [S R]) stays pure (T unknown — do not break Coords records).
+                // 255.29 — a Shared address is data (ThreadAddressWire). It is pure
+                // when its payloads are, the same as Wire (SocketAddressWire) and
+                // the 2-arg form (transport not yet chosen — Coords records).
                 "wat::kernel::Address" => {
                     match args.as_slice() {
-                        [s, r] => is_pure_type(s, types) && is_pure_type(r, types),
-                        [s, r, t] => {
-                            if is_shared_marker(t) {
-                                false
-                            } else {
-                                is_pure_type(s, types) && is_pure_type(r, types)
-                            }
-                        }
+                        [s, r] | [s, r, _] => is_pure_type(s, types) && is_pure_type(r, types),
                         _ => args.iter().all(|a| is_pure_type(a, types)),
                     }
                 }
