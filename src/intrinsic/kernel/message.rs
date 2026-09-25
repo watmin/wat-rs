@@ -238,7 +238,7 @@ pub(crate) fn eval_peer_select_prime(
 //
 // No registered `TypeScheme` for `poll` — `check.rs`'s `infer_poll_prime` (~11618)
 // is the real authority: `I,O` project out of `peers`'s Vector<Peer'<I,O>>
-// element type; `A` projects out of `self-peer`'s Peer'<S,A>/ThreadSelfPeer'<S,A>
+// element type; `A` projects out of `self-peer`'s Peer'<S,A>
 // second type-arg. The `<I,O,A>` above documents that three-way projection, not
 // a scheme.
 //

@@ -1140,7 +1140,7 @@
      ;; identity 2c STOP-2 — CLOSED, same finding as status-ty-ann above (the resolver guard
      ;; in `src/resolve/walk.rs` already covers the "signature captured as a first-class value"
      ;; path this comment used to flag as the open question).
-     lineage-peer-ty `(:wat::kernel::ThreadSelfPeer :- [~status-ty-ann ~admin-ty-ann])
+     lineage-peer-ty `(:wat::kernel::Peer :- [~status-ty-ann ~admin-ty-ann])
      admin-init-kw  (:wat::runtime::compose-variant
                       (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
                       :Init)

@@ -35,7 +35,7 @@
 ;; serve threads: saw-tick? + the client's idx (-1 = not yet connected). Replies :Pong to the client
 ;; ONLY once BOTH the timer's :Tick and the client's :Ping have been delivered by poll'.
 (:wat::core::defn :probe-homog::serve-thread
-  [self        <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::nil :wat::core::nil])
+  [self        <- (:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])
    l           <- (:wat::kernel::Listener :- [:probe-homog::Op :probe-homog::Reply])
    selectables <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-homog::Reply :probe-homog::Op])])
    saw-tick    <- :wat::core::bool
@@ -78,7 +78,7 @@
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
      _svc (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::nil :wat::core::nil])]
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])]
               -> :wat::core::nil
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind.thread

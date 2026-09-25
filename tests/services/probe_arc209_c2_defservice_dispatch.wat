@@ -69,7 +69,7 @@
      ;; the monotonic caller-id counter) and its `clients` slot is now (Tuple :- [i64 (Peer :- […])])
      ;; entries (the id travels WITH its peer), not the bare Peer vector.
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:my::counter::Status :my::counter::Admin])] -> :wat::core::nil
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:my::counter::Status :my::counter::Admin])] -> :wat::core::nil
               (:my::counter::serve self l
                 ;; arc 278 the call context — the Op slot must be the SERVICE superset type
                 ;; (`my::counter::Op`, not the surface `my::Counter::Op`) DIRECTLY: the

@@ -3413,7 +3413,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::io::IOWriter",
         // kernel opaques — `tests/kernel/probe_arc278_close_outcome_wall.wat:19`
         // `-> (:wat::kernel::Process :- [:wat::core::i64 :wat::core::i64])`;
-        // `wat-tests/test.wat:77` `self <- (:wat::kernel::ThreadSelfPeer :- […])`
+        // `wat-tests/test.wat` `self <- (:wat::kernel::Peer :- […])`
         // (also covers `Thread`, the family it self-identifies as);
         // `wat-tests/service-parametric-messages.wat:116`
         // `a <- (:wat::kernel::Address :- […])`;
@@ -3426,7 +3426,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::kernel::Address",
         ":wat::kernel::Listener",
         ":wat::kernel::Peer",
-        ":wat::kernel::ThreadSelfPeer",
         // stream — `wat-scripts/scratch-pad/probe-118B2-one-clause-lazy-producer.wat:34`
         // `-> (:wat::stream::Stream :- [U])`.
         ":wat::stream::Stream",
@@ -8596,7 +8595,6 @@ mod tests {
             ":wat::kernel::Address",
             ":wat::kernel::Listener",
             ":wat::kernel::Peer",
-            ":wat::kernel::ThreadSelfPeer",
             ":wat::stream::Stream",
             ":wat::time::Duration",
             ":wat::time::Instant",

@@ -51,11 +51,10 @@ fn struct_send_to_process_peer_is_check_error() {
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::program::self-peer"
-            && reason == "a wire peer (Peer<I,O>) carries only pure data — type :w2c::S is not \
-                pure (§7 purity wall). If this peer is used only within a thread (in-locus, \
-                shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. \
-                If this peer must cross a process boundary (wire), redesign I/O types to use \
-                records, scalars, or pure enums (no Sender/Receiver/handle fields)."
+            && reason == "a comm carries only pure data — type :w2c::S is not \
+                pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                Redesign I/O as records, scalars, or pure enums \
+                (no Sender, Receiver, or handle fields)."
     );
     let err_str = format!("{}", result.unwrap_err());
     let lower = err_str.to_lowercase();
@@ -68,20 +67,18 @@ fn struct_send_to_process_peer_is_check_error() {
 
 // ─── Controls (must NOT be rejected) ─────────────────────────────────────────
 
-/// Control: a struct `send'` to a THREAD peer must still type-check.
-///
-/// Thread peers are in-locus (crossbeam channel, same address space) — the 2c
-/// gate must not fire for `Thread'`. The world in `probe_arc293_W2c_controls.wat`
-/// must load without error.
+/// 255.30 — a struct on a thread peer is refused. The record control stays in
+/// the controls file and must still load.
 #[test]
-fn struct_send_to_thread_peer_still_type_checks() {
-    let result = startup_from_file("tests/comms/probe_arc293_W2c_controls.wat");
-    assert!(
-        result.is_ok(),
-        "struct send' to a Thread' peer MUST type-check (in-locus, no gate) — the \
-         2c portability gate must not fire for Thread'. If this assertion fails, the \
-         gate over-reaches into the thread tier. Error: {:?}",
-        result.unwrap_err()
+fn struct_on_a_thread_peer_is_refused() {
+    let result = startup_from_file("tests/kernel/probe_arc255_30_struct_on_thread_peer.wat");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "a comm carries only pure data — type :p30::S is not \
+                pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                Redesign I/O as records, scalars, or pure enums \
+                (no Sender, Receiver, or handle fields)."
     );
 }
 

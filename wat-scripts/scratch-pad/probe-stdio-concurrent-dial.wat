@@ -72,7 +72,7 @@
 ;; ── A worker body: connect' our OWN client Peer' to the shared Address', do 4 increments,
 ;;    send the Ok-count back up the self-peer. Factored to a defn so the 3 spawns are identical. ─
 (:wat::core::defn :probe::worker-body
-  [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])
+  [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
    addr <- (:wat::kernel::Address :- [:probe::Counter::Op :probe::Counter::Reply])]
   -> :wat::core::nil
   (:wat::core::let
@@ -104,13 +104,13 @@
      addr (:probe::counter::Handle/addr h)
      ;; spawn ALL THREE workers first (concurrent), each capturing the shared addr — then join.
      w1 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
             (:probe::worker-body self addr)))
      w2 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
             (:probe::worker-body self addr)))
      w3 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
             (:probe::worker-body self addr)))
      r1 (:probe::join-count w1)
      r2 (:probe::join-count w2)

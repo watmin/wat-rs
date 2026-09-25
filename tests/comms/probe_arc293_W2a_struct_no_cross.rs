@@ -87,11 +87,10 @@ fn struct_rejected_at_wire_SEND() {
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::program::self-peer"
-            && reason == "a wire peer (Peer<I,O>) carries only pure data — type :w2c::S is not \
-                pure (§7 purity wall). If this peer is used only within a thread (in-locus, \
-                shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. \
-                If this peer must cross a process boundary (wire), redesign I/O types to use \
-                records, scalars, or pure enums (no Sender/Receiver/handle fields)."
+            && reason == "a comm carries only pure data — type :w2c::S is not \
+                pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                Redesign I/O as records, scalars, or pure enums \
+                (no Sender, Receiver, or handle fields)."
     );
     let err_str = format!("{}", result.unwrap_err());
     wat::assert_edn_matches_file!(err_str, "probe_arc293_W2a_struct_no_cross__struct_rejected_at_wire_SEND.edn", "check error must match arc 293 §7 purity wall golden");
@@ -113,19 +112,16 @@ fn record_still_sends_after_backstop() {
     );
 }
 
-/// Control: a struct over a THREAD peer round-trips in-locus (same address space,
-/// no serialization, no guard). Must be GREEN — the send' guard is process/socket
-/// only; a struct over a thread peer is legitimate. Guards against over-reach into
-/// the thread tier (symmetric to the inbound thread recv' having no decode door).
+/// 255.30 — a struct on a thread peer is refused at the thread-spawn producer.
 #[test]
-fn struct_crosses_thread_peer_in_locus() {
-    let got = call_beside_value(file!(), ":w2a::probe-send-struct-thread")
-        .expect(
-            "struct over a THREAD peer MUST round-trip — the guard is process/socket \
-             only; a struct in-locus over a thread peer is legitimate (§7)"
-        );
-    assert!(
-        matches!(got, Value::i64(99)),
-        "expected i64(99) (struct field after thread round-trip); got {got:?}"
+fn struct_on_a_thread_peer_is_refused() {
+    let result = startup_from_file("tests/kernel/probe_arc255_30_struct_on_thread_peer.wat");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "a comm carries only pure data — type :p30::S is not \
+                pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                Redesign I/O as records, scalars, or pure enums \
+                (no Sender, Receiver, or handle fields)."
     );
 }

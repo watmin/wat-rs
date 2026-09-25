@@ -10,7 +10,7 @@
 ;; (a thread has no OS exit code — loci-agnostic, R32).
 (:wat::core::defn :user::spawn-noop-thread [] -> (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])
   (:wat::test::spawn-peer (:wat::spawn::thread)
-    (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+    (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
       nil)))
 
 ;; A :process forms-server whose :user::main returns nil immediately → the child

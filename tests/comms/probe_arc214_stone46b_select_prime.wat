@@ -5,7 +5,7 @@
 
 (:wat::core::defn :user::mk [] -> (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])
   (:wat::test::spawn-peer (:wat::spawn::thread)
-    (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+    (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
       (:wat::core::match
         (:wat::kernel::send self
           (:wat::core::match (:wat::kernel::recv self)

@@ -58,8 +58,11 @@ fn thread_self_peer_is_refused_where_a_peer_is_expected() {
     // checker stopped minting `Head<a,b>` (a spelling the reader now refuses) and emits
     // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
-        CheckErrorKind::TypeMismatch { expected, got, callee, .. }
-            if callee == ":probe::takes-peer"
-            && expected.contains("(:wat::kernel::Peer :- [")
-            && got.contains("(:wat::kernel::ThreadSelfPeer :- ["));
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "a comm carries only pure data — type :probe::S is not \
+                pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                Redesign I/O as records, scalars, or pure enums \
+                (no Sender, Receiver, or handle fields)."
+    );
 }

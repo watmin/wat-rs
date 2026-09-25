@@ -83,38 +83,5 @@
          [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
     nil))
 
-;; Thread control — a struct over a THREAD peer round-trips in-locus (no
-;; serialization, no guard). The thread self-peer echoes the struct back; the
-;; parent extracts the field. Proves the send' guard is process/socket-only.
-(:wat::core::defn :w2a::probe-send-struct-thread [] -> :wat::core::i64
-  (:wat::core::let
-    [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:w2a::S :w2a::S])] -> :wat::core::nil
-              (:wat::core::match
-                (:wat::kernel::send self
-                  (:wat::core::match (:wat::kernel::recv self)
-                    [:wat::kernel::RecvOutcome.Message {:msg m} m]
-                    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                    [:wat::kernel::RecvOutcome.Stopped {}
-                      (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                    [:wat::kernel::RecvOutcome.Closed {}
-                      (:wat::kernel::assertion-failed! :message "recv': self closed unexpectedly")]))
-                [:wat::kernel::SendOutcome.Sent {} nil]
-                [:wat::kernel::SendOutcome.Closed {} nil]
-                [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
-                [:wat::kernel::SendOutcome.Stopped {} nil])))  ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
-     _   (:wat::core::match (:wat::kernel::send peer (:w2a::S :val 99))
-           [:wat::kernel::SendOutcome.Sent {} nil]
-           [:wat::kernel::SendOutcome.Closed {} nil]
-           [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
-           [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
-     got (:wat::core::match (:wat::kernel::recv peer)
-           [:wat::kernel::RecvOutcome.Message {:msg m} m]
-           [:wat::kernel::RecvOutcome.Lost {:cause cause}
-             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "recv': peer closed unexpectedly")])]
-    (:w2a::S/val got)))
+;; 255.30 — a struct over a thread peer is refused. The row is
+;; tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.

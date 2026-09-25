@@ -292,7 +292,7 @@
 ;; `(apply (keyword/from-string …))` — a call that existed BECAUSE it did not resolve statically,
 ;; so no closure walk could follow it. The process tier holds a `Peer'` and `serve` declares a
 ;; `ThreadSelfPeer'`; this edge is what lets that call be STATIC.
-(:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)
+
 
 ;; ── Transport — the phantom transport markers (293.W.2f; 255.25 a family) ─────
 ;; Phantom type-level members of a closed family; adding a transport is adding a variant
@@ -373,7 +373,7 @@
   ;; parameter. Peer' is the wire-capable peer (pure I/O only); ThreadSelfPeer' is the
   ;; in-locus escape hatch for thread workers that carry Sender/Receiver or other impure types.
   ([locus <- :wat::spawn::ThreadOpts
-    prog <- [(:wat::kernel::ThreadSelfPeer :- [S R]) :-> :wat::core::nil]] -> (:wat::kernel::Thread :- [R S])
+    prog <- [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]] -> (:wat::kernel::Thread :- [R S])
     (:wat::kernel::spawn-thread prog (:wat::spawn::ThreadOpts/init-fn locus) (:wat::spawn::ThreadOpts/post-spawn-fn locus)))
   ;; process — forms ((Vector :- [wat::WatAST])); I,O are the forms-server's free request/response vars.
   ;; The locus's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
@@ -523,7 +523,7 @@
       ;; the reason (parity with the honest serve-loop-crash path), instead of hanging.
       [b  (:wat::kernel::listener self :S :R)
        sp (:wat::kernel::spawn-program self
-            (:wat::core::fn [self-peer <- (:wat::kernel::ThreadSelfPeer :- [Lu Sh])] -> :wat::core::nil
+            (:wat::core::fn [self-peer <- (:wat::kernel::Peer :- [Lu Sh])] -> :wat::core::nil
               (:wat::core::let
                 ;; :init runs BEFORE Started is sent — a crash here dies before the send.
                 [st (:wat::core::apply  init ship [])

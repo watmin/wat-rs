@@ -14,7 +14,7 @@
 ;; Parametric<:Parametric arm unifies them).
 
 (:wat::core::defn :probe::takes-thread-self-peer
-  [p <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
+  [p <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
   1)
 
 ;; ★ THE SUBJECT — a `Peer'` handed to a `ThreadSelfPeer'` parameter. Before the derive edge

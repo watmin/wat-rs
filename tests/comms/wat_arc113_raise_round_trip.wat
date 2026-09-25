@@ -26,7 +26,7 @@
   (:wat::core::let
     [p
       (:wat::test::spawn-peer (:wat::spawn::thread)
-        (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+        (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
           (:wat::kernel::raise!
             (:wat::core::Fault/of "arc113-raise-data"))))]
     (:wat::core::match (:wat::kernel::recv p)

@@ -10277,7 +10277,11 @@ fn check_wire_peer_purity(
 }
 
 /// Span-based variant for producers that infer types (connect'/accept').
-fn check_wire_peer_purity_span(
+pub(crate) fn is_peer_head(head: &str) -> bool {
+    crate::edn::render::type_denotation(head) == ":wat::kernel::Peer"
+}
+
+pub(crate) fn check_wire_peer_purity_span(
     ty: &TypeExpr,
     span: &Span,
     op: &str,
@@ -10290,12 +10294,10 @@ fn check_wire_peer_purity_span(
             kind: CheckErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
-                    "a wire peer (Peer<I,O>) carries only pure data — type {} is not \
-                     pure (§7 purity wall). If this peer is used only within a thread \
-                     (in-locus, shared memory), use ThreadSelfPeer<I,O> — any I/O types \
-                     are allowed in-locus. If this peer must cross a process boundary \
-                     (wire), redesign I/O types to use records, scalars, or pure enums \
-                     (no Sender/Receiver/handle fields).",
+                    "a comm carries only pure data — type {} is not \
+                     pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                     Redesign I/O as records, scalars, or pure enums \
+                     (no Sender, Receiver, or handle fields).",
                     format_type(ty)
                 ),
                 remedies: vec![],
@@ -10934,29 +10936,19 @@ fn infer_thread_prog_type(
         }
     };
 
-    // Arc 259 S2c-ii-a — PURGE. Only the self-peer model is valid.
-    //
-    // If the fn arg type is `(ThreadSelfPeer' :- [S R])` (arc 293.W.2d — in-locus, any I/O)
-    // or `(Peer' :- [S R])` (wire-safe, pure I/O only), the prog is a ThreadProg:
-    // the spawned thread's `tx` sends S to the parent, and its `rx` receives R from the
-    // parent. The parent-side `(Thread' :- [I O])` has `I = R` (parent sends R → worker recvs R)
-    // and `O = S` (parent recvs S ← worker sends S). Return `(Thread' :- [R S])`.
-    //
-    // ThreadSelfPeer' is the escape hatch for thread workers that carry impure I/O
-    // (e.g. Sender/Receiver handles for reply channels). Any I/O is allowed in-locus.
-    // Peer' constrains I/O to pure types (enforced by the producers); a Peer' self-peer
-    // is valid for thread workers that happen to use pure types.
-    //
-    // Any other prog — the legacy apply-loop `fn([I]) -> O` — is REJECTED.
+    // 255.30 — one peer. The child's self parameter is `(Peer :- [S R])`.
+    // The parent handle is `(Thread :- [R S])`, the same two types swapped.
+    // The §7 wall runs here, where those types become fixed. send/recv do not
+    // repeat it for a peer this producer already checked.
     let param_reduced = reduce(&apply_subst(&i_ty, subst), subst, env.types());
     match &param_reduced {
         TypeExpr::Parametric { head, args: peer_args }
-            if (head == "wat::kernel::Peer" || head == "wat::kernel::ThreadSelfPeer")
-                && peer_args.len() == 2 =>
+            if head == "wat::kernel::Peer" && peer_args.len() == 2 =>
         {
-            // Self-peer model: (Thread' :- [R S]) (param-swap of (Peer' :- [S R]) or (ThreadSelfPeer' :- [S R])).
             let s_ty = peer_args[0].clone();
             let r_ty = peer_args[1].clone();
+            check_wire_peer_purity_span(&s_ty, fn_arg.span(), op, env.types(), &mut local_errors);
+            check_wire_peer_purity_span(&r_ty, fn_arg.span(), op, env.types(), &mut local_errors);
             let ty = TypeExpr::Parametric {
                 head: PEER_HEAD.into(),
                 args: vec![r_ty, s_ty],
@@ -10964,15 +10956,13 @@ fn infer_thread_prog_type(
             if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
         }
         other => {
-            // Apply-loop prog REJECTED (arc 259 S2c-ii-a purge).
             local_errors.push(CheckError {
                 span: fn_arg.span().clone(),
                 kind: CheckErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "spawn-program :thread expects a self-peer prog \
-                         [ThreadSelfPeer<S,R>] -> nil (arc 293.W.2d) or \
-                         [Peer<S,R>] -> nil (for pure I/O only); got {}",
+                         [Peer :- [S R]] -> nil; got {}",
                         format_type(other)
                     ),
                     remedies: vec![],
@@ -11237,10 +11227,12 @@ fn infer_kernel_fn_forms(
 
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
 ///
-/// Arc 293.W.2d: Returns `Ok((i_ty, o_ty))` on success. The purity constraint is
-/// now STRUCTURAL (carried by the peer type): `(Peer' :- [I O])` requires pure I,O by
-/// well-formedness (enforced at producers — connect'/accept'/peer-pair');
-/// `(ThreadSelfPeer' :- [I O])` is in-locus (any I/O). The ops are purity-blind here.
+/// Returns `Ok((i_ty, o_ty))` on success. 255.30: purity is asked where a comm's
+/// I/O becomes fixed (self-peer, connect, accept, thread-spawn, `after`).
+/// send/recv do not repeat it. A second check at send judged the generic
+/// `PoolMsg.Setup` payload impure (`:D` still open) and the stdlib would not
+/// load. A `Process` spawn still leaves I and O as fresh vars; the first send
+/// binds them, and that bind is not re-checked. This projection stays purity-blind.
 ///
 /// On failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.
 #[expect(
@@ -11269,21 +11261,14 @@ fn project_peer_io(
     let peer_surface = apply_subst(&peer_ty, subst);
     let peer_reduced = reduce(&peer_surface, subst, env.types());
     match peer_reduced {
-        // Arc 209 C0b.2e-i-b: SocketPeer' is retired — all connection peers are Peer'.
-        // Arc 293.W.2d: ThreadSelfPeer' is the in-locus (any I/O) peer type.
+        // SocketPeer' is retired — connection peers are Peer'. Thread' and Process'
+        // derive Peer' (wat/spawn.wat), so a parent handle projects the same way.
         TypeExpr::Parametric { ref head, ref args }
             if (head == "wat::kernel::Thread"
                 || head == "wat::kernel::Process"
-                || head == "wat::kernel::Peer"
-                || head == "wat::kernel::ThreadSelfPeer")
+                || head == "wat::kernel::Peer")
                 && args.len() == 2 =>
         {
-            // Purity is guaranteed by the peer TYPE, not by ops:
-            //   (Peer' :- [I O]):           wire peer, I/O are pure by producer well-formedness.
-            //   (ThreadSelfPeer' :- [I O]): in-locus, any I/O (the 2d escape hatch).
-            //   (Thread' :- [I O]):         parent handle to spawned thread (in-locus crossbeam).
-            //   (Process' :- [I O]):        parent handle to spawned process (wire, pure I/O).
-            // The ops (send'/recv') go purity-blind — the peer type carries the guarantee.
             Ok((args[0].clone(), args[1].clone()))
         }
         other => {
@@ -11292,7 +11277,7 @@ fn project_peer_io(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "peer".into(),
-                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]) | (ThreadSelfPeer :- [S R]))".into(),
+                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))".into(),
                     got: format_type(&other),
                 },
             });
@@ -11383,6 +11368,9 @@ fn infer_kernel_after(
     let msg_ty = infer(&args[2], env, locals, fresh, subst)
         .drain_errors_into(&mut local_errors)
         .unwrap_or_else(|| fresh.fresh());
+
+    // 255.30 — O is fixed here and no earlier producer checked it.
+    check_wire_peer_purity_span(&msg_ty, args[2].span(), OP, env.types(), &mut local_errors);
 
     // arc 278 Stone 1 — return the UNIFIED `(Peer' :- [I O])` where O is the delivered message
     // type. This drops into `poll'`/`select'`'s `(Peer' :- [I O])` element arm by construction —
@@ -11838,8 +11826,8 @@ fn infer_signal(
 /// Type-check `(:wat::kernel::peer-process peer)` — DESIGN-STONE-a-service-that-
 /// measures-itself.md A1.
 ///
-/// One positional arg: `args[0]` peer (`(Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O]) |
-/// (ThreadSelfPeer :- [I O])` — anything `project_peer_io` accepts, so this works
+/// One positional arg: `args[0]` peer (`(Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O])`
+/// — anything `project_peer_io` accepts, so this works
 /// uniformly whether the caller already holds a concrete peer or the erased
 /// `(Peer :- [I O])` a defservice `Handle`'s `handle` field carries). Result:
 /// `(:wat::core::Option :- [(wat::kernel::Process :- [I O])])` — `Some` when the underlying
@@ -11903,8 +11891,8 @@ fn infer_peer_process(
 /// Type-check `(:wat::kernel::peer-wire? peer)` — DESIGN-STONE-the-client-
 /// validates-locally.md STOP-3.
 ///
-/// One positional arg: `args[0]` peer (`(Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O]) |
-/// (ThreadSelfPeer :- [I O])` — anything `project_peer_io` accepts). Result is always
+/// One positional arg: `args[0]` peer (`(Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O])`
+/// — anything `project_peer_io` accepts). Result is always
 /// `:wat::core::bool`: runtime TRUE iff the underlying connection is socket-tier
 /// (a WIRE, `send` on it encodes via `send_wire`), FALSE for thread-tier (shared
 /// memory, never encodes). PURE PROJECTION, mirrors `peer-process`: a runtime tag
@@ -12347,10 +12335,8 @@ fn infer_poll_prime(
     const OP: &str = ":wat::kernel::poll";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // args[0]: self-peer — infer and extract the receive type A (targs[1] of (Peer' :- [S A])
-    // or (ThreadSelfPeer' :- [S A])). A is the type the service receives from the owner over
-    // the lineage channel (admin ops).
-    // Arc 293.W.2d: accept both Peer' (wire-safe) and ThreadSelfPeer' (in-locus, any I/O).
+    // args[0]: self-peer — infer and extract the receive type A (targs[1] of
+    // (Peer :- [S A])). A is the type the service receives from the owner.
     let a_ty: TypeExpr = {
         let self_peer_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         match self_peer_ty {
@@ -12359,11 +12345,8 @@ fn infer_poll_prime(
                 let reduced = reduce(&surface, subst, env.types());
                 match &reduced {
                     TypeExpr::Parametric { head, args: targs }
-                        if (head == "wat::kernel::Peer"
-                            || head == "wat::kernel::ThreadSelfPeer")
-                            && targs.len() == 2 =>
+                        if head == "wat::kernel::Peer" && targs.len() == 2 =>
                     {
-                        // (Peer' :- [S R]) or (ThreadSelfPeer' :- [S R]): targs[1] = R = the receive type A.
                         targs[1].clone()
                     }
                     _ => {
@@ -14994,22 +14977,8 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::kernel::Receiver"
                 | "wat::kernel::ProgramHandle"
                 | "wat::kernel::HandlePool"
-                // Arc 293.W.2d — ThreadSelfPeer' is always in-locus (never wire-safe).
-                // Even if its I/O are pure scalars, the peer itself is an in-locus opaque
-                // (crossbeam channel) that cannot cross a comms boundary.
-                | "wat::kernel::ThreadSelfPeer"
-                // Arc 278 2026-08-03, builder-ruled: "they are resources — they are not
-                // pure." A peer of ANY locus holds a live resource (crossbeam tx/rx, or a
-                // pipe/socket fd pair) — exactly what `ThreadSelfPeer` was already listed
-                // for. Its three siblings were absent, so each fell through to
-                // "pure iff its type args are pure": a `(Peer :- [i64 String])` was judged PURE
-                // and `validate_aggregate_containment` admitted it into a pure Record —
-                // i.e. into a defservice `:durable`, and onto the wire. Only ADDRESSES
-                // cross (293.W); a peer is dialled, never shipped. A thing that holds a
-                // resource is a STRUCT, never a record
-                // ([[reference_struct_holds_resources_record_is_pure_data]]).
-                // Found by probe with a positive control: `ThreadSelfPeer` was refused
-                // while `Peer`/`Process`/`Thread` were accepted in the same file.
+                // A peer of any locus holds a live resource. Only addresses cross.
+                // 255.30 deleted ThreadSelfPeer; Peer is the one head.
                 | "wat::kernel::Peer"
                 | "wat::kernel::Thread"
                 | "wat::kernel::Process" => false,

@@ -24,7 +24,7 @@
 ;; thread that poll's it). On the timer's Message, forward the msg UP the self-peer and
 ;; exit; the parent recv's it off the lineage handle.
 (:wat::core::defn :probe::serve-thread
-  [self  <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::keyword :wat::core::nil])
+  [self  <- (:wat::kernel::Peer :- [:wat::core::keyword :wat::core::nil])
    l     <- (:wat::kernel::Listener :- [:wat::core::keyword :wat::core::nil])
    peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])])]
   -> :wat::core::nil
@@ -46,7 +46,7 @@
     [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::keyword :wat::core::nil)
      l    (:wat::spawn::Bound/listener pair)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::keyword :wat::core::nil])]
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::keyword :wat::core::nil])]
               -> :wat::core::nil
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 30) :tick)]

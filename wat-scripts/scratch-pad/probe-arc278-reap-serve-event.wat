@@ -11,7 +11,7 @@
 ;;                         ("poll': listener recv failed — address was dropped")
 
 (:wat::core::defn :se::serve
-  [self  <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])
+  [self  <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
    l     <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
    peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])]
   -> :wat::core::nil
@@ -73,7 +73,7 @@
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])]
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]
               -> :wat::core::nil
               (:se::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))
      c    (:wat::core::match (:wat::kernel::connect a)

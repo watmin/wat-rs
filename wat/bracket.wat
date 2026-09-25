@@ -30,7 +30,7 @@
 ;; generated `:user::main` that passes the coordinate's value into the runner.
 
 (:wat::core::defn :wat::bracket::runner-loop :- [I O]
-  [self    <- (:wat::kernel::ThreadSelfPeer :- [O I])
+  [self    <- (:wat::kernel::Peer :- [O I])
    work-fn <- [I :-> O]]
   -> :wat::core::nil
   ;; arc 278 the recv'-outcome wall — recv' returns a matchable (RecvOutcome :- [I]).
@@ -188,7 +188,7 @@
 ;; process-work-forms: a kwargs work-fn arrives as a bare keyword; a
 ;; plain work-fn is a [I :-> O]. Plain: Setup stays a raise.
 (:wat::core::defn :wat::bracket::thread-kwargs-runner :- [D K I O]
-  [self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
+  [self    <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
    work-fn <- :wat::core::keyword
    ctx     <- (:wat::core::Option :- [:K])]
   -> :wat::core::nil
@@ -222,10 +222,10 @@
       [:wat::kernel::RecvOutcome.Closed {} nil])))
 
 (:wat::core::defclause :wat::bracket::thread-enter
-  ([self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
+  ([self    <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
     work-fn <- :wat::core::keyword] -> :wat::core::nil
    (:wat::bracket::thread-kwargs-runner self work-fn :wat::core::Option.None))
-  ([self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
+  ([self    <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
     work-fn <- :W] -> :wat::core::nil
    (:wat::bracket::runner-loop self
      (:wat::core::fn [m <- (:wat::bracket::PoolMsg :- [D I])] -> (:wat::core::Tuple :- [:wat::core::i64 O])
@@ -238,7 +238,7 @@
 (:wat::core::extend-type :wat::spawn::ThreadOpts (:wat::spawn::Locus :- [:wat::kernel::Transport.Shared])
   (spawn-runner [self work-fn]
     (:wat::kernel::spawn-program self
-      (:wat::core::fn [sp <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])] -> :wat::core::nil
+      (:wat::core::fn [sp <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])] -> :wat::core::nil
         (:wat::bracket::thread-enter sp work-fn)))))
 
 ;; The PROCESS arm (not-shared) — bakes the runner, ships only the user's code

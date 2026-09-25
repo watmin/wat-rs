@@ -42,11 +42,10 @@ fn impure_type_arg_on_wire_peer_is_check_error() {
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::program::self-peer"
-            && reason == "a wire peer (Peer<I,O>) carries only pure data — type :w2d::S is not \
-                pure (§7 purity wall). If this peer is used only within a thread (in-locus, \
-                shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. \
-                If this peer must cross a process boundary (wire), redesign I/O types to use \
-                records, scalars, or pure enums (no Sender/Receiver/handle fields)."
+            && reason == "a comm carries only pure data — type :w2d::S is not \
+                pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                Redesign I/O as records, scalars, or pure enums \
+                (no Sender, Receiver, or handle fields)."
     );
     let err_str = format!("{}", result.unwrap_err());
     let lower = err_str.to_lowercase();
@@ -59,21 +58,19 @@ fn impure_type_arg_on_wire_peer_is_check_error() {
 
 // ─── Positive cases (must NOT be rejected) ────────────────────────────────────
 
-/// Positive: `ThreadSelfPeer'` with impure I/O type-checks (in-locus, any I/O).
-///
-/// `ThreadSelfPeer'<Sender<i64>, i64>` is in-locus (crossbeam, same address space).
-/// The purity constraint does NOT apply to `ThreadSelfPeer'`. The world must load.
-///
-/// Also asserts: `:wat::program::self-peer` with pure type args still type-checks (the purity
-/// gate must reject impure args without over-rejecting the pure case).
+/// 255.30 — the pure self-peer still loads. The impure thread peer is the
+/// struct row, and it is refused.
 #[test]
-fn thread_self_peer_and_pure_wire_peer_type_checks() {
-    let result = startup_from_file("tests/comms/probe_arc293_W2d_positive.wat");
-    assert!(
-        result.is_ok(),
-        "ThreadSelfPeer'<Sender<i64>,i64> and :wat::program::self-peer of pure types MUST type-check \
-         (in-locus; no purity constraint — arc 293.W.2d positive cases). \
-         Error: {:?}",
-        result.err()
+fn pure_wire_peer_type_checks_and_a_struct_on_a_thread_peer_is_refused() {
+    let pure = startup_from_file("tests/comms/probe_arc293_W2d_positive.wat");
+    assert!(pure.is_ok(), "a pure self-peer must still load: {:?}", pure.err());
+    let impure = startup_from_file("tests/kernel/probe_arc255_30_struct_on_thread_peer.wat");
+    wat::assert_startup_error!(impure, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "a comm carries only pure data — type :p30::S is not \
+                pure (§7 purity wall). A resource belongs in :ephemeral state, never on a channel. \
+                Redesign I/O as records, scalars, or pure enums \
+                (no Sender, Receiver, or handle fields)."
     );
 }

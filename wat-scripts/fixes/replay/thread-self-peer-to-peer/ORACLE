@@ -1,0 +1,4 @@
+# ORACLE for thread-self-peer-to-peer — HISTORY or header spec, never the tool.
+
+history 995880ac7 wat/spawn.wat wat/test.wat
+spec [prog <- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64]) :-> :wat::core::nil]] :: (:wat::kernel::Peer :- [S R])

@@ -18,7 +18,8 @@
 
 use crate::ast::WatAST;
 use crate::check::{
-    apply_subst, assignable, format_type, infer, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
+    apply_subst, assignable, format_type, infer, reduce, CheckEnv, CheckError, CheckErrorKind,
+    CheckResult, InferCtx, Subst,
 };
 use crate::function::metadata::{peel_metadata_preamble, peel_type_binder};
 use crate::argspec::ParseOptions;
@@ -156,6 +157,24 @@ pub(crate) fn infer_fn(
         param_types = param_types.iter().map(|t| crate::check::rename(t, &mapping)).collect();
         ret_type = crate::check::rename(&ret_type, &mapping);
         rest_param = rest_param.map(|(ident, ty)| (ident, crate::check::rename(&ty, &mapping)));
+    }
+
+    // 255.30 — a fn parameter that is a concrete `(Peer :- [S R])` fixes that
+    // comm's I/O. The thread-spawn clause sees only its own type variables, so
+    // the literal is the place the struct is visible. Vars are skipped.
+    for ty in &param_types {
+        let reduced = reduce(&apply_subst(ty, subst), subst, env.types());
+        if let TypeExpr::Parametric { head, args } = &reduced {
+            if crate::check::is_peer_head(head) && args.len() == 2 {
+                let span = sig3[0].span();
+                crate::check::check_wire_peer_purity_span(
+                    &args[0], span, ":wat::core::fn", env.types(), &mut errors,
+                );
+                crate::check::check_wire_peer_purity_span(
+                    &args[1], span, ":wat::core::fn", env.types(), &mut errors,
+                );
+            }
+        }
     }
 
     // Check body against declared return type under extended locals.
