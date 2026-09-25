@@ -47,7 +47,7 @@
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap, < FOO
      h   (:probe::cap1svc/start :locus (:wat::spawn::process) :record (:probe::cap1svc::Record))
-     c   (:wat::core::match (:wat::kernel::connect (:probe::cap1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c   (:wat::core::match (:wat::kernel::connect (:probe::cap1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r   (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload big))]
     (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
       [:probe::Cap1::DoOpResponse.RequestTooLarge {:bytes bytes :cap cap} bytes]
@@ -63,7 +63,7 @@
   (:wat::core::let
     [big (:probe::pl 20)     ;; > cap
      h   (:probe::cap1svc/start :locus (:wat::spawn::process) :record (:probe::cap1svc::Record))
-     c   (:wat::core::match (:wat::kernel::connect (:probe::cap1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c   (:wat::core::match (:wat::kernel::connect (:probe::cap1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r1  (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload big))     ;; RequestTooLarge; keep
      r2  (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload "hi"))]   ;; SAME c → Ok
     (:wat::core::match r2 [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 

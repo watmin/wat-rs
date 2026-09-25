@@ -87,8 +87,8 @@
               :record (:wat-tests::signal-observer::Record :requests 0 :sighup false :user1 false :user2 false))
        c    (:wat::core::match (:wat::kernel::connect (:wat-tests::signal-observer::Handle/addr h))
               [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-              [:wat::kernel::ConnectOutcome.Refused {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]
-              [:wat::kernel::ConnectOutcome.Rejected {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]
+              [:wat::kernel::ConnectOutcome.Closed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]
+              [:wat::kernel::ConnectOutcome.Undialable {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]
               [:wat::kernel::ConnectOutcome.Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
        proc (:wat::core::match (:wat::kernel::peer-process (:wat-tests::signal-observer::Handle/handle h))
               [:wat::core::Option.Some {:value p} p]

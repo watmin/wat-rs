@@ -1,0 +1,10 @@
+# ORACLE for connect-outcome-facts — HISTORY or header spec, never the tool.
+
+spec [:wat::kernel::ConnectOutcome.Closed {:cause c} "same"] :: ConnectOutcome.Refused arm → a ConnectOutcome.Closed arm (same body)
+spec [:wat::kernel::ConnectOutcome.Undialable {:cause c} "same"] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} "same"] :: ConnectOutcome.Rejected arm → two arms, Undialable and WrongPeer, each with the same body
+spec :Closed [cause <- :wat::kernel::Failure] :: :Refused becomes :Closed inside the ConnectOutcome defenum
+spec :Undialable [cause <- :wat::kernel::Failure] :WrongPeer [cause <- :wat::kernel::Failure] :: :Rejected becomes :Undialable plus :WrongPeer inside the ConnectOutcome defenum
+spec-before :Refused [cause <- :wat::kernel::Failure] :: the ConnectOutcome defenum's :Refused variant
+spec-before :Rejected [cause <- :wat::kernel::Failure] :: the ConnectOutcome defenum's :Rejected variant
+spec-before [:wat::kernel::ConnectOutcome.Refused {:cause c} "same"] :: ConnectOutcome.Refused arm → a ConnectOutcome.Closed arm (same body)
+spec-before [:wat::kernel::ConnectOutcome.Rejected {:cause c} "same"] :: ConnectOutcome.Rejected arm → two arms, Undialable and WrongPeer, each with the same body

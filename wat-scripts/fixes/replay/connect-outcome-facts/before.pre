@@ -1,0 +1,16 @@
+;; a comment keeps ConnectOutcome.Refused and :Rejected
+(:wat::core::defenum :wat::kernel::ConnectOutcome :- [S R] :wat::enum::Impure
+  :Connected [peer <- (:wat::kernel::Peer :- [:S :R])]
+  :Refused [cause <- :wat::kernel::Failure]
+  :Rejected [cause <- :wat::kernel::Failure]
+  :Failed [cause <- :wat::kernel::Failure])
+
+(:wat::core::defenum :wat::spawn::ServiceEvent :- [I O A] :wat::enum::Impure
+  :Rejected [cause <- :wat::kernel::Failure])
+
+(:wat::core::defn :user::go [o <- (:wat::kernel::ConnectOutcome :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::String
+  (:wat::core::match o
+    [:wat::kernel::ConnectOutcome.Connected {:peer _p} "up"]
+    [:wat::kernel::ConnectOutcome.Refused {:cause c} "same"]
+    [:wat::kernel::ConnectOutcome.Rejected {:cause c} "same"]
+    [:wat::kernel::ConnectOutcome.Failed {:cause c} "down"]))

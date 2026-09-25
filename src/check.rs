@@ -10642,8 +10642,8 @@ fn infer_connect_prime(
             // Arc 278 the connect' OUTCOME WALL (the LAST peer wall) — connect' no longer
             // returns the bare (Peer' :- [S R]) and raises on ECONNREFUSED/no-listener,
             // identity-reject, or peer_cred/socket-wrap io; it returns a matchable
-            // `(:wat::kernel::ConnectOutcome :- [S R])` (::Connected[(Peer' :- [S R])] · ::Refused ·
-            // ::Rejected · ::Failed, each [Failure]) so a masked connect failure is
+            // `(:wat::kernel::ConnectOutcome :- [S R])` (::Connected[(Peer' :- [S R])] · ::Closed ·
+            // ::Undialable · ::WrongPeer · ::Failed, each [Failure]) so a masked connect failure is
             // structurally unrepresentable. The peer still flows via the ::Connected arm.
             let ty = TypeExpr::Parametric { head: "wat::kernel::ConnectOutcome".into(), args: vec![s, r] };
             if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }

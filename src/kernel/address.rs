@@ -43,17 +43,28 @@ use crate::span::Span;
 /// `Result<Result<Peer, ConnectFail>, EvalBreak>`: the outer `Err` is an uncatchable raise
 /// (an in-process substrate bug — a malformed abstract-name, an arity/type mismatch), the
 /// inner `Err(ConnectFail)` is a handleable outcome the eval layer maps to
-/// `Refused`/`Rejected`/`Failed`. The exact TWIN of `AcceptFail` (`kernel/listener.rs`).
+/// `Closed`/`Undialable`/`WrongPeer`/`Failed`. The exact TWIN of `AcceptFail`
+/// (`kernel/listener.rs`).
 pub enum ConnectFail {
-    /// ECONNREFUSED / no listener / rendezvous gone — maps to `ConnectOutcome::Refused`
-    /// (RETRYABLE transport; the server may come up). The thread arm uses this when
-    /// the live rendezvous send fails because the listener was dropped.
-    Refused(String),
-    /// Not retryable. Socket: the `OnlyThisPeer` identity check failed (the
-    /// answerer's pid/euid != the address minter's). Thread: the address was rebuilt
-    /// from `ThreadAddressWire` and has no channel. Maps to `ConnectOutcome::Rejected`.
-    Rejected(String),
-    /// A `peer_cred` read / socket-wrap io error carrying its reason — maps to
+    /// Nothing is listening at this address, and it is gone for good. Maps to
+    /// `ConnectOutcome::Closed[cause]`. The thread arm uses this when the live
+    /// rendezvous send fails because the listener was dropped. The process arm
+    /// uses this when `connect_addr` returns `ECONNREFUSED` or `ENOENT`. An
+    /// autobind name is kernel-minted and nothing rebinds it, so the listener
+    /// does not come back at this address. The cause is the sentence that
+    /// producer already built; every consuming arm binds it.
+    Closed(String),
+    /// This address value cannot be dialed here: an inert wire copy. Produced
+    /// only by the thread locus (`tx` is `None`). No process locus produces
+    /// this. Maps to `ConnectOutcome::Undialable[cause]`.
+    Undialable(String),
+    /// The answerer is not who the address names. Produced only by the process
+    /// locus (`OnlyThisPeer`). No thread locus produces this. Maps to
+    /// `ConnectOutcome::WrongPeer[cause]`.
+    WrongPeer(String),
+    /// A transport io failure: `peer_cred`, socket wrap, or a `connect_addr`
+    /// error that is not the gone-for-good fact. Produced only by the process
+    /// locus. No thread locus produces this. Maps to
     /// `ConnectOutcome::Failed[cause <- Failure]` (via `message_only_failure`).
     Failed(String),
 }
@@ -74,7 +85,7 @@ pub trait CommAddress: Send + Sync {
     /// Dial this address; return the connected client-side Peer.
     ///
     /// Arc 278 the connect' OUTCOME WALL: `Ok(Ok(peer))` = dialed + admitted;
-    /// `Ok(Err(ConnectFail))` = a handleable failure (→ `Refused`/`Rejected`/`Failed`);
+    /// `Ok(Err(ConnectFail))` = a handleable failure (→ `Closed`/`Undialable`/`WrongPeer`/`Failed`);
     /// `Err(EvalBreak)` = a must-never-happen raise (a malformed abstract-name substrate
     /// bug — the address's own name failed `from_abstract_name`).
     fn connect(&self, sym: &SymbolTable, span: &Span)
@@ -133,13 +144,11 @@ impl CommAddress for ThreadAddress {
         -> Result<Result<Peer, ConnectFail>, EvalBreak> {
         let rendezvous = match &self.tx {
             Some(tx) => Arc::clone(tx),
-            // Rejected, not Refused. Refused is documented retryable ("the server
-            // may come up"). A wire copy never becomes the live value, so that
-            // claim would be false. Rejected is the not-retryable variant. The
-            // sentence does not claim a wrong process: the minter's own echo is
-            // inert too.
+            // Undialable. A wire copy never becomes the live value. The sentence
+            // does not claim a wrong process: the minter's own echo is inert too.
+            // No process locus produces this fact.
             None => {
-                return Ok(Err(ConnectFail::Rejected(
+                return Ok(Err(ConnectFail::Undialable(
                     THREAD_ADDRESS_WIRE_IS_INERT.to_string(),
                 )));
             }
@@ -171,11 +180,12 @@ impl CommAddress for ThreadAddress {
         ) {
             crate::channel::SendOutcome::Ok => {}
             // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: the rendezvous is gone
-            // (the listener was dropped / never accepted). No listener → a RETRYABLE
-            // transport refusal → ConnectOutcome::Refused, not a raise the dialer unwinds
-            // past. The thread-tier twin of the process tier's ECONNREFUSED.
+            // (the listener was dropped / never accepted). Nothing installs a new
+            // receiver on this sender, so the listener is gone for good →
+            // ConnectOutcome::Closed, not a raise the dialer unwinds past. The
+            // thread-tier twin of the process tier's ECONNREFUSED.
             crate::channel::SendOutcome::Disconnected => {
-                return Ok(Err(ConnectFail::Refused(
+                return Ok(Err(ConnectFail::Closed(
                     "connect: rendezvous send failed — listener was dropped (no listener)".into(),
                 )));
             }
@@ -227,12 +237,24 @@ impl CommAddress for SocketAddress {
                 head: OP.into(),
                 reason: format!("abstract addr for connect: {}", e),
             }))?;
-        // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: ECONNREFUSED / no listener →
-        // ConnectOutcome::Refused (RETRYABLE transport), not a raise the dialer unwinds past.
+        // Arc 278 the connect' OUTCOME WALL — HANDLEABLE. Measured on this locus:
+        // an absent abstract name yields ECONNREFUSED (111), not ENOENT. ENOENT is
+        // still the gone-for-good fact when a path name is missing. Both map to
+        // Closed. Any other connect_addr error (the dial reached the kernel and
+        // failed for a reason other than "nothing is there") is Failed. A blocking
+        // connect waits out a full backlog, so this arm does not see EAGAIN.
+        // An autobind name is kernel-minted and nothing rebinds it: ECONNREFUSED
+        // here means the listener is gone for good.
         let stream = match UnixStream::connect_addr(&sa) {
             Ok(s) => s,
             Err(e) => {
-                return Ok(Err(ConnectFail::Refused(format!("connect abstract UDS: {}", e))));
+                let msg = format!("connect abstract UDS: {}", e);
+                let gone = matches!(e.raw_os_error(), Some(libc::ECONNREFUSED | libc::ENOENT));
+                return Ok(Err(if gone {
+                    ConnectFail::Closed(msg)
+                } else {
+                    ConnectFail::Failed(msg)
+                }));
             }
         };
         // Arc 272 6c.2 — MUTUAL UDS peer-cred via the powerbox: the CLIENT verifies the SERVER's
@@ -259,12 +281,11 @@ impl CommAddress for SocketAddress {
             let me = unsafe { libc::geteuid() };
             // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: the `OnlyThisPeer` identity
             // check failed (the answerer is not the exact process that minted this address)
-            // → ConnectOutcome::Rejected[cause] (NOT retryable; wrong process, not a
-            // transport blip). This FIRES here (unlike accept', where the gate bounces the
-            // stranger internally) — the client dials once and a server-identity mismatch
-            // is a caller-visible outcome.
+            // → ConnectOutcome::WrongPeer[cause]. Process locus only. This FIRES here
+            // (unlike accept', where the gate bounces the stranger internally) — the
+            // client dials once and a server-identity mismatch is a caller-visible outcome.
             if !connect_admits(&server, me, self.minter_pid) {
-                return Ok(Err(ConnectFail::Rejected(format!(
+                return Ok(Err(ConnectFail::WrongPeer(format!(
                     "comms policy (only-this-peer) refused the connection — \
                      server pid {} != minter pid {}, or server euid {} != our euid {} \
                      (the answerer must be the exact process that minted this address)",
@@ -385,8 +406,9 @@ impl Address {
     /// Dispatch connect to the concrete impl and build the matchable
     /// `:wat::kernel::ConnectOutcome<S,R>` `Value` for the eval layer (Arc 278 the connect'
     /// OUTCOME WALL — the LAST peer wall). `Ok(peer)` → `Connected[peer]` (the `Peer`
-    /// wrapped as a `PEER_TYPE_PATH` opaque); `Err(ConnectFail::Refused(reason))` →
-    /// `Refused[cause]`; `Err(ConnectFail::Rejected(reason))` → `Rejected[cause]`;
+    /// wrapped as a `PEER_TYPE_PATH` opaque); `Err(ConnectFail::Closed(reason))` →
+    /// `Closed[cause]`; `Err(ConnectFail::Undialable(reason))` → `Undialable[cause]`;
+    /// `Err(ConnectFail::WrongPeer(reason))` → `WrongPeer[cause]`;
     /// `Err(ConnectFail::Failed(reason))` → `Failed[cause <- Failure]` (all via
     /// `message_only_failure`). A must-never-happen raise stays an `EvalBreak` (the `?`).
     pub fn connect_as_value(
@@ -405,8 +427,9 @@ impl Address {
                 );
                 Ok(crate::kernel::outcome::connect_outcome_connected(peer_val))
             }
-            Err(ConnectFail::Refused(reason)) => Ok(crate::kernel::outcome::connect_outcome_refused(reason)),
-            Err(ConnectFail::Rejected(reason)) => Ok(crate::kernel::outcome::connect_outcome_rejected(reason)),
+            Err(ConnectFail::Closed(reason)) => Ok(crate::kernel::outcome::connect_outcome_closed(reason)),
+            Err(ConnectFail::Undialable(reason)) => Ok(crate::kernel::outcome::connect_outcome_undialable(reason)),
+            Err(ConnectFail::WrongPeer(reason)) => Ok(crate::kernel::outcome::connect_outcome_wrong_peer(reason)),
             Err(ConnectFail::Failed(reason)) => Ok(crate::kernel::outcome::connect_outcome_failed(reason)),
         }
     }
@@ -482,8 +505,9 @@ mod thread_address_is_data {
     fn outcome(r: Result<Result<Peer, ConnectFail>, EvalBreak>) -> String {
         match r {
             Ok(Ok(_)) => "Connected".into(),
-            Ok(Err(ConnectFail::Refused(m))) => format!("Refused: {m}"),
-            Ok(Err(ConnectFail::Rejected(m))) => format!("Rejected: {m}"),
+            Ok(Err(ConnectFail::Closed(m))) => format!("Closed: {m}"),
+            Ok(Err(ConnectFail::Undialable(m))) => format!("Undialable: {m}"),
+            Ok(Err(ConnectFail::WrongPeer(m))) => format!("WrongPeer: {m}"),
             Ok(Err(ConnectFail::Failed(m))) => format!("Failed: {m}"),
             Err(_) => "RAISE".into(),
         }
@@ -520,7 +544,7 @@ mod thread_address_is_data {
         let span = crate::rust_caller_span!();
         assert_eq!(
             outcome(d_addr.inner.connect(sym, &span)),
-            format!("Rejected: {THREAD_ADDRESS_WIRE_IS_INERT}")
+            format!("Undialable: {THREAD_ADDRESS_WIRE_IS_INERT}")
         );
         assert!(d_addr.portable_form().is_none(), "address-wire? stays false");
         // The listener is still there. The decoded copy must not have dialed it.
@@ -547,7 +571,7 @@ mod thread_address_is_data {
         let copy = Address::from_thread_wire(pid, id);
         assert_eq!(
             outcome(copy.inner.connect(sym, &span)),
-            format!("Rejected: {THREAD_ADDRESS_WIRE_IS_INERT}")
+            format!("Undialable: {THREAD_ADDRESS_WIRE_IS_INERT}")
         );
         assert_eq!(outcome(live.inner.connect(sym, &span)), "Connected");
         assert!(
@@ -567,8 +591,43 @@ mod thread_address_is_data {
         let other = Address::from_thread_wire(pid.wrapping_add(1), id);
         assert_eq!(
             outcome(other.inner.connect(sym, &span)),
-            format!("Rejected: {THREAD_ADDRESS_WIRE_IS_INERT}")
+            format!("Undialable: {THREAD_ADDRESS_WIRE_IS_INERT}")
         );
         assert!(live.portable_form().is_none());
+    }
+
+    /// Stone 255.34. A listener is this process; the address names a different
+    /// minter pid. `SO_PEERCRED` is set at connect, so the gate runs without
+    /// an accept. Pre-stone this same drive returned `Rejected`.
+    #[test]
+    fn a_live_connect_to_the_wrong_minter_pid_is_wrong_peer() {
+        use std::os::linux::net::SocketAddrExt;
+        use std::os::unix::net::{SocketAddr, UnixListener};
+        let name = format!(
+            "wat.255.34.{}.{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        );
+        let sa = SocketAddr::from_abstract_name(name.as_bytes()).expect("abstract name");
+        let listener = UnixListener::bind_addr(&sa).expect("bind");
+        let w = world();
+        let span = crate::rust_caller_span!();
+        let server_pid = current_pid();
+        let minter = server_pid.wrapping_add(1);
+        let me = unsafe { libc::geteuid() };
+        let addr = Address::from_socket_name_bytes(name.into_bytes(), minter);
+        let got = outcome(addr.inner.connect(&w.symbols, &span));
+        assert_eq!(
+            got,
+            format!(
+                "WrongPeer: comms policy (only-this-peer) refused the connection — \
+                 server pid {server_pid} != minter pid {minter}, or server euid {me} != our euid {me} \
+                 (the answerer must be the exact process that minted this address)"
+            )
+        );
+        drop(listener);
     }
 }

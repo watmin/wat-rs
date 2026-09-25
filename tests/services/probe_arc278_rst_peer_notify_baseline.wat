@@ -28,7 +28,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h (:my::rstsvc/start :locus (:wat::spawn::process) :record (:my::rstsvc::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect (:my::rstsvc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
+     c (:wat::core::match (:wat::kernel::connect (:my::rstsvc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
     (:wat::core::match (:my::rstsvc/boom c (:my::RstSvc::BoomRequest))
       [:wat::kernel::RecvOutcome.Message {:msg _m} "MESSAGE"]
       [:wat::kernel::RecvOutcome.Lost {:cause _cause} "LOST"]

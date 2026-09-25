@@ -51,7 +51,7 @@
           [record    <- :probe::caller::Record
            echo-addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
           -> :probe::caller::State
-          (:probe::caller::State :durable record :echo (:wat::core::match (:wat::kernel::connect echo-addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
+          (:probe::caller::State :durable record :echo (:wat::core::match (:wat::kernel::connect echo-addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
   :impls
   [(run [s ctx req]
      (:wat::core::let
@@ -73,7 +73,7 @@
     [eh  (:probe::echo/start   :locus (:wat::spawn::thread) :record (:probe::echo::Record))
      ea  (:probe::echo::Handle/addr eh)
      ch  (:probe::caller/start  :locus (:wat::spawn::thread) :record (:probe::caller::Record) :echo-addr ea)
-     cc  (:wat::core::match (:wat::kernel::connect (:probe::caller::Handle/addr ch)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     cc  (:wat::core::match (:wat::kernel::connect (:probe::caller::Handle/addr ch)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))]
     (:wat::core::match rr [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
       [:probe::Caller::RunResponse.Ok {:out out} out]

@@ -71,9 +71,10 @@
          :record (:wat-tests::barebox-svc::Record :held (:wat::core::Option.Some {:value 42})))
      c (:wat::core::match (:wat::kernel::connect (:wat-tests::barebox-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause cz}
+         [:wat::kernel::ConnectOutcome.Closed {:cause cz}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause cz}
+         [:wat::kernel::ConnectOutcome.Undialable {:cause cz}
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cz}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
          [:wat::kernel::ConnectOutcome.Failed {:cause cz}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))])

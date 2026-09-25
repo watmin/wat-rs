@@ -47,9 +47,10 @@
   -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [:wat::core::String :wat::core::i64]) (:wat::cache::Cache::Reply :- [:wat::core::String :wat::core::i64])])
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Refused {:cause cz}
+    [:wat::kernel::ConnectOutcome.Closed {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome.Rejected {:cause cz}
+    [:wat::kernel::ConnectOutcome.Undialable {:cause cz}
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
     [:wat::kernel::ConnectOutcome.Failed {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))

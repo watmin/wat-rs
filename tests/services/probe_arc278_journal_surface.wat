@@ -37,7 +37,7 @@
 (:wat::core::defn :probe::run [] -> :wat::telemetry::Journal::WriteMetricsResponse
   (:wat::core::let
     [h       (:probe::toy-journal/start :locus (:wat::spawn::thread) :record (:probe::toy-journal::Record))
-     journal (:wat::core::match (:wat::kernel::connect (:probe::toy-journal::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     journal (:wat::core::match (:wat::kernel::connect (:probe::toy-journal::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
      m       (:wat::telemetry::Metric

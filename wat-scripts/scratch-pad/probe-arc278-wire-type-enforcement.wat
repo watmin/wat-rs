@@ -96,9 +96,10 @@
          :record (:probe-wire::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:probe-wire::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause f}
+         [:wat::kernel::ConnectOutcome.Closed {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause f}
+         [:wat::kernel::ConnectOutcome.Undialable {:cause f}
+           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
          [:wat::kernel::ConnectOutcome.Failed {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))])

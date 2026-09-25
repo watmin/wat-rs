@@ -2854,18 +2854,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // must never happen" — those become a matchable outcome; only the must-never-happen
     // raises (arity, address-type-mismatch, and the in-process malformed-address substrate
     // bug — see below) stay raises. Shape (RULED):
-    //   :Connected [peer <- (Peer' :- [S R])]  — dialed + admitted (the happy path).
-    //   :Refused   [cause <- Failure]    — ECONNREFUSED / no listener / rendezvous gone;
-    //                                      RETRYABLE transport (the server may come up).
-    //   :Rejected  [cause <- Failure]    — the `OnlyThisPeer` identity check failed (the
-    //                                      answerer's pid/euid != the address minter's);
-    //                                      NOT retryable (wrong process, not a transport
-    //                                      blip). FIRES here (unlike accept', where the
-    //                                      gate bounces internally) — the client dials once
-    //                                      and a server-identity mismatch is caller-visible.
-    //   :Failed    [cause <- Failure]    — a `peer_cred` read / socket-wrap io error; the
-    //                                      structured-cause carrier (never a flat String —
-    //                                      built via `message_only_failure`).
+    //   :Connected [peer <- (Peer' :- [S R])]  — dialed and admitted. Both loci.
+    //   :Closed    [cause <- Failure]    — nothing is listening, and it is gone for good.
+    //                                      Thread: dropped rendezvous. Process: ECONNREFUSED
+    //                                      or ENOENT. The cause stays because every arm binds it.
+    //   :Undialable [cause <- Failure]   — an inert wire copy. Thread locus only.
+    //   :WrongPeer [cause <- Failure]    — the answerer is not who the address names.
+    //                                      Process locus only.
+    //   :Failed    [cause <- Failure]    — a transport io failure. Process locus only.
     // Note the arg order `<S,R>` — connect's return is `Peer'<S,R>` (send-type first), the
     // MIRROR of accept's `Peer'<R,S>`. The must-never-happen raises stay raises: arity,
     // address-type-mismatch, and the in-process malformed-abstract-name (`from_abstract_name`

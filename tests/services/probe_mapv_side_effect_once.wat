@@ -67,8 +67,8 @@
   (:wat::core::let
     [c (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h))
           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-          [:wat::kernel::ConnectOutcome.Refused {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
-          [:wat::kernel::ConnectOutcome.Rejected {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome.Closed {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome.Undialable {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
           [:wat::kernel::ConnectOutcome.Failed {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))])]
     (:wat::core::match (:probe::Counter/get c (:probe::Counter::GetRequest))
       [:wat::kernel::RecvOutcome.Message {:msg recvd}
@@ -90,8 +90,8 @@
     [h (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      c (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h))
           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-          [:wat::kernel::ConnectOutcome.Refused {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
-          [:wat::kernel::ConnectOutcome.Rejected {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome.Closed {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
+          [:wat::kernel::ConnectOutcome.Undialable {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
           [:wat::kernel::ConnectOutcome.Failed {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))])
      _ (:wat::core::mapv
           (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64

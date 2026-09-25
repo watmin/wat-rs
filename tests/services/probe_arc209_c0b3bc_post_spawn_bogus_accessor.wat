@@ -6,9 +6,10 @@
      addr  (:wat::spawn::Bound/address bound)
      tx    (:wat::core::match (:wat::kernel::connect addr)
              [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-             [:wat::kernel::ConnectOutcome.Refused {:cause _c}
+             [:wat::kernel::ConnectOutcome.Closed {:cause _c}
                (:wat::kernel::assertion-failed! :message "connect': refused binding the hook channel")]
-             [:wat::kernel::ConnectOutcome.Rejected {:cause _c}
+             [:wat::kernel::ConnectOutcome.Undialable {:cause _c}
+               (:wat::kernel::assertion-failed! :message "connect': rejected binding the hook channel")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause _c}
                (:wat::kernel::assertion-failed! :message "connect': rejected binding the hook channel")]
              [:wat::kernel::ConnectOutcome.Failed {:cause _c}
                (:wat::kernel::assertion-failed! :message "connect': failed binding the hook channel")])

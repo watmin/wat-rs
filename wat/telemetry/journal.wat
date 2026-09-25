@@ -80,14 +80,15 @@
           -> :wat::telemetry::journal::State
           (:wat::core::let
             ;; arc 278 the connect'-outcome wall — face all four arms. ::Connected → bind
-            ;; the store Peer'; ::Refused/::Rejected/::Failed → assertion-failed! (fatal,
+            ;; the store Peer'; ::Closed/::Undialable/::WrongPeer/::Failed → assertion-failed! (fatal,
             ;; preserving the pre-wall raise-unwind: a service whose store dial fails at
             ;; :init cannot start). Sibling pattern: spawn.wat's recv'/send' fatal arms.
             [store (:wat::core::match (:wat::kernel::connect store-addr)
                      [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-                     [:wat::kernel::ConnectOutcome.Refused {:cause c}
+                     [:wat::kernel::ConnectOutcome.Closed {:cause c}
                        (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-                     [:wat::kernel::ConnectOutcome.Rejected {:cause c}
+                     [:wat::kernel::ConnectOutcome.Undialable {:cause c}
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c}
                        (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                      [:wat::kernel::ConnectOutcome.Failed {:cause c}
                        (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

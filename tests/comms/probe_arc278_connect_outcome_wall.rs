@@ -9,9 +9,10 @@
 //! (PARAMETRIC + Impure, mirroring `AcceptOutcome<R,S>` — `Connected` holds a live
 //! `Peer'`):
 //!   Connected [peer <- Peer'<S,R>]  — dialed + admitted (the happy path)
-//!   Refused   [cause <- Failure]    — ECONNREFUSED / no listener / rendezvous gone (RETRYABLE)
-//!   Rejected  [cause <- Failure]    — OnlyThisPeer identity check failed (NOT retryable)
-//!   Failed    [cause <- Failure]    — peer_cred read / socket-wrap io error
+//!   Closed    [cause <- Failure]    — nothing is listening, and it is gone for good
+//!   Undialable [cause <- Failure]   — this address value cannot be dialed here
+//!   WrongPeer [cause <- Failure]    — the answerer is not who the address names
+//!   Failed    [cause <- Failure]    — a transport io failure
 //! The must-never-happen raises (arity, address-type-mismatch, the in-process
 //! malformed-address substrate bug) stay raises.
 //!
@@ -21,17 +22,12 @@
 //! RED before the wall: `connect'` returned a bare `Peer'` opaque (`Value::RustOpaque`)
 //! on success and RAISED on the handleable failures, so `as_connect_outcome` panics
 //! ("not a ConnectOutcome enum value") on the happy path and `connect-refused` raised
-//! rather than yielding `Refused`. GREEN after.
+//! rather than yielding `Closed`. GREEN after.
 //!
-//! The `Rejected[cause]` (OnlyThisPeer identity mismatch) and `Failed[cause]` (peer_cred
-//! / socket-wrap io) variants are process-tier-only and not cheaply reachable
-//! single-threaded — they need a real UDS server that isn't the address minter / a
-//! broken accepted socket under the forked test binary. They are constructed by the SAME
-//! `connect_outcome_{rejected,failed}` helpers (identical enum-value construction,
-//! differing only in variant + a `message_only_failure` payload) and mapped from the
-//! `!connect_admits` / `peer_cred` / socket-wrap arms of `SocketAddress::connect`
-//! (address.rs). No live probe fakes them here (the brief forbids faking a hard-to-reach
-//! path — the accept'/close' precedent).
+//! `WrongPeer` (the answerer is not the minter) is driven by
+//! `probe_arc255_34` in `kernel/address.rs`: a live abstract listener in this
+//! process, an address whose minter pid is not `getpid()`. `Failed` (peer_cred
+//! / socket-wrap io) still needs a broken socket and is not faked here.
 //!
 //! Run: cargo test --release -p wat --test comms probe_arc278_connect_outcome_wall -- --test-threads=1
 
@@ -88,29 +84,30 @@ fn connect_to_live_listener_yields_connected() {
     }
 }
 
-// ─── retryable transport → Refused[cause] (single-threaded; runs in the floor) ──
+// ─── gone for good → Closed[cause] (single-threaded; runs in the floor) ──
 
 /// `connect'` on an address whose listener (the only rendezvous Receiver) was dropped
-/// before the dial → crossbeam send Disconnected → `ConnectOutcome::Refused[cause]`, a
-/// retryable transport failure, NOT a raise the dialer unwinds past.
+/// before the dial → crossbeam send Disconnected → `ConnectOutcome::Closed[cause]`.
+/// The listener does not come back. Not a raise the dialer unwinds past.
 ///
 /// RED before the wall: `connect'` RAISED ("rendezvous send failed — listener was
-/// dropped") instead of returning `Refused`, so `call_beside_value` returns `Err` and the
-/// `unwrap_or_else` panics. GREEN after.
+/// dropped") instead of returning an outcome, so `call_beside_value` returns `Err` and the
+/// `unwrap_or_else` panics. GREEN after. Stone 255.34 renamed that outcome from the old
+/// `Refused` word to `Closed`.
 #[test]
-fn connect_to_dropped_listener_yields_refused() {
+fn connect_to_dropped_listener_yields_closed() {
     let v = call_beside_value(file!(), ":user::connect-refused")
-        .unwrap_or_else(|e| panic!("connect' on a dropped listener must yield Refused, not raise: {e:?}"));
+        .unwrap_or_else(|e| panic!("connect' on a dropped listener must yield Closed, not raise: {e:?}"));
     let ev = as_connect_outcome(&v);
     assert_eq!(
-        ev.variant_name, "Refused",
-        "connect' on a dropped-listener rendezvous is Refused; got {:?}",
+        ev.variant_name, "Closed",
+        "connect' on a dropped-listener rendezvous is Closed; got {:?}",
         ev.variant_name
     );
-    assert_eq!(ev.fields.len(), 1, "Refused carries one field (cause <- Failure); got {:?}", ev.fields);
+    assert_eq!(ev.fields.len(), 1, "Closed carries one field (cause <- Failure); got {:?}", ev.fields);
     // The cause is a structured `:wat::kernel::Failure`, not a flat String.
     match &ev.fields[0] {
         Value::Enum(_) | Value::Aggregate(_) => {}
-        other => panic!("Refused.cause must be a structured Failure; got {:?}", other),
+        other => panic!("Closed.cause must be a structured Failure; got {:?}", other),
     }
 }

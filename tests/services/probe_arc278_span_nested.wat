@@ -26,7 +26,7 @@
                  [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
                (:wat::telemetry::with-span inner jaddr "inner-ns" tags
                  (:wat::telemetry::Span/incr inner (:wat::telemetry::Span::IncrRequest :name :i)))))
-     jclient (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     jclient (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      oq    (:wat::telemetry::Journal/query-metrics jclient
              (:wat::telemetry::Journal::QueryMetricsRequest :namespace "outer-ns"
                :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::Option.None))

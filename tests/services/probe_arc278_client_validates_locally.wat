@@ -58,8 +58,8 @@
      h       (:probe::budgetsvc/start :locus (:wat::spawn::process) :record (:probe::budgetsvc::Record))
      c       (:wat::core::match (:wat::kernel::connect (:probe::budgetsvc::Handle/addr h))
                 [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-                [:wat::kernel::ConnectOutcome.Refused {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-                [:wat::kernel::ConnectOutcome.Rejected {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+                [:wat::kernel::ConnectOutcome.Closed {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+                [:wat::kernel::ConnectOutcome.Undialable {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
                 [:wat::kernel::ConnectOutcome.Failed {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))])
      r1      (:probe::Budget/put c (:probe::Budget::PutRequest :payload poison))
      ;; r1 MUST be the fabricated-locally RequestTooLarge{100, >100} — never Ok (accepted),

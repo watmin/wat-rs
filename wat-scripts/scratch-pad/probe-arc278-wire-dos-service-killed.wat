@@ -85,16 +85,16 @@
      ;; ATTACKER connection
      a (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
          [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])
      _ (:dos::try a "attacker good " good)
      _ (:dos::try a "attacker BAD  " bad)
      ;; a SECOND, INNOCENT client connects AFTER the bad frame
      b (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause f}  (:wat::kernel::assertion-failed! :message "victim: connect REFUSED — service is GONE")]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause f} (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — service is GONE")]
+         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "victim: connect REFUSED — service is GONE")]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — service is GONE")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — service is GONE")]
          [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "victim: connect FAILED — service is GONE")])
      ;; The victim's call is a BINDING, not the let's tail expression. That is not cosmetic and it
      ;; is not about this stone: a service Handle bound in a `let` is dropped before the let's TAIL

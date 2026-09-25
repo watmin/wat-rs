@@ -4,7 +4,7 @@
 //! stone's `src/` change) and are quoted in the SCORE. Post-stone:
 //! - a Shared address in a pure record loads;
 //! - `address-wire?` prints `false` then `true`;
-//! - a thread address sent to a process child prints `Rejected` with the
+//! - a thread address sent to a process child prints `Undialable` with the
 //!   inert-wire sentence, and the parent's echoed dial is the same sentence.
 
 use std::path::Path;
@@ -50,7 +50,7 @@ fn a_thread_address_sent_to_a_process_child_is_rejected() {
     assert_eq!(lines.len(), 1, "stdout:\n{stdout}\nstderr:\n{stderr}");
     let line = lines[0];
     let sentence =
-        "Rejected: a thread address is dialable only through the live value; one that crossed a wire is inert.";
+        "Undialable: a thread address is dialable only through the live value; one that crossed a wire is inert.";
     let mut expected = String::new();
     expected.push('[');
     expected.push('"');

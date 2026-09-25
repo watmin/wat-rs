@@ -373,29 +373,40 @@ pub(crate) fn connect_outcome_connected(peer_val: Value) -> Value {
     }))
 }
 
-/// `ConnectOutcome::Refused [cause <- Failure]` — ECONNREFUSED / no listener / rendezvous
-/// gone (was the "connect abstract UDS" / "rendezvous send failed — listener was dropped"
-/// raise). RETRYABLE transport. Built via `message_only_failure` — the SAME structured
-/// carrier the accept'/send'/recv'/close' walls use; never a hand-rolled `struct-new`
-/// Failure (R57's Struct-Failure mask).
-pub(crate) fn connect_outcome_refused(reason: String) -> Value {
+/// `ConnectOutcome::Closed [cause <- Failure]` — nothing is listening at this address,
+/// and it is gone for good (the dropped-rendezvous sentence, or `connect abstract UDS`
+/// on ECONNREFUSED / ENOENT). The cause stays: every consuming arm binds it. Built via
+/// `message_only_failure` — the SAME structured carrier the accept'/send'/recv'/close'
+/// walls use; never a hand-rolled `struct-new` Failure (R57's Struct-Failure mask).
+pub(crate) fn connect_outcome_closed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CONNECT_OUTCOME_TYPE.into(),
-        variant_name: "Refused".into(),
-        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Refused"),
+        variant_name: "Closed".into(),
+        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Closed"),
         fields: vec![message_only_failure(reason)],
     }))
 }
 
-/// `ConnectOutcome::Rejected [cause <- Failure]` — the `OnlyThisPeer` identity check
-/// failed (the answerer's pid/euid != the address minter's; was the "comms policy
-/// (only-this-peer) refused the connection" raise). NOT retryable — the wrong process
-/// answered, not a transport blip. Built via `message_only_failure`.
-pub(crate) fn connect_outcome_rejected(reason: String) -> Value {
+/// `ConnectOutcome::Undialable [cause <- Failure]` — this address value cannot be
+/// dialed here (an inert thread-address wire copy). Thread locus only. Built via
+/// `message_only_failure`.
+pub(crate) fn connect_outcome_undialable(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: CONNECT_OUTCOME_TYPE.into(),
-        variant_name: "Rejected".into(),
-        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Rejected"),
+        variant_name: "Undialable".into(),
+        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "Undialable"),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
+/// `ConnectOutcome::WrongPeer [cause <- Failure]` — the answerer is not who the
+/// address names (the `OnlyThisPeer` identity check). Process locus only. Built via
+/// `message_only_failure`.
+pub(crate) fn connect_outcome_wrong_peer(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CONNECT_OUTCOME_TYPE.into(),
+        variant_name: "WrongPeer".into(),
+        names: builtin_enum_variant_names(CONNECT_OUTCOME_TYPE, "WrongPeer"),
         fields: vec![message_only_failure(reason)],
     }))
 }

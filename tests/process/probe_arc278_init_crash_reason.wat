@@ -44,7 +44,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit/start :locus (:wat::spawn::thread) :record (:t::boominit::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
       [:wat::kernel::RecvOutcome.Message {:msg __recv}
@@ -64,7 +64,7 @@
 (:wat::core::defn :user::compute-process [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit/start :locus (:wat::spawn::process) :record (:t::boominit::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
     (:wat::core::match r
       [:wat::kernel::RecvOutcome.Message {:msg __recv}

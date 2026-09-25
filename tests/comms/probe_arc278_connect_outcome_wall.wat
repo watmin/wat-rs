@@ -4,7 +4,7 @@
 ;; Arc 278 peer-lifecycle Strike 4 — the connect' OUTCOME WALL (the LAST peer wall).
 ;; `connect'` used to return a bare `(Peer' :- [S R])` and RAISE on its handleable failures;
 ;; it now returns a matchable `(:wat::kernel::ConnectOutcome :- [S R])` (::Connected[(Peer' :- [S R])]
-;; · ::Refused[Failure] · ::Rejected[Failure] · ::Failed[Failure]). These fns RETURN the
+;; · ::Closed[Failure] · ::Undialable[Failure] · ::WrongPeer[Failure] · ::Failed[Failure]). These fns RETURN the
 ;; raw ConnectOutcome so the Rust probe can assert on it STRUCTURALLY (Value::Enum field
 ;; extraction).
 ;;
@@ -12,7 +12,7 @@
 ;; rendezvous, thread-tier `connect'` ships its one-way connect-request into the empty
 ;; slot WITHOUT blocking and returns the client Peer' — Connected, no second thread, no
 ;; deadlock. Dropping the listener (the rendezvous Receiver) makes the send disconnected
-;; → Refused.
+;; → Closed. The listener is gone for good; nothing reinstalls that receiver.
 
 ;; HAPPY DIAL → ConnectOutcome::Connected[peer]. `connect'` queues a connect-request in
 ;; the live rendezvous slot (the listener in `pair` is still alive) and wraps the client
@@ -30,9 +30,9 @@
   (:wat::spawn::Bound/address
     (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)))
 
-;; RETRYABLE TRANSPORT → ConnectOutcome::Refused[cause]. connect' on an address whose
+;; GONE FOR GOOD → ConnectOutcome::Closed[cause]. connect' on an address whose
 ;; listener (the only rendezvous Receiver) was dropped → crossbeam send Disconnected →
-;; Refused (no listener / rendezvous gone), NOT a raise the dialer unwinds past.
+;; Closed (nothing is listening, and it does not come back), NOT a raise the dialer unwinds past.
 (:wat::core::defn :user::connect-refused [] -> (:wat::kernel::ConnectOutcome :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [addr (:user::orphaned-address)]

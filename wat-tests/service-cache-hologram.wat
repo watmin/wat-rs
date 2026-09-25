@@ -48,9 +48,10 @@
   -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Refused {:cause cz}
+    [:wat::kernel::ConnectOutcome.Closed {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome.Rejected {:cause cz}
+    [:wat::kernel::ConnectOutcome.Undialable {:cause cz}
+      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
     [:wat::kernel::ConnectOutcome.Failed {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))

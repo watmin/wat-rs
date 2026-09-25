@@ -93,9 +93,10 @@
   -> (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Refused {:cause c}
+    [:wat::kernel::ConnectOutcome.Closed {:cause c}
       (:wat::kernel::assertion-failed! :message "victim: connect REFUSED — the service is GONE (the DoS is back)")]
-    [:wat::kernel::ConnectOutcome.Rejected {:cause c}
+    [:wat::kernel::ConnectOutcome.Undialable {:cause c}
+      (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c}
       (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")]
     [:wat::kernel::ConnectOutcome.Failed {:cause c}
       (:wat::kernel::assertion-failed! :message "victim: connect FAILED — the service is GONE (the DoS is back)")]))

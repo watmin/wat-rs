@@ -155,8 +155,8 @@
   -> (:wat::kernel::Peer :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply])
   (:wat::core::match (:wat::kernel::connect addr)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Refused {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
     [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 (:wat::core::defn :wat::kernel::stdio-connect-err
@@ -164,8 +164,8 @@
   -> (:wat::kernel::Peer :- [:wat::kernel::StdErr::Op :wat::kernel::StdErr::Reply])
   (:wat::core::match (:wat::kernel::connect addr)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Refused {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
     [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 (:wat::core::defn :wat::kernel::stdio-connect-in
@@ -173,8 +173,8 @@
   -> (:wat::kernel::Peer :- [:wat::kernel::StdIn::Op :wat::kernel::StdIn::Reply])
   (:wat::core::match (:wat::kernel::connect addr)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Refused {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
     [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 ;; ─── write-batched fragmentation (arc 170) ────────────────────────────────────────────────────────

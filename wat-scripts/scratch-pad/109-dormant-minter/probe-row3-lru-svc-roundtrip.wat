@@ -10,8 +10,8 @@
          (:wat::cache::lru-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Transport.Shared]))
      c (:wat::core::match (:wat::kernel::connect (:wat::cache::lru-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+         [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
          [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _put (:wat::core::match
             (:wat::cache::lru-svc/put c

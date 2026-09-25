@@ -20,7 +20,7 @@
 ;; through a legitimate-looking outcome variant carrying a false story.
 ;;
 ;; It is GENERAL, not service-specific — the raw-kernel `Listener'` row below reaps the
-;; same way and manufactures `ConnectOutcome::Refused`.
+;; same way and manufactures `ConnectOutcome.Closed`.
 ;;
 ;; Expected output (each pair: identical call, non-tail then tail):
 ;;
@@ -67,9 +67,10 @@
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome.Connected {:peer p}
       (:wat::kernel::println (:wat::string::concat label " => CONNECTED"))]
-    [:wat::kernel::ConnectOutcome.Refused {:cause f}
+    [:wat::kernel::ConnectOutcome.Closed {:cause f}
       (:wat::kernel::println (:wat::string::concat label " => REFUSED"))]
-    [:wat::kernel::ConnectOutcome.Rejected {:cause f}
+    [:wat::kernel::ConnectOutcome.Undialable {:cause f}
+      (:wat::kernel::println (:wat::string::concat label " => REJECTED"))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f}
       (:wat::kernel::println (:wat::string::concat label " => REJECTED"))]
     [:wat::kernel::ConnectOutcome.Failed {:cause f}
       (:wat::kernel::println (:wat::string::concat label " => FAILED"))]))
@@ -80,8 +81,8 @@
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
          [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
     (:wat::core::do (:tco::try c "service : non-tail") nil)))
 
@@ -91,8 +92,8 @@
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
          [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
     (:tco::try c "service : let-TAIL")))
 

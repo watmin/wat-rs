@@ -14,8 +14,8 @@
           :record (:wat::kernel::stdout-svc::Record) :fd fd)
      c  (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdout-svc::Handle/addr h))
           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-          [:wat::kernel::ConnectOutcome.Refused {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-          [:wat::kernel::ConnectOutcome.Rejected {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+          [:wat::kernel::ConnectOutcome.Closed {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+          [:wat::kernel::ConnectOutcome.Undialable {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
           [:wat::kernel::ConnectOutcome.Failed {:cause cc}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))])
      r1 (:wat::core::match (:wat::kernel::StdOut/write c (:wat::kernel::StdOut::WriteRequest :bytes "primed-line-1\n"))
           [:wat::kernel::RecvOutcome.Message {:msg resp}
@@ -54,8 +54,8 @@
          :record (:wat::kernel::stdout-svc::Record) :fd fd)
      c (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdout-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+         [:wat::kernel::ConnectOutcome.Closed {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
          [:wat::kernel::ConnectOutcome.Failed {:cause cc}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))])
      _w (:wat::kernel::stdio-write-out c payload)]
     nil))
@@ -68,8 +68,8 @@
          :record (:wat::kernel::stdin-svc::Record) :fd fd)
      c (:wat::core::match (:wat::kernel::connect (:wat::kernel::stdin-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+         [:wat::kernel::ConnectOutcome.Closed {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
          [:wat::kernel::ConnectOutcome.Failed {:cause cc}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))])]
     (:wat::core::match (:wat::kernel::StdIn/read-frame c (:wat::kernel::StdIn::ReadFrameRequest :max-buffer-bytes 524288))
       [:wat::kernel::RecvOutcome.Message {:msg resp}

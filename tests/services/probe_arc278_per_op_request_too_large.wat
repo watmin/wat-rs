@@ -53,7 +53,7 @@
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap
      h   (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
-     c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r   (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))]
     ;; arc 278 the recv'-outcome wall — `do-op` now returns a matchable
     ;; `(RecvOutcome :- [DoOpResponse])`; the happy-path Response comes through ::Message.
@@ -77,7 +77,7 @@
   (:wat::core::let
     [big   (:probe::pl 20)     ;; > cap
      h     (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
-     c     (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c     (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r1    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))    ;; RequestTooLarge; keep
      r2    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload "hi"))]  ;; SAME c → Ok
     ;; arc 278 the recv'-outcome wall — the in-budget Ok Response comes through ::Message.

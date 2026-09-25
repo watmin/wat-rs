@@ -12184,10 +12184,8 @@ pub(crate) fn message_only_failure(message: String) -> Value {
 // Arc 109 Stone A — the kernel outcome vocabulary — `connect_outcome_connected` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-// Arc 109 Stone A — the kernel outcome vocabulary — `connect_outcome_refused` moved to
-// `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
-
-// Arc 109 Stone A — the kernel outcome vocabulary — `connect_outcome_rejected` moved to
+// Arc 109 Stone A — the kernel outcome vocabulary — `connect_outcome_closed`,
+// `connect_outcome_undialable`, and `connect_outcome_wrong_peer` live in
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 // Arc 109 Stone A — the kernel outcome vocabulary — `connect_outcome_failed` moved to

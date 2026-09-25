@@ -61,8 +61,8 @@
     [h (:tl::bag-svc/start :locus (:wat::spawn::thread) :record (:tl::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tl::bag-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
          [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])
      ;; CONTROL — the same call from a BINDING slot: served.
      _ (:tl::try c "from let-BINDING")]

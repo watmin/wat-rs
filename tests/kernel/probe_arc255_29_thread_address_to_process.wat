@@ -1,6 +1,6 @@
 ;; Stone 255.29 / 255.31 — a thread address sent to a process child.
 ;; The child dials the decoded copy. The parent dials the copy the child echoed.
-;; Both are inert: Rejected, with the sentence that a wire copy is not the live value.
+;; Both are inert: Undialable, with the sentence that a wire copy is not the live value.
 ;; Pre-255.29 the child died decoding. Pre-255.31 the parent echo connected.
 (:wat::core::defn :p29::recv-back
   [p <- (:wat::kernel::Process :- [(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])
@@ -22,8 +22,8 @@
               [o <- (:wat::kernel::ConnectOutcome :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::String
               (:wat::core::match o
                 [:wat::kernel::ConnectOutcome.Connected {:peer _p} "Connected"]
-                [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::string::concat "Refused: " (:wat::kernel::Failure/message c))]
-                [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::string::concat "Rejected: " (:wat::kernel::Failure/message c))]
+                [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::string::concat "Closed: " (:wat::kernel::Failure/message c))]
+                [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::string::concat "Undialable: " (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::string::concat "WrongPeer: " (:wat::kernel::Failure/message c))]
                 [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::string::concat "Failed: " (:wat::kernel::Failure/message c))]))
             (:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::core::let
@@ -49,8 +49,8 @@
      back (:p29::recv-back p)
      parent (:wat::core::match (:wat::kernel::connect (:wat::core::second back))
               [:wat::kernel::ConnectOutcome.Connected {:peer _p} "Connected"]
-              [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::string::concat "Refused: " (:wat::kernel::Failure/message c))]
-              [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::string::concat "Rejected: " (:wat::kernel::Failure/message c))]
+              [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::string::concat "Closed: " (:wat::kernel::Failure/message c))]
+              [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::string::concat "Undialable: " (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::string::concat "WrongPeer: " (:wat::kernel::Failure/message c))]
               [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::string::concat "Failed: " (:wat::kernel::Failure/message c))])
      _keep (:wat::spawn::Bound/listener b)]
     (:wat::kernel::println

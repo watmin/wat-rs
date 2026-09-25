@@ -78,8 +78,8 @@
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect addr)
           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-          [:wat::kernel::ConnectOutcome.Refused {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-          [:wat::kernel::ConnectOutcome.Rejected {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+          [:wat::kernel::ConnectOutcome.Closed {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+          [:wat::kernel::ConnectOutcome.Undialable {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
           [:wat::kernel::ConnectOutcome.Failed {:cause cc}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))])
      ok (:probe::do-increments c 4 0)]
     (:wat::core::match (:wat::kernel::send self ok)
@@ -119,8 +119,8 @@
      ;; main dials its OWN peer for the final read (h stays alive → service lives).
      mc (:wat::core::match (:wat::kernel::connect addr)
           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-          [:wat::kernel::ConnectOutcome.Refused {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-          [:wat::kernel::ConnectOutcome.Rejected {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+          [:wat::kernel::ConnectOutcome.Closed {:cause cc}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
+          [:wat::kernel::ConnectOutcome.Undialable {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
           [:wat::kernel::ConnectOutcome.Failed {:cause cc}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))])
      final (:wat::core::match (:probe::Counter/get mc (:probe::Counter::GetRequest))
              [:wat::kernel::RecvOutcome.Message {:msg __recv}
