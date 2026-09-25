@@ -98,23 +98,47 @@ pub(crate) fn eval_struct_new(
     // above). An unregistered class raises rather than falling back to a positional guess —
     // mirrors `eval_aggregate_new`'s `:15812` guard.
     let type_key = format!(":{}", class);
-    let names: Arc<Vec<String>> = match sym.types().and_then(|types| types.get(&type_key)) {
-        Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
-        Some(crate::types::TypeDef::Newtype(_)) => Arc::new(vec!["0".to_string()]),
-        _ => {
-            return Err(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("type {} is not a registered struct or newtype", type_key),
-                },
-            )
-            .into());
+    match sym.types().and_then(|types| types.get(&type_key)) {
+        Some(crate::types::TypeDef::Aggregate(a)) => {
+            Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
+                class,
+                a.names_arc(),
+                fields,
+            ))))
         }
-    };
-    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
-        class, names, fields,
-    ))))
+        // Excursus 003 stone R — a newtype gets its OWN constructor
+        // (`AggregateValue::newtype`, `src/value/value.rs`), not the generic `struct_` with a
+        // synthesized `names = ["0"]`: the dedicated ctor stamps the positive `is_newtype`
+        // marker the EDN writer now recognises instead of the structural `names == ["0"]` check
+        // stone Q used (`src/edn/render.rs`'s `Nature::Struct` arm). Arity (exactly one field,
+        // arc 049) is enforced by the type checker at the synthesized `<newtype>` ctor scheme
+        // (`register_newtype_methods`, `src/declare/register.rs`) — this primitive trusts the
+        // caller, mirroring the `Aggregate` arm above.
+        Some(crate::types::TypeDef::Newtype(_)) => {
+            let inner = if fields.len() == 1 {
+                fields.pop().expect("len checked above")
+            } else {
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::ArityMismatch {
+                        op: OP.into(),
+                        expected: 1,
+                        got: fields.len(),
+                    },
+                )
+                .into());
+            };
+            Ok(Value::Aggregate(Arc::new(AggregateValue::newtype(class, inner))))
+        }
+        _ => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("type {} is not a registered struct or newtype", type_key),
+            },
+        )
+        .into()),
+    }
 }
 
 /// Arc 048 — `(:wat::core::variant <type-path> <variant-name> field1 field2 ...)`

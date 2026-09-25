@@ -2493,11 +2493,18 @@ fn edn_to_typed_value_inner(
 ) -> Result<Value, EdnCoerceError> {
     use crate::types::TypeExpr;
     use wat_edn::Value as Edn;
-    // Resolve user-declared typealiases / newtypes to the underlying
-    // form so coercion logic operates against canonical types. Aliases
-    // collapse transparently; newtypes coerce against their inner
-    // declared shape (the wat-side wrapper is invisible at the EDN
-    // layer).
+    // Resolve user-declared typealiases to the underlying form so coercion logic operates
+    // against canonical types — an alias collapses transparently, `:A` and its expansion ARE
+    // the same type.
+    //
+    // Excursus 003 stone R — a newtype does NOT collapse this way. Stone Q's builder ruling: a
+    // newtype is a record-shaped value and is ALWAYS tagged, `#ns/Name <inner>`; the OLD comment
+    // here ("the wat-side wrapper is invisible at the EDN layer") was wrong and is what misled
+    // stone Q into writing the newtype's bare inner value. The typed door now accepts the TAG
+    // (refusing anything else, including a bare inner value — nothing in this tree decodes a
+    // newtype-typed slot from an untagged EDN value today: grepped every `TypeDef::Newtype` site
+    // outside this file, none touch EDN), decodes the body against the declared INNER type, and
+    // rebuilds the NEWTYPE itself (`AggregateValue::newtype`) — never the bare inner value.
     if let TypeExpr::Path(p) = target {
         if let Some(env) = types {
             if let Some(def) = env.get(p) {
@@ -2506,7 +2513,22 @@ fn edn_to_typed_value_inner(
                         return edn_to_typed_value_inner(&a.expr, edn, types, ctx);
                     }
                     crate::types::TypeDef::Newtype(n) => {
-                        return edn_to_typed_value_inner(&n.inner, edn, types, ctx);
+                        let (ns, name) = struct_tag_for(p);
+                        return match edn {
+                            Edn::Tagged(tag, body) => {
+                                if tag.namespace() != ns || tag.name() != name {
+                                    return Err(EdnCoerceError {
+                                        expected: crate::check::format_type(target),
+                                        got: format!("Tagged({}/{})", tag.namespace(), tag.name()),
+                                        path: String::new(),
+                                    });
+                                }
+                                let inner = edn_to_typed_value_inner(&n.inner, body, types, ctx)?;
+                                let class = n.name.trim_start_matches(':').to_string();
+                                Ok(Value::Aggregate(Arc::new(AggregateValue::newtype(class, inner))))
+                            }
+                            other => Err(mismatch(target, other)),
+                        };
                     }
                     _ => {}
                 }
@@ -3561,6 +3583,22 @@ fn tagged_to_value(
 
     // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
     let types = types.ok_or(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::NoTypeRegistry })?;
+
+    // Excursus 003 stone R — a newtype's tag resolves BEFORE the body-shape switch below: its
+    // body can be ANY EDN shape (scalar, vector, map, even a nested tag), since the declared
+    // inner type is unconstrained — unlike a struct/record/enum, which always wears a `Map`
+    // body (the switch below assumes that and refuses everything else). Decode the body as the
+    // newtype's declared INNER type and rebuild the NEWTYPE itself, exactly as `eval_struct_new`
+    // builds one (`AggregateValue::newtype`, `src/record/construct.rs`). Before this stone: a
+    // newtype tag with a scalar body (`#q/N 5`, the writer's own new output) had NO route at
+    // all here — it fell through every arm below to the generic `other => UnknownTag` catch-all.
+    let newtype_path = ns_to_wat_path(ns, name);
+    if let Some(crate::types::TypeDef::Newtype(n)) = types.get(&newtype_path) {
+        let inner = edn_to_value_caps(body, Some(types), allow_caps, foreign, ctx)?;
+        let inner = rewrap_option_field(&n.inner, inner);
+        let class = newtype_path.trim_start_matches(':').to_string();
+        return Ok(Value::Aggregate(Arc::new(AggregateValue::newtype(class, inner))));
+    }
 
     // Body shape disambiguates struct vs enum.
     // Arc 293.2b: For Map bodies, resolve the TypeDef to route:
@@ -4722,27 +4760,35 @@ fn value_to_edn_in(
         //
         // Excursus 003 stone Q — a NEWTYPE is `Value::Aggregate(nature=Struct)` with exactly one
         // field, synthesized-named `"0"` (`register_newtype_methods` / `eval_struct_new`,
-        // `src/record/construct.rs:103`: `Some(crate::types::TypeDef::Newtype(_)) => Arc::new(vec!["0".to_string()])`)
-        // — never spelled through the identifier lexer, so it is not a legal EDN keyword
-        // (`Keyword::new("0")` panics: the-little-wat F-030). The typed READER already treats a
-        // newtype as transparent at the EDN layer (`edn_to_typed_value_inner`, this file
-        // `:~2508`: "newtypes coerce against their inner declared shape (the wat-side wrapper is
-        // invisible at the EDN layer)") — so the writer renders a newtype value as its INNER
-        // value's EDN, never a map keyed by `:0`.
+        // `src/record/construct.rs`) — never spelled through the identifier lexer, so keying a
+        // map entry on it is not a legal EDN keyword (`Keyword::new("0")` panics: the-little-wat
+        // F-030).
         //
-        // The discriminator is STRUCTURAL, not a `types` registry lookup (which the writer's own
-        // unit tests routinely call with `types: None`, matching `value_to_edn_with(&v, None)`
-        // above at `stone_m_*`): `names == ["0"]` is the sole positional-newtype shape — EDN's
-        // `validate_first_char` (`crates/wat-edn/src/vocab.rs:~200`) refuses a leading digit, so
-        // no field name reaching this arm through the wat lexer (a real struct's declared field)
-        // can ever spell `"0"`; every other production site that builds a `Struct`-nature
-        // aggregate passes its own fixed/registered names (grepped: `bound_names()`,
-        // `eval_error_names()`, `capacity_exceeded_names()`, `coincident_explanation_names()`,
-        // `def.names_arc()`/`agg.names_arc()`). This still works with no type registry at all.
+        // Excursus 003 stone R — the builder's ruling corrects stone Q: a newtype is a
+        // record-shaped value and is ALWAYS tagged, the same as any other struct. Stone Q's
+        // bare-inner write (`5` for `(:q::N 5)`) broke round-trip identity — the untagged
+        // aggregate read back as a bare `i64` everywhere, and `(= (:q::N 5) m)` after a wire
+        // trip raised `TypeMismatch` (one side `Aggregate`, one side `i64`). Arc 237 already
+        // treats a newtype as NOMINAL ("identity check: value's tag == name"). So a newtype
+        // renders as `Tagged(tag_from_type_path, <inner value's EDN>)` — `#q/N 5` — never bare;
+        // never a map keyed by `:0` either, since the newtype has no field NAME, only a
+        // position.
+        //
+        // The discriminator is the POSITIVE `is_newtype` marker (`AggregateValue::newtype`,
+        // `src/value/value.rs`), stamped only by `eval_struct_new`'s `TypeDef::Newtype` arm —
+        // not the structural `names == ["0"]` check stone Q used. The marker travels WITH the
+        // value, so this still works with no type registry in scope (the writer's own unit
+        // tests routinely call it with `types: None`, matching `value_to_edn_with(&v, None)`
+        // above at `stone_m_*`). Every other production site that builds a `Struct`-nature
+        // aggregate goes through `AggregateValue::struct_` (`is_newtype: false`), never
+        // `AggregateValue::newtype` — grepped: `bound_names()`, `eval_error_names()`,
+        // `capacity_exceeded_names()`, `coincident_explanation_names()`, `def.names_arc()`/
+        // `agg.names_arc()` construction sites.
         Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             let type_key = format!(":{}", sv.class);
-            if sv.names.as_slice() == ["0"] {
-                value_to_edn_in(&sv.fields[0], types, mode)?
+            if sv.is_newtype {
+                let tag = tag_from_type_path(&type_key);
+                OwnedValue::Tagged(tag, Box::new(value_to_edn_in(&sv.fields[0], types, mode)?))
             } else {
                 let tag = tag_from_type_path(&type_key);
                 // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
@@ -5509,7 +5555,7 @@ mod tests {
         assert!(matches!(v, Value::i64(42)));
     }
 
-    // ─── Excursus 003 stone Q — printing a newtype does not panic ───────────────────────
+    // ─── Excursus 003 stone Q/R — printing a newtype does not panic, and is tagged ───────
     //
     // The driven repro (`the-little-wat/probes/ml/newtype-value.wat`, `(:wat::kernel::println
     // (:u::N 5))`) and its round-trip/wire/mutation proofs live in
@@ -5518,20 +5564,46 @@ mod tests {
     // and an invalid struct field name are both unspellable through the identifier lexer — so,
     // like stone M's refusals, they are unit tests beside the writer instead.
 
-    /// A newtype `Value::Aggregate(nature=Struct, names=["0"])` — the exact shape
-    /// `eval_struct_new` builds (`src/record/construct.rs:103`) — renders as its INNER value's
-    /// EDN, never a map keyed by `:0` (which would panic: `Keyword::new("0")` is invalid — the
-    /// first character must be non-numeric). No type registry needed; the discriminator is
-    /// structural (`names == ["0"]`).
+    /// Stone R — the builder's ruling corrects stone Q's bare-inner write: a newtype is
+    /// record-shaped and is ALWAYS tagged. A newtype `Value::Aggregate(nature=Struct,
+    /// is_newtype=true)` — built by `AggregateValue::newtype`, the exact shape `eval_struct_new`
+    /// builds for a `TypeDef::Newtype` (`src/record/construct.rs`) — renders as
+    /// `Tagged(tag_from_type_path, <inner value's EDN>)`, never bare and never a map keyed by
+    /// `:0` (which would panic: `Keyword::new("0")` is invalid — the first character must be
+    /// non-numeric). No type registry needed; the discriminator is the POSITIVE `is_newtype`
+    /// marker the value itself carries, not the structural `names == ["0"]` check stone Q used.
     #[test]
-    fn stone_q_a_newtype_renders_as_its_inner_value_never_a_0_keyed_map() {
-        let v = Value::Aggregate(Arc::new(AggregateValue::struct_(
+    fn stone_r_a_newtype_renders_tagged_never_bare_never_a_0_keyed_map() {
+        let v = Value::Aggregate(Arc::new(AggregateValue::newtype(
             "q::probe::N".to_string(),
+            Value::i64(5),
+        )));
+        let edn = value_to_edn_with(&v, None).expect("a newtype renders — it must not panic");
+        assert_eq!(
+            edn,
+            OwnedValue::Tagged(Tag::ns("q.probe", "N"), Box::new(OwnedValue::Integer(5)))
+        );
+    }
+
+    /// Mutation-proof for stone R: a `Value::Aggregate` shaped exactly like a newtype
+    /// (`names == ["0"]`, one field) but built through the ORDINARY `struct_` constructor
+    /// (`is_newtype: false`, e.g. a real struct that happens to declare a field named `"0"` —
+    /// unreachable through the wat lexer, but this is the writer's own unit test, not surface
+    /// syntax) renders as a MAP, not as its bare/tagged inner value: the discriminator is the
+    /// marker, never the shape.
+    #[test]
+    fn stone_r_the_marker_not_the_shape_decides() {
+        let v = Value::Aggregate(Arc::new(AggregateValue::struct_(
+            "q::probe::NotANewtype".to_string(),
             Arc::new(vec!["0".to_string()]),
             vec![Value::i64(5)],
         )));
-        let edn = value_to_edn_with(&v, None).expect("a newtype renders — it must not panic");
-        assert_eq!(edn, OwnedValue::Integer(5));
+        let err = value_to_edn_with(&v, None)
+            .expect_err("names==[\"0\"] alone must NOT be treated as a newtype");
+        match err.kind() {
+            RuntimeErrorKind::MalformedForm { head, .. } => assert_eq!(head, ":wat::edn::write"),
+            other => panic!("expected MalformedForm (illegal field keyword \"0\"), got {other:?}"),
+        }
     }
 
     /// The class-wide backstop: a Struct/Record/HolonRecord field whose name is not a legal EDN
