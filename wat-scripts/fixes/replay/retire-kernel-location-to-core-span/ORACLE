@@ -4,7 +4,7 @@
 # step 1), so there is no prior commit in which the after-shape exists. The oracle is the
 # header's own SPEC quote.
 
-spec-before   (:wat::core::defrecord :wat::kernel::Location [file <- :wat::core::String line <- :wat::core::i64 col <- :wat::core::i64]) :: the standalone `(:wat::core::defrecord :wat::kernel::Location …)` declaration is deleted from the file that declares it
+spec-before   (:wat::core::defrecord :wat::kernel::Location [file <- :wat::core::String line <- :wat::core::i64 col <- :wat::core::i64]) :: the standalone `(:wat::core::defrecord :wat::kernel::Location …)` declaration is deleted
 
 spec-before   (:wat::core::defrecord :u::Holder [location <- :wat::kernel::Location]) :: is renamed to `:wat::core::Span`
 
