@@ -138,3 +138,12 @@ prefix is the same convention-not-shape defect this campaign keeps removing).
 Not one strike. In order, each landing green: (1) the location shape (D1); (2) frames captured on the
 Rust error types (D3) — invisible to users until (3); (3) the envelope carries `Failure` (D2), the golden
 recapture; (4) the derived primary location (D4), which retires C-114.
+
+## RULING 2026-09-26 — a runtime error is a declared wat record, one per kind (option A)
+
+Builder: *"4 YES has been reasoned. Define the new records in wat code and use the existing tooling to
+macro rust code from them"*. Each `RuntimeErrorKind` becomes a `defrecord :wat::runtime::<Kind>` in
+`.wat` — the `:wat::core::Error` floor (`message location causes`) plus its kind-specific fields — and
+the Rust side is DERIVED from those declarations by the existing wat-source-derive tooling (wat is the
+source of truth; no second copy to drift). Step 3 splits: **3a** declares the records and round-trips
+every kind through them; **3b** the envelope carries `Failure`.
