@@ -52,6 +52,7 @@
 ;; receivers — together the two files prove native and oracle agree on the raise, not just
 ;; on the happy path. Death-expectation idiom per `wat-tests/core/core-seq-walkers.wat`.
 
+(:wat::test::time-limit "15s")
 (:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-vector-raises
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
@@ -72,6 +73,7 @@
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
 
+(:wat::test::time-limit "15s")
 (:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-persistentvector-raises
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
@@ -92,6 +94,7 @@
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
 
+(:wat::test::time-limit "15s")
 (:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-list-raises
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)

@@ -42,8 +42,7 @@
 
 use crate::ast::WatAST;
 use crate::declare::parse::{
-    is_declaration_form, is_declaration_head, is_type_arg_shaped,
-    parse_type_slot,
+    is_declaration_form, is_declaration_head, is_type_arg_shaped, parse_type_slot,
 };
 use crate::declare::register::{meta_has_doc_axis_key, register_runtime_defs};
 // Arc 109 Stone the-declare-home — test-only after the move: the lib target has no
@@ -934,7 +933,11 @@ pub enum ClauseRegPhase {
 /// Non-fn, non-registered, non-form heads delegate to [`eval`]
 /// so error handling (NotCallable, UnboundSymbol, primitive
 /// dispatch, `Some`/`Ok`/`Err` constructors) is unchanged.
-pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_tail(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let (items, list_span) = match ast {
         WatAST::List(items, span) if !items.is_empty() => (items, span.clone()),
         _ => return eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
@@ -1071,7 +1074,8 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                         .iter()
                         .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                         .collect::<Result<Vec<_>, _>>()?;
-                    let (idx, _scope) = crate::function::select_defclause_clause(&cs, &vals, &list_span, sym)?;
+                    let (idx, _scope) =
+                        crate::function::select_defclause_clause(&cs, &vals, &list_span, sym)?;
                     let clause = &cs.clauses[idx];
                     // ⚠ `:ensure` is a POST-condition — it runs AFTER the body, and a tail call
                     // abandons the frame it would return into. An ensure-bearing clause therefore
@@ -1421,7 +1425,6 @@ fn eval_or(
     }
     Ok(Value::bool(false))
 }
-
 
 /// Mirrors [`eval_if_tail`]'s shape: every operand but the LAST keeps the ordinary strict,
 /// checked evaluation (short-circuiting `false`); the last operand is handed to [`eval_tail`] so
@@ -1952,7 +1955,8 @@ fn dispatch_keyword_head(
         // that function's own copy of this check for why the same placement there does NOT
         // reach a rete-prefixed head the same way.
         if let Some(core) = entry.alias_of {
-            return dispatch_keyword_head_value(core, args, list_span, env, sym).map(TrackedValue::from);
+            return dispatch_keyword_head_value(core, args, list_span, env, sym)
+                .map(TrackedValue::from);
         }
         if entry.purity == wat_doc::Purity::Unevaluated {
             return Err(RuntimeError::new(
@@ -2661,7 +2665,13 @@ fn dispatch_keyword_head_value(
         //
         // Arc 234 Stone 234.4 — slash-form alias for i64::to-f64 (untouched — a
         // different naming scheme, not part of this stone's `::`-retirement).
-        ":wat::core::i64/to-f64" => crate::numeric::convert::eval_i64_to_f64(args, list_span, env, sym, ":wat::core::i64/to-f64"),
+        ":wat::core::i64/to-f64" => crate::numeric::convert::eval_i64_to_f64(
+            args,
+            list_span,
+            env,
+            sym,
+            ":wat::core::i64/to-f64",
+        ),
         // `:wat::string::to-i64` / `to-f64` / `to-bool` are REGISTERED now
         // (`intrinsic/string.rs`, arc 255 home #4 phase 2) — no arm here; see the
         // registry-hoist note a few dozen lines up this match.
@@ -2706,7 +2716,13 @@ fn dispatch_keyword_head_value(
         // `docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`.
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
-        ":wat::core::i64/to-string" => crate::numeric::convert::eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
+        ":wat::core::i64/to-string" => crate::numeric::convert::eval_i64_to_string(
+            args,
+            list_span,
+            env,
+            sym,
+            ":wat::core::i64/to-string",
+        ),
 
         // Arc 255 Stone F — the `String/` namespace aliases (Stone 237.3) that lived here
         // (concat/starts-with?/ends-with?/contains?/empty?) are RETIRED. Their replacement is
@@ -2958,9 +2974,16 @@ fn dispatch_keyword_head_value(
         // means a form added later to this cluster inherits the fix instead of
         // re-earning the bug; peeling inside each helper was ten edits, ten chances to
         // miss one, and no guarantee for an eleventh.
-        head @ (":wat::eval-ast!" | ":wat::eval-with-defs!" | ":wat::eval-step!"
-        | ":wat::eval::walk" | ":wat::eval-edn!" | ":wat::eval-file!" | ":wat::eval-digest!"
-        | ":wat::eval-digest-string!" | ":wat::eval-signed!" | ":wat::eval-signed-string!") => {
+        head @ (":wat::eval-ast!"
+        | ":wat::eval-with-defs!"
+        | ":wat::eval-step!"
+        | ":wat::eval::walk"
+        | ":wat::eval-edn!"
+        | ":wat::eval-file!"
+        | ":wat::eval-digest!"
+        | ":wat::eval-digest-string!"
+        | ":wat::eval-signed!"
+        | ":wat::eval-signed-string!") => {
             let (_binder, args) = crate::types::peel_param_spec(args);
             match head {
                 ":wat::eval-ast!" => eval_form_ast(args, env, sym, list_span),
@@ -3573,9 +3596,9 @@ fn dispatch_keyword_head_value(
             // directly (`def_value(other)` just below already does, unstripped).
             // Arc 296 M — enum variant map ctor. Intercept BEFORE the
             // synthesized positional Function (tagged) / UnknownFunction (unit).
-            if let Some(result) = crate::record::construct::try_eval_enum_map_ctor(
-                other, args, list_span, env, sym,
-            ) {
+            if let Some(result) =
+                crate::record::construct::try_eval_enum_map_ctor(other, args, list_span, env, sym)
+            {
                 return result;
             }
             let func = match sym.get(other) {
@@ -3602,7 +3625,9 @@ fn dispatch_keyword_head_value(
                             // Stone 237.2 — defclause-bound value dispatch.
                             Value::wat__core__clauses(cs) => {
                                 let cs = cs.clone();
-                                return crate::function::eval_call_to_defclause(cs, args, list_span, env, sym);
+                                return crate::function::eval_call_to_defclause(
+                                    cs, args, list_span, env, sym,
+                                );
                             }
                             other_val => {
                                 return Err(RuntimeError::new(
@@ -3669,7 +3694,10 @@ fn dispatch_keyword_head_value(
                         synth_args.push(WatAST::Keyword(other.to_string(), list_span.clone()));
                         synth_args.extend(args.iter().cloned());
                         return crate::record::construct::eval_kwargs_construct(
-                            &synth_args, list_span, env, sym,
+                            &synth_args,
+                            list_span,
+                            env,
+                            sym,
                         );
                     }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
@@ -4983,18 +5011,10 @@ fn eval_keyword_constructor(
     sym: &SymbolTable,
     require_colon: bool,
 ) -> Result<TrackedValue, EvalBreak> {
-    let s = eval_one_arg(
-        op,
-        args,
-        list_span,
-        env,
-        sym,
-        "String",
-        |v| match v {
-            Value::String(s) => Ok(s),
-            other => Err(other),
-        },
-    )?;
+    let s = eval_one_arg(op, args, list_span, env, sym, "String", |v| match v {
+        Value::String(s) => Ok(s),
+        other => Err(other),
+    })?;
     if angle_type_head_in_name(&s) {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -5067,14 +5087,7 @@ pub(crate) fn eval_keyword_from_name(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
-    eval_keyword_constructor(
-        ":wat::keyword::from-name",
-        args,
-        list_span,
-        env,
-        sym,
-        false,
-    )
+    eval_keyword_constructor(":wat::keyword::from-name", args, list_span, env, sym, false)
 }
 
 // ─── Arc 232 Stone 232.0 — :wat::core::apply ────────────────────────────────
@@ -5187,7 +5200,12 @@ fn eval_apply(
     // refused by the keyword gate below. `combined` is already the evaluated args, which is
     // precisely what the value-level entry wants.
     if let Value::wat__core__clauses(cs) = &head_val {
-        return crate::function::eval_call_to_defclause_with_vals(cs.clone(), combined, &list_span, sym);
+        return crate::function::eval_call_to_defclause_with_vals(
+            cs.clone(),
+            combined,
+            &list_span,
+            sym,
+        );
     }
 
     // Step 6 — keyword-valued head: extract name + dispatch chain.
@@ -6743,9 +6761,9 @@ pub(crate) fn eval_assoc(
             MapContainer::PersistentMap => {
                 crate::collection::eval::persistentmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val)
             }
-            MapContainer::Record => {
-                crate::record::update::record_assoc_inner(arg0_val, arg1_val, arg2_val, list_span, sym)
-            }
+            MapContainer::Record => crate::record::update::record_assoc_inner(
+                arg0_val, arg1_val, arg2_val, list_span, sym,
+            ),
         },
         Some(_) => Err(RuntimeError::new(
             list_span.clone(),
@@ -6824,7 +6842,11 @@ pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
 // `intrinsic/special/stream_lazy.rs`'s thin `role = eval` delegate (needed because this fn's
 // own 3-param signature — no `sym` — does not fit the canonical 4-param `NativeHandler` shape,
 // same asymmetry `eval_quote`/`eval_fn` hit) can call it from another module. Body untouched.
-pub(crate) fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_lazy_seq(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -7329,7 +7351,9 @@ fn fn_value_to_form(f: &Function, op: &str, span: Span) -> Result<WatAST, EvalBr
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "a form",
-                got: Box::new(ValueSnapshot::of(&Value::wat__core__fn(Arc::new(f.clone())))),
+                got: Box::new(ValueSnapshot::of(&Value::wat__core__fn(Arc::new(
+                    f.clone(),
+                )))),
             },
         )
         .into());
@@ -7340,7 +7364,9 @@ fn fn_value_to_form(f: &Function, op: &str, span: Span) -> Result<WatAST, EvalBr
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "a form",
-                got: Box::new(ValueSnapshot::of(&Value::wat__core__fn(Arc::new(f.clone())))),
+                got: Box::new(ValueSnapshot::of(&Value::wat__core__fn(Arc::new(
+                    f.clone(),
+                )))),
             },
         )
         .into());
@@ -7401,7 +7427,9 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
                 .collect::<Result<Vec<_>, _>>()?,
             span,
         )),
-        Value::wat__std__HashMap(m) => Ok(WatAST::Map(sorted_pairs(op, m.iter(), span.clone())?, span)),
+        Value::wat__std__HashMap(m) => {
+            Ok(WatAST::Map(sorted_pairs(op, m.iter(), span.clone())?, span))
+        }
         Value::wat__core__PersistentMap(m) => {
             Ok(WatAST::Map(sorted_pairs(op, m.iter(), span.clone())?, span))
         }
@@ -7429,10 +7457,22 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
                 .cloned()
                 .zip(ev.fields.into_iter())
                 .collect();
-            Ok(enum_value_form(&ev.type_path, &ev.variant_name, fields, op, span)?)
+            Ok(enum_value_form(
+                &ev.type_path,
+                &ev.variant_name,
+                fields,
+                op,
+                span,
+            )?)
         }
         Value::Option(o) => match Arc::try_unwrap(o).unwrap_or_else(|a| (*a).clone()) {
-            None => Ok(enum_value_form(":wat::core::Option", "None", Vec::new(), op, span)?),
+            None => Ok(enum_value_form(
+                ":wat::core::Option",
+                "None",
+                Vec::new(),
+                op,
+                span,
+            )?),
             Some(v) => Ok(enum_value_form(
                 ":wat::core::Option",
                 "Some",
@@ -7912,17 +7952,26 @@ fn eval_metadata_of(
             // `ToEnumValue::to_enum_value` calls the registry branch makes, fed from
             // `DocComment`'s typed fields instead of `IntrinsicEntry`'s. Same `Value::Enum`
             // over the same `wat_doc` enum type either way — the fix the NOTE asked for.
-            put(":purity", crate::intrinsic::ToEnumValue::to_enum_value(&doc.purity));
+            put(
+                ":purity",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.purity),
+            );
             put(
                 ":determinism",
                 crate::intrinsic::ToEnumValue::to_enum_value(&doc.determinism),
             );
-            put(":totality", crate::intrinsic::ToEnumValue::to_enum_value(&doc.totality));
+            put(
+                ":totality",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.totality),
+            );
             put(
                 ":expand-time",
                 crate::intrinsic::ToEnumValue::to_enum_value(&doc.expand_time),
             );
-            put(":category", crate::intrinsic::ToEnumValue::to_enum_value(&doc.category));
+            put(
+                ":category",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.category),
+            );
             // :defined-in — a fact at THIS site: this branch is reached only from
             // `sym.binding_metadata`, which only a wat `defn`/`def` populates (STOP-4). Not a
             // default beside a derived field — the registry branch above is the ONLY other
@@ -7938,11 +7987,7 @@ fn eval_metadata_of(
             // inspection. `:yields` is omitted here too (named gap — see `DocContractEmit`).
             put(":doc", Value::String(Arc::new(doc.prose.clone())));
             put(":added", Value::String(Arc::new(doc.added.clone())));
-            emit_doc_contract(
-                &mut put,
-                &doc_contract_from_comment(&doc),
-                name_ast.span(),
-            )?;
+            emit_doc_contract(&mut put, &doc_contract_from_comment(&doc), name_ast.span())?;
             Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(
                 Arc::new(map),
             )))))
@@ -7997,7 +8042,6 @@ fn eval_metadata_of(
 
 // Arc 109 Stone — the reflect home — `resolve_aggregate_def_for_reflection` moved to `src/reflect/verbs.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
-
 
 // Arc 109 Stone — the reflect home — `eval_form_matches` moved to `src/reflect/match.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -8824,10 +8868,7 @@ fn bind_map_value(
         WatAST::Symbol(s, _) if s.as_str() == "_" => Ok(Some(env.clone())),
         WatAST::Symbol(s, _) => Ok(Some(
             env.child()
-                .bind_unknown_span(
-                    crate::scope::env_key(s),
-                    TrackedValue::from(value.clone()),
-                )
+                .bind_unknown_span(crate::scope::env_key(s), TrackedValue::from(value.clone()))
                 .build(),
         )),
         WatAST::List(items, span) => match items.first() {
@@ -8958,7 +8999,8 @@ fn match_variant_map(
         },
         None => match value {
             Value::Enum(ev) => {
-                let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
+                let composed =
+                    wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
                 if composed != path {
                     return Ok(None);
                 }
@@ -9100,9 +9142,7 @@ pub(crate) fn try_match_pattern(
         // via the built-in `Option` enum registration in `types.rs`). Additive
         // recognition, same move as `:wat::core::nil` (`types.rs:1056`): a third
         // spelling is added beside the existing two; nothing is removed.
-        WatAST::Keyword(k, span)
-            if k == ":None" || k == ":wat::core::None" =>
-        {
+        WatAST::Keyword(k, span) if k == ":None" || k == ":wat::core::None" => {
             Err(RuntimeError::new(
                 span.clone(),
                 RuntimeErrorKind::MalformedForm {
@@ -9112,14 +9152,10 @@ pub(crate) fn try_match_pattern(
             )
             .into())
         }
-        WatAST::Keyword(k, _)
-            if k == ":wat::core::Option.None" =>
-        {
-            match value {
-                Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
-                _ => Ok(None),
-            }
-        }
+        WatAST::Keyword(k, _) if k == ":wat::core::Option.None" => match value {
+            Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
         // Arc 055 — literal sub-patterns compare by equality.
         WatAST::IntLit(n, _) => match value {
             Value::i64(v) if v == n => Ok(Some(outer.clone())),
@@ -9161,7 +9197,8 @@ pub(crate) fn try_match_pattern(
         // upstream by the checker; here we just compare paths.
         WatAST::Keyword(k, _) => match value {
             Value::Enum(ev) => {
-                let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
+                let composed =
+                    wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
                 if composed == *k && ev.fields.is_empty() {
                     Ok(Some(outer.clone()))
                 } else {
@@ -9301,7 +9338,10 @@ pub(crate) fn try_match_pattern(
                 // chaining.
                 WatAST::Keyword(variant_path, _) => match value {
                     Value::Enum(ev) => {
-                        let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
+                        let composed = wat_reader::identifier::compose_variant(
+                            &ev.type_path,
+                            &ev.variant_name,
+                        );
                         if composed != *variant_path {
                             return Ok(None);
                         }
@@ -9485,7 +9525,6 @@ pub(crate) fn try_match_pattern(
         .into()),
     }
 }
-
 
 /// `(:wat::core::type <any-value>) -> :wat::core::String` — arc 234 Stone 234.0.
 ///
@@ -10491,7 +10530,6 @@ fn eval_subtype(
 
 // ─── Arc 294.c.2a — aggregate-new + build_holon_hologram ─────────────────────
 
-
 // Arc 109 Stone — the record home — `eval_aggregate_new` moved to `src/record/construct.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
@@ -10519,7 +10557,6 @@ fn eval_subtype(
 // Arc 109 Stone — the record home — `eval_to_core_record` moved to `src/record/project.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-
 // ─── End Arc 293 K3 ───────────────────────────────────────────────────────────
 
 // Arc 109 Stone — the record home — `eval_record_field_at` moved to `src/record/access.rs`
@@ -10546,15 +10583,11 @@ fn eval_subtype(
 // Arc 109 Stone — the record home — `eval_record_assoc` moved to `src/record/update.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-
 // ─── Algebra-core UpperCall runtime construction ────────────────────────
-
 
 // ─── Arc 074 — Substrate floor accessors ────────────────────────────
 
-
 // ─── Arc 076 — therm-routed Hologram + filtered-argmax ─────────────
-
 
 // ─── Arc 228 — Pascal-Case collection classifier-wrap constructors ────────────
 //
@@ -10562,7 +10595,6 @@ fn eval_subtype(
 // Bind(Atom("ClassName"), Bundle(items)) per the typed-entities doctrine.
 // The outer Bind carries the classifier; the inner Bundle carries the data.
 // Type recovery: extract the classifier-atom from the outer Bind.
-
 
 // ─── Arc 226 Stone 226.1 — Type predicates (classifier-name match) ───────────
 //
@@ -10582,7 +10614,6 @@ fn eval_subtype(
 //
 // Non-HolonAST values (bare i64, String, etc.) are accepted but return false —
 // the absence of a classifier is an honest "not this type" signal.
-
 
 // Arc 109 Stone — holon into parity — `PairedVectors` moved to
 // `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -10749,7 +10780,6 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
     }
 }
 
-
 // Arc 109 Stone — holon into parity — `cosine_outcome_from_values` moved to
 // `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
@@ -10805,7 +10835,6 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
 // No universe metadata in the bytes — per DESIGN Q5: the seed is
 // the receiver's responsibility to know. V + K + F three-factor
 // verification UX.
-
 
 // ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
 //
@@ -11029,7 +11058,6 @@ fn eval_str(
     let s = crate::string::render_str_total(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(s)))
 }
-
 
 // ─── Function application ───────────────────────────────────────────────
 
@@ -11280,8 +11308,8 @@ pub fn apply_function(
 // Moved to crate::value::frame (Stone 251.2a). Re-exported below for
 // in-module use.
 
-use crate::value::{replace_top_frame, FrameGuard};
 use crate::value::FrameInfo;
+use crate::value::{replace_top_frame, FrameGuard};
 
 // ─── Seven eval forms ────────────────────────────────────────────────────
 //
@@ -11545,7 +11573,11 @@ pub(crate) fn require_encoding_ctx<'a>(
 /// Arc 077: the program runs at one d. Read it from the ambient
 /// `EncodingCtx`. Returns `NoEncodingCtx` if no ctx is attached
 /// (test harnesses that bypass freeze).
-pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span) -> Result<usize, EvalBreak> {
+pub(crate) fn program_dim(
+    op: &'static str,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<usize, EvalBreak> {
     let ctx = require_encoding_ctx(op, sym, list_span)?;
     Ok(ctx.dim_count)
 }
@@ -11561,11 +11593,7 @@ pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span)
 // Arc 109 Stone B — the seven kernel sub-modules — `eval_listener_prime` moved to
 // `src/kernel/resource.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-::wat_source_derive::wat_field_names_from!(
-    BOUND_FIELDS,
-    "wat/spawn.wat",
-    ":wat::spawn::Bound"
-);
+::wat_source_derive::wat_field_names_from!(BOUND_FIELDS, "wat/spawn.wat", ":wat::spawn::Bound");
 // Arc 109 Stone B — the seven kernel sub-modules — `bound_names` moved to
 // `src/kernel/source.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
@@ -12309,6 +12337,10 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
             "no-step-rule",
             format!("eval-step! has no rule for op: {}", op),
         ),
+        RuntimeErrorKind::NoProgress { form, .. } => (
+            "no-progress",
+            format!("eval-step! made no progress on {}", form),
+        ),
         RuntimeErrorKind::MalformedForm { head, reason, .. } => {
             ("malformed-form", format!("{}: {}", head, reason))
         }
@@ -12802,7 +12834,6 @@ pub(crate) fn eval_form_against_defs(
     Ok((form_outcome("Evaluated", vec![result]), Some(session_sym)))
 }
 
-
 // ─── Incremental evaluator (arc 068) — :wat::eval-step! ─────────────
 //
 // `:wat::eval-step!` performs ONE call-by-value reduction at the
@@ -12882,7 +12913,7 @@ fn eval_form_step(
                 .into());
             }
         };
-        let stepped = step_form(&ast, env, sym)?;
+        let stepped = checked_step(&ast, env, sym)?;
         Ok(step_value_to_enum(stepped))
     })())
 }
@@ -12966,7 +12997,7 @@ fn eval_walk(
             }
         };
         loop {
-            let stepped = step_form(&current_form, env, sym)?;
+            let stepped = checked_step(&current_form, env, sym)?;
             // Cache the structural shape before we hand it to
             // visit so we can decide what to do post-visit
             // (recurse on next form, or return on terminal).
@@ -13201,37 +13232,34 @@ fn step_form(form: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Step
         )
         .into()),
         WatAST::List(items, span) => step_list(items, span, env, sym),
-        // Arc 167 slice 1 — vector literals reaching the stepper
-        // means a binding-position consumer hasn't intercepted
-        // them. Surface as NoStepRule so the consumer falls back
-        // to eval, which raises the canonical "vector literals at
-        // value position" error.
-        WatAST::Vector(_, vec_span) => Err(RuntimeError::new(
-            vec_span.clone(),
-            RuntimeErrorKind::NoStepRule {
-                op: "<vector literal>".into(),
-            },
-        )
-        .into()),
-        // Arc 257 slice 1 — Map/Set literals reaching the stepper
-        // fall through to eval via NoStepRule.
-        WatAST::Map(_, map_span) => Err(RuntimeError::new(
-            map_span.clone(),
-            RuntimeErrorKind::NoStepRule {
-                op: "<map literal>".into(),
-            },
-        )
-        .into()),
-        WatAST::Set(_, set_span) => Err(RuntimeError::new(
-            set_span.clone(),
-            RuntimeErrorKind::NoStepRule {
-                op: "<set literal>".into(),
-            },
-        )
-        .into()),
+        // A vector, map, or set literal is a value once each element is.
+        // A redex inside one is the step.
+        WatAST::Vector(items, span) => step_node_list(items, span, env, sym, |items, span| {
+            WatAST::Vector(items, span)
+        }),
+        WatAST::Map(pairs, span) => {
+            for (i, (k, v)) in pairs.iter().enumerate() {
+                if let ChildStep::Progress(nk) = step_child(k, env, sym)? {
+                    let mut pairs = pairs.clone();
+                    pairs[i].0 = nk;
+                    return Ok(StepValue::Next(WatAST::Map(pairs, span.clone())));
+                }
+                if let ChildStep::Progress(nv) = step_child(v, env, sym)? {
+                    let mut pairs = pairs.clone();
+                    pairs[i].1 = nv;
+                    return Ok(StepValue::Next(WatAST::Map(pairs, span.clone())));
+                }
+            }
+            Ok(StepValue::Terminal(WatAST::Map(
+                pairs.clone(),
+                span.clone(),
+            )))
+        }
+        WatAST::Set(items, span) => step_node_list(items, span, env, sym, |items, span| {
+            WatAST::Set(items, span)
+        }),
     }
 }
-
 
 /// Dispatcher for a `List` form. Recognizes the head keyword and
 /// chooses the matching rule: special forms (if / let / match) get
@@ -13245,6 +13273,22 @@ fn step_list(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
+    // A namespaced symbol head means the keyword `parse_type_node` builds
+    // with `ns_to_wat_path`. Rewrite the head to that keyword and step the
+    // rewritten form, so the rule that fires hands `eval` the keyword and
+    // not the symbol (eval looks a symbol head up as a local).
+    let rewritten = match items.first() {
+        Some(WatAST::Symbol(ident, span)) if ident.as_str().contains('/') => {
+            let kw = crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
+            let mut rewritten = items.to_vec();
+            rewritten[0] = WatAST::Keyword(kw, span.clone());
+            Some(rewritten)
+        }
+        _ => None,
+    };
+    if let Some(rewritten) = rewritten {
+        return step_list(&rewritten, list_span, env, sym);
+    }
     let head = match items.first() {
         Some(h) => h,
         None => {
@@ -13257,10 +13301,9 @@ fn step_list(
     };
     let head_kw = match head {
         WatAST::Keyword(k, _) => k.clone(),
+        // A bare symbol is a local name. Substitution replaces it with a
+        // value before the call; one that is still here was not bound.
         WatAST::Symbol(ident, sym_span) => {
-            // Bare-symbol heads (inline fn call sites, let-bound
-            // function values) need a higher-order step rule that
-            // hasn't shipped yet. Phase 3 territory.
             return Err(RuntimeError::new(
                 sym_span.clone(),
                 RuntimeErrorKind::NoStepRule {
@@ -13268,6 +13311,11 @@ fn step_list(
                 },
             )
             .into());
+        }
+        // A list in head position is either a `fn` form being applied,
+        // or a call that still has to step (it may become a `fn` form).
+        WatAST::List(_, _) => {
+            return step_list_head(items, head, list_span, env, sym);
         }
         _ => {
             return Err(RuntimeError::new(
@@ -13331,7 +13379,9 @@ fn step_list(
         | ":wat::f64::min"
         // arc 237 Stone 237.8a — +'i64'f64 / +'f64'i64 etc. mixed-type
         // canonical entries DELETED under THE DECISION.
-        | ":wat::core::u8" => step_descend_then_fire(items, list_span, env, sym),
+        | ":wat::core::u8"
+        | ":wat::core::type"
+        | ":wat::core::struct-field" => step_descend_then_fire(items, list_span, env, sym),
         // Holon constructors — pure ops over the closed algebra (arc 057).
         // They use a holon-canonical fire condition: a list whose head is
         // itself a holon constructor with recursively-canonical args
@@ -13375,9 +13425,9 @@ fn step_list(
             list_span.clone(),
         ))),
         _ => {
-            // User-defined function looked up by full keyword path.
-            // Top-level defines have closed_env=None; closures (from
-            // fn) have it Some — we refuse those for now (Phase 3).
+            if let Some(stepped) = step_data_form(items, list_span, env, sym, &head_kw)? {
+                return Ok(stepped);
+            }
             if sym.has_function(&head_kw) {
                 step_user_call(items, list_span, env, sym, &head_kw)
             } else {
@@ -13397,49 +13447,280 @@ fn step_list(
 // Arc 109 Stone — the last two map items — `is_effectful_op` moved to
 // `src/rete/purity.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// True iff `form` is a primitive literal — Phase 2's notion of
-/// canonicity for arithmetic/comparison/logical fire conditions.
-/// Lists and symbols are non-canonical.
-fn is_step_canonical(form: &WatAST) -> bool {
-    matches!(
-        form,
-        WatAST::IntLit(_, _)
-            | WatAST::FloatLit(_, _)
-            | WatAST::BoolLit(_, _)
-            | WatAST::StringLit(_, _)
-            | WatAST::Keyword(_, _)
-            // NOT part of the orchestrator's brief for this stone — flagged as a
-            // separate finding, fixed here because without it the stone's own
-            // `value_to_watast` fix in `step_descend_then_fire` is unreachable
-            // through `:wat::eval-step!`: a RationalLit/BigIntLit ARGUMENT was
-            // never "canonical," so a pure-op redex needing one (e.g.
-            // `(:wat::core::+ 1/2 1/3)`) never reached the fire branch at all —
-            // the descend loop re-stepped the already-terminal operand forever,
-            // returning an unchanged `StepNext` on every call. See this stone's
-            // report for the reproducing probe (captured before this change).
-            | WatAST::RationalLit(_, _)
-            | WatAST::BigIntLit(_, _)
-    )
+/// What one step of `form` did, for a rule that descended into it.
+///
+/// A value is not a separate list of node shapes. It is the fact that
+/// `step_form` answered `Terminal` or `AlreadyTerminal` of this same
+/// form — the terminal rules are the only list. `Progress` is a
+/// different form to splice in. `StepNext` of the same form is
+/// [`RuntimeErrorKind::NoProgress`], not a value and not a loop.
+enum ChildStep {
+    Value,
+    Progress(WatAST),
 }
 
-/// Step `form` and lift the result back into a `WatAST` so callers
-/// rebuilding an outer form have something to splice in. Every
-/// `StepValue` arm already carries a `WatAST` (arc 255
-/// STONE-stepvalue-is-watast) — no `holon_to_watast` bridge left here.
-fn step_to_watast(
+fn no_progress(form: &WatAST) -> EvalBreak {
+    let rendered = wat_edn::write(&crate::edn::bridge::watast_to_edn(form));
+    RuntimeError::new(
+        form.span().clone(),
+        RuntimeErrorKind::NoProgress { form: rendered },
+    )
+    .into()
+}
+
+/// `eval-step!` and `walk` both enter here. A rule that hands back the
+/// form it was given is the named error, never a silent fixed point.
+fn checked_step(
     form: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<WatAST, EvalBreak> {
-    match step_form(form, env, sym)? {
-        StepValue::Next(w) => Ok(w),
-        // Both terminal flavors lift the same way for descend-rule
-        // rebuilds — the caller wants a WatAST to splice into an
-        // outer form. AlreadyTerminal differs from Terminal only in
-        // signaling chain length to the consumer; descent doesn't
-        // care.
-        StepValue::Terminal(w) | StepValue::AlreadyTerminal(w) => Ok(w),
+) -> Result<StepValue, EvalBreak> {
+    let stepped = step_form(form, env, sym)?;
+    if let StepValue::Next(next) = &stepped {
+        if next == form {
+            return Err(no_progress(form));
+        }
     }
+    Ok(stepped)
+}
+
+fn step_child(form: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<ChildStep, EvalBreak> {
+    match step_form(form, env, sym)? {
+        StepValue::Terminal(w) | StepValue::AlreadyTerminal(w) if &w == form => {
+            Ok(ChildStep::Value)
+        }
+        StepValue::Terminal(w) | StepValue::AlreadyTerminal(w) => Ok(ChildStep::Progress(w)),
+        StepValue::Next(w) if &w == form => Err(no_progress(form)),
+        StepValue::Next(w) => Ok(ChildStep::Progress(w)),
+    }
+}
+
+fn step_node_list(
+    items: &[WatAST],
+    span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    rebuild: impl FnOnce(Vec<WatAST>, Span) -> WatAST,
+) -> Result<StepValue, EvalBreak> {
+    for (i, item) in items.iter().enumerate() {
+        if let ChildStep::Progress(next) = step_child(item, env, sym)? {
+            let mut items = items.to_vec();
+            items[i] = next;
+            return Ok(StepValue::Next(rebuild(items, span.clone())));
+        }
+    }
+    Ok(StepValue::Terminal(rebuild(items.to_vec(), span.clone())))
+}
+
+fn is_aggregate_head(sym: &SymbolTable, head: &str) -> bool {
+    matches!(
+        sym.types().and_then(|t| t.get(head)),
+        Some(crate::types::TypeDef::Aggregate(_))
+    )
+}
+
+fn is_enum_parent(sym: &SymbolTable, head: &str) -> bool {
+    let Some((parent, _)) = wat_reader::identifier::decompose_variant(head) else {
+        return false;
+    };
+    matches!(
+        sym.types().and_then(|t| t.get(parent)),
+        Some(crate::types::TypeDef::Enum(_))
+    )
+}
+
+fn data_receiver(form: &WatAST, sym: &SymbolTable) -> bool {
+    match form {
+        WatAST::Map(_, _) | WatAST::Vector(_, _) | WatAST::Set(_, _) => true,
+        WatAST::List(items, _) => match items.first() {
+            Some(WatAST::Keyword(k, _)) => is_aggregate_head(sym, k) || is_enum_parent(sym, k),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// Record constructors, enum map constructors, and a field read of one of
+/// those forms. The constructor is already the value. The field read fires
+/// through `eval`, which is the accessor.
+fn step_data_form(
+    items: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    head_kw: &str,
+) -> Result<Option<StepValue>, EvalBreak> {
+    let terminal = || {
+        Ok(Some(StepValue::Terminal(WatAST::List(
+            items.to_vec(),
+            list_span.clone(),
+        ))))
+    };
+    if is_enum_parent(sym, head_kw)
+        && items.len() == 2
+        && matches!(items.get(1), Some(WatAST::Map(_, _)))
+    {
+        return match step_child(&items[1], env, sym)? {
+            ChildStep::Value => terminal(),
+            ChildStep::Progress(map) => {
+                let mut items = items.to_vec();
+                items[1] = map;
+                Ok(Some(StepValue::Next(WatAST::List(
+                    items,
+                    list_span.clone(),
+                ))))
+            }
+        };
+    }
+    if is_aggregate_head(sym, head_kw) {
+        for (idx, arg) in items.iter().enumerate().skip(1) {
+            if matches!(arg, WatAST::Keyword(_, _)) {
+                continue;
+            }
+            if let ChildStep::Progress(next) = step_child(arg, env, sym)? {
+                let mut items = items.to_vec();
+                items[idx] = next;
+                return Ok(Some(StepValue::Next(WatAST::List(
+                    items,
+                    list_span.clone(),
+                ))));
+            }
+        }
+        return terminal();
+    }
+    // A field head has an empty path. `::` here is a namespace, and `path`
+    // is the door that sees it.
+    // rune:lint(one-variant-separator, namespace) — not an enum/variant split
+    if wat_reader::identifier::path(head_kw).is_empty()
+        && items.len() == 2
+        && data_receiver(&items[1], sym)
+    {
+        return match step_child(&items[1], env, sym)? {
+            ChildStep::Progress(next) => {
+                let mut items = items.to_vec();
+                items[1] = next;
+                Ok(Some(StepValue::Next(WatAST::List(
+                    items,
+                    list_span.clone(),
+                ))))
+            }
+            ChildStep::Value => {
+                let form = WatAST::List(items.to_vec(), list_span.clone());
+                let v = eval_inner(&form, env, sym)?.value_owned();
+                Ok(Some(StepValue::Terminal(value_to_watast(
+                    ":wat::eval-step!",
+                    v,
+                    list_span.clone(),
+                )?)))
+            }
+        };
+    }
+    Ok(None)
+}
+
+fn symbol_names_fn(ident: &crate::scope::Identifier) -> bool {
+    ident.as_str().contains('/')
+        && crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()) == ":wat::core::fn"
+}
+
+fn list_is_fn_form(items: &[WatAST]) -> bool {
+    match items.first() {
+        Some(WatAST::Keyword(k, _)) => k == ":wat::core::fn",
+        Some(WatAST::Symbol(ident, _)) => symbol_names_fn(ident),
+        _ => false,
+    }
+}
+
+/// A list in call-head position. A `fn` form is applied by substitution.
+/// Any other list is stepped; a list that is already a value is not a
+/// callable head.
+fn step_list_head(
+    items: &[WatAST],
+    head: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<StepValue, EvalBreak> {
+    let WatAST::List(head_items, _) = head else {
+        return Err(RuntimeError::new(
+            head.span().clone(),
+            RuntimeErrorKind::NoStepRule {
+                op: "<non-keyword-head>".into(),
+            },
+        )
+        .into());
+    };
+    if list_is_fn_form(head_items) {
+        return step_fn_form_call(head, &items[1..], items, list_span, env, sym);
+    }
+    match step_child(head, env, sym)? {
+        ChildStep::Progress(new_head) => {
+            let mut new_items = items.to_vec();
+            new_items[0] = new_head;
+            Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
+        }
+        ChildStep::Value => Err(RuntimeError::new(
+            head.span().clone(),
+            RuntimeErrorKind::NoStepRule {
+                op: "<non-keyword-head>".into(),
+            },
+        )
+        .into()),
+    }
+}
+
+/// Apply a `fn` form: step arguments, then substitute parameters into
+/// the body `peel_fn_form` took with the same peel `eval_fn` uses.
+fn step_fn_form_call(
+    fn_form: &WatAST,
+    args: &[WatAST],
+    call_items: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<StepValue, EvalBreak> {
+    for (idx, arg) in args.iter().enumerate() {
+        if let ChildStep::Progress(new_arg) = step_child(arg, env, sym)? {
+            let mut new_items = call_items.to_vec();
+            new_items[idx + 1] = new_arg;
+            return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
+        }
+    }
+    let WatAST::List(fn_items, _) = fn_form else {
+        return Err(RuntimeError::new(
+            fn_form.span().clone(),
+            RuntimeErrorKind::NoStepRule {
+                op: "<non-keyword-head>".into(),
+            },
+        )
+        .into());
+    };
+    let parts = crate::function::peel_fn_form(fn_items, list_span)?;
+    let fixed = parts.params.len();
+    let arity_ok = match &parts.rest {
+        None => args.len() == fixed,
+        Some(_) => args.len() >= fixed,
+    };
+    if !arity_ok {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::fn".into(),
+                expected: fixed,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let mut new_body = parts.body;
+    for (param, arg) in parts.params.iter().zip(args.iter()) {
+        new_body = substitute(&new_body, param, arg);
+    }
+    if let Some(rest_ident) = &parts.rest {
+        let rest_form = WatAST::Vector(args[fixed..].to_vec(), list_span.clone());
+        new_body = substitute(&new_body, rest_ident, &rest_form);
+    }
+    Ok(StepValue::Next(new_body))
 }
 
 /// Generic descend-then-fire for pure ops. If any arg is non-
@@ -13465,14 +13746,13 @@ fn step_descend_then_fire(
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
     for (idx, arg) in items.iter().enumerate().skip(1) {
-        if !is_step_canonical(arg) {
-            let new_arg = step_to_watast(arg, env, sym)?;
+        if let ChildStep::Progress(new_arg) = step_child(arg, env, sym)? {
             let mut new_items: Vec<WatAST> = items.to_vec();
             new_items[idx] = new_arg;
             return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
         }
     }
-    // All args canonical — fire.
+    // Every argument's step is terminal and equal to the argument — fire.
     let form = WatAST::List(items.to_vec(), list_span.clone());
     let v = eval_inner(&form, env, sym)?.value_owned();
     Ok(StepValue::Terminal(value_to_watast(
@@ -13500,10 +13780,14 @@ fn step_holon_descend_then_fire(
 ) -> Result<StepValue, EvalBreak> {
     for (idx, arg) in items.iter().enumerate().skip(1) {
         if !is_holon_arg_canonical(arg) {
-            let new_arg = step_to_watast(arg, env, sym)?;
-            let mut new_items: Vec<WatAST> = items.to_vec();
-            new_items[idx] = new_arg;
-            return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
+            // A holon-shaped argument still fires with its siblings in one
+            // step. Anything else is a value when its own step is terminal
+            // and equal to it; otherwise splice the step.
+            if let ChildStep::Progress(new_arg) = step_child(arg, env, sym)? {
+                let mut new_items: Vec<WatAST> = items.to_vec();
+                new_items[idx] = new_arg;
+                return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
+            }
         }
     }
     // Fire. Bundle's signature is `(:Result :- [HolonAST CapacityExceeded])`
@@ -13549,7 +13833,6 @@ fn step_holon_descend_then_fire(
     )?))
 }
 
-
 /// `(:wat::core::if cond then else)` — five-arg shape per
 /// arc 023. If `cond` is a canonical `BoolLit`, project to the chosen
 /// branch as the next form; otherwise descend the cond. The `-> :T`
@@ -13566,16 +13849,37 @@ fn step_if(
         return match cond {
             WatAST::BoolLit(true, _) => Ok(StepValue::Next(args[1].clone())),
             WatAST::BoolLit(false, _) => Ok(StepValue::Next(args[2].clone())),
-            _ => {
-                let new_cond = step_to_watast(cond, env, sym)?;
-                let new_items = vec![
-                    WatAST::Keyword(":wat::core::if".into(), list_span.clone()),
-                    new_cond,
-                    args[1].clone(),
-                    args[2].clone(),
-                ];
-                Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
-            }
+            _ => match step_child(cond, env, sym)? {
+                ChildStep::Progress(new_cond) => {
+                    let new_items = vec![
+                        WatAST::Keyword(":wat::core::if".into(), list_span.clone()),
+                        new_cond,
+                        args[1].clone(),
+                        args[2].clone(),
+                    ];
+                    Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
+                }
+                // The condition is a value and not a bool. Evaluating the
+                // `if` is the same reduction `eval` performs; rebuilding
+                // the form would be a step that does not move.
+                ChildStep::Value => {
+                    let form = WatAST::List(
+                        vec![
+                            WatAST::Keyword(":wat::core::if".into(), list_span.clone()),
+                            cond.clone(),
+                            args[1].clone(),
+                            args[2].clone(),
+                        ],
+                        list_span.clone(),
+                    );
+                    let v = eval_inner(&form, env, sym)?.value_owned();
+                    Ok(StepValue::Terminal(value_to_watast(
+                        ":wat::eval-step!",
+                        v,
+                        list_span.clone(),
+                    )?))
+                }
+            },
         };
     }
     // Arc 258.4 — the `-> :T` ascription is retired; a stray `->` (the old 5-arg form)
@@ -13699,10 +14003,9 @@ fn step_let(
         }
     };
 
-    if !is_step_canonical(rhs) {
+    if let ChildStep::Progress(new_rhs) = step_child(rhs, env, sym)? {
         // Step the RHS one rewrite, rebuild the let with the stepped
         // RHS in place. Outer is always Vector post-arc-168.
-        let new_rhs = step_to_watast(rhs, env, sym)?;
         let new_args = rebuild_let_with_first_rhs(&args[0], &pairs, &new_rhs)?;
         let mut new_items: Vec<WatAST> = vec![
             WatAST::Keyword(":wat::core::let".into(), list_span.clone()),
@@ -13830,8 +14133,7 @@ fn step_do(
         return Ok(StepValue::Next(args[0].clone()));
     }
     let head = &args[0];
-    if !is_step_canonical(head) {
-        let new_head = step_to_watast(head, env, sym)?;
+    if let ChildStep::Progress(new_head) = step_child(head, env, sym)? {
         let mut new_items: Vec<WatAST> = vec![
             WatAST::Keyword(":wat::core::do".into(), list_span.clone()),
             new_head,
@@ -13872,13 +14174,17 @@ fn step_match(
     }
     let scrut = &args[0];
     if !is_match_canonical(scrut) {
-        let new_scrut = step_to_watast(scrut, env, sym)?;
-        let mut new_items: Vec<WatAST> = vec![
-            WatAST::Keyword(":wat::core::match".into(), list_span.clone()),
-            new_scrut,
-        ];
-        new_items.extend(args[1..].iter().cloned());
-        return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
+        if let ChildStep::Progress(new_scrut) = step_child(scrut, env, sym)? {
+            let mut new_items: Vec<WatAST> = vec![
+                WatAST::Keyword(":wat::core::match".into(), list_span.clone()),
+                new_scrut,
+            ];
+            new_items.extend(args[1..].iter().cloned());
+            return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
+        }
+        // Terminal and equal to itself, but not a constructor scrutinee.
+        // Fall through and let `eval_match` answer. Rebuilding the match
+        // would hand back this same form.
     }
     // Scrutinee is a value. Fire the same matcher eval uses — the arm is a
     // key-first map pattern, so AST-level positional zip would reintroduce
@@ -13946,9 +14252,7 @@ fn is_match_canonical(form: &WatAST) -> bool {
                 let s = k.as_str();
                 if matches!(
                     s,
-                    ":wat::core::Option.Some"
-                        | ":wat::core::Result.Ok"
-                        | ":wat::core::Result.Err"
+                    ":wat::core::Option.Some" | ":wat::core::Result.Ok" | ":wat::core::Result.Err"
                 ) && items.len() >= 2
                 {
                     return items[1..].iter().all(is_match_canonical);
@@ -14010,13 +14314,13 @@ fn substitute(form: &WatAST, target: &crate::scope::Identifier, replacement: &Wa
     }
 }
 
-/// β-reduction step for user-defined functions registered at full
-/// keyword path. Args descend leftmost-non-canonical until all are
-/// canonical, then params get substituted by argument forms in the
-/// body and the substituted body becomes the next form. Closures
-/// (functions with `closed_env = Some`) need a different rule
-/// (Phase 3) — they carry environment that textual substitution
-/// can't reproduce.
+/// β-reduction step for a registered function. Arguments step until each
+/// one's own step is terminal. Parameters are substituted, then every
+/// free symbol the body still mentions that `closed_env` binds — a
+/// top-level `defn` mentions none, so it substitutes nothing extra.
+/// A captured value `value_to_watast` cannot write down is refused by
+/// name. `closed_env.is_some()` is not a refusal: `eval_fn` sets it on
+/// every function.
 fn step_user_call(
     items: &[WatAST],
     list_span: &Span,
@@ -14034,36 +14338,30 @@ fn step_user_call(
             .into())
         }
     };
-    if func.closed_env.is_some() {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::NoStepRule {
-                op: format!("{} (closure-bearing — Phase 3)", head_kw),
-            },
-        )
-        .into());
-    }
     let args = &items[1..];
-    if args.len() != func.params.len() {
+    let fixed = func.params.len();
+    let arity_ok = match &func.rest_param {
+        None => args.len() == fixed,
+        Some(_) => args.len() >= fixed,
+    };
+    if !arity_ok {
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
                 op: head_kw.into(),
-                expected: func.params.len(),
+                expected: fixed,
                 got: args.len(),
             },
         )
         .into());
     }
     for (idx, arg) in args.iter().enumerate() {
-        if !is_step_canonical(arg) {
-            let new_arg = step_to_watast(arg, env, sym)?;
+        if let ChildStep::Progress(new_arg) = step_child(arg, env, sym)? {
             let mut new_items: Vec<WatAST> = items.to_vec();
             new_items[idx + 1] = new_arg;
             return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
         }
     }
-    // All canonical — substitute params for args in body.
     // Stone 255.1a — Native builtins have no wat body; they are never step-reduced.
     let mut new_body: WatAST = match &func.body {
         FunctionBody::Wat(ast) => (**ast).clone(),
@@ -14075,7 +14373,34 @@ fn step_user_call(
         // Arc 170 — substitute against the binder ITSELF, scopes included.
         new_body = substitute(&new_body, param, arg);
     }
+    if let Some(rest_key) = &func.rest_param {
+        let rest_form = WatAST::Vector(args[fixed..].to_vec(), list_span.clone());
+        new_body = substitute_env_key(&new_body, rest_key, &rest_form, &func.params);
+    }
+    new_body = substitute_captures(&new_body, &func, ":wat::eval-step!", list_span)?;
     Ok(StepValue::Next(new_body))
+}
+
+/// Replace every symbol whose `env_key` is `key`, except parameters.
+/// `Function::rest_param` stores that key, not the binder node.
+fn substitute_env_key(
+    form: &WatAST,
+    key: &str,
+    replacement: &WatAST,
+    params: &[crate::scope::Identifier],
+) -> WatAST {
+    let mut symbols = Vec::new();
+    collect_symbols(form, &mut symbols);
+    let mut result = form.clone();
+    for (ident, _) in symbols {
+        if params.iter().any(|p| p == &ident) {
+            continue;
+        }
+        if crate::scope::env_key(&ident).as_ref() == key {
+            result = substitute(&result, &ident, replacement);
+        }
+    }
+    result
 }
 
 // Arc 028 slice 3 — eval family iface drop + split eval-edn into
@@ -14490,14 +14815,22 @@ pub(crate) fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, Eva
 /// Parse a source string and evaluate all forms in sequence under the
 /// constrained-eval discipline. Returns the value of the last form
 /// (or Unit if the program was empty).
-pub(crate) fn parse_and_run(source: &str, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn parse_and_run(
+    source: &str,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let forms = parse_program(source, ":wat::eval-edn!")?;
     run_program(&forms, env, sym)
 }
 
 /// Run a sequence of pre-parsed forms under the constrained-eval
 /// discipline: each form has mutation heads refused before execution.
-pub(crate) fn run_program(forms: &[WatAST], env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn run_program(
+    forms: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let mut last = Value::Unit;
     for form in forms {
         last = run_constrained(form, env, sym)?;
@@ -14507,7 +14840,11 @@ pub(crate) fn run_program(forms: &[WatAST], env: &Environment, sym: &SymbolTable
 
 /// Refuse mutation forms in the given AST, then delegate to the
 /// normal `eval` dispatcher against the (frozen) symbol table.
-pub(crate) fn run_constrained(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn run_constrained(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     refuse_mutation_forms_in(ast)?;
     eval_inner(ast, env, sym).map(|tv| tv.value_owned())
 }
@@ -14623,22 +14960,24 @@ pub(crate) fn reply_failed_reason(v: &Value) -> Option<String> {
     // `message` String (arc 278 — Failure carries the error structurally; the Fault's
     // fields are [message, location, causes]).
     match e.fields.first() {
-        Some(Value::Aggregate(a)) if a.class.as_ref() == "wat::kernel::Failure" => match a.fields.first() {
-            // The `error` field: read its `message` (Fault field[0]).
-            Some(Value::Aggregate(err)) => match err.fields.first() {
-                Some(Value::String(s)) => Some((**s).clone()),
+        Some(Value::Aggregate(a)) if a.class.as_ref() == "wat::kernel::Failure" => {
+            match a.fields.first() {
+                // The `error` field: read its `message` (Fault field[0]).
+                Some(Value::Aggregate(err)) => match err.fields.first() {
+                    Some(Value::String(s)) => Some((**s).clone()),
+                    _ => Some(
+                        "service replied Reply::Failed (protocol-tier decode failure) with an \
+                     unreadable cause"
+                            .to_string(),
+                    ),
+                },
                 _ => Some(
                     "service replied Reply::Failed (protocol-tier decode failure) with an \
-                     unreadable cause"
+                 unreadable cause"
                         .to_string(),
                 ),
-            },
-            _ => Some(
-                "service replied Reply::Failed (protocol-tier decode failure) with an \
-                 unreadable cause"
-                    .to_string(),
-            ),
-        },
+            }
+        }
         Some(other) => Some(format!(
             "service replied Reply::Failed (protocol-tier decode failure); cause: {:?}",
             other
@@ -14723,8 +15062,8 @@ pub(crate) fn reply_failed_reason(v: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value::snapshot_call_stack;
     use crate::config::Config;
+    use crate::value::snapshot_call_stack;
     use std::sync::OnceLock;
 
     /// The stdlib is the standard library — always available, without
@@ -14794,7 +15133,11 @@ mod tests {
         // door (`register_runtime_defs`) before evaluating the rest, as the freeze path does.
         let env = Environment::new();
         {
-            let defs: Vec<WatAST> = rest.iter().filter(|f| is_top_level_def(f)).cloned().collect();
+            let defs: Vec<WatAST> = rest
+                .iter()
+                .filter(|f| is_top_level_def(f))
+                .cloned()
+                .collect();
             register_runtime_defs(&defs, &env, &mut sym, &Default::default())?;
         }
         let mut last = Value::Unit;
@@ -14920,7 +15263,8 @@ mod tests {
             other => panic!("StartupError cause must be a typed record; got {other:?}"),
         };
         assert_eq!(
-            agg.class.as_ref(), "wat::runtime::UnknownFunction",
+            agg.class.as_ref(),
+            "wat::runtime::UnknownFunction",
             "cause is the typed RuntimeError record"
         );
 
@@ -14938,7 +15282,11 @@ mod tests {
         // :location — a REAL located #wat.core/Span record, never nil.
         match field(1) {
             Value::Aggregate(loc) => {
-                assert_eq!(loc.class.as_ref(), "wat::core::Span", ":location is a typed Span")
+                assert_eq!(
+                    loc.class.as_ref(),
+                    "wat::core::Span",
+                    ":location is a typed Span"
+                )
             }
             other => panic!(":location must be a typed Span record (never nil); got {other:?}"),
         }
@@ -15326,18 +15674,9 @@ mod tests {
 
     #[test]
     fn f64_abs_handles_sign_and_zero() {
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::f64::abs 3.5)").unwrap()),
-            3.5
-        );
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::f64::abs -3.5)").unwrap()),
-            3.5
-        );
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::f64::abs 0.0)").unwrap()),
-            0.0
-        );
+        assert_eq!(expect_f64(eval_expr("(:wat::f64::abs 3.5)").unwrap()), 3.5);
+        assert_eq!(expect_f64(eval_expr("(:wat::f64::abs -3.5)").unwrap()), 3.5);
+        assert_eq!(expect_f64(eval_expr("(:wat::f64::abs 0.0)").unwrap()), 0.0);
     }
 
     #[test]
@@ -15409,10 +15748,7 @@ mod tests {
     #[test]
     fn math_exp_round_trips_with_ln() {
         // exp(0) == 1.0 exactly.
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::math::exp 0.0)").unwrap()),
-            1.0
-        );
+        assert_eq!(expect_f64(eval_expr("(:wat::math::exp 0.0)").unwrap()), 1.0);
         // exp(1) ≈ e.
         let v = expect_f64(eval_expr("(:wat::math::exp 1.0)").unwrap());
         assert!((v - std::f64::consts::E).abs() < 1e-12, "got {}", v);
@@ -15425,10 +15761,7 @@ mod tests {
     fn math_exp_accepts_i64_promotion() {
         // :wat::math:: permits i64 → f64 promotion (matches
         // ln/sin/cos siblings); :wat::core::f64 namespace does not.
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::math::exp 0)").unwrap()),
-            1.0
-        );
+        assert_eq!(expect_f64(eval_expr("(:wat::math::exp 0)").unwrap()), 1.0);
     }
 
     #[test]
@@ -15491,8 +15824,7 @@ mod tests {
             Value::String(s) => format!("\"{}\"", s),
             _ => panic!("expected String"),
         };
-        let round =
-            expect_some(eval_expr(&format!("(:wat::string::to-i64 {})", s_lit)).unwrap());
+        let round = expect_some(eval_expr(&format!("(:wat::string::to-i64 {})", s_lit)).unwrap());
         assert_eq!(expect_i64(round), 12345);
     }
 
@@ -15864,7 +16196,8 @@ mod tests {
             Value::Result(r) => match &*r {
                 Err(err) => match err {
                     Value::Aggregate(sv)
-                        if sv.nature == Nature::Struct && sv.class.as_ref() == "wat::core::EvalError" =>
+                        if sv.nature == Nature::Struct
+                            && sv.class.as_ref() == "wat::core::EvalError" =>
                     {
                         let kind = match &sv.fields[0] {
                             Value::String(s) => (**s).clone(),
@@ -15976,8 +16309,7 @@ mod tests {
         // Old: (Atom (quote form)) — Atom accepted WatAST (polymorphic, now retired).
         // New: (from-wat (quote form)) — the honest directional verb.
         let result =
-            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2)))")
-                .unwrap();
+            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2)))").unwrap();
         assert!(matches!(result, Value::holon__HolonAST(_)));
     }
 
@@ -16007,8 +16339,8 @@ mod tests {
         // (leading colon stripped). Assertions flipped from as_symbol() to as_keyword().
         //
         // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST inputs.
-        let v = eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))")
-            .unwrap();
+        let v =
+            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))").unwrap();
         let h = match v {
             Value::holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
@@ -16117,8 +16449,8 @@ mod tests {
         // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
         //
         // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST (quoted form) inputs.
-        let v = eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))")
-            .unwrap();
+        let v =
+            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))").unwrap();
         let h = match v {
             Value::holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
@@ -17610,8 +17942,10 @@ mod tests {
 
     #[test]
     fn take_more_than_length_returns_full_vec() {
-        match eval_expr("(:wat::core::into [] (:wat::core::take (:wat::core::Vector :- [:i64] 1 2) 99))")
-            .unwrap()
+        match eval_expr(
+            "(:wat::core::into [] (:wat::core::take (:wat::core::Vector :- [:i64] 1 2) 99))",
+        )
+        .unwrap()
         {
             Value::Vec(items) => assert_eq!(items.len(), 2),
             v => panic!("expected Vec, got {:?}", v),
@@ -17809,27 +18143,19 @@ mod tests {
 
     #[test]
     fn f64_max_of_picks_largest() {
-        let v = expect_some(
-            eval_expr("(:wat::f64::max-of -1.5 4.2 2.0 4.2 0.0)")
-                .unwrap(),
-        );
+        let v = expect_some(eval_expr("(:wat::f64::max-of -1.5 4.2 2.0 4.2 0.0)").unwrap());
         assert_eq!(expect_f64(v), 4.2);
     }
 
     #[test]
     fn f64_min_of_picks_smallest() {
-        let v = expect_some(
-            eval_expr("(:wat::f64::min-of -1.5 4.2 2.0 -1.5 0.0)")
-                .unwrap(),
-        );
+        let v = expect_some(eval_expr("(:wat::f64::min-of -1.5 4.2 2.0 -1.5 0.0)").unwrap());
         assert_eq!(expect_f64(v), -1.5);
     }
 
     #[test]
     fn f64_max_of_singleton_returns_single() {
-        let v = expect_some(
-            eval_expr("(:wat::f64::max-of 7.5)").unwrap(),
-        );
+        let v = expect_some(eval_expr("(:wat::f64::max-of 7.5)").unwrap());
         assert_eq!(expect_f64(v), 7.5);
     }
 
@@ -18084,8 +18410,8 @@ mod tests {
 
     #[test]
     fn assoc_arity_mismatch() {
-        let err =
-            eval_expr(r#"(:wat::core::assoc (:wat::core::HashMap :- [:String :i64]) "k")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::assoc (:wat::core::HashMap :- [:String :i64]) "k")"#)
+            .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18184,7 +18510,8 @@ mod tests {
 
     #[test]
     fn concat_non_vec_arg_rejected() {
-        let err = eval_expr(r#"(:wat::core::concat (:wat::core::Vector :- [:i64] 1) 42)"#).unwrap_err();
+        let err =
+            eval_expr(r#"(:wat::core::concat (:wat::core::Vector :- [:i64] 1) 42)"#).unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }))
         );
@@ -18266,8 +18593,8 @@ mod tests {
 
     #[test]
     fn dissoc_arity_mismatch() {
-        let err =
-            eval_expr(r#"(:wat::core::dissoc (:wat::core::HashMap :- [:String :i64]))"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::dissoc (:wat::core::HashMap :- [:String :i64]))"#)
+            .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18330,8 +18657,9 @@ mod tests {
 
     #[test]
     fn keys_arity_mismatch() {
-        let err = eval_expr(r#"(:wat::core::keys (:wat::core::HashMap :- [:String :i64]) "extra")"#)
-            .unwrap_err();
+        let err =
+            eval_expr(r#"(:wat::core::keys (:wat::core::HashMap :- [:String :i64]) "extra")"#)
+                .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18390,8 +18718,9 @@ mod tests {
 
     #[test]
     fn values_arity_mismatch() {
-        let err = eval_expr(r#"(:wat::core::values (:wat::core::HashMap :- [:String :i64]) "extra")"#)
-            .unwrap_err();
+        let err =
+            eval_expr(r#"(:wat::core::values (:wat::core::HashMap :- [:String :i64]) "extra")"#)
+                .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18598,7 +18927,9 @@ mod tests {
         // Arc 216.5a + 216.5b: Value: Hash + Eq is canonical; HashSet
         // storage is Arc<HashSet<Value>>. Composite elements are accepted
         // natively — the pre-antidote "primitives-only" restriction is gone.
-        let result = eval_expr(r#"(:wat::core::HashSet :- [(:wat::core::Vector :- [:i64])] (:wat::core::Vector :- [:i64] 1 2))"#);
+        let result = eval_expr(
+            r#"(:wat::core::HashSet :- [(:wat::core::Vector :- [:i64])] (:wat::core::Vector :- [:i64] 1 2))"#,
+        );
         assert!(
             result.is_ok(),
             "composite element should construct HashSet; got {:?}",
@@ -18821,7 +19152,8 @@ mod tests {
 
     #[test]
     fn seq_remove_at_on_vector_drops_the_index() {
-        match eval_expr("(:wat::seq::remove-at (:wat::core::Vector :- [:i64] 10 20 30) 1)").unwrap() {
+        match eval_expr("(:wat::seq::remove-at (:wat::core::Vector :- [:i64] 10 20 30) 1)").unwrap()
+        {
             Value::Vec(items) => {
                 let ns: Vec<i64> = items
                     .iter()
@@ -19262,7 +19594,10 @@ mod tests {
             show_str("(:wat::core::show (:wat::core::Option.Some {:value 1}))"),
             "(Some 1)"
         );
-        assert_eq!(show_str("(:wat::core::show :wat::core::Option.None)"), ":None");
+        assert_eq!(
+            show_str("(:wat::core::show :wat::core::Option.None)"),
+            ":None"
+        );
         assert_eq!(
             show_str(r#"(:wat::core::show (:wat::core::Result.Ok {:value "hi"}))"#),
             "(Ok \"hi\")"
@@ -20065,7 +20400,11 @@ mod tests {
         // door (`register_runtime_defs`) before evaluating the rest, as the freeze path does.
         let env = Environment::new();
         {
-            let defs: Vec<WatAST> = rest.iter().filter(|f| is_top_level_def(f)).cloned().collect();
+            let defs: Vec<WatAST> = rest
+                .iter()
+                .filter(|f| is_top_level_def(f))
+                .cloned()
+                .collect();
             register_runtime_defs(&defs, &env, &mut sym, &Default::default())?;
         }
         let mut last = Value::Unit;
@@ -20240,6 +20579,88 @@ mod tests {
                 ),
                 other => panic!("expected i64, got {:?}", other),
             }
+        }
+
+        // Both spellings, a plain defn, recursion, a let-bound fn, a
+        // top-level def of a closure, a function that returns a closure
+        // then applied, a closure over a closure, and a float.
+        let defs = r#"
+            (:wat::core::defn :my::test::add1 [n <- :wat::core::i64] -> :wat::core::i64
+              (:wat::core::+ n 1))
+            (:wat::core::defn :my::test::sum-to [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
+              (:wat::core::if (:wat::core::= n 0)
+                acc
+                (:my::test::sum-to (:wat::core::- n 1) (:wat::core::+ acc n))))
+            (:wat::core::def :my::test::adder10
+              (:wat::core::let [k 10]
+                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                  (:wat::core::+ n k))))
+            (:wat::core::defn :my::test::make [x <- :wat::core::i64] -> [:wat::core::i64 :-> :wat::core::i64]
+              (:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64
+                (:wat::core::+ x y)))
+        "#;
+        // `(step_form, eval_form, expected)`. A quoted namespaced symbol is
+        // data: `eval-ast!` looks the head up as a local. The step maps it
+        // with `ns_to_wat_path`, so its terminal is eval of that keyword.
+        let cases = [
+            ("(:my::test::add1 3)", "(:my::test::add1 3)", 4i64),
+            ("(my.test/add1 3)", "(:my::test::add1 3)", 4),
+            ("(wat.core/+ 1 2)", "(:wat::core::+ 1 2)", 3),
+            ("(:my::test::sum-to 3 0)", "(:my::test::sum-to 3 0)", 6),
+            ("(:wat::core::let [x 42 f (:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))] (f 1))", "(:wat::core::let [x 42 f (:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))] (f 1))", 43),
+            ("(:my::test::adder10 5)", "(:my::test::adder10 5)", 15),
+            ("(:wat::core::let [g (:my::test::make 10)] (g 5))", "(:wat::core::let [g (:my::test::make 10)] (g 5))", 15),
+            ("(:wat::core::let [outer (:wat::core::fn [x <- :wat::core::i64] -> [:wat::core::i64 :-> [:wat::core::i64 :-> :wat::core::i64]] (:wat::core::fn [y <- :wat::core::i64] -> [:wat::core::i64 :-> :wat::core::i64] (:wat::core::fn [z <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x (:wat::core::+ y z)))))] (:wat::core::let [f ((outer 1) 2)] (f 3)))", "(:wat::core::let [outer (:wat::core::fn [x <- :wat::core::i64] -> [:wat::core::i64 :-> [:wat::core::i64 :-> :wat::core::i64]] (:wat::core::fn [y <- :wat::core::i64] -> [:wat::core::i64 :-> :wat::core::i64] (:wat::core::fn [z <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x (:wat::core::+ y z)))))] (:wat::core::let [f ((outer 1) 2)] (f 3)))", 6),
+            // A closure over a record. The captured Span is written back as its constructor.
+            (r#"(:wat::core::let [s (:wat::core::Span :file "f" :line 4 :col 1 :end :wat::core::Option.None) f (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ n (:wat::core::Span/line s)))] (f 0))"#, r#"(:wat::core::let [s (:wat::core::Span :file "f" :line 4 :col 1 :end :wat::core::Option.None) f (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ n (:wat::core::Span/line s)))] (f 0))"#, 4),
+            // A closure over an enum value.
+            ("(:wat::core::let [o (:wat::core::Option.Some {:value 7}) f (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::match o [:wat::core::Option.Some {:value v} (:wat::core::+ n v)] [:wat::core::Option.None {} n]))] (f 1))", "(:wat::core::let [o (:wat::core::Option.Some {:value 7}) f (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::match o [:wat::core::Option.Some {:value v} (:wat::core::+ n v)] [:wat::core::Option.None {} n]))] (f 1))", 8),
+            // The captured value is itself an unnamed closure, and that closure captures `k`.
+            ("(:wat::core::let [k 3] (:wat::core::let [inner (:wat::core::fn [z <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ z k))] (:wat::core::let [outer (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (inner n))] (outer 1))))", "(:wat::core::let [k 3] (:wat::core::let [inner (:wat::core::fn [z <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ z k))] (:wat::core::let [outer (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (inner n))] (outer 1))))", 4),
+        ];
+        for (form, eval_form, expected) in cases {
+            let step_src = format!(
+                "{defs}\n{}\n(:my::test::step-to-terminal (:wat::core::quote {form}))",
+                step_to_terminal_prelude()
+            );
+            let stepped = match run(&step_src).unwrap() {
+                Value::wat__WatAST(w) => w,
+                other => panic!("step `{form}` produced {other:?}"),
+            };
+            let eval_src = format!(
+                "{defs}\n(:wat::core::match (:wat::eval-ast! (:wat::core::quote {eval_form})) \
+                  [:wat::core::Result.Ok {{:value n}} n] \
+                  [:wat::core::Result.Err {{:error _}} -1])"
+            );
+            match run(&eval_src).unwrap() {
+                Value::i64(n) => {
+                    assert_eq!(
+                        watast_as_i64(&stepped),
+                        Some(n),
+                        "step `{form}` vs eval `{eval_form}`"
+                    );
+                    assert_eq!(n, expected, "form `{form}`");
+                }
+                other => panic!("eval `{eval_form}` produced {other:?}"),
+            }
+        }
+        // Floats agree under the coincident gap, not a printed decimal.
+        let float_form = "(:wat::f64::+ 0.1 0.2)";
+        let stepped = step_drive_to_terminal(float_form);
+        let eval_src = format!(
+            "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {float_form})) \
+              [:wat::core::Result.Ok {{:value n}} n] \
+              [:wat::core::Result.Err {{:error _}} -1])"
+        );
+        match (stepped.as_ref(), eval_expr(&eval_src).unwrap()) {
+            (WatAST::FloatLit(a, _), Value::f64(b)) => {
+                let scale = a.abs().max(b.abs()).max(1.0);
+                assert!(
+                    a == &b || (a - b).abs() / scale < 1e-9,
+                    "float step {a} eval {b}"
+                );
+            }
+            other => panic!("float terminals {other:?}"),
         }
     }
 
@@ -21051,10 +21472,7 @@ mod tests {
             "wat::core::i64"
         );
         assert_eq!(
-            expect_string(
-                eval_expr("(:wat::keyword::name :wat::core::Vector)")
-                    .unwrap()
-            ),
+            expect_string(eval_expr("(:wat::keyword::name :wat::core::Vector)").unwrap()),
             "wat::core::Vector"
         );
     }
@@ -21070,14 +21488,18 @@ mod tests {
             "foo"
         );
         assert_eq!(
-            expect_string(eval_expr(
-                r#"(:wat::core::match (:wat::core::ast-keyword (:wat::core::symbol-node "foo"))
+            expect_string(
+                eval_expr(
+                    r#"(:wat::core::match (:wat::core::ast-keyword (:wat::core::symbol-node "foo"))
                      [:wat::core::Option.Some {:value k} "some"]
                      [:wat::core::Option.None {} "none"])"#
-            ).unwrap()),
+                )
+                .unwrap()
+            ),
             "none"
         );
-        let err = eval_expr(r#"(:wat::keyword::name (:wat::core::keyword-node ":foo"))"#).unwrap_err();
+        let err =
+            eval_expr(r#"(:wat::keyword::name (:wat::core::keyword-node ":foo"))"#).unwrap_err();
         let EvalBreak::Diagnostic(e) = err else {
             panic!("expected a diagnostic");
         };
@@ -21113,15 +21535,10 @@ mod tests {
         let cases = [
             (":foo", "foo"),
             (":wat::core::i64", "wat::core::i64"),
-            (
-                ":wat::kernel::Receiver",
-                "wat::kernel::Receiver",
-            ),
+            (":wat::kernel::Receiver", "wat::kernel::Receiver"),
         ];
         for (kw, expected_text) in &cases {
-            let text = expect_string(
-                eval_expr(&format!("(:wat::keyword::name {})", kw)).unwrap(),
-            );
+            let text = expect_string(eval_expr(&format!("(:wat::keyword::name {})", kw)).unwrap());
             assert_eq!(&text, expected_text, "name({}) should drop ':'", kw);
             let roundtrip = eval_expr(&format!(
                 r#"(:wat::keyword::from-name (:wat::keyword::name {}))"#,
@@ -21157,16 +21574,13 @@ mod tests {
         // `to-string` is the keyword value's own text, colon included.
         // `:foo` agrees with `str`. A namespaced keyword's `str` is the
         // dot spelling; `to-string` keeps the `::` the value stores.
-        let written_foo = expect_string(
-            eval_expr("(:wat::keyword::to-string :foo)").unwrap(),
-        );
+        let written_foo = expect_string(eval_expr("(:wat::keyword::to-string :foo)").unwrap());
         let str_foo = expect_string(eval_expr("(:wat::core::str :foo)").unwrap());
         assert_eq!(written_foo, ":foo");
         assert_eq!(str_foo, ":foo");
         for src in [":wat::core::i64", ":user::E.V"] {
-            let written = expect_string(
-                eval_expr(&format!("(:wat::keyword::to-string {src})")).unwrap(),
-            );
+            let written =
+                expect_string(eval_expr(&format!("(:wat::keyword::to-string {src})")).unwrap());
             assert_eq!(written, src, "to-string {src}");
             let roundtrip = eval_expr(&format!(
                 r#"(:wat::keyword::from-string (:wat::keyword::to-string {src}))"#
@@ -21462,8 +21876,9 @@ mod tests {
     fn walk_compare_bool(src: &str) -> bool {
         let clause = crate::parse_one!(src).expect("parse");
         let sym = SymbolTable::new();
-        let (passed, _env) = crate::reflect::r#match::walk_match_clause(&clause, &[], &[], Environment::new(), &sym)
-            .expect("walk_match_clause");
+        let (passed, _env) =
+            crate::reflect::r#match::walk_match_clause(&clause, &[], &[], Environment::new(), &sym)
+                .expect("walk_match_clause");
         passed
     }
 
@@ -21554,9 +21969,15 @@ mod tests {
             panic!("record form {form:?}");
         };
         assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":user::P"));
-        assert!(matches!(&items[1], WatAST::Keyword(k, _) if k == ":a"), "{items:?}");
+        assert!(
+            matches!(&items[1], WatAST::Keyword(k, _) if k == ":a"),
+            "{items:?}"
+        );
         assert!(matches!(&items[2], WatAST::IntLit(3, _)));
-        assert!(matches!(&items[3], WatAST::Keyword(k, _) if k == ":b"), "{items:?}");
+        assert!(
+            matches!(&items[3], WatAST::Keyword(k, _) if k == ":b"),
+            "{items:?}"
+        );
         assert!(matches!(&items[4], WatAST::IntLit(4, _)));
 
         let ev = Value::Enum(Arc::new(crate::value::EnumValue {
@@ -21569,7 +21990,10 @@ mod tests {
         let WatAST::List(eitems, _) = &eform else {
             panic!("enum form {eform:?}");
         };
-        assert!(matches!(&eitems[0], WatAST::Keyword(k, _) if k == ":user::Opt.Some"), "{eitems:?}");
+        assert!(
+            matches!(&eitems[0], WatAST::Keyword(k, _) if k == ":user::Opt.Some"),
+            "{eitems:?}"
+        );
         let WatAST::Map(pairs, _) = &eitems[1] else {
             panic!("enum payload {eitems:?}");
         };

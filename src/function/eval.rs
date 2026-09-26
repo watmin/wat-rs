@@ -78,10 +78,16 @@ pub(crate) fn eval_fn(
     // immediately after metadata and before the args-vector.
     let (binder, sig_args) = peel_type_binder(sig_args);
     if sig_args.len() < 3 {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: FN_HEAD.into(),
-            reason: format!("expected [name <- :T ...] -> :Ret body ...; got {} element(s)", sig_args.len())
-        }));
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: FN_HEAD.into(),
+                reason: format!(
+                    "expected [name <- :T ...] -> :Ret body ...; got {} element(s)",
+                    sig_args.len()
+                ),
+            },
+        ));
     }
     let body = synthesize_fn_body(&sig_args[3..]);
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
@@ -90,7 +96,12 @@ pub(crate) fn eval_fn(
     // Arc 150 — parse with rest-binder support so variadic fn-forms (from
     // variadic `defn` expansion) produce a Function with rest_param set.
     // Non-variadic forms produce rest = None — strict behavior unchanged.
-    let ParsedFnSignature { params, param_types, ret_type, rest } = parse_fn_signature_with_rest(sig3)?;
+    let ParsedFnSignature {
+        params,
+        param_types,
+        ret_type,
+        rest,
+    } = parse_fn_signature_with_rest(sig3)?;
     let (rest_param, rest_param_type) = match rest {
         // `rest_param` is a lookup key (never re-emitted as a binder node), so
         // flatten it; `params` stay whole. Arc 170.
@@ -110,6 +121,43 @@ pub(crate) fn eval_fn(
         rete: None,
         synthesized_for: None,
     })))
+}
+
+/// The binders and body of a `fn` form, peeled the same way [`eval_fn`] peels
+/// them. The stepper substitutes into `body`; it does not evaluate.
+pub(crate) struct FnFormParts {
+    pub params: Vec<crate::scope::Identifier>,
+    pub rest: Option<crate::scope::Identifier>,
+    pub body: WatAST,
+}
+
+pub(crate) fn peel_fn_form(
+    items: &[WatAST],
+    list_span: &Span,
+) -> Result<FnFormParts, RuntimeError> {
+    let args = &items[1..];
+    let sig_args = peel_metadata_preamble(args);
+    let (_binder, sig_args) = peel_type_binder(sig_args);
+    if sig_args.len() < 3 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: FN_HEAD.into(),
+                reason: format!(
+                    "expected [name <- :T ...] -> :Ret body ...; got {} element(s)",
+                    sig_args.len()
+                ),
+            },
+        ));
+    }
+    let body = synthesize_fn_body(&sig_args[3..]);
+    let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
+    let ParsedFnSignature { params, rest, .. } = parse_fn_signature_with_rest(sig3)?;
+    Ok(FnFormParts {
+        params,
+        rest: rest.map(|(name, _ty)| name),
+        body,
+    })
 }
 
 /// Stone 237.2 — dispatch: eval a call to a defclause-bound name.
@@ -387,67 +435,64 @@ pub(crate) fn eval_call_to_defclause_with_vals(
     }
     let result = eval_inner(&clause.body, &scope, sym).map(|tv| tv.value_owned())?;
 
-        // 6. Stone 237.3 / 237.4 — :ensure post-condition check (after body).
-        if let Some(ensure_ast) = &clause.ensure_fn {
-            // Capture spans and snapshot for rich diagnostics (Stone 237.4).
-            let ensure_expr_snapshot = format!("{:?}", ensure_ast);
-            let body_span = clause.body.span().clone();
-            let ensure_span = ensure_ast.span().clone();
+    // 6. Stone 237.3 / 237.4 — :ensure post-condition check (after body).
+    if let Some(ensure_ast) = &clause.ensure_fn {
+        // Capture spans and snapshot for rich diagnostics (Stone 237.4).
+        let ensure_expr_snapshot = format!("{:?}", ensure_ast);
+        let body_span = clause.body.span().clone();
+        let ensure_span = ensure_ast.span().clone();
 
-            // Evaluate the :ensure :fn form to get a callable.
-            let ensure_fn_val = eval_inner(ensure_ast, &scope, sym).map(|tv| tv.value_owned())?;
-            let ensure_result = match ensure_fn_val {
-                Value::wat__core__fn(func) => {
-                    apply_function(func, vec![result.clone()], sym, list_span.clone())?
-                }
-                other => {
-                    // Type-checker should have caught non-fn :ensure. Defensive.
-                    return Err(RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: format!("defclause {}/clause#{} :ensure", cs.name, clause_idx),
-                            expected: "wat::core::fn",
-                            got: Box::new(ValueSnapshot::of(&other)),
-                        },
-                    )
-                    .into());
-                }
-            };
-            match &ensure_result {
-                Value::bool(true) => {
-                    // Postcondition passes — return result.
-                }
-                Value::bool(false) => {
-                    return Err(RuntimeError::new(
-                        body_span,
-                        RuntimeErrorKind::PostconditionFailed {
-                            defclause_name: cs.name.clone(),
-                            clause_index: clause_idx,
-                            ensure_expr_snapshot,
-                            returned_value: Box::new(ValueSnapshot::of(&result)),
-                            ensure_span: Box::new(ensure_span),
-                        },
-                    )
-                    .into());
-                }
-                other => {
-                    // Non-bool from ensure — type-checker should have caught.
-                    // Defensive: treat as postcondition failure.
-                    return Err(RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: format!(
-                                "defclause {}/clause#{} :ensure result",
-                                cs.name, clause_idx
-                            ),
-                            expected: "wat::core::bool",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        },
-                    )
-                    .into());
-                }
+        // Evaluate the :ensure :fn form to get a callable.
+        let ensure_fn_val = eval_inner(ensure_ast, &scope, sym).map(|tv| tv.value_owned())?;
+        let ensure_result = match ensure_fn_val {
+            Value::wat__core__fn(func) => {
+                apply_function(func, vec![result.clone()], sym, list_span.clone())?
+            }
+            other => {
+                // Type-checker should have caught non-fn :ensure. Defensive.
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: format!("defclause {}/clause#{} :ensure", cs.name, clause_idx),
+                        expected: "wat::core::fn",
+                        got: Box::new(ValueSnapshot::of(&other)),
+                    },
+                )
+                .into());
+            }
+        };
+        match &ensure_result {
+            Value::bool(true) => {
+                // Postcondition passes — return result.
+            }
+            Value::bool(false) => {
+                return Err(RuntimeError::new(
+                    body_span,
+                    RuntimeErrorKind::PostconditionFailed {
+                        defclause_name: cs.name.clone(),
+                        clause_index: clause_idx,
+                        ensure_expr_snapshot,
+                        returned_value: Box::new(ValueSnapshot::of(&result)),
+                        ensure_span: Box::new(ensure_span),
+                    },
+                )
+                .into());
+            }
+            other => {
+                // Non-bool from ensure — type-checker should have caught.
+                // Defensive: treat as postcondition failure.
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: format!("defclause {}/clause#{} :ensure result", cs.name, clause_idx),
+                        expected: "wat::core::bool",
+                        got: Box::new(ValueSnapshot::of(other)),
+                    },
+                )
+                .into());
             }
         }
+    }
 
     Ok(result)
 }
@@ -471,6 +516,9 @@ mod tests {
             RuntimeErrorKind::MalformedForm { reason, .. } => reason,
             _ => panic!("expected MalformedForm, got {:?}", err),
         };
-        assert_eq!(reason, "expected [name <- :T ...] -> :Ret body ...; got 1 element(s)");
+        assert_eq!(
+            reason,
+            "expected [name <- :T ...] -> :Ret body ...; got 1 element(s)"
+        );
     }
 }

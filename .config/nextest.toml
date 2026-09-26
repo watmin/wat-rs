@@ -215,14 +215,13 @@ filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
 priority = 98                                             # just below the lint binary
 
-# 2026-09-25 — excursus 007 stone 1 re-strike. `wat_value_ui` alone on this
-# machine was 25.6s against a 30s kill (excursus 004's measurement). The floor
-# `.floor/2026-09-25T20-51-56Z` spent 22.29s compiling the trybuild crate, then
-# `(test timed out)` at 30.005s. Warn 90s / kill 180s is about 3x the alone
-# number. Only this test: `to_edn_derive_ui` passed that floor at 28.142s, and
-# the c5c/c5b rows stay on the parked 004 branch.
+# 2026-09-25 — excursus 004 stone 1, brought across after 007. Measured ALONE
+# on this machine: `c5c_nan_is_unordered_gate` 28.6s and `wat_value_ui` 25.6s
+# against a 30s kill. `c5b` took 27.3s under a loaded floor. `to_edn_derive_ui`
+# is the same trybuild class. Warn 90s / kill 180s. The 5s deftest deadlock
+# guard is unchanged; the nth past-end rows annotate `(:wat::test::time-limit "15s")`.
 [[profile.default.overrides]]
-filter = 'test(wat_value_ui)'
+filter = 'test(c5c_nan_is_unordered_gate) or test(c5b_exact_mixed_numeric_order_gate) or test(wat_value_ui) or test(to_edn_derive_ui)'
 slow-timeout = { period = "90s", terminate-after = 2 }
 
 [[profile.ci.overrides]]
@@ -253,10 +252,9 @@ filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98
 
-# 2026-09-25 — same `wat_value_ui` deadline as profile.default. A deadline only
-# the dev profile can meet is not one.
+# 2026-09-25 — same four as profile.default. A deadline only the dev profile can meet is not one.
 [[profile.ci.overrides]]
-filter = 'test(wat_value_ui)'
+filter = 'test(c5c_nan_is_unordered_gate) or test(c5b_exact_mixed_numeric_order_gate) or test(wat_value_ui) or test(to_edn_derive_ui)'
 slow-timeout = { period = "90s", terminate-after = 2 }
 
 # 296 Stone K, move 3 — the slow profile. `all()` re-admits everything
@@ -292,7 +290,7 @@ filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98
 
-# 2026-09-25 — same `wat_value_ui` deadline as profile.default.
+# 2026-09-25 — same four as profile.default.
 [[profile.slow.overrides]]
-filter = 'test(wat_value_ui)'
+filter = 'test(c5c_nan_is_unordered_gate) or test(c5b_exact_mixed_numeric_order_gate) or test(wat_value_ui) or test(to_edn_derive_ui)'
 slow-timeout = { period = "90s", terminate-after = 2 }
