@@ -56,14 +56,18 @@ pub(crate) fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError
     crate::process::stdio::emit_panic_envelope(&line);
 }
 
-/// Build the `[#wat.kernel.LociDiedError/StartupError [<cause>]]` chain a
+/// Build the `[#wat.kernel.LociDiedError/StartupError [<failure>]]` chain a
 /// dying child writes on fd 2 when startup fails — a bare, self-describing
 /// `Vector<LociDiedError>` (the `#wat.kernel/ProcessPanics` wrapper is gone).
 ///
-/// Arc 278 "errors first-class EDN" — the cause is the error's `error_edn()`
-/// floor record (`:message`/`:location`/`:causes` + variant coordinate fields),
-/// a fully-structured, navigable tagged record, NOT a `to_wire_edn` String
-/// (the double-encoded mask this stone kills). The owner's `recv'` Lost decoder
+/// Arc 278 "errors first-class EDN" / excursus 003 step 3b — the cause is the
+/// error's `error_edn()` floor record (`:message`/`:location`/`:causes` + variant
+/// coordinate fields), a fully-structured, navigable tagged record, NOT a
+/// `to_wire_edn` String (the double-encoded mask this stone kills), wrapped in the
+/// SAME `#wat.kernel/Failure {…}` envelope every other failure variant now carries
+/// (`frames` empty, `actual`/`expected` `#wat.core/Option.None {}`, `frames-elided`
+/// 0 — a startup failure has no wat call stack of its own to capture; item 2's
+/// "From a StartupError" branch). The owner's `recv'` Lost decoder
 /// (`loci_died_error_from_reason`) STRICT-decodes it back to a typed record.
 ///
 /// Factored out of [`emit_startup_error_structured_exit`] so the acceptance
@@ -79,11 +83,32 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
     // startup error whose cause was a check error then PANICKED (`UnknownTag { ns: "wat.check" }`),
     // exit 101 instead of the structured exit 3, and a peer's death read as `Message` not `Lost`.
     // The brief that asked for it ("go through the same writer every other variant uses") was
-    // wrong for THIS producer: it is a diagnostic-EDN path, not a value path.
-    //
-    // What the wat-sourced enum buys is still bought — the tag's identity and the payload's key
-    // both come from the `defenum` in `wat/kernel/diagnostics.wat`, never from a typed string.
+    // wrong for THIS producer: it is a diagnostic-EDN path, not a value path. Excursus 003 step 3b
+    // keeps this fully true — the `Failure` wrapper below is built the SAME way, directly as
+    // `OwnedValue`, never round-tripped through `Value`.
     let cause_edn = e.error_edn();
+    let failure_edn = crate::edn::contract::edn_tag(
+        "Failure",
+        wat_edn::OwnedValue::Map(vec![
+            (wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("error")), cause_edn),
+            (
+                wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("frames")),
+                wat_edn::OwnedValue::Vector(vec![]),
+            ),
+            (
+                wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("actual")),
+                crate::edn::contract::edn_option_none(),
+            ),
+            (
+                wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("expected")),
+                crate::edn::contract::edn_option_none(),
+            ),
+            (
+                wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("frames-elided")),
+                wat_edn::OwnedValue::Integer(0),
+            ),
+        ]),
+    );
     let names = crate::runtime::builtin_enum_variant_names(
         LociDiedError::WAT_TYPE_PATH,
         LociDiedError::StartupError.as_str(),
@@ -103,7 +128,7 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
         ),
         Box::new(wat_edn::OwnedValue::Map(vec![(
             wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new(key.clone())),
-            cause_edn,
+            failure_edn,
         )])),
     );
 
@@ -219,7 +244,7 @@ fn finish_forked_child(
             // machine-consumable EDN rather than opaque text.
             emit_structured_exit(
                 Some(world),
-                crate::process::died::process_died_error_runtime_value(&runtime_err),
+                crate::process::died::process_died_error_runtime_from_error(&runtime_err),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
@@ -281,7 +306,7 @@ pub(crate) fn finish_in_process(
         Ok(Err(runtime_err)) => {
             emit_structured_exit(
                 Some(world),
-                crate::process::died::process_died_error_runtime_value(&runtime_err),
+                crate::process::died::process_died_error_runtime_from_error(&runtime_err),
             );
             EXIT_RUNTIME_ERROR
         }

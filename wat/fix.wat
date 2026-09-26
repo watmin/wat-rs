@@ -1478,6 +1478,324 @@
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
 
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; EXCURSUS 003 STEP 3B — every LociDiedError failure variant carries ONE :failure field
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; `wat-scripts/fixes/loci-died-error-carries-failure.wat`'s codemod. Every
+;; `:wat::kernel::LociDiedError.<Panic|RuntimeError|StartupError|EntryFormFailure|
+;; MainSignature|BadReturn>` match-arm pattern in the corpus destructured the OLD shape —
+;; `{:message m}` / `{:error m}`, and for Panic `{:message m :failure f}` with `f` an
+;; `Option<Failure>` — before the field reshape (`wat/kernel/diagnostics.wat`) collapsed
+;; every one of the six to a single mandatory `{:failure f}`, `f` a `:wat::kernel::Failure`.
+;;
+;; Measured (BRIEF-envelope-step-3b's own STOP, then driven per the coordinator's follow-up
+;; at `wat-scripts/scratch-pad/probe-excursus003-step3b-nested-map-pattern.wat`): wat's
+;; `match` does NOT accept a nested map sub-pattern (`{:failure {:error {:message m}}}` —
+;; "map/set literal is not a valid match sub-pattern"), so this is a BODY rewrite, never a
+;; pattern-only one.
+;;
+;; Two shapes, and only two — every corpus occurrence was read by hand and fits one; a third
+;; shape is refused loudly rather than silently mismatched (see the predicates below, which
+;; check exact field counts/kinds, not "close enough"):
+;;
+;;   SHAPE 1 — message-only. `{:message m}` / `{:error m}` (one field), or Panic's
+;;   `{:message m :failure f}` (two fields), becomes `{:failure NAME}` — NAME is `f`'s name
+;;   for Panic, `m`'s name REUSED for the other five (minimal diff: the same binder now
+;;   holds the Failure instead of the String/Error) — and every occurrence of `m` inside the
+;;   arm's body is wrapped as `(:wat::kernel::Failure/message NAME)`. A body that never
+;;   references `m` (an underscore-prefixed placeholder, a sentinel body) gets zero wraps —
+;;   the map edit alone is the whole change.
+;;
+;;   SHAPE 2 — Panic's `Option<Failure>` drill-down. `{:message m :failure f} (match f
+;;   [Option.Some {:value inner} BODY] [Option.None {} ELSE])` becomes `{:failure inner}
+;;   BODY` — the whole Option-match wrapper collapses (its scrutinee `f` is now the ARM's own
+;;   mandatory binder, never absent, so the `None` arm can never fire); BODY's own source
+;;   text rides across unchanged.
+;;
+;; Both shapes resolve to ONE region-replace edit per site via `fix-text-span-text` (arc
+;; 282's sanctioned door for "replace a whole structural node, whatever it is" — never a
+;; name-based rename tool for this, per that fn's own header, since the belief here is
+;; structural — "this map, this match wrapper" — not a claim about a token's text) plus,
+;; shape 1 only, one `wrap-edits` pair per body occurrence of the reused binder. Idempotent
+;; by construction: a migrated arm's map no longer carries a `:message`/`:error` key, so
+;; neither predicate matches it a second time.
+
+;; ldef-variant-head? — is `name` one of the six LociDiedError failure-carrying variants?
+(:wat::core::defn :wat::fix::ldef-variant-head? [name <- :wat::core::String] -> :wat::core::bool
+  (:wat::fix::str-in? name
+    (:wat::core::Vector :- [:wat::core::String]
+      ":wat::kernel::LociDiedError.Panic"
+      ":wat::kernel::LociDiedError.RuntimeError"
+      ":wat::kernel::LociDiedError.StartupError"
+      ":wat::kernel::LociDiedError.EntryFormFailure"
+      ":wat::kernel::LociDiedError.MainSignature"
+      ":wat::kernel::LociDiedError.BadReturn")))
+
+;; ldef-old-key-for-head — StartupError's OLD single field was `:error`; every other
+;; failure-carrying variant's was `:message`.
+(:wat::core::defn :wat::fix::ldef-old-key-for-head [name <- :wat::core::String] -> :wat::core::String
+  (:wat::core::if (:wat::core::= name ":wat::kernel::LociDiedError.StartupError") ":error" ":message"))
+
+;; ── SHAPE 2 predicate: Panic {:message m :failure f} (match f [Some {:value i} B] [None {} _]) ──
+
+(:wat::core::defn :wat::fix::ldef-some-arm?
+  [arm <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "vector")
+    (:wat::core::let [ch (:wat::core::ast->children arm)]
+      (:wat::core::if (:wat::core::>= (:wat::core::length ch) 3)
+        (:wat::core::let [head (:wat::core::first ch)  m (:wat::core::nth ch 1)]
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+              (:wat::core::= (:wat::core::ast-name head) ":wat::core::Option.Some")
+              false)
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind m) "map")
+              (:wat::core::let [mch (:wat::core::ast->children m)]
+                (:wat::core::if (:wat::core::= (:wat::core::length mch) 2)
+                  (:wat::core::if
+                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 0)) "keyword")
+                      (:wat::core::= (:wat::core::ast-name (:wat::core::nth mch 0)) ":value")
+                      false)
+                    (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 1)) "symbol")
+                    false)
+                  false))
+              false)
+            false))
+        false))
+    false))
+
+(:wat::core::defn :wat::fix::ldef-none-arm?
+  [arm <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "vector")
+    (:wat::core::let [ch (:wat::core::ast->children arm)]
+      (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
+        (:wat::core::let [head (:wat::core::first ch)]
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+            (:wat::core::= (:wat::core::ast-name head) ":wat::core::Option.None")
+            false))
+        false))
+    false))
+
+;; ldef-shape2-body? — `body` is `(match F [Some {:value _} _] [None {} _])`, F named `failure-name`.
+(:wat::core::defn :wat::fix::ldef-shape2-body?
+  [body <- :wat::WatAST  failure-name <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind body) "list")
+    (:wat::core::let [bch (:wat::core::ast->children body)]
+      (:wat::core::if (:wat::core::= (:wat::core::length bch) 4)
+        (:wat::core::let [mhead    (:wat::core::first bch)
+                          scrut    (:wat::core::nth bch 1)
+                          some-arm (:wat::core::nth bch 2)
+                          none-arm (:wat::core::nth bch 3)]
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind mhead) "keyword")
+              (:wat::core::= (:wat::core::ast-name mhead) ":wat::core::match")
+              false)
+            (:wat::core::if
+              (:wat::core::if (:wat::core::= (:wat::core::ast-kind scrut) "symbol")
+                (:wat::core::= (:wat::core::ast-name scrut) failure-name)
+                false)
+              (:wat::core::if (:wat::fix::ldef-some-arm? some-arm)
+                (:wat::fix::ldef-none-arm? none-arm)
+                false)
+              false)
+            false))
+        false))
+    false))
+
+(:wat::core::defn :wat::fix::ldef-shape2-arm? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "vector")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::= (:wat::core::length ch) 3)
+        (:wat::core::let [head (:wat::core::first ch)
+                          pmap (:wat::core::nth ch 1)
+                          body (:wat::core::nth ch 2)]
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+              (:wat::core::= (:wat::core::ast-name head) ":wat::kernel::LociDiedError.Panic")
+              false)
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind pmap) "map")
+              (:wat::core::let [mch (:wat::core::ast->children pmap)]
+                (:wat::core::if (:wat::core::= (:wat::core::length mch) 4)
+                  (:wat::core::if
+                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 0)) "keyword")
+                      (:wat::core::= (:wat::core::ast-name (:wat::core::nth mch 0)) ":message")
+                      false)
+                    (:wat::core::if
+                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 2)) "keyword")
+                        (:wat::core::= (:wat::core::ast-name (:wat::core::nth mch 2)) ":failure")
+                        false)
+                      (:wat::fix::ldef-shape2-body? body (:wat::core::ast-name (:wat::core::nth mch 3)))
+                      false)
+                    false)
+                  false))
+              false)
+            false))
+        false))
+    false))
+
+;; ldef-shape2-edits — collapse the Option-match wrapper. old-text spans from the pattern
+;; map's own start through the outer `(match …)` body's own end (the arm's closing `]`
+;; survives untouched); new-text is `{:failure <inner>} <some-arm's body, verbatim>`.
+(:wat::core::defn :wat::fix::ldef-shape2-edits
+  [node  <- :wat::WatAST
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   src   <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::let
+    [ch         (:wat::core::ast->children node)
+     pmap       (:wat::core::nth ch 1)
+     body       (:wat::core::nth ch 2)
+     bch        (:wat::core::ast->children body)
+     some-arm   (:wat::core::nth bch 2)
+     sch        (:wat::core::ast->children some-arm)
+     some-map   (:wat::core::nth sch 1)
+     smch       (:wat::core::ast->children some-map)
+     inner-name (:wat::core::ast-name (:wat::core::nth smch 1))
+     some-body  (:wat::core::nth sch 2)
+     old-text   (:wat::fix::fix-text-span-text (:wat::core::ast-span pmap) (:wat::core::ast-end-span body) lines src)
+     body-text  (:wat::fix::fix-text-span-text (:wat::core::ast-span some-body) (:wat::core::ast-end-span some-body) lines src)
+     new-text   (:wat::string::concat "{:failure " (:wat::string::concat inner-name (:wat::string::concat "} " body-text)))
+     off        (:wat::fix::fix-text-offset-of (:wat::core::ast-span pmap) lines)]
+    (:wat::core::Vector :- [:wat::fix::Edit]
+      (:wat::core::Tuple off old-text new-text))))
+
+;; ── SHAPE 1 predicate: {:message m} / {:error m} / Panic's {:message m :failure f} ──
+
+(:wat::core::defn :wat::fix::ldef-shape1-map?
+  [head-name <- :wat::core::String  mch <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= head-name ":wat::kernel::LociDiedError.Panic")
+    (:wat::core::if (:wat::core::= (:wat::core::length mch) 4)
+      (:wat::core::if
+        (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 0)) "keyword")
+          (:wat::core::= (:wat::core::ast-name (:wat::core::nth mch 0)) ":message")
+          false)
+        (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 1)) "symbol")
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 2)) "keyword")
+              (:wat::core::= (:wat::core::ast-name (:wat::core::nth mch 2)) ":failure")
+              false)
+            (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 3)) "symbol")
+            false)
+          false)
+        false)
+      false)
+    (:wat::core::if (:wat::core::= (:wat::core::length mch) 2)
+      (:wat::core::if
+        (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 0)) "keyword")
+          (:wat::core::= (:wat::core::ast-name (:wat::core::nth mch 0)) (:wat::fix::ldef-old-key-for-head head-name))
+          false)
+        (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 1)) "symbol")
+        false)
+      false)))
+
+(:wat::core::defn :wat::fix::ldef-shape1-arm? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "vector")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
+        (:wat::core::let [head (:wat::core::first ch)  pmap (:wat::core::nth ch 1)]
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+              (:wat::fix::ldef-variant-head? (:wat::core::ast-name head))
+              false)
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind pmap) "map")
+              (:wat::fix::ldef-shape1-map? (:wat::core::ast-name head) (:wat::core::ast->children pmap))
+              false)
+            false))
+        false))
+    false))
+
+;; ldef-wrap-symbol-node-edits / -seq-edits — wrap every SYMBOL leaf named `target`, within
+;; `node`/`items` and their descendants, as `(:wat::kernel::Failure/message target)`
+;; (`wrap-edits`'s two pure-insertion edits — before/after, empty old-text, always safe).
+;; A body that never binds `target` (an underscore-prefixed placeholder) walks to zero edits.
+(:wat::core::defn :wat::fix::ldef-wrap-symbol-node-edits
+  [node   <- :wat::WatAST
+   target <- :wat::core::String
+   lines  <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if
+    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
+      (:wat::core::= (:wat::core::ast-name node) target)
+      false)
+    (:wat::fix::wrap-edits node "(:wat::kernel::Failure/message " ")" lines)
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::fix::ldef-wrap-symbol-seq-edits (:wat::core::ast->children node) target lines)
+      (:wat::core::Vector :- [:wat::fix::Edit]))))
+
+(:wat::core::defn :wat::fix::ldef-wrap-symbol-seq-edits
+  [items  <- (:wat::core::Vector :- [:wat::WatAST])
+   target <- :wat::core::String
+   lines  <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :- [:wat::fix::Edit])
+    (:wat::core::concat
+      (:wat::fix::ldef-wrap-symbol-node-edits (:wat::core::first items) target lines)
+      (:wat::fix::ldef-wrap-symbol-seq-edits (:wat::core::rest items) target lines))))
+
+;; ldef-shape1-edits — replace the pattern map, then wrap every body occurrence of the OLD
+;; message binder. `new-failure-name` REUSES `f`'s name for Panic (the pre-existing binder,
+;; now bound to the whole Failure instead of an Option) and the OLD message binder's name
+;; for the other five (repurposed — the same identifier now holds the Failure).
+(:wat::core::defn :wat::fix::ldef-shape1-edits
+  [node  <- :wat::WatAST
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   src   <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::let
+    [ch               (:wat::core::ast->children node)
+     head             (:wat::core::first ch)
+     pmap             (:wat::core::nth ch 1)
+     mch              (:wat::core::ast->children pmap)
+     panic?           (:wat::core::= (:wat::core::ast-name head) ":wat::kernel::LociDiedError.Panic")
+     old-msg-name     (:wat::core::ast-name (:wat::core::nth mch 1))
+     new-failure-name (:wat::core::if panic? (:wat::core::ast-name (:wat::core::nth mch 3)) old-msg-name)
+     old-map-text     (:wat::fix::fix-text-span-text (:wat::core::ast-span pmap) (:wat::core::ast-end-span pmap) lines src)
+     new-map-text     (:wat::string::concat "{:failure " (:wat::string::concat new-failure-name "}"))
+     map-off          (:wat::fix::fix-text-offset-of (:wat::core::ast-span pmap) lines)
+     map-edit         (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple map-off old-map-text new-map-text))
+     body-forms       (:wat::core::into [] (:wat::core::drop ch 2))
+     body-edits       (:wat::fix::ldef-wrap-symbol-seq-edits body-forms old-msg-name lines)]
+    (:wat::core::concat map-edit body-edits)))
+
+;; ldef-scan / ldef-walk — the corpus walk. SHAPE 2 is checked before SHAPE 1 because a
+;; shape-2 Panic arm's pattern map is STRUCTURALLY identical to shape-1 Panic's (both are
+;; `{:message m :failure f}`) — only the BODY tells them apart, and shape 2 is the more
+;; specific predicate.
+(:wat::core::defn :wat::fix::ldef-scan
+  [node  <- :wat::WatAST
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   src   <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if (:wat::fix::ldef-shape2-arm? node)
+    (:wat::fix::ldef-shape2-edits node lines src)
+    (:wat::core::if (:wat::fix::ldef-shape1-arm? node)
+      (:wat::fix::ldef-shape1-edits node lines src)
+      (:wat::core::if (:wat::fix::structural? node)
+        (:wat::fix::ldef-walk (:wat::core::ast->children node) lines src)
+        (:wat::core::Vector :- [:wat::fix::Edit])))))
+
+(:wat::core::defn :wat::fix::ldef-walk
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   src   <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :- [:wat::fix::Edit])
+    (:wat::core::concat
+      (:wat::fix::ldef-scan (:wat::core::first items) lines src)
+      (:wat::fix::ldef-walk (:wat::core::rest items) lines src))))
+
+;; loci-died-error-carries-failure — the entry point. src in, migrated src out;
+;; comment- and layout-faithful (splices the ORIGINAL text at spans).
+(:wat::core::defn :wat::fix::loci-died-error-carries-failure
+  [src <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let
+    [lines (:wat::string::split src "\n")
+     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+     eds   (:wat::fix::ldef-walk (:wat::core::ast->children tree) lines src)
+     rev   (:wat::core::reverse (:wat::core::sort eds))]
+    (:wat::fix::fix-text-apply src rev)))
+
 ;; ─── 2a2 — one door: a program's enums ∪ stdlib, once per program ────────────
 ;;
 ;; `:wat::fix::enum-fields` — forms + candidate enum paths →

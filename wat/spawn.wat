@@ -470,12 +470,15 @@
 ;; wat-scripts/scratch-pad/probe-failure-record-ctor.wat. Homed here (loads well before
 ;; wat/service.wat, its first client) because this file already owns the recv'-outcome /
 ;; Failure/message crash-parity pattern (see the two `assertion-failed!` sites below).
+;; Excursus 003 step 3b — `frames-elided` joins the floor (mirrors Rust's `message_only_failure`,
+;; `src/runtime.rs`): honestly 0, since this constructor captures no frames at all.
 (:wat::core::defn :wat::kernel::message-only-failure [msg <- :wat::core::String] -> :wat::kernel::Failure
   (:wat::kernel::Failure
     :error (:wat::core::Fault/of msg)
     :frames (:wat::core::Vector :- [:wat::kernel::Frame])
     :actual :wat::core::Option.None
-    :expected :wat::core::Option.None))
+    :expected :wat::core::Option.None
+    :frames-elided 0))
 
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).

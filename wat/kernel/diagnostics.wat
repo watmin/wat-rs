@@ -169,14 +169,21 @@
 ;; accessors reading `error.message` / `error.location` (storing them
 ;; alongside `error` would duplicate data that can drift). `frames` is the
 ;; captured call stack; `actual` / `expected` are populated when the panic
-;; payload carries an AssertionPayload.
+;; payload carries an AssertionPayload. Excursus 003 step 3b — `frames-elided`
+;; joins the floor: the wat call-stack cap (step 2's `capped_wat_frames`) is
+;; recorded on the `Failure` that carries the frames it capped, not left
+;; stranded on `RuntimeError` alone (the only producer that used to report it).
+;; 0 when nothing was elided (the live stack fit under the cap, or the
+;; producer never caps at all — an `AssertionPayload`'s frames are the full,
+;; uncapped `snapshot_call_stack()` today; see BRIEF-envelope-step-3b).
 (:wat::core::defrecord :wat::kernel::Failure
-  [error    <- :wat::core::Error
-   frames   <- (:wat::core::Vector :- [:wat::kernel::Frame])
-   actual   <- (:wat::core::Option :- [:wat::core::String])
-   expected <- (:wat::core::Option :- [:wat::core::String])])
+  [error         <- :wat::core::Error
+   frames        <- (:wat::core::Vector :- [:wat::kernel::Frame])
+   actual        <- (:wat::core::Option :- [:wat::core::String])
+   expected      <- (:wat::core::Option :- [:wat::core::String])
+   frames-elided <- :wat::core::i64])
 
-;; ─── Arc 296 H-2c: :wat::kernel::LociDiedError — moving the source of truth to wat ───
+;; ─── Arc 296 H-2c / Excursus 003 step 3b: :wat::kernel::LociDiedError — moving the source of truth to wat ───
 ;;
 ;; The ONE loci-agnostic death report (arc 278 DESIGN-loci-died-error.md). Variant
 ;; names *how* a peer died; the locus rides as data. Pure — a death report crosses
@@ -185,24 +192,42 @@
 ;;
 ;; Rust sources from this form: `wat_enum_from!` (a generated enum the consumers
 ;; ask) and `wat_enum_register_from!` (the TypeEnv row). There is no second list.
+;;
+;; Excursus 003 step 3b (DESIGN-the-error-envelope-and-its-frames.md D2) — every
+;; failure-carrying variant now holds ONE `:wat::kernel::Failure` instead of a bare
+;; `message <- String`: the envelope carries STRUCTURE, never a string. A Rust
+;; constructor that used to put `to_wire_edn(e)` (the error's own serialized EDN)
+;; into that string produced a double-quoted blob when the string was written out
+;; again — this is the shape that stops it. `StartupError` joins the other five
+;; (was its own `error <- :wat::core::Error` field) so all six share one failure
+;; shape. `LociDiedError/message` (`src/kernel/error.rs`) derives its answer from
+;; `failure.error.message` for every one of them.
 (:wat::core::defenum :wat::kernel::LociDiedError :wat::enum::Pure
-;; Peer raised/panicked; `failure` is Some when the panic carried an AssertionPayload.
-  :Panic            [message <- :wat::core::String
-                     failure <- (:wat::core::Option :- [:wat::kernel::Failure])]
-;; A type/arity/etc. error surfaced at run.
-  :RuntimeError     [message <- :wat::core::String]
+;; Peer raised/panicked. Every panic — assertion-carrying or plain — now carries a
+;; real `Failure`; a plain panic's `failure.error` is a `:wat::core::Fault`
+;; synthesized from the panic message (and the panic's own location when the hook
+;; captured one — measured: only an `AssertionPayload` panic's location is
+;; captured; a bare String/&str panic has none, so its Fault's location falls back
+;; to the Rust call site that built this value).
+  :Panic            [failure <- :wat::kernel::Failure]
+;; A type/arity/etc. error surfaced at run. `failure.error` is the error's own
+;; declared `:wat::runtime::<Kind>` record (`RuntimeError::to_record`, step 3a).
+  :RuntimeError     [failure <- :wat::kernel::Failure]
 ;; The wire dropped (was ChannelDisconnected).
   :Disconnected
 ;; A stop was requested mid-recv, any locus (arc 170: wat's word, not Rust's "shutdown").
   :Stopped
-;; The locus didn't come up. Cause is the structured `:wat::core::Error` floor record.
-  :StartupError     [error   <- :wat::core::Error]
+;; The locus didn't come up. `failure.error` is the structured cause the startup
+;; pipeline raised (a `CheckErrors`, a `MacroError`, a `ReteCheckErrors`, a
+;; `:wat::core::Fault`, …) — whatever concrete record already satisfies the
+;; `:wat::core::Error` surface.
+  :StartupError     [failure <- :wat::kernel::Failure]
 ;; The peer program's entry form was malformed.
-  :EntryFormFailure [message <- :wat::core::String]
+  :EntryFormFailure [failure <- :wat::kernel::Failure]
 ;; The peer's :user::main had a bad signature.
-  :MainSignature    [message <- :wat::core::String]
+  :MainSignature    [failure <- :wat::kernel::Failure]
 ;; The peer returned a value that won't cross the wire.
-  :BadReturn        [message <- :wat::core::String])
+  :BadReturn        [failure <- :wat::kernel::Failure])
 
 ;; ─── Arc 296: :wat::kernel::AssertionFailure — moving the source of truth to wat ───
 ;;
@@ -214,8 +239,11 @@
 ;; panic-hook `#wat.kernel/AssertionFailure {…}` envelope writer routes
 ;; through (via the derived `ToEdn`), replacing a hand-built Map with the
 ;; wrong field shapes. `frames` is a `(Vector :- [Frame])` (was an ad-hoc
-;; `{:callee,:at}` map); `location` is an `(Option :- [Location])` (was a bare
-;; `Span`); `upstream-chain` is a `(Vector :- [LociDiedError])` (was heterogeneous
+;; `{:callee,:at}` map); `location` is an `(Option :- [Span])` (was a bare
+;; `Span`; excursus 003 D1 then retired the narrower `:wat::kernel::Location`
+;; record outright, so `Span` — already the shape below — is now the ONE
+;; location type everywhere, not a stop on the way to a since-corrected other
+;; shape); `upstream-chain` is a `(Vector :- [LociDiedError])` (was heterogeneous
 ;; Thread|Process) — the record is EDN all the way down.
 (:wat::core::defrecord :wat::kernel::AssertionFailure
   [thread         <- :wat::core::String

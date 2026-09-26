@@ -68,16 +68,16 @@
         (:wat::core::match cause
           ;; TRUE variant: a bare Rust panic (capacity exceeded, NOT an AssertionPayload)
           ;; → LociDiedError::Panic; the panic String rides Panic.message. Return it.
-          [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
+          [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
           ;; LociDiedError is the no-hidden-failures enum — every OTHER death is named
           ;; EXPLICITLY (no `_` lump; verbosity is the shield). A distinct WRONG:<variant>
           ;; sentinel makes a RED name exactly which non-Panic death surfaced instead.
-          [:wat::kernel::LociDiedError.RuntimeError {:message _m} "WRONG:RuntimeError"]
+          [:wat::kernel::LociDiedError.RuntimeError {:failure _m} "WRONG:RuntimeError"]
           [:wat::kernel::LociDiedError.Disconnected {} "WRONG:Disconnected"]
           [:wat::kernel::LociDiedError.Stopped {} "WRONG:Stopped"]
-          [:wat::kernel::LociDiedError.StartupError {:error _m} "WRONG:StartupError"]
-          [:wat::kernel::LociDiedError.EntryFormFailure {:message _m} "WRONG:EntryFormFailure"]
-          [:wat::kernel::LociDiedError.MainSignature {:message _m} "WRONG:MainSignature"]
-          [:wat::kernel::LociDiedError.BadReturn {:message _m} "WRONG:BadReturn"])]
+          [:wat::kernel::LociDiedError.StartupError {:failure _m} "WRONG:StartupError"]
+          [:wat::kernel::LociDiedError.EntryFormFailure {:failure _m} "WRONG:EntryFormFailure"]
+          [:wat::kernel::LociDiedError.MainSignature {:failure _m} "WRONG:MainSignature"]
+          [:wat::kernel::LociDiedError.BadReturn {:failure _m} "WRONG:BadReturn"])]
       [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
       [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

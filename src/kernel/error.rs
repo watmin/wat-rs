@@ -7,8 +7,9 @@
 //! `loci_died_disconnected`), the `thread_died_error_*` family (`panic` /
 //! `runtime` / `shutdown`), the chain/EDN helpers (`single_died_chain` /
 //! `thread_crash_panic_edn` / `thread_crash_runtime_edn`), and three
-//! private helpers (`died_error_payload_message` / `edn_is_loci_died_chain` /
-//! `failure_error_field`).
+//! private helpers (`edn_is_loci_died_chain` / `failure_error_field` / and,
+//! since excursus 003 step 3b replaced the arc-278 stone-1 String-or-Error
+//! branching this doc originally counted, `failure_payload_message`).
 //!
 //! Measured, and stated so it can be re-checked rather than believed: no
 //! file outside `src/intrinsic/kernel/error.rs` (the edge) and
@@ -45,7 +46,8 @@
 use crate::ast::WatAST;
 use crate::runtime::{
     builtin_enum_variant_names, eval_inner, failure_value_from_assertion_payload,
-    message_only_failure, no_field_names, record_field_by_name,
+    flat_message_failure, message_only_failure, no_field_names, record_field_by_name,
+    runtime_error_failure,
 };
 use crate::span::Span;
 use crate::value::{
@@ -72,35 +74,40 @@ fn loci_died_value(variant: LociDiedError, names: Arc<Vec<String>>, fields: Vec<
     }))
 }
 
-/// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
-/// (arc 060 + arc 105c). Variant carries two fields:
-/// `message: String` always populated; `failure: (Option :- [Failure])`
-/// populated when the panic was an `AssertionPayload` carrying
-/// arc 064's structured actual / expected / location / frames
-/// info, `:None` for plain panics.
+/// Build a `:wat::kernel::LociDiedError::Panic` enum value (arc 060 + arc 105c;
+/// excursus 003 step 3b — the envelope carries `Failure`). ONE mandatory field now:
+/// every panic, assertion-carrying or plain, carries a real `Failure` — a plain
+/// panic's `failure.error` is a `:wat::core::Fault` synthesized from `message`
+/// (`flat_message_failure`'s `#[track_caller]` site, since a bare panic has no
+/// location of its own — measured: the panic hook only captures a location for an
+/// `AssertionPayload`). The separate `message` field this variant used to carry is
+/// gone; its text is `failure.error.message` (`eval_died_error_message` derives it).
 pub(crate) fn thread_died_error_panic(
     message: String,
     assertion: Option<crate::assertion::AssertionPayload>,
 ) -> Value {
     let failure_field = match assertion {
-        Some(p) => {
-            // Build a :wat::kernel::Failure Value::Aggregate(Struct) out of the
-            // AssertionPayload's owned fields. Same shape arc 064
-            // produced via the now-deleted build_failure helper in
-            // src/sandbox.rs.
-            Value::Option(Arc::new(Some(failure_value_from_assertion_payload(p))))
-        }
-        None => Value::Option(Arc::new(None)),
+        // Build a :wat::kernel::Failure Value::Aggregate(Struct) out of the
+        // AssertionPayload's owned fields. Same shape arc 064
+        // produced via the now-deleted build_failure helper in
+        // src/sandbox.rs.
+        Some(p) => failure_value_from_assertion_payload(p),
+        None => flat_message_failure(message),
     };
     loci_died_value(
         LociDiedError::Panic,
         builtin_enum_variant_names(LociDiedError::WAT_TYPE_PATH, LociDiedError::Panic.as_str()),
-        vec![Value::String(Arc::new(message)), failure_field],
+        vec![failure_field],
     )
 }
 
-/// Build a `:wat::kernel::ThreadDiedError::RuntimeError(message)`
-/// enum value (arc 060).
+/// Build a `:wat::kernel::LociDiedError::RuntimeError(failure)` enum value (arc 060;
+/// excursus 003 step 3b) from a FLAT message with no `RuntimeError` of its own —
+/// `SendError::Failed`'s io-error reason is the one live caller
+/// ([`loci_died_from_send_error`]). `failure.error` is a synthesized `:wat::core::Fault`
+/// (`flat_message_failure`). A genuine `RuntimeError` goes through
+/// [`thread_died_error_runtime_from_error`] instead, which preserves its declared
+/// `:wat::runtime::<Kind>` record and its own already-captured frames.
 pub(crate) fn thread_died_error_runtime(message: String) -> Value {
     loci_died_value(
         LociDiedError::RuntimeError,
@@ -108,7 +115,26 @@ pub(crate) fn thread_died_error_runtime(message: String) -> Value {
             LociDiedError::WAT_TYPE_PATH,
             LociDiedError::RuntimeError.as_str(),
         ),
-        vec![Value::String(Arc::new(message))],
+        vec![flat_message_failure(message)],
+    )
+}
+
+/// Build a `:wat::kernel::LociDiedError::RuntimeError(failure)` enum value from a
+/// GENUINE `RuntimeError` (excursus 003 step 3b, item 2's "From a RuntimeError"
+/// branch) — `failure.error` is `re.to_record()` (step 3a's declared
+/// `:wat::runtime::<Kind>` record, its class carried structurally); `frames` /
+/// `frames-elided` are the error's OWN already-captured trace (step 2), never
+/// re-snapshotted. The thread-tier sibling of
+/// [`crate::process::died::process_died_error_runtime_from_error`]; used by
+/// [`thread_crash_runtime_edn`].
+pub(crate) fn thread_died_error_runtime_from_error(re: &RuntimeError) -> Value {
+    loci_died_value(
+        LociDiedError::RuntimeError,
+        builtin_enum_variant_names(
+            LociDiedError::WAT_TYPE_PATH,
+            LociDiedError::RuntimeError.as_str(),
+        ),
+        vec![runtime_error_failure(re)],
     )
 }
 
@@ -250,37 +276,36 @@ pub(crate) fn thread_crash_panic_edn(
 }
 
 /// Arc 278 no-hidden-failures — the RuntimeError sibling of
-/// [`thread_crash_panic_edn`]. Mirrors the process tier's
-/// `process_died_error_runtime_value`: the RuntimeError crosses the wire as
-/// structured `to_wire_edn` (its `:message`/`:location`/`:causes` floor), NOT
-/// `re.to_string()` prose, wrapped in the same bare `(Vector :- [LociDiedError])` line.
+/// [`thread_crash_panic_edn`]. Excursus 003 step 3b: the RuntimeError crosses the
+/// wire as its OWN declared `:wat::runtime::<Kind>` record, structurally, inside a
+/// `Failure` (`thread_died_error_runtime_from_error`) — never `to_wire_edn`/
+/// `to_string()` prose — wrapped in the same bare `(Vector :- [LociDiedError])` line.
 pub(crate) fn thread_crash_runtime_edn(
     re: &RuntimeError,
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
-    let chain = single_died_chain(thread_died_error_runtime(crate::edn::contract::to_wire_edn(re)));
+    let chain = single_died_chain(thread_died_error_runtime_from_error(re));
     crate::edn::render::value_to_edn_string_lossy(&chain, types)
 }
 
-/// Derive the human message from a `LociDiedError` variant's carried payload.
-///
-/// Arc 278 "errors first-class EDN" (stone 1) — `StartupError`'s payload is now
-/// the structured `:wat::core::Error` record (a `Value::Aggregate` whose FIRST
-/// field is the `:message` String, by the floor order `message`/`location`/
-/// `causes`). Every OTHER carrying variant (`Panic` / `RuntimeError` /
-/// `EntryFormFailure` / `MainSignature` / `BadReturn`) still carries a bare
-/// `Value::String`. This accessor accepts BOTH: a structured Error record →
-/// its `:message`; a bare String → itself. (A legacy String-wrapped
-/// `StartupError` payload — e.g. the setpgid OS-level `FlatMessage` path — also
-/// lands on the String arm.)
-pub(crate) fn died_error_payload_message(v: &Value) -> Option<Arc<String>> {
-    match v {
-        Value::String(s) => Some(s.clone()),
-        // Structured `:wat::core::Error` record: `:message` is field 0.
-        Value::Aggregate(a) => match a.fields.first() {
-            Some(Value::String(s)) => Some(s.clone()),
-            _ => None,
-        },
+/// Excursus 003 step 3b — derive the human headline from a failure-carrying
+/// `LociDiedError` variant's ONE `:wat::kernel::Failure` payload: `failure.error.message`.
+/// Every one of the six failure variants (`Panic` / `RuntimeError` / `StartupError` /
+/// `EntryFormFailure` / `MainSignature` / `BadReturn`) now shares this ONE shape — no
+/// per-variant String-vs-structured-Error branching left to do (that was the whole
+/// defect this step cures: the field used to be a bare `String` holding the error's
+/// OWN serialized EDN for five of the six, and a structured `:wat::core::Error` for
+/// the sixth). `types` resolves `error`'s and `message`'s field offsets by name
+/// (`record_field_by_name`) — the SAME two-hop read `eval_failure_message` performs
+/// for the wat-level `Failure/message` accessor, applied here to a `Failure` already
+/// in hand rather than one still to be evaluated from an AST arg.
+fn failure_payload_message(
+    failure: &Value,
+    types: Option<&crate::types::TypeEnv>,
+) -> Option<Arc<String>> {
+    let error = record_field_by_name(failure, "error", types)?;
+    match record_field_by_name(&error, "message", types)? {
+        Value::String(s) => Some(s),
         _ => None,
     }
 }
@@ -295,8 +320,9 @@ pub(crate) fn died_error_payload_message(v: &Value) -> Option<Arc<String>> {
 /// enum-variant pattern-matcher gap — callers ask for a generic
 /// message without discriminating variants.
 ///
-/// Field 0 is `message` for `Panic` / `RuntimeError` /
-/// `StartupError` / `EntryFormFailure` / `MainSignature` / `BadReturn`.
+/// Field 0 is the `:wat::kernel::Failure` payload for `Panic` / `RuntimeError` /
+/// `StartupError` / `EntryFormFailure` / `MainSignature` / `BadReturn` (excursus 003
+/// step 3b); the derived message is `failure.error.message`.
 pub(crate) fn eval_died_error_message(
     args: &[WatAST],
     env: &Environment,
@@ -318,27 +344,27 @@ pub(crate) fn eval_died_error_message(
         .into());
     }
     let val = eval_inner(&args[0], env, sym)?.value_owned();
+    let types = sym.types().map(|a| a.as_ref());
     match val {
         Value::Enum(ev) if ev.type_path == LociDiedError::WAT_TYPE_PATH => {
             match ev.variant_name.parse::<LociDiedError>() {
-                // Arc 170 slice 1i — EntryFormFailure / MainSignature / BadReturn /
-                // RuntimeError / Panic carry a String at field 0. Arc 278 stone 1 —
-                // StartupError carries a structured `:wat::core::Error` record; the
-                // message is DERIVED from its `:message` (see `died_error_payload_message`).
+                // Excursus 003 step 3b — every failure variant carries ONE
+                // `:wat::kernel::Failure` at field 0; the message derives from
+                // `failure.error.message` (`failure_payload_message`).
                 Ok(LociDiedError::Panic)
                 | Ok(LociDiedError::RuntimeError)
                 | Ok(LociDiedError::StartupError)
                 | Ok(LociDiedError::EntryFormFailure)
                 | Ok(LociDiedError::MainSignature)
                 | Ok(LociDiedError::BadReturn) => {
-                    match ev.fields.first().and_then(died_error_payload_message) {
+                    match ev.fields.first().and_then(|f| failure_payload_message(f, types)) {
                         Some(s) => Ok(Value::String(s)),
                         None => Err(RuntimeError::new(
                             args[0].span().clone(),
                             RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
-                                expected: "String or :wat::core::Error inside *DiedError variant",
-                                got: Box::new(ValueSnapshot::unavailable("non-message payload")),
+                                expected: ":wat::kernel::Failure inside *DiedError variant",
+                                got: Box::new(ValueSnapshot::unavailable("non-Failure payload")),
                                 // arc 138: no — matching on Value::Enum fields; no AST element
                             },
                         )
@@ -417,64 +443,30 @@ pub(crate) fn eval_died_error_to_failure(
     match val {
         Value::Enum(ev) if ev.type_path == LociDiedError::WAT_TYPE_PATH => {
             match ev.variant_name.parse::<LociDiedError>() {
-                Ok(LociDiedError::Panic) => {
-                    let msg = match ev.fields.first() {
-                        Some(Value::String(s)) => (**s).clone(),
-                        _ => {
-                            return Err(RuntimeError::new(
-                                args[0].span().clone(),
-                                RuntimeErrorKind::TypeMismatch {
-                                    op: op.into(),
-                                    expected: "String at Panic.message",
-                                    got: Box::new(ValueSnapshot::unavailable(
-                                        "non-String at field 0",
-                                    )),
-                                    // arc 138: no — matching on Value::Enum fields; no AST element
-                                },
-                            )
-                            .into());
-                        }
-                    };
-                    // Field 1 is declared `(Option :- [Failure])`. The
-                    // EDN reader's reconstruct_struct + Tagged
-                    // arms (arc 113 slice 3) wrap Option layers
-                    // back during bridge, so both wat-side
-                    // builds and post-EDN round trips arrive
-                    // here as `Value::Option(_)`. `Some(failure)`
-                    // → return the inner Failure clone; `None` →
-                    // fall through to message-only.
-                    if let Some(Value::Option(opt)) = ev.fields.get(1) {
-                        if let Some(failure) = opt.as_ref() {
-                            return Ok(failure.clone());
-                        }
-                    }
-                    Ok(message_only_failure(msg))
-                }
-                // Arc 170 slice 1i — EntryFormFailure / MainSignature / BadReturn /
-                // RuntimeError carry one String field. Arc 278 stone 1 — StartupError
-                // carries a structured `:wat::core::Error`; `died_error_payload_message`
-                // derives its `:message`. Both map to a message-only Failure.
-                Ok(LociDiedError::RuntimeError)
+                // Excursus 003 step 3b — field 0 IS the `:wat::kernel::Failure` now,
+                // for every one of the six failure variants (Panic included: its
+                // separate `message` field and `Option<Failure>` field 1 are gone,
+                // collapsed into this one mandatory `Failure`). `to-failure` is just
+                // "hand back what is already there" — no more message-only synthesis
+                // for a variant that carries real structure.
+                Ok(LociDiedError::Panic)
+                | Ok(LociDiedError::RuntimeError)
                 | Ok(LociDiedError::StartupError)
                 | Ok(LociDiedError::EntryFormFailure)
                 | Ok(LociDiedError::MainSignature)
-                | Ok(LociDiedError::BadReturn) => {
-                    match ev.fields.first().and_then(died_error_payload_message) {
-                        Some(s) => Ok(message_only_failure((*s).clone())),
-                        None => Err(RuntimeError::new(
-                            args[0].span().clone(),
-                            RuntimeErrorKind::TypeMismatch {
-                                op: op.into(),
-                                expected: "String or :wat::core::Error at *DiedError payload",
-                                got: Box::new(ValueSnapshot::unavailable(
-                                    "non-message payload at field 0",
-                                )),
-                                // arc 138: no — matching on Value::Enum fields; no AST element
-                            },
-                        )
-                        .into()),
-                    }
-                }
+                | Ok(LociDiedError::BadReturn) => match ev.fields.first() {
+                    Some(failure @ Value::Aggregate(_)) => Ok(failure.clone()),
+                    _ => Err(RuntimeError::new(
+                        args[0].span().clone(),
+                        RuntimeErrorKind::TypeMismatch {
+                            op: op.into(),
+                            expected: ":wat::kernel::Failure at *DiedError field 0",
+                            got: Box::new(ValueSnapshot::unavailable("non-Failure at field 0")),
+                            // arc 138: no — matching on Value::Enum fields; no AST element
+                        },
+                    )
+                    .into()),
+                },
                 Ok(LociDiedError::Disconnected) => {
                     Ok(message_only_failure("disconnected".to_string()))
                 }
@@ -526,29 +518,64 @@ pub(crate) fn loci_died_error_from_reason(reason: String, types: Option<&crate::
         if edn_is_loci_died_chain(&parsed) {
             // ctx=None: this decodes only the fixed core `LociDiedError` enum — never a
             // user-declared HolonRecord class — so no EncodingCtx is ever needed here.
-            if let Ok(Value::Vec(items)) = crate::edn::render::edn_to_value(&parsed, types, None) {
-                if let Some(head) = items.first() {
-                    return head.clone();
-                }
-            }
+            //
+            // Excursus 003 step 3b, item 4 — the OLD code discarded this Result with
+            // `if let Ok(...)`, so a registration gap (a variant's cause type not
+            // registered in `types`) took the SAME silent exit as a truly opaque
+            // reason and came out looking like a plain, causeless panic. The shape
+            // already told us this WAS a death-chain line; a decode failure here is
+            // never opaque, and must say so.
+            return match crate::edn::render::edn_to_value(&parsed, types, None) {
+                Ok(Value::Vec(items)) => match items.first() {
+                    Some(head) => head.clone(),
+                    None => decode_failed_panic(
+                        "death report decoded as an empty chain (Vector :- [LociDiedError]) \
+                         with no head element"
+                            .to_string(),
+                    ),
+                },
+                Ok(other) => decode_failed_panic(format!(
+                    "death report chain decoded to {}, not a Vector",
+                    other.type_name()
+                )),
+                Err(e) => decode_failed_panic(format!("death report chain failed to decode: {e}")),
+            };
         }
-        // A single LociDiedError tagged value → bridge as-is.
+        // A single LociDiedError tagged value → bridge as-is. Same non-silent
+        // treatment as the chain arm above: the tag already says this is a death
+        // report, so a decode failure here names why, rather than falling to opaque.
         if let wat_edn::OwnedValue::Tagged(tag, _) = &parsed {
             if crate::edn::render::tag_is_variant_of(tag, LociDiedError::WAT_TYPE_PATH) {
-                if let Ok(v) = crate::edn::render::edn_to_value(&parsed, types, None) {
-                    return v;
-                }
+                return match crate::edn::render::edn_to_value(&parsed, types, None) {
+                    Ok(v) => v,
+                    Err(e) => decode_failed_panic(format!("death report failed to decode: {e}")),
+                };
             }
         }
     }
-    // Opaque reason — wrap as a Panic carrying the raw death message.
+    // Genuinely opaque reason: not EDN at all, or EDN that is not shaped like a
+    // LociDiedError chain or a single tagged variant — an OS-level error string, a
+    // "recv EDN decode failed: …" prose note describing the *message* payload
+    // (unrelated to the death-report shape), or a raw crash line that never became
+    // well-formed EDN. Wrap as a Panic carrying the raw death message.
     loci_died_value(
         LociDiedError::Panic,
         builtin_enum_variant_names(LociDiedError::WAT_TYPE_PATH, LociDiedError::Panic.as_str()),
-        vec![
-            Value::String(Arc::new(reason)),
-            Value::Option(Arc::new(None)),
-        ],
+        vec![message_only_failure(reason)],
+    )
+}
+
+/// Excursus 003 step 3b, item 4 — the shape of `reason` said "this is a
+/// `LociDiedError`", but decoding it failed. Distinguishable from a genuinely
+/// opaque reason (`loci_died_error_from_reason`'s final fallback): both wrap as
+/// `Panic`, but this one's `Failure/message` NAMES the decode failure (and the
+/// `EdnReadError` behind it) instead of silently repeating the raw bytes as if
+/// nothing had been recognized at all.
+fn decode_failed_panic(why: String) -> Value {
+    loci_died_value(
+        LociDiedError::Panic,
+        builtin_enum_variant_names(LociDiedError::WAT_TYPE_PATH, LociDiedError::Panic.as_str()),
+        vec![message_only_failure(why)],
     )
 }
 

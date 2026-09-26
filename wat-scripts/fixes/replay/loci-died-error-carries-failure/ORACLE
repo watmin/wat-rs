@@ -1,0 +1,9 @@
+# ORACLE for loci-died-error-carries-failure — HISTORY or header spec, never the tool.
+# A brand-new migration (excursus 003 step 3b) has no prior commit to cite as HISTORY;
+# every changed line is spec'd against the codemod's own header instead.
+
+spec-before     [:wat::kernel::LociDiedError.RuntimeError {:message m} m] :: `[:wat::kernel::LociDiedError.RuntimeError {:message m} m]`
+spec     [:wat::kernel::LociDiedError.RuntimeError {:failure m} (:wat::kernel::Failure/message m)] :: `[:wat::kernel::LociDiedError.RuntimeError {:failure m} (:wat::kernel::Failure/message m)]`
+
+spec-before     [:wat::kernel::LociDiedError.Panic {:message pm :failure pf} (:wat::core::match pf [:wat::core::Option.Some {:value f} (:wat::kernel::Failure/message f)] [:wat::core::Option.None {} "none"])] :: `[:wat::kernel::LociDiedError.Panic {:message pm :failure pf} (:wat::core::match pf [:wat::core::Option.Some {:value f} (:wat::kernel::Failure/message f)] [:wat::core::Option.None {} "none"])]`
+spec     [:wat::kernel::LociDiedError.Panic {:failure f} (:wat::kernel::Failure/message f)] :: `[:wat::kernel::LociDiedError.Panic {:failure f} (:wat::kernel::Failure/message f)]`

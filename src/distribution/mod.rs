@@ -553,7 +553,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
             Err(e) => {
                 crate::process::emit_structured_exit(
                     Some(&world),
-                    crate::process::died::process_died_error_runtime_value(&e),
+                    crate::process::died::process_died_error_runtime_from_error(&e),
                 );
                 return ExitCode::from(crate::process::EXIT_RUNTIME_ERROR as u8);
             }

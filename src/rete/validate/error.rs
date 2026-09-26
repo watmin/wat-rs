@@ -574,9 +574,35 @@ impl fmt::Debug for ReteCheckErrors {
     }
 }
 
+/// Excursus 003 step 3b, item 5 — the "second mechanism": `StartupError::message()`
+/// (`src/macros/error_edn.rs:157`, OUT OF SCOPE to edit — the `FreezeValidatorError`
+/// trait it delegates through carries no `message()` of its own, only
+/// `ToEdn + Debug + Display`, and adding one is a bigger, cross-cutting API change
+/// deferred to step 3c) reads a boxed validator error's failure text via
+/// `first_line(e.to_string())` — i.e. THIS `Display`. Every sibling `WatError`-like
+/// aggregate in the tree (`CheckErrors`, `TypeError`, `MacroError`, `LoadError`,
+/// `ResolveError`, `ConfigError`, the `value/signal.rs` envelope types,
+/// `StartupError` itself, and `ReteCheckError` — the singular, non-aggregate
+/// sibling — right above) has this SAME `Display = to_wire_edn(self)` convention,
+/// and NONE of the others is ever read through `.to_string()` to build a `:message`
+/// — every other consumer that wants a message calls `.message()` directly, because
+/// it holds the concrete (or `WatError`-bounded) type, not an opaque
+/// `Display`-only trait object. `ReteCheckErrors` is the ONE exception (measured:
+/// `src/freeze/validator.rs` registers exactly one `FreezeValidator` in the whole
+/// tree — the rete `defrule` wall — so it is also the ONLY type this box ever
+/// carries), which makes it the one Display worth changing rather than the many
+/// call sites that would otherwise need to stop trusting Display. Routing through
+/// `message()` here — WITHOUT touching `error_edn.rs:157` or the
+/// `FreezeValidatorError` trait — fixes the double-quoting for this producer while
+/// leaving the deferred trait-widening cure for step 3c. `Debug` keeps the full wire
+/// EDN (unaffected): a test failure message printed with `{:?}` still shows the
+/// whole structure, which Display's callers (a boxed `.to_string()`, and `--check`
+/// text-mode's `eprintln!("{}", err)`) do not want repeated inside their own
+/// `:message`.
 impl fmt::Display for ReteCheckErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::edn::contract::to_wire_edn(self))
+        use crate::edn::contract::WatError;
+        f.write_str(&self.message())
     }
 }
 

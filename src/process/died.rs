@@ -19,8 +19,11 @@
 //! Functions lifted out of `runtime.rs` — bodies verbatim; only the
 //! visibility keyword changed.
 
-use crate::runtime::{builtin_enum_variant_names, failure_value_from_assertion_payload};
-use crate::value::{EnumValue, Value};
+use crate::runtime::{
+    builtin_enum_variant_names, failure_value_from_assertion_payload, flat_message_failure,
+    runtime_error_failure,
+};
+use crate::value::{EnumValue, RuntimeError, Value};
 use std::sync::Arc;
 
 /// Arc 113 slice 2 — conj a fresh DiedError onto the FRONT of an
@@ -52,23 +55,24 @@ pub(crate) fn conj_died_chain_value(fresh: Value, upstream: Option<Vec<Value>>) 
     conj_died_chain(fresh, upstream)
 }
 
-/// Build a `:wat::kernel::ProcessDiedError::Panic` enum value
-/// (arc 112). Sibling of `thread_died_error_panic` for the
-/// (Process :- [I O]) subject. Same payload shape; the type_path
-/// distinguishes them at runtime + at the type-checker.
+/// Build a `:wat::kernel::LociDiedError::Panic` enum value (arc 112; excursus 003
+/// step 3b — the envelope carries `Failure`). Sibling of `thread_died_error_panic`
+/// for the `(Process :- [I O])` subject. ONE mandatory `Failure` field now: a plain
+/// panic's `failure.error` is a synthesized `:wat::core::Fault`
+/// (`flat_message_failure`), never a bare message string.
 pub(crate) fn process_died_error_panic(
     message: String,
     assertion: Option<crate::assertion::AssertionPayload>,
 ) -> Value {
     let failure_field = match assertion {
-        Some(p) => Value::Option(Arc::new(Some(failure_value_from_assertion_payload(p)))),
-        None => Value::Option(Arc::new(None)),
+        Some(p) => failure_value_from_assertion_payload(p),
+        None => flat_message_failure(message),
     };
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Panic".into(),
         names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "Panic"),
-        fields: vec![Value::String(Arc::new(message)), failure_field],
+        fields: vec![failure_field],
     }))
 }
 
@@ -85,68 +89,102 @@ pub(crate) fn process_died_error_panic_value(
     process_died_error_panic(message, assertion)
 }
 
-/// Build a `:wat::kernel::ProcessDiedError::RuntimeError(message)`
-/// enum value (arc 112).
+/// Build a `:wat::kernel::LociDiedError::RuntimeError(failure)` enum value (arc 112;
+/// excursus 003 step 3b) from a FLAT message with no `RuntimeError` of its own —
+/// e.g. `validate_user_grep_signature`'s `GrepSignatureError` `FlatMessage`.
+/// `failure.error` is a synthesized `:wat::core::Fault` (`flat_message_failure`). A
+/// genuine `RuntimeError` goes through [`process_died_error_runtime_from_error`]
+/// instead, which preserves its declared `:wat::runtime::<Kind>` record and its own
+/// already-captured frames.
 pub(crate) fn process_died_error_runtime(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "RuntimeError".into(),
         names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "RuntimeError"),
-        fields: vec![Value::String(Arc::new(message))],
+        fields: vec![flat_message_failure(message)],
+    }))
+}
+
+/// Build a `:wat::kernel::LociDiedError::RuntimeError(failure)` enum value from a
+/// GENUINE `RuntimeError` (excursus 003 step 3b, item 2's "From a RuntimeError"
+/// branch) — `failure.error` is `re.to_record()` (step 3a's declared
+/// `:wat::runtime::<Kind>` record); `frames` / `frames-elided` are the error's OWN
+/// already-captured trace (step 2), never re-snapshotted. Replaces the generic
+/// `process_died_error_runtime_value::<RuntimeError>` call sites — `RuntimeError`
+/// and a bare `FlatMessage` need DIFFERENT construction (a real error's frames vs. a
+/// synthesized Fault's), so one generic fn covering both silently lost the
+/// RuntimeError's own capture. The thread-tier sibling is
+/// [`crate::kernel::error::thread_died_error_runtime_from_error`].
+pub(crate) fn process_died_error_runtime_from_error(re: &RuntimeError) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::LociDiedError".into(),
+        variant_name: "RuntimeError".into(),
+        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "RuntimeError"),
+        fields: vec![runtime_error_failure(re)],
     }))
 }
 
 /// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs
 /// (arc 170 slice 1i — structured runtime-error exit path).
 ///
-/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]: the payload
-/// is produced from the error's `WatError::error_edn()` via
-/// [`crate::edn::contract::to_wire_edn`], so a non-`WatError` type cannot reach this
-/// wire boundary (it is a compile error). The floor (:message :location :causes)
-/// is always present in the wire payload.
+/// Arc 296 strike 2 / excursus 003 step 3b — generic over
+/// [`crate::edn::contract::WatError`], for a FLAT-message producer (a
+/// [`crate::edn::contract::FlatMessage`] with no recoverable location of its own,
+/// e.g. `validate_user_grep_signature`'s `GrepSignatureError`). Reads `e.message()`
+/// directly — NOT `to_wire_edn(e)`, which would serialize `e`'s own floor
+/// (`:message`/`:location`/`:causes`) into the string and double-quote it once
+/// `process_died_error_runtime` wraps it in a `Fault`. A genuine `RuntimeError` (a
+/// non-flat `WatError` with its own captured frames) goes through
+/// [`process_died_error_runtime_from_error`] instead — this generic fn is for
+/// callers with nothing but a message to give.
 pub(crate) fn process_died_error_runtime_value(e: &impl crate::edn::contract::WatError) -> Value {
-    process_died_error_runtime(crate::edn::contract::to_wire_edn(e))
+    process_died_error_runtime(e.message())
 }
 
-/// Build a `:wat::kernel::ProcessDiedError::MainSignature(message)`
-/// enum value (arc 170 slice 1i). Emitted by fork child branches when
-/// `validate_user_main_signature` returns `Err`.
+/// Build a `:wat::kernel::LociDiedError::MainSignature(failure)` enum value
+/// (arc 170 slice 1i; excursus 003 step 3b). Emitted by fork child branches when
+/// `validate_user_main_signature` returns `Err`. `failure.error` is a synthesized
+/// `:wat::core::Fault` (`flat_message_failure`).
 pub(crate) fn process_died_error_main_signature(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "MainSignature".into(),
         names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "MainSignature"),
-        fields: vec![Value::String(Arc::new(message))],
+        fields: vec![flat_message_failure(message)],
     }))
 }
 
 /// Cross-module pub(crate) accessor.
 ///
-/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]. The
-/// main-signature validation message is a flat message carried via a
-/// [`crate::edn::contract::FlatMessage`] (itself a `WatError`), so it too crosses
-/// through the floor.
+/// Arc 296 strike 2 / excursus 003 step 3b — generic over
+/// [`crate::edn::contract::WatError`]. The main-signature validation message is a
+/// flat message carried via a [`crate::edn::contract::FlatMessage`] (itself a
+/// `WatError`); reads `e.message()`, never `to_wire_edn(e)` (see
+/// `process_died_error_runtime_value`'s doc for why).
 pub(crate) fn process_died_error_main_signature_value(e: &impl crate::edn::contract::WatError) -> Value {
-    process_died_error_main_signature(crate::edn::contract::to_wire_edn(e))
+    process_died_error_main_signature(e.message())
 }
 
-/// Build a `:wat::kernel::ProcessDiedError::BadReturn(message)`
-/// enum value (arc 170 slice 1i). Emitted by fork / spawn-process child
-/// branches when `:user::main` returns a non-nil value at runtime.
+/// Build a `:wat::kernel::LociDiedError::BadReturn(failure)` enum value
+/// (arc 170 slice 1i; excursus 003 step 3b). Emitted by fork / spawn-process child
+/// branches when `:user::main` returns a non-nil value at runtime. `failure.error`
+/// is a synthesized `:wat::core::Fault` (`flat_message_failure`).
 pub(crate) fn process_died_error_bad_return(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "BadReturn".into(),
         names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "BadReturn"),
-        fields: vec![Value::String(Arc::new(message))],
+        fields: vec![flat_message_failure(message)],
     }))
 }
 
 /// Cross-module pub(crate) accessor.
 ///
-/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]. The bad-return
-/// type name is a flat message carried via a [`crate::edn::contract::FlatMessage`]
-/// (itself a `WatError`), so it too crosses through the floor.
+/// Arc 296 strike 2 / excursus 003 step 3b — generic over
+/// [`crate::edn::contract::WatError`]. The bad-return type name is a flat message
+/// carried via a [`crate::edn::contract::FlatMessage`] (itself a `WatError`); reads
+/// `e.message()`, never `to_wire_edn(e)` (see `process_died_error_runtime_value`'s
+/// doc for why).
 pub(crate) fn process_died_error_bad_return_value(e: &impl crate::edn::contract::WatError) -> Value {
-    process_died_error_bad_return(crate::edn::contract::to_wire_edn(e))
+    process_died_error_bad_return(e.message())
 }

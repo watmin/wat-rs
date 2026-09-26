@@ -1,0 +1,5 @@
+(:wat::core::defn :u::example [cause <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::match cause
+    [:wat::kernel::LociDiedError.RuntimeError {:failure m} (:wat::kernel::Failure/message m)]
+    [:wat::kernel::LociDiedError.Panic {:failure f} (:wat::kernel::Failure/message f)]
+    [_ "other"]))

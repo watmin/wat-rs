@@ -18,11 +18,16 @@
 ;; annihilation — the stored message/location fields were REMOVED; Failure carries the raised
 ;; `:wat::core::Error` STRUCTURALLY in a mandatory `error` field, and `Failure/message` is now a
 ;; DERIVED accessor reading `error.message`). Order/types cross-checked against `message_only_failure`.
+;;
+;; Excursus 003 step 3b — `Failure` gained a fifth field, `frames-elided <- :wat::core::i64`
+;; (step 2's wat-call-stack cap, recorded on the `Failure` that carries the capped frames);
+;; 0 here, honestly, since this probe captures none.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [f (:wat::kernel::Failure
          :error (:wat::core::Fault/of "hello")
          :frames (:wat::core::Vector :- [:wat::kernel::Frame])
          :actual :wat::core::Option.None
-         :expected :wat::core::Option.None)]
+         :expected :wat::core::Option.None
+         :frames-elided 0)]
     (:wat::kernel::println (:wat::kernel::Failure/message f))))

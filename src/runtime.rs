@@ -11894,16 +11894,11 @@ pub(crate) fn failure_value_from_assertion_payload(p: crate::assertion::Assertio
         Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
         None => Value::Option(Arc::new(None)),
     };
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::kernel::Failure".into(),
-        failure_names(),
-        Arc::new(vec![
-            error_field,
-            frames_field,
-            actual_field,
-            expected_field,
-        ]),
-    )))
+    // Excursus 003 step 3b — `frames-elided` joins the floor (see `failure_record`'s
+    // doc). An `AssertionPayload`'s frames are the full, uncapped
+    // `snapshot_call_stack()` (`src/assertion.rs`), never `capped_wat_frames()` — so
+    // nothing was elided, honestly 0, not a stand-in for "not measured".
+    failure_record(error_field, frames_field, actual_field, expected_field, 0)
 }
 
 ::wat_source_derive::wat_field_names_from!(
@@ -11915,6 +11910,34 @@ pub(crate) fn failure_names() -> Arc<Vec<String>> {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(FAILURE_FIELDS))
         .clone()
+}
+
+/// The ONE assembly point for a `:wat::kernel::Failure` `Value::Aggregate(Record)` —
+/// excursus 003 step 3b added `frames-elided` as a fifth field, so every constructor
+/// (`failure_value_from_assertion_payload`, `message_only_failure`,
+/// `flat_message_failure`, `runtime_error_failure`) builds through here rather than
+/// each hand-rolling the positional vec and risking one falling out of step with the
+/// wat declaration's field count. `actual_field` / `expected_field` are ALREADY
+/// `Value::Option(...)`-wrapped (callers differ on whether they start from a `String`
+/// or an `Option<String>`).
+fn failure_record(
+    error_field: Value,
+    frames_field: Value,
+    actual_field: Value,
+    expected_field: Value,
+    frames_elided: usize,
+) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::kernel::Failure".into(),
+        failure_names(),
+        Arc::new(vec![
+            error_field,
+            frames_field,
+            actual_field,
+            expected_field,
+            Value::i64(frames_elided as i64),
+        ]),
+    )))
 }
 
 /// Arc 278 — build a `:wat::core::Fault` `Value::Aggregate(Record)` from a
@@ -12148,16 +12171,72 @@ fn frame_names() -> Arc<Vec<String>> {
 /// (a Fault), not a bare String; `(:wat::kernel::Failure/message f)` derives back
 /// to `fault.message`. Mirrors the wat-side `:wat::kernel::message-only-failure`.
 pub(crate) fn message_only_failure(message: String) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::kernel::Failure".into(),
-        failure_names(),
-        Arc::new(vec![
-            fault_value(message, None),       // error (synthesized Fault)
-            Value::Vec(Arc::new(Vec::new())), // frames
-            Value::Option(Arc::new(None)),    // actual
-            Value::Option(Arc::new(None)),    // expected
-        ]),
-    )))
+    failure_record(
+        fault_value(message, None),           // error (synthesized Fault)
+        Value::Vec(Arc::new(Vec::new())),      // frames
+        Value::Option(Arc::new(None)),         // actual
+        Value::Option(Arc::new(None)),         // expected
+        0,                                     // frames-elided: no frames captured at all
+    )
+}
+
+/// Excursus 003 step 3b (BRIEF-envelope-step-3b, item 2's "FlatMessage, or a plain
+/// Rust message" branch) — build a `:wat::kernel::Failure` for a failure that has NO
+/// structured error of its own to preserve: `SendError::Failed`'s io-error reason, a
+/// main-signature/bad-return `FlatMessage`, an OS-level failure, or a plain (non-
+/// `AssertionPayload`) panic. The mandatory `error` is a `:wat::core::Fault` carrying
+/// `message` and the RAISING Rust site's own location — `#[track_caller]`, a `Span`
+/// with `end: None` (D1/D3: Rust knows only where a failure starts). `frames` is the
+/// SAME capped wat call-stack snapshot + the one Rust frame every `RuntimeError`
+/// carries (`crate::value::frame::capped_wat_frames` / `Frame::rust_site`, step 2) —
+/// captured HERE, once, since a flat message has no `RuntimeError` of its own to read
+/// captured frames from (no second capper).
+///
+/// ⚠ Per `Frame::rust_site`'s own convention: this fn is `#[track_caller]`, so the
+/// recorded Rust frame is whoever CALLS `flat_message_failure` — the builder
+/// (`thread_died_error_panic`, `process_died_error_bad_return`, …), not each of
+/// THAT builder's own many callers. A helper that builds for many callers is itself
+/// the recorded site.
+#[track_caller]
+pub(crate) fn flat_message_failure(message: String) -> Value {
+    let loc = std::panic::Location::caller();
+    let span = crate::span::Span::new(
+        Arc::new(loc.file().to_string()),
+        loc.line() as i64,
+        loc.column() as i64,
+    );
+    let error_field = fault_value(message, Some(span));
+    let (wat_frames, frames_elided) = crate::value::frame::capped_wat_frames();
+    let rust_frame = crate::value::frame::Frame::rust_site(loc);
+    let mut frames: Vec<Value> = wat_frames.iter().map(value_from_frame).collect();
+    frames.push(value_from_frame(&rust_frame));
+    failure_record(
+        error_field,
+        Value::Vec(Arc::new(frames)),
+        Value::Option(Arc::new(None)),
+        Value::Option(Arc::new(None)),
+        frames_elided,
+    )
+}
+
+/// Excursus 003 step 3b, item 2's "From a RuntimeError" branch — build a
+/// `:wat::kernel::Failure` from a `RuntimeError` that has ALREADY captured its own
+/// frames at construction (step 2, `RuntimeError::new`): `error` is
+/// `re.to_record()` (step 3a's declared `:wat::runtime::<Kind>` record, its class
+/// carried structurally rather than flattened into text); `frames` /
+/// `frames-elided` are read off the error's own capture, never re-snapshotted (no
+/// second capper).
+pub(crate) fn runtime_error_failure(re: &RuntimeError) -> Value {
+    let error_field = re.to_record();
+    let mut frames: Vec<Value> = re.wat_frames().iter().map(value_from_frame).collect();
+    frames.push(value_from_frame(re.rust_frame()));
+    failure_record(
+        error_field,
+        Value::Vec(Arc::new(frames)),
+        Value::Option(Arc::new(None)),
+        Value::Option(Arc::new(None)),
+        re.frames_elided(),
+    )
 }
 
 // Arc 109 Stone A — the kernel outcome vocabulary — `RECV_OUTCOME_TYPE` moved to
