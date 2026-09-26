@@ -91,14 +91,42 @@
                        (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c}
                        (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
                      [:wat::kernel::ConnectOutcome.Failed {:cause c}
-                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-             _es   (:wat::query::Store/ensure-schema store
-                     (:wat::query::Store::EnsureSchemaRequest
-                       :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-                       :indexes (:wat::core::Vector :- [:wat::query::IndexSchema]
-                                  (:wat::query::IndexSchema
-                                    :name "by-uuid" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))]
-            (:wat::telemetry::journal::State :durable record :store store)))
+                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
+            ;; A failed schema setup is a failed start. The same arms connect
+            ;; already uses: the reason reaches the owner, the service does not
+            ;; come up with a store it cannot write.
+            (:wat::core::match (:wat::query::Store/ensure-schema store
+                                 (:wat::query::Store::EnsureSchemaRequest
+                                   :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
+                                   :indexes (:wat::core::Vector :- [:wat::query::IndexSchema]
+                                              (:wat::query::IndexSchema
+                                                :name "by-uuid" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
+              [:wat::kernel::RecvOutcome.Message {:msg sresp}
+                (:wat::core::match sresp
+                  [:wat::query::Store::EnsureSchemaResponse.Success {}
+                    (:wat::telemetry::journal::State :durable record :store store)]
+                  [:wat::query::Store::EnsureSchemaResponse.Constraint {:err err}
+                    (:wat::kernel::assertion-failed!
+                      :message (:wat::string::concat "journal ensure-schema constraint: "
+                                 (:wat::edn::write err)))]
+                  [:wat::query::Store::EnsureSchemaResponse.Fatal {:err err}
+                    (:wat::kernel::assertion-failed!
+                      :message (:wat::string::concat "journal ensure-schema fatal: "
+                                 (:wat::query::Fault/message (:wat::query::Fatal/reason err))))]
+                  [:wat::query::Store::EnsureSchemaResponse.RequestTooLarge {:bytes bytes :cap cap}
+                    (:wat::kernel::assertion-failed!
+                      :message (:wat::core::format "journal ensure-schema: request too large ({bytes} > {cap})" :bytes bytes :cap cap))]
+                  [:wat::query::Store::EnsureSchemaResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                    (:wat::kernel::assertion-failed!
+                      :message "journal ensure-schema: request malformed")])]
+              [:wat::kernel::RecvOutcome.Lost {:cause cause}
+                (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+              [:wat::kernel::RecvOutcome.Stopped {}
+                (:wat::kernel::assertion-failed!
+                  :message "journal ensure-schema: stop requested — the store peer was ALIVE")]
+              [:wat::kernel::RecvOutcome.Closed {}
+                (:wat::kernel::assertion-failed!
+                  :message "journal ensure-schema: store peer closed")])))
   :impls
   [(write-metrics [s ctx req]
      (:wat::core::let
