@@ -6,8 +6,12 @@
 ;; spelling anywhere, keeping the exact same test topology.
 (:wat::core::defmacro :test::mk-kw
   [head <- :wat::WatAST arg <- :wat::WatAST] -> :wat::WatAST
-  (:wat::core::let [head-text (:wat::keyword::name head)
-                    arg-text  (:wat::keyword::name arg)
+  (:wat::core::let [head-text (:wat::core::match (:wat::core::ast-keyword head)
+                                 [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                                 [:wat::core::Option.None {} (:wat::core::macro-error "mk-kw: head")])
+                    arg-text  (:wat::core::match (:wat::core::ast-keyword arg)
+                                 [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                                 [:wat::core::Option.None {} (:wat::core::macro-error "mk-kw: arg")])
                     full (:wat::string::concat head-text
                            (:wat::string::concat "-" arg-text))]
     `~(:wat::keyword::from-name full)))

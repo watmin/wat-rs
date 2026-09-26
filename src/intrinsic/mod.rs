@@ -1160,19 +1160,18 @@ mod tests {
         // are each checked FOR REAL by hand-written `check_call` arms (`infer_aggregate_new_check`/
         // `infer_kwargs_construct_check`, `check.rs`), but NEITHER carries an `env.register()`
         // TypeScheme, so `check_env.get` returns `None` for both. Exactly the `Option/expect`
-        // shape above: real checking, no scheme to verify the docs against. `macro-error` has no
-        // checker treatment at all (0 mentions in `check.rs` outside this ledger) — `check_env.get`
-        // returns `None` for the same reason `metadata-of` does above (W4's note): no scheme AND
-        // no hand-written arm. All three were previously invisible to this gate as literal
-        // `runtime.rs` match arms; homing surfaces them to it for the first time. Predicted in the
-        // DESIGN before this stone was briefed (measured against this same `check_env.get`), and
-        // it fired exactly as predicted: `write-forms`/`with-children`, homed the SAME stone, are
-        // NOT on this ledger — both DO carry an `env.register()` TypeScheme (`check.rs:19310`/
-        // `:19349`) — a deliberately UNEVEN prediction, falsifiable in both directions, and it
-        // held both ways. `check.rs` stays untouched (STOP-4); the ledger grows by three.
+        // shape above: real checking, no scheme to verify the docs against. All three
+        // (`aggregate-new`, `kwargs-construct`, `macro-error`) were previously invisible to this
+        // gate as literal `runtime.rs` match arms; homing surfaces them to it for the first time.
+        // Predicted in the DESIGN before this stone was briefed (measured against this same
+        // `check_env.get`), and it fired exactly as predicted: `write-forms`/`with-children`,
+        // homed the SAME stone, are NOT on this ledger — both DO carry an `env.register()`
+        // TypeScheme (`check.rs:19310`/`:19349`) — a deliberately UNEVEN prediction, falsifiable
+        // in both directions, and it held both ways. `check.rs` stays untouched (STOP-4); the
+        // ledger grew by three. Excursus 006 registered `macro-error` as `∀T. String -> :T`, so
+        // that name left this list; its `@ret` names that `T`.
         ":wat::core::aggregate-new",
         ":wat::core::kwargs-construct",
-        ":wat::core::macro-error",
         ":wat::edn::validate",
         ":wat::form::matches?",
         ":wat::holon::coincident-explain",
@@ -1233,7 +1232,7 @@ mod tests {
         // name.md`) — its declare-time processing (`synthesize_surface_protocol`,
         // `src/types.rs`) runs at freeze, entirely outside `check.rs`, and carries no
         // `env.register()` TypeScheme either, so `check_env.get` returns `None` for the same
-        // reason `macro-error` does above: no scheme AND no hand-written arm. `check.rs` stays
+        // reason: no scheme AND no hand-written arm. `check.rs` stays
         // untouched (STOP-4); the ledger grows by one.
         ":wat::core::defsurface",
         // ★★★ Arc 255 Stone 1a-β-i — the type-declaration family joins for `defsurface`'s exact

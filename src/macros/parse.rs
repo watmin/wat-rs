@@ -7,10 +7,7 @@ use super::registry::{MacroDef, MacroRegistry};
 
 /// Walk `forms`, register every `(:wat::core::defmacro ...)` into
 /// `registry`, and return the remaining forms in order.
-pub fn register_defmacros(
-    forms: Vec<WatAST>,
-    registry: &mut MacroRegistry,
-) -> super::ExpandBatch {
+pub fn register_defmacros(forms: Vec<WatAST>, registry: &mut MacroRegistry) -> super::ExpandBatch {
     let mut rest = Vec::with_capacity(forms.len());
     for form in forms {
         if is_defmacro_form(&form) {
@@ -98,7 +95,9 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         // callers (`register_defmacros`, `register_stdlib_defmacros` × 2) gate on it before
         // dispatch. A non-List reaching here means the caller violated the contract — the
         // panic IS the proof of the invariant.
-        _ => unreachable!("parse_defmacro_form: all call sites guard with is_defmacro_form (List required)"),
+        _ => unreachable!(
+            "parse_defmacro_form: all call sites guard with is_defmacro_form (List required)"
+        ),
     };
 
     // HARD-CUT: 3-item old paren-pair form is REJECTED (Stone 241.17).
@@ -116,32 +115,48 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     // Determine if metadata-map is present: 7 items vs 6 items.
     // 6-item canonical: head name argvec -> rettype body
     // 7-item with-metadata: head name meta argvec -> rettype body
-    let (name_item, argvec_item, arrow_item, rettype_item, body_item) =
-        match items.as_slice() {
-            [_, name, argvec, arrow, rettype, body] => {
-                // 6-item canonical shape: arity enforced by the pattern.
-                (name.clone(), argvec.clone(), arrow.clone(), rettype.clone(), body.clone())
-            }
-            [_, name, _meta, argvec, arrow, rettype, body] => {
-                // 7-item with-metadata: metadata-map stored by binding_metadata discipline; ignored in macro parse.
-                (name.clone(), argvec.clone(), arrow.clone(), rettype.clone(), body.clone())
-            }
-            _ => {
-                return Err(MacroError {
+    let (name_item, argvec_item, arrow_item, rettype_item, body_item) = match items.as_slice() {
+        [_, name, argvec, arrow, rettype, body] => {
+            // 6-item canonical shape: arity enforced by the pattern.
+            (
+                name.clone(),
+                argvec.clone(),
+                arrow.clone(),
+                rettype.clone(),
+                body.clone(),
+            )
+        }
+        [_, name, _meta, argvec, arrow, rettype, body] => {
+            // 7-item with-metadata: metadata-map stored by binding_metadata discipline; ignored in macro parse.
+            (
+                name.clone(),
+                argvec.clone(),
+                arrow.clone(),
+                rettype.clone(),
+                body.clone(),
+            )
+        }
+        _ => {
+            return Err(MacroError {
                     span: list_span,
                     kind: MacroErrorKind::MalformedDefmacro { reason: format!(
                         "expected (:wat::core::defmacro :name [arg <- :T ...] -> :Ret body) — 6 items (or 7 with metadata-map); got {} elements",
                         items.len()
                     ) },
                 });
-            }
-        };
+        }
+    };
 
     // items[1] must be the macro name keyword.
     let name = match name_item {
         WatAST::Keyword(k, _) => k,
         other => {
-            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "macro name (item 1) must be a keyword-path (e.g. `:my::macro`)".into() } });
+            return Err(MacroError {
+                span: other.span().clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: "macro name (item 1) must be a keyword-path (e.g. `:my::macro`)".into(),
+                },
+            });
         }
     };
 
@@ -149,22 +164,64 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     let (argvec_items, argvec_span) = match argvec_item {
         WatAST::Vector(items, span) => (items, span),
         other => {
-            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "argspec must be a Vector `[name <- :T ...]`".into() } });
+            return Err(MacroError {
+                span: other.span().clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: "argspec must be a Vector `[name <- :T ...]`".into(),
+                },
+            });
         }
     };
 
     // Arrow symbol `->` must follow argspec.
     if !arrow_item.is_bare_symbol("->") {
-        return Err(MacroError { span: arrow_item.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected `->` symbol after argspec Vector".into() } });
+        return Err(MacroError {
+            span: arrow_item.span().clone(),
+            kind: MacroErrorKind::MalformedDefmacro {
+                reason: "expected `->` symbol after argspec Vector".into(),
+            },
+        });
     }
 
-    // Return-type keyword.
-    match &rettype_item {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected return-type keyword after `->`".into() } });
+    // Return type: a keyword, a symbol, or a type form `(Head :- [T …])`.
+    // Same slots `parse_fn_signature_prefix` accepts. The body is held to
+    // this type by `check_function_body`.
+    let ret_type = match &rettype_item {
+        WatAST::Keyword(_, _)
+        | WatAST::Symbol(_, _)
+        | WatAST::List(_, _)
+        | WatAST::Vector(_, _) => {
+            let ret_type =
+                crate::types::parse_type_node(&rettype_item).map_err(|te| MacroError {
+                    span: te.span().clone(),
+                    kind: MacroErrorKind::MalformedDefmacro {
+                        reason: format!("invalid macro return type: {te}"),
+                    },
+                })?;
+            // A macro expands before user types are registered, so the declared
+            // return is a core-language type. A user record, enum, alias, or a
+            // type that contains one is refused here, at the declaration.
+            if let Some(user_ty) = user_defined_return_type(&ret_type) {
+                return Err(MacroError {
+                    span: rettype_item.span().clone(),
+                    kind: MacroErrorKind::MalformedDefmacro {
+                        reason: format!(
+                            "a macro returns a core-language value; `{user_ty}` is a user-defined type, which does not exist when a macro expands"
+                        ),
+                    },
+                });
+            }
+            ret_type
         }
-    }
+        other => {
+            return Err(MacroError {
+                span: other.span().clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: "expected a return type after `->`".into(),
+                },
+            });
+        }
+    };
 
     // Route argspec through canonical parser — third major consumer after fn + defclause.
     // `allow_rest_binder: true` mirrors defclause (arc 174 / Stone 241.3/241.4).
@@ -172,8 +229,11 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         &argvec_items,
         ":wat::core::defmacro",
         &argvec_span,
-        crate::argspec::ParseOptions { allow_rest_binder: true },
-    ).map_err(MacroError::from)?;
+        crate::argspec::ParseOptions {
+            allow_rest_binder: true,
+        },
+    )
+    .map_err(MacroError::from)?;
 
     // ENFORCE (arc 251.5 / 209) — a macro param binds unevaluated SYNTAX, so its declared
     // type is not free: a fixed param always binds a form (`:wat::WatAST`), a rest param a
@@ -217,24 +277,17 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
             });
         }
     }
-    if let WatAST::Keyword(ret_kw, ret_span) = &rettype_item {
-        if ret_kw != ":wat::WatAST" {
-            return Err(MacroError {
-                span: ret_span.clone(),
-                kind: MacroErrorKind::MalformedDefmacro {
-                    reason: format!(
-                        "macro return type is declared `{ret_kw}`, but a macro always expands to a \
-                         form — its return type must be `:wat::WatAST`"
-                    ),
-                },
-            });
-        }
-    }
-
-    // Extract param names only — MacroDef carries names, not types.
+    // Extract param names only — a parameter always binds a form, so the
+    // type is not stored beside the name. The declared return is.
     // Bare derivation: macro substitution keys are bare (expansion-time pattern match).
-    let params: Vec<String> = spec.fixed_params.into_iter().map(|(ident, _ty)| ident.as_str().to_owned()).collect();
-    let rest_param: Option<String> = spec.rest_param.map(|(ident, _ty)| ident.as_str().to_owned());
+    let params: Vec<String> = spec
+        .fixed_params
+        .into_iter()
+        .map(|(ident, _ty)| ident.as_str().to_owned())
+        .collect();
+    let rest_param: Option<String> = spec
+        .rest_param
+        .map(|(ident, _ty)| ident.as_str().to_owned());
 
     // Hoist: definition-time validation runs ONCE here (not per expansion call) — arc 249 stone O.
     // `validate_macro_definition` checks hygiene (Gate E) and purity. Both are pure predicates
@@ -250,10 +303,45 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         name,
         params,
         rest_param,
+        ret_type,
         body: body_item,
         span: list_span,
         source_form,
     })
+}
+
+/// A path is user-defined when it is namespaced and not language-owned
+/// (`:wat::`, `:rust::`, `:$bound::`). A single segment (`:T`) is a type variable.
+fn user_defined_return_type(ty: &crate::types::TypeExpr) -> Option<String> {
+    fn shown(p: &str) -> String {
+        if p.starts_with(':') {
+            p.to_string()
+        } else {
+            format!(":{p}")
+        }
+    }
+    fn path_if_user(p: &str) -> Option<String> {
+        let shown = shown(p);
+        let bare = shown.trim_start_matches(':');
+        if bare.contains(':') && !crate::resolve::is_reserved_prefix(&shown) {
+            Some(shown)
+        } else {
+            None
+        }
+    }
+    use crate::types::TypeExpr;
+    match ty {
+        TypeExpr::Path(p) => path_if_user(p),
+        TypeExpr::Parametric { head, args } => {
+            path_if_user(head).or_else(|| args.iter().find_map(user_defined_return_type))
+        }
+        TypeExpr::Fn { args, ret } => args
+            .iter()
+            .find_map(user_defined_return_type)
+            .or_else(|| user_defined_return_type(ret)),
+        TypeExpr::Tuple(elems) => elems.iter().find_map(user_defined_return_type),
+        TypeExpr::Var(_) => None,
+    }
 }
 
 // Stone 241.17 — parse_defmacro_signature DELETED (~80 lines of arc 010/150 paren-pair parser).

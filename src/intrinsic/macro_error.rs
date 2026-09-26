@@ -75,7 +75,7 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// @ExpandTime    ExpandOnly
 /// @Category      ControlFlow
 /// @arg     msg :wat::core::String the message raised as the macro-abort's `MacroAbort.message`
-/// @ret     :wat::core::nil never returns — always `Err`, on every input
+/// @ret     :T never returns — always `Err`; `T` unifies with whatever the caller's context demands
 /// @example-norun (:wat::core::macro-error "malformed template") #=> always raises; not a runnable example
 /// @see     :wat::core::Option/expect
 #[wat_intrinsic(":wat::core::macro-error")]

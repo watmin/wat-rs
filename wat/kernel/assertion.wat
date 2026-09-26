@@ -54,9 +54,7 @@
                   act-slot (:wat::core::Option/expect (:wat::core::get acc 1) "slot 1")
                   exp-slot (:wat::core::Option/expect (:wat::core::get acc 2) "slot 2")]
                  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind k) "keyword"))
-                   (:wat::core::Option/expect
-                     (:wat::core::get args n)
-                     "assertion-failed! kwargs keys must be keywords")
+                   (:wat::core::macro-error "assertion-failed! kwargs keys must be keywords")
                    (:wat::core::if (:wat::core::= kn ":message")
                      (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])]
                        (:wat::core::conj msg-slot v) act-slot exp-slot)
@@ -66,8 +64,7 @@
                        (:wat::core::if (:wat::core::= kn ":expected")
                          (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])]
                            msg-slot act-slot (:wat::core::conj exp-slot v))
-                         (:wat::core::Option/expect
-                           (:wat::core::get args n)
+                         (:wat::core::macro-error
                            "assertion-failed! unknown kwarg — write :message / :actual / :expected")))))))
              (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])]
                empty empty empty)

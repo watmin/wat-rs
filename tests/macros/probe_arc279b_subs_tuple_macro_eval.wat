@@ -18,9 +18,9 @@
              (:wat::core::Vector :- [:wat::core::String])
              (:wat::core::range 0 len))
      final (:wat::core::foldl
-             (:wat::core::fn [acc <- :wat::core::Tuple
+             (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
                               c   <- :wat::core::String]
-               -> :wat::core::Tuple
+               -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
                (:wat::core::let
                  [kept   (:wat::core::first acc)
                   nopen  (:wat::core::second acc)]

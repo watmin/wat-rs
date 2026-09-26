@@ -11,6 +11,10 @@ pub struct MacroDef {
     pub name: String,
     /// Fixed-arity parameter names in order. Positional binding.
     pub params: Vec<String>,
+    /// The type the body produces. The checker holds the body to this
+    /// exactly as it holds a `defn`. A form (`:wat::WatAST`) is one
+    /// possible return, not the only one.
+    pub ret_type: crate::types::TypeExpr,
     /// Optional rest-parameter name. When present, the macro accepts
     /// `args.len() >= params.len()` at expansion; the first N args
     /// bind to `params` as usual, and the REMAINING args are bundled
@@ -30,7 +34,7 @@ pub struct MacroDef {
     /// Arc 278 — the RETAINED `(:wat::core::defmacro …)` form, verbatim.
     ///
     /// A `MacroDef` CANNOT reconstruct its own declaration: `params` holds
-    /// names only, and the return type is not kept, so the canonical form
+    /// names only, so the canonical form
     /// `(defmacro :name [p <- :T … ] -> :AST<Ret> body)` is unrecoverable
     /// from the parts. Closure extraction must SHIP macros — the forms it
     /// sends a forked child still contain macro CALLS (every kwargs
@@ -97,5 +101,15 @@ impl MacroRegistry {
 /// span-agnostic. Ignores `name` (it's the registry key, identical by
 /// construction).
 fn macro_structurally_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
-    a.params == b.params && a.rest_param == b.rest_param && a.body == b.body
+    a.params == b.params
+        && a.rest_param == b.rest_param
+        && a.ret_type == b.ret_type
+        && a.body == b.body
+}
+
+impl MacroRegistry {
+    /// Every registered macro, definition order not preserved.
+    pub fn iter(&self) -> impl Iterator<Item = &MacroDef> {
+        self.macros.values()
+    }
 }

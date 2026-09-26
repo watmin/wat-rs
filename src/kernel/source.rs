@@ -93,10 +93,10 @@ pub(crate) fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result
 /// the macro INVOCATION's own source span — not the runtime call stack
 /// (macro expansion runs before any wat fn-call happens, so `CALL_STACK` is
 /// irrelevant here) — as a SPLICEABLE `:wat::kernel::Frame` constructor
-/// FORM, `Value::wat__WatAST`, not a `Frame` value. A `Frame` VALUE cannot
-/// cross `value_to_watast` (it errors on aggregates), so returning one would
-/// make `~(:wat::kernel::macro-call-site)` fail to splice; a FORM round-trips
-/// through `value_to_watast`'s `wat__WatAST` arm untouched.
+/// FORM, `Value::wat__WatAST`, not a `Frame` value. A `Frame` value renders
+/// through `value_to_watast` as its constructor; this function returns that
+/// constructor form directly, so `~(:wat::kernel::macro-call-site)` splices
+/// the form and the `wat__WatAST` arm copies it through untouched.
 ///
 /// The span comes from the `MACRO_CALL_SITE` thread-local stack
 /// (`src/value/frame.rs`), pushed by `expand_macro_call`

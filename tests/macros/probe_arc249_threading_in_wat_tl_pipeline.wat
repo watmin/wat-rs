@@ -2,8 +2,8 @@
   [acc <- :wat::WatAST & steps <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
-       -> :wat::holon::HolonAST `(~@step ~a))
+    (:wat::core::fn [a <- :wat::WatAST step <- :wat::WatAST]
+       -> :wat::WatAST `(~@step ~a))
     acc
     steps))
 ;; Arc 118.2a — `map` stays LAZY (feeds `filter` once); `filter` becomes `filterv` to

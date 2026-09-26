@@ -230,6 +230,34 @@ pub(crate) fn eval_ast_kind_home(
     crate::edn::render::eval_ast_kind(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
 }
 
+/// `(:wat::core::ast-keyword ast)` → `(:wat::core::Option :- [:wat::core::keyword])`.
+/// The keyword a keyword form carries. A keyword node is `Some`; any other node
+/// is `None`. Total on a form (arc 293: the miss is a value, not a raise).
+///
+/// **Expand-time ground —** pure node read. A macro that needs the keyword or
+/// nothing matches `None` into `macro-error`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     ast :wat::WatAST the form probed
+/// @ret     (:wat::core::Option :- [:wat::core::keyword]) `Some` of the keyword, or `None`
+/// @example (:wat::core::ast-keyword (:wat::core::keyword-node ":foo")) #=> (:wat::core::Option.Some {:value :foo})
+/// @example (:wat::core::ast-keyword (:wat::core::symbol-node "foo")) #=> (:wat::core::Option.None)
+/// @see     :wat::keyword::name
+#[wat_intrinsic(":wat::core::ast-keyword")]
+pub(crate) fn eval_ast_keyword_home(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_ast_keyword(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
+}
+
 /// `(:wat::core::ast-name ast)` → `:wat::core::String`. Verbatim token text of a Symbol/Keyword
 /// node (arc 251.5a-v), or the unquoted string VALUE of a StringLit node (arc 279 — the `format`
 /// macro needs a template's literal text at expand time). Raises on any other node kind.

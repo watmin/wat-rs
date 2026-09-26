@@ -1308,6 +1308,32 @@ pub fn eval_ast_kind(
     ))
 }
 
+/// `(:wat::core::ast-keyword <node>)` — the keyword a keyword form carries.
+/// A keyword node answers `Some`; any other node answers `None`. A value that
+/// is not a form is a type error. Total on a form: the miss is `None`, not a raise.
+pub fn eval_ast_keyword(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::ast-keyword";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let ast: &WatAST = match &v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+    };
+    let keyword = match ast {
+        WatAST::Keyword(k, _) => Some(Value::wat__core__keyword(std::sync::Arc::new(k.clone()))),
+        _ => None,
+    };
+    Ok(crate::value::TrackedValue::new(
+        Value::Option(std::sync::Arc::new(keyword)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
 /// `(:wat::core::ast-name <node>)` — arc 251 Stone 251.5a-v. Verbatim token text of a Symbol/Keyword.
 pub fn eval_ast_name(
     args: &[WatAST],

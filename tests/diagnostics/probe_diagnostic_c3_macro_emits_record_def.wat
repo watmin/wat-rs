@@ -6,7 +6,10 @@
 ;; the Op variant and the Record accessor. This mirrors the C.3 target expansion in miniature.
 (:wat::core::defmacro :t::mk [base <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::let
-    [base-str (:wat::keyword::name base)
+    [base-str (:wat::core::match (:wat::core::ast-keyword base)
+                 [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                 [:wat::core::Option.None {}
+                   (:wat::core::macro-error "mk: base is not a keyword form")])
      req-name (:wat::keyword::from-name (:wat::string::concat base-str "::Req"))
      op-name  (:wat::keyword::from-name (:wat::string::concat base-str "::Op"))
      ;; `::` composes a NAMESPACE; `/` selects a MEMBER OF A TYPE. `<base>/go` claimed a member of

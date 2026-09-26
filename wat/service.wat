@@ -183,7 +183,10 @@
   -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, params are node-values, nested quasiquote at the end.
   (:wat::core::let
-    [fqdn-str      (:wat::keyword::name fqdn)
+    [fqdn-str      (:wat::core::match (:wat::core::ast-keyword fqdn)
+                         [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                         [:wat::core::Option.None {}
+                           (:wat::core::macro-error "defservice: name is not a keyword form")])
      ;; Arc 265 — reconstruct fqdn as a keyword value so pascal->kebab-in
      ;; can use it as the namespace for acronym-registry lookup.
      fqdn-kw       (:wat::keyword::from-name fqdn-str)
@@ -231,7 +234,10 @@
 
                        false
                        (:wat::core::= "-"
-                         (:wat::keyword::name (:wat::core::first clauses))))
+                         (:wat::core::match (:wat::core::ast-keyword (:wat::core::first clauses))
+                           [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                           [:wat::core::Option.None {}
+                             (:wat::core::macro-error "defservice: binder head is not a keyword form")])))
      ;; `clauses-body` is `clauses` with the `:-` pair stripped when present, unchanged
      ;; otherwise. Every downstream reader of the rest-arg (the even-length guard, the
      ;; clause-map fold) reads `clauses-body` — never the raw `clauses` param — from here on.
@@ -363,9 +369,13 @@
                         -> (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                         (:wat::core::let
                           [k   (:wat::i64::* i 2)
-                           key (:wat::keyword::name
-                                 (:wat::core::Option/expect
-                                   (:wat::core::get clauses-body k) "defservice: malformed clause key"))]
+                           key (:wat::core::match
+                                 (:wat::core::ast-keyword
+                                   (:wat::core::Option/expect
+                                     (:wat::core::get clauses-body k) "defservice: malformed clause key"))
+                                 [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                                 [:wat::core::Option.None {}
+                                   (:wat::core::macro-error "defservice: clause key is not a keyword form")])]
                           (:wat::core::if (:wat::hashmap::contains-key? known-clauses key)
 
                             (:wat::hashmap::assoc m key
@@ -466,9 +476,16 @@
      proto-parametric? (:wat::core::= (:wat::core::ast-kind surface-form) "list")
      proto-base     (:wat::core::if proto-parametric?
 
-                      (:wat::keyword::name
-                        (:wat::core::first (:wat::core::ast->children surface-form)))
-                      (:wat::keyword::name surface-form))
+                      (:wat::core::match
+                        (:wat::core::ast-keyword
+                          (:wat::core::first (:wat::core::ast->children surface-form)))
+                        [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                        [:wat::core::Option.None {}
+                          (:wat::core::macro-error "defservice: surface head is not a keyword form")])
+                      (:wat::core::match (:wat::core::ast-keyword surface-form)
+                        [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                        [:wat::core::Option.None {}
+                          (:wat::core::macro-error "defservice: surface is not a keyword form")]))
      proto-args     (:wat::core::if proto-parametric?
 
                       (:wat::core::ast->children
@@ -836,7 +853,11 @@
                       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
                                        pk  <- :wat::WatAST]
                         -> (:wat::core::Vector :- [:wat::core::String])
-                        (:wat::core::conj acc (:wat::keyword::name pk)))
+                        (:wat::core::conj acc
+                          (:wat::core::match (:wat::core::ast-keyword pk)
+                            [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                            [:wat::core::Option.None {}
+                              (:wat::core::macro-error "defservice: peer surface is not a keyword form")])))
                       (:wat::core::Vector :- [:wat::core::String])
                       peers-children)
      ;; ephemeral-peer-surfaces: (Vector :- [String]) — the surface of each ROOT ephemeral peer field.
@@ -867,12 +888,20 @@
 
                             (:wat::core::let
                               [ty-ch    (:wat::core::ast->children ty-form)
-                               head-str (:wat::keyword::name (:wat::core::first ty-ch))]
+                               head-str (:wat::core::match
+                                          (:wat::core::ast-keyword (:wat::core::first ty-ch))
+                                          [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                                          [:wat::core::Option.None {}
+                                            (:wat::core::macro-error "defservice: peer type head is not a keyword form")])]
                               (:wat::core::if (:wat::core::= head-str "wat::kernel::Peer")
 
                                 (:wat::core::let
                                   [arg-ch        (:wat::core::ast->children (:wat::core::nth ty-ch 2))
-                                   first-arg-str (:wat::keyword::name (:wat::core::first arg-ch))]
+                                   first-arg-str (:wat::core::match
+                                                    (:wat::core::ast-keyword (:wat::core::first arg-ch))
+                                                    [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                                                    [:wat::core::Option.None {}
+                                                      (:wat::core::macro-error "defservice: peer type arg is not a keyword form")])]
                                   (:wat::core::if (:wat::string::ends-with? first-arg-str "::Op")
 
                                     (:wat::core::conj acc
@@ -1285,7 +1314,7 @@
      ;; reference form since Arc 109 ③ closed that checker-side gap (identity 2b's byte-identical
      ;; DECL-NAME/RUNTIME-ARG alias no longer holds; the two roles now want different spellings).
      service-op-ty-ann (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
-                         service-op-kw
+                         (:wat::core::keyword-node (:wat::string::concat ":" service-op-str))
                          `(~service-op-kw :- [~@fqdn-tp-syms]))
      service-op-decl-kw-decl service-op-kw
      service-op-decl-kw-runtime service-op-ty-ann
@@ -2679,18 +2708,18 @@
                                      acc))))
                              (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::range 0 (:wat::i64::/ (:wat::core::length flat) 2)))
-                           ~(:wat::core::symbol-node "locus-ast")
-                           (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))
                            ~(:wat::core::symbol-node "head-nm")
                            (:wat::core::if (:wat::core::empty? found)
                              ""
-                             (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus-ast) "list")
-                               (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
-                                 (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
-                               ""))
+                             (:wat::core::let [locus-ast (:wat::core::first found)]
+                               (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus-ast) "list")
+                                 (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                                   (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
+                                 "")))
                            ~(:wat::core::symbol-node "inner-nm")
                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label")
-                             (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                             (:wat::core::let [locus-ast (:wat::core::first found)
+                                               ch (:wat::core::ast->children locus-ast)]
                                (:wat::core::if (:wat::core::empty? (:wat::core::rest ch))
                                  ""
                                  (:wat::core::let [inner (:wat::core::first (:wat::core::rest ch))]
@@ -2702,11 +2731,14 @@
                            ~(:wat::core::symbol-node "ctor-nm")
                            (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label") inner-nm head-nm)
                            ~(:wat::core::symbol-node "impl")
+                           ;; The three impls are different functions. The arm is the
+                           ;; keyword that names one, built by from-name so a spliced
+                           ;; literal is not read as that function.
                            (:wat::core::if (:wat::string::starts-with? ctor-nm ":wat::spawn::process")
-                             ~start-impl-process-call
+                             (:wat::keyword::from-name ~(:wat::keyword::name start-impl-process-call))
                              (:wat::core::if (:wat::string::starts-with? ctor-nm ":wat::spawn::thread")
-                               ~start-impl-thread-call
-                               ~start-impl-call))
+                               (:wat::keyword::from-name ~(:wat::keyword::name start-impl-thread-call))
+                               (:wat::keyword::from-name ~(:wat::keyword::name start-impl-call))))
                            ~(:wat::core::symbol-node "kty")  (:wat::core::keyword-node ":wat::core::agg-positional")
                            ~(:wat::core::symbol-node "fvec") (:wat::core::quote ~start-fnames-ast)
                            ~(:wat::core::symbol-node "ns")   (:wat::core::keyword-node (:wat::string::concat ":" ~fqdn-base))]
@@ -2803,18 +2835,18 @@
                                       acc))))
                               (:wat::core::Vector :- [:wat::WatAST])
                               (:wat::core::range 0 (:wat::i64::/ (:wat::core::length flat) 2)))
-                            ~(:wat::core::symbol-node "locus-ast")
-                            (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))
                             ~(:wat::core::symbol-node "head-nm")
                             (:wat::core::if (:wat::core::empty? found)
                               ""
-                              (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus-ast) "list")
-                                (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
-                                  (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
-                                ""))
+                              (:wat::core::let [locus-ast (:wat::core::first found)]
+                                (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus-ast) "list")
+                                  (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                                    (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch))))
+                                  "")))
                             ~(:wat::core::symbol-node "inner-nm")
                             (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label")
-                              (:wat::core::let [ch (:wat::core::ast->children locus-ast)]
+                              (:wat::core::let [locus-ast (:wat::core::first found)
+                                                ch (:wat::core::ast->children locus-ast)]
                                 (:wat::core::if (:wat::core::empty? (:wat::core::rest ch))
                                   ""
                                   (:wat::core::let [inner (:wat::core::first (:wat::core::rest ch))]
@@ -2827,10 +2859,10 @@
                             (:wat::core::if (:wat::core::= head-nm ":wat::spawn::with-label") inner-nm head-nm)
                             ~(:wat::core::symbol-node "impl")
                             (:wat::core::if (:wat::string::starts-with? ctor-nm ":wat::spawn::process")
-                              ~resume-impl-process-call
+                              (:wat::keyword::from-name ~(:wat::keyword::name resume-impl-process-call))
                               (:wat::core::if (:wat::string::starts-with? ctor-nm ":wat::spawn::thread")
-                                ~resume-impl-thread-call
-                                ~resume-impl-call))
+                                (:wat::keyword::from-name ~(:wat::keyword::name resume-impl-thread-call))
+                                (:wat::keyword::from-name ~(:wat::keyword::name resume-impl-call))))
                             ~(:wat::core::symbol-node "kty")  (:wat::core::keyword-node ":wat::core::agg-positional")
                             ~(:wat::core::symbol-node "fvec") (:wat::core::quote ~start-fnames-ast)
                             ~(:wat::core::symbol-node "ns")   (:wat::core::keyword-node (:wat::string::concat ":" ~fqdn-base))]

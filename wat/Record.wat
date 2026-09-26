@@ -168,7 +168,10 @@
                     (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::keyword::name fqdn)
+     fqdn-str      (:wat::core::match (:wat::core::ast-keyword fqdn)
+                         [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                         [:wat::core::Option.None {}
+                           (:wat::core::macro-error "defrecord: name is not a keyword form")])
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
@@ -264,7 +267,10 @@
                     (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::keyword::name fqdn)
+     fqdn-str      (:wat::core::match (:wat::core::ast-keyword fqdn)
+                         [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                         [:wat::core::Option.None {}
+                           (:wat::core::macro-error "defrecord: name is not a keyword form")])
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).

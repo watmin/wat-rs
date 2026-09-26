@@ -537,7 +537,11 @@
                    "kwargs-lower: n-pos must be an integer literal")
      fnames     (:wat::core::ast->children field-names)
      nf         (:wat::core::length fnames)
-     ns-kw      (:wat::keyword::from-name (:wat::keyword::name ns))
+     ns-kw      (:wat::keyword::from-name
+                  (:wat::core::match (:wat::core::ast-keyword ns)
+                    [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                    [:wat::core::Option.None {}
+                      (:wat::core::macro-error "kwargs-lower: ns is not a keyword form")]))
      ;; Split call-args into positional and tail.
      ;; Arc 118.2a — was `(:wat::core::take call-args n-pos-int)` / `(:wat::core::drop …)`. Both
      ;; flipped LAZY; this is `:wat::core::kwargs-lower`, a program-body macro forwarded to from
@@ -752,13 +756,21 @@
      ;; `try_parse_fn_shape_def`, `src/runtime.rs`) so every spelling of the rule reads
      ;; identically. `name-str` was already computed above as part of the name
      ;; normalization; reused here rather than recomputed.
-     name-str-parametric? (:wat::string::ends-with? (:wat::keyword::name name) ">")
+     name-str-parametric? (:wat::string::ends-with?
+                            (:wat::core::match (:wat::core::ast-keyword name)
+                              [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                              [:wat::core::Option.None {}
+                                (:wat::core::macro-error "defn: name is not a keyword form")])
+                            ">")
      _binder-contradiction-check
                   (:wat::core::if (:wat::core::if has-binder name-str-parametric? false)
                     (:wat::core::macro-error
                       (:wat::string::interpolate
                         "defn: declaration `{name-str}` carries BOTH a name-embedded `<...>` type-param spelling and a `:- [...]` binder — pick one; a declaration with both is a contradiction, never something to silently resolve"
-                        :name-str (:wat::keyword::name name)))
+                        :name-str (:wat::core::match (:wat::core::ast-keyword name)
+                                    [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                                    [:wat::core::Option.None {}
+                                      (:wat::core::macro-error "defn: name is not a keyword form")])))
                     nil)
      params-vec   (:wat::core::first rest2)
      params-ch    (:wat::core::ast->children params-vec)
@@ -787,7 +799,10 @@
       
       ;; ── KWARGS BRANCH (Arc 260.1a) ───────────────────────────────────────────
       (:wat::core::let
-        [name-str        (:wat::keyword::name name)
+        [name-str        (:wat::core::match (:wat::core::ast-keyword name)
+                             [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                             [:wat::core::Option.None {}
+                               (:wat::core::macro-error "defn: name is not a keyword form")])
          ;; ── Arc 278 parametric names: the name / type-param SPLIT ────────────────────
          ;; A kwargs defn MAY be generic (`:my::svc/start :- [T]` — this comment used to add
          ;; "every parametric `defservice`'s auto start/resume is exactly this"). STONE-
@@ -1719,12 +1734,11 @@
                         k-ast (:wat::core::Option/expect  
                                  (:wat::core::get opts k)
                                  "format: kwargs pair key missing")
-                        key   (:wat::core::if
-                                (:wat::core::= (:wat::core::ast-kind k-ast) "keyword")
-                                
-                                (:wat::keyword::name k-ast)
-                                (:wat::core::macro-error
-                                  "format: kwargs key must be a keyword (e.g. :name)"))
+                        key   (:wat::core::match (:wat::core::ast-keyword k-ast)
+                                [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                                [:wat::core::Option.None {}
+                                  (:wat::core::macro-error
+                                    "format: kwargs key must be a keyword (e.g. :name)")])
                         val   (:wat::core::Option/expect  
                                  (:wat::core::get opts (:wat::i64::+ k 1))
                                  "format: kwargs pair value missing")]
@@ -1780,9 +1794,9 @@
      ;; Access: mode=(first (first acc)), pending=(second (first acc)),
      ;;         buf=(first (second acc)), segs=(second (second acc)).
      tok-state   (:wat::core::foldl
-                   (:wat::core::fn [acc <- :wat::core::Tuple
+                   (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])])
                                     c   <- :wat::core::String]
-                     -> :wat::core::Tuple
+                     -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])])
                      (:wat::core::let
                        [mp      (:wat::core::first acc)
                         bs      (:wat::core::second acc)
@@ -1873,7 +1887,7 @@
                                (:wat::core::Tuple (:wat::string::concat buf c) segs)))))))
                    (:wat::core::Tuple
                      (:wat::core::Tuple "text" "none")
-                     (:wat::core::Tuple "" (:wat::core::Vector :- [:wat::core::Tuple])))
+                     (:wat::core::Tuple "" (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])))
                    chars)
 
      ;; ── Finalization: inspect tok-state, error on bad endings ────────
@@ -1918,9 +1932,9 @@
      ;; The `"` guard above guarantees text never contains `"`, so the re-wrap is safe.
 
      pass2-result (:wat::core::foldl
-                    (:wat::core::fn [acc2 <- :wat::core::Tuple
-                                     seg  <- :wat::core::Tuple]
-                      -> :wat::core::Tuple
+                    (:wat::core::fn [acc2 <- (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST]) (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])])
+                                     seg  <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+                      -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST]) (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])])
                       (:wat::core::let
                         [ps2   (:wat::core::first acc2)
                          used2 (:wat::core::second acc2)
@@ -2045,7 +2059,10 @@
                     (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::keyword::name fqdn)
+     fqdn-str      (:wat::core::match (:wat::core::ast-keyword fqdn)
+                         [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                         [:wat::core::Option.None {}
+                           (:wat::core::macro-error "defstruct: name is not a keyword form")])
      ;; Arc 294 item 9a — a GENERIC type name (`:ns::T<A,B>`) registers its kwargs
      ;; companion macro + references its positional prime under the BARE name
      ;; (`:ns::T` / `:ns::T'`), matching register_aggregate_methods (runtime.rs:
@@ -2090,7 +2107,10 @@
   [surf <- :wat::WatAST  & methods <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
-    [surf-str   (:wat::keyword::name surf)            ;; "k5::HasX" (no leading colon)
+    [surf-str   (:wat::core::match (:wat::core::ast-keyword surf)
+                   [:wat::core::Option.Some {:value kw} (:wat::keyword::name kw)]
+                   [:wat::core::Option.None {}
+                     (:wat::core::macro-error "extend-surface: surface is not a keyword form")])
      core-kw    (:wat::keyword::from-name
                   (:wat::string::interpolate "{surf-str}$core-record" :surf-str surf-str))
      holon-kw   (:wat::keyword::from-name
