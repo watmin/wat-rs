@@ -14,8 +14,8 @@
 ;; (`:Success` first, then that op's own error variants — never a bare success type, never a
 ;; generic `(Result :- [T Error])`). The error channel is an errors-as-record model on the RECOVERY axis
 ;; (the caller's forced branch: retry / surface / abort) — `Transient` / `Constraint` / `Fatal`,
-;; each carrying a `reason <- Reason` (an OPEN surface — any pure record satisfies it; `Fault
-;; [message <- String]` is the concrete default a backend with nothing more structured reaches for).
+;; each carrying a `reason <- Reason` (no members; a record joins it only by extend-type.
+;; `Fault [message <- String]` is the concrete default a backend with nothing more structured reaches for).
 ;;
 ;; Only outward refs: `:wat::core::*` (String/i64/keyword/nil/Vector/Option/HashMap/Struct) +
 ;; `:wat::enum::Pure` + `:wat::kernel::Peer'`. Loads after `wat/core.wat` (defrecord/defenum/
@@ -70,9 +70,9 @@
    ipk <- :wat::core::String
    isk <- :wat::core::String])
 
-;; ─── the error vocabulary — recovery-axis records over an OPEN Reason surface ───────────────────
-;; `Reason` has zero features: any pure record satisfies it ambiently (an OPEN Record surface)
-;; — no `extend-type`/`derive` needed.
+;; ─── the error vocabulary — recovery-axis records over Reason ──────────────────────────────────
+;; `Reason` has no members. A record satisfies it only by a declared extend-type edge
+;; (stone 255.48, ruling B1). Width subtyping does not apply to an empty member list.
 (:wat::core::defsurface :wat::query::Reason :nature :wat::core::Record :features [])
 
 (:wat::core::defrecord :wat::query::Transient  [reason <- :wat::query::Reason]) ;; retry — momentarily unavailable
@@ -81,6 +81,7 @@
 
 ;; a concrete default `Reason` satisfier for a backend with nothing more structured to say.
 (:wat::core::defrecord :wat::query::Fault [message <- :wat::core::String])
+(:wat::core::extend-type :wat::query::Fault :wat::query::Reason)
 
 ;; ─── the Sieve filter spec (arc 278 Stone 2 — the sift Predicate delivery) ───────────────────
 ;; DESIGN-sift-server-side-filter.md: server-side log/metric filtering — the client submits a

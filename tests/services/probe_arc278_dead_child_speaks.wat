@@ -3,8 +3,8 @@
 ;; Mechanism A at the GENERAL level (arc 278 Stone B re-point): any :satisfies service forked to a
 ;; PROCESS whose op-request record carries an OPEN Record-surface field will fault if the client sends
 ;; a value the forked child cannot decode. Here a tiny :probe::echo' service is forked; its
-;; EchoRequest.payload is typed as the open surface :wat::query::Reason (zero features — any pure
-;; record satisfies it ambiently). The parent sends a payload holding :probe::Note, a PARENT-ONLY record
+;; EchoRequest.payload is typed as :wat::query::Reason. :probe::Note joins it by extend-type
+;; (a featureless surface admits only a declared edge). The parent sends a payload holding :probe::Note, a PARENT-ONLY record
 ;; absent from the forked child's baked type registry (top-level user defrecords do NOT cross a fork;
 ;; only the surface's :messages do). The child faults decoding it —
 ;;   "poll' (process tier): client message decode failed: ... unknown tag #probe/Note (body shape:
@@ -19,6 +19,7 @@
 
 ;; the parent-only payload record — NOT baked into the forked child's registry.
 (:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+(:wat::core::extend-type :probe::Note :wat::query::Reason)
 
 ;; EXACT DATA: :user::compute returns a STRUCTURED :probe::Outcome — the RecvOutcome variant that
 ;; matched + a deterministic `reason-names-decode-failure?` bool computed IN-WAT (the per-run-variable
@@ -35,9 +36,9 @@
   ;; reader at the channel layer — which is the precise false trail this whole stone removes.
   :Stopped [])                                               ;; .rs asserts NEVER (nothing here stops mid-read)
 
-;; a minimal Peer' service whose op-request carries an OPEN Record-surface field (the general
-;; capability). `:wat::query::Reason` is a zero-feature Record surface baked into the child (stdlib) —
-;; any pure record satisfies it ambiently, exactly as the retired `LogMessage` did for `Log.message`.
+;; a minimal Peer' service whose op-request carries a featureless Record-surface field (the general
+;; capability). `:wat::query::Reason` is baked into the child (stdlib). :probe::Note joins it by
+;; extend-type (stone 255.48: an empty member list is not ambient satisfaction).
 ;; The surface itself crosses the fork; a CONCRETE user record placed in the field does not.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages

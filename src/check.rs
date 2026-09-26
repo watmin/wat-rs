@@ -17671,6 +17671,13 @@ pub(crate) fn assignable(
                         Some(req) => agg_nature.rank() >= req.rank(),
                         None => true, // no bound → structural-only
                     };
+                    // B1: an empty member list requires nothing, so structure proves nothing.
+                    // Membership is a declared extend-type edge, already accepted by the
+                    // path-to-path is_subtype arm above. Width subtyping stays for a surface
+                    // that names members.
+                    if surf_clone.members.is_empty() {
+                        return false;
+                    }
                     return structural && nature_ok;
                 }
                 // Arc 293.4c — foreign type path: `actual` is a non-aggregate type (e.g.
@@ -17696,8 +17703,11 @@ pub(crate) fn assignable(
                         },
                     );
                     // Foreign types cannot satisfy a nature-bound surface (no aggregate nature).
+                    // B1: an empty member list is vacuous here too (`&[]` fields, no members to
+                    // miss). A declared edge was accepted by is_subtype above, so this path
+                    // must not admit a featureless surface.
                     let nature_ok = surf_clone.nature.is_none();
-                    if structural && nature_ok {
+                    if structural && nature_ok && !surf_clone.members.is_empty() {
                         return true;
                     }
                     // Not satisfied via foreign path — fall through to unify.

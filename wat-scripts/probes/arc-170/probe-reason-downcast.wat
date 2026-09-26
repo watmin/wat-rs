@@ -4,14 +4,15 @@
 ;; If this prints "downcast ok, sqlite code = 2067", the Reason error channel is feasible
 ;; with existing substrate (no new narrowing mechanism needed).
 
-;; the open error-context surface — any pure record satisfies it (mirrors :wat::telemetry'::LogMessage)
+;; the error-context surface — no members, so a record joins it only by extend-type (B1).
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 
-;; two backends' concrete Reason records — each satisfies :probe::Reason STRUCTURALLY (no extend-type)
 (:wat::core::defrecord :probe::SqliteReason [code  <- :wat::core::i64  sql <- :wat::core::String])
 (:wat::core::defrecord :probe::RedisReason  [errno <- :wat::core::i64  cmd <- :wat::core::String])
+(:wat::core::extend-type :probe::SqliteReason :probe::Reason)
+(:wat::core::extend-type :probe::RedisReason :probe::Reason)
 
-;; UP (free): a concrete record flows into a Reason-typed slot (structural satisfaction of the open surface)
+;; UP: a concrete record flows into a Reason-typed slot because of the extend-type above.
 (:wat::core::defn :probe::as-reason [r <- :probe::SqliteReason] -> :probe::Reason r)
 
 ;; DOWN (checked) + dispatch-on-concrete-class: a defclause keyed per concrete backend record — the "unpack"

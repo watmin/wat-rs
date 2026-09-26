@@ -11,6 +11,9 @@
 (:wat::core::defrecord :probe::SqliteReason [code  <- :wat::core::i64  sql <- :wat::core::String])
 (:wat::core::defrecord :probe::RedisReason  [errno <- :wat::core::i64  cmd <- :wat::core::String])
 (:wat::core::defrecord :probe::MongoReason  [nsp   <- :wat::core::String])   ; NO specific clause -> must hit fallback
+(:wat::core::extend-type :probe::SqliteReason :probe::Reason)
+(:wat::core::extend-type :probe::RedisReason :probe::Reason)
+(:wat::core::extend-type :probe::MongoReason :probe::Reason)
 
 ;; the multi-backend client — concrete clauses + the OPEN-surface fallback
 (:wat::core::defclause :probe::describe
@@ -21,7 +24,7 @@
   ([r <- :probe::Reason]       -> :wat::core::String
     "unknown backend"))
 
-;; UP: concrete records flow into a Reason-typed slot (structural satisfaction)
+;; UP: concrete records flow into a Reason-typed slot (the extend-type above)
 (:wat::core::defn :probe::as-reason-s [r <- :probe::SqliteReason] -> :probe::Reason r)
 (:wat::core::defn :probe::as-reason-m [r <- :probe::MongoReason]  -> :probe::Reason r)
 

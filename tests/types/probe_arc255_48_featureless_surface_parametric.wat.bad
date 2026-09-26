@@ -1,0 +1,13 @@
+;; Undeclared record against a featureless parametric surface. Must not load.
+;; Holder's edge consumes S and R the way Thread consumes Spawned's. Box has no edge.
+(:wat::core::defsurface :probe::Tag :- [S R] :nature :wat::core::Struct :features [])
+(:wat::core::defrecord :probe::Holder :- [S R] [sent <- S  recv <- R])
+(:wat::core::extend-type :- [S R]
+  (:probe::Holder :- [S R])
+  (:probe::Tag :- [S R]))
+(:wat::core::defrecord :probe::Box [x <- :wat::core::i64])
+(:wat::core::defn :probe::take
+  [b <- (:probe::Tag :- [:wat::core::i64 :wat::core::i64])]
+  -> :wat::core::i64
+  1)
+(:wat::core::defn :user::go [] -> :wat::core::i64 (:probe::take (:probe::Box :x 1)))

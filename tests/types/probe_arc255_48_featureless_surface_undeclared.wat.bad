@@ -1,0 +1,5 @@
+;; Undeclared record against a featureless non-parametric surface. Must not load.
+(:wat::core::defsurface :probe::Mark :nature :wat::core::Record :features [])
+(:wat::core::defrecord :probe::Item [n <- :wat::core::i64])
+(:wat::core::defn :probe::take [x <- :probe::Mark] -> :wat::core::i64 1)
+(:wat::core::defn :user::go [] -> :wat::core::i64 (:probe::take (:probe::Item :n 1)))

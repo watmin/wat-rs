@@ -31,6 +31,9 @@
 (:wat::core::defrecord :probe::SqliteReason [code  <- :wat::core::i64  sql <- :wat::core::String])
 (:wat::core::defrecord :probe::RedisReason  [errno <- :wat::core::i64  cmd <- :wat::core::String])
 (:wat::core::defrecord :probe::MongoReason  [nsp   <- :wat::core::String])   ;; no clause knows this class
+(:wat::core::extend-type :probe::SqliteReason :probe::Reason)
+(:wat::core::extend-type :probe::RedisReason :probe::Reason)
+(:wat::core::extend-type :probe::MongoReason :probe::Reason)
 
 ;; Two concrete-satisfier clauses, SAME return type — the sound narrowing shape.
 (:wat::core::defclause :probe::describe
@@ -39,7 +42,7 @@
   ([r <- :probe::RedisReason]  -> :wat::core::String
     (:wat::string::concat "redis "  (:wat::i64::to-string (:probe::RedisReason/errno r)))))
 
-;; UP: concrete records flow into a Reason-typed slot (structural satisfaction) —
+;; UP: concrete records flow into a Reason-typed slot (the extend-type above) —
 ;; this is how the value arrives OPEN-surface-typed, as it would out of an
 ;; agnostic contract field.
 (:wat::core::defn :probe::as-reason-s [r <- :probe::SqliteReason] -> :probe::Reason r)

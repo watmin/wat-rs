@@ -9,6 +9,8 @@
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 (:wat::core::defrecord  :probe::SqliteReason [code  <- :wat::core::i64  sql <- :wat::core::String])
 (:wat::core::defrecord  :probe::RedisReason  [errno <- :wat::core::i64  cmd <- :wat::core::String])
+(:wat::core::extend-type :probe::SqliteReason :probe::Reason)
+(:wat::core::extend-type :probe::RedisReason :probe::Reason)
 
 ;; a client that knows sqlite + redis — CONCRETE clauses ONLY
 (:wat::core::defclause :probe::describe

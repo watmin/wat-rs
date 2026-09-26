@@ -1,6 +1,6 @@
 ;; probe-defclause-real-shape.wat — NO shim. The REAL contract shape.
 ;; An agnostic result enum whose :Constraint variant carries a `reason <- Reason` field (exactly
-;; how :wat::query::PutResult would). Construct it with a concrete SqliteReason (UP — structural),
+;; how :wat::query::PutResult would). Construct it with a concrete SqliteReason (UP — the extend-type),
 ;; match it out, hand the `reason` (typed :probe::Reason by the field) to a concrete-clause defclause.
 ;; This settles whether the gap is REAL (the agnostic field loses the concrete type) or a shim artifact.
 ;;   prints "sqlite 2067"  -> defclause already handles it; no rule needed; I was wrong.
@@ -9,6 +9,8 @@
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 (:wat::core::defrecord  :probe::SqliteReason [code  <- :wat::core::i64  sql <- :wat::core::String])
 (:wat::core::defrecord  :probe::RedisReason  [errno <- :wat::core::i64  cmd <- :wat::core::String])
+(:wat::core::extend-type :probe::SqliteReason :probe::Reason)
+(:wat::core::extend-type :probe::RedisReason :probe::Reason)
 
 ;; a client that knows sqlite + redis — CONCRETE clauses only
 (:wat::core::defclause :probe::describe

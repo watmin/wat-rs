@@ -25,14 +25,6 @@
                  ;; the hole C closes: Opaque is NOT Orderable, yet a vector of it is admitted.
                  (:hello::takes-orderable vo)))
 
-;; ⚠ A SECOND HOLE, found while writing this file (2026-09-26): a featureless, non-parametric
-;; surface admits ANY record with NO edge at all. `bad` below type-checks, although Opaque never
-;; declared `extend-type :hello::Opaque :hello::Orderable`. Controls (not kept; this directory is
-;; type-check gated): a String is refused; a surface with ONE feature refuses Opaque; the parametric
-;; featureless `(Spawned :- [S R])` refuses Opaque. So membership in a marker surface is not
-;; declaration-driven today, and the concrete edge above is decorative.
-(:wat::core::defn :hello::bad [o <- :hello::Opaque] -> :wat::core::i64 (:hello::takes-orderable o))
-
 ;; A scalar CAN join a surface by declaration (control, rc=0 at the weigh):
 (:wat::core::extend-type :wat::core::i64 :hello::Orderable)
 (:wat::core::defn :hello::scalar [n <- :wat::core::i64] -> :wat::core::i64 (:hello::takes-orderable n))

@@ -5,6 +5,10 @@
 //! with assignable types (width subtyping). No `:satisfies`, no `:parent`,
 //! no declaration at the use site.
 //!
+//! A surface with no members is not a structural interface: nothing is required,
+//! so width proves nothing. Membership is only a declared `extend-type` edge
+//! (stone 255.48, ruling B1).
+//!
 //! `parse_defsurface` mirrors `parse_defstruct` but is simpler: name + fields only
 //! (no metadata-map).
 //!

@@ -17,6 +17,8 @@
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 (:wat::core::defrecord  :probe::A [x <- :wat::core::i64])
 (:wat::core::defrecord  :probe::B [y <- :wat::core::i64])
+(:wat::core::extend-type :probe::A :probe::Reason)
+(:wat::core::extend-type :probe::B :probe::Reason)
 
 ;; DIFFERENT return types across the two concrete-satisfier clauses:
 (:wat::core::defclause :probe::describe
