@@ -5,6 +5,7 @@
 ;; accumulating state (counters + duration samples) through its serve loop. On `close` it emits the
 ;; accumulated state as Metrics to the sink (each counter -> 1 Metric; each duration name -> a
 ;; `<name>/count` + a `<name>/duration` Metric) and passes the sink's write outcome through.
+;; `log` does the same for the journal's write-logs outcome.
 ;;
 ;; Provisioning is INLINE at the call site (the scope law: start+connect+use in one lexical scope),
 ;; done by the `with-span` macro (stone Span.3); the durable Record carries namespace/uuid/tags/
@@ -82,7 +83,8 @@
          {:state (:wat::telemetry::span::State :durable rec' :sink (:wat::telemetry::span::State/sink s))
          :reply (:wat::telemetry::Span::TimedResponse.Ok {})})))
 
-   ;; log — build a Log from this span's scope, write it through the sink NOW; state unchanged.
+   ;; log — build a Log from this span's scope, write it through the sink NOW, and
+   ;; pass the sink's write outcome through. Same arms as close.
    (log [s ctx req]
      (:wat::core::let
        [rec (:wat::telemetry::span::State/durable s)
@@ -95,9 +97,39 @@
               :emitted-from (:wat::telemetry::Span::LogRequest/emitted-from req)
               :level (:wat::telemetry::Span::LogRequest/level req)
               :message (:wat::telemetry::Span::LogRequest/message req))
-        _w  (:wat::telemetry::Journal/write-logs (:wat::telemetry::span::State/sink s)
-              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l)))]
-       (:wat::service::Outcome.Reply {:state s :reply (:wat::telemetry::Span::LogResponse.Ok {})})))
+        resp (:wat::telemetry::Journal/write-logs (:wat::telemetry::span::State/sink s)
+               (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l)))
+        lresp (:wat::core::match resp
+                [:wat::kernel::RecvOutcome.Message {:msg sresp}
+                  (:wat::core::match sresp
+                    [:wat::telemetry::Journal::WriteLogsResponse.Success {}
+                      (:wat::telemetry::Span::LogResponse.Ok {})]
+                    [:wat::telemetry::Journal::WriteLogsResponse.Constraint {:err err}
+                      (:wat::telemetry::Span::LogResponse.Constraint {:err err})]
+                    [:wat::telemetry::Journal::WriteLogsResponse.Transient {:err err}
+                      (:wat::telemetry::Span::LogResponse.Transient {:err err})]
+                    [:wat::telemetry::Journal::WriteLogsResponse.Fatal {:err err}
+                      (:wat::telemetry::Span::LogResponse.Fatal {:err err})]
+                    ;; wire-breach at the sink peer propagates outward as our own op's breach.
+                    [:wat::telemetry::Journal::WriteLogsResponse.RequestTooLarge {:bytes bytes :cap cap}
+                      (:wat::telemetry::Span::LogResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                    [:wat::telemetry::Journal::WriteLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                      (:wat::telemetry::Span::LogResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
+                ;; a lost/closed sink peer must NOT kill this span service — map to our own Fatal
+                ;; response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
+                [:wat::kernel::RecvOutcome.Lost {:cause cause}
+                  (:wat::telemetry::Span::LogResponse.Fatal
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))})]
+                ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
+                ;; (the operation cannot complete either way) with the TRUE reason: the
+                ;; journal sink peer was alive and the substrate was asked to stop.
+                [:wat::kernel::RecvOutcome.Stopped {}
+                  (:wat::telemetry::Span::LogResponse.Fatal
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: stop requested mid-call — the journal sink peer was ALIVE"))})]
+                [:wat::kernel::RecvOutcome.Closed {}
+                  (:wat::telemetry::Span::LogResponse.Fatal
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed"))})])]
+       (:wat::service::Outcome.Reply {:state s :reply lresp})))
 
    ;; close — emit counters + durations as Metrics to the sink; pass the write outcome through.
    (close [s ctx req]

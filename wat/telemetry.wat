@@ -227,8 +227,9 @@
 ;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.
 ;; `incr`/`timed` accumulate PURE state (counters + duration samples); `log` writes through the sink
 ;; NOW; `close` emits the accumulated counters + durations as Metrics to the sink (each counter -> 1
-;; Metric; each duration name -> count + sum Metrics) — so CloseResponse passes through the sink's
-;; write outcome (the shared :wat::query:: error vocab, derive-is-the-wall). `span'` (the satisfier,
+;; Metric; each duration name -> count + sum Metrics). LogResponse and CloseResponse both pass
+;; the sink's write outcome through (the shared :wat::query:: error vocab, derive-is-the-wall).
+;; `span'` (the satisfier,
 ;; stone Span.2) holds a `:wat::telemetry'::Journal` peer. Nesting is a call-site `open` with the same
 ;; sink (NOT a surface op). `timed` the OP (`Span/timed`) is distinct from the `timed` call-site widget
 ;; macro (`:wat::telemetry'::timed`) — FQDN disambiguates.
@@ -256,6 +257,9 @@
       message <- :wat::core::String])
    (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure
      :Ok              []
+     :Constraint      [err <- :wat::query::Constraint]
+     :Transient       [err <- :wat::query::Transient]
+     :Fatal           [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
