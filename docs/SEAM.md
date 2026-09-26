@@ -21,64 +21,96 @@ ls -dt docs/arc/2026/*/*/ | head -6      # which arcs moved most recently
 git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # the ignore ledger, live
 ```
 
-**Stamp: written against HEAD `16d093e90` (2026-09-25).** `main` == `origin/main` at that commit.
-Release floor at `fda59f3e9`: **6116 passed / 22 skipped**, clippy 0, census 216 non-zero, delta NEW 2 / RECOVERY 0, ledger 208.
+**Stamp: written against HEAD `d6ed8514d` (2026-09-26).** `main` == `origin/main` at that commit.
+Release floor at `145d2434a`: **6141 passed / 22 skipped**, clippy 0, census 215 non-zero, delta NEW 2 / RECOVERY 0, ledger 198.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
 ---
 
-## ⭐ WHERE THE WORK STANDS — 2026-09-24, late (arc 255, the locus waist; stones 255.14 → 255.27)
+## ⭐ WHERE THE WORK STANDS — 2026-09-26 (arc 255; stones 255.14 → 255.45)
 
-Every stone's BRIEF / SCORE / WEIGH is in `docs/arc/2026/06/255-builtin-registry/`. **Read the newest
-WEIGH first** (`WEIGH-STONE-255.27-…`). ⛔ This section is a map, not the state: run `git log` yourself.
+⛔ **You did not live this.** It is a cache, not your memory. Fetch the grimoire and the four primers (SIGNED MCP),
+run the commands above, then read the **newest WEIGH** in `docs/arc/2026/06/255-builtin-registry/`
+(`WEIGH-STONE-255.45-…`) before you move.
 
-⭐ **THE ROOT (four-questions, 2026-09-24):** the checker **knew by spelling what it should know by
-declaration.** The C-a → C-b → C-c cure is now mostly landed:
+**Executor:** grok, via **pulsare**. Write `BRIEF-STONE-*.md`, `mcp__pulsare__pulsare_yield kind=briefed`,
+confirm the ingest in `tmux capture-pane -p -t holon:grok.1`, then **re-run every SCORE yourself** and write a
+WEIGH. Opus subagents are for **ward casts** only (intueri etc.). grok compacts itself, so its context is no
+reason to reroute.
 
-| landed | what |
+### Standing rulings (builder), newest first
+
+- **Totality:** every runtime raise becomes a match; zero surprises at run time. (The broad crusade is on the
+  `sns-sqs` branch; here only the flagged raises.)
+- **Structural, never spelled:** substring or name matches are wrong. The checker knows by **declaration**, not
+  spelling.
+- **Supervisor pattern:** a death's reason goes only to the owner (the admin handle). A server never gets a
+  client's reason; a crashing service notifies clients **reasonlessly**; `eprintln` is a final statement before
+  dying.
+- **Only data crosses a comm, on every locus;** resources live only in `:ephemeral`. A thread address is inert
+  data; *"auth on threads is nonsense"*.
+- **The owner's end is its own type:** `:wat::spawn::Spawned :- [S R]`, a featureless surface whose parameters
+  are consumed by its implementors' binder edges (H5).
+- **Declare things where they are logical; a new file is fine.** **Simple measures the surface, not the work.**
+- **Four questions** on the page, never a menu. **A STOP trigger means STOP.**
+
+### Landed since 255.27
+
+| stones | what |
 |---|---|
-| 255.16 | a type binds a parametric surface once |
-| 255.18/.19 | `Locus :- [T]`; per-locus behaviour is on the surface |
-| 255.20 | a name nothing declares does not type-check |
-| 255.21 | `Dialable`/`TypedCapability :- [S R T]`; **the coord Shared-as-Wire hole closed**; the kwargs macro stops reading names |
-| 255.22 | ⭐ `extend-type :- [T] …` declares its parameters (builder: *"greet needs to accept an instance of a Greets who holds some type T"*) |
-| 255.23 | one method path through the receiver's edge |
-| 255.24 | defservice declares the letters it emits |
-| 255.25a | a variant is a type the moment its enum is |
-| 255.25 | `:wat::kernel::Transport` Pure enum `{Shared, Wire}` (ruled); the child main says `Wire` |
-| 255.26 | a builtin is structured OR a leaf (**the debug build had been red since `10599eb36`**) |
-| 255.27 | the transport special cases are deleted and **D2 lands**; the kwargs hole is closed |
-| 255.28 | purity sees through a generic type |
-| 255.29 | a thread address is data (`ThreadAddressWire`, no auth: builder, *"auth on threads is nonsense"*); `Shared` is pure |
-| 255.30 | ⭐ `ThreadSelfPeer` is gone. **RULED: only data crosses a comm, on every locus; resources live only in `:ephemeral`** |
+| 255.28–.30 | purity sees through generics; a thread address is data; the `ThreadSelfPeer` hatch is gone |
+| 255.31 | a thread address is inert (no registry, no `Mutex`); the outcome-vocabulary table |
+| 255.32–.33 | a server reaps a dead client; every connected client hears a crash (the listen backlog is drained) |
+| 255.34–.36 | vocabulary 1–3: `ConnectOutcome` (no `Refused`), `AcceptOutcome` (+`Stopped`), `SendOutcome` (`HandleClosed`, `Closed [cause]`, no `Lost`) |
+| 255.37–.39 | the owner family: `Thread`/`Process` no longer derive `Peer`; `Spawned` is a featureless surface |
+| 255.40 | `RecvError::Malformed` split out; one crash classifier |
+| 255.41–.42 | the re-poll reads what arrived, driven from Rust by a `cfg(test)` accept seam |
+| 255.43–.44 | telemetry faces its outcomes; `Span::LogResponse` mirrors `CloseResponse` |
+| 255.45 | measurement: declarations and drops |
 
-**THE QUEUE, from the WEIGHs** (executor since 255.29: grok via pulsare; the orchestrator re-runs every SCORE):
+### THE OPEN QUESTION at the compaction (the builder asked; the orchestrator answered; unruled)
 
-0. From 255.29/.30: rename the negative row `probe_arc255_30_struct_on_thread_peer.wat` to `.wat.bad` (census baseline **216** until then) · a send-time purity check read an **open type variable as impure** · a `Process` spawn's `I`/`O` are bound at the first send and never re-checked · the ZERO-MUTEX registry (builder's call) · 255.28's substitution path may now lack a refused row.
+*"does this hint that this new form can't cover or do we need to re-assess how this form is needing to be
+constructed?"* The answer given (WEIGH-255.45 plus the conversation):
 
-1. ⛔ **255.27 survivor 1: what IS a transport-agnostic sink address?** The 2-argument `(Address :- [S R])`
-   means "either transport" at 6 stdlib sites and about 56 corpus files. Some of them (`:init` params,
-   `Coords`/`PoolMsg` fields) have nowhere to declare a letter. **This is a language question for the
-   builder** (four questions pending).
-2. **255.27 survivor 2:** `unify`'s bare-family arm. The checker types generic variant constructor bodies
-   as the bare variant path, and `PersistentMap`/`Vector` builtins return the bare family.
-3. The `Address+Shared` impurity as a declaration: `Address` has no wat declaration, and no form expresses
-   argument-dependent purity.
-4. `transport_marker` (a `Var`-in-last-arg guess for `require-wire-address`).
-5. **C-c:** a type parameter is known from its declaration. `defn` binders are not enforced (`[x <- :K]`
-   with `K` undeclared checks clean), `:- [Elem]` is refused by `=`, and `is_pure_type` has an
-   "unknown ⇒ param" arm.
-6. **Step 3:** one generic `start`/`resume` (E), retiring the per-locus copies and their string routing,
-   plus the waist wall.
-7. **Debug arms (255.26):** A, depth guards that lose to the stack (a **real defect**); B/C, time limits
-   calibrated to release. ⚠ **The builder's ruling is pending** on a `release-dbg` / `floor.sh --asserts`
-   mode.
-8. Carried: the 3rd silent door (`unresolved_accessor_placeholder`) and resolve's single-segment rung
-   (255.20); `spawn-program`/`spawn-peer` per-locus types; the alias candidate 2 (D2 is now closed).
+- the 15% a bodiless clause declaration (`defintrinsic`, S-b) cannot express today is mostly **not the form's
+  limit**: genuine forms, untyped debt, and three checker gaps (rest elements unchecked at check time; an
+  unresolved receiver taking the first clause; `Vector` covariance);
+- **one missing capability is the form's construction: a family-bounded type variable** (`:- [(E <-
+  :wat::spawn::Spawned)]`). It closes both `select`/`poll` (a vector of any owner) and ordering (`Orderable`).
+  S1 was rejected earlier for the transport, when no measured case needed it; **two measured cases need it now**.
+- **Proposed next, unconfirmed:** a grok measurement of whether bounded type variables alone close
+  `select`/`poll` and ordering, and whether unification can carry a bound through instantiation.
 
-Standing notes: codemods run with `./target/release/wat` (`cargo wat` is a stale Aug-29 binary; CLAUDE.md
-still names it, and that is the builder's call). Capture `rc=$?` on the next statement.
+### Pending rulings (grids offered; not yet ruled)
+
+- **D-c:** a discard is **any `let` binding never read**, whatever its name (today's gate matches only `_`, and
+  the stdlib dodged it with `_es`/`_w`).
+- **N-a:** a `:wat::core::Never` type for divergent forms.
+- **Drops without a drop form:** `stop` returns `nil` (6 sites); callers of write counts use `print`/`println`
+  (the twins exist); a `for-each` for `mapv`/`foldl`-for-effect; the rest face or bind.
+- **S-b sequencing:** close the three gaps, then `defintrinsic`, with the owner/peer `recv` split as its first
+  consumer; the event split waits on the bound.
+
+### The queue
+
+1. The bounded-type-variable measurement (above).
+2. The `recv`/`select` split: `PeerRecvOutcome`/`OwnerRecvOutcome`, `PeerEvent`/`OwnerEvent` (named in
+   `FINDING-INTUERI-naming-the-two-{recv,event}-vantages.md`). R-value is ruled: a stop is a value.
+3. Must-use and its remedy by declaration (the `MUST_USE_*` lists and `contains("ServiceEvent")` go).
+4. Carried:
+   - the peer `@arg` docs contradict the checker, unseen (the doc gate skips hand rows);
+   - `poll`'s permissive self-peer/listener arguments;
+   - the rete fences that rely on a raise;
+   - 255.22–.30's carried items (see those WEIGHs);
+   - C-c (type parameters by declaration; `defn` binders are unenforced);
+   - step 3 (a generic `start`).
+5. ⚠ **The `sns-sqs` merge:** 255.41/.42 moved the process `poll` loop into `poll_process_tier` (`message.rs`
+   ~1443–1817). Carry `sns-sqs`'s edits into the moved function.
+
+⛔ **End of the breadcrumb. The self reading this is new. Run recolligere against the disk before acting on any
+line above.**
 
 ---
 
