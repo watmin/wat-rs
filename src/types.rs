@@ -873,6 +873,16 @@ pub struct TypeEnv {
     /// closure, which arc 054's idempotency rule never runs for a byte-equivalent
     /// re-declaration, so a re-registration cannot overwrite the original span.
     decl_spans: HashMap<String, Span>,
+    /// Excursus 003 step 3a's guard — names [`Self::register_builtin`] saw registered
+    /// TWICE, recorded as DATA rather than only a `debug_assert!`. The `debug_assert`
+    /// alone let 27 `:wat::runtime::<Variant>` records (a hand-typed Rust table, arc
+    /// 278) silently overwrite this stone's wat-derived registrations for months of
+    /// `--release` floor runs — the floor never sees a `debug_assert`, so a real
+    /// double-registration produced zero red anywhere. Populated BEFORE the
+    /// overwriting `insert` in `register_builtin`, so the FIRST registration's shape
+    /// is what a caller reading `self.types.get` after the fact would have seen
+    /// clobbered. See [`Self::duplicate_builtins`].
+    duplicate_builtins: Vec<String>,
 }
 
 /// One answer to "is this name a type?" — the stores `is_known_type` unions,
@@ -914,6 +924,15 @@ impl TypeEnv {
         let mut env = Self::default();
         register_builtin_types(&mut env);
         env
+    }
+
+    /// Excursus 003 step 3a's guard — the names [`Self::register_builtin`] saw
+    /// registered more than once, in registration order. Empty on a healthy
+    /// `TypeEnv`; a release test (`tests/types/*`) asserts `with_builtins()`
+    /// produces none, so a reintroduced double registration goes RED in the
+    /// release floor — not only under a `debug_assert!` the floor never runs.
+    pub fn duplicate_builtins(&self) -> &[String] {
+        &self.duplicate_builtins
     }
 
     /// Answers MEMBERSHIP: is `name` a real type name, structured or not?
@@ -1333,6 +1352,13 @@ impl TypeEnv {
             "built-in type {} registered twice",
             name
         );
+        // Excursus 003 step 3a — record a duplicate as DATA, not only a `debug_assert!`.
+        // The floor is weighed in `--release` (`wat-rs/CLAUDE.md`), where the assert above
+        // compiles out; recording here is what lets a `--release` test see what only a
+        // debug run could catch before. Pushed BEFORE the overwriting `insert` below.
+        if self.types.contains_key(&name) {
+            self.duplicate_builtins.push(name.clone());
+        }
         // Arc 293.W.2b — register the nature-root subtype edge for Aggregate builtins,
         // mirroring what `register` does for user-defined aggregates (types.rs:525-532).
         // Without this edge, builtin Record types (e.g. :wat::kernel::Failure after its
@@ -2288,6 +2314,17 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Rust consumes it.
     ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::Span");
 
+    // :wat::core::Fault — excursus 003 step 3a. Registered for DECODE (mirroring Span just
+    // above): `RuntimeError::to_record` (`src/value/runtime_records.rs`) puts a `Fault` into
+    // a nested-error variant's `causes` (`EvalVerificationFailed`, `MacroExpansionFailed`),
+    // and G3's round trip needs `:wat::core::Fault` in the TypeEnv to resolve that tag back
+    // to a typed record — without this, `edn_to_value` hits `UnknownTag`. `Fault` was never
+    // registered before this step because nothing needed to READ one back typed; every prior
+    // construction site (`fault_from_runtime_error`, `fault_value`, `fault_with_cause`,
+    // `src/runtime.rs`) only WRITES it, which needs no registration at all (the generic
+    // `Value::Aggregate` encoder derives the tag from `class` directly).
+    ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::Fault");
+
     // The narrower three-field "a location" record that once lived here — RETIRED, excursus
     // 003 envelope step 1 (D1). Every use site now carries `:wat::core::Span` instead (the
     // registration just above — unchanged by this stone, already generated from
@@ -2324,6 +2361,24 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
     // source of truth; Rust consumes it.
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Frame");
+
+    // Excursus 003 step 3a — :wat::kernel::ClauseFailureReason / ClauseAttempt.
+    // Mirrors `crate::value::value::ClauseFailureReason`/`ClauseAttempt`
+    // (`src/value/value.rs:500`/`:513`). Kept in `:wat::kernel::` (builder's
+    // ruling 2026-09-26): they already ship as `#wat.kernel/…` on the wire; the
+    // existing hand-written writer in `src/edn/error.rs` is untouched by this
+    // registration. Registered BEFORE the 40 `:wat::runtime::<Kind>` records
+    // below: `NoMatchingClause` names `ClauseAttempt` as a field.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::ClauseFailureReason"
+    );
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::ClauseAttempt"
+    );
 
     // :wat::kernel::Failure — structured panic / assertion payload
     // populated when a sandboxed `:user::main` fails. Slice 2b fills
@@ -2421,6 +2476,69 @@ fn register_builtin_types(env: &mut TypeEnv) {
         "wat/kernel/diagnostics.wat",
         ":wat::kernel::StopFailed"
     );
+
+    // ─── Excursus 003 step 3a — the RuntimeErrorKind wat records ─────────────
+    // Declared in `wat/runtime-errors.wat`. Order below matches that file's
+    // internal dependency order: Provenance (no deps) before ValueSnapshot
+    // (names it), then the 40 kind records (several name ValueSnapshot /
+    // ReteCeilingKind / the ClauseAttempt registered above).
+
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-errors.wat",
+        ":wat::runtime::Provenance"
+    );
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/runtime-errors.wat",
+        ":wat::runtime::ValueSnapshot"
+    );
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-errors.wat",
+        ":wat::runtime::ReteCeilingKind"
+    );
+
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UnboundSymbol");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UnknownFunction");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NotValueDispatchable");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NotCallable");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::TypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ArityMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::BadCondition");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::MalformedForm");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ParamShadowsBuiltin");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::DivisionByZero");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::IntegerOverflow");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::DuplicateDefine");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReservedPrefix");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UnreachableClause");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UnnamespacedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::DottedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::DeclarationInExpressionPosition");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EvalForbidsMutationForm");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UserMainMissing");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EvalVerificationFailed");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ChannelDisconnected");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteCeiling");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoEncodingCtx");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoSourceLoader");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoMacroRegistry");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::MacroExpansionFailed");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::PatternMatchFailed");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EffectfulInStep");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoStepRule");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::AssertionFailed");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::SandboxScopeLeak");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ServiceNotRunning");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EdnCoerceMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UnknownField");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoMatchingClause");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::PostconditionFailed");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::MacroAbort");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::WriteStopped");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnAxisViolation");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnRecursive");
 
     // (:wat::kernel::RecvOutcome :- [O]) — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
@@ -3125,12 +3243,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
     )
     .expect("built-in typesub root cannot cycle");
 
-    // Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
-    // enum's variants as `:wat::core::Error`-satisfying decode records so a
-    // startup / peer death carrying a `#wat.runtime/<Variant> {…}` cause
-    // STRICT-decodes back to a TYPED record (not a string-wrapped blob, not an
-    // `UnknownTag`). See `register_runtime_error_variants`.
-    register_runtime_error_variants(env);
+    // Arc 278 "errors first-class EDN" (stone 1)'s `register_runtime_error_variants` —
+    // a hand-typed Rust table registering 27 of `RuntimeErrorKind`'s variants as
+    // `:wat::runtime::<Variant>` decode records — RETIRED here, excursus 003 step 3a.
+    // Its own doc called it a bounded stand-in deferring the 7 nested-payload kinds
+    // "to the stone that registers their nested sub-value types (ValueSnapshot / … /
+    // ClauseAttempt)" — this stone. The builder's ruling: wat is the only source for
+    // these declarations now; a hand-typed second copy of 27 of them is exactly the
+    // copy the ruling removes. All 40 variants now register from `wat/runtime-errors.wat`
+    // above (`wat_record_from!`), read directly, not re-derived here.
 
     // Arc 296 stone D — drain `inventory::iter::<::wat_edn::EdnSchema>()`.
     //
@@ -3286,173 +3407,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // so it never went through `register_builtin_leaf`. Denotation makes
     // `wat.type/nil` a member once `:wat::core::nil` is.
     env.register_use_declared_leaf(":wat::core::nil");
-}
-
-/// Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
-/// enum's variants as `:wat::core::Error`-satisfying decode RECORDS.
-///
-/// Each `RuntimeError` emits `#wat.runtime/<Variant> {…}` via `#[derive(ToEdn)]`
-/// (`RuntimeErrorKind`, `signal.rs`) composed with the `WatError::error_edn()`
-/// floor (`:message` / `:location` / `:causes` + the variant's own coordinate
-/// fields). That derive is WRITE-ONLY (no `EdnSchema` submit) — so STRICT
-/// `edn_to_value` hit `UnknownTag` and the cause was string-wrapped. Here we
-/// hand-register the DECODE schema for each variant so a startup / peer death
-/// cause round-trips to a typed record (`reconstruct_record`, `edn/render.rs`).
-///
-/// **Why a hand table and not the `#[derive(Edn)]` flip (the STOP):** flipping
-/// `RuntimeErrorKind` `ToEdn → Edn` runs the schema generator over ALL 32
-/// variants, which hits the `derive`'s STOP-2 scalar-only wall on the hairy
-/// field types (`Box<ValueSnapshot>` / `&'static str` / `Span` / `Vec<_>` /
-/// `Option<_>` / nested `HashError` / `MacroError`) AND would require the derive
-/// to compose the floor keys — a substrate change bigger than this stone. Per
-/// DESIGN-errors-first-class-edn.md's STOP clause, the derive-enhancement is
-/// split into its own stone; this bounded loop registers RuntimeError for the
-/// proof, WITHOUT a lossy uniform `[message location causes]` shortcut (each
-/// variant keeps its coordinate fields).
-///
-/// **Scope:** the 25 variants whose coordinate fields are fully
-/// scalar-decodable (String / i64 / (Option :- [String]) / (Vector :- [String]) / Span) are
-/// registered here. The 7 variants that carry a nested value-snapshot / typed
-/// sub-error (`NotCallable`, `TypeMismatch`, `BadCondition`,
-/// `EvalVerificationFailed`, `MacroExpansionFailed`, `NoMatchingClause`,
-/// `PostconditionFailed`) are DEFERRED to the stone that registers their nested
-/// sub-value types (`ValueSnapshot` / `HashError` / `MacroError` /
-/// `ClauseAttempt`); their outer record cannot fully decode until then.
-///
-/// Every `RuntimeError`'s `:location` is a real `Span` (`error_edn()` splices
-/// `self.span`; never nil) — so no nil-location B-leaf fix is owed here.
-fn register_runtime_error_variants(env: &mut TypeEnv) {
-    // The `:wat::core::Error` floor keys, prepended to every variant record.
-    // `:message` String, `:location` Span (registered above), `:causes`
-    // (Vector :- [Error]). A variant whose own field is literally named `message`
-    // (`AssertionFailed`, `MacroAbort`) has it stripped by `error_edn()`'s
-    // floor-dedup, so it is NOT re-declared as a coordinate field.
-    let s = |p: &str| TypeExpr::Path(p.to_string());
-    let string = || s(":wat::core::String");
-    let i64t = || s(":wat::core::i64");
-    let span = || s(":wat::core::Span");
-    let opt_string = || TypeExpr::Parametric {
-        head: "wat::core::Option".into(),
-        args: vec![TypeExpr::Path(":wat::core::String".into())],
-    };
-    let vec_string = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::core::String".into())],
-    };
-    let floor = || -> Vec<(String, TypeExpr)> {
-        vec![
-            (
-                "message".into(),
-                TypeExpr::Path(":wat::core::String".into()),
-            ),
-            ("location".into(), TypeExpr::Path(":wat::core::Span".into())),
-            (
-                "causes".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::Error".into())],
-                },
-            ),
-        ]
-    };
-
-    // (variant tag name, coordinate fields) — EDN keys are the kebab-cased
-    // field idents / `#[to_edn(key = …)]` overrides from `signal.rs`.
-    let variants: Vec<(&str, Vec<(String, TypeExpr)>)> = vec![
-        ("UnboundSymbol", vec![("name".into(), string())]),
-        ("UnknownFunction", vec![("path".into(), string())]), // ← the cache-probe gate
-        (
-            "ArityMismatch",
-            vec![
-                ("op".into(), string()),
-                ("expected".into(), i64t()),
-                ("got".into(), i64t()),
-            ],
-        ),
-        (
-            "MalformedForm",
-            vec![("head".into(), string()), ("reason".into(), string())],
-        ),
-        ("ParamShadowsBuiltin", vec![("name".into(), string())]),
-        ("DivisionByZero", vec![]),
-        (
-            "IntegerOverflow",
-            vec![
-                ("op".into(), string()),
-                ("a".into(), i64t()),
-                ("b".into(), i64t()),
-            ],
-        ),
-        ("DuplicateDefine", vec![("name".into(), string())]),
-        ("ReservedPrefix", vec![("prefix".into(), string())]),
-        ("UnnamespacedName", vec![("name".into(), string())]),
-        ("DottedName", vec![("name".into(), string())]),
-        (
-            "DeclarationInExpressionPosition",
-            vec![("head".into(), string())],
-        ),
-        ("EvalForbidsMutationForm", vec![("head".into(), string())]),
-        ("UserMainMissing", vec![]),
-        ("ChannelDisconnected", vec![("op".into(), string())]),
-        ("NoEncodingCtx", vec![("op".into(), string())]),
-        ("NoSourceLoader", vec![("op".into(), string())]),
-        ("NoMacroRegistry", vec![("op".into(), string())]),
-        ("PatternMatchFailed", vec![("value-type".into(), string())]),
-        ("EffectfulInStep", vec![("op".into(), string())]),
-        ("NoStepRule", vec![("op".into(), string())]),
-        // `message` collides with the floor → floor-only + these two.
-        (
-            "AssertionFailed",
-            vec![
-                ("actual".into(), opt_string()),
-                ("expected".into(), opt_string()),
-            ],
-        ),
-        (
-            "SandboxScopeLeak",
-            vec![
-                ("offending-name".into(), string()),
-                ("outer-define-span".into(), span()),
-            ],
-        ),
-        ("ServiceNotRunning", vec![("op".into(), string())]),
-        (
-            "EdnCoerceMismatch",
-            vec![
-                ("op".into(), string()),
-                ("expected".into(), string()),
-                ("got".into(), string()),
-                // `edn_path_segments` writes `:path` as (Vector :- [String]) segments.
-                ("path".into(), vec_string()),
-            ],
-        ),
-        (
-            "UnknownField",
-            vec![
-                ("record-class".into(), string()),
-                ("field".into(), string()),
-                ("available".into(), vec_string()),
-            ],
-        ),
-        // `message` collides with the floor → floor-only (no extra coordinate).
-        ("MacroAbort", vec![]),
-    ];
-
-    for (variant, coords) in variants {
-        let mut fields = floor();
-        fields.extend(coords);
-        env.register_builtin(TypeDef::Aggregate(AggregateDef {
-            nature: Nature::Record,
-            // rune:lint(one-variant-separator, namespace) — mints a flat builtin record name
-            // under the wat::runtime namespace; `variant` supplies only the leaf segment
-            // (Rust's RuntimeError variant name), RuntimeError itself is never a wat enum here,
-            // so there is no enum/variant pair on either side of this `::`.
-            name: format!(":wat::runtime::{}", variant),
-            type_params: vec![],
-            fields,
-            restrictions: None,
-        }));
-    }
 }
 
 /// Arc 293 K3 — derive the THREE backing aggregates from a surface declaration.

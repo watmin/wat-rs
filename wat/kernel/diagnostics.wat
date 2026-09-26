@@ -50,6 +50,49 @@
    span   <- :wat::core::Span
    kind   <- :wat::kernel::FrameKind])
 
+;; ─── Excursus 003 step 3a: :wat::kernel::ClauseFailureReason / ClauseAttempt ──
+;;
+;; Mirror `crate::value::value::ClauseAttempt` / `ClauseFailureReason`
+;; (`src/value/value.rs:500`/`:513`). Declared HERE, in `:wat::kernel::`, on the
+;; builder's ruling (2026-09-26): they already ship on the wire as
+;; `#wat.kernel/ClauseAttempt` / `#wat.kernel/<Reason>` (`src/edn/error.rs`'s
+;; hand-written `clause_attempt_to_edn`/`clause_failure_reason_to_edn`), so they
+;; keep that namespace rather than moving to `:wat::runtime::` alongside the
+;; `RuntimeErrorKind` records that reference them (`NoMatchingClause`,
+;; `wat/runtime-errors.wat`). Declaring them here only gains the enum-variant
+;; tags their reason gets a dotted enum name (`#wat.kernel/ClauseFailureReason.
+;; ArityMismatch` instead of the flat `#wat.kernel/ArityMismatch`) when
+;; constructed through THIS declaration (`RuntimeError::to_record`) — the
+;; existing hand-written writer above is untouched and keeps emitting the flat
+;; form; the four `probe_arc237_stone4_*`/`probe_arc298_3_*` goldens that assert
+;; it are unaffected (verified: they read through `clause_attempt_to_edn` and
+;; `wat_edn::parse_owned`, neither of which this declaration touches).
+;;
+;; Per-clause failure reason for `defclause` dispatch — WHY a single clause was
+;; skipped, not just THAT none matched (arc 233 errors-as-teaching-values).
+(:wat::core::defenum :wat::kernel::ClauseFailureReason :wat::enum::Pure
+;; The call's argument count did not match the clause's declared arity.
+  :ArityMismatch    [expected <- :wat::core::i64
+                     got      <- :wat::core::i64]
+;; A specific argument position's runtime type did not match the clause's
+;; declared type there.
+  :ArgTypeMismatch  [position <- :wat::core::i64
+                     expected <- :wat::core::String
+                     got      <- :wat::core::String]
+;; The clause's `:guard` expression evaluated to `false`.
+  :GuardFalse)
+
+;; One skipped `defclause` clause's diagnostic — index, declared shape, and why.
+(:wat::core::defrecord :wat::kernel::ClauseAttempt
+;; 0-based index of the clause in the defclause declaration.
+  [clause-index       <- :wat::core::i64
+;; Number of parameters the clause declares.
+   declared-arity     <- :wat::core::i64
+;; The clause's declared parameter types, formatted, in position order.
+   declared-arg-types <- (:wat::core::Vector :- [:wat::core::String])
+;; Why this clause was skipped.
+   failure-reason     <- :wat::kernel::ClauseFailureReason])
+
 ;; ─── Arc 296: :wat::kernel::StartupError — moving the source of truth to wat ───
 ;;
 ;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).

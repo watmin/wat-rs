@@ -11925,7 +11925,7 @@ pub(crate) fn failure_names() -> Arc<Vec<String>> {
 /// service crash), a synthetic `<runtime>` location marks it honestly. `causes`
 /// is an empty `(Vector :- [Error])`. This is the canonical synthesizer for every
 /// death that is a bare message rather than a structured `raise!`.
-fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
+pub(crate) fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
     let location_value = match location {
         Some(span) => value_from_span(span),
         None => value_from_span(crate::span::Span::new(

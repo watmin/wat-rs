@@ -47,6 +47,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/diagnostics.wat",
         source: include_str!("../../wat/kernel/diagnostics.wat"),
     },
+    // Excursus 003 step 3a — the 40 `:wat::runtime::<Kind>` records mirroring
+    // `RuntimeErrorKind`, plus `ValueSnapshot`/`Provenance`/`ReteCeilingKind`.
+    // After `wat/kernel/diagnostics.wat`: `NoMatchingClause` references
+    // `:wat::kernel::ClauseAttempt`, declared there.
+    WatSource {
+        path: "wat/runtime-errors.wat",
+        source: include_str!("../../wat/runtime-errors.wat"),
+    },
     // Arc 296 J — `:wat::edn::*` read/validate outcomes. After core.wat (`Error`).
     WatSource {
         path: "wat/edn.wat",
