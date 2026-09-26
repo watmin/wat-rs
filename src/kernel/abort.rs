@@ -71,8 +71,11 @@ pub(crate) fn eval_kernel_raise(
         // `message` field), so this only fires for an out-of-band caller — fall
         // back to the EDN rendering rather than an empty message.
         .unwrap_or_else(|| crate::edn::render::value_to_edn_string_lossy(&data, types));
-    let frames = snapshot_call_stack();
-    let location = frames.first().map(|f| f.call_span.clone());
+    let frames: Vec<crate::value::frame::Frame> = snapshot_call_stack()
+        .into_iter()
+        .map(crate::value::frame::Frame::from)
+        .collect();
+    let location = frames.first().map(|f| f.span.clone());
     let payload = crate::assertion::AssertionPayload {
         message,
         actual: None,

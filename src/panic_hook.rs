@@ -47,12 +47,11 @@
 //! (guarded by `INSTALLED: AtomicBool`).  Arc 211a.
 
 use crate::assertion::AssertionPayload;
-use crate::value::FrameInfo;
 // `Span` imported inside `#[cfg(test)] mod tests` (only used in test helpers).
 use std::borrow::Cow;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
-use wat_edn::{Keyword, OwnedValue, Tag};
+use wat_edn::{Keyword, OwnedValue};
 
 /// Tracks whether the hook has been installed. First install wins;
 /// subsequent `install()` calls become idempotent no-ops (Arc 211a).
@@ -173,11 +172,13 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     };
 
     // ── :frames ──────────────────────────────────────────────────────
+    // Excursus 003 D3 — routed through `Frame::to_edn`, the ONE frame-EDN builder
+    // `RuntimeError`'s `:frames` (`src/edn/error.rs`) also uses.
     let frames_val = OwnedValue::Vector(
         payload
             .frames
             .iter()
-            .map(frame_to_map)
+            .map(crate::value::frame::Frame::to_edn)
             .collect(),
     );
 
@@ -216,22 +217,9 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     ])
 }
 
-/// Convert a [`FrameInfo`] to a `#wat.kernel/Frame {:file :line :symbol}` tagged
-/// record — the registered `:wat::kernel::Frame` shape (arc 278 the LociDiedError
-/// stone). Was the ad-hoc `{:callee <keyword> :at <map>}`; the `AssertionFailure`
-/// record declares its `:frames` as `Vector<Frame>` (`{file, line, symbol}`, every
-/// field known — arc 109). `frame.callee_path` (a `":my::app::foo"` string) IS the
-/// `:symbol`; `frame.call_span` supplies `:file` / `:line`.
-fn frame_to_map(frame: &FrameInfo) -> OwnedValue {
-    OwnedValue::Tagged(
-        Tag::ns("wat.kernel", "Frame"),
-        Box::new(OwnedValue::Map(vec![
-            (OwnedValue::Keyword(Keyword::new("file")), OwnedValue::String(Cow::Owned((*frame.call_span.file).clone()))),
-            (OwnedValue::Keyword(Keyword::new("line")), OwnedValue::Integer(frame.call_span.line)),
-            (OwnedValue::Keyword(Keyword::new("symbol")), OwnedValue::String(Cow::Owned(frame.callee_path.clone()))),
-        ])),
-    )
-}
+// Excursus 003 D3 — the old ad-hoc `frame_to_map` (hand-built `{:file :line :symbol}`)
+// is retired; `crate::value::frame::Frame::to_edn` is now the ONE builder, shared with
+// `RuntimeError`'s `:frames` (`src/edn/error.rs`).
 
 // ─── ToEdn impls ─────────────────────────────────────────────────────────────
 //
@@ -290,10 +278,10 @@ mod tests {
             actual: Some("-1".into()),
             expected: Some("42".into()),
             location: Some(mk_span("wat-tests/foo.wat", 12, 5)),
-            frames: vec![FrameInfo {
+            frames: vec![crate::value::frame::Frame::from(crate::value::FrameInfo {
                 callee_path: ":my::app::foo".into(),
                 call_span: mk_span("wat-tests/foo.wat", 12, 5),
-            }],
+            })],
             upstream_chain: None,
             thread_name: Some("wat-test::my-deftest".into()),
             raised_error: None,

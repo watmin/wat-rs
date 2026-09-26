@@ -169,6 +169,31 @@ pub use parser::{parse_all_with_file, parse_one_with_file, ParseError, ParseErro
 // The parse_one! and parse_all! macros are exported at crate root via
 // #[macro_export] in parser.rs — consumers call them as `wat::parse_one!(src)`.
 
+/// Strip THIS build's `CARGO_MANIFEST_DIR` (+ the path separator) off the front of a
+/// `:file` string, in place, when present.
+///
+/// Excursus 003 D3 — every `RuntimeError` now carries a `:Rust` frame captured via
+/// `#[track_caller]` at whatever Rust call site constructed it, INCLUDING a call written
+/// directly in a `tests/*.rs` probe (not just inside `src/`, the only place a raw Rust
+/// span could originate before D3). MEASURED: for such a call, `Location::file()` in this
+/// build environment returns the ABSOLUTE path (`/home/…/wat-rs/tests/…rs`), not a
+/// `src/`-relative one — an absolute, checkout-location-specific string that would bake
+/// INTO a committed `.edn` golden and fail to reproduce on any other checkout. Stripping
+/// `env!("CARGO_MANIFEST_DIR")` (a compile-time constant: THIS build's own checkout root)
+/// turns it back into the same repo-relative suffix (`tests/…rs`) any other checkout of
+/// the same source produces — portable because every build strips ITS OWN root, not a
+/// hardcoded one.
+fn normalize_manifest_dir_prefix(v: &mut ::wat_edn::OwnedValue) {
+    use ::wat_edn::Value;
+    const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+    if let Value::String(s) = v {
+        if let Some(rest) = s.strip_prefix(MANIFEST_DIR) {
+            let rest = rest.strip_prefix('/').unwrap_or(rest);
+            *v = Value::String(std::borrow::Cow::Owned(rest.to_string()));
+        }
+    }
+}
+
 /// Normalize, IN PLACE and recursively, the `:line` of every `#wat.core/Span`
 /// tagged record whose `:file` entry is a string ending in `.rs` — a span
 /// pointing into the substrate's OWN Rust source. Called on BOTH sides of an
@@ -203,6 +228,11 @@ pub fn normalize_rust_source_span_lines(v: &mut ::wat_edn::OwnedValue) {
     if let Value::Tagged(tag, boxed) = v {
         if tag.namespace() == "wat.core" && tag.name() == "Span" {
             if let Value::Map(entries) = boxed.as_mut() {
+                for (k, val) in entries.iter_mut() {
+                    if matches!(k.as_keyword(), Some(kw) if kw.namespace().is_none() && kw.name() == "file") {
+                        normalize_manifest_dir_prefix(val);
+                    }
+                }
                 let is_rust_span = entries.iter().any(|(k, val)| {
                     matches!(k.as_keyword(), Some(kw) if kw.namespace().is_none() && kw.name() == "file")
                         && matches!(val.as_str(), Some(s) if s.ends_with(".rs"))
@@ -253,12 +283,22 @@ pub fn normalize_rust_source_span_lines(v: &mut ::wat_edn::OwnedValue) {
 ///
 /// ── WHY IT IS SAFE, and it is the predicate that makes it so ─────────────────────────────────
 ///
-/// This fires ONLY on a map that carries a `:file` whose value is a String matching
-/// `src/**.rs` — a RUST path. A `.wat` file's `:line` is a real assertion about user source and is
-/// left exactly alone; so is every other integer in the tree. Surveyed 2026-08-29 across every
-/// `.edn` golden in the repo: **8 goldens pin a `src/*.rs` line, in 3 files** — 5 →
-/// `src/runtime.rs`, 1 → `src/freeze.rs`, 2 → `src/check.rs`. Nothing else in the corpus does, so
-/// the blast radius is exactly those eight and the predicate cannot reach anything else.
+/// This fires on a map that carries a `:file` whose value is a String ending in `.rs` — a
+/// RUST path. A `.wat` file's `:line` is a real assertion about user source and is left
+/// exactly alone; so is every other integer in the tree. Surveyed 2026-08-29 across every
+/// `.edn` golden in the repo, PRE-excursus-003-D3: **8 goldens pinned a `src/*.rs` line, in
+/// 3 files** — 5 → `src/runtime.rs`, 1 → `src/freeze.rs`, 2 → `src/check.rs`.
+///
+/// ⛔ **That census is now STALE, not restated as current.** D3 gives every `RuntimeError`
+/// a `:Rust` frame (`#[track_caller]` at whatever Rust site constructed it), including one
+/// written directly in a `tests/*.rs` probe — a path this fn's ORIGINAL `starts_with("src/")`
+/// predicate never matched (measured RED before this stone: such a call's `Location::file()`
+/// is an ABSOLUTE path in this build environment, e.g. `/home/…/wat-rs/tests/…rs`, baked
+/// byte-for-byte into a captured golden — reproducible on THIS checkout only). The predicate
+/// is now bare `.ends_with(".rs")` (matches `normalize_rust_source_span_lines`'s, the
+/// compare-time twin), and `:file` itself is passed through
+/// [`normalize_manifest_dir_prefix`] first so an absolute test-crate path collapses to the
+/// same repo-relative string any other checkout of the same source produces.
 ///
 /// ⚠ **APPLIED ON CAPTURE TOO** (`assert_edn_matches_file!` under `UPDATE_EDN=1`), so the golden
 /// on disk literally reads `:line 0`. A file showing a real-looking line number that nothing
@@ -268,10 +308,14 @@ pub fn blank_rust_source_lines(v: &mut ::wat_edn::OwnedValue) {
     use ::wat_edn::Value;
     match v {
         Value::Map(entries) => {
+            for (k, val) in entries.iter_mut() {
+                if matches!(k, Value::Keyword(kw) if kw.name() == "file") {
+                    normalize_manifest_dir_prefix(val);
+                }
+            }
             let is_rust_span = entries.iter().any(|(k, val)| {
                 matches!(k, Value::Keyword(kw) if kw.name() == "file")
-                    && matches!(val, Value::String(f)
-                        if f.starts_with("src/") && f.ends_with(".rs"))
+                    && matches!(val, Value::String(f) if f.ends_with(".rs"))
             });
             for (k, val) in entries.iter_mut() {
                 if is_rust_span && matches!(k, Value::Keyword(kw) if kw.name() == "line") {

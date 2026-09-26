@@ -1,0 +1,17 @@
+# ORACLE for nest-frame-file-line-in-span — HISTORY or header spec, never the tool.
+
+# spec: this codemod ships WITH the D3 surface change it migrates for (excursus 003 envelope
+# step 2), so there is no prior commit in which the after-shape exists. The oracle is the
+# header's own SPEC quote.
+
+spec-before   (:wat::core::defn :u::file-of [f <- :wat::kernel::Frame] -> :wat::core::String (:wat::kernel::Frame/file f)) :: (:wat::kernel::Frame/file X)
+
+spec-before   (:wat::core::defn :u::line-of [f <- :wat::kernel::Frame] -> :wat::core::i64 (:wat::kernel::Frame/line f)) :: (:wat::kernel::Frame/line X)
+
+spec-before   `(:wat::kernel::Frame/file ~origin-sym) :: (:wat::kernel::Frame/file X)
+
+spec   (:wat::core::defn :u::file-of [f <- :wat::kernel::Frame] -> :wat::core::String (:wat::core::Span/file (:wat::kernel::Frame/span f))) :: (:wat::core::Span/file (:wat::kernel::Frame/span X))
+
+spec   (:wat::core::defn :u::line-of [f <- :wat::kernel::Frame] -> :wat::core::i64 (:wat::core::Span/line (:wat::kernel::Frame/span f))) :: (:wat::core::Span/line (:wat::kernel::Frame/span X))
+
+spec   `(:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym)) :: (:wat::core::Span/file (:wat::kernel::Frame/span X))

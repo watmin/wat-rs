@@ -166,12 +166,56 @@ fn span_files(stderr: &str) -> Vec<String> {
     out
 }
 
+/// Strip the `:frames [...]` vector's text before scanning for `.rs` files that must NOT
+/// appear.
+///
+/// Excursus 003 D3 (envelope step 2) deliberately gives every diagnostic a `:frames` list
+/// that CAN — is meant to — name Rust source: one `:Rust` frame (`#[track_caller]` at the
+/// raising site) always, plus any `:Wat` frame whose call crossed from Rust (e.g. the entry
+/// call `apply_function` makes from `src/freeze.rs`). That is D3's whole point — "like
+/// clojure has java in its traces" — and this module's OWN control fixture reproduced it the
+/// moment `:frames` was wired into `RuntimeError::to_edn()`: `our_own_source` on the
+/// control's stderr went from `[]` to `["src/collection/eval.rs", "src/freeze.rs"]` with no
+/// change to this file. This control's contract was always about `:location` (and any other
+/// non-`:frames` field) naming the user's program — `:frames` is a different field with a
+/// different, ALREADY-RULED contract, so it is excluded here rather than the control's bar
+/// being lowered.
+fn strip_frames_field(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(idx) = rest.find(":frames [") {
+        out.push_str(&rest[..idx]);
+        let after = &rest[idx + ":frames [".len()..];
+        let mut depth: i32 = 1;
+        let mut end = after.len();
+        for (i, c) in after.char_indices() {
+            match c {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = i + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// The subset of those that name one of OUR Rust files rather than the user's program.
 ///
 /// Keyed on the `.rs` suffix alone — see the module header on why `starts_with("src/")` is the
-/// wrong key and what it already misses.
+/// wrong key and what it already misses. `:frames` is stripped first (see
+/// `strip_frames_field`) — that field's Rust locations are BY DESIGN, not this control's
+/// subject.
 fn our_own_source(stderr: &str) -> Vec<String> {
-    let mut v: Vec<String> = span_files(stderr)
+    let scoped = strip_frames_field(stderr);
+    let mut v: Vec<String> = span_files(&scoped)
         .into_iter()
         .filter(|f| std::path::Path::new(f).extension().is_some_and(|e| e == "rs"))
         .collect();

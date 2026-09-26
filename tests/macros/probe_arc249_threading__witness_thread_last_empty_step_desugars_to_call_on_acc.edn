@@ -14,4 +14,27 @@
   :causes []
   :head "int"
   :reason "call head must be a keyword, symbol, or list"
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":user::compute"
+      :span #wat.core/Span {
+        :file "tests/macros/probe_arc249_threading.rs"
+        :line 0
+        :col 55
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/runtime.rs"
+        :line 0
+        :col 22
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

@@ -43,6 +43,34 @@
       :causes []
       :head ":wat::core::first"
       :reason ":wat::core::first: WatAST List has 0 child(ren); no child at index 0"
+      :frames [
+        #wat.kernel/Frame {
+          :symbol ":wat::core::Fn"
+          :span #wat.core/Span {
+            :file "wat/core.wat"
+            :line 1408
+            :col 3
+            :end #wat.core/Option.Some {
+              :value #wat.core/Pos {
+                :line 1415
+                :col 11
+              }
+            }
+          }
+          :kind #wat.kernel/FrameKind.Wat {}
+        }
+        #wat.kernel/Frame {
+          :symbol "<rust>"
+          :span #wat.core/Span {
+            :file "src/runtime.rs"
+            :line 0
+            :col 49
+            :end #wat.core/Option.None {}
+          }
+          :kind #wat.kernel/FrameKind.Rust {}
+        }
+      ]
+      :frames-elided 0
     }
   }
 }

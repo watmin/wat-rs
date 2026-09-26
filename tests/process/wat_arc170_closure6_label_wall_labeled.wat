@@ -31,8 +31,8 @@
     (:wat::spawn::with-label (:wat::spawn::process)
       (:wat::process::Service
         :name (:wat::keyword::from-string "my::demo::labeled-svc")
-        :file (:wat::kernel::Frame/file origin)
-        :line (:wat::kernel::Frame/line origin)))))
+        :file (:wat::core::Span/file (:wat::kernel::Frame/span origin))
+        :line (:wat::core::Span/line (:wat::kernel::Frame/span origin))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

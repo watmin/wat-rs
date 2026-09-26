@@ -19,4 +19,17 @@
     :col 1
     :end #wat.core/Option.None {}
   }
+  :frames [
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "tests/diagnostics/probe_arc296_typed_causes.rs"
+        :line 0
+        :col 23
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

@@ -17,9 +17,14 @@
     :expected nil
     :frames [
       #wat.kernel/Frame {
-        :file "src/freeze.rs"
-        :line 0
         :symbol ":user::main"
+        :span #wat.core/Span {
+          :file "src/freeze.rs"
+          :line 0
+          :col 13
+          :end #wat.core/Option.None {}
+        }
+        :kind #wat.kernel/FrameKind.Wat {}
       }
     ]
     :upstream-chain nil
@@ -46,9 +51,14 @@
           }
           :frames [
             #wat.kernel/Frame {
-              :file "src/freeze.rs"
-              :line 0
               :symbol ":user::main"
+              :span #wat.core/Span {
+                :file "src/freeze.rs"
+                :line 0
+                :col 13
+                :end #wat.core/Option.None {}
+              }
+              :kind #wat.kernel/FrameKind.Wat {}
             }
           ]
           :actual #wat.core/Option.None {}

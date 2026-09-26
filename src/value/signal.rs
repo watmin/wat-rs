@@ -106,12 +106,15 @@ impl fmt::Display for EvalBreak {
 /// `Display` / EDN elide unknown spans.
 pub struct RuntimeError {
     span: Span,
-    /// Boxed (arc 109 stone B2). Inline, this field made `RuntimeError` 128 bytes —
-    /// exactly clippy's `result_large_err` threshold — earning 482 warnings across
-    /// every `Result<_, RuntimeError>` signature, because the struct's width tracked
+    /// Boxed (arc 109 stone B2; excursus 003 D3 folded the captured frames in
+    /// ALONGSIDE `kind` rather than adding a sibling field — see [`RuntimeErrorEnvelope`]).
+    /// Inline, `kind` alone made `RuntimeError` 128 bytes — exactly clippy's
+    /// `result_large_err` threshold — earning 482 warnings across every
+    /// `Result<_, RuntimeError>` signature, because the struct's width tracked
     /// `RuntimeErrorKind`'s widest variant. Boxed, `RuntimeError` is 56 (48 span + 8
-    /// pointer), so its width no longer tracks the kind enum at all and no future
-    /// variant can re-breach the threshold.
+    /// pointer) — unchanged by D3, since the frames rode into the SAME box rather than
+    /// growing the outer struct — so its width no longer tracks the kind enum at all
+    /// and no future variant (nor the frames) can re-breach the threshold.
     ///
     /// This is invisible to callers **by construction**: the field is private and
     /// reached only through `new` / `kind` / `into_kind` (stone B1), so the box is an
@@ -124,26 +127,71 @@ pub struct RuntimeError {
     /// `Box<RuntimeErrorKind>::to_edn()` == `RuntimeErrorKind::to_edn()` via the
     /// blanket `impl<T: ToEdn> ToEdn for Box<T>` (`crates/wat-edn/src/lib.rs:217`),
     /// which the hand-written wrapper in `crate::edn::error` reaches by an
-    /// auto-deref'd method call.
-    kind: Box<RuntimeErrorKind>,
+    /// auto-deref'd method call through `envelope.kind`.
+    envelope: Box<RuntimeErrorEnvelope>,
+}
+
+/// Excursus 003 D3 — `kind` plus the captured trace, boxed TOGETHER. `RuntimeError`
+/// stays at its pre-D3 width (56 bytes = 48 `Span` + one pointer) only because the
+/// frames ride inside the SAME box stone B2 already pays for; a sibling
+/// `frames: Vec<Frame>` field on the outer struct would have re-grown it by exactly
+/// what B2 removed.
+struct RuntimeErrorEnvelope {
+    kind: RuntimeErrorKind,
+    /// The live wat call stack at the moment of construction, innermost first,
+    /// capped (`crate::value::frame::capped_wat_frames`).
+    wat_frames: Vec<crate::value::frame::Frame>,
+    /// Frames elided by the cap — 0 when the stack fit under it.
+    frames_elided: usize,
+    /// The ONE Rust frame (`#[track_caller]`'s view of whoever called `new`) — see
+    /// [`Frame::rust_site`](crate::value::frame::Frame::rust_site) for the "helper
+    /// builds for many callers" caveat.
+    rust_frame: crate::value::frame::Frame,
 }
 
 impl RuntimeError {
-    /// The ONE door for construction.
+    /// The ONE door for construction. Excursus 003 D3: also captures BOTH halves of
+    /// the trace every failure now carries — the live wat call stack (innermost
+    /// first, capped) via [`capped_wat_frames`](crate::value::frame::capped_wat_frames),
+    /// and the ONE Rust frame naming the constructing site, via `#[track_caller]`.
+    /// No change to any of the ~1,255 call sites: capture happens here, once, for all
+    /// of them.
+    #[track_caller]
     pub fn new(span: Span, kind: RuntimeErrorKind) -> Self {
+        let (wat_frames, frames_elided) = crate::value::frame::capped_wat_frames();
+        let rust_frame = crate::value::frame::Frame::rust_site(std::panic::Location::caller());
         Self {
             span,
-            kind: Box::new(kind),
+            envelope: Box::new(RuntimeErrorEnvelope {
+                kind,
+                wat_frames,
+                frames_elided,
+                rust_frame,
+            }),
         }
     }
     /// The ONE door for reading the kind. Returns `&RuntimeErrorKind` whether the
     /// storage is boxed or not — which is precisely why boxing cost no call site.
     pub fn kind(&self) -> &RuntimeErrorKind {
-        &self.kind
+        &self.envelope.kind
     }
     /// The ONE door for taking the kind by value.
     pub fn into_kind(self) -> RuntimeErrorKind {
-        *self.kind
+        self.envelope.kind
+    }
+    /// The captured wat call stack, innermost first, capped — see
+    /// [`crate::value::frame::capped_wat_frames`].
+    pub(crate) fn wat_frames(&self) -> &[crate::value::frame::Frame] {
+        &self.envelope.wat_frames
+    }
+    /// How many wat frames the cap elided from the middle of the stack (0 when the
+    /// live stack fit under the cap).
+    pub(crate) fn frames_elided(&self) -> usize {
+        self.envelope.frames_elided
+    }
+    /// The one Rust frame naming the constructing site.
+    pub(crate) fn rust_frame(&self) -> &crate::value::frame::Frame {
+        &self.envelope.rust_frame
     }
     /// Span stays inline — it is not what stone B2 boxes.
     pub fn span(&self) -> &Span {

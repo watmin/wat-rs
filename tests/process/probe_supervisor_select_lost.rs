@@ -58,6 +58,15 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 /// on this arc twice). Excursus 003 D1 — was the narrower three-field
 /// "a location" record (no `end`), retired in favour of this one shape
 /// everywhere a location appears.
+///
+/// Excursus 003 D3 (envelope step 2) — does NOT descend into a `:frames` field. `Frame` now
+/// nests a real `#wat.core/Span` (`Frame.span`), by design: `frames` legitimately carries the
+/// Rust-raising site's span (and any `:Wat` frame whose own call crossed from Rust, e.g. the
+/// entry call `apply_function` makes from `src/freeze.rs`) — that is D3's whole point, and it
+/// is a DIFFERENT field from `:location`, with a different, already-ruled contract. Excluding
+/// it here keeps this fn's count meaning what its callers need it to mean: how many Spans
+/// name a *location* (`Fault.location` et al.), not how many Spans exist anywhere in the
+/// message.
 fn find_location_files(v: &wat_edn::OwnedValue, out: &mut Vec<String>) {
     use wat_edn::Value::*;
     if let Tagged(t, body) = v {
@@ -77,6 +86,9 @@ fn find_location_files(v: &wat_edn::OwnedValue, out: &mut Vec<String>) {
         Tagged(_, body) => find_location_files(body, out),
         List(xs) | Vector(xs) | Set(xs) => xs.iter().for_each(|x| find_location_files(x, out)),
         Map(kvs) => kvs.iter().for_each(|(k, v)| {
+            if matches!(k, Keyword(kw) if kw.namespace().is_none() && kw.name() == "frames") {
+                return;
+            }
             find_location_files(k, out);
             find_location_files(v, out);
         }),

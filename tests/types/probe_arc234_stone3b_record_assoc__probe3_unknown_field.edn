@@ -15,4 +15,27 @@
   :record-class "myapp::Triple"
   :field "nonexistent"
   :available ["a" "b" "c"]
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":user::probe-3"
+      :span #wat.core/Span {
+        :file "src/freeze.rs"
+        :line 0
+        :col 51
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/record/update.rs"
+        :line 0
+        :col 24
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

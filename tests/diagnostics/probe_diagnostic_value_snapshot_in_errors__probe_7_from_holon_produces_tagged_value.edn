@@ -25,4 +25,27 @@
       }
     }
   }
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":user::compute"
+      :span #wat.core/Span {
+        :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs"
+        :line 0
+        :col 59
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/runtime.rs"
+        :line 0
+        :col 24
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

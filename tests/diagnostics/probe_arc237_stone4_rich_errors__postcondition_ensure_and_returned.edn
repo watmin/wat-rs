@@ -19,4 +19,17 @@
     :col 3
     :end #wat.core/Option.None {}
   }
+  :frames [
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "tests/diagnostics/probe_arc237_stone4_rich_errors.rs"
+        :line 0
+        :col 15
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

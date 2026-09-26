@@ -1,6 +1,8 @@
 #wat.runtime/AssertionFailed {
   :message "fired"
-  :actual #wat.core/Option.Some {:value "x"}
+  :actual #wat.core/Option.Some {
+    :value "x"
+  }
   :expected #wat.core/Option.None {}
   :span #wat.core/Span {
     :file "test.wat"
@@ -8,4 +10,17 @@
     :col 0
     :end #wat.core/Option.None {}
   }
+  :frames [
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "tests/diagnostics/probe_arc298_3_runtime_derive_identical.rs"
+        :line 0
+        :col 5
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

@@ -65,9 +65,24 @@ impl crate::edn::contract::ToEdn for RuntimeError {
     /// Pattern A: derive on RuntimeErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B: the derive-generated
     /// typed record replaces the hand-built `splice_span` helper).
+    ///
+    /// Excursus 003 D3 — wired now, not left captured-and-unseen: `:frames`
+    /// (wat frames innermost-first, THEN the one Rust frame — "user first",
+    /// D3's own ordering) and `:frames-elided` (always present; 0 when the live
+    /// stack fit under the cap) follow `:span`. Until envelope step 3 this is the
+    /// only place these frames surface — `LociDiedError`'s wire form still
+    /// stringifies the message (`src/process/died.rs`); that stringification does
+    /// NOT go through this impl, so it is unaffected by this stone.
     fn to_edn(&self) -> OwnedValue {
         use crate::edn::contract::edn_kw;
         let kind_val = self.kind().to_edn();
+        let frames_val = OwnedValue::Vector(
+            self.wat_frames()
+                .iter()
+                .map(crate::value::frame::Frame::to_edn)
+                .chain(std::iter::once(self.rust_frame().to_edn()))
+                .collect(),
+        );
         match kind_val {
             OwnedValue::Tagged(tag, body) => {
                 let mut fields = match *body {
@@ -75,6 +90,11 @@ impl crate::edn::contract::ToEdn for RuntimeError {
                     other => vec![(edn_kw("body"), other)],
                 };
                 fields.push((edn_kw("span"), self.span().to_edn()));
+                fields.push((edn_kw("frames"), frames_val));
+                fields.push((
+                    edn_kw("frames-elided"),
+                    OwnedValue::Integer(self.frames_elided() as i64),
+                ));
                 OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
             }
             other => other,

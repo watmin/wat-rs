@@ -27,6 +27,6 @@
     [f1  (:probe::here-frame)
      f2  (:probe::here-frame)
      ;; Arc 109 — Frame/line is a concrete (non-Option) i64, read directly.
-     l1  (:wat::kernel::Frame/line f1)
-     l2  (:wat::kernel::Frame/line f2)]
+     l1  (:wat::core::Span/line (:wat::kernel::Frame/span f1))
+     l2  (:wat::core::Span/line (:wat::kernel::Frame/span f2))]
     (:wat::test::assert-true (:wat::core::= (:wat::i64::- l2 l1) 1))))

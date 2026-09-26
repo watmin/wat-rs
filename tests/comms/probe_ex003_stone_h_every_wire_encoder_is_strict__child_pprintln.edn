@@ -14,4 +14,32 @@
   :causes []
   :head ":wat::kernel::pprintln"
   :reason "a wire peer carries only pure data — the value printed (:h::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. In a spawned process stdout IS the peer wire to the parent: printing there is a send. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":h::show"
+      :span #wat.core/Span {
+        :file "tests/comms/probe_ex003_stone_h_every_wire_encoder_is_strict.wat"
+        :line 100
+        :col 18
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 101
+            :col 99
+          }
+        }
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/kernel/message.rs"
+        :line 0
+        :col 51
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

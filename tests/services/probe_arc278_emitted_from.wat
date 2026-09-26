@@ -31,6 +31,6 @@
      frame  (:wat::telemetry::Log/emitted-from log)
      ;; Arc 109 — Frame/file is a concrete (non-Option) String, always present;
      ;; assert it names a wat source location (the caller's real WHERE).
-     file   (:wat::kernel::Frame/file frame)
+     file   (:wat::core::Span/file (:wat::kernel::Frame/span frame))
      file-ok (:wat::string::contains? file ".wat")]
     (:wat::test::assert-true file-ok)))

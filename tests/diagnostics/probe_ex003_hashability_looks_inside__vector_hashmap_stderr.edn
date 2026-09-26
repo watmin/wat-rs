@@ -16,6 +16,29 @@
         :rendered "[<:rust::cache::Lru>]"
         :provenance nil
       }
+      :frames [
+        #wat.kernel/Frame {
+          :symbol ":user::main"
+          :span #wat.core/Span {
+            :file "src/freeze.rs"
+            :line 0
+            :col 13
+            :end #wat.core/Option.None {}
+          }
+          :kind #wat.kernel/FrameKind.Wat {}
+        }
+        #wat.kernel/Frame {
+          :symbol "<rust>"
+          :span #wat.core/Span {
+            :file "src/collection/eval.rs"
+            :line 0
+            :col 28
+            :end #wat.core/Option.None {}
+          }
+          :kind #wat.kernel/FrameKind.Rust {}
+        }
+      ]
+      :frames-elided 0
     }
   }
 ]

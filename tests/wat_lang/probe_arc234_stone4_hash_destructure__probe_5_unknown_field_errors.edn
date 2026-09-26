@@ -15,4 +15,27 @@
   :record-class "myapp::Voltage"
   :field "nonexistent"
   :available ["magnitude"]
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":user::compute"
+      :span #wat.core/Span {
+        :file "tests/wat_lang/probe_arc234_stone4_hash_destructure.rs"
+        :line 0
+        :col 57
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/runtime.rs"
+        :line 0
+        :col 21
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

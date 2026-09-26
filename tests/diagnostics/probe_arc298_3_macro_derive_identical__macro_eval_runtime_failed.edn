@@ -9,6 +9,19 @@
     }
     :causes []
     :name "foo"
+    :frames [
+      #wat.kernel/Frame {
+        :symbol "<rust>"
+        :span #wat.core/Span {
+          :file "tests/diagnostics/probe_arc298_3_macro_derive_identical.rs"
+          :line 0
+          :col 26
+          :end #wat.core/Option.None {}
+        }
+        :kind #wat.kernel/FrameKind.Rust {}
+      }
+    ]
+    :frames-elided 0
   }
   :span #wat.core/Span {
     :file "test.wat"

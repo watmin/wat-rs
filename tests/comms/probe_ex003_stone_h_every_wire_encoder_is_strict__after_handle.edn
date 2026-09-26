@@ -14,4 +14,32 @@
   :causes []
   :head ":wat::kernel::after"
   :reason "a wire peer carries only pure data — the value scheduled (:h::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. A process-tier `after` delivers its msg as a wire frame. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":h::fire"
+      :span #wat.core/Span {
+        :file "tests/comms/probe_ex003_stone_h_every_wire_encoder_is_strict.wat"
+        :line 40
+        :col 3
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 40
+            :col 109
+          }
+        }
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/kernel/message.rs"
+        :line 0
+        :col 51
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

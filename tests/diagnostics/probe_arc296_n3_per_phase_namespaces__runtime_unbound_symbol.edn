@@ -6,4 +6,17 @@
     :col 1
     :end #wat.core/Option.None {}
   }
+  :frames [
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "tests/diagnostics/probe_arc296_n3_per_phase_namespaces.rs"
+        :line 0
+        :col 14
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

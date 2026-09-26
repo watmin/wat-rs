@@ -47,7 +47,8 @@
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::value::TrackedValue;
-use crate::value::{EvalBreak, FrameInfo, ValueSnapshot, snapshot_call_stack};
+use crate::value::frame::Frame;
+use crate::value::{EvalBreak, ValueSnapshot, snapshot_call_stack};
 use crate::span::Span;
 // `eval_inner` is genuinely defined in `crate::runtime` (not a facade re-export of a
 // `crate::value` type — see STOP-5); it is the evaluator's own entry point.
@@ -78,10 +79,11 @@ pub struct AssertionPayload {
     /// context (a rare edge — the stack is empty when a panic
     /// happens directly in the runtime wiring).
     pub location: Option<Span>,
-    /// Full call stack at panic time, newest frame first. Each
-    /// frame is `(callee_path, call_span)` — the callee's keyword
-    /// path + where in the caller the invocation was written.
-    pub frames: Vec<FrameInfo>,
+    /// Full call stack at panic time, newest frame first. Excursus 003 D3 —
+    /// [`Frame`] (`symbol`/`span`/`kind`), the same shape `RuntimeError`'s captured
+    /// frames use; every element here is `kind: :Wat` (an assertion fires from wat,
+    /// never carries a Rust-raising frame).
+    pub frames: Vec<Frame>,
     /// Arc 113 — chain of upstream deaths the panic inherits.
     /// Set by `:wat::core::Result/expect` when the Err arm carries
     /// a `Vec<*DiedError>` (the post-arc-113 wire shape): the chain
@@ -156,9 +158,9 @@ pub fn eval_kernel_assertion_failed(
 
     // Snapshot the wat call stack. Top frame = innermost user call
     // (where the author wrote the assert). `location` is that top
-    // frame's call_span. `frames` is the full newest-first stack.
-    let frames = snapshot_call_stack();
-    let location = frames.first().map(|f| f.call_span.clone());
+    // frame's span. `frames` is the full newest-first stack, excursus 003 D3 shape.
+    let frames: Vec<Frame> = snapshot_call_stack().into_iter().map(Frame::from).collect();
+    let location = frames.first().map(|f| f.span.clone());
 
     let payload = AssertionPayload {
         message,
@@ -261,7 +263,7 @@ pub(crate) fn expect_panic(
             .into());
         }
     };
-    let frames = snapshot_call_stack();
+    let frames: Vec<Frame> = snapshot_call_stack().into_iter().map(Frame::from).collect();
     let payload = crate::assertion::AssertionPayload {
         message: msg,
         actual: None,

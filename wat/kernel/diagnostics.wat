@@ -11,23 +11,44 @@
 ;; registry describing itself (`:wat::runtime::field-names-of` /
 ;; `field-types-of`), not from anyone reading src/types.rs by eye.
 
-;; ─── Arc 296: :wat::kernel::Frame — moving the source of truth to wat ─────
+;; ─── Excursus 003 D3: :wat::kernel::FrameKind — wat vs Rust frame origin ──────
+;;
+;; Every `:wat::kernel::Frame` names WHERE it came from: a wat call-stack entry
+;; (`:Wat` — `CALL_STACK` / `MACRO_CALL_SITE`, `src/value/frame.rs`) or the ONE Rust
+;; site that raised the error carrying it (`:Rust` — `#[track_caller]` at
+;; `RuntimeError::new`, "like clojure has java in its traces"). A `:Rust` frame's
+;; span always has `end` `None`: Rust knows only where the raising call began, never
+;; where it ends (D1's own stated distinction, applied here).
+(:wat::core::defenum :wat::kernel::FrameKind :wat::enum::Pure
+;; A wat call-stack entry.
+  :Wat
+;; The Rust site (`#[track_caller]`) that constructed the error.
+  :Rust)
+
+;; ─── Arc 296 / Excursus 003 D3: :wat::kernel::Frame — moving the source of truth to wat ─────
 ;;
 ;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
 ;; Arc 296 moves the source of truth for wat's own aggregate types from the
 ;; hand-written Rust literal to a wat declaration; the Rust side is meant to
 ;; become generated FROM this form rather than hand-maintained alongside it.
 ;;
-;; One entry on the wat call stack, captured by `(:wat::kernel::call-site)`
-;; (from the runtime `FrameInfo` trampoline stack) or by
-;; `(:wat::kernel::macro-call-site)` (from the expand-time macro-invocation
-;; stack). Every field is ALWAYS KNOWN — a named fn's path, the
-;; `<anonymous>` marker for an anon fn, or the macro name for a
-;; macro-call-site (arc 109 — concrete, non-`Option` fields).
+;; One entry in a captured trace: a wat call-stack entry, captured by
+;; `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline stack) or by
+;; `(:wat::kernel::macro-call-site)` (from the expand-time macro-invocation stack) —
+;; or the ONE Rust site that raised the error (excursus 003 D3). `symbol` is ALWAYS
+;; KNOWN — a named fn's path, the `<anonymous>` marker for an anon fn, the macro name
+;; for a macro-call-site, or the `<rust>` marker for a `:Rust` frame (arc 109 —
+;; concrete, non-`Option` fields). `span` carries the location — for a `:Wat` frame,
+;; the call site (a real `end`); for a `:Rust` frame, `#[track_caller]`'s point
+;; location (`end` `None`). Excursus 003 D3 moved `file`/`line` off this record's own
+;; fields and onto the shared `:wat::core::Span` (`Frame/span`), and added `kind` —
+;; every prior `Frame/file` / `Frame/line` accessor use site now reads
+;; `(:wat::core::Span/file (:wat::kernel::Frame/span f))` (a wat-fix codemod, not a
+;; hand-edit — see `wat-scripts/fixes/nest-frame-file-line-in-span.wat`).
 (:wat::core::defrecord :wat::kernel::Frame
-  [file   <- :wat::core::String
-   line   <- :wat::core::i64
-   symbol <- :wat::core::String])
+  [symbol <- :wat::core::String
+   span   <- :wat::core::Span
+   kind   <- :wat::kernel::FrameKind])
 
 ;; ─── Arc 296: :wat::kernel::StartupError — moving the source of truth to wat ───
 ;;

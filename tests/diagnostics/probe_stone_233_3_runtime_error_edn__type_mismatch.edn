@@ -12,4 +12,17 @@
     :col 12
     :end #wat.core/Option.None {}
   }
+  :frames [
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "tests/diagnostics/probe_stone_233_3_runtime_error_edn.rs"
+        :line 0
+        :col 15
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

@@ -11882,8 +11882,8 @@ pub(crate) fn failure_value_from_assertion_payload(p: crate::assertion::Assertio
     };
     let frames_field = Value::Vec(Arc::new(
         frames
-            .into_iter()
-            .map(value_from_frame_info)
+            .iter()
+            .map(value_from_frame)
             .collect::<Vec<_>>(),
     ));
     let actual_field = match actual {
@@ -12028,25 +12028,28 @@ pub(crate) fn span_names() -> Arc<Vec<String>> {
         .clone()
 }
 
-/// Convert a `FrameInfo` (wat call-stack frame from the trampoline)
-/// into a `:wat::kernel::Frame` `Value::Aggregate(Record)`. Field order matches
-/// the arc 016 type registration: `(file, line, symbol)`. The
-/// callee path becomes the `symbol` field.
+/// Convert a `FrameInfo` (wat call-stack frame from the trampoline) into a
+/// `:wat::kernel::Frame` `Value::Aggregate(Record)` — a `:Wat`-kind frame. Thin
+/// wrapper over [`value_from_frame`], the one builder excursus 003 D3 asks for.
 /// Arc 293.W.2b — Frame is now Nature::Record (pure EDN data).
-/// Arc 109 — Frame's fields are concrete (non-`Option`): a `FrameInfo` always
-/// carries a real span (file/line) and a real callee path (symbol).
 pub(crate) fn value_from_frame_info(frame: FrameInfo) -> Value {
-    let FrameInfo {
-        callee_path,
-        call_span,
-    } = frame;
+    value_from_frame(&crate::value::frame::Frame::from(frame))
+}
+
+/// Convert a [`crate::value::frame::Frame`] into a `:wat::kernel::Frame`
+/// `Value::Aggregate(Record)`. Field order matches the excursus 003 D3 type
+/// registration: `(symbol, span, kind)`. Arc 109 — Frame's fields are concrete
+/// (non-`Option`): `symbol` and `kind` are always known, and `span` is always a
+/// real `Span` (a `:Rust` frame's `end` is `None`, never the field itself).
+pub(crate) fn value_from_frame(frame: &crate::value::frame::Frame) -> Value {
+    use crate::intrinsic::ToEnumValue;
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Frame".into(),
         frame_names(),
         Arc::new(vec![
-            Value::String(Arc::new((*call_span.file).clone())),
-            Value::i64(call_span.line),
-            Value::String(Arc::new(callee_path)),
+            Value::String(Arc::new(frame.symbol.clone())),
+            value_from_span(frame.span.clone()),
+            frame.kind.to_enum_value(),
         ]),
     )))
 }
@@ -15047,7 +15050,7 @@ mod tests {
         // Frames must contain at least one entry for failing-fn.
         assert!(!boxed.frames.is_empty(), "expected at least one frame");
         assert_eq!(
-            boxed.frames[0].callee_path, ":my::app::failing-fn",
+            boxed.frames[0].symbol, ":my::app::failing-fn",
             "top frame should be the user-defined function"
         );
     }

@@ -80,26 +80,40 @@ fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
     assert_eq!(frame_tag.name(), "Frame", "Frame tag name: {frame_tag:?}");
     let frame_fields = frame_body.as_map().expect("Frame body is a map");
 
-    // Arc 109 — Frame's fields are concrete (non-`Option`): bare String / i64 /
-    // String, read directly (no `Some` unwrap).
-    let file_str = map_get(frame_fields, "file")
+    // Excursus 003 D3 — Frame's location moved off flat `:file`/`:line` fields onto a nested
+    // `:wat::core::Span` (`:span`); `:symbol`/`:span`/`:kind` are still concrete (non-`Option`).
+    let (span_tag, span_body) = map_get(frame_fields, "span")
+        .as_tagged()
+        .expect("Frame :span is a tagged Span");
+    assert_eq!(span_tag.namespace(), "wat.core", "Span tag namespace: {span_tag:?}");
+    assert_eq!(span_tag.name(), "Span", "Span tag name: {span_tag:?}");
+    let span_fields = span_body.as_map().expect("Span body is a map");
+
+    let file_str = map_get(span_fields, "file")
         .as_str()
-        .expect("Frame :file is a String");
-    // rune:lint(loose-assert) — Frame :file is an ABSOLUTE Rust source path (checkout-directory
-    // dependent, like the lint's own sanctioned path/pid/hash exemption); only the filename SUFFIX
-    // is checkout-independent, so a full assert_eq! would hardcode this developer's absolute path.
+        .expect("Span :file is a String");
+    // rune:lint(loose-assert) — Frame's span :file is an ABSOLUTE Rust source path (checkout-
+    // directory dependent, like the lint's own sanctioned path/pid/hash exemption); only the
+    // filename SUFFIX is checkout-independent, so a full assert_eq! would hardcode this
+    // developer's absolute path.
     assert!(
         file_str.ends_with("probe_arc278_journal_service_logs.rs"),
-        "Frame :file should name this test file (suffix-checked, checkout-path independent): {file_str}"
+        "Span :file should name this test file (suffix-checked, checkout-path independent): {file_str}"
     );
 
-    let line_val = map_get(frame_fields, "line")
+    let line_val = map_get(span_fields, "line")
         .as_i64()
-        .expect("Frame :line is an i64");
-    assert!(line_val > 0, "Frame :line should be positive: {line_val}");
+        .expect("Span :line is an i64");
+    assert!(line_val > 0, "Span :line should be positive: {line_val}");
 
     let symbol_val = map_get(frame_fields, "symbol")
         .as_str()
         .expect("Frame :symbol is a String");
     assert_eq!(symbol_val, ":user::compute", "Frame :symbol should name the callee");
+
+    let (kind_tag, _) = map_get(frame_fields, "kind")
+        .as_tagged()
+        .expect("Frame :kind is a tagged FrameKind");
+    assert_eq!(kind_tag.namespace(), "wat.kernel", "FrameKind tag namespace: {kind_tag:?}");
+    assert_eq!(kind_tag.name(), "FrameKind.Wat", "FrameKind tag name: {kind_tag:?}");
 }

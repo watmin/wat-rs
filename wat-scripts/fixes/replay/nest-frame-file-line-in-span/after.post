@@ -1,0 +1,4 @@
+(:wat::core::defrecord :u::Holder [origin <- :wat::kernel::Frame])
+(:wat::core::defn :u::file-of [f <- :wat::kernel::Frame] -> :wat::core::String (:wat::core::Span/file (:wat::kernel::Frame/span f)))
+(:wat::core::defn :u::line-of [f <- :wat::kernel::Frame] -> :wat::core::i64 (:wat::core::Span/line (:wat::kernel::Frame/span f)))
+`(:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym))

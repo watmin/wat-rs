@@ -16,6 +16,34 @@
         :rendered "(seq-empty)"
         :provenance nil
       }
+      :frames [
+        #wat.kernel/Frame {
+          :symbol ":user::conj-any"
+          :span #wat.core/Span {
+            :file "tests/diagnostics/probe_ex003_hashability_looks_inside__stream_hashset.wat"
+            :line 13
+            :col 3
+            :end #wat.core/Option.Some {
+              :value #wat.core/Pos {
+                :line 13
+                :col 42
+              }
+            }
+          }
+          :kind #wat.kernel/FrameKind.Wat {}
+        }
+        #wat.kernel/Frame {
+          :symbol "<rust>"
+          :span #wat.core/Span {
+            :file "src/collection/eval.rs"
+            :line 0
+            :col 28
+            :end #wat.core/Option.None {}
+          }
+          :kind #wat.kernel/FrameKind.Rust {}
+        }
+      ]
+      :frames-elided 0
     }
   }
 ]

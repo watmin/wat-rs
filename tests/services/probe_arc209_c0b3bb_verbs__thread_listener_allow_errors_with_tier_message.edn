@@ -14,4 +14,27 @@
   :causes []
   :head ":wat::kernel::allow"
   :reason "allow is a process-tier service gate; a thread listener's handle IS the grant"
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":user::compute"
+      :span #wat.core/Span {
+        :file "tests/services/probe_arc209_c0b3bb_verbs.rs"
+        :line 0
+        :col 55
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/kernel/resource.rs"
+        :line 0
+        :col 29
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

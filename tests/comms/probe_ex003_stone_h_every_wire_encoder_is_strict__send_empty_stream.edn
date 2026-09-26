@@ -14,4 +14,32 @@
   :causes []
   :head ":wat::kernel::send"
   :reason "a wire peer carries only pure data — the value sent (:h::Box) contains a :wat::stream::Stream, which is not pure and has no wire form. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":h::ship"
+      :span #wat.core/Span {
+        :file "tests/comms/probe_ex003_stone_h_every_wire_encoder_is_strict.wat"
+        :line 184
+        :col 16
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 184
+            :col 37
+          }
+        }
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/kernel/message.rs"
+        :line 0
+        :col 51
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
 }

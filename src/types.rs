@@ -2270,26 +2270,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::kernel::LociDiedError"
     );
 
-    // The narrower three-field "a location" record that once lived here — RETIRED, excursus
-    // 003 envelope step 1 (D1). Every use site now carries `:wat::core::Span` instead (see the
-    // registration a few lines below — unchanged by this stone, already generated from
-    // `wat/core.wat`). No replacement registration belongs here: Span's is the only one.
-
-    // :wat::kernel::Frame — one entry on the wat call stack, captured by
-    // `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline
-    // stack) or by `(:wat::kernel::macro-call-site)` (from the expand-time
-    // macro-invocation stack). Every field is ALWAYS KNOWN — the older
-    // all-`Option` shape (justified by a never-built Rust-backtrace→Frame
-    // path where symbol resolution could fail per-frame) was a lie: every
-    // LIVE construction has a real file/line span and a real symbol (a named
-    // fn's path, the `<anonymous>` marker for an anon fn, or the macro name
-    // for a macro-call-site). Arc 109 — concrete, non-`Option` fields.
-    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
-    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Frame …)`
-    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
-    // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Frame");
-
     // :wat::core::Span — the leaf source location an error's `:location` floor
     // key carries (arc 278 "errors first-class EDN"). `Span` write-side is the
     // `#[derive(ToEdn)]` in `wat-reader` (`#wat.core/Span {:file :line :col :end}`)
@@ -2300,11 +2280,50 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:message` (String), `:location` (this Span), `:causes` ((Vector :- [Error])).
     // `:end` is `(Option :- [:wat::core::Pos])` (Pos is registered via the EdnSchema
     // drain below); `None` for the `rust_caller_span!()` point-spans.
+    // Registered BEFORE `Frame` below (moved up, excursus 003 D3): `Frame.span` now
+    // names this type as a field.
     // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::core::Span …)`
     // in `wat/core.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
     // Rust consumes it.
     ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::Span");
+
+    // The narrower three-field "a location" record that once lived here — RETIRED, excursus
+    // 003 envelope step 1 (D1). Every use site now carries `:wat::core::Span` instead (the
+    // registration just above — unchanged by this stone, already generated from
+    // `wat/core.wat`). No replacement registration belongs here: Span's is the only one.
+
+    // :wat::kernel::FrameKind — excursus 003 D3: whether a `Frame` came from the wat
+    // call stack (`:Wat`) or is the one Rust site that raised the error (`:Rust`).
+    // Registered BEFORE `Frame` below: `Frame.kind` names this type as a field, and
+    // registration reads field types against the TypeEnv built so far (Frame-before-
+    // AssertionFailure ordering, same reasoning, one row up in this file's history).
+    // ⛔ GENERATED FROM WAT. This row is emitted from
+    // `(:wat::core::defenum :wat::kernel::FrameKind …)` in `wat/kernel/diagnostics.wat`,
+    // read at BUILD time by `wat-source-derive`. wat is the source of truth.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::FrameKind"
+    );
+
+    // :wat::kernel::Frame — one entry in a captured trace: a wat call-stack entry,
+    // captured by `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline
+    // stack) or by `(:wat::kernel::macro-call-site)` (from the expand-time
+    // macro-invocation stack) — or the ONE Rust site that raised the error (excursus
+    // 003 D3, `RuntimeError::new`'s `#[track_caller]`). `symbol` is ALWAYS KNOWN — the
+    // older all-`Option` shape (justified by a never-built Rust-backtrace→Frame path
+    // where symbol resolution could fail per-frame) was a lie: every LIVE construction
+    // has a real symbol (a named fn's path, the `<anonymous>` marker for an anon fn,
+    // the macro name for a macro-call-site, or the `<rust>` marker for a `:Rust`
+    // frame). Arc 109 — concrete, non-`Option` fields. Excursus 003 D3 moved the
+    // location off this record's own `file`/`line` fields onto the shared
+    // `:wat::core::Span` (`span`), and added `kind` (`:wat::kernel::FrameKind`).
+    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
+    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Frame …)`
+    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
+    // source of truth; Rust consumes it.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Frame");
 
     // :wat::kernel::Failure — structured panic / assertion payload
     // populated when a sandboxed `:user::main` fails. Slice 2b fills

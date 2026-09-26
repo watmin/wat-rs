@@ -42,8 +42,8 @@
         (:wat::core::if (:wat::core::= (:wat::core::count logs) 2)
           (:wat::core::let
             ;; Arc 109 — Frame/line is a concrete (non-Option) i64, read directly.
-            [ln1 (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::first logs)))
-             ln2 (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::second logs)))]
+            [ln1 (:wat::core::Span/line (:wat::kernel::Frame/span (:wat::telemetry::Log/emitted-from (:wat::core::first logs))))
+             ln2 (:wat::core::Span/line (:wat::kernel::Frame/span (:wat::telemetry::Log/emitted-from (:wat::core::second logs))))]
             (:wat::i64::- ln2 ln1))
           -1)]
       [_ -2])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
