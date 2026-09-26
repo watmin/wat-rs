@@ -12,7 +12,7 @@ doctrine to you.
 D2 says the envelope carries structure (`Failure.error <- :wat::core::Error`) and never a string. Step
 3b cannot do that yet, because a runtime error has **no wat value to be**:
 
-- `RuntimeErrorKind` (`src/value/signal.rs:376`) has 31 variants.
+- `RuntimeErrorKind` (`src/value/signal.rs:376`) has **40** variants (the first draft of this brief said 31; its grep missed nine, and the executor caught it).
 - Each is written as `#wat.runtime/<Kind> {…}` by a Rust `#[derive(ToEdn)]`.
 - Not one of those tags names a declared type. Only three `:wat::runtime::*` records exist
   (`TypeField`, `TypeVariant`, `TypeInfo`, in `wat/runtime-typeinfo.wat`).
@@ -44,7 +44,7 @@ it.
      **untagged map** `{:type :rendered :provenance}`. That is a record-shaped value without a tag,
      which the builder has ruled out ("record-shaped values are always tagged").
      - Declare `:wat::runtime::ValueSnapshot`. Its `provenance` field is an Option over a declared
-       `defenum` of `Provenance` (`src/edn/error.rs:141`: `Literal`, `SymbolBound`, `RuntimeBuilt`,
+       `defenum` of `Provenance` (type at `src/value/observe.rs:25`; its writer is `provenance_to_edn` in `src/edn/error.rs`: `Literal`, `SymbolBound`, `RuntimeBuilt`,
        with `Unknown` as `None`).
      - The payloads are strings and Spans, so this is a declaration, not a design.
    - **A nested ERROR** (`EvalVerificationFailed.err: HashError`, `MacroExpansionFailed.cause:
@@ -54,7 +54,10 @@ it.
      - Its kind-specific shape is **out of scope**. Name that loss in your report; do not paper over
        it.
      - If a record would then have no kind field left, it keeps only the floor. That is fine.
-   - `ReteCeiling` is data, not an error. Declare a `defenum` for it, provided its payloads are
+   - `NoMatchingClause` carries `called_args: Vec<ValueSnapshot>` and `attempted_clauses: Vec<ClauseAttempt>`. `PostconditionFailed` carries `returned_value: ValueSnapshot`.
+     - Declare `:wat::runtime::ClauseAttempt` (`src/value/value.rs:500`) as a record.
+     - Declare `:wat::runtime::ClauseFailureReason` (`:513`) as a `defenum`. Its payloads are scalar.
+   - `ReteCeiling` is data, not an error. The previous executor measured it: four variants, all with scalar payloads. Declare a `defenum` for it, provided its payloads are
      scalar. If they are not, STOP and report what you measured.
 
 3. **Derive the Rust side from the `.wat`, with the existing tooling.** No human types a record field
@@ -76,13 +79,26 @@ it.
 4. **Keep the Rust `ToEdn` derive on `RuntimeErrorKind`, unchanged.** It still writes the wire until
    3b. Do not touch `LociDiedError`, `src/process/died.rs`, or any golden.
 
-## Open question: measure it, don't guess it
+## `message`: settled by measurement, not an open question any more
 
-`AssertionFailed { message, actual, expected }` has a kind field called `message`, which is also the
-floor's name. What does today's EDN emit: one `:message` or two? Report what you find.
-- If the two coincide (the kind's message *is* the floor message), the record declares `message`
-  once.
-- If they differ, STOP and report. Do not invent a rename.
+`RuntimeError` has **two EDN writers**:
+- The `#[derive(ToEdn)]` on the kind emits `:span` plus the kind's fields, and no floor. The
+  `probe_stone_233_3_*` and `probe_arc298_3_*` goldens capture this one.
+- `WatError::error_edn()` (`src/edn/contract.rs:109`) is the writer the process wire uses
+  (`to_wire_edn`). It puts the floor first and **strips** any variant key named `message`, `location`
+  or `causes` (`:117-125`).
+
+The floor `message` is `first_line(kind.to_string())` (`src/edn/error.rs:109`). That is the span-free
+headline, e.g. `assertion failed: values differ`.
+
+So for `AssertionFailed` and `MacroAbort`, the two kinds with their own `message` field, the wire
+that crosses a process boundary today carries **one** `:message`: the headline. The record matches
+that.
+- It declares `message` **once**, as the floor field, holding the floor value.
+- The kind's raw text survives inside the headline. `actual`/`expected` stay as structured fields.
+
+**G2's reference writer is `error_edn()`, not the derive.** Retiring the second writer is recorded
+for 3b; do not touch it here.
 
 ## Gates to add (each must be mutation-proven: break it, see RED, restore)
 
@@ -95,7 +111,7 @@ floor's name. What does today's EDN emit: one `:message` or two? Report what you
   - Removing a record, by contrast, fails the *build* (the name const disappears). Say so; that
     removal is not a mutation G1 must catch.
 - **G2, the record agrees with today's wire.** For every variant, compare `to_record` rendered to EDN
-  with the existing `ToEdn` output, after removing `:frames`/`:frames-elided`.
+  with `WatError::error_edn()`, after removing `:frames`/`:frames-elided`.
   - They must be equal, with exactly two named exceptions: `:got` is now tagged
     `#wat.runtime/ValueSnapshot`, and nested errors moved to `:causes`.
   - The comparison is structural (parsed EDN), not a comparison of text.
@@ -140,7 +156,6 @@ floor's name. What does today's EDN emit: one `:message` or two? Report what you
 For each of the following, give the command you ran and the output:
 - the variant count;
 - the record count;
-- the answer to the `AssertionFailed` question;
 - the nested-payload decision for each variant that has one;
 - each gate and the RED it produced under mutation;
 - the floor `Summary` line;
