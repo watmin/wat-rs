@@ -26,3 +26,9 @@ redraw `f1726a0ad` (the builder ruled the keyword `:..`, Typed Clojure ≥ 1.3.0
 Stone 2 (`Orderable`/`Equatable` as declarations) can now delete `is_type_orderable` / `is_type_equatable` outright:
 every arm has a declared route (leaves, conditional containers, `:..` tuples, the `Record` root under Q1, Pure enums
 under EN-P, newtypes under N-R).
+
+## ⚠ Correction (2026-09-26, found by 255.54)
+
+"The empty tuple needs no ruling … an uninhabited type" is **wrong.** `:wat::core::nil` is an alias of `Tuple([])`
+(`src/types.rs:2102-2106`), and `nil` has the value `Value::Unit`. The `:..` edge admits `nil` vacuously, and
+`values_compare` cannot order it. The empty tuple is live; see WEIGH-255.54.
