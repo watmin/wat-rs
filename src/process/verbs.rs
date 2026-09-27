@@ -65,10 +65,14 @@ pub(crate) fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError
 /// coordinate fields), a fully-structured, navigable tagged record, NOT a
 /// `to_wire_edn` String (the double-encoded mask this stone kills), wrapped in the
 /// SAME `#wat.kernel/Failure {…}` envelope every other failure variant now carries
-/// (`frames` empty, `actual`/`expected` `#wat.core/Option.None {}`, `frames-elided`
-/// 0 — a startup failure has no wat call stack of its own to capture; item 2's
-/// "From a StartupError" branch). The owner's `recv'` Lost decoder
-/// (`loci_died_error_from_reason`) STRICT-decodes it back to a typed record.
+/// (`actual`/`expected` always `#wat.core/Option.None {}` — a startup failure has
+/// no returned/expected VALUE to attribute). `frames`/`frames-elided`: step 3c
+/// ruling (c) — `StartupError::Runtime(re)` DOES have a captured call stack (step
+/// 2 snapshotted it at construction), so this Failure carries `re`'s own
+/// `wat_frames()` + the one Rust frame, and its real `frames_elided()`; every OTHER
+/// `StartupError` cause fires before any wat call stack exists, so those stay
+/// `[]`/`0`. The owner's `recv'` Lost decoder (`loci_died_error_from_reason`)
+/// STRICT-decodes it back to a typed record.
 ///
 /// Factored out of [`emit_startup_error_structured_exit`] so the acceptance
 /// gate can capture the emitted chain without a real fork.
@@ -87,13 +91,31 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
     // keeps this fully true — the `Failure` wrapper below is built the SAME way, directly as
     // `OwnedValue`, never round-tripped through `Value`.
     let cause_edn = e.error_edn();
+    // Excursus 003 step 3c ruling (c): a `StartupError::Runtime(re)` DOES have a
+    // captured call stack — step 2 snapshotted it at `RuntimeError::new`, and D3 says
+    // every failure carries its frames. Every OTHER `StartupError` cause (a macro
+    // registration collision, a type-check batch, a parse error, …) fires before any
+    // wat call stack exists, so `[]`/`0` stays exactly right for those.
+    let (frames_val, frames_elided_val) = match e {
+        crate::freeze::StartupError::Runtime(re) => (
+            wat_edn::OwnedValue::Vector(
+                re.wat_frames()
+                    .iter()
+                    .map(crate::value::frame::Frame::to_edn)
+                    .chain(std::iter::once(re.rust_frame().to_edn()))
+                    .collect(),
+            ),
+            re.frames_elided() as i64,
+        ),
+        _ => (wat_edn::OwnedValue::Vector(vec![]), 0),
+    };
     let failure_edn = crate::edn::contract::edn_tag(
         "Failure",
         wat_edn::OwnedValue::Map(vec![
             (wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("error")), cause_edn),
             (
                 wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("frames")),
-                wat_edn::OwnedValue::Vector(vec![]),
+                frames_val,
             ),
             (
                 wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("actual")),
@@ -105,7 +127,7 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
             ),
             (
                 wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("frames-elided")),
-                wat_edn::OwnedValue::Integer(0),
+                wat_edn::OwnedValue::Integer(frames_elided_val),
             ),
         ]),
     );

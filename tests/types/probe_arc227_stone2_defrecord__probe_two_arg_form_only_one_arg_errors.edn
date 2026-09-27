@@ -43,19 +43,6 @@
       :causes []
       :head ":wat::core::rest"
       :reason "cannot take rest of empty Vec"
-      :frames [
-        #wat.kernel/Frame {
-          :symbol "<rust>"
-          :span #wat.core/Span {
-            :file "src/collection/eval.rs"
-            :line 0
-            :col 36
-            :end #wat.core/Option.None {}
-          }
-          :kind #wat.kernel/FrameKind.Rust {}
-        }
-      ]
-      :frames-elided 0
     }
   }
 }

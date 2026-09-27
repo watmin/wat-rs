@@ -271,6 +271,37 @@ pub(crate) fn strip_span_from_tagged(val: OwnedValue) -> OwnedValue {
     }
 }
 
+/// Strip the raw `:frames` / `:frames-elided` keys from a tagged map's body.
+///
+/// Excursus 003 step 3c — `:frames`/`:frames-elided` live on `:wat::kernel::Failure`
+/// (step 3b), never on a standalone error. [`crate::runtime::RuntimeError`]'s own
+/// [`ToEdn::to_edn`] impl (`src/edn/error.rs`) still splices both in (kept for the
+/// tests and the one rare production path — `StartupError::to_edn_values`'s
+/// `--check-output` — that read its EXACT pre-3c shape; see that impl's own doc), so
+/// `WatError::variant()` must strip them here or a RuntimeError shown BARE (not
+/// wrapped in a `Failure`, which already carries its own, separately-sourced
+/// `:frames`) would report ITS OWN captured stack a second time, under a name the
+/// floor never declared.
+pub(crate) fn strip_frames_from_tagged(val: OwnedValue) -> OwnedValue {
+    let frames_kw = edn_kw("frames");
+    let frames_elided_kw = edn_kw("frames-elided");
+    match val {
+        OwnedValue::Tagged(tag, body) => {
+            let new_body = match *body {
+                OwnedValue::Map(fields) => OwnedValue::Map(
+                    fields
+                        .into_iter()
+                        .filter(|(k, _)| k != &frames_kw && k != &frames_elided_kw)
+                        .collect(),
+                ),
+                other => other,
+            };
+            OwnedValue::Tagged(tag, Box::new(new_body))
+        }
+        other => other,
+    }
+}
+
 /// Call `e.error_edn()` on any [`WatError`] value, returning the floor form.
 ///
 /// Used as a `#[to_edn(via = crate::edn::contract::error_edn_of)]` target for fields

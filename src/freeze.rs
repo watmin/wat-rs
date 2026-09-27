@@ -880,11 +880,17 @@ impl StartupError {
     /// structured test-runner output) call this instead of
     /// `Display` so field-level data reaches tooling without text
     /// parsing.
+    ///
+    /// Excursus 003 step 3c ruling (b): routed through `error_edn()` (the
+    /// floor), not the raw `ToEdn::to_edn()` — the CLI now has ONE shape,
+    /// and no `--check-output` record shows a bare `:span` (a `StartupError::Runtime`
+    /// would otherwise be the one production path that did). Every arm already
+    /// implements `WatError`.
     pub fn to_edn_values(&self) -> Vec<wat_edn::OwnedValue> {
-        use crate::edn::contract::ToEdn;
+        use crate::edn::contract::WatError;
         match self {
-            StartupError::Check(errors) => errors.0.iter().map(|e| e.to_edn()).collect(),
-            _ => vec![self.to_edn()],
+            StartupError::Check(errors) => errors.0.iter().map(|e| e.error_edn()).collect(),
+            _ => vec![self.error_edn()],
         }
     }
 }

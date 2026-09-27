@@ -8,7 +8,6 @@
 //!
 //! ## What remains here
 //!
-//! - `emit_runtime_error_envelope`: public IPC wire-format writer
 //! - `edn_path_segments`: via-helper for `EdnCoerceMismatch.path`
 //! - `impl ToEdn / WatError` for `RuntimeError`, `ValueSnapshot`, `Provenance`,
 //!   `ClauseAttempt` (the four building-block types that still need explicit impls)
@@ -25,7 +24,6 @@
 //! `AssertionFailed` = runtime-error envelope.
 
 use std::borrow::Cow;
-use std::io::Write;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
 use crate::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, ValueSnapshot};
@@ -33,20 +31,6 @@ use crate::value::Provenance;
 use crate::span::Span;
 
 // ─── Public API ─────────────────────────────────────────────────────────────
-
-/// Emit a `#wat.kernel/<VariantName> {<fields>}\n` envelope to `out`.
-///
-/// This is the HARD CUT wire format for RuntimeErrors crossing
-/// IPC boundaries — no Display-text fallback.
-///
-/// Arc 298.3: delegates to `err.to_edn()` (the derive-generated form)
-/// and writes the tagged EDN line. Replaces the deleted `runtime_error_to_edn`
-/// + `variant_name` pair.
-pub fn emit_runtime_error_envelope<W: Write>(out: &mut W, err: &RuntimeError) {
-    use crate::edn::contract::ToEdn;
-    let line = format!("{}\n", wat_edn::write(&err.to_edn()));
-    let _ = out.write_all(line.as_bytes());
-}
 
 /// Arc 298.3 — serialize a dot-notation path string to a vector of segments.
 ///
@@ -69,10 +53,13 @@ impl crate::edn::contract::ToEdn for RuntimeError {
     /// Excursus 003 D3 — wired now, not left captured-and-unseen: `:frames`
     /// (wat frames innermost-first, THEN the one Rust frame — "user first",
     /// D3's own ordering) and `:frames-elided` (always present; 0 when the live
-    /// stack fit under the cap) follow `:span`. Until envelope step 3 this is the
-    /// only place these frames surface — `LociDiedError`'s wire form still
-    /// stringifies the message (`src/process/died.rs`); that stringification does
-    /// NOT go through this impl, so it is unaffected by this stone.
+    /// stack fit under the cap) follow `:span`. Excursus 003 step 3c: this remains
+    /// the shape of this type's plain `ToEdn` impl (kept — see `WatError::variant`'s
+    /// own doc below for who still needs it), but it is NOT the wire anymore:
+    /// `WatError::variant()` strips `:span`/`:frames`/`:frames-elided` back out, so
+    /// `error_edn()` (`to_wire_edn`/`Debug`/`Display`, and every embedding via
+    /// `error_edn_of`/`error_edn_of_boxed`) never shows them — frames live on
+    /// `:wat::kernel::Failure` alone (step 3b).
     fn to_edn(&self) -> OwnedValue {
         use crate::edn::contract::edn_kw;
         let kind_val = self.kind().to_edn();
@@ -115,9 +102,19 @@ impl crate::edn::contract::WatError for RuntimeError {
     fn causes(&self) -> OwnedValue {
         OwnedValue::Vector(vec![])
     }
+    /// Excursus 003 step 3c — the wire's `variant()` strips BOTH `:span` (the floor
+    /// owns `:location`) AND `:frames`/`:frames-elided` (they live on `Failure`, step
+    /// 3b, never on a standalone error — see [`crate::edn::contract::strip_frames_from_tagged`]).
+    /// `self.to_edn()` (this type's plain [`crate::edn::contract::ToEdn`] impl, above) is UNCHANGED and still
+    /// carries all three: it is the shape ~30 golden-backed regression tests
+    /// (`probe_arc298_3_runtime_derive_identical`, `probe_stone_233_3_runtime_error_edn`,
+    /// `probe_arc237_stone4_rich_errors`, …) pin as the derive's byte-identical output,
+    /// and it is also what `StartupError::to_edn_values`'s `--check-output edn|json`
+    /// reads for a `StartupError::Runtime` (a registration-time, not mid-execution,
+    /// failure — named and kept, not force-deleted, per this step's own brief).
     fn variant(&self) -> OwnedValue {
-        use crate::edn::contract::ToEdn;
-        crate::edn::contract::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::{strip_frames_from_tagged, strip_span_from_tagged, ToEdn};
+        strip_frames_from_tagged(strip_span_from_tagged(self.to_edn()))
     }
 }
 

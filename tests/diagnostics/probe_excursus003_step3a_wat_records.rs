@@ -371,6 +371,56 @@ fn assert_retagged(variant: &str, field: &str, old_v: &OwnedValue, new_v: &Owned
     );
 }
 
+// ─── Excursus 003 step 3c, Gate B — the wire carries no standalone frames ───────
+//
+// `RuntimeError::error_edn()` (`WatError`, `src/edn/error.rs`) is THE writer on the
+// process wire — `to_wire_edn`/`Debug`/`Display` all resolve to it, and it is what
+// `LociDiedError`/`Failure`/`StartupError` embed a `RuntimeError` cause through
+// (`error_edn_of`/`error_edn_of_boxed`). `impl ToEdn for RuntimeError::to_edn()` (the
+// derive-generated `:span`/`:frames`/`:frames-elided` shape) is a SEPARATE,
+// deliberately-kept representation — not retired, because ~30 golden-backed
+// regression tests (`probe_arc298_3_runtime_derive_identical`,
+// `probe_stone_233_3_runtime_error_edn`, `probe_arc237_stone4_rich_errors`,
+// `probe_arc296_typed_causes`, `probe_arc296_macro_error_is_structured_edn`, …) pin it
+// as the derive's byte-identical output (arc 298.3's own migration proof), and
+// `StartupError::to_edn_values`'s `--check-output edn|json` reads it for a
+// `StartupError::Runtime` (a registration-time failure, not a mid-execution crash —
+// see the strike report's production-caller census). A SECOND writer therefore still
+// exists on paper, but it is unreachable from the crash-reporting wire: nothing that
+// serves `to_wire_edn`/`error_edn`/a `Failure`'s embedded cause calls `.to_edn()` on a
+// bare `RuntimeError` — every site above calls it directly on a purpose-built,
+// hand-constructed error and asserts against ITS OWN named golden, so a lint pinning
+// "unreachable from the wire" would duplicate what this gate already proves for the
+// wire's own shape. This gate is the standing proof for the ONE writer's own contract:
+// no `:span`, no `:frames`, no `:frames-elided` — those live on `:wat::kernel::Failure`
+// alone (step 3b).
+#[test]
+fn gate_b_wire_carries_no_standalone_frames_or_span() {
+    for (variant, err) in all_variants() {
+        let wire = err.error_edn();
+        let (_, fields) = as_tagged_map(&wire);
+        assert!(
+            find_field(&fields, "span").is_none(),
+            "{variant}: error_edn() (the wire) must not carry :span — :location is the \
+             floor's only location key"
+        );
+        assert!(
+            find_field(&fields, "frames").is_none(),
+            "{variant}: error_edn() (the wire) must not carry :frames — frames live on \
+             :wat::kernel::Failure alone (excursus 003 step 3c)"
+        );
+        assert!(
+            find_field(&fields, "frames-elided").is_none(),
+            "{variant}: error_edn() (the wire) must not carry :frames-elided — it lives on \
+             :wat::kernel::Failure alone (excursus 003 step 3c)"
+        );
+        assert!(
+            find_field(&fields, "location").is_some(),
+            "{variant}: error_edn() (the wire) must always carry :location"
+        );
+    }
+}
+
 // ─── G3 — round trip ───────────────────────────────────────────────────────────
 
 #[test]

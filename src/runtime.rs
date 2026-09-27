@@ -15024,6 +15024,20 @@ mod tests {
             Value::Aggregate(a) if a.class.as_ref() == "wat::kernel::Failure" => a,
             other => panic!("StartupError payload must be a typed Failure record; got {other:?}"),
         };
+        // Excursus 003 step 3c ruling (c): a `StartupError::Runtime` DOES have a captured
+        // call stack (step 2 snapshotted it at `RuntimeError::new` construction, above), so
+        // THIS Failure's `:frames` (declaration order 1) must be non-empty — before the fix
+        // `startup_error_chain_edn` hardcoded `frames: []` for every `StartupError` cause,
+        // including this one. At minimum the one Rust frame naming the raising site is
+        // always present.
+        match failure.fields.get(1) {
+            Some(Value::Vec(frames)) => assert!(
+                !frames.is_empty(),
+                "a StartupError::Runtime's Failure must carry its RuntimeError's captured \
+                 frames (at least the one Rust frame); got an empty :frames"
+            ),
+            other => panic!(":frames must be a Vector; got {other:?}"),
+        }
         // THE GATE: the cause is a fully-structured, navigable
         // #wat.runtime/UnknownFunction RECORD — NOT an escaped-EDN String.
         let cause = failure
