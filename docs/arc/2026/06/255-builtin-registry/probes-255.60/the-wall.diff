@@ -1,0 +1,203 @@
+diff --git a/crates/wat-edn/src/value.rs b/crates/wat-edn/src/value.rs
+index 4d1b58cee..a2163183a 100644
+--- a/crates/wat-edn/src/value.rs
++++ b/crates/wat-edn/src/value.rs
+@@ -225,6 +225,12 @@ pub struct Tag {
+ 
+ // ─── Symbol ─────────────────────────────────────────────────────
+ 
++fn scream_if_double_colon(part: &str) {
++    if part.contains("::") {
++        panic!("double colon in name {part:?}");
++    }
++}
++
+ impl Symbol {
+     /// Build a non-namespaced symbol. Panics if the name fails the
+     /// spec first-character rule.
+@@ -235,6 +241,7 @@ impl Symbol {
+     #[track_caller]
+     pub fn new(name: impl AsRef<str>) -> Self {
+         let name = name.as_ref();
++        scream_if_double_colon(name);
+         crate::vocab::validate_name_body(name)
+             .unwrap_or_else(|m| panic!("invalid symbol name {:?}: {}", name, m));
+         Self { namespace: None, name: CompactString::from(name) }
+@@ -247,6 +254,8 @@ impl Symbol {
+     /// on construction so callers may pass either form.
+     #[track_caller]
+     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
++        scream_if_double_colon(namespace.as_ref());
++        scream_if_double_colon(name.as_ref());
+         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
+             .unwrap_or_else(|m| panic!("invalid symbol namespace {:?}: {}", namespace.as_ref(), m));
+         let name = name.as_ref();
+@@ -264,6 +273,7 @@ impl Symbol {
+     /// errors from the parser path).
+     pub fn try_new(name: impl AsRef<str>) -> std::result::Result<Self, &'static str> {
+         let name = name.as_ref();
++        scream_if_double_colon(name);
+         crate::vocab::validate_name_body(name)?;
+         Ok(Self { namespace: None, name: CompactString::from(name) })
+     }
+@@ -275,6 +285,8 @@ impl Symbol {
+         namespace: impl AsRef<str>,
+         name: impl AsRef<str>,
+     ) -> std::result::Result<Self, &'static str> {
++        scream_if_double_colon(namespace.as_ref());
++        scream_if_double_colon(name.as_ref());
+         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
+         let name = name.as_ref();
+         crate::vocab::validate_name_body(name)?;
+@@ -326,6 +338,7 @@ impl Keyword {
+     #[track_caller]
+     pub fn new(name: impl AsRef<str>) -> Self {
+         let name = name.as_ref();
++        scream_if_double_colon(name);
+         crate::vocab::validate_name_body(name)
+             .unwrap_or_else(|m| panic!("invalid keyword name {:?}: {}", name, m));
+         Self { namespace: None, name: CompactString::from(name) }
+@@ -336,6 +349,8 @@ impl Keyword {
+     /// on construction so callers may pass either form.
+     #[track_caller]
+     pub fn ns(namespace: impl AsRef<str>, name: impl AsRef<str>) -> Self {
++        scream_if_double_colon(namespace.as_ref());
++        scream_if_double_colon(name.as_ref());
+         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
+             .unwrap_or_else(|m| panic!("invalid keyword namespace {:?}: {}", namespace.as_ref(), m));
+         let name = name.as_ref();
+@@ -351,6 +366,7 @@ impl Keyword {
+     /// [`Symbol::try_new`] for the error-type rationale.
+     pub fn try_new(name: impl AsRef<str>) -> std::result::Result<Self, &'static str> {
+         let name = name.as_ref();
++        scream_if_double_colon(name);
+         crate::vocab::validate_name_body(name)?;
+         Ok(Self { namespace: None, name: CompactString::from(name) })
+     }
+@@ -362,6 +378,8 @@ impl Keyword {
+         namespace: impl AsRef<str>,
+         name: impl AsRef<str>,
+     ) -> std::result::Result<Self, &'static str> {
++        scream_if_double_colon(namespace.as_ref());
++        scream_if_double_colon(name.as_ref());
+         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
+         let name = name.as_ref();
+         validate_keyword_name(name)?;
+diff --git a/crates/wat-reader/src/lexer.rs b/crates/wat-reader/src/lexer.rs
+index 774057266..7d961955d 100644
+--- a/crates/wat-reader/src/lexer.rs
++++ b/crates/wat-reader/src/lexer.rs
+@@ -232,6 +232,9 @@ pub enum LexErrorKind {
+     /// `<-`, `->`, `<=` all still lex exactly as before. The surviving
+     /// spelling for parameterization is the `:-` binder / reference form.
+     AngleTypeHeadInName,
++    /// `::` inside a keyword or a symbol. The token is the whole name; the
++    /// position is the first doubled colon. Stone 255.60 wall (worktree only).
++    DoubleColonInName { token: String },
+     /// Invalid character literal. Arc 220 slice 2: `\c` form error
+     /// (empty body, supplementary-plane codepoint, unknown named char,
+     /// or backslash followed by whitespace).
+@@ -282,6 +285,10 @@ impl fmt::Display for LexErrorKind {
+                 binder form instead — `(mk :- [S R] [args] -> ret)` in place of \
+                 `(mk<S,R> [args] -> ret)`."
+             ),
++            LexErrorKind::DoubleColonInName { token } => write!(
++                f,
++                "double colon in name {token:?}"
++            ),
+             LexErrorKind::AngleTypeHeadInName => write!(
+                 f,
+                 "angle-bracket type parameters are illegal in a name (arc 109, \"annihilate \
+@@ -945,6 +952,12 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
+         i += 1;
+     }
+ 
++    if let Some(rel) = out.find("::") {
++        return Err(LexError {
++            position: start + rel,
++            kind: LexErrorKind::DoubleColonInName { token: out },
++        });
++    }
+     Ok((out, i))
+ }
+ 
+@@ -1073,7 +1086,14 @@ fn lex_symbol(src: &str, start: usize) -> Result<(String, usize), LexError> {
+             i += 1;
+         }
+     }
+-    Ok((src[start..i].to_string(), i))
++    let token = src[start..i].to_string();
++    if let Some(rel) = token.find("::") {
++        return Err(LexError {
++            position: start + rel,
++            kind: LexErrorKind::DoubleColonInName { token },
++        });
++    }
++    Ok((token, i))
+ }
+ 
+ #[cfg(test)]
+diff --git a/src/edn/render.rs b/src/edn/render.rs
+index 4a4306d06..4e34c92be 100644
+--- a/src/edn/render.rs
++++ b/src/edn/render.rs
+@@ -1438,6 +1438,12 @@ pub fn eval_symbol_node(
+             reason: crate::declare::typevar::angle_minted_name_reason(&s),
+         }));
+     }
++    if s.contains("::") {
++        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
++            head: OP.into(),
++            reason: format!("double colon in minted symbol {s:?}"),
++        }));
++    }
+     let node = WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!());
+     Ok(crate::value::TrackedValue::new(
+         Value::wat__WatAST(std::sync::Arc::new(node)),
+@@ -1465,6 +1471,12 @@ pub fn eval_fresh_symbol(
+         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+             op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+     };
++    if s.contains("::") {
++        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
++            head: OP.into(),
++            reason: format!("double colon in minted symbol {s:?}"),
++        }));
++    }
+     let ident = Identifier::bare(s).add_scope(crate::scope::fresh_scope());
+     let node = WatAST::Symbol(ident, crate::rust_caller_span!());
+     Ok(crate::value::TrackedValue::new(
+@@ -1493,6 +1505,12 @@ pub fn eval_keyword_node(
+             reason: crate::declare::typevar::angle_minted_name_reason(&s),
+         }));
+     }
++    if s.contains("::") {
++        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
++            head: OP.into(),
++            reason: format!("double colon in minted keyword {s:?}"),
++        }));
++    }
+     // 255.10 — the argument is a NAME, so it is read through the identity door: a
+     // faithful-Clojure `wat.kernel/Address` mints the SAME keyword node as the rust-scheme
+     // `:wat::kernel::Address`. A macro that rebuilds a node from `ast-name` (core.wat's
+diff --git a/src/runtime.rs b/src/runtime.rs
+index f5ecf126b..892d6a944 100644
+--- a/src/runtime.rs
++++ b/src/runtime.rs
+@@ -5145,6 +5145,16 @@ pub(crate) fn eval_keyword_from_string(
+         )
+         .into());
+     }
++    if s.contains("::") {
++        return Err(RuntimeError::new(
++            list_span.clone(),
++            RuntimeErrorKind::MalformedForm {
++                head: ":wat::keyword::from-string".into(),
++                reason: format!("double colon in minted keyword {s:?}"),
++            },
++        )
++        .into());
++    }
+     if s.starts_with(':') {
+         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+             head: ":wat::keyword::from-string".into(),
