@@ -1,0 +1,60 @@
+255.61 doc-directive conversion. Worktree only; this file is the record.
+
+Spans extracted from /// and //! lines in src/ and crates/, using the same
+split as crates/wat-doc/src/lib.rs take_type_token and the @example `#=>`
+split. Each span was one file, rewritten by convert-doc-fragments.wat
+(fix-text), then spliced back into that span only.
+
+2006 spans, 103 files.
+  @arg type            675
+  @ret type            546
+  @example form        649
+  @example-norun form  136
+
+fix-text rc 0 on all 2006.
+  1982 rewritten and no `::` left in the span
+  17 rewritten, but a string inside the form still contains `::`
+     (fix-text does not edit string contents)
+  7 unchanged
+
+Unchanged:
+  src/reflect/verbs.rs:403        "wat::core::i64"
+  src/reflect/verbs.rs:625        ":probe::renamed"
+  src/reflect/verbs.rs:1911       wat::cache::Lru.Hit
+  src/intrinsic/reflect.rs:1049   "wat::core::i64"
+  src/intrinsic/keyword.rs:71     "wat::core::i64"
+  src/intrinsic/edn.rs:337        "some::unknown::Rec"
+  src/intrinsic/edn.rs:386        "some::unknown::Kind"
+
+Still `::` inside a string after the call around it was converted:
+  src/rete/step_payload.rs:157
+  src/reflect/verbs.rs:1815
+  src/reflect/verbs.rs:1911
+  src/intrinsic/reflect.rs:829
+  src/intrinsic/reflect.rs:830
+  src/intrinsic/reflect.rs:831
+  src/intrinsic/reflect.rs:832
+  src/intrinsic/reflect.rs:945
+  src/intrinsic/reflect.rs:946
+  src/intrinsic/reflect.rs:947
+  src/intrinsic/reflect.rs:948
+  src/intrinsic/reflect.rs:949
+  src/intrinsic/keyword.rs:101
+  src/intrinsic/keyword.rs:132
+  src/intrinsic/keyword.rs:163
+  src/intrinsic/keyword.rs:194
+  src/intrinsic/grep.rs:52
+
+Pilot, before the batch, on isolated forms (same codemod):
+  :wat::core::i64                         -> wat.core/i64
+  (:wat::core::Vector :- [:wat::core::i64]) -> (wat.core/Vector :- [wat.core/i64])
+  (:wat::core::map ... -> :wat::core::i64 ...) -> (wat.core/map ... :- wat.type/i64 ...)
+  [:T :-> :U]                             unchanged
+  :Acc                                    unchanged
+
+A type token alone is not in post-arrow context, so it becomes wat.core/i64,
+not wat.type/i64. The full example keeps the arrow and does become wat.type.
+
+Rust diff in the worktree, including the 255.60 wall: 106 files,
++1912/−1846. Corpus .wat: 2251 files, +75049/−75049.
+The converted sources do not land.
