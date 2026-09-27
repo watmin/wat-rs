@@ -103,7 +103,19 @@ pub(crate) fn infer_fn(
     // Arc 109 gamma-i — peel an optional `:- [T U ...]` type-param binder,
     // immediately after metadata and before the args-vector. Sister
     // sequence in `src/function/eval.rs` (eval_fn).
-    let (binder, sig_args) = peel_type_binder(sig_args);
+    let (binder, sig_args) = match peel_type_binder(sig_args) {
+        Ok(peeled) => peeled,
+        Err((span, reason)) => {
+            return CheckResult::err(CheckError {
+                span,
+                kind: CheckErrorKind::MalformedForm {
+                    head: FN_HEAD.into(),
+                    reason,
+                    remedies: vec![],
+                },
+            });
+        }
+    };
     if sig_args.len() < 3 {
         // Mirrors the runtime twin verbatim (src/function/eval.rs, eval_fn) —
         // same peel, same guard, same located MalformedForm. `infer_fn` is
@@ -149,15 +161,29 @@ pub(crate) fn infer_fn(
     // reference to its type (`locals.get` in `crate::check::infer`'s
     // Symbol arm), which stores one fixed `TypeExpr` per binding and is
     // check.rs, out of this stone's declared blast radius.
-    if let Some(binder_names) = &binder {
-        let mapping: HashMap<String, TypeExpr> = binder_names
-            .iter()
-            .map(|tp| (tp.clone(), fresh.fresh()))
-            .collect();
+    let mut exposed_bounds: HashMap<String, TypeExpr> = HashMap::new();
+    let _bound_guard = if let Some(binder_params) = &binder {
+        let mut bound_map = HashMap::new();
+        let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+        for tp in binder_params {
+            if let Some(bound) = &tp.bound {
+                bound_map.insert(tp.name.clone(), bound.clone());
+            } else {
+                mapping.insert(tp.name.clone(), fresh.fresh());
+            }
+        }
         param_types = param_types.iter().map(|t| crate::check::rename(t, &mapping)).collect();
         ret_type = crate::check::rename(&ret_type, &mapping);
         rest_param = rest_param.map(|(ident, ty)| (ident, crate::check::rename(&ty, &mapping)));
-    }
+        exposed_bounds = bound_map.clone();
+        if bound_map.is_empty() {
+            None
+        } else {
+            Some(env.push_param_bounds(bound_map))
+        }
+    } else {
+        None
+    };
 
     // 255.30 — a fn parameter that is a concrete `(Peer :- [S R])` fixes that
     // comm's I/O. The thread-spawn clause sees only its own type variables, so
@@ -216,13 +242,34 @@ pub(crate) fn infer_fn(
     }
 
     let ty = TypeExpr::Fn {
-        args: param_types,
-        ret: Box::new(ret_type),
+        args: param_types.iter().map(|t| expose_bounds(t, &exposed_bounds)).collect(),
+        ret: Box::new(expose_bounds(&ret_type, &exposed_bounds)),
     };
     if errors.is_empty() {
         CheckResult::ok(ty)
     } else {
         CheckResult::partial_with(ty, errors)
+    }
+}
+
+fn expose_bounds(ty: &TypeExpr, bounds: &HashMap<String, TypeExpr>) -> TypeExpr {
+    match ty {
+        TypeExpr::Path(p) => {
+            let key = p.trim_start_matches(':');
+            bounds.get(key).cloned().unwrap_or_else(|| ty.clone())
+        }
+        TypeExpr::Parametric { head, args } => TypeExpr::Parametric {
+            head: head.clone(),
+            args: args.iter().map(|a| expose_bounds(a, bounds)).collect(),
+        },
+        TypeExpr::Fn { args, ret } => TypeExpr::Fn {
+            args: args.iter().map(|a| expose_bounds(a, bounds)).collect(),
+            ret: Box::new(expose_bounds(ret, bounds)),
+        },
+        TypeExpr::Tuple(xs) => {
+            TypeExpr::Tuple(xs.iter().map(|x| expose_bounds(x, bounds)).collect())
+        }
+        TypeExpr::Var(_) => ty.clone(),
     }
 }
 

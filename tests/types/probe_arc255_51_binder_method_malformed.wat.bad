@@ -1,0 +1,3 @@
+(:wat::core::defsurface :u::S :nature :wat::core::Record
+  :features
+  [(go :- [[T :- :u::Mark]] [self <- :u::S x <- :T] -> :T)])

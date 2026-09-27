@@ -473,7 +473,16 @@ pub(crate) fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnSha
     // riding into the emitted `fn` (via defn's rest-binder splicing)
     // immediately after the (already-peeled) fn-embedded metadata and
     // before the args-vector.
-    let (binder, sig_slice) = crate::function::peel_type_binder(&fn_items[sig_start..]);
+    let (binder, sig_slice) = crate::function::peel_type_binder(&fn_items[sig_start..])
+        .map_err(|(span, reason)| {
+            RuntimeError::new(
+                span,
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::defn".into(),
+                    reason,
+                },
+            )
+        })?;
     if sig_slice.len() < 3 {
         return Ok(None);
     }
@@ -521,17 +530,23 @@ pub(crate) fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnSha
     // (The both-spellings contradiction is rejected above; by construction
     // at most one of raw_type_params/binder is non-empty here.)
     let mut raw_type_params = raw_type_params;
-    if let Some(binder_names) = binder {
-        for tp in binder_names {
-            if !raw_type_params.contains(&tp) {
-                raw_type_params.push(tp);
+    let mut raw_type_param_bounds: Vec<Option<crate::types::TypeExpr>> = Vec::new();
+    if let Some(binder_params) = binder {
+        for tp in binder_params {
+            if !raw_type_params.contains(&tp.name) {
+                raw_type_params.push(tp.name);
+                raw_type_param_bounds.push(tp.bound);
             }
         }
     }
     for fv in collect_free_type_vars(&param_types, &ret_type) {
         if !raw_type_params.contains(&fv) {
             raw_type_params.push(fv);
+            raw_type_param_bounds.push(None);
         }
+    }
+    while raw_type_param_bounds.len() < raw_type_params.len() {
+        raw_type_param_bounds.insert(0, None);
     }
     Ok(Some((
         name.clone(),
@@ -542,6 +557,7 @@ pub(crate) fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnSha
             // so the type checker can instantiate generic functions correctly.
             // Stone 251.7 — extended with free signature vars (bare-Uppercase Paths).
             type_params: raw_type_params,
+            type_param_bounds: raw_type_param_bounds,
             param_types,
             ret_type,
             rest_param: None,
@@ -648,6 +664,7 @@ pub(crate) fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, A
             raw_type_params.push(fv);
         }
     }
+    let raw_type_param_bounds = vec![None; raw_type_params.len()];
     // Synthesize body from trailing fn_items.
     let body = synthesize_fn_body(&fn_items[4..]);
     Some((
@@ -656,6 +673,7 @@ pub(crate) fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, A
             name: Some(name),
             params: fixed_params,
             type_params: raw_type_params,
+            type_param_bounds: raw_type_param_bounds,
             param_types: fixed_param_types,
             ret_type,
             rest_param: Some(rest_name),
@@ -809,6 +827,7 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
             raw_type_params.push(fv);
         }
     }
+    let raw_type_param_bounds = vec![None; raw_type_params.len()];
     // Synthesize body from trailing fn_items.
     let body = synthesize_fn_body(&fn_items[4..]);
     Ok(Some((
@@ -817,6 +836,7 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
             name: Some(name),
             params: fixed_params,
             type_params: raw_type_params,
+            type_param_bounds: raw_type_param_bounds,
             param_types: fixed_param_types,
             ret_type,
             rest_param: Some(rest_name),

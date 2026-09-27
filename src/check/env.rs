@@ -42,9 +42,34 @@ use super::register_builtins;
 ///
 /// Failure-engineering discipline (FAILURE-ENGINEERING.md): eliminate
 /// the CLASS by making the wrong shape STRUCTURALLY UNAVAILABLE.
+/// A bounded type variable instantiated at a call and not yet concrete.
+#[derive(Debug)]
+pub(crate) struct PendingBound {
+    pub var: u64,
+    pub letter: String,
+    pub bound: TypeExpr,
+    pub span: Span,
+}
+
+pub(crate) struct ParamBoundGuard<'a> {
+    env: &'a CheckEnv<'a>,
+}
+
+impl Drop for ParamBoundGuard<'_> {
+    fn drop(&mut self) {
+        self.env.param_bounds.borrow_mut().pop();
+    }
+}
+
 #[derive(Debug)]
 pub struct CheckEnv<'a> {
     pub(super) schemes: HashMap<String, TypeScheme>,
+    /// Stone 255.51 — bounds of the function bodies currently being checked,
+    /// innermost last. A path `:T` is assignable to its bound.
+    pub(crate) param_bounds: std::cell::RefCell<Vec<HashMap<String, TypeExpr>>>,
+    /// Call-site instantiations of a bounded parameter that were still a
+    /// unification variable. Rechecked at the end of the enclosing definition.
+    pub(crate) pending_bounds: std::cell::RefCell<Vec<PendingBound>>,
     /// Arc 048 — keyword paths for user-enum unit variants mapped to
     /// the enum's type. When `infer` sees one of these as a value-
     /// position keyword (e.g. `:trading::types::PhaseLabel::Valley`),
@@ -136,6 +161,29 @@ pub struct CheckEnv<'a> {
 }
 
 impl<'a> CheckEnv<'a> {
+    pub(crate) fn push_param_bounds(&self, bounds: HashMap<String, TypeExpr>) -> ParamBoundGuard<'_> {
+        self.param_bounds.borrow_mut().push(bounds);
+        ParamBoundGuard { env: self }
+    }
+
+    pub(crate) fn bound_of(&self, name: &str) -> Option<TypeExpr> {
+        let stack = self.param_bounds.borrow();
+        for map in stack.iter().rev() {
+            if let Some(bound) = map.get(name) {
+                return Some(bound.clone());
+            }
+        }
+        None
+    }
+
+    pub(crate) fn record_pending_bound(&self, pending: PendingBound) {
+        self.pending_bounds.borrow_mut().push(pending);
+    }
+
+    pub(crate) fn take_pending_bounds(&self) -> Vec<PendingBound> {
+        std::mem::take(&mut *self.pending_bounds.borrow_mut())
+    }
+
     /// Build an env with built-in schemes for `:wat::core::*` and
     /// `:wat::holon::*` forms, then overlay user-define signatures
     /// from `sym`. `types` carries the registered user type
@@ -255,6 +303,8 @@ impl<'a> CheckEnv<'a> {
         let unit_variant_types = types.build_unit_variant_map();
         CheckEnv {
             schemes: HashMap::new(),
+            param_bounds: std::cell::RefCell::new(Vec::new()),
+            pending_bounds: std::cell::RefCell::new(Vec::new()),
             unit_variant_types,
             types,
             defined_values: HashMap::new(),

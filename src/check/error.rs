@@ -103,6 +103,20 @@ pub enum CheckErrorKind {
         expected: String,
         got: String,
     },
+    /// Stone 255.51 — a call instantiated `[T :< Bound]` to `got`, and `got` is not `Bound`.
+    BoundNotSatisfied {
+        function: String,
+        param: String,
+        bound: String,
+        got: String,
+    },
+    /// Stone 255.51 — `[T :< Bound]` was instantiated and T was still a variable
+    /// when the enclosing definition finished.
+    BoundUnresolved {
+        function: String,
+        param: String,
+        bound: String,
+    },
     /// Arc 138 slice 1 — function body type does not match declared return type.
     ///
     /// `remedies` stores the typo-based candidates from `variant_typo_remedies`
@@ -447,6 +461,20 @@ impl CheckErrorKind {
         match self {
             CheckErrorKind::ArityMismatch { callee, expected, got } => {
                 write!(f, "{}{}: expected {} argument(s); got {}", prefix, callee, expected, got)
+            }
+            CheckErrorKind::BoundNotSatisfied { function, param, bound, got } => {
+                write!(
+                    f,
+                    "{}{}: type parameter {} is bounded by {}; got {}",
+                    prefix, function, param, bound, got
+                )
+            }
+            CheckErrorKind::BoundUnresolved { function, param, bound } => {
+                write!(
+                    f,
+                    "{}{}: type parameter {} bounded by {} is still unresolved",
+                    prefix, function, param, bound
+                )
             }
             CheckErrorKind::TypeMismatch { callee, param, expected, got } => {
                 write!(

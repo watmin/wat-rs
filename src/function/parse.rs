@@ -861,6 +861,7 @@ pub(crate) fn parse_defclause_form(
             name: Some(name.clone()),
             params: clause.args.fixed_params.iter().map(|(n, _)| n.clone()).collect(),
             type_params: vec![],
+            type_param_bounds: vec![],
             param_types: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
             ret_type: clause.return_type.clone(),
             rest_param: clause

@@ -75,6 +75,9 @@ pub struct Function {
     /// time.
     /// **TRANSFORMS (clojure-ination):** scheme/type fields
     pub type_params: Vec<String>,
+    /// Parallel to `type_params`. `Some(bound)` means the parameter was
+    /// declared `[Name :< bound]`. `None` means a bare name. Stone 255.51.
+    pub type_param_bounds: Vec<Option<TypeExpr>>,
     /// Declared parameter types, parallel to `params`. Populated from
     /// the `(:wat::core::defn :name [p1 <- :T1 ...] -> :Ret body)` signature.
     /// Stone 241.16 — `parse_define_form` DELETED; defn uses `parse_defn_signature`.
@@ -280,6 +283,7 @@ mod tests {
             name: Some(":my::fn".into()),
             params: vec![crate::scope::Identifier::bare("x")],
             type_params: vec![],
+            type_param_bounds: vec![],
             param_types: vec![TypeExpr::Path(":wat::core::i64".into())],
             ret_type: TypeExpr::Path(":wat::core::i64".into()),
             rest_param: None,
@@ -307,6 +311,7 @@ mod tests {
             name: None,
             params: vec![],
             type_params: vec![],
+            type_param_bounds: vec![],
             param_types: vec![],
             ret_type: TypeExpr::Path(":wat::core::nil".into()),
             rest_param: None,

@@ -80,6 +80,8 @@ use wat_macros::wat_special_form_impl;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeScheme {
     pub type_params: Vec<String>,
+    /// Parallel to `type_params`. `Some(bound)` is `[Name :< bound]`. Stone 255.51.
+    pub type_param_bounds: Vec<Option<TypeExpr>>,
     pub params: Vec<TypeExpr>,
     pub ret: TypeExpr,
     /// Arc 150 — `Some((Vector :- [T]))` for variadic callees; `None` for
@@ -1872,6 +1874,13 @@ fn check_function_body(
         FunctionBody::Wat(ast) => ast,
         FunctionBody::Native => return,
     };
+    let mut bound_map = HashMap::new();
+    for (name, bound) in scheme.type_params.iter().zip(scheme.type_param_bounds.iter()) {
+        if let Some(bound) = bound {
+            bound_map.insert(name.clone(), bound.clone());
+        }
+    }
+    let _bound_guard = env.push_param_bounds(bound_map);
     fresh.push_enclosing_ret(scheme.ret.clone());
     let body_ty = infer(body_ast, env, &locals, fresh, &mut subst).drain_errors_into(errors);
     fresh.pop_enclosing_ret();
@@ -1894,6 +1903,7 @@ fn check_function_body(
             } });
         }
     }
+    flush_pending_bounds(env, &subst, path, errors);
 }
 
 /// Stone 241.10 — variant-constructor typo remediation for ReturnTypeMismatch.
@@ -1952,6 +1962,7 @@ fn check_form(
 ) {
     let mut subst = Subst::new();
     let _ = infer(form, env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors);
+    flush_pending_bounds(env, &subst, "<form>", errors);
 }
 
 // ─── Inference ──────────────────────────────────────────────────────────
@@ -2084,10 +2095,10 @@ pub(crate) fn infer(
         // generalized to every expression position.
         WatAST::Keyword(k, _) if env.get(k).is_some() => {
             let scheme = env.get(k).expect("guard").clone();
-            let (params, ret) = instantiate(&scheme, fresh);
+            let inst = instantiate(&scheme, fresh);
             CheckResult::ok(TypeExpr::Fn {
-                args: params,
-                ret: Box::new(ret),
+                args: inst.params,
+                ret: Box::new(inst.ret),
             })
         }
         // Stone 242.2 — Doctrine 1: primitive type keywords in VALUE position are ILLEGAL.
@@ -6075,10 +6086,13 @@ fn infer_list(
             }
         }
 
-        let (param_types, ret_type) = match &type_args {
+        let inst = match &type_args {
             Some(concrete) => instantiate_with_args(scheme, concrete, fresh),
             None => instantiate(scheme, fresh),
         };
+        let param_types = inst.params;
+        let ret_type = inst.ret;
+        let instantiation_bounds = inst.bounds;
 
         // Arc 294 item 9a — user-facing errors from this scheme-resolved call
         // report the CANONICAL name. `k` may be a generated aggregate-ctor
@@ -6188,6 +6202,7 @@ fn infer_list(
                     }
                 }
             }
+            enforce_type_bounds(&instantiation_bounds, subst, env, head_span, &callee, &mut local_errors);
             let ty = apply_subst(&ret_type, subst);
             return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
         }
@@ -6223,6 +6238,7 @@ fn infer_list(
                 }
             }
         }
+        enforce_type_bounds(&instantiation_bounds, subst, env, head_span, &callee, &mut local_errors);
         let ty = apply_subst(&ret_type, subst);
         return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
     }
@@ -8576,8 +8592,8 @@ fn infer_def(
     // but less informative :anonymous duplicate. Use the scheme type directly.
     let expr_ty = if is_fn_form_expr(&args[expr_idx]) {
         env.get(&name).map(|scheme| {
-            let (params, ret) = instantiate(scheme, fresh);
-            TypeExpr::Fn { args: params, ret: Box::new(ret) }
+            let inst = instantiate(scheme, fresh);
+            TypeExpr::Fn { args: inst.params, ret: Box::new(inst.ret) }
         })
     } else {
         infer(&args[expr_idx], env, locals, fresh, subst).drain_errors_into(&mut local_errors)
@@ -9240,8 +9256,8 @@ fn extract_def_binding(
     // defined_values for subsequent redef checks on the same name.
     if is_fn_form_expr(&items[expr_idx]) {
         if let Some(scheme) = env.get(&name) {
-            let (params, ret) = instantiate(scheme, fresh);
-            let ty = TypeExpr::Fn { args: params, ret: Box::new(ret) };
+            let inst = instantiate(scheme, fresh);
+            let ty = TypeExpr::Fn { args: inst.params, ret: Box::new(inst.ret) };
             return Some((name, ty, span));
         }
     }
@@ -14114,7 +14130,8 @@ fn infer_enum_map_ctor(
     }
 
     let (param_types, ret_type) = if let Some(scheme) = env.get(k) {
-        instantiate(scheme, fresh)
+        let inst = instantiate(scheme, fresh);
+        (inst.params, inst.ret)
     } else if enum_type_params.is_empty() {
         (
             declared.iter().map(|(_, t)| t.clone()).collect(),
@@ -17288,6 +17305,16 @@ pub(crate) fn assignable(
     let types = env.types();
     let a = reduce(&walk(actual, subst), subst, types);
     let e = reduce(&walk(expected, subst), subst, types);
+    // Stone 255.51 — a value of type T, where the enclosing definition
+    // declared [T :< X], is assignable to X.
+    if let TypeExpr::Path(ap) = &a {
+        let key = ap.trim_start_matches(':');
+        if let Some(bound) = env.bound_of(key) {
+            if assignable(&bound, &e, subst, env) {
+                return true;
+            }
+        }
+    }
     // 293.W.2f — tuples assign elementwise ((Handle :- [Shared]) <: Handle inside
     // start-primed-stdio's return triple). Unify is exact; assignable is not.
     if let (TypeExpr::Tuple(ae), TypeExpr::Tuple(ee)) = (&a, &e) {
@@ -17944,21 +17971,114 @@ fn occurs(id: u64, ty: &TypeExpr, subst: &Subst) -> bool {
 
 /// Instantiate a scheme's universally-quantified type parameters with
 /// fresh unification variables. Produces monomorphic `(params, ret)`.
-fn instantiate(scheme: &TypeScheme, fresh: &mut InferCtx) -> (Vec<TypeExpr>, TypeExpr) {
+fn enforce_type_bounds(
+    bounds: &[(String, TypeExpr, TypeExpr)],
+    subst: &Subst,
+    env: &CheckEnv,
+    span: &Span,
+    callee: &str,
+    local_errors: &mut Vec<CheckError>,
+) {
+    for (letter, var, bound) in bounds {
+        let TypeExpr::Var(_) = var else { continue };
+        let got = reduce(&walk(&apply_subst(var, subst), subst), subst, env.types());
+        if let TypeExpr::Var(still) = &got {
+            env.record_pending_bound(crate::check::env::PendingBound {
+                var: *still,
+                letter: letter.clone(),
+                bound: bound.clone(),
+                span: span.clone(),
+            });
+            continue;
+        }
+        if !assignable(&got, bound, &mut subst.clone(), env) {
+            local_errors.push(CheckError {
+                span: span.clone(),
+                kind: CheckErrorKind::BoundNotSatisfied {
+                    function: callee.to_string(),
+                    param: letter.clone(),
+                    bound: format_type(bound),
+                    got: format_type(&got),
+                },
+            });
+        }
+    }
+}
+
+fn flush_pending_bounds(
+    env: &CheckEnv,
+    subst: &Subst,
+    function: &str,
+    errors: &mut Vec<CheckError>,
+) {
+    for pending in env.take_pending_bounds() {
+        let got = reduce(
+            &walk(&apply_subst(&TypeExpr::Var(pending.var), subst), subst),
+            subst,
+            env.types(),
+        );
+        if let TypeExpr::Var(_) = &got {
+            errors.push(CheckError {
+                span: pending.span,
+                kind: CheckErrorKind::BoundUnresolved {
+                    function: function.to_string(),
+                    param: pending.letter,
+                    bound: format_type(&pending.bound),
+                },
+            });
+        } else if !assignable(&got, &pending.bound, &mut subst.clone(), env) {
+            errors.push(CheckError {
+                span: pending.span,
+                kind: CheckErrorKind::BoundNotSatisfied {
+                    function: function.to_string(),
+                    param: pending.letter,
+                    bound: format_type(&pending.bound),
+                    got: format_type(&got),
+                },
+            });
+        }
+    }
+}
+
+struct Instance {
+    params: Vec<TypeExpr>,
+    ret: TypeExpr,
+    /// Letter, the fresh variable it became, and its bound (renamed).
+    bounds: Vec<(String, TypeExpr, TypeExpr)>,
+}
+
+fn instantiate(scheme: &TypeScheme, fresh: &mut InferCtx) -> Instance {
     if scheme.type_params.is_empty() {
-        return (scheme.params.clone(), scheme.ret.clone());
+        return Instance {
+            params: scheme.params.clone(),
+            ret: scheme.ret.clone(),
+            bounds: Vec::new(),
+        };
     }
     let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
     for tp in &scheme.type_params {
         mapping.insert(tp.clone(), fresh.fresh());
     }
-    let params = scheme
-        .params
-        .iter()
-        .map(|p| rename(p, &mapping))
-        .collect();
+    let params = scheme.params.iter().map(|p| rename(p, &mapping)).collect();
     let ret = rename(&scheme.ret, &mapping);
-    (params, ret)
+    let bounds = scheme_bounds(scheme, &mapping);
+    Instance { params, ret, bounds }
+}
+
+fn scheme_bounds(
+    scheme: &TypeScheme,
+    mapping: &HashMap<String, TypeExpr>,
+) -> Vec<(String, TypeExpr, TypeExpr)> {
+    scheme
+        .type_params
+        .iter()
+        .zip(scheme.type_param_bounds.iter().chain(std::iter::repeat(&None)))
+        .filter_map(|(name, bound)| {
+            let bound = bound.as_ref()?;
+            let var = mapping.get(name)?.clone();
+            Some((name.clone(), var, rename(bound, mapping)))
+        })
+        .collect()
 }
 
 /// STONE-finish-the-param-spec (arc 109) — like [`instantiate`], but a call site that
@@ -17980,22 +18100,23 @@ fn instantiate_with_args(
     scheme: &TypeScheme,
     type_args: &[TypeExpr],
     fresh: &mut InferCtx,
-) -> (Vec<TypeExpr>, TypeExpr) {
+) -> Instance {
     if scheme.type_params.is_empty() {
-        return (scheme.params.clone(), scheme.ret.clone());
+        return Instance {
+            params: scheme.params.clone(),
+            ret: scheme.ret.clone(),
+            bounds: Vec::new(),
+        };
     }
     let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
     for (i, tp) in scheme.type_params.iter().enumerate() {
         let bound = type_args.get(i).cloned().unwrap_or_else(|| fresh.fresh());
         mapping.insert(tp.clone(), bound);
     }
-    let params = scheme
-        .params
-        .iter()
-        .map(|p| rename(p, &mapping))
-        .collect();
+    let params = scheme.params.iter().map(|p| rename(p, &mapping)).collect();
     let ret = rename(&scheme.ret, &mapping);
-    (params, ret)
+    let bounds = scheme_bounds(scheme, &mapping);
+    Instance { params, ret, bounds }
 }
 
 /// The 236.2 placeholder, retained only for receivers whose fields cannot
@@ -18294,6 +18415,11 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
     func.name.as_ref()?;
     Some(TypeScheme {
         type_params: func.type_params.clone(),
+        type_param_bounds: {
+            let mut bounds = func.type_param_bounds.clone();
+            bounds.resize(func.type_params.len(), None);
+            bounds
+        },
         params: func.param_types.clone(),
         ret: func.ret_type.clone(),
         rest_param_type: func.rest_param_type.clone(),
@@ -18318,6 +18444,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::u8".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: u8_ty(),
             rest_param_type: None,
@@ -18350,6 +18477,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/open-file".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: ioreader_ty(),
             rest_param_type: None,
@@ -18359,6 +18487,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/from-bytes".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![vec_u8_ty()],
             ret: ioreader_ty(),
             rest_param_type: None,
@@ -18370,6 +18499,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/from-fd".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: ioreader_ty(),
             rest_param_type: None,
@@ -18379,6 +18509,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/from-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: ioreader_ty(),
             rest_param_type: None,
@@ -18388,6 +18519,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/read".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![ioreader_ty(), i64_ty()],
             ret: opt_vec_u8_ty(),
             rest_param_type: None,
@@ -18397,6 +18529,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/read-all".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![ioreader_ty()],
             ret: vec_u8_ty(),
             rest_param_type: None,
@@ -18406,6 +18539,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/read-all-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![ioreader_ty()],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -18415,6 +18549,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/read-line".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![ioreader_ty()],
             ret: opt_string_ty(),
             rest_param_type: None,
@@ -18424,6 +18559,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/read-frame".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![ioreader_ty()],
             // Arc 170 — was `opt_string_ty()`; a process-wide stop request
             // needed a third outcome `(Option :- [String])` couldn't express. The
@@ -18437,6 +18573,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOReader/rewind".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![ioreader_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -18448,6 +18585,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/new".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: iowriter_ty(),
             rest_param_type: None,
@@ -18457,6 +18595,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/open-file".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: iowriter_ty(),
             rest_param_type: None,
@@ -18468,6 +18607,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/from-fd".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: iowriter_ty(),
             rest_param_type: None,
@@ -18477,6 +18617,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/to-bytes".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty()],
             ret: vec_u8_ty(),
             rest_param_type: None,
@@ -18486,6 +18627,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/to-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty()],
             ret: opt_string_ty(),
             rest_param_type: None,
@@ -18495,6 +18637,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/write".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty(), vec_u8_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -18504,6 +18647,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/write-all".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty(), vec_u8_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -18513,6 +18657,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/write-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -18522,6 +18667,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/print".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -18531,6 +18677,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/println".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -18540,6 +18687,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/writeln".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -18549,6 +18697,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/flush".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -18562,6 +18711,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::IOWriter/close".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![iowriter_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -18576,6 +18726,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::TempFile/new".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::io::TempFile".into()),
             rest_param_type: None,
@@ -18585,6 +18736,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::TempFile/path".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::io::TempFile".into())],
             ret: string_ty(),
             rest_param_type: None,
@@ -18594,6 +18746,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::TempDir/new".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::io::TempDir".into()),
             rest_param_type: None,
@@ -18603,6 +18756,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::TempDir/path".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::io::TempDir".into())],
             ret: string_ty(),
             rest_param_type: None,
@@ -18618,6 +18772,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::read-file".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -18627,6 +18782,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::list-dir".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -18642,6 +18798,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::stdlib::sources".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -18660,6 +18817,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::intrinsic::examples".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -18678,6 +18836,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::intrinsic::rows".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -18701,6 +18860,7 @@ fn register_builtins(env: &mut CheckEnv) {
             ":wat::core::show-source".to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![keyword_ty.clone()],
                 ret: string_ty.clone(),
                 rest_param_type: None,
@@ -18710,6 +18870,7 @@ fn register_builtins(env: &mut CheckEnv) {
             ":wat::core::render-doc".to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![keyword_ty],
                 ret: string_ty,
                 rest_param_type: None,
@@ -18754,6 +18915,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::assertion-failed!'".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 string_ty(),
                 TypeExpr::Parametric {
@@ -18791,6 +18953,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::raise!".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![TypeExpr::Path(":wat::core::Error".into())],
             ret: TypeExpr::Path(":T".into()),
             rest_param_type: None,
@@ -18804,6 +18967,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::here".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::kernel::Location".into()),
             rest_param_type: None,
@@ -18829,6 +18993,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![i64_ty(), i64_ty()],
                 ret: i64_ty(),
                 rest_param_type: None,
@@ -18847,6 +19012,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![f64_ty(), f64_ty()],
                 ret: f64_ty(),
                 rest_param_type: None,
@@ -18870,6 +19036,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![bigint_ty(), bigint_ty()],
                 ret: bigint_ty(),
                 rest_param_type: None,
@@ -18888,6 +19055,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::bigint::/".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![bigint_ty(), bigint_ty()],
             ret: bigint_ty(),
             rest_param_type: None,
@@ -18900,6 +19068,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::i64::to-bigint".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: bigint_ty(),
             rest_param_type: None,
@@ -18912,6 +19081,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::bigint::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![bigint_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -18944,6 +19114,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![rational_ty(), rational_ty()],
                 ret: rational_ty(),
                 rest_param_type: None,
@@ -18956,6 +19127,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::i64::to-rational".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: rational_ty(),
             rest_param_type: None,
@@ -18966,6 +19138,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::bigint::to-rational".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![bigint_ty()],
             ret: rational_ty(),
             rest_param_type: None,
@@ -18978,6 +19151,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rational::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![rational_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -18995,6 +19169,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rational::numerator".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![rational_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -19004,6 +19179,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rational::denominator".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![rational_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -19024,6 +19200,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::f64::round".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![f64_ty(), i64_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -19039,6 +19216,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![f64_ty(), f64_ty()],
                 ret: f64_ty(),
                 rest_param_type: None,
@@ -19049,6 +19227,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::f64::abs".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![f64_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -19058,6 +19237,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::f64::clamp".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -19079,6 +19259,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::last".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var())],
             ret: opt(t_var()),
             rest_param_type: None,
@@ -19088,6 +19269,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::find-last-index".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 vec_of(t_var()),
                 TypeExpr::Fn {
@@ -19125,6 +19307,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::i64::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19134,6 +19317,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::i64::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -19147,6 +19331,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::i64/to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -19178,6 +19363,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op_name.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![i64_ty(), i64_ty()],
                 ret: bool_ty(),
                 rest_param_type: None,
@@ -19212,6 +19398,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     // the row's own `type_params` (`&["T"]` for the PV trio, `&[]` for every
                     // monomorphic row — byte-identical behavior for all 27 pre-existing rows).
                     type_params: op.type_params.iter().map(|s| s.to_string()).collect(),
+                    type_param_bounds: vec![None; op.type_params.len()],
                     params: op.params.iter().map(|p| p.to_type_expr()).collect(),
                     ret: declared_ret.to_type_expr(),
                     rest_param_type: None,
@@ -19227,6 +19414,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::vocabulary-admitted?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Path(":wat::core::bool".into()),
             rest_param_type: None,
@@ -19252,6 +19440,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op_name.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![f64_ty(), f64_ty()],
                 ret: bool_ty(),
                 rest_param_type: None,
@@ -19264,6 +19453,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::i64/to-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19282,6 +19472,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::f64::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![f64_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19291,6 +19482,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::f64::to-i64".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![f64_ty()],
             ret: opt_i64_ty(),
             rest_param_type: None,
@@ -19300,6 +19492,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::to-i64".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: opt_i64_ty(),
             rest_param_type: None,
@@ -19309,6 +19502,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: opt_f64_ty(),
             rest_param_type: None,
@@ -19318,6 +19512,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::bool::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![bool_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19327,6 +19522,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::to-bool".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: opt_bool_ty(),
             rest_param_type: None,
@@ -19344,6 +19540,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::keyword::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![keyword_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19353,6 +19550,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::keyword::from-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: keyword_ty(),
             rest_param_type: None,
@@ -19369,6 +19567,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::empty?".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -19384,6 +19583,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![string_ty(), string_ty()],
                 ret: bool_ty(),
                 rest_param_type: None,
@@ -19394,6 +19594,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::length".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -19403,6 +19604,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::trim".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19415,6 +19617,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::grep::canonical-name".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19424,6 +19627,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::to-lowercase".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19433,6 +19637,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::to-uppercase".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19442,6 +19647,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::pascal->kebab".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19456,6 +19662,7 @@ fn register_builtins(env: &mut CheckEnv) {
             ":wat::string::pascal->kebab-in".to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![keyword_ty(), string_ty()],
                 ret: string_ty(),
                 rest_param_type: None,
@@ -19465,6 +19672,7 @@ fn register_builtins(env: &mut CheckEnv) {
             ":wat::string::kebab->pascal-in".to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![keyword_ty(), string_ty()],
                 ret: string_ty(),
                 rest_param_type: None,
@@ -19475,6 +19683,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::subs".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty(), TypeExpr::Path(":wat::core::i64".into()), TypeExpr::Path(":wat::core::i64".into())],
             ret: string_ty(),
             rest_param_type: None,
@@ -19484,6 +19693,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::split".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty(), string_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -19496,6 +19706,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::join".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 string_ty(),
                 // Stone D (arc 255) — widened from `Vector` to the `Seqable` surface
@@ -19521,6 +19732,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::regex::matches?".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty(), string_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -19543,6 +19755,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::uuid::v4".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: uuid_ty(),
             rest_param_type: None,
@@ -19555,6 +19768,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::uuid::v5".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![uuid_ty(), string_ty()],
             ret: uuid_ty(),
             rest_param_type: None,
@@ -19566,6 +19780,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::uuid::from-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: opt_uuid_ty(),
             rest_param_type: None,
@@ -19576,6 +19791,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::uuid::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![uuid_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -19586,6 +19802,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::uuid::nil".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: uuid_ty(),
             rest_param_type: None,
@@ -19596,6 +19813,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::uuid::version".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![uuid_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -19606,6 +19824,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::uuid::rfc4122-variant?".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![uuid_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -19626,6 +19845,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::char".to_string(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: char_ty(),
             rest_param_type: None,
@@ -19656,6 +19876,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::not".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![bool_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -19677,6 +19898,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Atom".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -19689,6 +19911,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::to-holon".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -19699,6 +19922,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::leaf".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -19710,6 +19934,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::from-wat".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: holon_ty(),
             rest_param_type: None,
@@ -19723,6 +19948,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::from-holon".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![holon_ty()],
             ret: t_var(),
             rest_param_type: None,
@@ -19737,6 +19963,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::to-wat".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Path(":wat::WatAST".into()),
             rest_param_type: None,
@@ -19751,6 +19978,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::term::template".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -19760,6 +19988,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::term::slots".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -19772,6 +20001,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::term::ranges".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -19791,6 +20021,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::term::matches?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: TypeExpr::Path(":wat::core::bool".into()),
             rest_param_type: None,
@@ -19804,6 +20035,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::presence-floor".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::i64".into())],
             ret: TypeExpr::Path(":wat::core::f64".into()),
             rest_param_type: None,
@@ -19813,6 +20045,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::coincident-floor".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::i64".into())],
             ret: TypeExpr::Path(":wat::core::f64".into()),
             rest_param_type: None,
@@ -19834,6 +20067,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/make".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![filter_ty()],
             ret: hologram_ty(),
             rest_param_type: None,
@@ -19843,6 +20077,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/put".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![hologram_ty(), holon_ty(), holon_ty()],
             ret: TypeExpr::Tuple(vec![]),
             rest_param_type: None,
@@ -19852,6 +20087,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/get".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![hologram_ty(), holon_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -19869,6 +20105,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/find".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![hologram_ty(), holon_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -19881,6 +20118,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/remove".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![hologram_ty(), holon_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -19893,6 +20131,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/len".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![hologram_ty()],
             ret: TypeExpr::Path(":wat::core::i64".into()),
             rest_param_type: None,
@@ -19902,6 +20141,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/capacity".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![hologram_ty()],
             ret: TypeExpr::Path(":wat::core::i64".into()),
             rest_param_type: None,
@@ -19915,6 +20155,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::therm-form".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -19963,6 +20204,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-ast!".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![wat_ast_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Result".into(),
@@ -19997,6 +20239,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-with-defs!".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 wat_ast_ty(),
                 TypeExpr::Parametric {
@@ -20020,6 +20263,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-step!".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![wat_ast_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Result".into(),
@@ -20045,6 +20289,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval::walk".into(),
         TypeScheme {
             type_params: vec!["A".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 wat_ast_ty(),
                 TypeExpr::Path("A".into()),
@@ -20074,6 +20319,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-edn!".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             // <source-string>
             params: vec![string_ty()],
             ret: eval_result_ty(),
@@ -20084,6 +20330,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-file!".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             // <path>
             params: vec![string_ty()],
             ret: eval_result_ty(),
@@ -20094,6 +20341,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-digest!".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             // <path>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
             params: vec![string_ty(), keyword_ty(), keyword_ty(), string_ty()],
             ret: eval_result_ty(),
@@ -20104,6 +20352,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-digest-string!".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             // <source>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
             params: vec![string_ty(), keyword_ty(), keyword_ty(), string_ty()],
             ret: eval_result_ty(),
@@ -20114,6 +20363,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-signed!".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             // <path>, :wat::verify::signed-<algo>,
             // :wat::verify::<iface>, <sig>, :wat::verify::<iface>, <pubkey>
             params: vec![
@@ -20132,6 +20382,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::eval-signed-string!".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             // <source>, :wat::verify::signed-<algo>,
             // :wat::verify::<iface>, <sig>, :wat::verify::<iface>, <pubkey>
             params: vec![
@@ -20150,6 +20401,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Bind".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -20167,6 +20419,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Bundle".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![holon_ty()],
@@ -20185,6 +20438,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Permute".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty(), i64_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -20194,6 +20448,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Thermometer".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -20203,6 +20458,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Blend".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty(), holon_ty(), f64_ty(), f64_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -20218,6 +20474,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Map".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![holon_ty()],
@@ -20230,6 +20487,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Set".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![holon_ty()],
@@ -20242,6 +20500,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Vector".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![holon_ty()],
@@ -20254,6 +20513,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::List".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![holon_ty()],
@@ -20266,6 +20526,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Tuple".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![holon_ty()],
@@ -20282,6 +20543,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty(), string_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20291,6 +20553,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Map?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20300,6 +20563,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Set?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20309,6 +20573,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Vector?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20318,6 +20583,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-List?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20327,6 +20593,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Tuple?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20336,6 +20603,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Symbol?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20345,6 +20613,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Keyword?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20354,6 +20623,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Tag?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20363,6 +20633,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::is-Nil?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20387,6 +20658,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::presence?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20413,6 +20685,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::eval-coincident?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![wat_ast_ty(), wat_ast_ty()],
             ret: eval_coincident_ret(),
             rest_param_type: None,
@@ -20425,6 +20698,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::eval-edn-coincident?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty(), string_ty()],
             ret: eval_coincident_ret(),
             rest_param_type: None,
@@ -20435,6 +20709,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::eval-digest-coincident?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(),
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(),
@@ -20448,6 +20723,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::eval-digest-string-coincident?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(),
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(),
@@ -20461,6 +20737,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::eval-signed-coincident?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
@@ -20474,6 +20751,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::eval-signed-string-coincident?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
@@ -20490,6 +20768,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::config::dim-count".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: i64_ty(),
             rest_param_type: None,
@@ -20499,6 +20778,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::config::dim-capacity".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: i64_ty(),
             rest_param_type: None,
@@ -20508,6 +20788,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::config::global-seed".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: i64_ty(),
             rest_param_type: None,
@@ -20517,6 +20798,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::config::noise-floor".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: f64_ty(),
             rest_param_type: None,
@@ -20529,6 +20811,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::stopped?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: bool_ty(),
             rest_param_type: None,
@@ -20543,6 +20826,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::call-site".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::kernel::Frame".into()),
             rest_param_type: None,
@@ -20560,6 +20844,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::macro-call-site".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::WatAST".into()),
             rest_param_type: None,
@@ -20574,6 +20859,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::program::env".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::program::Env".into()),
             rest_param_type: None,
@@ -20587,6 +20873,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::program::cpu-count".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: i64_ty(),
             rest_param_type: None,
@@ -20600,6 +20887,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::argv".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -20616,6 +20904,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::current-thread".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -20627,6 +20916,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::pipe".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Tuple(vec![
                 TypeExpr::Path(":wat::io::IOWriter".into()),
@@ -20649,6 +20939,7 @@ fn register_builtins(env: &mut CheckEnv) {
             path.into(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![],
                 ret: bool_ty(),
                 rest_param_type: None,
@@ -20664,6 +20955,7 @@ fn register_builtins(env: &mut CheckEnv) {
             path.into(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![],
                 ret: TypeExpr::Tuple(vec![]),
                 rest_param_type: None,
@@ -20700,6 +20992,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::LociDiedError/message".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -20720,6 +21013,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::Failure/message".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::Record".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -20729,6 +21023,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::Failure/location".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::Record".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -20746,6 +21041,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::LociDiedError/to-failure".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
             ret: TypeExpr::Path(":wat::kernel::Failure".into()),
             rest_param_type: None,
@@ -20768,6 +21064,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::HandlePool/new".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 TypeExpr::Path(":wat::core::String".into()),
                 TypeExpr::Parametric {
@@ -20786,6 +21083,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::HandlePool/pop".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![TypeExpr::Parametric {
                 head: "wat::kernel::HandlePool".into(),
                 args: vec![t_var()],
@@ -20798,6 +21096,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::HandlePool/finish".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![TypeExpr::Parametric {
                 head: "wat::kernel::HandlePool".into(),
                 args: vec![t_var()],
@@ -20824,6 +21123,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::encode".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Path(":wat::holon::Vector".into()),
             rest_param_type: None,
@@ -20841,6 +21141,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::vector-bytes".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::holon::Vector".into())],
             ret: TypeExpr::Path(":wat::core::Bytes".into()),
             rest_param_type: None,
@@ -20850,6 +21151,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::bytes-vector".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             // Arc 278 the dimension-heresy strike — was
             // `(:Option :- [wat::holon::Vector])`, collapsing four distinct
@@ -20867,6 +21169,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Bytes/to-hex".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -20876,6 +21179,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Bytes/from-hex".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -20892,6 +21196,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::intrinsic::variadic-args-measurement".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::core::i64".into()),
             rest_param_type: Some(TypeExpr::Parametric {
@@ -20905,6 +21210,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::intrinsic::yields-witness".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Fn {
                 args: vec![TypeExpr::Path(":wat::core::i64".into())],
                 ret: Box::new(TypeExpr::Path(":wat::core::i64".into())),
@@ -20922,6 +21228,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::show".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -20943,6 +21250,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.into(),
             TypeScheme {
                 type_params: vec!["T".into()],
+                type_param_bounds: vec![None],
                 params: vec![t_var()],
                 ret: TypeExpr::Path(":wat::core::String".into()),
                 rest_param_type: None,
@@ -20958,6 +21266,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::read".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: t_var(),
             rest_param_type: None,
@@ -20973,6 +21282,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::read-foreign".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::edn::ReadForeignOutcome".into(),
@@ -20993,6 +21303,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::ForeignRecord/get".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::edn::ForeignRecord".into()),
                 TypeExpr::Path(":wat::core::keyword".into()),
@@ -21006,6 +21317,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::ForeignRecord/class".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::edn::ForeignRecord".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -21019,6 +21331,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::ForeignVariant/variant".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::Value".into())],
             ret: TypeExpr::Path(":wat::core::keyword".into()),
             rest_param_type: None,
@@ -21029,6 +21342,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::ForeignVariant/enum-class".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::Value".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -21039,6 +21353,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::ForeignVariant/fields".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::Value".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -21063,6 +21378,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::read-json".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::edn::ReadJsonOutcome".into(),
@@ -21085,6 +21401,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::read-string".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: TypeExpr::Path(":wat::core::ReadOutcome".into()),
             rest_param_type: None,
@@ -21097,6 +21414,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::read-string-with-comments".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
             ret: TypeExpr::Path(":wat::core::ReadWithCommentsOutcome".into()),
             rest_param_type: None,
@@ -21108,6 +21426,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::write-forms".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -21120,6 +21439,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::ast->source".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -21132,6 +21452,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::ast->children".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -21147,6 +21468,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::with-children".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Parametric {
@@ -21161,13 +21483,16 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 251.5a-v — node recognition + construction.
     env.register(":wat::core::ast-kind".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
     env.register(":wat::core::ast-name".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
     // Stone 251.5 / Slice 4.2a — source start location: {:line i64 :col i64}.
     env.register(":wat::core::ast-span".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_param_bounds: vec![None],
         ret: TypeExpr::Parametric {
             head: "wat::core::HashMap".into(),
             args: vec![
@@ -21180,6 +21505,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 281 — source END location: {:line i64 :col i64} (one char past the node's last char).
     env.register(":wat::core::ast-end-span".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_param_bounds: vec![None],
         ret: TypeExpr::Parametric {
             head: "wat::core::HashMap".into(),
             args: vec![
@@ -21191,9 +21517,11 @@ fn register_builtins(env: &mut CheckEnv) {
     });
     env.register(":wat::core::symbol-node".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
+        type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     env.register(":wat::core::keyword-node".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
+        type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 251 head role-inversion — a rust-scheme call-head Keyword node → a faithful-Clojure
     // Symbol node (the inverse of `ns_to_wat_path`'s grammar; the kind change IS the inversion).
@@ -21202,12 +21530,15 @@ fn register_builtins(env: &mut CheckEnv) {
     // (registered here, VERBATIM schemes) are their replacements (see `src/remedy/retirement.rs`).
     env.register(":wat::keyword::to-symbol".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     env.register(":wat::keyword::to-type-form".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     env.register(":wat::keyword::to-type-form-colon".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
@@ -21231,6 +21562,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.into(),
             TypeScheme {
                 type_params: vec!["T".into()],
+                type_param_bounds: vec![None],
                 params: vec![t_var()],
                 ret: unit_ty(),
                 rest_param_type: None,
@@ -21251,6 +21583,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.into(),
             TypeScheme {
                 type_params: vec!["T".into(), "R".into()],
+                type_param_bounds: vec![None, None],
                 params: vec![TypeExpr::Path(":T".into())],
                 ret: TypeExpr::Path(":R".into()),
                 rest_param_type: None,
@@ -21267,6 +21600,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::readln'".into(),  // rune:lint(retired-name) — readln' is the readln defmacro's expansion target; same name, two forms (structurally required)
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![],
             ret: t_var(),
             rest_param_type: None,
@@ -21283,6 +21617,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::kernel::read-frame".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::kernel::ReadFrameOutcome".into()),
             rest_param_type: None,
@@ -21301,6 +21636,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::vector-bind".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![vector_ty(), vector_ty()],
             ret: combine_outcome_ty(),
             rest_param_type: None,
@@ -21310,6 +21646,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::vector-bundle".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![vector_ty()],
@@ -21322,6 +21659,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::vector-blend".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![vector_ty(), vector_ty(), f64_ty(), f64_ty()],
             ret: combine_outcome_ty(),
             rest_param_type: None,
@@ -21331,6 +21669,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::vector-permute".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![vector_ty(), i64_ty()],
             ret: vector_ty(),
             rest_param_type: None,
@@ -21346,6 +21685,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::OnlineSubspace/new".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty(), i64_ty()],
             ret: subspace_ty(),
             rest_param_type: None,
@@ -21360,6 +21700,7 @@ fn register_builtins(env: &mut CheckEnv) {
             unary_to_i64.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![subspace_ty()],
                 ret: i64_ty(),
                 rest_param_type: None,
@@ -21370,6 +21711,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::OnlineSubspace/threshold".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![subspace_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -21379,6 +21721,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::OnlineSubspace/eigenvalues".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![subspace_ty()],
             ret: vec_f64_ty(),
             rest_param_type: None,
@@ -21388,6 +21731,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::OnlineSubspace/update".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![subspace_ty(), vector_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -21397,6 +21741,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::OnlineSubspace/residual".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![subspace_ty(), vector_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -21410,6 +21755,7 @@ fn register_builtins(env: &mut CheckEnv) {
             unary_to_vec.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![subspace_ty(), vector_ty()],
                 ret: vec_f64_ty(),
                 rest_param_type: None,
@@ -21427,6 +21773,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/new-discrete".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 string_ty(),
                 i64_ty(),
@@ -21444,6 +21791,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/new-continuous".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty(), i64_ty(), i64_ty(), f64_ty(), i64_ty()],
             ret: reckoner_ty(),
             rest_param_type: None,
@@ -21453,6 +21801,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/observe".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![reckoner_ty(), vector_ty(), i64_ty(), f64_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -21462,6 +21811,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/predict".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![reckoner_ty(), vector_ty()],
             ret: TypeExpr::Tuple(vec![
                 TypeExpr::Parametric {
@@ -21482,6 +21832,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/resolve".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![reckoner_ty(), f64_ty(), bool_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -21491,6 +21842,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/curve".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![reckoner_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -21503,6 +21855,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/labels".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![reckoner_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -21515,6 +21868,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Reckoner/dims".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![reckoner_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -21527,6 +21881,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Engram/name".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![engram_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -21536,6 +21891,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Engram/eigenvalue-signature".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![engram_ty()],
             ret: vec_f64_ty(),
             rest_param_type: None,
@@ -21545,6 +21901,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Engram/n".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![engram_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -21554,6 +21911,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Engram/residual".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![engram_ty(), vector_ty()],
             ret: f64_ty(),
             rest_param_type: None,
@@ -21566,6 +21924,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::EngramLibrary/new".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty()],
             ret: library_ty(),
             rest_param_type: None,
@@ -21575,6 +21934,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::EngramLibrary/add".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![library_ty(), string_ty(), subspace_ty()],
             ret: unit_ty(),
             rest_param_type: None,
@@ -21584,6 +21944,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::EngramLibrary/match-vec".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![library_ty(), vector_ty(), i64_ty(), i64_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -21596,6 +21957,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::EngramLibrary/len".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![library_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -21605,6 +21967,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::EngramLibrary/contains".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![library_ty(), string_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -21614,6 +21977,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::EngramLibrary/names".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![library_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
@@ -21640,6 +22004,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::statement-length".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -21661,6 +22026,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::lookup-define".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![keyword_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
@@ -21670,6 +22036,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::signature-of-defn".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![keyword_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
@@ -21679,6 +22046,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::body-of".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![keyword_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
@@ -21705,6 +22073,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::signature-of-fn".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![fn_ty()],
             ret: TypeExpr::Path(":wat::WatAST".into()),
             rest_param_type: None,
@@ -21718,6 +22087,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::return-type-of".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![fn_ty()],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -21746,6 +22116,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::rename-callable-name".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![watast_ty(), keyword_ty(), keyword_ty()],
             ret: watast_ty(),
             rest_param_type: None,
@@ -21755,6 +22126,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::extract-arg-names".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![watast_ty()],
             ret: vec_kw_ty(),
             rest_param_type: None,
@@ -21772,6 +22144,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::extract-arg-types".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![watast_ty()],
             ret: vec_watast_ty(),
             rest_param_type: None,
@@ -21801,6 +22174,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Bundle/children".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: vec_holon_ty(),
             rest_param_type: None,
@@ -21810,6 +22184,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Bundle/first".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: holon_ty(),
             rest_param_type: None,
@@ -21838,6 +22213,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::extract-classifier".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: opt_string_ty(),
             rest_param_type: None,
@@ -21847,6 +22223,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Bind/left".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
@@ -21856,6 +22233,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Bind/right".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: opt_holon_ty(),
             rest_param_type: None,
@@ -21883,6 +22261,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::math::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![f64_ty()],
                 ret: f64_ty(),
                 rest_param_type: None,
@@ -21893,6 +22272,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::math::pi".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: f64_ty(),
             rest_param_type: None,
@@ -21917,6 +22297,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::stat::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![vec_f64_ty()],
                 ret: opt_f64_ty(),
                 rest_param_type: None,
@@ -21939,6 +22320,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::time::now".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![],
             ret: instant_ty(),
             rest_param_type: None,
@@ -21950,6 +22332,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![i64_ty()],
                 ret: instant_ty(),
                 rest_param_type: None,
@@ -21960,6 +22343,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::time::from-iso8601".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: opt_instant_ty(),
             rest_param_type: None,
@@ -21969,6 +22353,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::time::to-iso8601".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![instant_ty(), i64_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -21980,6 +22365,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![instant_ty()],
                 ret: i64_ty(),
                 rest_param_type: None,
@@ -22005,6 +22391,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![i64_ty()],
                 ret: duration_ty(),
                 rest_param_type: None,
@@ -22028,6 +22415,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![duration_ty()],
                 ret: i64_ty(),
                 rest_param_type: None,
@@ -22043,6 +22431,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![duration_ty()],
                 ret: instant_ty(),
                 rest_param_type: None,
@@ -22074,6 +22463,7 @@ fn register_builtins(env: &mut CheckEnv) {
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![i64_ty()],
                 ret: instant_ty(),
                 rest_param_type: None,
@@ -22115,6 +22505,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::range".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![i64_ty(), i64_ty()],
             ret: vec_of(i64_ty()),
             rest_param_type: None,
@@ -22133,6 +22524,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::sort$native".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 TypeExpr::Fn {
                     args: vec![t_var(), t_var()],
@@ -22153,6 +22545,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::map".into(),
         TypeScheme {
             type_params: vec!["T".into(), "U".into()],
+            type_param_bounds: vec![None, None],
             params: vec![
                 TypeExpr::Fn {
                     args: vec![t_var()],
@@ -22168,6 +22561,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::mapv".into(),
         TypeScheme {
             type_params: vec!["T".into(), "U".into()],
+            type_param_bounds: vec![None, None],
             params: vec![
                 TypeExpr::Fn {
                     args: vec![t_var()],
@@ -22189,6 +22583,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::foldl".into(),
         TypeScheme {
             type_params: vec!["T".into(), "Acc".into()],
+            type_param_bounds: vec![None, None],
             params: vec![
                 TypeExpr::Fn {
                     args: vec![acc_var(), t_var()],
@@ -22210,6 +22605,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::filter".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 TypeExpr::Fn {
                     args: vec![t_var()],
@@ -22239,6 +22635,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::rest".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var())],
             ret: vec_of(t_var()),
             rest_param_type: None,
@@ -22378,6 +22775,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::get".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
             ret: opt(v_var()),
             rest_param_type: None,
@@ -22387,6 +22785,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::assoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var()), k_var(), v_var()],
             ret: persistentmap_of(k_var(), v_var()),
             rest_param_type: None,
@@ -22396,6 +22795,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::dissoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
             ret: persistentmap_of(k_var(), v_var()),
             rest_param_type: None,
@@ -22405,6 +22805,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::keys".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var())],
             ret: vec_of(k_var()),
             rest_param_type: None,
@@ -22414,6 +22815,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::values".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var())],
             ret: vec_of(v_var()),
             rest_param_type: None,
@@ -22423,6 +22825,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::length".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var())],
             ret: i64_ty(),
             rest_param_type: None,
@@ -22432,6 +22835,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::empty?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22441,6 +22845,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::map::contains-key?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22450,6 +22855,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::get".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: opt(v_var()),
             rest_param_type: None,
@@ -22459,6 +22865,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::assoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
             ret: hashmap_of(k_var(), v_var()),
             rest_param_type: None,
@@ -22468,6 +22875,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::dissoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: hashmap_of(k_var(), v_var()),
             rest_param_type: None,
@@ -22477,6 +22885,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::keys".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var())],
             ret: vec_of(k_var()),
             rest_param_type: None,
@@ -22486,6 +22895,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::values".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var())],
             ret: vec_of(v_var()),
             rest_param_type: None,
@@ -22495,6 +22905,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::length".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var())],
             ret: i64_ty(),
             rest_param_type: None,
@@ -22504,6 +22915,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::empty?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22513,6 +22925,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashmap::contains-key?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22536,6 +22949,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vector::length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![pv_of(t_var())],
             ret: i64_ty(),
             rest_param_type: None,
@@ -22545,6 +22959,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vector::empty?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![pv_of(t_var())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22554,6 +22969,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vector::contains?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![pv_of(t_var()), t_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22563,6 +22979,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vector::get".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![pv_of(t_var()), i64_ty()],
             ret: opt(t_var()),
             rest_param_type: None,
@@ -22572,6 +22989,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vector::conj".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![pv_of(t_var()), t_var()],
             ret: pv_of(t_var()),
             rest_param_type: None,
@@ -22584,6 +23002,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vector::concat".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![pv_of(t_var()), pv_of(t_var())],
             ret: pv_of(t_var()),
             rest_param_type: None,
@@ -22593,6 +23012,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vec::length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var())],
             ret: i64_ty(),
             rest_param_type: None,
@@ -22602,6 +23022,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vec::empty?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22611,6 +23032,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vec::contains?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var()), t_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22620,6 +23042,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vec::get".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var()), i64_ty()],
             ret: opt(t_var()),
             rest_param_type: None,
@@ -22629,6 +23052,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vec::conj".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var()), t_var()],
             ret: vec_of(t_var()),
             rest_param_type: None,
@@ -22638,6 +23062,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vec::concat".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var()), vec_of(t_var())],
             ret: vec_of(t_var()),
             rest_param_type: None,
@@ -22649,6 +23074,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::vec::extend".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var()), vec_of(t_var())],
             ret: vec_of(t_var()),
             rest_param_type: None,
@@ -22672,6 +23098,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashset::length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![hashset_of(t_var())],
             ret: i64_ty(),
             rest_param_type: None,
@@ -22681,6 +23108,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashset::empty?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![hashset_of(t_var())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22690,6 +23118,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashset::contains?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![hashset_of(t_var()), t_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22699,6 +23128,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::hashset::conj".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![hashset_of(t_var()), t_var()],
             ret: hashset_of(t_var()),
             rest_param_type: None,
@@ -22745,6 +23175,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::string::concat".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![string_ty(), string_ty()],
             ret: string_ty(),
             rest_param_type: None,
@@ -22762,6 +23193,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Vector".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: vec_of(t_var()),
             rest_param_type: None,
@@ -22779,6 +23211,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Tuple".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: TypeExpr::Tuple(vec![t_var()]),
             rest_param_type: None,
@@ -22796,6 +23229,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::HashMap".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
+            type_param_bounds: vec![None, None],
             params: vec![k_var(), v_var()],
             ret: hashmap_of(k_var(), v_var()),
             rest_param_type: None,
@@ -22810,6 +23244,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::HashSet".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: hashset_of(t_var()),
             rest_param_type: None,
@@ -22828,6 +23263,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::apply".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![keyword_ty()],
             ret: t_var(),
             rest_param_type: None,
@@ -22848,6 +23284,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::type".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
@@ -22864,6 +23301,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: i64_ty(),
             rest_param_type: None,
@@ -22880,6 +23318,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::empty?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22896,6 +23335,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::stream::empty".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![],
             ret: seq_t(),
             rest_param_type: None,
@@ -22906,6 +23346,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::stream::cons".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var(), seq_t()],
             ret: seq_t(),
             rest_param_type: None,
@@ -22919,6 +23360,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::stream::next".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![seq_t()],
             ret: TypeExpr::Parametric {
                 head: "wat::stream::NextOutcome".into(),
@@ -22941,6 +23383,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::stream->vec".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![vec_of(t_var()), seq_t()],
             ret: vec_of(t_var()),
             rest_param_type: None,
@@ -22950,6 +23393,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::stream->pvec".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![pv_of(t_var()), seq_t()],
             ret: pv_of(t_var()),
             rest_param_type: None,
@@ -22968,6 +23412,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::contains?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var(), t_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -22978,6 +23423,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::get".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var(), t_var()],
             ret: opt(t_var()),
             rest_param_type: None,
@@ -22988,6 +23434,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::conj".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var(), t_var()],
             ret: t_var(),
             rest_param_type: None,
@@ -23002,6 +23449,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::assoc".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var(), t_var(), t_var()],
             ret: t_var(),
             rest_param_type: None,
@@ -23023,6 +23471,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Record/field-at".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![record_ty(), i64_ty()],
             ret: t_var(),
             rest_param_type: None,
@@ -23047,6 +23496,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::List?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -23057,6 +23507,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::record?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -23071,6 +23522,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::record->map".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![record_ty()],
             ret: TypeExpr::Parametric {
                 head: "wat::core::HashMap".into(),
@@ -23094,6 +23546,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Record/assoc".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![record_ty(), TypeExpr::Path(":wat::core::keyword".into()), t_var()],
             ret: record_ty(),
             rest_param_type: None,
@@ -23110,6 +23563,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::Record/same-data?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![record_ty(), record_ty()],
             ret: bool_ty(),
             rest_param_type: None,
@@ -23131,6 +23585,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::conforms?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
+            type_param_bounds: vec![None],
             params: vec![t_var(), TypeExpr::Path(":wat::core::keyword".into())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -23150,6 +23605,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::subtype?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::core::keyword".into()),
                 TypeExpr::Path(":wat::core::keyword".into()),
@@ -23170,6 +23626,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::is-type?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::keyword".into())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -23187,6 +23644,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::declared-types".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
@@ -23201,6 +23659,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::declared-stdlib-types".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
@@ -23222,6 +23681,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::variant-parent-of".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::keyword".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -23244,6 +23704,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::compose-variant".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::core::keyword".into()),
                 TypeExpr::Path(":wat::core::keyword".into()),
@@ -23267,6 +23728,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::alpha-match".into(),
         TypeScheme {
             type_params: vec!["V".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Path(":wat::core::Record".into()),
@@ -23289,6 +23751,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::cond-has-deferred-constraint?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: bool_ty(),
             rest_param_type: None,
@@ -23299,6 +23762,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::alpha-match-local".into(),
         TypeScheme {
             type_params: vec!["V".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Path(":wat::core::Record".into()),
@@ -23321,6 +23785,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::alpha-match-under".into(),
         TypeScheme {
             type_params: vec!["V".into()],
+            type_param_bounds: vec![None],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Path(":wat::core::Record".into()),
@@ -23357,6 +23822,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::eval-insert".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Path(":wat::core::PersistentMap".into()),
@@ -23373,6 +23839,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::export".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Path(":wat::rete::Export".into()),
             rest_param_type: None,
@@ -23382,6 +23849,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::import".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Export".into())],
             ret: TypeExpr::Path(":wat::rete::Session".into()),
             rest_param_type: None,
@@ -23391,6 +23859,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::collect-rules".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::core::keyword".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::PersistentVector".into(),
@@ -23412,6 +23881,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::fire-once$native".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::rete::FireOutcome".into(),
@@ -23426,6 +23896,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::fire-rules$native".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::rete::FireOutcome".into(),
@@ -23438,6 +23909,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::fire-rules-explain$native".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::rete::FireOutcome".into(),
@@ -23453,6 +23925,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::insert$native".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::rete::Session".into()),
                 TypeExpr::Path(":wat::core::Record".into()),
@@ -23465,6 +23938,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::insert-all$native".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::rete::Session".into()),
                 TypeExpr::Parametric {
@@ -23491,6 +23965,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::arm-session".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Path(":wat::rete::CompileOutcome".into()),
             rest_param_type: None,
@@ -23503,6 +23978,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::release-session".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Path(":wat::rete::Session".into()),
             rest_param_type: None,
@@ -23516,6 +23992,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::adopt-session-lease".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
             ret: TypeExpr::Path(":rust::rete::ArmLease".into()),
             rest_param_type: None,
@@ -23532,6 +24009,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::step-payload".into(), 
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::rete::Session".into()),
                 TypeExpr::Path(":wat::core::i64".into()),
@@ -23554,6 +24032,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::pure?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Path(":wat::core::bool".into()),
             rest_param_type: None,
@@ -23563,6 +24042,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::deterministic?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Path(":wat::core::bool".into()),
             rest_param_type: None,
@@ -23576,6 +24056,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::total?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Path(":wat::core::bool".into()),
             rest_param_type: None,
@@ -23589,6 +24070,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::primitive?".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: TypeExpr::Path(":wat::core::bool".into()),
             rest_param_type: None,
@@ -23598,6 +24080,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::lower".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             // Arc 255 STONE-the-round-trip-closes, Q1: `:wat::core::nil` is a `TypeDef::Alias`
             // to `Tuple(vec![])` (`src/types.rs:1069`); the doc-type parser canonicalizes it on
@@ -23618,6 +24101,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::axis-violation".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Path(":wat::rete::Axis".into()),
@@ -23635,6 +24119,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::rete::eval-test".into(),
         TypeScheme {
             type_params: vec![],
+            type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Path(":wat::core::PersistentMap".into()),
@@ -23664,6 +24149,7 @@ fn register_builtins(env: &mut CheckEnv) {
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
+                type_param_bounds: vec![],
                 params: vec![],
                 ret: opt(f64_ty()),
                 rest_param_type: Some(vec_of(f64_ty())),

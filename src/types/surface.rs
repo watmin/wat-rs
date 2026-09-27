@@ -296,21 +296,25 @@ fn parse_method_member_sig(
     // but the exact same shape, so the rune below would refuse it either way).
     let tail = &sig_items[1..];
     let has_marker = tail.first().is_some_and(crate::types::is_binder_marker);
-    let (method_name, type_params, rest): (String, Vec<String>, &[WatAST]) =
-        match crate::types::peel_param_spec(tail) {
+    let (method_name, type_params, type_param_bounds, rest): (
+        String,
+        Vec<String>,
+        Vec<Option<TypeExpr>>,
+        &[WatAST],
+    ) = match crate::types::peel_param_spec(tail) {
             (Some(items), after) => {
-                // Mirrors `src/function/metadata.rs::peel_type_binder` (γ-i's shape) —
-                // `!id.is_reference()` keeps only local binder names.
-                let params: Vec<String> = items
-                    .iter()
-                    .filter_map(|item| match item {
-                        WatAST::Symbol(id, _) if !id.is_reference() => {
-                            Some(id.as_str().to_string())
-                        }
-                        _ => None,
-                    })
-                    .collect();
-                (name_raw.to_owned(), params, after)
+                let params = crate::types::parse_binder_entries(items).map_err(|(span, reason)| {
+                    TypeError::new(
+                        span,
+                        TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!("method member `{name_raw}`: {reason}"),
+                        },
+                    )
+                })?;
+                let bounds = params.iter().map(|p| p.bound.clone()).collect();
+                let names = params.into_iter().map(|p| p.name).collect();
+                (name_raw.to_owned(), names, bounds, after)
             }
             (None, _) if has_marker => {
                 return Err(TypeError::new(
@@ -325,7 +329,7 @@ fn parse_method_member_sig(
                     },
                 ));
             }
-            (None, _) => (name_raw.to_owned(), Vec::new(), tail),
+            (None, _) => (name_raw.to_owned(), Vec::new(), Vec::new(), tail),
         };
 
     if rest.len() < 3 {
@@ -545,6 +549,7 @@ fn parse_method_member_sig(
         args: Box::new(args),
         ret,
         type_params, // Arc 293.4e-pre.ii — extracted by split_method_name_type_params above
+        type_param_bounds,
         max_request_bytes, // Arc 278 #16 Stone 16.0 — kwargs option `:max-request-bytes N` (default: 512 KiB)
         max_request_bytes_explicit, // Arc 278 #16 Stone 16.3 — was the key actually written?
     })

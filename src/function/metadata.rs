@@ -45,20 +45,13 @@ pub(super) fn peel_metadata_preamble(args: &[WatAST]) -> &[WatAST] {
 /// UNPEELED — `(None, args)` — so the existing `parse_fn_signature_prefix`
 /// diagnostic ("expected a vector ... got keyword") fires naturally on the
 /// stray `:-` keyword, rather than this peel inventing a second error path.
-pub(crate) fn peel_type_binder(args: &[WatAST]) -> (Option<Vec<String>>, &[WatAST]) {
+pub(crate) fn peel_type_binder(
+    args: &[WatAST],
+) -> Result<(Option<Vec<crate::types::BinderParam>>, &[WatAST]), (crate::span::Span, String)> {
     let (peeled, rest) = crate::types::peel_param_spec(args);
     match peeled {
-        Some(items) => {
-            let names: Vec<String> = items
-                .iter()
-                .filter_map(|item| match item {
-                    WatAST::Symbol(id, _) if !id.is_reference() => Some(id.as_str().to_string()),
-                    _ => None,
-                })
-                .collect();
-            (Some(names), rest)
-        }
-        None => (None, args),
+        Some(items) => Ok((Some(crate::types::parse_binder_entries(items)?), rest)),
+        None => Ok((None, args)),
     }
 }
 

@@ -287,6 +287,7 @@ fn type_def_denoted(d: &TypeDef) -> TypeDef {
                         args,
                         ret,
                         type_params,
+                        type_param_bounds,
                         max_request_bytes,
                         max_request_bytes_explicit,
                     } => SurfaceMember::Method {
@@ -294,6 +295,10 @@ fn type_def_denoted(d: &TypeDef) -> TypeDef {
                         args: Box::new(argspec_denoted(args)),
                         ret: type_expr_denoted(ret),
                         type_params: type_params.clone(),
+                        type_param_bounds: type_param_bounds
+                            .iter()
+                            .map(|b| b.as_ref().map(type_expr_denoted))
+                            .collect(),
                         max_request_bytes: *max_request_bytes,
                         max_request_bytes_explicit: *max_request_bytes_explicit,
                     },
@@ -743,6 +748,9 @@ pub enum SurfaceMember {
         args: Box<crate::argspec::ArgSpec>,
         ret: TypeExpr,
         type_params: Vec<String>,
+        /// Parallel to `type_params`. Stone 255.51. A bound is parsed and kept;
+        /// method dispatch does not enforce it in this stone.
+        type_param_bounds: Vec<Option<TypeExpr>>,
         /// Arc 278 #16 Stone 16.0 — per-operation request-byte budget, parsed from the
         /// OPTIONAL `:max-request-bytes N` key in the kwargs options map that may follow
         /// `-> :RetType` on a `:features` op (options are order-independent `:keyword value`
@@ -5828,27 +5836,114 @@ pub(crate) fn peel_param_spec(args: &[WatAST]) -> (Option<&[WatAST]>, &[WatAST])
 ///
 /// Refused (`Err(reason)`, the caller wraps it in its own error type): a `:-` not followed by
 /// a `[…]` vector, and a binder entry that is not a bare, namespace-less symbol.
+/// One entry of a type binder: a bare name, or `[Name :< Bound]`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BinderParam {
+    pub name: String,
+    pub bound: Option<TypeExpr>,
+}
+
+fn render_binder_entry(item: &WatAST) -> String {
+    match item {
+        WatAST::Symbol(id, _) => id.as_str().to_string(),
+        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Vector(items, _) => {
+            let parts: Vec<String> = items.iter().map(render_binder_entry).collect();
+            format!("[{}]", parts.join(" "))
+        }
+        WatAST::List(items, _) => {
+            let parts: Vec<String> = items.iter().map(render_binder_entry).collect();
+            format!("({})", parts.join(" "))
+        }
+        other => other.variant_name().to_string(),
+    }
+}
+
+/// The one door for a type binder's entries. A bare name, or `[Name :< Type]`.
+/// Anything else is an error that names the entry. Nothing is dropped.
+pub(crate) fn parse_binder_entries(items: &[WatAST]) -> Result<Vec<BinderParam>, (Span, String)> {
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        match item {
+            WatAST::Symbol(id, _) if !id.is_reference() => {
+                out.push(BinderParam {
+                    name: id.as_str().to_string(),
+                    bound: None,
+                });
+            }
+            WatAST::Vector(inner, span) => {
+                let name = match inner.first() {
+                    Some(WatAST::Symbol(id, _)) if !id.is_reference() => id.as_str().to_string(),
+                    _ => {
+                        return Err((
+                            span.clone(),
+                            format!(
+                                "binder entry must be a bare name or [Name :< Type]; got {}",
+                                render_binder_entry(item)
+                            ),
+                        ));
+                    }
+                };
+                let kw_ok = matches!(inner.get(1), Some(WatAST::Keyword(k, _)) if k == ":<");
+                if inner.len() != 3 || !kw_ok {
+                    return Err((
+                        span.clone(),
+                        format!(
+                            "binder entry must be a bare name or [Name :< Type]; got {}",
+                            render_binder_entry(item)
+                        ),
+                    ));
+                }
+                let bound = parse_type_node(&inner[2]).map_err(|e| {
+                    (
+                        span.clone(),
+                        format!(
+                            "binder entry {}: {}",
+                            render_binder_entry(item),
+                            e
+                        ),
+                    )
+                })?;
+                out.push(BinderParam {
+                    name,
+                    bound: Some(bound),
+                });
+            }
+            other => {
+                return Err((
+                    other.span().clone(),
+                    format!(
+                        "binder entry must be a bare name or [Name :< Type]; got {}",
+                        render_binder_entry(other)
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(out)
+}
+
 pub(crate) fn extend_type_operands(
     items: &[WatAST],
 ) -> Result<(Option<Vec<String>>, &[WatAST]), String> {
     let tail = items.get(1..).unwrap_or(&[]);
     match peel_param_spec(tail) {
         (Some(entries), rest) => {
-            let mut names = Vec::with_capacity(entries.len());
-            for entry in entries {
-                match entry {
-                    WatAST::Symbol(id, _) if !id.is_reference() => {
-                        names.push(id.as_str().to_string())
-                    }
-                    other => {
-                        return Err(format!(
-                            "an extend-type binder `:- [P …]` declares bare parameter names; got {}",
-                            other.variant_name()
-                        ))
-                    }
-                }
+            let params = parse_binder_entries(entries).map_err(|(_, reason)| reason)?;
+            if let Some(bounded) = params.iter().find(|p| p.bound.is_some()) {
+                let shown = entries
+                    .iter()
+                    .find_map(|item| match item {
+                        WatAST::Vector(_, _) => Some(render_binder_entry(item)),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| format!("[{} :< …]", bounded.name));
+                return Err(format!(
+                    "extend-type does not accept a bounded type parameter yet \
+                     (conditional membership is a later stone); entry {shown}"
+                ));
             }
-            Ok((Some(names), rest))
+            Ok((Some(params.into_iter().map(|p| p.name).collect()), rest))
         }
         (None, _) if tail.first().is_some_and(is_binder_marker) => Err(
             "an extend-type `:-` binder must be followed by a `[P …]` vector of parameter names"

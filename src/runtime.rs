@@ -6940,6 +6940,7 @@ pub(crate) fn eval_lazy_seq(
         name: None,
         params: Vec::new(),
         type_params: Vec::new(),
+        type_param_bounds: vec![],
         param_types: Vec::new(),
         ret_type: crate::types::TypeExpr::Parametric {
             head: "wat::stream::Stream".into(),
@@ -20663,6 +20664,7 @@ mod tests {
                 name: Some(":my::helper".to_string()),
                 params: vec![],
                 type_params: vec![],
+                type_param_bounds: vec![],
                 param_types: vec![],
                 ret_type: crate::types::TypeExpr::Path(":wat::core::i64".to_string()),
                 rest_param: None,

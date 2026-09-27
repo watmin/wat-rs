@@ -1,0 +1,7 @@
+;; The element of an empty vector does not pin T. The bound stays unresolved.
+(:wat::core::defsurface :u::Mark :nature :wat::core::Record :features [])
+(:wat::core::defn :u::pass :- [[T :< :u::Mark]] [x <- :T] -> :T x)
+(:wat::core::defn :u::bad [] -> :wat::core::i64
+  (:wat::core::let [xs []]
+    (:wat::core::let [v (:u::pass (:wat::core::nth xs 0))]
+      1)))

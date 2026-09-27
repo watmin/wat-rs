@@ -76,7 +76,9 @@ pub(crate) fn eval_fn(
     let sig_args = peel_metadata_preamble(args);
     // Arc 109 gamma-i — peel an optional `:- [T U ...]` type-param binder,
     // immediately after metadata and before the args-vector.
-    let (binder, sig_args) = peel_type_binder(sig_args);
+    let (binder, sig_args) = peel_type_binder(sig_args).map_err(|(span, reason)| {
+        RuntimeError::new(span, RuntimeErrorKind::MalformedForm { head: FN_HEAD.into(), reason })
+    })?;
     if sig_args.len() < 3 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: FN_HEAD.into(),
@@ -100,7 +102,12 @@ pub(crate) fn eval_fn(
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,
-        type_params: binder.unwrap_or_default(),
+        type_params: binder.iter().flatten().map(|p| p.name.clone()).collect(),
+        type_param_bounds: binder
+            .iter()
+            .flatten()
+            .map(|p| p.bound.clone())
+            .collect(),
         param_types,
         ret_type,
         rest_param,
