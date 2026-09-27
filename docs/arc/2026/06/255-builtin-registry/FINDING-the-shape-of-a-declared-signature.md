@@ -51,14 +51,12 @@ peers of I/O, a peer event of I/O.* One parameter, two clauses, chosen by the ar
 
 ## Open, to be measured (not ruled)
 
-- **O1:** with the `Owners`/`Peers` aliases, `select`/`poll` need no bound. This holds if owner vectors are typed as
-  owners where they are built. Measured so far: every `poll` caller passes a `Peer` vector; `wat/bracket.wat:593`
-  types its owner vector as `Spawned`. Three test sites pass a `Process` vector or a bare `[a b]`
-  (`probe_select_flood_no_deadlock.wat:34`, `peer_select_prime_process.wat:26`,
-  `probe_arc214_stone46b_select_prime.wat:32`). Unmeasured: how real pools are built (e.g. `mapv` over spawns),
-  and whether a bare vector literal takes its element type from the expected parameter.
-- The tuple "each element" binder (Typed Clojure uses a dotted variable, `b ...`; wat has `& rest` for values).
-- Records and enums that hold a function reaching `=`/`<`; how a newtype gets its inner type's classes.
+- **O1 — measured by 255.50: holds.** Every `poll` vector (177) is a `Peer` vector; the one stdlib owner vector is
+  `Spawned` (`wat/bracket.wat:603`); a bare literal takes `Spawned` from the parameter. One site needs an
+  annotation (`probe_select_flood_no_deadlock.wat:34`, a constructor-built `Process` vector). No `mapv` pool reaches
+  `select`. So `select`/`poll` need no bound.
+- The tuple "each element" binder: assessed below.
+- Measured by 255.50: no corpus comparison reaches a function-holding struct, but `=` on one checks and raises at run time; records cannot hold functions. Nine newtypes, all in tests, none compared. Unruled: which aggregates are `Equatable` (Q1, pure only), and one spelling of an edge (D1, `derive`).
 
 ## Ruled 2026-09-26 — `sort`/`sort-by` take a `Seqable` and return a seq
 
