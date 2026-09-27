@@ -80,12 +80,21 @@ pub trait WatError {
     /// The human-readable error message. Typically `self.to_string()`.
     fn message(&self) -> String;
 
-    /// The primary source location, or `nil` when no span is available.
+    /// The primary source location. Excursus 003 step 3c: `nil` is
+    /// unrepresentable — the `:wat::core::Error` surface declares `location`
+    /// mandatory, so the trait now returns a real [`crate::span::Span`], never
+    /// an `OwnedValue` that could carry `Nil`.
     ///
     /// Build with [`location_from_span`] for Pattern-A errors (span on the
-    /// outer struct); return [`OwnedValue::Nil`] for collection / wrapper
-    /// errors that have no single primary span.
-    fn location(&self) -> OwnedValue;
+    /// outer struct). A collection / wrapper error with no single primary
+    /// span of its own uses **its first item's location** (an aggregate with
+    /// zero items is not constructible — every production call site guards
+    /// `is_empty()` before building one); a genuinely span-free failure
+    /// (`FlatMessage`, `StartupError::SigmaFn`/`MainSignature`) captures the
+    /// raising Rust site (`crate::rust_caller_span!()`), a `Span` with
+    /// `end: None` — D1/D3: Rust knows where a failure starts, not where it
+    /// ends.
+    fn location(&self) -> crate::span::Span;
 
     /// The nested error chain. Return `OwnedValue::Vector(vec![])` for leaf
     /// errors; include the inner error's [`ToEdn::to_edn`] output for
@@ -126,7 +135,7 @@ pub trait WatError {
                 // Insert floor keys at the front, in reverse order so
                 // the final order is :message :location :causes <variant…>.
                 fields.insert(0, (cause_kw, self.causes()));
-                fields.insert(0, (loc_kw, self.location()));
+                fields.insert(0, (loc_kw, self.location().to_edn()));
                 fields.insert(0, (msg_kw, edn_str(&self.message())));
                 OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
             }
@@ -136,7 +145,7 @@ pub trait WatError {
                 // wire payload is at least navigable.
                 OwnedValue::Map(vec![
                     (edn_kw("message"), edn_str(&self.message())),
-                    (edn_kw("location"), self.location()),
+                    (edn_kw("location"), self.location().to_edn()),
                     (edn_kw("causes"), self.causes()),
                     (edn_kw("variant"), other),
                 ])
@@ -220,12 +229,13 @@ pub(crate) fn first_line(s: String) -> String {
 
 /// Build the `:location` value for a [`WatError`] impl.
 ///
-/// Returns the span as `#wat.core/Span {…}` (the derive-generated tagged
-/// record). Arc 298.2: every span is a real location (wat source or
-/// `rust_caller_span!()`), so always emitted. Stone B: uses `span.to_edn()`
-/// so the location is a proper typed record, not a bare map.
-pub(crate) fn location_from_span(span: &crate::span::Span) -> OwnedValue {
-    span.to_edn()
+/// Returns the span itself. Arc 298.2: every span is a real location (wat
+/// source or `rust_caller_span!()`), so always emitted. Excursus 003 step 3c:
+/// `WatError::location()` now returns `Span` directly (not `OwnedValue`), so
+/// this is a clone, not a render — `error_edn()` calls `.to_edn()` once, at
+/// composition time.
+pub(crate) fn location_from_span(span: &crate::span::Span) -> crate::span::Span {
+    span.clone()
 }
 
 /// Strip the raw `:span` key from a tagged map's body.
@@ -365,6 +375,11 @@ pub(crate) struct FlatMessage<'a> {
     pub tag: &'a str,
     pub key: &'a str,
     pub message: &'a str,
+    /// Excursus 003 step 3c: `location` is mandatory, so every construction
+    /// site captures its own raising Rust site with `crate::rust_caller_span!()`
+    /// (a `Span` with `end: None` — D1/D3: Rust knows only where a failure
+    /// starts).
+    pub span: crate::span::Span,
 }
 
 impl ToEdn for FlatMessage<'_> {
@@ -380,9 +395,10 @@ impl WatError for FlatMessage<'_> {
     fn message(&self) -> String {
         first_line(self.message.to_owned())
     }
-    /// A flat message has no recoverable source location.
-    fn location(&self) -> OwnedValue {
-        OwnedValue::Nil
+    /// A flat message has no recoverable source location of its own; the
+    /// raising Rust site (captured at construction) stands in for it.
+    fn location(&self) -> crate::span::Span {
+        self.span.clone()
     }
     fn causes(&self) -> OwnedValue {
         OwnedValue::Vector(vec![])

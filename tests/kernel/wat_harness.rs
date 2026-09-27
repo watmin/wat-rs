@@ -86,7 +86,7 @@ fn harness_main_signature_mismatch() {
     );
     let err = Guest::from_source(&src).expect_err("sig mismatch must fail");
     assert!(
-        matches!(&err, GuestError::Startup(e) if matches!(e.as_ref(), wat::freeze::StartupError::MainSignature(_))),
+        matches!(&err, GuestError::Startup(e) if matches!(e.as_ref(), wat::freeze::StartupError::MainSignature(_, _))),
         "expected GuestError::Startup(MainSignature) for non-canonical main; got {:?}",
         err
     );

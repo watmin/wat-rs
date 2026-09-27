@@ -1,8 +1,17 @@
 #wat.check/CheckErrors {
   :message "1 type-check error"
-  :location nil
-  :causes []
-  :errors [
+  :location #wat.core/Span {
+    :file "tests/types/probe_ex003_construction_annotation_is_honoured__box_wrong_value.wat.bad"
+    :line 6
+    :col 56
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 6
+        :col 61
+      }
+    }
+  }
+  :causes [
     #wat.check/TypeMismatch {
       :message ":t::Box: parameter #1 expects :wat::core::i64; got :wat::core::String"
       :location #wat.core/Span {

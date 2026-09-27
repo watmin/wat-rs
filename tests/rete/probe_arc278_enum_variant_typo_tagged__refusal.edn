@@ -3,15 +3,21 @@
     :failure #wat.kernel/Failure {
       :error #wat.rete/ReteCheckErrors {
         :message "1 rete rule validation error"
-        :location nil
-        :causes []
-        :errors [
+        :location #wat.core/Span {
+          :file "tests/rete/probe_arc278_enum_variant_typo_tagged.wat"
+          :line 26
+          :col 65
+          :end #wat.core/Option.Some {
+            :value #wat.core/Pos {
+              :line 26
+              :col 74
+            }
+          }
+        }
+        :causes [
           #wat.rete/UnknownField {
-            :rule "tg::good"
-            :fact-type "tg::Req"
-            :field "tg::P.Hi"
-            :available-fields ["k" "grade"]
-            :span #wat.core/Span {
+            :message "defrule `tg::good`: `:tg::Req` has no field `:tg::P.Hi`; available fields: [k, grade]"
+            :location #wat.core/Span {
               :file "tests/rete/probe_arc278_enum_variant_typo_tagged.wat"
               :line 26
               :col 65
@@ -22,6 +28,11 @@
                 }
               }
             }
+            :causes []
+            :rule "tg::good"
+            :fact-type "tg::Req"
+            :field "tg::P.Hi"
+            :available-fields ["k" "grade"]
           }
         ]
       }

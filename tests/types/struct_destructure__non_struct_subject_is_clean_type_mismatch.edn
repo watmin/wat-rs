@@ -1,8 +1,17 @@
 #wat.check/CheckErrors {
   :message "1 type-check error"
-  :location nil
-  :causes []
-  :errors [
+  :location #wat.core/Span {
+    :file "tests/types/struct_destructure_non_struct_subject.wat.bad"
+    :line 7
+    :col 24
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 7
+        :col 26
+      }
+    }
+  }
+  :causes [
     #wat.check/TypeMismatch {
       :message ":wat::core::let: parameter keys-destructure (outcome) expects an aggregate type; got :wat::core::i64"
       :location #wat.core/Span {

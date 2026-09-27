@@ -36,7 +36,7 @@ fn assert_sigma_rejected(path: &str, axis_word: &str) {
     let err = startup_from_file(path)
         .expect_err(&format!("{path}: expected startup to be REFUSED (violates `{axis_word}`), but it froze cleanly"));
     match err {
-        StartupError::SigmaFn(msg) => {
+        StartupError::SigmaFn(msg, _) => {
             assert!(
                 msg.contains(axis_word),
                 "{path}: StartupError::SigmaFn message must name the failing axis `{axis_word}`; got: {msg}"

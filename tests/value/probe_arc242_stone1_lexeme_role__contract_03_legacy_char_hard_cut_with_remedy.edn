@@ -1,8 +1,17 @@
 #wat.check/CheckErrors {
   :message "2 type-check errors"
-  :location nil
-  :causes []
-  :errors [
+  :location #wat.core/Span {
+    :file "tests/value/probe_arc242_stone1_lexeme_role.wat.bad"
+    :line 8
+    :col 43
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 8
+        :col 59
+      }
+    }
+  }
+  :causes [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)"
       :location #wat.core/Span {

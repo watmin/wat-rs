@@ -1,5 +1,5 @@
 #wat.check/CheckErrors {
-  :errors [
+  :causes [
     #wat.check/UnknownCallee {
       :callee ":user::do-thing"
       :span #wat.core/Span {

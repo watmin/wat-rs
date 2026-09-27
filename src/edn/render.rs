@@ -249,6 +249,7 @@ fn tagged_read_outcome_malformed(
         tag: error_tag,
         key: "reason",
         message,
+        span: crate::rust_caller_span!(),
     };
     let cause_edn = wat_edn::write(&flat.error_edn());
     let types = sym.types().map(|t| &**t);

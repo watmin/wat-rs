@@ -9,13 +9,21 @@
   :causes [
     #wat.resolve/UnresolvedReferences {
       :message "1 unresolved reference"
-      :location nil
-      :causes []
-      :unresolved [
+      :location #wat.core/Span {
+        :file "<read-string>"
+        :line 1
+        :col 2
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 1
+            :col 12
+          }
+        }
+      }
+      :causes [
         #wat.resolve/UnresolvedReference {
-          :path ":usr::nope"
-          :context "call head — not a builtin, not a registered function"
-          :span #wat.core/Span {
+          :message "unresolved reference `:usr::nope` (call head — not a builtin, not a registered function)"
+          :location #wat.core/Span {
             :file "<read-string>"
             :line 1
             :col 2
@@ -26,6 +34,9 @@
               }
             }
           }
+          :causes []
+          :path ":usr::nope"
+          :context "call head — not a builtin, not a registered function"
         }
       ]
     }

@@ -67,8 +67,10 @@ fn probe_1_parse_startup_error_to_edn_is_structured_not_detail() {
 fn probe_2_sigmafn_startup_error_keeps_honest_detail() {
     // SigmaFn carries a plain String message — no span, no kind, no structured
     // fields. `:detail` is the honest serialization here, NOT a deferral.
-    let startup_err =
-        StartupError::SigmaFn("sigma fn registration failed: bad config".into());
+    let startup_err = StartupError::SigmaFn(
+        "sigma fn registration failed: bad config".into(),
+        wat::rust_caller_span!(),
+    );
 
     let display_str = format!("{}", startup_err);
     let edn_str = wat_edn::write(&startup_err.to_edn());
@@ -228,6 +230,6 @@ fn probe_5_every_startup_variant_is_structured_not_stringly() {
     // a bare OwnedValue::String. This is the explicitly-justified exception.
     assert_structured(
         "SigmaFn",
-        StartupError::SigmaFn("sigma registration failed".into()),
+        StartupError::SigmaFn("sigma registration failed".into(), wat::rust_caller_span!()),
     );
 }

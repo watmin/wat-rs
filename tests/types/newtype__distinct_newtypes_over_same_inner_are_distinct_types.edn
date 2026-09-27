@@ -1,8 +1,17 @@
 #wat.check/CheckErrors {
   :message "1 type-check error"
-  :location nil
-  :causes []
-  :errors [
+  :location #wat.core/Span {
+    :file "tests/types/newtype_distinct_newtypes.wat.bad"
+    :line 8
+    :col 33
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 8
+        :col 34
+      }
+    }
+  }
+  :causes [
     #wat.check/TypeMismatch {
       :message ":my::trading::price-pretty: parameter #1 expects :my::trading::Price; got :my::trading::Amount"
       :location #wat.core/Span {

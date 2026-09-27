@@ -565,19 +565,22 @@ impl FrozenWorld {
             let env = crate::runtime::Environment::new();
             let v = crate::runtime::eval(&sigma_ast, &env, &symbols)
                 .map_err(|e| {
-                    StartupError::SigmaFn(format!(
-                        "set-presence-sigma! body failed to evaluate: {}",
-                        e
-                    ))
+                    StartupError::SigmaFn(
+                        format!("set-presence-sigma! body failed to evaluate: {}", e),
+                        crate::rust_caller_span!(),
+                    )
                 })?
                 .value_owned();
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
-                    return Err(StartupError::SigmaFn(format!(
-                        "set-presence-sigma! expected a function value; got {}",
-                        other.type_name()
-                    )));
+                    return Err(StartupError::SigmaFn(
+                        format!(
+                            "set-presence-sigma! expected a function value; got {}",
+                            other.type_name()
+                        ),
+                        crate::rust_caller_span!(),
+                    ));
                 }
             };
             check_sigma_fn_contract("set-presence-sigma!", &func, &symbols)?;
@@ -599,19 +602,22 @@ impl FrozenWorld {
             let env = crate::runtime::Environment::new();
             let v = crate::runtime::eval(&sigma_ast, &env, &symbols)
                 .map_err(|e| {
-                    StartupError::SigmaFn(format!(
-                        "set-coincident-sigma! body failed to evaluate: {}",
-                        e
-                    ))
+                    StartupError::SigmaFn(
+                        format!("set-coincident-sigma! body failed to evaluate: {}", e),
+                        crate::rust_caller_span!(),
+                    )
                 })?
                 .value_owned();
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
-                    return Err(StartupError::SigmaFn(format!(
-                        "set-coincident-sigma! expected a function value; got {}",
-                        other.type_name()
-                    )));
+                    return Err(StartupError::SigmaFn(
+                        format!(
+                            "set-coincident-sigma! expected a function value; got {}",
+                            other.type_name()
+                        ),
+                        crate::rust_caller_span!(),
+                    ));
                 }
             };
             check_sigma_fn_contract("set-coincident-sigma!", &func, &symbols)?;
@@ -720,12 +726,35 @@ pub enum StartupError {
     /// are themselves classified `pure: true, deterministic: true`; an
     /// unchecked user body was the one place that classification could
     /// still lie.
-    SigmaFn(String),
+    /// Excursus 003 step 3c: `location` carries the raising Rust site
+    /// (`crate::rust_caller_span!()`) — a genuinely flat message has no wat
+    /// source location of its own.
+    SigmaFn(String, crate::span::Span),
     /// Arc 170 — the `:user::main` wall, imposed at `startup_from_source`.
     /// Fires when a declared `:user::main` is not exactly `[] -> :wat::core::nil`
     /// ([`validate_user_main_signature`]) or its body is the bare `nil` literal
     /// ([`validate_user_main_not_useless`], UselessMain).
-    MainSignature(String),
+    ///
+    /// Excursus 003 step 3c: the `Span` is `:user::main`'s own declared body
+    /// span when one is in hand (more useful than the Rust site — see
+    /// `main_signature_span`), else the raising Rust site.
+    MainSignature(String, crate::span::Span),
+}
+
+/// Excursus 003 step 3c — the location for a `StartupError::MainSignature`.
+/// `:user::main`'s own declared body (`FunctionBody::Wat`) is a real wat-source
+/// span and is more useful than the Rust site that merely observed the mismatch
+/// (D1/D3's "measure whether it is in hand, and use it if so"); a `Native` body
+/// or a wholly-missing `:user::main` (the "not defined" case) has no such span,
+/// so it falls back to the raising Rust site.
+pub(crate) fn main_signature_span(frozen: &FrozenWorld) -> crate::span::Span {
+    match frozen.symbols().get(":user::main") {
+        Some(func) => match &func.body {
+            FunctionBody::Wat(ast) => ast.span().clone(),
+            FunctionBody::Native => crate::rust_caller_span!(),
+        },
+        None => crate::rust_caller_span!(),
+    }
 }
 
 impl fmt::Debug for StartupError {
@@ -763,26 +792,35 @@ fn check_sigma_fn_contract(
     sym: &SymbolTable,
 ) -> Result<(), StartupError> {
     if func.params.len() != 1 {
-        return Err(StartupError::SigmaFn(format!(
-            "{} function must take exactly 1 argument (got {})",
-            setter,
-            func.params.len()
-        )));
+        return Err(StartupError::SigmaFn(
+            format!(
+                "{} function must take exactly 1 argument (got {})",
+                setter,
+                func.params.len()
+            ),
+            crate::rust_caller_span!(),
+        ));
     }
     if !func.param_types.is_empty() {
         let expected_param = crate::types::TypeExpr::Path(":wat::core::i64".into());
         if func.param_types[0] != expected_param {
-            return Err(StartupError::SigmaFn(format!(
-                "{} function param must be :i64; got {:?}",
-                setter, func.param_types[0]
-            )));
+            return Err(StartupError::SigmaFn(
+                format!(
+                    "{} function param must be :i64; got {:?}",
+                    setter, func.param_types[0]
+                ),
+                crate::rust_caller_span!(),
+            ));
         }
         let expected_ret = crate::types::TypeExpr::Path(":wat::core::i64".into());
         if func.ret_type != expected_ret {
-            return Err(StartupError::SigmaFn(format!(
-                "{} function return type must be :i64; got {:?}",
-                setter, func.ret_type
-            )));
+            return Err(StartupError::SigmaFn(
+                format!(
+                    "{} function return type must be :i64; got {:?}",
+                    setter, func.ret_type
+                ),
+                crate::rust_caller_span!(),
+            ));
         }
     }
 
@@ -813,15 +851,18 @@ fn check_sigma_fn_contract(
             FunctionBody::Native => classify_native_fn(&label, axis).err(),
         };
         if let Some(v) = violation {
-            return Err(StartupError::SigmaFn(format!(
-                "{setter} function `{label}` is not {axis_name}: `{head}` is not proven \
-                 {axis_name} (sigma fns must be pure, deterministic, and total — see \
-                 docs/arc/2026/06/278-rules-engine/BRIEF-sigma-fn-must-be-pure-total-deterministic.md)",
-                setter = setter,
-                label = label,
-                axis_name = axis_name,
-                head = v.head,
-            )));
+            return Err(StartupError::SigmaFn(
+                format!(
+                    "{setter} function `{label}` is not {axis_name}: `{head}` is not proven \
+                     {axis_name} (sigma fns must be pure, deterministic, and total — see \
+                     docs/arc/2026/06/278-rules-engine/BRIEF-sigma-fn-must-be-pure-total-deterministic.md)",
+                    setter = setter,
+                    label = label,
+                    axis_name = axis_name,
+                    head = v.head,
+                ),
+                crate::rust_caller_span!(),
+            ));
         }
     }
 
@@ -957,8 +998,10 @@ pub fn startup_from_source(
     // without a `:user::main`. Conditional on `:user::main` being
     // declared at all — `startup_bare()` (no main) passes cleanly.
     if world.symbols().get(":user::main").is_some() {
-        validate_user_main_signature(&world).map_err(StartupError::MainSignature)?;
-        validate_user_main_not_useless(&world).map_err(StartupError::MainSignature)?;
+        validate_user_main_signature(&world)
+            .map_err(|m| StartupError::MainSignature(m, main_signature_span(&world)))?;
+        validate_user_main_not_useless(&world)
+            .map_err(|m| StartupError::MainSignature(m, main_signature_span(&world)))?;
     }
     Ok(world)
 }

@@ -109,7 +109,7 @@ impl crate::edn::contract::WatError for RuntimeError {
     fn message(&self) -> String {
         crate::edn::contract::first_line(self.kind().to_string())
     }
-    fn location(&self) -> OwnedValue {
+    fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(self.span())
     }
     fn causes(&self) -> OwnedValue {

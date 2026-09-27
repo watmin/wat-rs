@@ -86,6 +86,11 @@ const W2A: &str = "tests/services/probe_arc170_w2a_kwargs_check_mint_swap.wat.ba
 /// (hash) order. Captured via `wat --check`/`wat` directly, 5 fresh-process runs, byte-identical
 /// each time, before pinning; the 24-run test below re-verifies stability AND this exact order.
 const C2_SOURCE_ORDER: &[(i64, i64, i64, i64)] = &[
+    // Excursus 003 step 3c: `CheckErrors`'s own `:location` is its FIRST item's location
+    // (D1: no `nil` location anywhere) and is rendered BEFORE `:causes`, so the very first
+    // `:location` in the text is this duplicate of the first finding's span — measured
+    // live against `./target/release/wat` on this fixture, not guessed.
+    (17, 28, 17, 56),
     (17, 28, 17, 56),
     (18, 14, 18, 39),
     (26, 28, 26, 56),
@@ -121,6 +126,9 @@ const C2_SOURCE_ORDER: &[(i64, i64, i64, i64)] = &[
 /// `:user::main` return-type mismatch at 40, then 3 `TypeMismatch`) are the last 4 rows, unchanged
 /// in relative order and content. Confirmed 5 fresh-process runs, byte-identical, before pinning.
 const W2A_SOURCE_ORDER: &[(i64, i64, i64, i64)] = &[
+    // Excursus 003 step 3c: same leading duplicate as `C2_SOURCE_ORDER` above — the
+    // aggregate's own `:location` is its first item's, rendered before `:causes`.
+    (18, 14, 18, 42),
     (18, 14, 18, 42),
     (19, 16, 19, 45),
     (31, 14, 31, 42),

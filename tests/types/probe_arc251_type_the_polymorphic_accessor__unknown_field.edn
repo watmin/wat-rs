@@ -1,8 +1,17 @@
 #wat.check/CheckErrors {
   :message "1 type-check error"
-  :location nil
-  :causes []
-  :errors [
+  :location #wat.core/Span {
+    :file "tests/types/probe_arc251_type_the_polymorphic_accessor__unknown_field.wat"
+    :line 3
+    :col 62
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 3
+        :col 74
+      }
+    }
+  }
+  :causes [
     #wat.check/MalformedForm {
       :message "malformed :nonexistent form: keyword accessor: field \"nonexistent\" is not declared on :u::Plain (declared fields: x)"
       :location #wat.core/Span {

@@ -20,19 +20,29 @@ use crate::types::TypeEnv;
 
 /// A validator error: any type that is [`crate::edn::contract::ToEdn`] (so it can cross the wire
 /// tagged with its OWN namespace — a rete error still tags `#wat.rete/…` through the box,
-/// by dynamic dispatch) + `Debug` + `Display` (so `StartupError`'s own `Debug`/`Display`
-/// keep working) + `Send + Sync` (an `inventory`-submitted `fn` pointer must be usable from
-/// any thread that runs the freeze pipeline).
+/// by dynamic dispatch) + [`crate::edn::contract::WatError`] (excursus 003 step 3c: so
+/// `StartupError::Validator` can delegate `message`/`location`/`causes`/`variant` to the inner
+/// error exactly like every other arm, instead of flattening it through
+/// `first_line(e.to_string())` and reporting `nil` for `location`) + `Debug` + `Display` (so
+/// `StartupError`'s own `Debug`/`Display` keep working) + `Send + Sync` (an
+/// `inventory`-submitted `fn` pointer must be usable from any thread that runs the freeze
+/// pipeline).
 ///
 /// Blanket-implemented for every type that satisfies the bound — no validator crate needs to
 /// write `impl FreezeValidatorError for MyError {}` by hand.
 pub trait FreezeValidatorError:
-    crate::edn::contract::ToEdn + std::fmt::Debug + std::fmt::Display + Send + Sync
+    crate::edn::contract::ToEdn + crate::edn::contract::WatError + std::fmt::Debug + std::fmt::Display + Send + Sync
 {
 }
 
-impl<T: crate::edn::contract::ToEdn + std::fmt::Debug + std::fmt::Display + Send + Sync>
-    FreezeValidatorError for T
+impl<
+        T: crate::edn::contract::ToEdn
+            + crate::edn::contract::WatError
+            + std::fmt::Debug
+            + std::fmt::Display
+            + Send
+            + Sync,
+    > FreezeValidatorError for T
 {
 }
 

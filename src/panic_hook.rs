@@ -157,7 +157,10 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     // `:location` floor field carries. Emit `#wat.core/Span {:file :line :col :end}`
     // when present, nil when absent (the human-facing nil-convention).
     let location_val = match &payload.location {
-        Some(span) => crate::edn::contract::location_from_span(span),
+        Some(span) => {
+            use crate::edn::contract::ToEdn;
+            crate::edn::contract::location_from_span(span).to_edn()
+        }
         None => OwnedValue::Nil,
     };
 

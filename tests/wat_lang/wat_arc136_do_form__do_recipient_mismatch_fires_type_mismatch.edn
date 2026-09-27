@@ -1,8 +1,17 @@
 #wat.check/CheckErrors {
   :message "1 type-check error"
-  :location nil
-  :causes []
-  :errors [
+  :location #wat.core/Span {
+    :file "tests/wat_lang/wat_arc136_do_form_mismatch.wat.bad"
+    :line 5
+    :col 3
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 7
+        :col 8
+      }
+    }
+  }
+  :causes [
     #wat.check/ReturnTypeMismatch {
       :message ":t::probe: body produces :wat::core::i64; signature declares :wat::core::String"
       :location #wat.core/Span {

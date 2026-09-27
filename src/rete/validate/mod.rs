@@ -1524,9 +1524,9 @@ mod tests {
                 match *body {
                     OwnedValue::Map(m) => m
                         .into_iter()
-                        .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new("errors")))
+                        .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new("causes")))
                         .map(|(_, v)| v)
-                        .expect("the batch must carry :errors"),
+                        .expect("the batch must carry :causes"),
                     other => panic!("expected a map body; got {other:?}"),
                 }
             }

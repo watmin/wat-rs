@@ -412,7 +412,8 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
                 // still rc 1s here).
                 if world.symbols().get(":user::main").is_some() {
                     if let Err(m) = crate::freeze::validate_user_main_signature(&world) {
-                        let e = crate::freeze::StartupError::MainSignature(m);
+                        let span = crate::freeze::main_signature_span(&world);
+                        let e = crate::freeze::StartupError::MainSignature(m, span);
                         check_output::emit_check_failure(entry_path, &e, check_output_format);
                         return ExitCode::from(1);
                     }
@@ -480,7 +481,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         Ok(Ok(w)) => w,
         Ok(Err(e)) => {
             let code = match e {
-                crate::freeze::StartupError::MainSignature(_) => {
+                crate::freeze::StartupError::MainSignature(_, _) => {
                     crate::process::EXIT_MAIN_SIGNATURE
                 }
                 _ => crate::process::EXIT_STARTUP_ERROR,
@@ -536,6 +537,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
                     tag: "GrepSignatureError",
                     key: "message",
                     message: &msg,
+                    span: crate::rust_caller_span!(),
                 }),
             );
             return ExitCode::from(crate::process::EXIT_RUNTIME_ERROR as u8);
@@ -615,6 +617,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
                 tag: "MainSignatureError",
                 key: "message",
                 message: &msg,
+                span: crate::rust_caller_span!(),
             }),
         );
         return ExitCode::from(crate::process::EXIT_MAIN_SIGNATURE as u8);

@@ -3,16 +3,21 @@
     :failure #wat.kernel/Failure {
       :error #wat.rete/ReteCheckErrors {
         :message "2 rete rule validation errors"
-        :location nil
-        :causes []
-        :errors [
+        :location #wat.core/Span {
+          :file "tests/rete/probe_arc278_D11_nested_then_field_types_deep.wat.bad"
+          :line 18
+          :col 59
+          :end #wat.core/Option.Some {
+            :value #wat.core/Pos {
+              :line 18
+              :col 61
+            }
+          }
+        }
+        :causes [
           #wat.rete/RhsOperandTypeMismatch {
-            :rule "d11d::bad"
-            :fact-type "d11d::Inner"
-            :field "n"
-            :declared ":wat::core::i64"
-            :actual ":wat::core::String"
-            :span #wat.core/Span {
+            :message "defrule `d11d::bad`: `:then` insert of `:d11d::Inner` field `:n` is declared `:wat::core::i64`; operand is `:wat::core::String`"
+            :location #wat.core/Span {
               :file "tests/rete/probe_arc278_D11_nested_then_field_types_deep.wat.bad"
               :line 18
               :col 59
@@ -23,14 +28,16 @@
                 }
               }
             }
-          }
-          #wat.rete/RhsOperandTypeMismatch {
+            :causes []
             :rule "d11d::bad"
             :fact-type "d11d::Inner"
-            :field "t"
-            :declared ":wat::core::String"
-            :actual ":wat::core::i64"
-            :span #wat.core/Span {
+            :field "n"
+            :declared ":wat::core::i64"
+            :actual ":wat::core::String"
+          }
+          #wat.rete/RhsOperandTypeMismatch {
+            :message "defrule `d11d::bad`: `:then` insert of `:d11d::Inner` field `:t` is declared `:wat::core::String`; operand is `:wat::core::i64`"
+            :location #wat.core/Span {
               :file "tests/rete/probe_arc278_D11_nested_then_field_types_deep.wat.bad"
               :line 18
               :col 65
@@ -41,6 +48,12 @@
                 }
               }
             }
+            :causes []
+            :rule "d11d::bad"
+            :fact-type "d11d::Inner"
+            :field "t"
+            :declared ":wat::core::String"
+            :actual ":wat::core::i64"
           }
         ]
       }

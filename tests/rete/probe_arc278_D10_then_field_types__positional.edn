@@ -3,16 +3,21 @@
     :failure #wat.kernel/Failure {
       :error #wat.rete/ReteCheckErrors {
         :message "2 rete rule validation errors"
-        :location nil
-        :causes []
-        :errors [
+        :location #wat.core/Span {
+          :file "tests/rete/probe_arc278_D10_then_field_types_positional.wat.bad"
+          :line 21
+          :col 21
+          :end #wat.core/Option.Some {
+            :value #wat.core/Pos {
+              :line 21
+              :col 23
+            }
+          }
+        }
+        :causes [
           #wat.rete/RhsOperandTypeMismatch {
-            :rule "dps::bad"
-            :fact-type "dps::Bad"
-            :field "n"
-            :declared ":wat::core::i64"
-            :actual ":wat::core::String"
-            :span #wat.core/Span {
+            :message "defrule `dps::bad`: `:then` insert of `:dps::Bad` field `:n` is declared `:wat::core::i64`; operand is `:wat::core::String`"
+            :location #wat.core/Span {
               :file "tests/rete/probe_arc278_D10_then_field_types_positional.wat.bad"
               :line 21
               :col 21
@@ -23,14 +28,16 @@
                 }
               }
             }
-          }
-          #wat.rete/RhsOperandTypeMismatch {
+            :causes []
             :rule "dps::bad"
             :fact-type "dps::Bad"
-            :field "t"
-            :declared ":wat::core::String"
-            :actual ":wat::core::i64"
-            :span #wat.core/Span {
+            :field "n"
+            :declared ":wat::core::i64"
+            :actual ":wat::core::String"
+          }
+          #wat.rete/RhsOperandTypeMismatch {
+            :message "defrule `dps::bad`: `:then` insert of `:dps::Bad` field `:t` is declared `:wat::core::String`; operand is `:wat::core::i64`"
+            :location #wat.core/Span {
               :file "tests/rete/probe_arc278_D10_then_field_types_positional.wat.bad"
               :line 21
               :col 24
@@ -41,6 +48,12 @@
                 }
               }
             }
+            :causes []
+            :rule "dps::bad"
+            :fact-type "dps::Bad"
+            :field "t"
+            :declared ":wat::core::String"
+            :actual ":wat::core::i64"
           }
         ]
       }

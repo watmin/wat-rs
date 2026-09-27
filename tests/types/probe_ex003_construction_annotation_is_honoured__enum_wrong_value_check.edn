@@ -1,8 +1,17 @@
 #wat.check/CheckErrors {
   :message "1 type-check error"
-  :location nil
-  :causes []
-  :errors [
+  :location #wat.core/Span {
+    :file "tests/types/probe_ex003_construction_annotation_is_honoured__enum_wrong_value.wat.bad"
+    :line 5
+    :col 63
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 5
+        :col 68
+      }
+    }
+  }
+  :causes [
     #wat.check/TypeMismatch {
       :message ":t::Opt.Some: parameter v expects :wat::core::i64; got :wat::core::String"
       :location #wat.core/Span {

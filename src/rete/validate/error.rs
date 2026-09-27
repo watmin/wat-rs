@@ -637,7 +637,7 @@ impl crate::edn::contract::WatError for ReteCheckError {
     fn message(&self) -> String {
         crate::edn::contract::first_line(self.kind.to_string())
     }
-    fn location(&self) -> OwnedValue {
+    fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> OwnedValue {
@@ -650,9 +650,13 @@ impl crate::edn::contract::WatError for ReteCheckError {
 }
 
 impl crate::edn::contract::ToEdn for ReteCheckErrors {
+    /// Excursus 003 step 3c: the bespoke `:errors` key retires in favour of
+    /// `:causes`, matching `CheckErrors` (`src/check/error_edn.rs`) — one
+    /// name for "the errors that caused this one", raw form and floor form
+    /// alike.
     fn to_edn(&self) -> OwnedValue {
         let items: Vec<OwnedValue> = self.0.iter().map(|e| e.to_edn()).collect();
-        tagged("ReteCheckErrors", OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]))
+        tagged("ReteCheckErrors", OwnedValue::Map(vec![(kw("causes"), OwnedValue::Vector(items))]))
     }
 }
 
@@ -661,15 +665,24 @@ impl crate::edn::contract::WatError for ReteCheckErrors {
         let n = self.0.len();
         format!("{} rete rule validation error{}", n, if n == 1 { "" } else { "s" })
     }
-    fn location(&self) -> OwnedValue {
-        OwnedValue::Nil
+    /// `ReteCheckErrors` is a collection with no single primary span of its
+    /// own; its location is its FIRST item's location. Every production
+    /// call site (`src/rete/validate/mod.rs::validate_rete_rules`) guards
+    /// `is_empty()` before constructing one, so a zero-item aggregate is not
+    /// reachable here.
+    fn location(&self) -> crate::span::Span {
+        self.0
+            .first()
+            .expect("ReteCheckErrors must not be empty — validate_rete_rules guards is_empty()")
+            .location()
     }
+    /// The items ARE the causes — each already satisfies the floor
+    /// (`ReteCheckError: WatError`), embedded via its own `error_edn()`.
     fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
+        OwnedValue::Vector(self.0.iter().map(|e| e.error_edn()).collect())
     }
     fn variant(&self) -> OwnedValue {
-        let items: Vec<OwnedValue> = self.0.iter().map(|e| e.error_edn()).collect();
-        tagged("ReteCheckErrors", OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]))
+        tagged("ReteCheckErrors", OwnedValue::Map(vec![]))
     }
 }
 

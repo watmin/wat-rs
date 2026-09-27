@@ -52,7 +52,7 @@ impl crate::edn::contract::WatError for CheckError {
     fn message(&self) -> String {
         crate::edn::contract::first_line(self.kind.to_string())
     }
-    fn location(&self) -> OwnedValue {
+    fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> OwnedValue {
@@ -65,15 +65,20 @@ impl crate::edn::contract::WatError for CheckError {
 }
 
 impl crate::edn::contract::ToEdn for CheckErrors {
-    /// `#wat.kernel/CheckErrors {:errors [#wat.kernel/<Variant> {…} …]}` —
+    /// `#wat.kernel/CheckErrors {:causes [#wat.kernel/<Variant> {…} …]}` —
     /// each `CheckError` in the collection is a navigable tagged value, not a
     /// line in a `:detail` prose blob. This is the structured form the
     /// process-boundary IPC path and `--check-output` consumers read.
+    ///
+    /// Excursus 003 step 3c: the bespoke `:errors` key retires in favour of
+    /// `:causes` — the floor's own slot for "the errors that caused this
+    /// one" — so both this raw form and the floor form ([`crate::edn::contract::WatError::causes`]
+    /// below) agree on one name.
     fn to_edn(&self) -> OwnedValue {
         let items: Vec<OwnedValue> = self.0.iter().map(|e| e.to_edn()).collect();
         tagged(
             "CheckErrors",
-            OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]),
+            OwnedValue::Map(vec![(kw("causes"), OwnedValue::Vector(items))]),
         )
     }
 }
@@ -81,30 +86,35 @@ impl crate::edn::contract::ToEdn for CheckErrors {
 impl crate::edn::contract::WatError for CheckErrors {
     /// Concise COLLECTION summary — a count, NOT the concatenated multi-line
     /// render of every item. Each item carries its own single-line `:message`
-    /// inside the recursively-floored `:errors` array, so re-rendering them
+    /// inside the recursively-floored `:causes` array, so re-rendering them
     /// here would double-encode the exact content the floor already holds.
     fn message(&self) -> String {
         let n = self.0.len();
         format!("{} type-check error{}", n, if n == 1 { "" } else { "s" })
     }
-    /// `CheckErrors` is a collection; no single primary span exists at this
-    /// level. Individual `CheckError` items carry their own `:location`.
-    fn location(&self) -> OwnedValue {
-        OwnedValue::Nil
+    /// `CheckErrors` is a collection with no single primary span of its own;
+    /// its location is its FIRST item's location — the aggregate happened
+    /// wherever its first error is. Every production call site guards
+    /// `is_empty()` before constructing a `CheckErrors` (`src/check.rs`,
+    /// `src/freeze/env.rs`), so a zero-item aggregate is not reachable here;
+    /// `.expect` names that invariant rather than silently fabricating a span.
+    fn location(&self) -> crate::span::Span {
+        self.0
+            .first()
+            .expect("CheckErrors must not be empty — every construction site guards is_empty()")
+            .location()
     }
+    /// Excursus 003 step 3c: the items ARE the causes — each already
+    /// satisfies the floor (`CheckError: WatError`), so it is embedded via
+    /// its own `error_edn()`, never the bespoke `:errors` key.
     fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
+        OwnedValue::Vector(self.0.iter().map(|e| e.error_edn()).collect())
     }
-    /// Arc 296 strike 2 — RECURSIVE floor: each `CheckError` in `:errors` is
-    /// embedded via its `WatError::error_edn()` (floor form: single-line
-    /// `:message`, `:location` never `:span`), NOT its raw `to_edn()`. The
-    /// collection envelope itself carries no top-level `:span`.
+    /// The collection envelope carries no variant-specific fields beyond the
+    /// floor: `:message`/`:location`/`:causes` say everything there is to say
+    /// about a batch of type-check errors.
     fn variant(&self) -> OwnedValue {
-        let items: Vec<OwnedValue> = self.0.iter().map(|e| e.error_edn()).collect();
-        tagged(
-            "CheckErrors",
-            OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]),
-        )
+        tagged("CheckErrors", OwnedValue::Map(vec![]))
     }
 }
 

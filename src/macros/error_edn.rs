@@ -59,16 +59,19 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
         StartupError::Check(e) => e.to_edn(),
         StartupError::Validator(e) => e.to_edn(),
         StartupError::Stdlib(e) => e.to_edn(),
-        // SigmaFn carries a bare String message (no span, no kind, no
-        // structured fields — see `StartupError::SigmaFn(String)`), so a
-        // `:detail` string is the honest serialization, not a deferral.
-        StartupError::SigmaFn(msg) => tagged(
+        // SigmaFn carries a bare String message (no kind, no structured
+        // fields — see `StartupError::SigmaFn(String, Span)`), so a
+        // `:detail` string is the honest serialization, not a deferral. The
+        // span is the raising Rust site (excursus 003 step 3c) and surfaces
+        // through `WatError::location`, not here (raw `to_edn()` mirrors the
+        // pre-floor shape).
+        StartupError::SigmaFn(msg, _) => tagged(
             "SigmaFnError",
             OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
         ),
-        // MainSignature carries a bare String message (no span, no kind —
-        // see `StartupError::MainSignature(String)`), same shape as SigmaFn.
-        StartupError::MainSignature(msg) => tagged(
+        // MainSignature carries a bare String message (no kind — see
+        // `StartupError::MainSignature(String, Span)`), same shape as SigmaFn.
+        StartupError::MainSignature(msg, _) => tagged(
             "MainSignatureError",
             OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
         ),
@@ -114,7 +117,7 @@ impl crate::edn::contract::WatError for MacroError {
             _ => crate::edn::contract::first_line(self.kind.to_string()),
         }
     }
-    fn location(&self) -> OwnedValue {
+    fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> OwnedValue {
@@ -151,16 +154,16 @@ impl crate::edn::contract::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.message(),
             SE::Resolve(e) => e.message(),
             SE::Check(e) => e.message(),
-            // The boxed FreezeValidatorError carries ToEdn + Debug + Display, not WatError
-            // (a validator crate never needs to hand-write message/location/causes/variant) —
-            // so the concise message is derived from its Display, first line only.
-            SE::Validator(e) => crate::edn::contract::first_line(e.to_string()),
+            // Excursus 003 step 3c: `FreezeValidatorError` now requires `WatError`
+            // (`src/freeze/validator.rs`), so the boxed validator error delegates
+            // exactly like every other arm — the `first_line(e.to_string())` mask is gone.
+            SE::Validator(e) => e.message(),
             SE::Stdlib(e) => e.message(),
-            SE::SigmaFn(msg) => crate::edn::contract::first_line(msg.clone()),
-            SE::MainSignature(msg) => crate::edn::contract::first_line(msg.clone()),
+            SE::SigmaFn(msg, _) => crate::edn::contract::first_line(msg.clone()),
+            SE::MainSignature(msg, _) => crate::edn::contract::first_line(msg.clone()),
         }
     }
-    fn location(&self) -> OwnedValue {
+    fn location(&self) -> crate::span::Span {
         use crate::freeze::StartupError as SE;
         match self {
             SE::Macro(e) => e.location(),
@@ -171,13 +174,14 @@ impl crate::edn::contract::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.location(),
             SE::Resolve(e) => e.location(),
             SE::Check(e) => e.location(),
-            // No single primary span at the aggregate level — mirrors ReteCheckErrors's own
-            // WatError::location (always Nil; per-error spans live inside `variant()`'s
-            // nested `:errors` vector, same as before this lift).
-            SE::Validator(_) => OwnedValue::Nil,
+            // Excursus 003 step 3c: delegates to the boxed validator's own location
+            // (a `ReteCheckErrors`, whose location is its first item's — never `nil`).
+            SE::Validator(e) => e.location(),
             SE::Stdlib(e) => e.location(),
-            SE::SigmaFn(_) => OwnedValue::Nil,
-            SE::MainSignature(_) => OwnedValue::Nil,
+            // A genuinely flat message: the location is the raising Rust site,
+            // captured at construction (`crate::rust_caller_span!()`).
+            SE::SigmaFn(_, span) => span.clone(),
+            SE::MainSignature(_, span) => span.clone(),
         }
     }
     fn causes(&self) -> OwnedValue {
@@ -191,10 +195,10 @@ impl crate::edn::contract::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.causes(),
             SE::Resolve(e) => e.causes(),
             SE::Check(e) => e.causes(),
-            SE::Validator(_) => OwnedValue::Vector(vec![]),
+            SE::Validator(e) => e.causes(),
             SE::Stdlib(e) => e.causes(),
-            SE::SigmaFn(_) => OwnedValue::Vector(vec![]),
-            SE::MainSignature(_) => OwnedValue::Vector(vec![]),
+            SE::SigmaFn(_, _) => OwnedValue::Vector(vec![]),
+            SE::MainSignature(_, _) => OwnedValue::Vector(vec![]),
         }
     }
     /// Delegates to the inner error's `variant()` (its own tagged, span-stripped
@@ -212,16 +216,16 @@ impl crate::edn::contract::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.variant(),
             SE::Resolve(e) => e.variant(),
             SE::Check(e) => e.variant(),
-            // Same pattern as MacroError::variant() above: strip :span from the boxed
-            // error's own to_edn() output. The concrete namespace (e.g. #wat.rete/…) survives
-            // by dynamic dispatch — the box never re-tags it.
-            SE::Validator(e) => crate::edn::contract::strip_span_from_tagged(e.to_edn()),
+            // Excursus 003 step 3c: delegates to the boxed validator's own `variant()`
+            // (its tagged, span-stripped map) — the concrete namespace (e.g. #wat.rete/…)
+            // survives by dynamic dispatch, the box never re-tags it.
+            SE::Validator(e) => e.variant(),
             SE::Stdlib(e) => e.variant(),
-            SE::SigmaFn(msg) => tagged(
+            SE::SigmaFn(msg, _) => tagged(
                 "SigmaFnError",
                 OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
             ),
-            SE::MainSignature(msg) => tagged(
+            SE::MainSignature(msg, _) => tagged(
                 "MainSignatureError",
                 OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
             ),

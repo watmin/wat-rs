@@ -1,12 +1,20 @@
 #wat.resolve/UnresolvedReferences {
   :message "1 unresolved reference"
-  :location nil
-  :causes []
-  :unresolved [
+  :location #wat.core/Span {
+    :file "tests/diagnostics/probe_arc241_stone10_remedy_c08.wat.bad"
+    :line 1
+    :col 2
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 1
+        :col 29
+      }
+    }
+  }
+  :causes [
     #wat.resolve/UnresolvedReference {
-      :path ":wat::core::definitelywrong"
-      :context "call head — not a builtin, not a registered function"
-      :span #wat.core/Span {
+      :message "unresolved reference `:wat::core::definitelywrong` (call head — not a builtin, not a registered function)"
+      :location #wat.core/Span {
         :file "tests/diagnostics/probe_arc241_stone10_remedy_c08.wat.bad"
         :line 1
         :col 2
@@ -17,6 +25,9 @@
           }
         }
       }
+      :causes []
+      :path ":wat::core::definitelywrong"
+      :context "call head — not a builtin, not a registered function"
     }
   ]
 }

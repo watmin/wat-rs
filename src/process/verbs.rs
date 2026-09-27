@@ -233,6 +233,7 @@ fn finish_forked_child(
                     tag: "BadReturnType",
                     key: "got-type",
                     message: other.type_name(),
+                    span: crate::rust_caller_span!(),
                 }),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
@@ -299,6 +300,7 @@ pub(crate) fn finish_in_process(
                     tag: "BadReturnType",
                     key: "got-type",
                     message: other.type_name(),
+                    span: crate::rust_caller_span!(),
                 }),
             );
             EXIT_RUNTIME_ERROR

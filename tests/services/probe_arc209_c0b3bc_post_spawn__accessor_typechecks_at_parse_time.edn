@@ -1,12 +1,20 @@
 #wat.resolve/UnresolvedReferences {
   :message "1 unresolved reference"
-  :location nil
-  :causes []
-  :unresolved [
+  :location #wat.core/Span {
+    :file "tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat"
+    :line 18
+    :col 81
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 18
+        :col 119
+      }
+    }
+  }
+  :causes [
     #wat.resolve/UnresolvedReference {
-      :path ":wat::spawn::ProcessLaunch/bogus-field"
-      :context "call head — not a builtin, not a registered function"
-      :span #wat.core/Span {
+      :message "unresolved reference `:wat::spawn::ProcessLaunch/bogus-field` (call head — not a builtin, not a registered function)"
+      :location #wat.core/Span {
         :file "tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat"
         :line 18
         :col 81
@@ -17,6 +25,9 @@
           }
         }
       }
+      :causes []
+      :path ":wat::spawn::ProcessLaunch/bogus-field"
+      :context "call head — not a builtin, not a registered function"
     }
   ]
 }

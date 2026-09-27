@@ -74,7 +74,7 @@ fn t2_wrong_return_type_rejected_at_freeze() {
     )
     .expect_err("[] -> :wat::core::i64 main must be rejected at freeze");
     assert!(
-        matches!(err, StartupError::MainSignature(_)),
+        matches!(err, StartupError::MainSignature(_, _)),
         "expected StartupError::MainSignature; got {err:?}"
     );
 }
@@ -88,7 +88,7 @@ fn t2_legacy_3arg_main_rejected_at_freeze() {
     )
     .expect_err("3-arg :user::main must be rejected at freeze");
     assert!(
-        matches!(err, StartupError::MainSignature(_)),
+        matches!(err, StartupError::MainSignature(_, _)),
         "expected StartupError::MainSignature; got {err:?}"
     );
 }
