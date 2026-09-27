@@ -25,3 +25,22 @@ concrete operand and stays admitted.
 
 - The doctest comparison.
 - The golden fixtures.
+
+## Resume weighed (2026-09-27): STOP-1 accepted; `6225697a9` held local (the floor is red)
+
+Grok built the switch (the gates ask the classes; Refuse; E-a; Z1; the predicates deleted, ledger 198 → 195; the
+bounds on `assert-eq`/`dedupe-walk`/`dedupe`; the `ord_result_*` pins; `Pt`/`HPt` moved to a `.wat.bad`; the
+doctest's `matches?`). Then it stopped on 13 floor reds outside step 5. Read by the orchestrator:
+
+1. **`nil` is refused as `:()`.** `wat-tests/bracket.wat:40`/`:65` `(assert-eq (each …) nil)`. The `nil` edge is registered
+   on the **alias path**. By the bound check the type is its expansion `Tuple([])`, and Z1's one-or-more `:..` refuses
+   that. **There is no separate "empty tuple" type:** `(Tuple)` cannot be built, so `:()` *is* `nil`. Z1's intent
+   (`nil` Equatable, not Orderable) is right. The edge must be alias-transparent, registering on what the alias
+   names. That is an implementation fix, not a new ruling.
+2. **`:test::Wrapper` is a `defstruct` round-tripped through EDN** (`wat-tests/edn/roundtrip.wat:20`, `:75`, `:86`)
+   and compared with `assert-eq`. Q1 makes structs non-`Equatable`. **Needs the builder:** the test's type is data,
+   so should it be a record?
+3. Three scratch files compare `_` operands (`eval-ast!` results, `struct-field`). Each is pinned by a typed consumer,
+   as the doctest was. `probe-eq-generic-instantiation.wat` now **correctly** refuses `eq-generic` on two functions;
+   that call is the hole this stone closes. It moves to a `.wat.bad` asserting the refusal.
+4. The census's nine 0→1 flips are the three goldens (expected) plus the six files above.
