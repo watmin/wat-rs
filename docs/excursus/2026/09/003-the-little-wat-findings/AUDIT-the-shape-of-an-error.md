@@ -196,3 +196,29 @@ Gone:
 4. **Provenance (F5).** Drop the field, or re-fund it?
 5. **Retire** `AssertionFailure` (F1), `kernel::StartupError`, `EntryFormFailure` and `BadReturn`
    (F7), and resolve the domain `Fault`s (F8)?
+
+## RULING 2026-09-27 — all five, as recommended
+
+Builder: *"let's do it — we'll add stuff back in later if we choose to."* The bias is **removal**: a
+field is re-added when a real consumer asks for it, not kept in case one does.
+
+1. `causes` leaves the floor → `:wat::core::Error` is `{message location}`. Aggregates get their own
+   `errors` field back (reverting 3c's move); the two wrapping kinds carry a named `cause`; the
+   peer-death chain stays its own thing; `upstream-chain` goes with `AssertionFailure`.
+2. `Frame` becomes `{fn at}` — `at` is the location INSIDE `fn`; innermost first in true order, the
+   Rust activation innermost; `kind` and D4's fabricated frame go.
+3. The eval family's `Err` carries the real `:wat::core::Error`; `EvalError`'s string `kind` goes.
+4. `provenance` goes.
+5. `AssertionFailure`, `kernel::StartupError`, `EntryFormFailure`, `BadReturn` retire; the domain
+   `Fault`s are resolved (conform or rename — measured in their own strike).
+
+## Delivery — in order, each on a green floor
+
+| strike | scope | why this position |
+|---|---|---|
+| **A** | one death shape: `AssertionFailure` → `LociDiedError.Panic`; `Failure` → `{error frames frames-elided}` (actual/expected move into the assertion's error record, kept readable by DERIVED accessors); retire `kernel::StartupError`, `EntryFormFailure`, `BadReturn` | smallest; fixes the worst finding (F1) |
+| **B** | the floor → `{message location}` | touches every `WatError` impl and every golden once |
+| **C** | `provenance` out of `ValueSnapshot` | independent, small |
+| **D** | `Frame` → `{fn at}` | needs the tail-call ruling alongside |
+| **E** | `EvalError` carries the real error | largest; its own design note first |
+| **F** | the domain `Fault`s | needs a naming measurement |
