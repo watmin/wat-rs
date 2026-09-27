@@ -555,3 +555,22 @@ priority = 98
 filter = 'test(check_errors_are_in_source_order_every_run)'
 slow-timeout = { period = "90s", terminate-after = 2 }
 priority = 98
+
+# ─── rete::reachability shards — measured at the kill, not "flaky" (excursus 003, 2026-09-27) ───
+# Shards 0 and 1 of `reachability_shard_*_of_6` ran 29.3–29.9s on EVERY floor from
+# 2026-09-26T09-31 through 2026-09-27T01-27 (all green), against the default 30s kill; shards 2–5
+# ran ~27.5s. Two floors on 2026-09-27 then killed them at 30.02s. The margin was never there —
+# the rise to the kill was ~1s of run-to-run noise, not a regression. Builder ruling: a
+# timing-bound test gets its limit raised so it keeps passing even if slow. warn 60s, kill 120s
+# (4x the measured duration). Overrides do not inherit, so one per profile.
+[[profile.default.overrides]]
+filter = 'test(/^rete::reachability::reachability_shard_/)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+[[profile.ci.overrides]]
+filter = 'test(/^rete::reachability::reachability_shard_/)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+[[profile.slow.overrides]]
+filter = 'test(/^rete::reachability::reachability_shard_/)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
