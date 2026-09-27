@@ -312,6 +312,15 @@ fn parse_method_member_sig(
                         },
                     )
                 })?;
+                if let Some(reason) = crate::types::repeated_binder_reason(&params, items) {
+                    return Err(TypeError::new(
+                        items.first().map(|n| n.span().clone()).unwrap_or_else(|| sig_span.clone()),
+                        TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!("method member `{name_raw}`: {reason}"),
+                        },
+                    ));
+                }
                 let bounds = params.iter().map(|p| p.bound.clone()).collect();
                 let names = params.into_iter().map(|p| p.name).collect();
                 (name_raw.to_owned(), names, bounds, after)

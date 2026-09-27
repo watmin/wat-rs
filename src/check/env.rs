@@ -59,6 +59,8 @@ pub(crate) struct MembershipMiss {
     pub param: String,
     pub bound: String,
     pub got: String,
+    /// 1-based element of a repeated tuple. `None` for a parametric edge.
+    pub slot: Option<u32>,
 }
 
 pub(crate) struct ParamBoundGuard<'a> {

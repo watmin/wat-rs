@@ -1,0 +1,4 @@
+(:wat::core::defsurface :u::Mark :nature :wat::core::Record :features [])
+(:wat::core::extend-type :- [:.. Ts]
+  (:wat::core::Tuple :- [Ts :..])
+  :u::Mark)

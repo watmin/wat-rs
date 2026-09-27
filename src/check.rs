@@ -17323,6 +17323,7 @@ fn mismatch_or_membership(
                 param: miss.param,
                 bound: miss.bound,
                 got: miss.got,
+                slot: miss.slot,
             };
         }
     }
@@ -17387,6 +17388,28 @@ fn bound_failure(
         let bound = rename(bound, bindings);
         let got_r = reduce(&walk(got, subst), subst, env.types());
         let bound_r = reduce(&walk(&bound, subst), subst, env.types());
+        if edge.tuple_each.as_deref() == Some(name.as_str()) {
+            let TypeExpr::Tuple(slots) = &got_r else {
+                continue;
+            };
+            for (idx, slot_ty) in slots.iter().enumerate() {
+                let slot_r = reduce(&walk(slot_ty, subst), subst, env.types());
+                if !assignable(&slot_r, &bound_r, &mut subst.clone(), env) {
+                    if let Some(deeper) = env.take_membership() {
+                        return Some(deeper);
+                    }
+                    return Some(crate::check::env::MembershipMiss {
+                        argument: format_type(&got_r),
+                        surface: format_type(&bound_r),
+                        param: name.clone(),
+                        bound: format_type(&bound_r),
+                        got: format_type(&slot_r),
+                        slot: Some((idx + 1) as u32),
+                    });
+                }
+            }
+            continue;
+        }
         if !assignable(&got_r, &bound_r, &mut subst.clone(), env) {
             if let Some(deeper) = env.take_membership() {
                 return Some(deeper);
@@ -17397,6 +17420,7 @@ fn bound_failure(
                 param: name.clone(),
                 bound: format_type(&bound_r),
                 got: format_type(&got_r),
+                slot: None,
             });
         }
     }
@@ -17480,9 +17504,9 @@ pub(crate) fn assignable(
         // Full-args edge (a full-parametric extend-type, e.g. (Peer' :- [Op Reply]) <: :S — PROTOCOL-SPECIFIC)
         // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. (Vector :- [T]) <: :Proto).
         // Stone 255.22 — OR a GENERIC edge (its form declared a `:- [P …]` binder) whose child
-        // pattern-matches `a` reaches `ep` (`generic_edge_targets`); OR `a`'s family reaches it
+        // pattern-matches `a` reaches `ep` (`generic_edge_matches`); OR `a`'s family reaches it
         // by walking edges (`family_extends`). Neither guesses a parameter's spelling any more.
-        // Stone 255.52 — `generic_edge_targets` is not an existence test. A
+        // Stone 255.52 — `generic_edge_matches` is not an existence test. A
         // bounded edge counts only when each binding is assignable to its bound
         // (`conditional_edge`). `family_extends` and the two `is_subtype`s do
         // not see a bounded edge: it is not a string subtype, and the existence
@@ -17494,6 +17518,20 @@ pub(crate) fn assignable(
         let (held, miss) = conditional_edge(&a, ep, subst, env);
         if rendered || head_edge || family || held {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
+            return nature_floor_ok(&a, ep, types);
+        }
+        if let Some(mut miss) = miss {
+            miss.argument = format_type(&a);
+            miss.surface = ep.clone();
+            env.note_membership(miss);
+        }
+    }
+    // Stone 255.53 — a tuple actual meets a repeated `(Tuple :- [Ts :..])` edge.
+    // Existence walks do not: the edge is not a string subtype, and
+    // `family_extends` skips `tuple_each`. Every slot is `assignable` to the bound.
+    if let (TypeExpr::Tuple(_), TypeExpr::Path(ep)) = (&a, &e) {
+        let (held, miss) = conditional_edge(&a, ep, subst, env);
+        if held {
             return nature_floor_ok(&a, ep, types);
         }
         if let Some(mut miss) = miss {
@@ -17594,7 +17632,7 @@ pub(crate) fn assignable(
         // `a`'s head declared at `eh`'s surface, instantiated for `a`:
         //   - a GENERIC edge (`(extend-type :- [P …] <child> <target>)`): its child is
         //     pattern-matched against `a`, binding exactly the names its BINDER declared, and the
-        //     target is instantiated under those bindings (`types::generic_edge_targets`) —
+        //     target is instantiated under those bindings (`admitted_edge_targets`) —
         //     `(extend-type :- [Elem] (Vector :- [Elem]) (Seqable :- [Elem]))` asked of
         //     `(Vector :- [i64])` offers `(Seqable :- [i64])`;
         //   - a concrete edge on the BARE head (`(extend-type :Vector (Holds :- [i64]))`): its

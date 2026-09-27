@@ -895,6 +895,9 @@ pub(crate) struct GenericEdge {
     /// `[Name :< Bound]` (stone 255.52): the edge holds only when the binding
     /// is assignable to the bound. An existence walk must not use that edge.
     pub(crate) bounds: Vec<Option<TypeExpr>>,
+    /// Stone 255.53 — when set, the child is "a tuple of any arity, each slot
+    /// this parameter". Not a rest slot on `TypeExpr::Tuple`.
+    pub(crate) tuple_each: Option<String>,
     pub(crate) child: TypeExpr,
     pub(crate) target: TypeExpr,
 }
@@ -1486,19 +1489,24 @@ impl TypeEnv {
         &mut self,
         params: Vec<String>,
         bounds: Vec<Option<TypeExpr>>,
+        tuple_each: Option<String>,
         child: TypeExpr,
         target: TypeExpr,
     ) {
-        let key = match &child {
-            TypeExpr::Parametric { head, .. } => {
+        let key = match (&tuple_each, &child) {
+            (Some(_), _) => {
+                crate::edn::render::type_denotation(":wat::core::Tuple")
+            }
+            (None, TypeExpr::Parametric { head, .. }) => {
                 crate::edn::render::type_denotation(&parametric_head_fqdn(head))
             }
-            TypeExpr::Path(p) => crate::edn::render::type_denotation(p),
+            (None, TypeExpr::Path(p)) => crate::edn::render::type_denotation(p),
             _ => return,
         };
         let slot = self.generic_edges.entry(key).or_default();
         if !slot.iter().any(|e| {
             e.params == params
+                && e.tuple_each == tuple_each
                 && bounds_same(&e.bounds, &bounds)
                 && type_exprs_same(&e.child, &child)
                 && type_exprs_same(&e.target, &target)
@@ -1506,6 +1514,7 @@ impl TypeEnv {
             slot.push(GenericEdge {
                 params,
                 bounds,
+                tuple_each,
                 child,
                 target,
             });
@@ -1765,7 +1774,7 @@ pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
         stack.extend(
             edges
                 .iter()
-                .filter(|e| e.bounds.iter().all(|b| b.is_none()))
+                .filter(|e| e.tuple_each.is_none() && e.bounds.iter().all(|b| b.is_none()))
                 .map(|e| crate::check::format_type(&e.target)),
         );
     }
@@ -1878,6 +1887,7 @@ pub(crate) fn generic_edge_matches<'e>(
         TypeExpr::Parametric { head, .. } => {
             crate::edn::render::type_denotation(&parametric_head_fqdn(head))
         }
+        TypeExpr::Tuple(_) => crate::edn::render::type_denotation(":wat::core::Tuple"),
         _ => return Vec::new(),
     };
     let Some(edges) = env.generic_edges.get(&key) else {
@@ -1892,6 +1902,14 @@ pub(crate) fn generic_edge_matches<'e>(
         .iter()
         .filter(|e| target_head(&e.target).is_some_and(|h| parametric_heads_unify(&h, surface)))
         .filter_map(|e| {
+            if let Some(rep) = &e.tuple_each {
+                let TypeExpr::Tuple(_) = actual else {
+                    return None;
+                };
+                let mut bindings = HashMap::new();
+                bindings.insert(rep.clone(), actual.clone());
+                return Some((e, bindings));
+            }
             let mut bindings = HashMap::new();
             match_edge_child(&e.child, actual, &e.params, &mut bindings).then_some((e, bindings))
         })
@@ -4724,6 +4742,11 @@ fn splice_type_decls(
             let binder = binder.unwrap_or_default();
             let bound_types: Vec<Option<TypeExpr>> =
                 binder.iter().map(|p| p.bound.clone()).collect();
+            let repeated: Vec<String> = binder
+                .iter()
+                .filter(|p| p.repeated)
+                .map(|p| p.name.clone())
+                .collect();
             let binder: Vec<String> = binder.into_iter().map(|p| p.name).collect();
             let child_node = ops.first().cloned();
             let target_node = ops.get(1).cloned();
@@ -4757,6 +4780,14 @@ fn splice_type_decls(
                     ))
                 }
             };
+            if let Some(node) = &target_node {
+                if let Err((sp, reason)) = stray_rest_marker(node) {
+                    return Err(TypeError::new(
+                        sp,
+                        TypeErrorKind::MalformedDecl { head: "extend-type".into(), reason },
+                    ));
+                }
+            }
             let target_te = match &target_node {
                 Some(node @ (WatAST::Keyword(_, _) | WatAST::List(_, _))) => parse_type_node(node)?,
                 Some(node @ WatAST::Symbol(id, _)) if id.is_reference() => parse_type_node(node)?,
@@ -4778,8 +4809,57 @@ fn splice_type_decls(
             //       the child does not carry (matching the child is what binds it);
             //   (2) every name in the child or the target is a declared parameter or a known
             //       type — a free letter is an error, not a parameter.
-            let child_te = match &child_node {
-                Some(node) => parse_type_node(node)?,
+            let (child_te, tuple_each) = match &child_node {
+                Some(node) => match tuple_rest_child(node).map_err(|(sp, reason)| {
+                    TypeError::new(
+                        sp,
+                        TypeErrorKind::MalformedDecl { head: "extend-type".into(), reason },
+                    )
+                })? {
+                    Some(slot_name) => {
+                        let rep = repeated.first().map(String::as_str).ok_or_else(|| {
+                            TypeError::new(
+                                decl_span.clone(),
+                                TypeErrorKind::MalformedDecl {
+                                    head: "extend-type".into(),
+                                    reason: format!(
+                                        "`(Tuple :- [{slot_name} :..])` repeats `{slot_name}`, and the binder has no repeated entry"
+                                    ),
+                                },
+                            )
+                        })?;
+                        if rep != slot_name {
+                            return Err(TypeError::new(
+                                decl_span.clone(),
+                                TypeErrorKind::MalformedDecl {
+                                    head: "extend-type".into(),
+                                    reason: format!(
+                                        "`(Tuple :- [{slot_name} :..])` repeats `{slot_name}`; the repeated binder entry is `{rep}`"
+                                    ),
+                                },
+                            ));
+                        }
+                        (
+                            TypeExpr::Tuple(vec![TypeExpr::Path(format!(":{slot_name}"))]),
+                            Some(slot_name),
+                        )
+                    }
+                    None => {
+                        if let Some(rep) = repeated.first() {
+                            return Err(TypeError::new(
+                                decl_span.clone(),
+                                TypeErrorKind::MalformedDecl {
+                                    head: "extend-type".into(),
+                                    reason: format!(
+                                        "repeated binder entry `{rep}` must be the only slot of `(Tuple :- [{rep} :..])`; got {}",
+                                        render_binder_entry(node)
+                                    ),
+                                },
+                            ));
+                        }
+                        (parse_type_node(node)?, None)
+                    }
+                },
                 None => unreachable!("child_node was matched above"),
             };
             if let Some(param) = binder.iter().find(|p| !type_mentions_param(&child_te, p)) {
@@ -4822,6 +4902,7 @@ fn splice_type_decls(
                 env.register_generic_edge(
                     binder.clone(),
                     bound_types.clone(),
+                    tuple_each.clone(),
                     child_te.clone(),
                     target_te.clone(),
                 );
@@ -4829,7 +4910,7 @@ fn splice_type_decls(
             // Stone 255.52 — a bounded edge is not also a string subtype. The
             // rendered child `(Vector :- [:T])` <: Mark would be an existence
             // fact, and `family_extends` / `is_subtype` would then ignore the bound.
-            if bound_types.iter().any(|b| b.is_some()) {
+            if bound_types.iter().any(|b| b.is_some()) || tuple_each.is_some() {
                 return Ok(WatAST::List(items, span));
             }
             // Arc 109 stone 1 — the protocol slot also accepts a parametric-type FORM
@@ -5894,6 +5975,8 @@ pub(crate) fn peel_param_spec(args: &[WatAST]) -> (Option<&[WatAST]>, &[WatAST])
 pub(crate) struct BinderParam {
     pub name: String,
     pub bound: Option<TypeExpr>,
+    /// Stone 255.53 — the keyword `:..` followed this entry, and it was last.
+    pub repeated: bool,
 }
 
 fn render_binder_entry(item: &WatAST) -> String {
@@ -5914,14 +5997,123 @@ fn render_binder_entry(item: &WatAST) -> String {
 
 /// The one door for a type binder's entries. A bare name, or `[Name :< Type]`.
 /// Anything else is an error that names the entry. Nothing is dropped.
+fn ast_has_rest_marker(node: &WatAST) -> bool {
+    match node {
+        WatAST::Keyword(k, _) if k == ":.." => true,
+        WatAST::List(xs, _) | WatAST::Vector(xs, _) => xs.iter().any(ast_has_rest_marker),
+        _ => false,
+    }
+}
+
+fn is_tuple_type_head(node: &WatAST) -> bool {
+    let raw = match node {
+        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Symbol(id, _) if id.as_str().contains('/') => {
+            crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+        }
+        _ => return false,
+    };
+    crate::edn::render::type_denotation(&raw) == ":wat::core::Tuple"
+}
+
+/// `:..` anywhere in a target, or in a child that is not `(Tuple :- [Name :..])`.
+fn stray_rest_marker(node: &WatAST) -> Result<(), (Span, String)> {
+    if ast_has_rest_marker(node) {
+        Err((
+            node.span().clone(),
+            format!(
+                "`:..` in a type is only `(Tuple :- [Name :..])`; got {}",
+                render_binder_entry(node)
+            ),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+/// `Some(name)` for exactly `(Tuple :- [Name :..])`. `None` when there is no `:..`.
+fn tuple_rest_child(node: &WatAST) -> Result<Option<String>, (Span, String)> {
+    if let WatAST::List(items, _) = node {
+        if items.len() == 3 && is_tuple_type_head(&items[0]) {
+            let marker = matches!(&items[1], WatAST::Keyword(k, _) if k == ":-");
+            if marker {
+                if let WatAST::Vector(inner, _) = &items[2] {
+                    if inner.len() == 2 {
+                        if let WatAST::Symbol(id, _) = &inner[0] {
+                            if !id.is_reference()
+                                && matches!(&inner[1], WatAST::Keyword(k, _) if k == ":..")
+                            {
+                                return Ok(Some(id.as_str().to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    stray_rest_marker(node).map(|()| None)
+}
+
+fn binder_items_shown(items: &[WatAST]) -> String {
+    let parts: Vec<String> = items.iter().map(render_binder_entry).collect();
+    format!("[{}]", parts.join(" "))
+}
+
+/// `:..` is legal only as the keyword after the last binder entry, once.
+fn take_repeated_marker(
+    items: &[WatAST],
+    index: usize,
+    out: &mut [BinderParam],
+) -> Result<bool, (Span, String)> {
+    let WatAST::Keyword(k, span) = &items[index] else {
+        return Ok(false);
+    };
+    if k != ":.." {
+        return Ok(false);
+    }
+    if out.is_empty() {
+        return Err((
+            span.clone(),
+            format!(
+                "`:..` must follow a binder entry; got {}",
+                binder_items_shown(items)
+            ),
+        ));
+    }
+    let later_dot = items[index + 1..].iter().any(|n| matches!(n, WatAST::Keyword(k, _) if k == ":.."));
+    if later_dot {
+        return Err((
+            span.clone(),
+            format!("`:..` may appear once; got {}", binder_items_shown(items)),
+        ));
+    }
+    if index + 1 != items.len() {
+        return Err((
+            span.clone(),
+            format!(
+                "`:..` must be the last binder entry; got {}",
+                binder_items_shown(items)
+            ),
+        ));
+    }
+    out.last_mut().unwrap().repeated = true;
+    Ok(true)
+}
+
 pub(crate) fn parse_binder_entries(items: &[WatAST]) -> Result<Vec<BinderParam>, (Span, String)> {
     let mut out = Vec::with_capacity(items.len());
-    for item in items {
+    let mut index = 0;
+    while index < items.len() {
+        if take_repeated_marker(items, index, &mut out)? {
+            break;
+        }
+        let item = &items[index];
         match item {
             WatAST::Symbol(id, _) if !id.is_reference() => {
                 out.push(BinderParam {
                     name: id.as_str().to_string(),
                     bound: None,
+                    repeated: false,
                 });
             }
             WatAST::Vector(inner, span) => {
@@ -5960,6 +6152,7 @@ pub(crate) fn parse_binder_entries(items: &[WatAST]) -> Result<Vec<BinderParam>,
                 out.push(BinderParam {
                     name,
                     bound: Some(bound),
+                    repeated: false,
                 });
             }
             other => {
@@ -5972,8 +6165,19 @@ pub(crate) fn parse_binder_entries(items: &[WatAST]) -> Result<Vec<BinderParam>,
                 ));
             }
         }
+        index += 1;
     }
     Ok(out)
+}
+
+/// `:..` names a repeated `extend-type` entry. `fn`, `defn`, and a method binder refuse it.
+pub(crate) fn repeated_binder_reason(params: &[BinderParam], items: &[WatAST]) -> Option<String> {
+    params.iter().any(|p| p.repeated).then(|| {
+        format!(
+            "`:..` is only legal on an extend-type binder; got {}",
+            binder_items_shown(items)
+        )
+    })
 }
 
 pub(crate) fn extend_type_operands(

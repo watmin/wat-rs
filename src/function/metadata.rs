@@ -54,7 +54,17 @@ type PeeledTypeBinder<'a> = Result<
 pub(crate) fn peel_type_binder(args: &[WatAST]) -> PeeledTypeBinder<'_> {
     let (peeled, rest) = crate::types::peel_param_spec(args);
     match peeled {
-        Some(items) => Ok((Some(crate::types::parse_binder_entries(items)?), rest)),
+        Some(items) => {
+            let params = crate::types::parse_binder_entries(items)?;
+            if let Some(reason) = crate::types::repeated_binder_reason(&params, items) {
+                let span = items
+                    .first()
+                    .map(|n| n.span().clone())
+                    .unwrap_or_else(|| crate::rust_caller_span!());
+                return Err((span, reason));
+            }
+            Ok((Some(params), rest))
+        }
         None => Ok((None, args)),
     }
 }

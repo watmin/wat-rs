@@ -125,6 +125,8 @@ pub enum CheckErrorKind {
         param: String,
         bound: String,
         got: String,
+        /// 1-based slot of a repeated tuple. Absent for a parametric edge.
+        slot: Option<u32>,
     },
     /// Arc 138 slice 1 — function body type does not match declared return type.
     ///
@@ -491,13 +493,19 @@ impl CheckErrorKind {
                 param,
                 bound,
                 got,
-            } => {
-                write!(
+                slot,
+            } => match slot {
+                Some(slot) => write!(
+                    f,
+                    "{}{argument} is not a {surface}: type parameter {param} slot {slot} is bounded by {bound}; got {got}",
+                    prefix
+                ),
+                None => write!(
                     f,
                     "{}{argument} is not a {surface}: type parameter {param} is bounded by {bound}; got {got}",
                     prefix
-                )
-            }
+                ),
+            },
             CheckErrorKind::TypeMismatch { callee, param, expected, got } => {
                 write!(
                     f,
