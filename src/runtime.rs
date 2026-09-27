@@ -15017,9 +15017,19 @@ mod tests {
         );
         assert_eq!(ev.variant_name, "StartupError");
 
+        // Excursus 003 step 3b: every failure variant now carries a `:wat::kernel::Failure`
+        // envelope (`[failure]`), not the bare cause directly — `ev.fields[0]` is the Failure,
+        // and its own `error` field (declaration order 0) is the cause this gate is about.
+        let failure = match &ev.fields[0] {
+            Value::Aggregate(a) if a.class.as_ref() == "wat::kernel::Failure" => a,
+            other => panic!("StartupError payload must be a typed Failure record; got {other:?}"),
+        };
         // THE GATE: the cause is a fully-structured, navigable
         // #wat.runtime/UnknownFunction RECORD — NOT an escaped-EDN String.
-        let cause = &ev.fields[0];
+        let cause = failure
+            .fields
+            .first()
+            .unwrap_or_else(|| panic!("Failure missing its :error field"));
         let agg = match cause {
             Value::Aggregate(a) => a,
             Value::String(s) => panic!(

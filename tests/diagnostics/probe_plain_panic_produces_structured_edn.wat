@@ -68,7 +68,7 @@
         (:wat::core::match cause
           ;; TRUE variant: a bare Rust panic (capacity exceeded, NOT an AssertionPayload)
           ;; → LociDiedError::Panic; the panic String rides Panic.message. Return it.
-          [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+          [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
           ;; LociDiedError is the no-hidden-failures enum — every OTHER death is named
           ;; EXPLICITLY (no `_` lump; verbosity is the shield). A distinct WRONG:<variant>
           ;; sentinel makes a RED name exactly which non-Panic death surfaced instead.

@@ -34,7 +34,13 @@ fn bare_symbol_in_then_is_a_compile_error() {
     let StartupError::Validator(errs) = &err else {
         panic!("expected StartupError::Validator (the defrule wall's hook), got {err:?}");
     };
-    let rendered = format!("{errs}");
+    // Excursus 003 step 3b, item 5: `ReteCheckErrors`'s `Display` now routes through `message()`
+    // (the short "N rete rule validation error(s)" summary), so a `format!("{errs}")` here would
+    // no longer carry the teaching text these assertions pin. `Debug` is UNCHANGED — still the
+    // full `to_wire_edn`, composed through `ReteCheckErrors`'s own `WatError::variant()`, which
+    // (unlike `StartupError`'s Validator arm) still splices each nested finding's `.message()` in
+    // via `error_edn()`. `{errs:?}` is the one that still shows the whole structure.
+    let rendered = format!("{errs:?}");
 
     // ⚠ WHY THESE ARE `contains` AND RUNED, rather than the `.edn` golden the rubric prefers:
     // the error embeds its `Span`, whose `:file` is an ABSOLUTE path that differs on every

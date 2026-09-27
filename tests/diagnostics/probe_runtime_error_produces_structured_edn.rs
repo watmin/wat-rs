@@ -33,35 +33,6 @@ fn run_fn(fn_name: &str) -> String {
     }
 }
 
-/// The `RuntimeError.message` crosses the wire as `to_wire_edn(re)` — a wat EDN
-/// form `#wat.runtime/DivisionByZero {:message "…" :location #wat.core/Span{…} …}`
-/// whose `:location` embeds the ABSOLUTE host path to the fixture (host-varying).
-/// Per the substrate doctrine (every wat stdio value is EDN — assert the
-/// STRUCTURE, never a loose `contains`), we parse it and field-extract the
-/// host-independent `:message` datum for an EXACT assertion.
-fn diagnostic_message(edn: &str) -> String {
-    let parsed = wat_edn::parse_owned(edn.trim())
-        .unwrap_or_else(|e| panic!("RuntimeError.message must be a wat EDN form; got {edn:?}: {e}"));
-    let map = match &parsed {
-        // The RuntimeError diagnostic is a #wat.runtime/<Variant> {…} tagged map.
-        wat_edn::OwnedValue::Tagged(_, body) => match body.as_ref() {
-            wat_edn::OwnedValue::Map(entries) => entries,
-            other => panic!("expected a tagged Map diagnostic; got {other:?}"),
-        },
-        other => panic!("expected a tagged RuntimeError diagnostic; got {other:?}"),
-    };
-    for (k, v) in map {
-        if let wat_edn::OwnedValue::Keyword(kw) = k {
-            if kw.namespace().is_none() && kw.name() == "message" {
-                if let wat_edn::OwnedValue::String(s) = v {
-                    return s.to_string();
-                }
-            }
-        }
-    }
-    panic!("RuntimeError diagnostic carried no :message String field; got {edn:?}");
-}
-
 #[test]
 fn probe_runtime_error_produces_structured_edn() {
     // The child divides by zero → RuntimeError::DivisionByZero; the parent's
@@ -72,17 +43,18 @@ fn probe_runtime_error_produces_structured_edn() {
     eprintln!("RuntimeError.message: {:?}", msg);
     eprintln!("=======================================================");
 
-    // A Message/Closed/Panic/WRONG:<variant> sentinel is NOT a wat EDN diagnostic
-    // form, so field-extraction would panic on it — the structural parse itself is
-    // the guard that the crash crossed the wire as a genuine Lost[RuntimeError].
-    // The extracted :message is the host-independent datum (the full diagnostic
-    // embeds the absolute host path in :location); it must be EXACTLY the
-    // division-by-zero text — which is neither the WRONG:<variant> sentinels nor
-    // the retired plain-text fallback "forked program exited N".
-    let diag = diagnostic_message(&msg);
+    // Excursus 003 step 3b: `LociDiedError/message` derives from `failure.error.message`
+    // for every variant, and for a `RuntimeError` that is now the one-line headline
+    // directly — NOT the whole `to_wire_edn(re)` blob a prior version of this test
+    // re-parsed as EDN (per the brief's own prediction: "for a RuntimeError it was the
+    // whole EDN blob, and becomes the one-line headline"). `msg` IS the diagnostic text.
+    // The exact-match assertion is still the guard against a wrong variant: each
+    // `WRONG:<variant>` sentinel in the fixture is itself a plain, DIFFERENT string, so a
+    // wrong branch firing still fails loudly here — it is neither this text nor the
+    // retired plain-text fallback "forked program exited N".
     assert_eq!(
-        diag, "division by zero",
+        msg, "division by zero",
         "a runtime error must surface over the primed wire as LociDiedError::RuntimeError \
-         carrying the structured division-by-zero diagnostic; got: {msg:?}"
+         carrying the division-by-zero headline; got: {msg:?}"
     );
 }

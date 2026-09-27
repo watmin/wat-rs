@@ -280,17 +280,10 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
         ev.variant_name
     );
 
-    // Panic.fields = [message :String, failure :Option<Failure>]. An AssertionPayload panic
-    // carries the structured Failure, so failure is Some(Failure).
-    let failure_val = match &ev.fields[1] {
-        wat::runtime::Value::Option(opt) => match opt.as_ref() {
-            Some(v) => v,
-            None => panic!(
-                "expected LociDiedError::Panic.failure = Some(Failure) (assert-eq carries an AssertionPayload); got None"
-            ),
-        },
-        other => panic!("expected Panic.failure :Option<Failure>; got {:?}", other),
-    };
+    // Excursus 003 step 3b: Panic collapsed to `Panic.fields = [failure :Failure]` — the
+    // separate `message` field and `Option<Failure>` are gone; every panic (AssertionPayload
+    // or not) now carries a real, mandatory Failure at fields[0].
+    let failure_val = &ev.fields[0];
 
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
@@ -474,17 +467,10 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
         ev.variant_name
     );
 
-    // Panic.fields = [message :String, failure :Option<Failure>]. An AssertionPayload panic
-    // carries the structured Failure, so failure is Some(Failure).
-    let failure_val = match &ev.fields[1] {
-        wat::runtime::Value::Option(opt) => match opt.as_ref() {
-            Some(v) => v,
-            None => panic!(
-                "expected LociDiedError::Panic.failure = Some(Failure) (assert-eq carries an AssertionPayload); got None"
-            ),
-        },
-        other => panic!("expected Panic.failure :Option<Failure>; got {:?}", other),
-    };
+    // Excursus 003 step 3b: Panic collapsed to `Panic.fields = [failure :Failure]` — the
+    // separate `message` field and `Option<Failure>` are gone; every panic (AssertionPayload
+    // or not) now carries a real, mandatory Failure at fields[0].
+    let failure_val = &ev.fields[0];
 
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {

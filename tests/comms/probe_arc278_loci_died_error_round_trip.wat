@@ -27,7 +27,7 @@
         ;; not a flat Failure. Every peer handles every death regardless of its locus.
         (:wat::core::match cause
           [:wat::kernel::LociDiedError.Panic {:failure failure}
-           (:wat::core::Option.Some {:value (:wat::kernel::Failure/message message)})]
+           (:wat::core::Option.Some {:value (:wat::kernel::Failure/message failure)})]
           [_ :wat::core::Option.None])]
       [:wat::kernel::RecvOutcome.Stopped {} :wat::core::Option.None]
       [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])))

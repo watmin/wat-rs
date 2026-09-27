@@ -17,7 +17,11 @@ fn validator_text(path: &str) -> String {
     let StartupError::Validator(errs) = &err else {
         panic!("expected StartupError::Validator, got {err:?}");
     };
-    format!("{errs}")
+    // Excursus 003 step 3b, item 5: `ReteCheckErrors`'s `Display` now routes through the short
+    // `message()` summary; `Debug` is unchanged (still the full `to_wire_edn`, composed through
+    // `ReteCheckErrors`'s own `WatError::variant()`, which splices each finding's `.message()`
+    // in via `error_edn()`) — `{errs:?}` is what still carries the teaching text below.
+    format!("{errs:?}")
 }
 
 #[test]

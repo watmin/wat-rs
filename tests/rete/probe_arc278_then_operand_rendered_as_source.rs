@@ -61,36 +61,37 @@ fn run(rel: &str) -> (bool, String) {
     )
 }
 
-/// The error map, parsed. Main's `LociDiedError` envelope is a tagged map whose `:message`
-/// is the inner error's EDN text (296). Grok-rete's wire was a vector of those strings;
-/// both peel to the same TypeMismatch map.
+/// The error map, parsed. Excursus 003 step 3b reshaped `LociDiedError`'s failure
+/// variants: the tagged envelope's payload is now `{:failure #wat.kernel/Failure
+/// {:error <structured record> ...}}` — `:error` is ALREADY a tagged record
+/// (`re.to_record()` / a `StartupError`'s own concrete kind), never a serialized
+/// string, so there is no inner EDN text left to re-parse. Peel `:failure`, then
+/// `:error`, and hand back that record's own field map directly.
 fn error_map(stderr: &str) -> Vec<(OwnedValue, OwnedValue)> {
     let outer = wat_edn::parse_owned(stderr.trim()).expect("the refusal must be EDN on stderr");
-    let inner = match outer {
+    let died_body = match outer {
         OwnedValue::Vector(mut xs) if !xs.is_empty() => match xs.remove(0) {
             OwnedValue::Tagged(_, body) => match *body {
-                OwnedValue::Map(m) => match m.iter().find(|(k, _)| {
-                    *k == OwnedValue::Keyword(Keyword::new("message"))
-                }) {
-                    Some((_, OwnedValue::String(s))) => s.to_string(),
-                    other => panic!("LociDiedError :message must be a string; got {other:?}"),
-                },
-                OwnedValue::Vector(mut ss) if !ss.is_empty() => match ss.remove(0) {
-                    OwnedValue::String(s) => s.to_string(),
-                    other => panic!("expected the error as an EDN string; got {other:?}"),
-                },
-                other => panic!("expected a LociDiedError map or vector of error strings; got {other:?}"),
+                OwnedValue::Map(m) => m,
+                other => panic!("expected a LociDiedError map; got {other:?}"),
             },
             other => panic!("expected a tagged LociDiedError; got {other:?}"),
         },
         other => panic!("expected a vector at the top; got {other:?}"),
     };
-    match wat_edn::parse_owned(&inner).expect("inner error must be EDN") {
-        OwnedValue::Tagged(_, body) => match *body {
-            OwnedValue::Map(m) => m,
-            other => panic!("expected a map body; got {other:?}"),
+    let failure_body = match field(&died_body, "failure") {
+        OwnedValue::Tagged(_, body) => match &**body {
+            OwnedValue::Map(m) => m.clone(),
+            other => panic!("expected :failure to carry a Failure map; got {other:?}"),
         },
-        other => panic!("expected a tagged error; got {other:?}"),
+        other => panic!("expected a tagged :failure Failure record; got {other:?}"),
+    };
+    match field(&failure_body, "error") {
+        OwnedValue::Tagged(_, body) => match &**body {
+            OwnedValue::Map(m) => m.clone(),
+            other => panic!("expected :error to carry a record map; got {other:?}"),
+        },
+        other => panic!("expected a tagged :error record; got {other:?}"),
     }
 }
 
@@ -107,9 +108,14 @@ fn an_unbound_then_operand_is_named_as_source_not_as_rust_debug() {
     assert!(!ok, "an unbound `?var` in a `:then` must not fire cleanly\n{stderr}");
 
     let e = error_map(&stderr);
+    // `:got` is a typed `#wat.runtime/ValueSnapshot` record (step 3a made every RuntimeError
+    // field a declared record where one exists) — a TAGGED map, not a bare one.
     let got = match field(&e, "got") {
-        OwnedValue::Map(m) => m.clone(),
-        other => panic!(":got must be a snapshot map; got {other:?}"),
+        OwnedValue::Tagged(_, body) => match &**body {
+            OwnedValue::Map(m) => m.clone(),
+            other => panic!(":got's ValueSnapshot must carry a Map body; got {other:?}"),
+        },
+        other => panic!(":got must be a tagged ValueSnapshot; got {other:?}"),
     };
     let rendered = match field(&got, "rendered") {
         OwnedValue::String(s) => s.to_string(),

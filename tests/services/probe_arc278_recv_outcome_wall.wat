@@ -70,6 +70,11 @@
       [:wat::kernel::RecvOutcome.Stopped {} (:probe::Outcome.Stopped {})]
       [:wat::kernel::RecvOutcome.Closed {} (:probe::Outcome.Closed {})])))
 
+;; Excursus 003 step 3b: the sentinel searches the DERIVED headline (`failure.error.message`),
+;; which is now the clean one-line prose (e.g. "division by zero"), never the tag name
+;; ("DivisionByZero") — that name only ever leaked in because `/message` used to be the whole
+;; `to_wire_edn` blob, tag included, which is exactly the double-quoting defect this excursus
+;; exists to kill.
 (:wat::core::defn :probe::client-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
@@ -77,7 +82,7 @@
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:probe::Outcome.Lost {:sentinel-present? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")})]
+        (:probe::Outcome.Lost {:sentinel-present? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "division by zero")})]
       [:wat::kernel::RecvOutcome.Stopped {} (:probe::Outcome.Stopped {})]
       [:wat::kernel::RecvOutcome.Closed {} (:probe::Outcome.Closed {})])))
 
@@ -102,7 +107,7 @@
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
       [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:probe::Outcome.Lost {:sentinel-present? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")})]
+        (:probe::Outcome.Lost {:sentinel-present? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "division by zero")})]
       [:wat::kernel::RecvOutcome.Stopped {} (:probe::Outcome.Stopped {})]
       [:wat::kernel::RecvOutcome.Closed {} (:probe::Outcome.Closed {})])))
 

@@ -62,7 +62,7 @@
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
            [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+               [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
                [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
            [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
@@ -82,7 +82,7 @@
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
            [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+               [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
                [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
            [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
@@ -102,7 +102,7 @@
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
            [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+               [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
                [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
            [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]

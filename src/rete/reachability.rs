@@ -1943,10 +1943,18 @@ fn a_mistyped_field_still_names_the_field_and_only_once() {
     let msg = raw_count(SRC).expect_err("a mistyped field must not compile");
     // rune:lint(loose-assert) — the refusal is a `ReteCheckErrors` batch embedding a Span path;
     // pin the TEACHING halves. The structured face is asserted exactly by validate/mod.rs's own tests.
+    //
+    // Excursus 003 step 3b, item 5: `ReteCheckErrors`'s `Display` (what `raw_count`'s
+    // `format!("{e:?}")` renders through `StartupError`'s own `Debug`/`error_edn()`) no longer
+    // embeds each nested error's synthesized teaching sentence — that was always a side effect of
+    // the double-quoting defect this excursus exists to kill (the whole nested wire EDN, prose
+    // included, used to leak into the OUTER `:message` string). The kind tag is still the load-
+    // bearing, structural fact this assertion needs: `UnknownField` names a missing FIELD, not a
+    // type mismatch about a keyword constant (that kind tags `RhsOperandTypeMismatch` or similar).
     assert!(
-        msg.contains("has no field"),
-        "the typo must still be reported as a missing FIELD, not as a type mismatch about a \
-         keyword constant; got:\n{msg}"
+        msg.contains("UnknownField"),
+        "the typo must still be reported as a missing FIELD (#wat.rete/UnknownField), not as a \
+         type mismatch about a keyword constant; got:\n{msg}"
     );
     // rune:lint(loose-assert) — same batch. This half is the count, and it is the whole point:
     // ONE error, so the author is not also told to switch comparator.

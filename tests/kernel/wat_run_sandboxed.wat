@@ -83,7 +83,7 @@
           [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE-3"]
           [:wat::kernel::RecvOutcome.Lost {:cause cause}
             (:wat::core::match cause
-              [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+              [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
               [_ "LOST-NON-PANIC-3"])]
           [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED-3"]
           [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED-3"])]
@@ -110,7 +110,7 @@
       [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+          [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
           [_ "LOST-NON-PANIC"])]
       [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
       [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
@@ -166,7 +166,7 @@
           [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE-2"]
           [:wat::kernel::RecvOutcome.Lost {:cause cause}
             (:wat::core::match cause
-              [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+              [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
               [_ "LOST-NON-PANIC-2"])]
           [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED-2"]
           [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED-2"])]
@@ -190,7 +190,7 @@
       [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+          [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
           [_ "LOST-NON-PANIC"])]
       [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
       [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
@@ -210,7 +210,7 @@
       [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]
+          [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]
           [_ "LOST-NON-PANIC"])]
       [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
       [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

@@ -98,9 +98,9 @@ fn a_bare_tagged_enum_variant_in_a_rete_constraint_is_refused() {
 fn the_misspelled_variant_refusal_names_the_enum_and_its_real_variants() {
     let (ok, out, err) = run("tests/rete/probe_arc278_enum_variant_typo_bad.wat");
     assert!(!ok, "the misspelling must still refuse — D1's ground\n{out}{err}");
-    wat::assert_edn_eq!(
+    wat::assert_edn_matches_file!(
         err.trim().to_string(),
-        include_str!("probe_arc278_enum_variant_typo_bad__refusal.edn"),
+        "probe_arc278_enum_variant_typo_bad__refusal.edn",
         "the refusal must be `#wat.rete/UnknownEnumVariant` carrying `:enum-path \"evt::G\"`, \
          `:variant \"Hii\"` and `:available-variants [\"Hi\" \"Lo\"]` — captured whole, so a \
          reordered field, an appended remedy, or a fallback to `UnknownField` all fail here"
@@ -141,9 +141,9 @@ fn the_misspelled_variant_refusal_names_the_enum_and_its_real_variants() {
 fn the_bare_tagged_variant_keeps_the_unknown_field_route() {
     let (ok, out, err) = run("tests/rete/probe_arc278_enum_variant_typo_tagged.wat");
     assert!(!ok, "the bare tagged variant must still refuse — D1's arm 2\n{out}{err}");
-    wat::assert_edn_eq!(
+    wat::assert_edn_matches_file!(
         err.trim().to_string(),
-        include_str!("probe_arc278_enum_variant_typo_tagged__refusal.edn"),
+        "probe_arc278_enum_variant_typo_tagged__refusal.edn",
         "the tagged arm's landing, captured whole and NOT endorsed: `#wat.rete/UnknownField` with \
          `:available-fields [\"k\" \"grade\"]`. Naming it is row 4 of the scorecard; fixing it is \
          a separate strike"

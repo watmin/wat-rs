@@ -138,9 +138,9 @@ fn bogus_rete_head_is_refused_at_check_the_blanket_is_dead() {
     // because `run` invokes the binary from CARGO_MANIFEST_DIR with a RELATIVE fixture path.
     // Recaptured 2026-09-09: was a runtime `UnknownFunction` raise; now a startup-time
     // `UnresolvedReferences` (resolve), wrapped in the same `LociDiedError.StartupError` shape.
-    wat::assert_edn_eq!(
+    wat::assert_edn_matches_file!(
         stderr,
-        include_str!("probe_arc255_the_blanket_hides_a_phantom_head__bogus_rete_head_stderr.edn")
+        "probe_arc255_the_blanket_hides_a_phantom_head__bogus_rete_head_stderr.edn"
     );
 }
 

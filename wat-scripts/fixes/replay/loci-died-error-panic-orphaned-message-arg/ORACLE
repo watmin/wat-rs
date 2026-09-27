@@ -1,0 +1,9 @@
+# ORACLE for loci-died-error-panic-orphaned-message-arg — HISTORY or header spec, never the
+# tool. A brand-new repair codemod (excursus 003 step 3b) has no prior commit to cite as
+# HISTORY; every changed line is spec'd against the codemod's own header instead.
+
+spec-before     [:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)] :: `[:wat::kernel::LociDiedError.Panic {:failure _failure} (:wat::kernel::Failure/message message)]`
+spec     [:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)] :: `[:wat::kernel::LociDiedError.Panic {:failure failure} (:wat::kernel::Failure/message failure)]`
+
+spec-before     [:wat::kernel::LociDiedError.RuntimeError {:failure failure} (:wat::core::Option.Some {:value (:wat::kernel::Failure/message message)})] :: `[:wat::kernel::LociDiedError.RuntimeError {:failure failure} (:wat::core::Option.Some {:value (:wat::kernel::Failure/message message)})]`
+spec     [:wat::kernel::LociDiedError.RuntimeError {:failure failure} (:wat::core::Option.Some {:value (:wat::kernel::Failure/message failure)})] :: `[:wat::kernel::LociDiedError.RuntimeError {:failure failure} (:wat::core::Option.Some {:value (:wat::kernel::Failure/message failure)})]`

@@ -57,11 +57,21 @@ fn c_thread_try_send_of_an_in_locus_value_is_sent() {
 
 /// (d) A spawned child's `println` of a Box<Lru> raises at the child's `println`; the parent reads
 /// that death as the Lost cause. Before: the parent's Lost was a recv-side decode failure.
+///
+/// Excursus 003 step 3b: `:h::child-said` reads this cause through
+/// `(:wat::kernel::LociDiedError/message c)`, which now derives the one-line headline directly
+/// (`failure.error.message`) rather than the whole `to_wire_edn` blob a stale golden here
+/// expected — so this is EXACT string equality against that headline, not an EDN-structure
+/// compare. The headline is deterministic (no span, no path, no pid).
 #[test]
 fn d_child_println_of_a_handle_raises_at_the_println() {
-    wat::assert_edn_matches_file!(
+    assert_eq!(
         face_of(":h::probe-child-println-handle"),
-        "probe_ex003_stone_h_every_wire_encoder_is_strict__child_println.edn",
+        "malformed :wat::kernel::println form: a wire peer carries only pure data — the value \
+         printed (:h::Box) contains a :rust::cache::Lru, which is not pure and has no wire \
+         form. In a spawned process stdout IS the peer wire to the parent: printing there is a \
+         send. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a \
+         thread peer carries any value).",
         "a spawned child's println must refuse a handle at its own .wat span"
     );
 }
@@ -69,9 +79,13 @@ fn d_child_println_of_a_handle_raises_at_the_println() {
 /// (e) The same through `pprintln` (a different writer: the pretty one).
 #[test]
 fn e_child_pprintln_of_a_handle_raises_at_the_pprintln() {
-    wat::assert_edn_matches_file!(
+    assert_eq!(
         face_of(":h::probe-child-pprintln-handle"),
-        "probe_ex003_stone_h_every_wire_encoder_is_strict__child_pprintln.edn",
+        "malformed :wat::kernel::pprintln form: a wire peer carries only pure data — the value \
+         printed (:h::Box) contains a :rust::cache::Lru, which is not pure and has no wire \
+         form. In a spawned process stdout IS the peer wire to the parent: printing there is a \
+         send. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a \
+         thread peer carries any value).",
         "a spawned child's pprintln must refuse a handle at its own .wat span"
     );
 }
@@ -95,11 +109,19 @@ fn f_child_println_of_pure_data_arrives_whole() {
 
 /// (g) A HandlePool over a process wire raises at the child's `send`. Before: the parent's Lost was a
 /// recv-side "unknown tag #wat.kernel/HandlePool (body shape: string)".
+///
+/// Excursus 003 step 3b: `:h::child-said` reads this cause through
+/// `(:wat::kernel::LociDiedError/message c)`, which now derives the one-line headline directly
+/// rather than the whole `to_wire_edn` blob a stale golden here expected — EXACT string equality
+/// against that (deterministic — no span, no path) headline replaces the EDN-structure compare.
 #[test]
 fn g_child_send_of_a_handle_pool_raises_at_the_sender() {
-    wat::assert_edn_matches_file!(
+    assert_eq!(
         face_of(":h::probe-send-handle-pool"),
-        "probe_ex003_stone_h_every_wire_encoder_is_strict__send_handle_pool.edn",
+        "malformed :wat::kernel::send form: a wire peer carries only pure data — the value sent \
+         (:h::Box) contains a :wat::kernel::HandlePool, which is not pure and has no wire form. \
+         Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread \
+         peer carries any value).",
         "a HandlePool has no wire form; the child's send must refuse it at its own .wat span"
     );
 }
@@ -108,9 +130,12 @@ fn g_child_send_of_a_handle_pool_raises_at_the_sender() {
 /// was a recv-side "unknown tag #wat.stream/Stream (body shape: integer)".
 #[test]
 fn h_child_send_of_a_forced_stream_raises_at_the_sender() {
-    wat::assert_edn_matches_file!(
+    assert_eq!(
         face_of(":h::probe-send-forced-stream"),
-        "probe_ex003_stone_h_every_wire_encoder_is_strict__send_forced_stream.edn",
+        "malformed :wat::kernel::send form: a wire peer carries only pure data — the value sent \
+         (:h::Box) contains a :wat::stream::Stream, which is not pure and has no wire form. \
+         Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread \
+         peer carries any value).",
         "a Stream has no wire form; the child's send must refuse it at its own .wat span"
     );
 }
@@ -119,9 +144,12 @@ fn h_child_send_of_a_forced_stream_raises_at_the_sender() {
 /// List in a Stream-typed slot — and failed later, at the parent's `:wat::stream::next`.
 #[test]
 fn i_child_send_of_an_empty_stream_raises_at_the_sender() {
-    wat::assert_edn_matches_file!(
+    assert_eq!(
         face_of(":h::probe-send-empty-stream"),
-        "probe_ex003_stone_h_every_wire_encoder_is_strict__send_empty_stream.edn",
+        "malformed :wat::kernel::send form: a wire peer carries only pure data — the value sent \
+         (:h::Box) contains a :wat::stream::Stream, which is not pure and has no wire form. \
+         Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread \
+         peer carries any value).",
         "an empty Stream has no wire form either; the child's send must refuse it, not ship a List"
     );
 }

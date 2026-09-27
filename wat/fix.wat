@@ -1488,11 +1488,10 @@
 ;; `Option<Failure>` — before the field reshape (`wat/kernel/diagnostics.wat`) collapsed
 ;; every one of the six to a single mandatory `{:failure f}`, `f` a `:wat::kernel::Failure`.
 ;;
-;; Measured (BRIEF-envelope-step-3b's own STOP, then driven per the coordinator's follow-up
-;; at `wat-scripts/scratch-pad/probe-excursus003-step3b-nested-map-pattern.wat`): wat's
-;; `match` does NOT accept a nested map sub-pattern (`{:failure {:error {:message m}}}` —
-;; "map/set literal is not a valid match sub-pattern"), so this is a BODY rewrite, never a
-;; pattern-only one.
+;; Measured (BRIEF-envelope-step-3b's own STOP, then driven per the coordinator's follow-up in a
+;; since-deleted scratch probe): wat's `match` does NOT accept a nested map sub-pattern
+;; (`{:failure {:error {:message m}}}` — "map/set literal is not a valid match sub-pattern"), so
+;; this is a BODY rewrite, never a pattern-only one.
 ;;
 ;; Two shapes, and only two — every corpus occurrence was read by hand and fits one; a third
 ;; shape is refused loudly rather than silently mismatched (see the predicates below, which
@@ -1793,6 +1792,175 @@
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      eds   (:wat::fix::ldef-walk (:wat::core::ast->children tree) lines src)
+     rev   (:wat::core::reverse (:wat::core::sort eds))]
+    (:wat::fix::fix-text-apply src rev)))
+
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; EXCURSUS 003 STEP 3B REPAIR — shape-1 wrapped the OLD `:message` symbol, not the new one
+;; ══════════════════════════════════════════════════════════════════════════════════════
+;; `wat-scripts/fixes/loci-died-error-panic-orphaned-message-arg.wat`'s codemod.
+;;
+;; `ldef-shape1-edits`'s Panic branch reuses the pre-existing `:failure` binder's OWN name as
+;; `new-failure-name`, but `ldef-wrap-symbol-node-edits` wraps occurrences of `old-msg-name`
+;; (the DROPPED `:message` binder) IN PLACE. For the five non-Panic variants
+;; `new-failure-name == old-msg-name` (the same binder, repurposed), so wrapping the old
+;; symbol's text in place coincidentally produced the right result. For Panic, when the
+;; pre-existing `:failure` binder was a DIFFERENT, underscore-prefixed name (`_failure` —
+;; genuinely unused under the OLD shape, where `failure` was an ignorable `Option`), the two
+;; names differ and the codemod emitted `(:wat::kernel::Failure/message message)` —
+;; `message` no longer bound anywhere in the arm. Measured:
+;; `git ls-files '*.wat' | xargs grep -n "Failure/message message"` — 19 sites across 8
+;; files, each an `UnboundSymbol` RuntimeError at eval time (the checker does not resolve a
+;; match-arm binder against a call site ahead of driving it, so every one of these compiled
+;; clean and only broke when actually run).
+;;
+;; This is a REPAIR pass over shape-1's own OUTPUT, not a second shape-1 application (a
+;; migrated arm's map no longer has a `:message` key, so `ldef-shape1-arm?` already cannot
+;; see it): find a single-field `{:failure NAME}` arm whose body calls
+;; `(:wat::kernel::Failure/message ARG)` with `ARG` naming something OTHER than `NAME` — the
+;; orphaned reference — and repoint `ARG` at `NAME`. If `NAME` is itself underscore-prefixed
+;; (no longer truthfully "unused" — it is the ARM's only failure and the call needs it).
+;; rename the binder too (pattern AND every fixed call site), dropping the leading `_`: a used
+;; binder keeping its "unused" spelling is itself the shape of defect this excursus exists to
+;; kill. Idempotent by construction: once every `ARG` already equals `NAME`, no edits fire.
+
+;; ldef2-failure-message-call? — a LIST shaped `(:wat::kernel::Failure/message ARG)`, `ARG`
+;; a bare symbol.
+(:wat::core::defn :wat::fix::ldef2-failure-message-call?
+  [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::= (:wat::core::length ch) 2)
+        (:wat::core::let [head (:wat::core::first ch)  arg (:wat::core::nth ch 1)]
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+              (:wat::core::= (:wat::core::ast-name head) ":wat::kernel::Failure/message")
+              false)
+            (:wat::core::= (:wat::core::ast-kind arg) "symbol")
+            false))
+        false))
+    false))
+
+;; ldef2-find-message-args — every `(:wat::kernel::Failure/message ARG)` call's `ARG` node
+;; anywhere under `node` — structural descent, so a call nested inside e.g.
+;; `Option.Some {:value …}` is still reached.
+(:wat::core::defn :wat::fix::ldef2-find-message-args
+  [node <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
+  (:wat::core::if (:wat::fix::ldef2-failure-message-call? node)
+    (:wat::core::Vector :- [:wat::WatAST] (:wat::core::nth (:wat::core::ast->children node) 1))
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::fix::ldef2-find-message-args-seq (:wat::core::ast->children node))
+      (:wat::core::Vector :- [:wat::WatAST]))))
+
+(:wat::core::defn :wat::fix::ldef2-find-message-args-seq
+  [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :- [:wat::WatAST])
+    (:wat::core::concat
+      (:wat::fix::ldef2-find-message-args (:wat::core::first items))
+      (:wat::fix::ldef2-find-message-args-seq (:wat::core::rest items)))))
+
+;; ldef2-single-failure-arm? — one of the six variant heads, whose pattern map is EXACTLY
+;; `{:failure NAME}` (2 children) — the shape shape-1's OWN migration always produces.
+(:wat::core::defn :wat::fix::ldef2-single-failure-arm? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "vector")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::= (:wat::core::length ch) 3)
+        (:wat::core::let [head (:wat::core::first ch)  pmap (:wat::core::nth ch 1)]
+          (:wat::core::if
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+              (:wat::fix::ldef-variant-head? (:wat::core::ast-name head))
+              false)
+            (:wat::core::if (:wat::core::= (:wat::core::ast-kind pmap) "map")
+              (:wat::core::let [mch (:wat::core::ast->children pmap)]
+                (:wat::core::if (:wat::core::= (:wat::core::length mch) 2)
+                  (:wat::core::if
+                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 0)) "keyword")
+                      (:wat::core::= (:wat::core::ast-name (:wat::core::nth mch 0)) ":failure")
+                      false)
+                    (:wat::core::= (:wat::core::ast-kind (:wat::core::nth mch 1)) "symbol")
+                    false)
+                  false))
+              false)
+            false))
+        false))
+    false))
+
+;; ldef2-strip-leading-underscore — "_failure" -> "failure"; anything else unchanged.
+(:wat::core::defn :wat::fix::ldef2-strip-leading-underscore [s <- :wat::core::String] -> :wat::core::String
+  (:wat::core::if (:wat::string::starts-with? s "_")
+    (:wat::string::subs s 1 (:wat::string::length s))
+    s))
+
+(:wat::core::defn :wat::fix::ldef2-arg-edits
+  [args     <- (:wat::core::Vector :- [:wat::WatAST])
+   new-name <- :wat::core::String
+   lines    <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if (:wat::core::empty? args)
+    (:wat::core::Vector :- [:wat::fix::Edit])
+    (:wat::core::let [a (:wat::core::first args)  old (:wat::core::ast-name a)]
+      (:wat::core::concat
+        (:wat::core::if (:wat::core::= old new-name)
+          (:wat::core::Vector :- [:wat::fix::Edit])
+          (:wat::core::Vector :- [:wat::fix::Edit]
+            (:wat::core::Tuple (:wat::fix::fix-text-offset-of (:wat::core::ast-span a) lines) old new-name)))
+        (:wat::fix::ldef2-arg-edits (:wat::core::rest args) new-name lines)))))
+
+;; ldef2-arm-edits — the repair for one `{:failure NAME}` arm: repoint every orphaned
+;; `Failure/message` ARG at `NAME` — and ONLY when at least one such call actually exists
+;; (`needs-fix?`) does an underscore-prefixed `NAME` get renamed in the pattern too. A
+;; genuinely unused `_failure` binder (no `Failure/message` call anywhere in the body — e.g.
+;; a sentinel arm whose body is a bare string) must NOT be stripped of its "unused" spelling;
+;; only a binder this codemod is about to make used earns the rename.
+(:wat::core::defn :wat::fix::ldef2-arm-edits
+  [node  <- :wat::WatAST
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   src   <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::let
+    [ch           (:wat::core::ast->children node)
+     pmap         (:wat::core::nth ch 1)
+     body         (:wat::core::nth ch 2)
+     mch          (:wat::core::ast->children pmap)
+     name-node    (:wat::core::nth mch 1)
+     old-name     (:wat::core::ast-name name-node)
+     args         (:wat::fix::ldef2-find-message-args body)
+     needs-fix?   (:wat::core::not (:wat::core::empty? args))
+     new-name     (:wat::core::if needs-fix? (:wat::fix::ldef2-strip-leading-underscore old-name) old-name)
+     rename?      (:wat::core::not (:wat::core::= old-name new-name))
+     pattern-edit (:wat::core::if rename?
+                    (:wat::core::Vector :- [:wat::fix::Edit]
+                      (:wat::core::Tuple (:wat::fix::fix-text-offset-of (:wat::core::ast-span name-node) lines) old-name new-name))
+                    (:wat::core::Vector :- [:wat::fix::Edit]))
+     arg-edits    (:wat::fix::ldef2-arg-edits args new-name lines)]
+    (:wat::core::concat pattern-edit arg-edits)))
+
+(:wat::core::defn :wat::fix::ldef2-scan
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])  src <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if (:wat::fix::ldef2-single-failure-arm? node)
+    (:wat::fix::ldef2-arm-edits node lines src)
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::fix::ldef2-walk (:wat::core::ast->children node) lines src)
+      (:wat::core::Vector :- [:wat::fix::Edit]))))
+
+(:wat::core::defn :wat::fix::ldef2-walk
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])  src <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :- [:wat::fix::Edit])
+    (:wat::core::concat
+      (:wat::fix::ldef2-scan (:wat::core::first items) lines src)
+      (:wat::fix::ldef2-walk (:wat::core::rest items) lines src))))
+
+;; loci-died-error-repair-orphaned-message-arg — the entry point. src in, repaired src out.
+(:wat::core::defn :wat::fix::loci-died-error-repair-orphaned-message-arg
+  [src <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let
+    [lines (:wat::string::split src "\n")
+     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+     eds   (:wat::fix::ldef2-walk (:wat::core::ast->children tree) lines src)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
 

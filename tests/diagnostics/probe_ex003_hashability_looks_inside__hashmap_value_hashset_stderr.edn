@@ -1,20 +1,22 @@
 [
   #wat.kernel/LociDiedError.RuntimeError {
-    :message #wat.runtime/TypeMismatch {
-      :message ":wat::core::HashSet/conj: expected hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V])), got wat::core::HashMap `{1: <:rust::cache::Lru>}`"
-      :location #wat.core/Span {
-        :file "src/collection/eval.rs"
-        :line 0
-        :col 46
-        :end #wat.core/Option.None {}
-      }
-      :causes []
-      :op ":wat::core::HashSet/conj"
-      :expected "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))"
-      :got {
-        :type "wat::core::HashMap"
-        :rendered "{1: <:rust::cache::Lru>}"
-        :provenance nil
+    :failure #wat.kernel/Failure {
+      :error #wat.runtime/TypeMismatch {
+        :message ":wat::core::HashSet/conj: expected hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V])), got wat::core::HashMap `{1: <:rust::cache::Lru>}`"
+        :location #wat.core/Span {
+          :file "src/collection/eval.rs"
+          :line 0
+          :col 46
+          :end #wat.core/Option.None {}
+        }
+        :causes []
+        :op ":wat::core::HashSet/conj"
+        :expected "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))"
+        :got #wat.runtime/ValueSnapshot {
+          :type "wat::core::HashMap"
+          :rendered "{1: <:rust::cache::Lru>}"
+          :provenance #wat.core/Option.None {}
+        }
       }
       :frames [
         #wat.kernel/Frame {
@@ -38,6 +40,8 @@
           :kind #wat.kernel/FrameKind.Rust {}
         }
       ]
+      :actual #wat.core/Option.None {}
+      :expected #wat.core/Option.None {}
       :frames-elided 0
     }
   }
