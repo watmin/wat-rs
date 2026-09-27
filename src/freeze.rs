@@ -69,7 +69,7 @@ pub mod validator;
 use crate::ast::WatAST;
 use crate::check::{check_program, CheckErrors};
 use crate::config::{collect_entry_file, collect_entry_file_with_inherit, Config, ConfigError};
-use crate::load::loader::{resolve_loads, LoadError, SourceLoader};
+use crate::load::loader::{resolve_loads, LoadError, LoadErrorKind, SourceLoader};
 use crate::macros::{MacroError, MacroRegistry};
 use crate::parser::{parse_all_with_file, ParseError};
 use crate::resolve::ResolveError;
@@ -543,6 +543,12 @@ impl FrozenWorld {
         validate_holon_record_capacity(&types, &ctx)?;
         symbols.set_encoding_ctx(ctx);
         symbols.set_source_loader(loader);
+        // Excursus 003 D4 item 1 — snapshot THIS freeze's own load-pipeline record
+        // (built on this thread by `startup_from_forms_post_config`/`process_single_load`)
+        // and stash it on the frozen world's SymbolTable, so a THREAD locus spawned later
+        // (`spawn_thread_peer`) can install a copy on its own thread. See
+        // `SymbolTable::user_source_files`'s own doc for why this is needed at all.
+        symbols.set_user_source_files(crate::value::frame::snapshot_user_source_files());
         // Arc 030: runtime macroexpand / macroexpand-1 primitives need
         // access to the frozen macro registry.
         symbols.set_macro_registry(Arc::new(macros.clone()));
@@ -993,7 +999,21 @@ pub fn startup_from_source(
     // Span file label: use the canonical path when known; fall back
     // to `<entry>` for in-memory / test sources. Arc 016 slice 1.
     let file_label = base_canonical.unwrap_or("<entry>");
-    let entry_forms = parse_all_with_file(entry_src, &crate::load::loader::span_display_path(file_label))?;
+    let display_label = crate::load::loader::span_display_path(file_label);
+    // Excursus 003 D4 item 1 (builder ruling) — the reserved-label wall applies to the
+    // ENTRY label too, not only to `load-file!`'d files: an embedder calling this `pub
+    // fn` directly can hand any string as `base_canonical` (the CLI always canonicalizes
+    // via `std::fs::canonicalize` first — `src/distribution/mod.rs` — so this can only
+    // fire through a caller-supplied label, never through the real CLI path). Refused
+    // the same way a loaded file is (`LoadErrorKind::ReservedStdlibLabel`) — one error
+    // shape for both collision points, per the ruling's "as EVERY loader" instruction.
+    if crate::load::stdlib::is_stdlib_label(&display_label) {
+        return Err(StartupError::Load(LoadError::new(
+            crate::rust_caller_span!(),
+            LoadErrorKind::ReservedStdlibLabel { label: display_label },
+        )));
+    }
+    let entry_forms = parse_all_with_file(entry_src, &display_label)?;
     let world = startup_from_forms(entry_forms, base_canonical, loader)?;
     // Arc 170 — the `:user::main` wall. Imposed HERE (not in
     // `startup_from_forms`) because this is the chokepoint every real
@@ -1328,6 +1348,41 @@ fn startup_from_forms_post_config(
     loader: Arc<dyn SourceLoader>,
     prior: Option<&SymbolTable>,
 ) -> Result<FrozenWorld, StartupError> {
+    // Excursus 003 D4 item 1 — the user-source-file record, reset FIRST, before any load
+    // runs: a second world built on a thread that already built one (a test harness
+    // sequencing several worlds, e.g. `kernel/spawn.rs`'s `init_world`/`noop_world`/
+    // `world` fixtures) must not inherit the prior world's files —
+    // `src/value/frame.rs`'s `USER_SOURCE_FILES` is thread-local, mirroring `CALL_STACK`.
+    // The entry's own label is recorded here (from `base_canonical`, when the caller
+    // supplied one) so it covers all three `startup_from_forms`/`_with_inherit`/
+    // `_with_session` entry points uniformly, not only the `startup_from_source`
+    // convenience wrapper (whose OWN check, above, already refused this exact label if it
+    // collided with a stdlib one — see that call site). `process_single_load`
+    // (`src/load/loader.rs`) records each successfully loaded file's own label the same
+    // way, right after ITS wall check passes, DURING `resolve_loads` below — which is
+    // exactly why the reset must happen BEFORE `resolve_loads` runs, not after.
+    //
+    // ⛔ Deliberately NOT a walk over `resolve_loads`'s OWN OUTPUT form spans (an earlier
+    // draft of this fn did exactly that, refusing any top-level form whose span collided
+    // with a stdlib label). MEASURED wrong: a spawned/forked locus's entry forms can
+    // legitimately carry spans inherited from a STDLIB macro's own template (companion
+    // forms a `defservice`/`defrecord`-family macro mints, e.g.
+    // `:wat::spawn::ProcessOpts/launch`), not because of any load collision — that walk
+    // refused every such spawn, breaking the entire `wat::services`/`wat::process`
+    // cluster (60 real test failures caught before this landed). The wall belongs at the
+    // two places a label is actually FETCHED (a load, or the entry parse) — never at
+    // "does some span in the resulting tree merely read like one," which cannot tell
+    // inherited provenance from a genuine collision.
+    crate::value::frame::reset_user_source_files();
+    if let Some(label) = base_canonical {
+        // `span_display_path` — the SAME normalization `startup_from_source` applies
+        // before parsing (and `process_single_load` applies to each loaded file) — so the
+        // recorded label matches the exact string that ends up on a `Span.file`, not the
+        // possibly-absolute `base_canonical` this fn otherwise only uses for resolving
+        // loads' relative paths.
+        crate::value::frame::record_user_source_file(crate::load::loader::span_display_path(label));
+    }
+
     // 3. Recursive load resolution. The loader survives into the
     //    runtime as well — see step 9 — so `resolve_loads` borrows
     //    via `&*loader` (Arc deref) rather than owning.

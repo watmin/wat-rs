@@ -27,6 +27,33 @@ pub(crate) fn stdlib_files() -> &'static [WatSource] {
     STDLIB_FILES
 }
 
+/// True when `label` is exactly the path label of a baked stdlib source — either the
+/// core `STDLIB_FILES` list above, or a dep crate's own installed battery sources
+/// (`installed_dep_sources`, also privileged as stdlib — see `freeze/env.rs`).
+///
+/// Excursus 003 D4 item 1 — the reserved-label wall (builder ruling): a stdlib path
+/// label (`"wat/core.wat"`, …) is reserved exactly as a `:wat::` NAME is. Measured
+/// (`git show` this commit's own test fixtures): a real filesystem load ALWAYS
+/// canonicalizes to an ABSOLUTE path first (`FsLoader`/`ScopedLoader`, both call
+/// `std::fs::canonicalize` — `src/load/loader.rs`), so a bare relative stdlib label can
+/// only be produced by a raw, uncanonicalized loader label (`InMemoryLoader`) OR by a
+/// real on-disk load whose absolute path, once re-relativized against the current
+/// working directory for display (`span_display_path`), happens to spell a baked
+/// source's own path verbatim — e.g. running from the crate root and
+/// `(:wat::load-file! "wat/core.wat")`-ing the REAL on-disk file. Both are refused: the
+/// wall is about the LABEL, not about whether the loaded content happens to differ.
+///
+/// Called from `src/load/loader.rs` (`process_single_load`, every loader) and
+/// `src/freeze.rs` (the entry file's own label, and the shared post-`resolve_loads`
+/// backstop) — see both call sites for why two checkpoints are needed.
+pub(crate) fn is_stdlib_label(label: &str) -> bool {
+    stdlib_files().iter().any(|f| f.path == label)
+        || installed_dep_sources()
+            .iter()
+            .flat_map(|slice| slice.iter())
+            .any(|f| f.path == label)
+}
+
 /// Foundational → derived. A file precedes another only if it has no
 /// eval-time dependency on it (defmacro refs are order-free — registered
 /// in the pre-pass). Enforced by `:wat::deporder::verify-stdlib` (see

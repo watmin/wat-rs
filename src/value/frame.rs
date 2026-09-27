@@ -79,6 +79,103 @@ pub fn snapshot_call_stack() -> Vec<FrameInfo> {
     })
 }
 
+// ─── Excursus 003 D4 item 1 — the user-source-file record ────────────────────
+//
+// A POSITIVE record of which file labels the load pipeline read under USER privilege
+// (the entry file, plus every `load-file!`/`digest-load!`/`signed-load!` target —
+// `src/freeze.rs`'s `startup_from_forms_post_config`, the one chokepoint shared by
+// `startup_from_forms`/`_with_inherit`/`_with_session`). Deliberately NOT "every file
+// that isn't stdlib" — a `:Wat` frame can sit on a Rust file (`:user::main`'s own frame
+// carries `src/freeze.rs`'s `rust_caller_span!()` as its call site), and that must NOT
+// read as user source by elimination. Deliberately a plain `String` set, not an `Arc`
+// identity set: with the reserved-label wall in `src/load/loader.rs`/`src/freeze.rs`
+// (`LoadErrorKind::ReservedStdlibLabel`) refusing any load whose label equals a stdlib
+// label, a stdlib label can never appear here, so string equality is unambiguous — and,
+// unlike an `Arc` pointer, a label re-minted with the same text (a second
+// `parse_all_with_file` call for the same file, a re-parsed golden fixture) still matches.
+//
+// PROGRAM-scoped, not thread-scoped (corrected from an earlier, thread-local-only draft):
+// a PROCESS locus re-runs the whole load pipeline in its own fresh process, so its own
+// thread-local naturally ends up correct — but a THREAD locus
+// (`:wat::kernel::spawn-thread`, `src/kernel/spawn.rs::spawn_thread_peer`) runs a
+// function of the SAME already-frozen world on a NEW OS thread, with no load pipeline of
+// its own. Left as pure thread-local, that new thread's set is EMPTY and D4's derivation
+// is silently a no-op there. The cure: the set built during THIS thread's own load
+// pipeline is snapshotted as an `Arc` (`snapshot_user_source_files`) and stashed on the
+// frozen `SymbolTable` (`SymbolTable::set_user_source_files`, called from
+// `FrozenWorld::freeze`) — a program-scoped, `Clone`-cheap carrier, exactly like
+// `source_loader`/`primed_stdio`. A thread locus installs a COPY of that Arc onto its OWN
+// thread via `install_user_source_files`, at the same point it installs its other
+// per-thread ambient state (`install_program_env` — see `spawn_thread_peer`).
+thread_local! {
+    static USER_SOURCE_FILES: std::cell::RefCell<std::sync::Arc<std::collections::HashSet<String>>> =
+        std::cell::RefCell::new(std::sync::Arc::new(std::collections::HashSet::new()));
+}
+
+/// Clear the user-source-file record — called once at the start of
+/// `startup_from_forms_post_config`, before the entry/loaded files' labels are recorded.
+pub(crate) fn reset_user_source_files() {
+    USER_SOURCE_FILES.with(|s| *s.borrow_mut() = std::sync::Arc::new(std::collections::HashSet::new()));
+}
+
+/// Record `label` as a file THIS thread's load pipeline read under user privilege.
+/// `Arc::make_mut` clones-on-write only if the Arc is shared (refcount > 1) — during the
+/// build phase (the only time this is called) nothing else holds a clone yet, so this is
+/// an ordinary in-place insert, not a hidden per-call allocation.
+pub(crate) fn record_user_source_file(label: String) {
+    USER_SOURCE_FILES.with(|s| {
+        std::sync::Arc::make_mut(&mut s.borrow_mut()).insert(label);
+    });
+}
+
+/// Is `label` a file the owning program's load pipeline read under user privilege? The
+/// positive fact D4 asks for — never "not stdlib" by elimination (see the module doc
+/// above). Reads whatever this thread currently has installed: the set it built itself
+/// (the original freeze thread), or a copy installed via [`install_user_source_files`]
+/// (a spawned thread locus).
+pub(crate) fn is_user_source_file(label: &str) -> bool {
+    USER_SOURCE_FILES.with(|s| s.borrow().contains(label))
+}
+
+/// Snapshot the calling thread's user-source-file set as a cheaply-clonable `Arc`, for
+/// `FrozenWorld::freeze` to stash on the `SymbolTable` — see the module doc above.
+pub(crate) fn snapshot_user_source_files() -> std::sync::Arc<std::collections::HashSet<String>> {
+    USER_SOURCE_FILES.with(|s| s.borrow().clone())
+}
+
+/// RAII guard restoring the calling thread's PRIOR user-source-file set on drop. Mirrors
+/// [`crate::services::client::EnvGuard`] (`install_program_env`'s own guard) exactly.
+#[must_use = "UserSourceGuard must be bound to a local (let _g = ...); dropping it immediately restores the prior set"]
+pub(crate) struct UserSourceGuard {
+    prior: std::sync::Arc<std::collections::HashSet<String>>,
+}
+
+impl Drop for UserSourceGuard {
+    fn drop(&mut self) {
+        USER_SOURCE_FILES.with(|s| {
+            *s.borrow_mut() = self.prior.clone();
+        });
+    }
+}
+
+/// Install `files` (a program's own user-source-file set, read off its `SymbolTable` via
+/// [`crate::value::SymbolTable::user_source_files`]) as the CALLING thread's ambient set,
+/// returning a guard that restores the prior set on drop. A thread locus
+/// (`:wat::kernel::spawn-thread`, `src/kernel/spawn.rs::spawn_thread_peer`) calls this —
+/// alongside its other per-thread installs (`install_program_env`) — because it shares
+/// its parent's already-frozen world on a NEW OS thread with no load pipeline of its own
+/// to populate `USER_SOURCE_FILES` the normal way; without this install, D4's derivation
+/// is silently a no-op on that thread (every `is_user_source_file` lookup sees an empty
+/// set, so every error there locates exactly as it did before D4 — see the module doc).
+pub(crate) fn install_user_source_files(
+    files: std::sync::Arc<std::collections::HashSet<String>>,
+) -> UserSourceGuard {
+    USER_SOURCE_FILES.with(|s| {
+        let prior = s.replace(files);
+        UserSourceGuard { prior }
+    })
+}
+
 // ─── Arc 278 §4 — macro-invocation call-site stack ───────────────────────────
 //
 // The expand-time twin of `CALL_STACK` above. `:wat::kernel::macro-call-site`

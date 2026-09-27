@@ -757,6 +757,20 @@ pub fn spawn_thread_peer(
                 .value_owned();
             let _peer_env_guard = crate::services::install_program_env(peer_env_val);
 
+            // Excursus 003 D4 item 1 — this thread shares the parent's already-frozen
+            // world (no load pipeline runs here), so its own `USER_SOURCE_FILES`
+            // thread-local starts EMPTY — without this install, D4's location derivation
+            // would be silently a no-op for every error this peer raises. Install a copy
+            // of the world's own set (attached at freeze time,
+            // `SymbolTable::user_source_files`) the same way `_peer_env_guard` above
+            // installs the peer's program-env: a per-thread ambient carrier, restored on
+            // thread exit. `None` only for a bare test-built `SymbolTable` that never
+            // went through `FrozenWorld::freeze` — nothing to install then.
+            let _user_source_guard = thread_sym
+                .user_source_files()
+                .cloned()
+                .map(crate::value::frame::install_user_source_files);
+
             // Arc 259 S2c-ii-a — self-peer handoff model (only model).
             //
             // OWNER-THREAD INVARIANT: build the Peer opaque INSIDE this closure so

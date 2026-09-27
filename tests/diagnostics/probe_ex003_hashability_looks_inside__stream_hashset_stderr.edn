@@ -4,10 +4,15 @@
       :error #wat.runtime/TypeMismatch {
         :message ":wat::core::HashSet/conj: expected hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V])), got wat::stream::Stream `(seq-empty)`"
         :location #wat.core/Span {
-          :file "src/collection/eval.rs"
-          :line 0
-          :col 46
-          :end #wat.core/Option.None {}
+          :file "tests/diagnostics/probe_ex003_hashability_looks_inside__stream_hashset.wat"
+          :line 13
+          :col 3
+          :end #wat.core/Option.Some {
+            :value #wat.core/Pos {
+              :line 13
+              :col 42
+            }
+          }
         }
         :causes []
         :op ":wat::core::HashSet/conj"
@@ -19,6 +24,16 @@
         }
       }
       :frames [
+        #wat.kernel/Frame {
+          :symbol ":wat::core::HashSet/conj"
+          :span #wat.core/Span {
+            :file "src/collection/eval.rs"
+            :line 0
+            :col 46
+            :end #wat.core/Option.None {}
+          }
+          :kind #wat.kernel/FrameKind.Rust {}
+        }
         #wat.kernel/Frame {
           :symbol ":user::conj-any"
           :span #wat.core/Span {

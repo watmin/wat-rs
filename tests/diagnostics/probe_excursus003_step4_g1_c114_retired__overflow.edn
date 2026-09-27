@@ -1,0 +1,59 @@
+#wat.runtime/IntegerOverflow {
+  :op ":wat::i64::+"
+  :a 41
+  :b 9223372036854775807
+  :span #wat.core/Span {
+    :file "tests/diagnostics/probe_excursus003_step4_g1_c114_retired.wat"
+    :line 10
+    :col 3
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 10
+        :col 40
+      }
+    }
+  }
+  :frames [
+    #wat.kernel/Frame {
+      :symbol ":wat::i64::+"
+      :span #wat.core/Span {
+        :file "wat/core.wat"
+        :line 66
+        :col 62
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 66
+            :col 63
+          }
+        }
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol ":wat::core::+"
+      :span #wat.core/Span {
+        :file "tests/diagnostics/probe_excursus003_step4_g1_c114_retired.wat"
+        :line 10
+        :col 3
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 10
+            :col 40
+          }
+        }
+      }
+      :kind #wat.kernel/FrameKind.Wat {}
+    }
+    #wat.kernel/Frame {
+      :symbol "<rust>"
+      :span #wat.core/Span {
+        :file "src/numeric/arith.rs"
+        :line 0
+        :col 9
+        :end #wat.core/Option.None {}
+      }
+      :kind #wat.kernel/FrameKind.Rust {}
+    }
+  ]
+  :frames-elided 0
+}

@@ -130,6 +130,18 @@ pub struct SymbolTable {
     /// — the lazy pattern). Capability-carrier pattern next to `encoding_ctx` / `source_loader` /
     /// `macro_registry` (memory `feedback_capability_carrier.md`).
     pub primed_stdio: Option<Arc<crate::services::PrimedStdio>>,
+    /// Excursus 003 D4 item 1 — the program's own user-source-file set (which file
+    /// labels its load pipeline read under user privilege), snapshotted once at freeze
+    /// time (`FrozenWorld::freeze` -> `set_user_source_files`) from the thread-local
+    /// record the freeze's own load pipeline built
+    /// (`crate::value::frame::snapshot_user_source_files`). Capability-carrier pattern
+    /// next to `encoding_ctx` / `source_loader` / `primed_stdio`: propagates to spawned
+    /// threads via `Clone` (cheap — `Arc`), and `:wat::kernel::spawn-thread`
+    /// (`src/kernel/spawn.rs::spawn_thread_peer`) installs a copy of it onto the new
+    /// thread (`crate::value::frame::install_user_source_files`) — the SAME reason
+    /// `primed_stdio` exists: a thread locus shares this already-frozen world on a new OS
+    /// thread with no load pipeline of its own to populate the thread-local the normal way.
+    pub user_source_files: Option<Arc<std::collections::HashSet<String>>>,
     /// Stone 241.6 — binding-level metadata attached via the optional
     /// `{...}` metadata-map clause on `def` / `defn`. Maps binding name
     /// (full FQDN keyword string, e.g. `:my::ns::my-fn`) to the inner
@@ -411,6 +423,22 @@ impl SymbolTable {
     /// decide whether to give the new thread a ThreadIO.
     pub fn set_primed_stdio(&mut self, primed: Arc<crate::services::PrimedStdio>) {
         self.primed_stdio = Some(primed);
+    }
+
+    /// Attach the program's own user-source-file set. Called once at freeze time by
+    /// [`crate::freeze::FrozenWorld::freeze`], mirrors
+    /// [`SymbolTable::set_source_loader`]. See the field's own doc for why a thread
+    /// locus needs this at all.
+    pub fn set_user_source_files(&mut self, files: Arc<std::collections::HashSet<String>>) {
+        self.user_source_files = Some(files);
+    }
+
+    /// Borrow the program's user-source-file set, if attached (`None` for a bare
+    /// test-built `SymbolTable` that never went through `FrozenWorld::freeze`).
+    /// `:wat::kernel::spawn-thread` (`src/kernel/spawn.rs::spawn_thread_peer`) reads this
+    /// to install a copy on the newly spawned thread.
+    pub fn user_source_files(&self) -> Option<&Arc<std::collections::HashSet<String>>> {
+        self.user_source_files.as_ref()
     }
 
     /// Borrow the primed-stdio carrier, if one is attached (arc 170). The flipped stdio verbs call this

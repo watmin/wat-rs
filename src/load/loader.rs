@@ -296,6 +296,15 @@ pub enum LoadErrorKind {
     /// The load form was malformed — wrong arity, wrong interface
     /// keyword, wrong value type, unknown verification algorithm, etc.
     MalformedLoadForm { reason: String },
+    /// Excursus 003 D4 item 1 (builder ruling) — the fetched (or entry) file's own
+    /// display label is exactly one of the baked stdlib's own path labels
+    /// (`crate::load::stdlib::is_stdlib_label`). Stdlib path labels are reserved,
+    /// exactly as `:wat::`/`:rust::` NAMES are: no user load may carry one, whether or
+    /// not its content happens to match the real stdlib file at that path. Without this
+    /// wall, a user-source-provenance record keyed on the label string would be
+    /// ambiguous — the label could name either the real stdlib file or a masquerading
+    /// user one, and no diagnostic downstream could tell them apart.
+    ReservedStdlibLabel { label: String },
     /// A loaded file contained a `(:wat::config::set-*!)` form. Entry-file
     /// discipline: setters belong to the entry file only.
     SetterInLoadedFile {
@@ -339,6 +348,11 @@ impl fmt::Display for LoadErrorKind {
             LoadErrorKind::MalformedLoadForm { reason } => {
                 write!(f, "malformed load form: {}", reason)
             }
+            LoadErrorKind::ReservedStdlibLabel { label } => write!(
+                f,
+                "{} is a reserved stdlib path label; a user load may not use it — rename the file or the load path",
+                label
+            ),
             LoadErrorKind::SetterInLoadedFile {
                 loaded_path,
                 setter_head,
@@ -499,6 +513,27 @@ fn process_single_load(
 ) -> Result<(), LoadError> {
     let fetched = fetch_source(&spec.source, base_canonical, loader, form_span.clone())?;
 
+    // Excursus 003 D4 item 1 (builder ruling) — the reserved-label wall, checked for
+    // EVERY loader before anything else: a filesystem loader's `canonical_path` is
+    // always absolute (never equal to a stdlib label), but an `InMemoryLoader` (or a
+    // real on-disk load that re-relativizes back to a stdlib's own bare path) can
+    // produce this exact label. The label a stdlib file is compared against is the
+    // DISPLAY label — the same string `parse_all_with_file` below stamps onto every
+    // node's `Span.file` — not the (possibly absolute) `canonical_path` used for
+    // cycle/dedup, since that's the string a consumer actually reads off a frame.
+    let display_label = span_display_path(&fetched.canonical_path);
+    if crate::load::stdlib::is_stdlib_label(&display_label) {
+        return Err(LoadError::new(
+            form_span,
+            LoadErrorKind::ReservedStdlibLabel { label: display_label },
+        ));
+    }
+    // Excursus 003 D4 item 1 — record this file as user source now that the wall above
+    // has confirmed its label isn't a stdlib one. Recorded here (the one place a load's
+    // label is genuinely FETCHED), never by walking the resulting form tree afterward —
+    // see `startup_from_forms_post_config`'s own doc for why that walk was wrong.
+    crate::value::frame::record_user_source_file(display_label.clone());
+
     if stack.iter().any(|p| p == &fetched.canonical_path) {
         let mut cycle = stack.clone();
         cycle.push(fetched.canonical_path.clone());
@@ -522,7 +557,7 @@ fn process_single_load(
     visited.insert(fetched.canonical_path.clone());
     stack.push(fetched.canonical_path.clone());
 
-    let loaded_forms = parse_all_with_file(&fetched.source, &span_display_path(&fetched.canonical_path)).map_err(|err| LoadError::new(
+    let loaded_forms = parse_all_with_file(&fetched.source, &display_label).map_err(|err| LoadError::new(
         form_span.clone(),
         LoadErrorKind::Parse {
             path: fetched.canonical_path.clone(),

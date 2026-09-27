@@ -1,0 +1,82 @@
+#wat.kernel/LociDiedError.RuntimeError {
+  :failure #wat.kernel/Failure {
+    :error #wat.runtime/IntegerOverflow {
+      :message "i64 overflow: 41 :wat::i64::+ 9223372036854775807 does not fit in 64 bits"
+      :location #wat.core/Span {
+        :file "tests/diagnostics/probe_excursus003_step4_g5_thread_locus.wat"
+        :line 9
+        :col 3
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 9
+            :col 40
+          }
+        }
+      }
+      :causes []
+      :op ":wat::i64::+"
+      :a 41
+      :b 9223372036854775807
+    }
+    :frames [
+      #wat.kernel/Frame {
+        :symbol ":wat::i64::+"
+        :span #wat.core/Span {
+          :file "wat/core.wat"
+          :line 66
+          :col 62
+          :end #wat.core/Option.Some {
+            :value #wat.core/Pos {
+              :line 66
+              :col 63
+            }
+          }
+        }
+        :kind #wat.kernel/FrameKind.Wat {}
+      }
+      #wat.kernel/Frame {
+        :symbol ":wat::core::+"
+        :span #wat.core/Span {
+          :file "tests/diagnostics/probe_excursus003_step4_g5_thread_locus.wat"
+          :line 9
+          :col 3
+          :end #wat.core/Option.Some {
+            :value #wat.core/Pos {
+              :line 9
+              :col 40
+            }
+          }
+        }
+        :kind #wat.kernel/FrameKind.Wat {}
+      }
+      #wat.kernel/Frame {
+        :symbol ":wat::core::Fn"
+        :span #wat.core/Span {
+          :file "wat/spawn.wat"
+          :line 348
+          :col 5
+          :end #wat.core/Option.Some {
+            :value #wat.core/Pos {
+              :line 348
+              :col 124
+            }
+          }
+        }
+        :kind #wat.kernel/FrameKind.Wat {}
+      }
+      #wat.kernel/Frame {
+        :symbol "<rust>"
+        :span #wat.core/Span {
+          :file "src/numeric/arith.rs"
+          :line 0
+          :col 9
+          :end #wat.core/Option.None {}
+        }
+        :kind #wat.kernel/FrameKind.Rust {}
+      }
+    ]
+    :actual #wat.core/Option.None {}
+    :expected #wat.core/Option.None {}
+    :frames-elided 0
+  }
+}
