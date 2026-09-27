@@ -103,15 +103,8 @@ fn alias_literal_names() -> Vec<(usize, String)> {
 /// the failure message prints. Not a permission list for aggregates — those
 /// ask `Nature::from_root_keyword`.
 fn alias_floor_reason(name: &str) -> Option<&'static str> {
-    match name {
-        ":wat::core::nil" => Some(
-            "unit is TypeExpr::Tuple([]), not a path. A wat typealias of \
-             :wat::core::nil only becomes Tuple([]) via the canonicalize \
-             special-case that exists because nil is already the unit — the \
-             concept declaring itself (STOP-2).",
-        ),
-        _ => None,
-    }
+    let _ = name;
+    None
 }
 
 #[test]
@@ -153,13 +146,10 @@ fn alias_literals_are_only_the_named_floor() {
          A survivor must carry a reason in `alias_floor_reason` distinguishing \
          impossible-in-principle from not-moved-yet."
     );
-    // Non-vacuity: nil is expected to survive. A scan that finds zero aliases
-    // after STOP-2 would still be a named floor of size 1 that went missing.
-    let nil = names.iter().any(|(_, n)| n == ":wat::core::nil");
+    // 255.57 — nil is a leaf. The hand-written AliasDef floor is empty.
     assert!(
-        nil,
-        "the named alias floor should still contain `:wat::core::nil` (STOP-2). \
-         If nil moved, update alias_floor_reason and this assertion together."
+        names.is_empty(),
+        "hand-written AliasDef literals remain: {names:?}"
     );
 }
 

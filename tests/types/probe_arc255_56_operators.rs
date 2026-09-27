@@ -67,6 +67,23 @@ fn numeric_cross_is_admitted() {
 }
 
 #[test]
+fn eq_generic_refuses_a_function() {
+    let result = startup_from_file("tests/types/probe_arc255_56_eq_generic_fn.wat.bad");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::BoundNotSatisfied { function, param, bound, got }
+            if function == ":user::eq-generic"
+            && param == "T"
+            && bound == ":wat::core::Equatable"
+            && *got == {
+                let mut rendered = String::from(":wat::core::i64 :-> :wat::core::i64");
+                rendered.insert(0, '[');
+                rendered.push(']');
+                rendered
+            }
+    );
+}
+
+#[test]
 fn an_enum_compares_with_its_variant() {
     match call_beside_value(file!(), ":user::variant") {
         Ok(Value::bool(true)) => {}

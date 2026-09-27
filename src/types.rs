@@ -6701,6 +6701,16 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // (both produce the SAME `TypeExpr::Tuple`, so they unify identically).
     let denoted_head = crate::edn::render::type_denotation(&format!(":{raw_head}"));
     let result = if denoted_head == ":wat::core::Tuple" {
+        if args.is_empty() {
+            return Err(TypeError::new(
+                span.clone(),
+                TypeErrorKind::MalformedTypeExpr {
+                    raw: format!("({raw_head} :- [])"),
+                    reason: "a tuple type needs at least one slot; the empty product is :wat::core::nil"
+                        .into(),
+                },
+            ));
+        }
         TypeExpr::Tuple(args)
     } else if via_binder && args.is_empty() {
         // STONE-exactly-one-call-position — `(Head :- [])` IS `Head`: the empty
@@ -6888,6 +6898,10 @@ fn parse_type_inner(
     // walk (`canonicalize=false`) preserves source spelling, and only ATOM paths
     // reach this arm — parametric heads parse via the `<>`/`()` branches above.
     let raw_path = crate::edn::render::canonical_identity(&raw_path);
+    let denoted = crate::edn::render::type_denotation(&raw_path);
+    if canonicalize && denoted == ":wat::core::nil" {
+        return Ok(TypeExpr::Path(":wat::core::nil".into()));
+    }
     // Arc 163 slice 3f + 3h — FQDN IS the canonical storage form.
     // Source FQDN flows through unchanged. Source bare-form is
     // rejected by the `BareLegacyPrimitive` walker at check time

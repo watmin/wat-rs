@@ -37,6 +37,9 @@
 ;;   #wat.type/ImpureFieldInPureAggregate, "containment rule (arc 293.W)" — so the only
 ;; way a struct reaches a fence is as a direct fact, which it can be (COMPILED-OK).
 
+(:wat::core::defn :probe::same-tag? [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::= a b))
+
 (:wat::core::defstruct :u::Box
   [cache <- (:wat::cache::Lru :- [:wat::core::i64 :wat::core::i64])
    tag   <- :wat::core::i64])
@@ -54,7 +57,7 @@
      lenB  (:wat::cache::Lru/len hB)
      lenA2 (:wat::cache::Lru/len hA)]
     (:wat::kernel::println (:wat::string::concat "plain field: read twice, equal? "
-      (:wat::core::bool::to-string (:wat::core::= t1 t2))))
+      (:wat::core::bool::to-string (:probe::same-tag? t1 t2))))
     (:wat::kernel::println (:wat::string::concat "handle len when FIRST read: "
       (:wat::i64::to-string lenA)))
     (:wat::kernel::println (:wat::string::concat "handle len via the SECOND read: "

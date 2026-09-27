@@ -18257,9 +18257,6 @@ pub fn format_type(t: &TypeExpr) -> String {
             crate::types::render_fn_type_ref(&in_parts, &format_type(ret))
         }
         TypeExpr::Tuple(elements) => {
-            if elements.is_empty() {
-                return ":wat::core::nil".to_string();
-            }
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
             if elements.len() == 1 {
                 // 1-tuple requires trailing comma to disambiguate
@@ -18329,9 +18326,6 @@ fn format_type_inner(t: &TypeExpr) -> String {
             crate::types::render_fn_type_ref(&in_parts, &format_type_inner(ret))
         }
         TypeExpr::Tuple(elements) => {
-            if elements.is_empty() {
-                return "wat::core::nil".to_string();
-            }
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
             if elements.len() == 1 {
                 format!("({},)", inner[0])

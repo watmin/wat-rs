@@ -26,12 +26,7 @@
 (:wat::core::defn :user::nested [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
   (:wat::core::Tuple (:wat::core::Vector :- [:wat::core::i64] 1 2) "s"))
 
-;; EMPTY bracketed tuple — `(wat.type/Tuple [])`. This is LEGAL, WRITABLE source: the form surface
-;; can spell the empty tuple even though the keyword surface `:()` is retired. Today it is still the
-;; SAME TYPE as `nil` (measured: a `nil` argument satisfies both a `(wat.type/Tuple [])` param and a
-;; `:wat::core::nil` param), which is exactly the identity the builder's `nil != ()` ruling splits.
-(:wat::core::defn :user::empty-tuple [] -> (wat.type/Tuple :- [])
-  (:wat::kernel::println "e"))
+;; 255.57 — an empty `(wat.type/Tuple :- [])` is not a type. Nil is the path.
 
 ;; the FLAT form still reads (the c09 contract) — the reader accepts both; only the WRITER changes
 (:wat::core::defn :user::flat-still-reads [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::i64
@@ -54,11 +49,7 @@
 (:wat::core::defn :user::nested-colon [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
   (:wat::core::Tuple (:wat::core::Vector :- [:wat::core::i64] 1 2) "s"))
 
-;; EMPTY `:-`-marked bracketed tuple — `(wat.type/Tuple :- [])`. The empty rung is a first-class
-;; member of the arity ladder, not a defensive branch — and, unlike the unmarked
-;; `(wat.type/Tuple [])` above, it is unambiguously a type declaration: `:-` never sniffs.
-(:wat::core::defn :user::empty-tuple-colon [] -> (wat.type/Tuple :- [])
-  (:wat::kernel::println "e"))
+;; 255.57 — `(wat.type/Tuple :- [])` is refused. A tuple type needs at least one slot.
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:wat::string::interpolate "pair={a} flat={b}"

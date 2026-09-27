@@ -14946,7 +14946,7 @@ mod tests {
 
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::failing-fn [] -> :() (:wat::kernel::assertion-failed! :message "stack test"))
+            (:wat::core::defn :my::app::failing-fn [] -> :wat::core::nil (:wat::kernel::assertion-failed! :message "stack test"))
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
@@ -19264,7 +19264,7 @@ mod tests {
         // AssertionPayload panic, inspect actual/expected.
         use crate::assertion::AssertionPayload;
         let src = r#"
-            (:wat::core::defn :my::test::assert-mismatched [] -> :() (:wat::test::assert-eq 1 2))
+            (:wat::core::defn :my::test::assert-mismatched [] -> :wat::core::nil (:wat::test::assert-eq 1 2))
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();

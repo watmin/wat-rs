@@ -14,6 +14,11 @@
 ;; @example below spells `:wat::core::Vector` with its type accordingly.
 ;; Not a permanent fixture.
 
+(:wat::core::defn :probe::matches?
+  [got <- :wat::core::Equatable want <- :wat::core::Equatable]
+  -> :wat::core::bool
+  (:wat::core::= got want))
+
 (:wat::core::defn :probe::check [name <- :wat::core::String
                                   expr <- :wat::WatAST
                                   expected <- :wat::WatAST]
@@ -22,7 +27,7 @@
     [:wat::core::Result.Ok {:value got}
       (:wat::core::match (:wat::eval-ast! expected)
         [:wat::core::Result.Ok {:value want}
-          (:wat::core::if (:wat::core::= got want)
+          (:wat::core::if (:probe::matches? got want)
             (:wat::kernel::println (:wat::string::concat "PASS " name))
             (:wat::kernel::println (:wat::string::concat "FAIL(mismatch) " name)))]
         [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "FAIL(expected-eval) " name " " (:wat::core::EvalError/message e)))])]

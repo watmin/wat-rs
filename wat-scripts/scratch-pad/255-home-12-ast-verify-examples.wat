@@ -11,6 +11,11 @@
 ;; function-value reference at check time (its `[:- :->]` type), not a plain keyword literal,
 ;; which broke an earlier draft of this probe with 9 unrelated `:wat::core::vec` TypeMismatch
 ;; errors. Comparing plain strings sidesteps that resolution entirely.
+(:wat::core::defn :probe::matches?
+  [got <- :wat::core::Equatable want <- :wat::core::Equatable]
+  -> :wat::core::bool
+  (:wat::core::= got want))
+
 (:wat::core::defn :user::mine? [ex <- :wat::intrinsic::Example] -> :wat::core::bool
   (:wat::core::let [name (:wat::keyword::to-string (:wat::intrinsic::Example/fqdn ex))]
     (:wat::core::or
@@ -49,7 +54,7 @@
                               (:wat::string::interpolate "  got={got} want={want} eq={eq}"
                                 :got (:wat::edn::write got)
                                 :want (:wat::edn::write want)
-                                :eq (:wat::edn::write (:wat::core::= got want))))
+                                :eq (:wat::edn::write (:probe::matches? got want))))
                             acc)]
                         [:wat::core::Result.Err {:error err}
                           (:wat::core::do

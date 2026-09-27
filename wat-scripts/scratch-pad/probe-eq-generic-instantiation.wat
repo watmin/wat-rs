@@ -31,9 +31,5 @@
 (:wat::core::defn :user::eq-generic :- [[T :< :wat::core::Equatable]] [a <- :T b <- :T] -> :wat::core::bool
   (:wat::core::= a b))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println
-    (:wat::core::show
-      (:user::eq-generic
-        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
-        (:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64 y)))))
+;; The call on two functions is tests/types/probe_arc255_56_eq_generic_fn.wat.bad.
+;; The bound refuses it: T is Equatable, a function is not.
