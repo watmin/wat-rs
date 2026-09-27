@@ -56,7 +56,7 @@ peers of I/O, a peer event of I/O.* One parameter, two clauses, chosen by the ar
   annotation (`probe_select_flood_no_deadlock.wat:34`, a constructor-built `Process` vector). No `mapv` pool reaches
   `select`. So `select`/`poll` need no bound.
 - The tuple "each element" binder: assessed below.
-- Measured by 255.50: no corpus comparison reaches a function-holding struct, but `=` on one checks and raises at run time; records cannot hold functions. Nine newtypes, all in tests, none compared. Unruled: which aggregates are `Equatable` (Q1, pure only), and one spelling of an edge (D1, `derive`).
+- Measured by 255.50: no corpus comparison reaches a function-holding struct, but `=` on one checks and raises at run time; records cannot hold functions. Nine newtypes, all in tests, none compared. **Ruled 2026-09-26 (Q1): only pure data is `Equatable`/`Orderable`**: one edge on the `Record` root (holon records ride it). A struct may not be compared or sorted. **D1 withdrawn**: `derive` is a hierarchy between names (the parent may be an undeclared tag, `src/types.rs:4642-4670`), Clojure's `isa?`; `extend-type` is surface (protocol) membership with the binder and its checks. Different acts, both kept. Conditional membership stays on `extend-type`. Unmeasured tightening: refuse a `derive` whose parent is a surface.
 
 ## Ruled 2026-09-26 — `sort`/`sort-by` take a `Seqable` and return a seq
 
@@ -79,7 +79,7 @@ container, takes a `Stream` (`wat/fix.wat:1287` is `(reverse (sort eds))`).
 ## Assessed 2026-09-26 (four questions on the page)
 
 - **The tuple class declaration** decomposes to Typed Clojure's dotted form, the bound inside the repeated entry:
-  `(wat.core/derive :- [[Ts :< wat.core/Orderable] ...] (wat.core/Tuple :- [Ts ...]) wat.core/Orderable)`. The
+  `(wat.core/extend-type :- [[Ts :< wat.core/Orderable] ...] (wat.core/Tuple :- [Ts ...]) wat.core/Orderable)`. The
   `&` form failed Obvious and Honest: wat's value `& rest` names the collection, not each element. `...` parses
   as a type-parameter name today and must be reserved.
 - **A variadic tuple parameter** (`(Tuple :- [i64 & Rest])`) is **cut**: a second rest capability with no consumer.

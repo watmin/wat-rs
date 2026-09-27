@@ -40,3 +40,11 @@ worktree). Weighed by the orchestrator on 2026-09-26.
   function field is excluded).
 - `derive` or bodiless `extend-type` as the one spelling of an edge.
 - The tuple rest binder's spelling. None exists; `&` is the value-level precedent.
+
+## Correction (2026-09-26, after the builder asked what D1 breaks)
+
+Reading 5 ("two spellings of one act") was wrong. `derive` registers a hierarchy between **names** (bare
+`register_subtype`, no binder, no checks; parents such as `:t::Marker` are declared nowhere, and `wat/service.wat`
+derives an enum from a service-op keyword). `extend-type` registers **surface membership** with the binder and its
+checks. They are Clojure's `derive` (`isa?`) and `extend-type` (protocols), two acts. D1 is withdrawn. Q1 is
+ruled: only pure data is `Equatable`/`Orderable`.
