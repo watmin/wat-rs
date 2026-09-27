@@ -59,3 +59,31 @@ peers of I/O, a peer event of I/O.* One parameter, two clauses, chosen by the ar
   and whether a bare vector literal takes its element type from the expected parameter.
 - The tuple "each element" binder (Typed Clojure uses a dotted variable, `b ...`; wat has `& rest` for values).
 - Records and enums that hold a function reaching `=`/`<`; how a newtype gets its inner type's classes.
+
+## Ruled 2026-09-26 — `sort`/`sort-by` take a `Seqable` and return a seq
+
+The builder: *"needs to be upgraded to not impose vec … they call into a vec if they need a vec on the out."*
+Today both are `Vector → Vector` defclauses (`wat/core.wat`). They become the house sequence shape, as
+`take-while`/`dedupe`/`distinct` already are (`wat/seq.wat:380-448`):
+
+```clojure
+(wat.core/defn wat.core/sort-by :- [T [K :< wat.core/Orderable]]
+  [keyfn :- [T :-> K]  coll :- (wat.core/Seqable :- [T])]
+  :- (wat.stream/Stream :- [T])
+  …)
+```
+
+A `Vector` is Seqable (not a seq); a caller needing a vector writes `(into [] …)`. Measured at the ruling: `sort`
+has 75 calls in 72 files (5 in the stdlib); `sort-by` 4 in 3 (3 in the stdlib). Not yet measured: which callers
+use the result as a vector (index, `conj`, a `Vector` parameter), and whether `reverse`, which keeps its
+container, takes a `Stream` (`wat/fix.wat:1287` is `(reverse (sort eds))`).
+
+## Assessed 2026-09-26 (four questions on the page)
+
+- **The tuple class declaration** decomposes to Typed Clojure's dotted form, the bound inside the repeated entry:
+  `(wat.core/derive :- [[Ts :< wat.core/Orderable] ...] (wat.core/Tuple :- [Ts ...]) wat.core/Orderable)`. The
+  `&` form failed Obvious and Honest: wat's value `& rest` names the collection, not each element. `...` parses
+  as a type-parameter name today and must be reserved.
+- **A variadic tuple parameter** (`(Tuple :- [i64 & Rest])`) is **cut**: a second rest capability with no consumer.
+- **Open: a bound in a head binder binds every clause.** `sort-by`'s comparator clause never calls `<`, yet a head
+  `[K :< Orderable]` would demand it.
