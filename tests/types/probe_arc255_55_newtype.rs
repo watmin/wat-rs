@@ -1,9 +1,7 @@
 //! Stone 255.55 — a newtype is tagged, and ordered by its inner value.
 //!
-//! The ordering gate still uses the predicate, which does not admit a newtype.
-//! The ordering rows call values_compare on the values the fixture builds.
-
-use std::cmp::Ordering;
+//! Same-class ordering goes through `<`. Different classes are refused at
+//! the check, and the runtime arm is covered beside `values_compare`.
 
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
@@ -34,14 +32,8 @@ fn printing_a_newtype_does_not_panic() {
 
 #[test]
 fn two_newtypes_of_the_same_class_compare_by_the_inner_value() {
-    let one = call_beside_value(file!(), ":user::one").expect("inner 1");
-    let two = call_beside_value(file!(), ":user::two").expect("inner 2");
-    assert_eq!(wat::runtime::values_compare(&one, &two), Some(Ordering::Less));
-}
-
-#[test]
-fn two_newtypes_of_different_classes_do_not_compare() {
-    let one = call_beside_value(file!(), ":user::one").expect("first class");
-    let other = call_beside_value(file!(), ":user::other").expect("second class");
-    assert_eq!(wat::runtime::values_compare(&one, &other), None);
+    match call_beside_value(file!(), ":user::ord") {
+        Ok(Value::bool(true)) => {}
+        other => panic!("(< T 1 T 2) must be true; got {other:?}"),
+    }
 }

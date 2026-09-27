@@ -8,5 +8,7 @@
 (:wat::core::defn :user::one [] -> :u::T (:u::T 1))
 (:wat::core::defn :user::two [] -> :u::T (:u::T 2))
 (:wat::core::defn :user::other [] -> :u::U (:u::U 1))
+(:wat::core::defn :user::ord [] -> :wat::core::bool
+  (:wat::core::< (:u::T 1) (:u::T 2)))
 (:wat::core::defn :user::printed [] -> :wat::core::bool
   (:wat::core::= (:wat::edn::write (:u::T 5)) "#u/T 5"))

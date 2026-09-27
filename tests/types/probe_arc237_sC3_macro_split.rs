@@ -98,6 +98,14 @@ fn eval_i64(fn_name: &str) -> i64 {
     assert!(eval_bool(":user::cross-flavor-same-data-true"));
 }
 #[test] fn cross_flavor_eq_false() {
-    // = is type-strict: different type/flavor → false
-    assert!(!eval_bool(":user::cross-flavor-eq-false"));
+    let r = startup_from_file(
+        "tests/types/probe_arc237_sC3_macro_split_cross_flavor.wat.bad",
+    );
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::="
+            && param == "#2"
+            && expected == ":my::Pt"
+            && got == ":my::HPt"
+    );
 }

@@ -37,5 +37,4 @@
 ;; ─── Cross-flavor ─────────────────────────────────────────────────────────────
 (:wat::core::defn :user::cross-flavor-same-data-true [] -> :wat::core::bool
   (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::HPt :x 0 :y 0)))
-(:wat::core::defn :user::cross-flavor-eq-false [] -> :wat::core::bool
-  (:wat::core::= (:my::Pt :x 0 :y 0) (:my::HPt :x 0 :y 0)))
+

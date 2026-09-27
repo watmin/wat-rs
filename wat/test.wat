@@ -58,7 +58,7 @@
 ;; slots carry the rendered values so the test runner can display them
 ;; alongside the source location. Used to be `:None :None` (just "the
 ;; assertion fired"); arc 064 closed the diagnostic gap.
-(:wat::core::defn :wat::test::assert-eq :- [T] [actual <- :T expected <- :T] -> :wat::core::nil
+(:wat::core::defn :wat::test::assert-eq :- [[T :< :wat::core::Equatable]] [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) 
       nil
       (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Option.Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option.Some {:value (:wat::core::show expected)}))))

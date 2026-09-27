@@ -5958,7 +5958,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
 /// `None` for, plus pairs whose type lacks a canonical order
 /// (HashMap / HashSet / Enum / Struct / HolonAST / unit). Callers
 /// (currently `eval_compare`) translate `None` into `TypeMismatch`.
-pub fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
+pub(crate) fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
     use std::cmp::Ordering;
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => Some(x.cmp(y)),
@@ -21404,5 +21404,25 @@ mod tests {
             2,
             "ServiceEvent::Message [idx <- i64  msg <- T]: {names:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod newtype_order {
+    use super::values_compare;
+    use crate::value::{AggregateValue, Value};
+    use std::sync::Arc;
+
+    #[test]
+    fn different_newtype_classes_do_not_compare() {
+        let left = Value::Aggregate(Arc::new(AggregateValue::newtype(
+            "u::T".to_string(),
+            Value::i64(1),
+        )));
+        let right = Value::Aggregate(Arc::new(AggregateValue::newtype(
+            "u::U".to_string(),
+            Value::i64(1),
+        )));
+        assert_eq!(values_compare(&left, &right), None);
     }
 }

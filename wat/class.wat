@@ -62,6 +62,9 @@
 (:wat::core::extend-type :wat::holon::Vector :wat::core::Equatable)
 (:wat::core::extend-type :wat::holon::HolonAST :wat::core::Equatable)
 (:wat::core::extend-type :wat::WatAST :wat::core::Equatable)
+;; Z1 — nil is the empty tuple's name. The `:..` edge is one or more slots,
+;; so nil is Equatable by this edge and not Orderable.
+(:wat::core::extend-type :wat::core::nil :wat::core::Equatable)
 
 ;; ── Equatable containers. HashMap, HashSet, PersistentVector are unconditional
 ;; (their runtime equality is Value's total PartialEq). PersistentMap is not a

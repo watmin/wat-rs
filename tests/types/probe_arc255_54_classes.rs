@@ -1,15 +1,12 @@
-//! Stone 255.54 — Orderable and Equatable agree with the predicates on the
-//! types the corpus actually compares.
-// rune:lint(no-inlined-wat) — the allow-list names are the checker's rendered types, compared exactly.
+//! Stone 255.54 — membership in Orderable and Equatable, proved by a parameter.
+//! Stone 255.56 deleted the predicate agreement test. The predicates are gone.
 
 use std::collections::BTreeSet;
 use std::process::Command;
 
 use wat::check::error::CheckErrorKind;
-use wat::check::ClassVerdict;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
-use wat::types::{Nature, Purity, TypeDef};
 
 #[test]
 fn a_pure_record_is_equatable_and_not_orderable() {
@@ -61,121 +58,6 @@ fn a_newtype_of_a_struct_may_not_join_orderable() {
                 if head == "extend-type"
                 && reason == "newtype :u::Box joins Orderable only when its inner type is Orderable; :u::St is not")
     );
-}
-
-/// Every unique operand type the corpus passed to `<`/`>`/`<=`/`>=`/`=`/`not=`.
-/// The list is the fixture (`probe_arc255_54_class_types.txt`), not a fresh census.
-#[test]
-fn declared_classes_agree_with_the_predicates() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let world = startup_from_file("tests/types/probe_arc255_54_class_world.wat")
-        .expect("the agreement world declares the corpus's user types");
-    let types = world.types();
-    let fixture = std::fs::read_to_string(root.join("tests/types/probe_arc255_54_class_types.txt"))
-        .expect("committed operand-type fixture");
-    let mut rows = 0usize;
-    let mut ruled = 0usize;
-    let mut findings = 0usize;
-    let mut problems = Vec::new();
-    for line in fixture.lines() {
-        if line.is_empty() {
-            continue;
-        }
-        let (kind, rendered) = line.split_once('\t').unwrap_or_else(|| {
-            panic!("fixture row has no tab: {line}");
-        });
-        rows += 1;
-        let verdict = wat::check::class_verdict(rendered, types).unwrap_or_else(|err| {
-            panic!("could not re-read {kind} operand {rendered}: {err}");
-        });
-        match classify(kind, rendered, &verdict, types) {
-            Row::Agree => {}
-            Row::Ruled => ruled += 1,
-            Row::Finding => findings += 1,
-            Row::Problem(msg) => problems.push(msg),
-        }
-    }
-    assert_eq!(rows, 71, "the fixture is the collected unique operand types");
-    assert_eq!(ruled, 2, "bigint and rational are the ruled Orderable corrections");
-    // :T, :wat::core::Value, and :wat::core::nil. A new finding fails above as a problem.
-    assert_eq!(findings, 3, "the three named findings");
-    assert!(
-        problems.is_empty(),
-        "agreement disagreements:\n{}",
-        problems.join("\n")
-    );
-}
-
-enum Row {
-    Agree,
-    Ruled,
-    Finding,
-    Problem(String),
-}
-
-fn classify(
-    kind: &str,
-    rendered: &str,
-    verdict: &ClassVerdict,
-    types: &wat::types::TypeEnv,
-) -> Row {
-    let (declared, predicate) = match kind {
-        "ord" => (verdict.declared_orderable, verdict.predicate_orderable),
-        "eq" => (verdict.declared_equatable, verdict.predicate_equatable),
-        other => return Row::Problem(format!("unknown kind {other}")),
-    };
-    if declared == predicate {
-        return Row::Agree;
-    }
-    // Ruled correction: the runtime orders these; the predicate's leaf arm does not.
-    if kind == "ord" && (rendered == ":wat::core::bigint" || rendered == ":wat::core::rational") {
-        return if declared && !predicate {
-            Row::Ruled
-        } else {
-            Row::Problem(format!(
-                "ruled Orderable correction has the wrong direction: {rendered} declared={declared} predicate={predicate}"
-            ))
-        };
-    }
-    // Q1 — a struct is an aggregate, so the predicate says equatable. The class does not.
-    if kind == "eq" && !declared && predicate {
-        if let Some(TypeDef::Aggregate(agg)) = types.get(rendered) {
-            if agg.nature == Nature::Struct {
-                return Row::Ruled;
-            }
-        }
-        // EN-P — an Impure enum (and a variant, which is its own Enum singleton) is
-        // equatable to the predicate and not a member of the class.
-        if let Some(TypeDef::Enum(e)) = types.get(rendered) {
-            if e.purity == Purity::Impure {
-                return Row::Ruled;
-            }
-        }
-        // N-R — a newtype joins Equatable only when its inner type is pure.
-        // The predicate recurses into the inner type regardless.
-        if let Some(TypeDef::Newtype(_)) = types.get(rendered) {
-            return Row::Ruled;
-        }
-    }
-    // Section 4, reported and not declared away. A rigid `:T` is `Path(":T")`.
-    // The predicate defers (`is_type_param_letter`). The class has no edge.
-    if kind == "eq" && rendered == ":T" && !declared && predicate {
-        return Row::Finding;
-    }
-    // Same deferral, for the protocol holder `:wat::core::Value`. Value is the
-    // universal supertype, so it is not a member of Equatable.
-    if kind == "eq" && rendered == ":wat::core::Value" && !declared && predicate {
-        return Row::Finding;
-    }
-    // `:wat::core::nil` is an alias of the empty tuple. The `:..` edge admits
-    // every slot, and there are none, so the class says Orderable. The predicate
-    // does not. 255.53 left this unpinned; this stone does not add an arity check.
-    if kind == "ord" && rendered == ":wat::core::nil" && declared && !predicate {
-        return Row::Finding;
-    }
-    Row::Problem(format!(
-        "{kind}\t{rendered}\tdeclared={declared}\tpredicate={predicate}"
-    ))
 }
 
 /// One-shot collector. Not part of the floor. Run with `--ignored` to refresh

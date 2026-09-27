@@ -548,7 +548,7 @@
 ;; duplicates of what I just emitted." Each input element is inspected by at most ONE active
 ;; `drop-while` call (it stops at the first non-match), so this stays O(n) amortized — no
 ;; complexity trade-off here, unlike `keep-indexed`/`map-indexed`/`distinct` below.
-(:wat::core::defn :wat::core::dedupe-walk :- [T]
+(:wat::core::defn :wat::core::dedupe-walk :- [[T :< :wat::core::Equatable]]
   [prev <- (:wat::core::Option :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
@@ -562,7 +562,7 @@
               (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Option.Some {:value value}) rest)))])]
       [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
 
-(:wat::core::defn :wat::core::dedupe :- [T]
+(:wat::core::defn :wat::core::dedupe :- [[T :< :wat::core::Equatable]]
   [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::core::dedupe-walk :wat::core::Option.None (:wat::core::Seqable/seq coll)))
 

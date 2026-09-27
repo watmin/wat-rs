@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 198; // 255.38: 208 → 198 — owner/peer family rule left infer_poll_prime (3→1), infer_select_prime (4→1); infer_close_prime and project_peer_io left the ledger. 255.30: 211 → 208.
+const LEDGER_TOTAL: usize = 195; // 255.56: 198 → 195 — is_type_equatable and is_type_orderable deleted. 255.38: 208 → 198.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -799,8 +799,6 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "is_must_use_type", 2, "Ex2"),
     ("src/check.rs", "is_primitive_type_keyword_in_value_position", 1, "Ax1"),
     ("src/check.rs", "is_pure_type", 3, "Ex3"),
-    ("src/check.rs", "is_type_equatable", 2, "Ex2"),
-    ("src/check.rs", "is_type_orderable", 1, "Ex1"),
     ("src/check.rs", "map_kv_of", 1, "Ex1"),
     ("src/check.rs", "preregister_defclause_in_env", 1, "Ax1"),
 

@@ -57,7 +57,7 @@
 ;; this file, and an explicit note on what only a rebuild can show.
 
 (:wat::core::defn :user::axis-ok?
-  [got <- (:wat::core::Option :- [:wat::core::Value]) want <- :wat::core::Value]
+  [got <- (:wat::core::Option :- [:wat::core::Equatable]) want <- :wat::core::Equatable]
   -> :wat::core::bool
   (:wat::core::match got
     [:wat::core::Option.Some {:value v} (:wat::core::= v want)]

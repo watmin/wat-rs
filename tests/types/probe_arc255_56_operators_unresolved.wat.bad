@@ -1,0 +1,3 @@
+(:wat::core::defn :user::compute [] -> :wat::core::bool
+  (:wat::core::let [a (:wat::edn::read "1") b (:wat::edn::read "2")]
+    (:wat::core::= a b)))

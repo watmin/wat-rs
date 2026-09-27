@@ -1,0 +1,4 @@
+(:wat::core::defrecord :my::Pt [x <- :wat::core::i64 y <- :wat::core::i64])
+(:wat::holon::defrecord :my::HPt [x <- :wat::core::i64 y <- :wat::core::i64])
+(:wat::core::defn :user::cross [] -> :wat::core::bool
+  (:wat::core::= (:my::Pt :x 0 :y 0) (:my::HPt :x 0 :y 0)))

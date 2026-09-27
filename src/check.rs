@@ -13343,30 +13343,52 @@ fn is_numeric_check_path(p: &str) -> bool {
     )
 }
 
-/// Arc 050 — polymorphic comparison/equality inference.
-///
-/// Check-side signature inference for the polymorphic comparison
-/// family (`:wat::core::{=,not=,<,>,<=,>=}`). Same-type or
-/// subtype-related required per THE DECISION. Always returns `:bool`.
-///
-/// arc 237 Stone 237.8a — THE DECISION (`feedback_no_implicit_coercion`):
-/// cross-numeric path DELETED. `(< 1 2.0)` → TypeMismatch at check.
-/// Numeric comparison is now same-type-only: (i64, i64) succeeds via
-/// unify; (f64, f64) succeeds via unify; (i64, f64) fails unify AND
-/// neither is a subtype of the other → TypeMismatch. Callers
-/// homogenize explicitly before comparing.
-///
-/// The runtime path (`eval_eq` / `eval_compare` / `eval_not_eq`
-/// over `values_equal` / `values_compare`) is the defense-in-depth
-/// companion; check-time tightening is the primary gate.
-///
-/// Renamed from `infer_polymorphic_compare` in arc 148 slice 5
-/// to drop the polymorphic-handler anti-pattern framing. The
-/// function IS the check-side `:wat::core::<` family inference;
-/// nothing about it is anti-pattern. Per-Type comparison leaves
-/// retired in the same slice.
+// Arc 050 — comparison inference. Stone 255.56: after widening, unify or the
+// numeric cross, then each operand must be a member of the class. A variable
+// that is still a variable is refused. Both-records and the subtype disjunct
+// are gone.
 // PARTITION — RELATIONAL flavor of the intrinsic dispatch: `unify(a, b)` ties
 // the two args' types ∀T, which a monomorphic clause cannot express. See `docs/DISPATCH.md`.
+
+/// Stone 255.56 — the operand must be a member of `class`. A `TypeExpr::Var`
+/// is refused here, so it never reaches `assignable`'s `unify` fallthrough.
+/// A concrete path with a declared edge is a member before alias expansion,
+/// which is how `nil` is `Equatable` and not `Orderable`.
+fn require_class(
+    op: &str,
+    span: &Span,
+    ty: &TypeExpr,
+    class: &str,
+    env: &CheckEnv,
+) -> Option<CheckError> {
+    if matches!(ty, TypeExpr::Var(_)) {
+        return Some(CheckError {
+            span: span.clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: "a resolved type; the operand is unresolved".into(),
+                got: format_type(ty),
+            },
+        });
+    }
+    if let TypeExpr::Path(p) = ty {
+        if crate::types::is_subtype(p, class, env.types()) {
+            return None;
+        }
+    }
+    let mut subst = Subst::new();
+    let class_ty = TypeExpr::Path(class.into());
+    if assignable(ty, &class_ty, &mut subst, env) {
+        None
+    } else {
+        Some(CheckError {
+            span: span.clone(),
+            kind: mismatch_or_membership(op.into(), "#1".into(), class.into(), format_type(ty), env),
+        })
+    }
+}
+
 fn infer_equality(
     op: &str,
     head_span: &Span,
@@ -13413,309 +13435,39 @@ fn infer_equality(
         // are record subtypes (share the :wat::core::Record common ancestor).
         class_note("eq", &a_resolved, args[0].span());
         class_note("eq", &b_resolved, args[1].span());
-        let types_compatible = if unify(&a_resolved, &b_resolved, subst, env.types()).is_ok() {
-            true
-        } else if let (TypeExpr::Path(ap), TypeExpr::Path(bp)) = (&a_resolved, &b_resolved) {
-            crate::types::is_subtype(ap, bp, env.types())
-                || crate::types::is_subtype(bp, ap, env.types())
-                || (crate::types::is_subtype(ap, ":wat::core::Record", env.types())
-                    && crate::types::is_subtype(bp, ":wat::core::Record", env.types()))
-                // Arc 300 Stone C5 — both_numeric: undoes 237.8a's cross-numeric
-                // deletion for the numeric case only. `(= 1 1.0)` now type-checks
-                // (still evaluates to `false` — category-aware `=` is C4's, unchanged).
-                || (is_numeric_check_path(ap) && is_numeric_check_path(bp))
-        } else {
-            false
-        };
-        if !types_compatible {
+        // Stone 255.56 — widen, then one class-gated pair: unify, or the
+        // numeric cross. Both-records and the either-direction subtype arm
+        // are gone. A variable unified with a concrete operand is resolved;
+        // a variable that is still a variable is refused before the class.
+        let a_widened = widen_to_enclosing_enum(&a_resolved, env);
+        let b_widened = widen_to_enclosing_enum(&b_resolved, env);
+        let mut probe = subst.clone();
+        let unified = unify(&a_widened, &b_widened, &mut probe, env.types()).is_ok();
+        let numeric = matches!(&a_resolved, TypeExpr::Path(p) if is_numeric_check_path(p))
+            && matches!(&b_resolved, TypeExpr::Path(p) if is_numeric_check_path(p));
+        if unified {
+            *subst = probe;
+        }
+        if !unified && !numeric {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
                 expected: format_type(&apply_subst(&a_resolved, subst)),
                 got: format_type(&apply_subst(&b_resolved, subst))
             } });
-        } else if !is_type_equatable(&a_resolved, subst, env.types())
-            || !is_type_equatable(&b_resolved, subst, env.types())
-        {
-            // Arc 255 Stone 1c-b-iii — `types_compatible` only asks whether the two types
-            // RELATE (unify / subtype / both-record / both-numeric); it never asked whether
-            // the resulting type is equatable AT ALL. `is_type_equatable` narrows `=`/`not='s
-            // declared domain to exactly what `values_equal` (runtime.rs) has an arm for —
-            // closing the `Fn` hole `probe-core-eq-is-partial.wat` measures.
-            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: op.into(),
-                param: "#1".into(),
-                expected: "an equatable type (i64, u8, f64, bigint, rational, String, bool, keyword, Uuid, char, Instant, Duration, wat::holon::Vector, HolonAST, WatAST, (Vector :- [T]), (List :- [T]), (Option :- [T]), (Result :- [T E]), HashMap, HashSet, PersistentVector, Tuple, unit, a Record/Struct/HolonRecord, or a user enum)".into(),
-                got: format_type(&apply_subst(&a_resolved, subst))
-            } });
+        } else {
+            let a_final = apply_subst(&a_resolved, subst);
+            let b_final = apply_subst(&b_resolved, subst);
+            if let Some(err) = require_class(op, args[0].span(), &a_final, ":wat::core::Equatable", env) {
+                local_errors.push(err);
+            } else if let Some(err) = require_class(op, args[1].span(), &b_final, ":wat::core::Equatable", env) {
+                local_errors.push(err);
+            }
         }
     }
     if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) }
 }
 
-/// Arc 255 Stone 1c-b-iii — sibling of [`is_type_orderable`] for the equality family.
-/// Check whether a (fully-substituted / reduced) TypeExpr belongs to the equatable
-/// class: narrows `=`/`not=`'s declared domain to exactly what `values_equal`
-/// (`src/runtime.rs:5302`) actually has a match arm for. Unlike `is_type_orderable`
-/// this needs the `TypeEnv` — equality's domain is WIDER than ordering's (it includes
-/// user Records/Structs/HolonRecords and user enums, which `values_equal` recurses into
-/// structurally but `values_compare` has no arm for at all) so a bare `TypeExpr::Path`
-/// naming a user type must be resolved to find out which kind of declaration it is.
-///
-/// Leaf primitives (direct `values_equal` arm, no recursion):
-/// `i64`, `u8`, `f64`, `bigint`, `rational`, `String`, `bool`, `keyword`, `Uuid`, `char`,
-/// `Instant`, `Duration`, `wat::holon::Vector` (bit-exact holon algebra vector, distinct
-/// from the generic `(Vector :- [T])` container below), `wat::holon::HolonAST`, `wat::WatAST`.
-///
-/// Parametric containers that RECURSE into their element type(s) — mirrors `values_equal`'s
-/// own recursive arms (`Vec`, `wat__core__List`, `Option`, `Result`):
-/// `(Vector :- [T])`, `(List :- [T])`, `(Option :- [T])` on `T`; `(Result :- [T E])` on
-/// BOTH `T` and `E` (either variant may occur at runtime — the declared domain includes
-/// both, so both must be equatable, same conservative posture `is_type_orderable` already
-/// takes for `Result`).
-///
-/// Parametric containers admitted UNCONDITIONALLY (blanket `true`, no recursion into their
-/// type args): `HashMap`, `HashSet`, `PersistentVector`. Their `values_equal` arms
-/// (`:5504,5508,5519-5521`) delegate to `Value`'s own manual `PartialEq` impl
-/// (`src/value/value.rs:595`) — a TOTAL relation over every `Value` variant (opaque
-/// handles included, via `Arc::ptr_eq`) used for hash-keying — never the partial
-/// `values_equal` dispatcher, so nothing nested inside can make the comparison raise.
-///
-/// Deliberately EXCLUDED: `(PersistentMap :- [K V])` — a genuine pre-existing gap, NOT
-/// this stone's to close: `values_equal` has NO match arm for
-/// `Value::wat__core__PersistentMap` at all (unlike `PersistentVector`, which got one in
-/// `DESIGN-STONE-into-pv-from-vector.md`); it falls to the catch-all `_ => None` and
-/// raises today. Admitting it here would repeat exactly the `Fn` mistake this stone exists
-/// to fix.
-///
-/// Bare `TypeExpr::Path` naming a user type — resolved via `types.get`:
-/// - `TypeDef::Aggregate` (Record/Struct/HolonRecord, any `Nature`) → `true`. Mirrors
-///   `values_equal`'s `Value::Aggregate` arm (`:5481-5499`), which recurses into fields
-///   structurally regardless of nature.
-/// - `TypeDef::Enum` → `true`. Mirrors the `Value::Enum` arm (`:5446-5461`).
-/// - `TypeDef::Newtype`/`TypeDef::Alias` → recurse into the wrapped/aliased `TypeExpr`;
-///   a newtype/alias has no Value variant of its own, so its equatability is its inner
-///   type's.
-/// - `TypeDef::Union` → equatable iff every member is (a union value could be any member
-///   at runtime; same conservative "both branches" posture as `Result`).
-/// - `TypeDef::Surface` (row-polymorphic structural surface) or unregistered (a
-///   builtin-membership-only leaf per `TypeEnv::contains` — opaque handle/capability
-///   types like `Sender`/`Receiver`/`RustOpaque`-backed types, none of which have a
-///   `values_equal` arm) → `false`.
-///
-/// `TypeExpr::Fn { .. } => false` — **THE hole this gate closes.** `values_equal` has no
-/// `Value::wat__core__fn` arm (falls to `_ => None`); this is the counterexample
-/// `wat-scripts/scratch-pad/probe-core-eq-is-partial.wat` measures directly.
-///
-/// `TypeExpr::Tuple(elems) => elems.iter().all(equatable)` — UNLIKE `is_type_orderable`,
-/// the EMPTY tuple is equatable: `TypeExpr::Tuple([])` is the unit type, which resolves
-/// to `Value::Unit` at runtime (`src/value/value.rs:57-59`), and `values_equal` has a
-/// direct `(Value::Unit, Value::Unit) => Some(true)` arm (`:5361`). `is_type_orderable`
-/// excludes unit because `values_compare` has no `Unit` arm at all — a different runtime
-/// fact, so a different ruling; the two predicates track their own engines independently.
-///
-/// `TypeExpr::Var(_)` (a fresh HM unification metavariable) OR a RIGID declared type
-/// param — `is_type_param_letter` (`:9932`) recognizes both: `Var(_)`, and a bare
-/// `Path` whose colon-stripped name is `"Xt"` or a single ASCII uppercase letter
-/// (`check_function_body`'s doc, `:1780-1783`: "Declared type parameters are RIGID
-/// inside the body... Represented as `Path(\":T\")`") — **both defer to runtime**.
-///
-/// ★ MEASURED, not assumed: `is_type_orderable`'s own `TypeExpr::Var(_) => true` arm
-/// (`:12871`) does NOT reach the rigid case — a declared `:T` inside a generic body is
-/// `Path(":T")`, never `TypeExpr::Var`, so that line is dead for exactly the scenario its
-/// comment names. Built `/tmp/probe_lt_generic.wat` (a generic `[T] [a <- :T b <- :T]
-/// -> :bool (:wat::core::< a b)`) and ran `--check` against it: it FAILS TODAY, already,
-/// independently of this stone (`":wat::core::<": parameter #1 expects an orderable
-/// type...; got :T"`) — a pre-existing dormant gap in Stone 1c-b-ii's `is_type_orderable`,
-/// inert only because no corpus function orders two bare `:T` values. Equality cannot
-/// inherit that gap: `wat/test.wat:61`'s `assert-eq :- [T] [actual <- :T expected <- :T]`
-/// is exactly this shape, and it is load-bearing (STOP-1). So `is_type_equatable` uses
-/// `is_type_param_letter` directly rather than copying `is_type_orderable`'s narrower
-/// `Var(_)`-only line.
-fn is_type_equatable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
-    let resolved = apply_subst(ty, subst);
-    // ★ ONE RULE, UNIFORMLY APPLIED — arc 255 Stone 1c-b-iii, ruled in-chat 2026-09-03:
-    // **if the static type does not NARROW, defer to the runtime.** Two shapes qualify and they
-    // are the same epistemic position, so they get the same answer:
-    //
-    //   a type VARIABLE (`:T`)      — a holder two parties agree on at INSTANTIATION
-    //   `:wat::core::Value`         — a holder two parties agree on by PROTOCOL. The builder:
-    //                                 "its purpose is to allow a holder to be declared for two
-    //                                 other parties to agree on... rete does this to hold facts
-    //                                 for a producer and consumer to act on." `types.rs:1295`
-    //                                 says the same from the other side: a `Value` payload "can
-    //                                 be PRODUCED but never CONSUMED" without a downward check.
-    //
-    // A first cut admitted the type variable and REFUSED `Value` — two identical shapes answered
-    // oppositely, invisible only because one had a corpus witness (`assert-eq`) and the other's
-    // was a scratch probe. It also failed every one of the four questions when they were finally
-    // put to it. This is the corrected rule.
-    //
-    // ⛔ THE RESIDUAL HOLE IS NOT HIDDEN BY THIS — IT IS EXACTLY WHY `:wat::core::=` IS GRADED
-    // `@Totality Partial`. `wat-scripts/scratch-pad/probe-eq-generic-instantiation.wat` measures
-    // it: a generic body is checked ONCE with `:T` abstract and the call site is never re-gated,
-    // so an unnarrowed holder still reaches `values_equal`'s `_ => None` and raises. The grade
-    // carries that truth; this predicate closes every door where the declared type IS concrete.
-    if is_type_param_letter(&resolved) {
-        return true; // a holder agreed at instantiation — defer to runtime
-    }
-    if matches!(&resolved, TypeExpr::Path(p) if p == ":wat::core::Value") {
-        return true; // a holder agreed by protocol — defer to runtime, same rule as `:T`
-    }
-    match &resolved {
-        TypeExpr::Var(_) => true, // unreachable given the is_type_param_letter guard above; kept for exhaustiveness
-        TypeExpr::Fn { .. } => false, // no `Value::wat__core__fn` arm in `values_equal` — the hole
-        TypeExpr::Path(p) => {
-            // `wat.type/i64` is `:wat::type::i64` until denotation. The gate
-            // lists the core spelling; `format_type` already prints that.
-            let denoted = crate::edn::render::type_denotation(p);
-            match denoted.as_str() {
-            ":wat::core::i64"
-            | ":wat::core::u8"
-            | ":wat::core::f64"
-            | ":wat::core::bigint"
-            | ":wat::core::rational"
-            | ":wat::core::String"
-            | ":wat::core::bool"
-            | ":wat::core::keyword"
-            | ":wat::core::Uuid"
-            | ":wat::core::char"
-            | ":wat::time::Instant"
-            | ":wat::time::Duration"
-            | ":wat::holon::Vector"
-            | ":wat::holon::HolonAST"
-            | ":wat::WatAST" => true,
-            _ => match types.get(p) {
-                Some(crate::types::TypeDef::Aggregate(_)) => true,
-                Some(crate::types::TypeDef::Enum(_)) => true,
-                Some(crate::types::TypeDef::Newtype(n)) => {
-                    is_type_equatable(&n.inner, subst, types)
-                }
-                Some(crate::types::TypeDef::Alias(a)) => {
-                    is_type_equatable(&a.expr, subst, types)
-                }
-                Some(crate::types::TypeDef::Union(u)) => u
-                    .members
-                    .iter()
-                    .all(|m| is_type_equatable(m, subst, types)),
-                Some(crate::types::TypeDef::Surface(_)) | None => false,
-            }
-        }
-        },
-        TypeExpr::Parametric { head, args } => match head.as_str() {
-            "wat::core::Vector" => args.first().is_none_or(|el| is_type_equatable(el, subst, types)),
-            "wat::core::List" => args.first().is_none_or(|el| is_type_equatable(el, subst, types)),
-            "wat::core::Option" => args.first().is_none_or(|el| is_type_equatable(el, subst, types)),
-            "wat::core::Result" => {
-                args.first().is_none_or(|t| is_type_equatable(t, subst, types))
-                    && args.get(1).is_none_or(|e| is_type_equatable(e, subst, types))
-            }
-            // Blanket-admitted: their `values_equal` arms delegate to `Value`'s own total
-            // `PartialEq`, not the partial `values_equal` dispatcher — see the fn doc.
-            "wat::core::HashMap" | "wat::core::HashSet" | "wat::core::PersistentVector" => true,
-            // `wat::core::PersistentMap` deliberately falls here (see fn doc) — genuine gap,
-            // not admitted. A user-defined parametric type falls here too; resolved via the
-            // same TypeDef lookup the bare-Path arm uses, blanket-admitted for
-            // Aggregate/Enum (mirrors the bare-Path ruling one level up).
-            _ => matches!(
-                types.get(&crate::types::parametric_head_fqdn(head)),
-                Some(crate::types::TypeDef::Aggregate(_)) | Some(crate::types::TypeDef::Enum(_))
-            ),
-        },
-        TypeExpr::Tuple(elems) => elems.iter().all(|el| is_type_equatable(el, subst, types)),
-    }
-}
-
-// Stone 237.8b — HARD CUT: `infer_arithmetic` and `is_numeric` deleted.
-// `:wat::core::+`/`-`/`*`/`/` now route through wat defclauses (registered
-// in env.defclause_registrations). The defclause call-site checker
-// (infer_defclause, line ~5262) handles arity + type-dispatch. No custom
-// Rust handler needed.
-//
-// `infer_comparison`'s `<`/`>`/`<=`/`>=` arms also deleted (same stone);
-// those ops routed through wat defclauses. `infer_comparison` renamed to
-// `infer_equality` in Stone 237.8c (only `=`/`not=` remain as tenants).
-//
-// Stone 245.8 — `<`/`>`/`<=`/`>=` PROMOTED from defclauses to a relational
-// intrinsic: `infer_ordering` (below). The ordering defclauses in wat/core.wat
-// are retired; the runtime dispatch arms now route directly to `eval_compare`.
-
-/// Check whether a (fully-substituted / reduced) TypeExpr belongs to the
-/// orderable class: `i64`, `u8`, `f64`, `String`, `bool`, `keyword`,
-/// `Instant`, `Duration`, and recursively `(Vector :- [orderable])`,
-/// `(Tuple :- [orderable…])`, `(Option :- [orderable])`, `(Result :- [orderable orderable])`.
-///
-/// Unresolved TypeVars are accepted (deferred — mirrors `infer_equality`'s
-/// TypeVar policy; the runtime's `values_compare → None` is the eval-side
-/// backstop).
-///
-/// NOT orderable: `HashMap`, `HashSet`, user enums / Records / Structs,
-/// unit `()`, fn types, `HolonAST`, channels/handles.
-///
-/// Arc 296 A-2 RELAND-3 mechanism ② sub-defect 2 — a VARIANT of an orderable enum is
-/// orderable: it is the same values, just narrowed (`Result::Ok`/`Result::Err` order
-/// exactly as `Result` does — `values_compare`, `src/runtime.rs`, dispatches on the enum,
-/// not the variant). Takes `types: &TypeEnv` (new) so a `Path`/`Parametric` head that
-/// names a registered variant can ask its own `enclosing_enum` and widen to it — same
-/// primitive `widen_to_enclosing_enum`/`join_types` already consult, never a hand-listed
-/// set of variant names (STOP-5: that is exactly what this campaign deletes). A no-op for
-/// anything that is not a variant (`enclosing_enum` answers `None`, or answers itself for
-/// an already-bare enum) — falls through to the unchanged arms below.
-fn is_type_orderable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
-    let resolved = apply_subst(ty, subst);
-    if let Some((head, args)) = type_head_args(&resolved) {
-        if let Some(parent) = types.enclosing_enum(head) {
-            if parent != crate::types::parametric_head_fqdn(head) {
-                let widened = if args.is_empty() {
-                    TypeExpr::Path(parent.to_string())
-                } else {
-                    TypeExpr::Parametric {
-                        head: parent.trim_start_matches(':').to_string(),
-                        args: args.to_vec(),
-                    }
-                };
-                return is_type_orderable(&widened, subst, types);
-            }
-        }
-    }
-    match &resolved {
-        TypeExpr::Var(_) => true, // unresolved — defer to runtime
-        TypeExpr::Path(p) => {
-            let denoted = crate::edn::render::type_denotation(p);
-            matches!(
-            denoted.as_str(),
-            ":wat::core::i64"
-                | ":wat::core::u8"
-                | ":wat::core::f64"
-                | ":wat::core::String"
-                | ":wat::core::bool"
-                | ":wat::core::keyword"
-                | ":wat::time::Instant"
-                | ":wat::time::Duration"
-                // Arc 148 slice 3 — algebra Vector (bit-exact i8 lex via values_compare).
-                | ":wat::holon::Vector"
-            )
-        },
-        TypeExpr::Parametric { head, args } => match head.as_str() {
-            "wat::core::Vector" => args.first().is_none_or(|el| is_type_orderable(el, subst, types)),
-            "wat::core::Option" => args.first().is_none_or(|el| is_type_orderable(el, subst, types)),
-            "wat::core::Result" => {
-                // (Result :- [T E]) orderable iff both T and E are orderable
-                args.first().is_none_or(|t| is_type_orderable(t, subst, types))
-                    && args.get(1).is_none_or(|e| is_type_orderable(e, subst, types))
-            }
-            _ => false,
-        },
-        // Empty tuple = unit: NOT orderable. The vacuous-all rule would accept
-        // it at check while the runtime engine refuses it — the check≡runtime
-        // split Stone 245.8's scoring caught live. Ordering a one-inhabitant
-        // type is meaningless; check mirrors the runtime's refusal.
-        TypeExpr::Tuple(elems) => {
-            !elems.is_empty() && elems.iter().all(|el| is_type_orderable(el, subst, types))
-        }
-        TypeExpr::Fn { .. } => false,
-    }
-}
 
 thread_local! {
     static CLASS_HITS: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
@@ -13737,161 +13489,6 @@ fn class_note(kind: &str, ty: &TypeExpr, span: &Span) {
             buf.push(format!("{kind}\t{}:{}\t{}", span.file, span.line, format_type(ty)));
         }
     });
-}
-
-/// Both answers for one rendered operand type. `rendered` is `format_type`'s
-/// spelling, including `_` for an unresolved variable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ClassVerdict {
-    pub declared_orderable: bool,
-    pub predicate_orderable: bool,
-    pub declared_equatable: bool,
-    pub predicate_equatable: bool,
-}
-
-pub fn class_verdict(rendered: &str, types: &TypeEnv) -> Result<ClassVerdict, String> {
-    let ty = type_from_rendered(rendered)?;
-    let env = CheckEnv::with_builtins_and_types(types);
-    let mut ord_subst = Subst::new();
-    let declared_orderable = assignable(
-        &ty,
-        &TypeExpr::Path(":wat::core::Orderable".into()),
-        &mut ord_subst,
-        &env,
-    );
-    let mut eq_subst = Subst::new();
-    let declared_equatable = assignable(
-        &ty,
-        &TypeExpr::Path(":wat::core::Equatable".into()),
-        &mut eq_subst,
-        &env,
-    );
-    let subst = Subst::new();
-    Ok(ClassVerdict {
-        declared_orderable,
-        predicate_orderable: is_type_orderable(&ty, &subst, types),
-        declared_equatable,
-        predicate_equatable: is_type_equatable(&ty, &subst, types),
-    })
-}
-
-fn type_from_rendered(rendered: &str) -> Result<TypeExpr, String> {
-    if rendered == "_" {
-        return Ok(TypeExpr::Var(0));
-    }
-    // `format_type` still prints a tuple as `:(a,b)`. The reader refuses a
-    // comma inside a keyword, so a tuple nested in a form is rewritten to
-    // `(:wat::core::Tuple :- […])` before it is read. Both spellings are
-    // `TypeExpr::Tuple`.
-    let rendered = spell_tuples_for_the_reader(rendered);
-    let expr = if rendered.starts_with(':') {
-        // Preserving so `:wat::core::nil` stays a path.
-        crate::types::parse_type_expr_preserving_with_span(&rendered, &crate::rust_caller_span!())
-            .map_err(|e| e.to_string())?
-    } else {
-        crate::types::parse_type_expr_from_source(&rendered).map_err(|e| e.to_string())?
-    };
-    Ok(rewrite_rendered_hole(expr))
-}
-
-fn spell_tuples_for_the_reader(s: &str) -> String {
-    let mut out = String::new();
-    let mut rest = s;
-    while let Some(at) = rest.find(":(") {
-        out.push_str(&rest[..at]);
-        let after = &rest[at + 1..]; // starts with '('
-        let end = matching_paren(after).expect("rendered tuple closes");
-        let inside = &after[1..end];
-        out.push_str("(:wat::core::Tuple :- [");
-        for (n, el) in split_top_level_commas(inside).into_iter().enumerate() {
-            if n > 0 {
-                out.push(' ');
-            }
-            out.push_str(&spell_tuple_element(el.trim()));
-        }
-        out.push_str("])");
-        rest = &after[end + 1..];
-    }
-    out.push_str(rest);
-    out
-}
-
-fn spell_tuple_element(el: &str) -> String {
-    if el.is_empty() {
-        return String::new();
-    }
-    if let Some(inner) = el.strip_prefix('(').and_then(|rest| rest.strip_suffix(')')) {
-        // A nested tuple renders without the leading colon (`format_type_inner`).
-        // A parametric form in that position contains `:-`.
-        if !inner.contains(":-") && split_top_level_commas(inner).len() > 1 {
-            return spell_tuples_for_the_reader(&format!(":{el}"));
-        }
-    }
-    if el.starts_with(":(") || el.starts_with('(') || el.starts_with('[') {
-        return spell_tuples_for_the_reader(el);
-    }
-    if el.starts_with(':') || el == "_" {
-        return spell_tuples_for_the_reader(el);
-    }
-    format!(":{el}")
-}
-
-fn matching_paren(s: &str) -> Option<usize> {
-    let bytes = s.as_bytes();
-    if bytes.first() != Some(&b'(') {
-        return None;
-    }
-    let mut depth = 0i32;
-    for (i, b) in bytes.iter().enumerate() {
-        match b {
-            b'(' | b'[' => depth += 1,
-            b')' | b']' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-fn split_top_level_commas(s: &str) -> Vec<&str> {
-    let mut out = Vec::new();
-    let mut start = 0;
-    let mut depth = 0i32;
-    for (i, b) in s.bytes().enumerate() {
-        match b {
-            b'(' | b'[' => depth += 1,
-            b')' | b']' => depth -= 1,
-            b',' if depth == 0 => {
-                out.push(&s[start..i]);
-                start = i + 1;
-            }
-            _ => {}
-        }
-    }
-    out.push(&s[start..]);
-    out
-}
-
-/// `format_type` prints an unresolved variable as `_`. The reader turns that
-/// symbol into the path `:_`. It is a hole, not a name.
-fn rewrite_rendered_hole(ty: TypeExpr) -> TypeExpr {
-    match ty {
-        TypeExpr::Path(p) if p == ":_" => TypeExpr::Var(0),
-        TypeExpr::Parametric { head, args } => TypeExpr::Parametric {
-            head,
-            args: args.into_iter().map(rewrite_rendered_hole).collect(),
-        },
-        TypeExpr::Tuple(xs) => TypeExpr::Tuple(xs.into_iter().map(rewrite_rendered_hole).collect()),
-        TypeExpr::Fn { args, ret } => TypeExpr::Fn {
-            args: args.into_iter().map(rewrite_rendered_hole).collect(),
-            ret: Box::new(rewrite_rendered_hole(*ret)),
-        },
-        other => other,
-    }
 }
 
 // PARTITION — RELATIONAL flavor of the intrinsic dispatch (ordering sibling of `infer_equality`).
@@ -13947,7 +13544,7 @@ fn infer_ordering(
             // Arc 300 Stone C5 — both_numeric EXCEPTION: a unify failure between two DIFFERENT
             // numeric leaf types (`(< 1 2.0)`, i64 vs f64) is well-formed (matches eval + clj) —
             // only the cross-numeric unify-fail case is excepted; same-type unify success below
-            // (incl. same-type bigint/rational, whose `is_type_orderable` gate is untouched) is
+            // (incl. same-type bigint/rational, whose orderable-class gate is untouched) is
             // out of C5's scope.
             let both_numeric = matches!(&a_resolved, TypeExpr::Path(p) if is_numeric_check_path(p))
                 && matches!(&b_resolved, TypeExpr::Path(p) if is_numeric_check_path(p));
@@ -13958,24 +13555,22 @@ fn infer_ordering(
                     expected: format_type(&apply_subst(&a_resolved, subst)),
                     got: format_type(&apply_subst(&b_resolved, subst))
                 } });
+            } else {
+                let a_final = apply_subst(&a_resolved, subst);
+                let b_final = apply_subst(&b_resolved, subst);
+                if let Some(err) = require_class(op, args[0].span(), &a_final, ":wat::core::Orderable", env) {
+                    local_errors.push(err);
+                } else if let Some(err) = require_class(op, args[1].span(), &b_final, ":wat::core::Orderable", env) {
+                    local_errors.push(err);
+                }
             }
         } else {
-            // Types unified (possibly via the widened forms above, which bound the same vars
-            // `a_resolved`/`b_resolved` hold) — now gate on the orderable class. Check BOTH
-            // operands, not just one — mirrors `infer_equality`'s own two-sided
-            // `is_type_equatable(&a_resolved, ...) || is_type_equatable(&b_resolved, ...)` check
-            // just above in this file, its sibling for the ordering family. A sibling-variant
-            // pair (`Ok`/`Err`) keeps its OWN head here (never merged into a single "unified"
-            // value) — sub-defect 2's fix to `is_type_orderable` is what accepts each one.
             let a_final = apply_subst(&a_resolved, subst);
             let b_final = apply_subst(&b_resolved, subst);
-            if !is_type_orderable(&a_final, subst, env.types()) || !is_type_orderable(&b_final, subst, env.types()) {
-                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: op.into(),
-                    param: "#1".into(),
-                    expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, (Vector :- [T]), Tuple, (Option :- [T]), (Result :- [T E]))".into(),
-                    got: format_type(&a_final)
-                } });
+            if let Some(err) = require_class(op, args[0].span(), &a_final, ":wat::core::Orderable", env) {
+                local_errors.push(err);
+            } else if let Some(err) = require_class(op, args[1].span(), &b_final, ":wat::core::Orderable", env) {
+                local_errors.push(err);
             }
         }
     }
@@ -17573,6 +17168,18 @@ fn bound_failure(
             let TypeExpr::Tuple(slots) = &got_r else {
                 continue;
             };
+            // Stone 255.56 Z1 — `:..` is one or more slots, the tuple
+            // constructor's own rule. `nil` is not ordered by this edge.
+            if slots.is_empty() {
+                return Some(crate::check::env::MembershipMiss {
+                    argument: format_type(&got_r),
+                    surface: format_type(&bound_r),
+                    param: name.clone(),
+                    bound: format_type(&bound_r),
+                    got: format_type(&got_r),
+                    slot: None,
+                });
+            }
             for (idx, slot_ty) in slots.iter().enumerate() {
                 let slot_r = reduce(&walk(slot_ty, subst), subst, env.types());
                 if !assignable(&slot_r, &bound_r, &mut subst.clone(), env) {
@@ -17623,7 +17230,9 @@ pub(crate) fn assignable(
     if let TypeExpr::Path(ap) = &a {
         let key = ap.trim_start_matches(':');
         if let Some(bound) = env.bound_of(key) {
-            if assignable(&bound, &e, subst, env) {
+            // A variable expected-slot must unify with T, not with the bound.
+            // Otherwise a recursive call instantiates T as the bound.
+            if !matches!(e, TypeExpr::Var(_)) && assignable(&bound, &e, subst, env) {
                 return true;
             }
         }

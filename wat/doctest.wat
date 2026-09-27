@@ -18,6 +18,13 @@
    pure          <- :wat::core::bool
    deterministic <- :wat::core::bool])
 
+;; Stone 255.56 — the example result has no single type. The comparison's
+;; parameters say it compares Equatable values.
+(:wat::core::defn :wat::doctest::matches?
+  [got <- :wat::core::Equatable want <- :wat::core::Equatable]
+  -> :wat::core::bool
+  (:wat::core::= got want))
+
 ;; ─── Row — the enumerable registry census record ──────────────────────
 ;;
 ;; Arc 255 STONE "the registry can be enumerated" — the typed record returned by
@@ -115,7 +122,7 @@
                 [:wat::core::Result.Ok {:value got}
                   (:wat::core::match (:wat::eval-ast! expected-ast)
                     [:wat::core::Result.Ok {:value want}
-                      (:wat::core::if (:wat::core::not (:wat::core::= got want))
+                      (:wat::core::if (:wat::core::not (:wat::doctest::matches? got want))
                         (:wat::core::concat acc1
                           (:wat::core::Vector :- [:wat::doctest::Failure]
                             (:wat::doctest::Failure
