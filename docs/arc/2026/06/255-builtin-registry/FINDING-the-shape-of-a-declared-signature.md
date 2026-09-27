@@ -79,9 +79,11 @@ container, takes a `Stream` (`wat/fix.wat:1287` is `(reverse (sort eds))`).
 ## Assessed 2026-09-26 (four questions on the page)
 
 - **The tuple class declaration** decomposes to Typed Clojure's dotted form, the bound inside the repeated entry:
-  `(wat.core/extend-type :- [[Ts :< wat.core/Orderable] ...] (wat.core/Tuple :- [Ts ...]) wat.core/Orderable)`. The
-  `&` form failed Obvious and Honest: wat's value `& rest` names the collection, not each element. `...` parses
-  as a type-parameter name today and must be reserved.
+  `(wat.core/extend-type :- [[Ts :< wat.core/Orderable] :..] (wat.core/Tuple :- [Ts :..]) wat.core/Orderable)`.
+  **Ruled 2026-09-26: the marker is the keyword `:..`** (Typed Clojure ≥ 1.3.0 removed the `...` symbol for it).
+  English: *for any list of types Ts, each an Orderable, the tuple with those slot types is Orderable.* `:..` spreads
+  a list of (possibly different) types, one position each; `& rest` gathers many values of one type into one name.
+  The `&` form failed Obvious and Honest; the `...` symbol failed Simple and Honest (a legal name made syntax).
 - **A variadic tuple parameter** (`(Tuple :- [i64 & Rest])`) is **cut**: a second rest capability with no consumer.
 - **Open: a bound in a head binder binds every clause.** `sort-by`'s comparator clause never calls `<`, yet a head
   `[K :< Orderable]` would demand it.
