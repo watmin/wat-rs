@@ -40,6 +40,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/core.wat",
         source: include_str!("../../wat/core.wat"),
     },
+    // Stone 255.54 — Orderable and Equatable. After core.wat (defsurface,
+    // extend-type). No eval-deps on a later file: the leaves and containers
+    // are builtins.
+    WatSource {
+        path: "wat/class.wat",
+        source: include_str!("../../wat/class.wat"),
+    },
     // Arc 296 step 1b — the kernel diagnostics aggregates, declared in wat (wat is the
     // source of truth). Loads immediately after core.wat because `Failure`/`StopFailure`
     // reference the `:wat::core::Error` surface declared there.

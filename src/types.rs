@@ -1278,6 +1278,18 @@ impl TypeEnv {
                 if let TypeDef::Enum(e) = def {
                     return self.insert_enum_with_variants(e);
                 }
+                // Stone 255.54 N-R — a newtype whose inner type is pure is a
+                // record for Equatable. An impure inner (a struct, an impure
+                // enum, a function) does not join :wat::core::Record.
+                if let TypeDef::Newtype(n) = &def {
+                    let inner = n.inner.clone();
+                    let pure = crate::check::is_pure_type(&inner, self);
+                    self.types.insert(name.clone(), def);
+                    if pure {
+                        return self.register_subtype(&name, ":wat::core::Record", span.clone());
+                    }
+                    return Ok(());
+                }
                 self.types.insert(name.clone(), def);
                 Ok(())
             },
@@ -1654,6 +1666,11 @@ impl TypeEnv {
     fn insert_enum_with_variants(&mut self, e: EnumDef) -> Result<(), TypeError> {
         let is_variant = self.is_variant_type(&e.name);
         self.types.insert(e.name.clone(), TypeDef::Enum(e.clone()));
+        // Stone 255.54 EN-P — a Pure enum joins :wat::enum::Pure. A variant
+        // already registers <: this enum, so it follows. Impure enums do not.
+        if !is_variant && e.purity == Purity::Pure {
+            self.register_subtype(&e.name, ":wat::enum::Pure", crate::rust_caller_span!())?;
+        }
         if !is_variant {
             for v in &e.variants {
                 let fqdn = wat_reader::identifier::compose_variant(&e.name, v.name());
@@ -4862,6 +4879,39 @@ fn splice_type_decls(
                 },
                 None => unreachable!("child_node was matched above"),
             };
+            // Stone 255.54 N-R — a newtype's own Orderable edge is refused
+            // unless the inner type is already an Orderable.
+            if let TypeExpr::Path(target_path) = &target_te {
+                if crate::edn::render::type_denotation(target_path) == ":wat::core::Orderable" {
+                    if let TypeExpr::Path(child_path) = &child_te {
+                        if let Some(crate::types::TypeDef::Newtype(n)) = env.get(child_path) {
+                            let inner = n.inner.clone();
+                            let ok = {
+                                let check_env = crate::check::CheckEnv::with_builtins_and_types(env);
+                                let mut subst = crate::check::Subst::new();
+                                crate::check::assignable(
+                                    &inner,
+                                    &TypeExpr::Path(":wat::core::Orderable".into()),
+                                    &mut subst,
+                                    &check_env,
+                                )
+                            };
+                            if !ok {
+                                return Err(TypeError::new(
+                                    decl_span.clone(),
+                                    TypeErrorKind::MalformedDecl {
+                                        head: "extend-type".into(),
+                                        reason: format!(
+                                            "newtype {child_path} joins Orderable only when its inner type is Orderable; {} is not",
+                                            crate::check::format_type(&inner)
+                                        ),
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
             if let Some(param) = binder.iter().find(|p| !type_mentions_param(&child_te, p)) {
                 return Err(TypeError::new(
                     decl_span,

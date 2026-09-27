@@ -13411,6 +13411,8 @@ fn infer_equality(
         // is type-compatible (always evaluates to false at runtime, which is correct
         // and meaningful). Check: unify OR one is a subtype of the other OR both
         // are record subtypes (share the :wat::core::Record common ancestor).
+        class_note("eq", &a_resolved, args[0].span());
+        class_note("eq", &b_resolved, args[1].span());
         let types_compatible = if unify(&a_resolved, &b_resolved, subst, env.types()).is_ok() {
             true
         } else if let (TypeExpr::Path(ap), TypeExpr::Path(bp)) = (&a_resolved, &b_resolved) {
@@ -13715,6 +13717,183 @@ fn is_type_orderable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
     }
 }
 
+thread_local! {
+    static CLASS_HITS: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Stone 255.54 — record operand types that reach `<`/`=` while a test walks
+/// the corpus. Off unless [`class_capture_begin`] ran on this thread.
+pub fn class_capture_begin() {
+    CLASS_HITS.with(|c| *c.borrow_mut() = Some(Vec::new()));
+}
+
+pub fn class_capture_end() -> Vec<String> {
+    CLASS_HITS.with(|c| c.borrow_mut().take().unwrap_or_default())
+}
+
+fn class_note(kind: &str, ty: &TypeExpr, span: &Span) {
+    CLASS_HITS.with(|c| {
+        if let Some(buf) = c.borrow_mut().as_mut() {
+            buf.push(format!("{kind}\t{}:{}\t{}", span.file, span.line, format_type(ty)));
+        }
+    });
+}
+
+/// Both answers for one rendered operand type. `rendered` is `format_type`'s
+/// spelling, including `_` for an unresolved variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClassVerdict {
+    pub declared_orderable: bool,
+    pub predicate_orderable: bool,
+    pub declared_equatable: bool,
+    pub predicate_equatable: bool,
+}
+
+pub fn class_verdict(rendered: &str, types: &TypeEnv) -> Result<ClassVerdict, String> {
+    let ty = type_from_rendered(rendered)?;
+    let env = CheckEnv::with_builtins_and_types(types);
+    let mut ord_subst = Subst::new();
+    let declared_orderable = assignable(
+        &ty,
+        &TypeExpr::Path(":wat::core::Orderable".into()),
+        &mut ord_subst,
+        &env,
+    );
+    let mut eq_subst = Subst::new();
+    let declared_equatable = assignable(
+        &ty,
+        &TypeExpr::Path(":wat::core::Equatable".into()),
+        &mut eq_subst,
+        &env,
+    );
+    let subst = Subst::new();
+    Ok(ClassVerdict {
+        declared_orderable,
+        predicate_orderable: is_type_orderable(&ty, &subst, types),
+        declared_equatable,
+        predicate_equatable: is_type_equatable(&ty, &subst, types),
+    })
+}
+
+fn type_from_rendered(rendered: &str) -> Result<TypeExpr, String> {
+    if rendered == "_" {
+        return Ok(TypeExpr::Var(0));
+    }
+    // `format_type` still prints a tuple as `:(a,b)`. The reader refuses a
+    // comma inside a keyword, so a tuple nested in a form is rewritten to
+    // `(:wat::core::Tuple :- […])` before it is read. Both spellings are
+    // `TypeExpr::Tuple`.
+    let rendered = spell_tuples_for_the_reader(rendered);
+    let expr = if rendered.starts_with(':') {
+        // Preserving so `:wat::core::nil` stays a path.
+        crate::types::parse_type_expr_preserving_with_span(&rendered, &crate::rust_caller_span!())
+            .map_err(|e| e.to_string())?
+    } else {
+        crate::types::parse_type_expr_from_source(&rendered).map_err(|e| e.to_string())?
+    };
+    Ok(rewrite_rendered_hole(expr))
+}
+
+fn spell_tuples_for_the_reader(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(at) = rest.find(":(") {
+        out.push_str(&rest[..at]);
+        let after = &rest[at + 1..]; // starts with '('
+        let end = matching_paren(after).expect("rendered tuple closes");
+        let inside = &after[1..end];
+        out.push_str("(:wat::core::Tuple :- [");
+        for (n, el) in split_top_level_commas(inside).into_iter().enumerate() {
+            if n > 0 {
+                out.push(' ');
+            }
+            out.push_str(&spell_tuple_element(el.trim()));
+        }
+        out.push_str("])");
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn spell_tuple_element(el: &str) -> String {
+    if el.is_empty() {
+        return String::new();
+    }
+    if let Some(inner) = el.strip_prefix('(').and_then(|rest| rest.strip_suffix(')')) {
+        // A nested tuple renders without the leading colon (`format_type_inner`).
+        // A parametric form in that position contains `:-`.
+        if !inner.contains(":-") && split_top_level_commas(inner).len() > 1 {
+            return spell_tuples_for_the_reader(&format!(":{el}"));
+        }
+    }
+    if el.starts_with(":(") || el.starts_with('(') || el.starts_with('[') {
+        return spell_tuples_for_the_reader(el);
+    }
+    if el.starts_with(':') || el == "_" {
+        return spell_tuples_for_the_reader(el);
+    }
+    format!(":{el}")
+}
+
+fn matching_paren(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
+    if bytes.first() != Some(&b'(') {
+        return None;
+    }
+    let mut depth = 0i32;
+    for (i, b) in bytes.iter().enumerate() {
+        match b {
+            b'(' | b'[' => depth += 1,
+            b')' | b']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn split_top_level_commas(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    let mut depth = 0i32;
+    for (i, b) in s.bytes().enumerate() {
+        match b {
+            b'(' | b'[' => depth += 1,
+            b')' | b']' => depth -= 1,
+            b',' if depth == 0 => {
+                out.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&s[start..]);
+    out
+}
+
+/// `format_type` prints an unresolved variable as `_`. The reader turns that
+/// symbol into the path `:_`. It is a hole, not a name.
+fn rewrite_rendered_hole(ty: TypeExpr) -> TypeExpr {
+    match ty {
+        TypeExpr::Path(p) if p == ":_" => TypeExpr::Var(0),
+        TypeExpr::Parametric { head, args } => TypeExpr::Parametric {
+            head,
+            args: args.into_iter().map(rewrite_rendered_hole).collect(),
+        },
+        TypeExpr::Tuple(xs) => TypeExpr::Tuple(xs.into_iter().map(rewrite_rendered_hole).collect()),
+        TypeExpr::Fn { args, ret } => TypeExpr::Fn {
+            args: args.into_iter().map(rewrite_rendered_hole).collect(),
+            ret: Box::new(rewrite_rendered_hole(*ret)),
+        },
+        other => other,
+    }
+}
+
 // PARTITION — RELATIONAL flavor of the intrinsic dispatch (ordering sibling of `infer_equality`).
 // `unify(a, b)` ties the two args' types ∀T (strict — no subtype-compatible path for ordering);
 // then the unified type is gated against the orderable class. See `docs/DISPATCH.md`.
@@ -13745,6 +13924,8 @@ fn infer_ordering(
     if let (Some(a), Some(b)) = (a_ty, b_ty) {
         let a_resolved = apply_subst(&a, subst);
         let b_resolved = apply_subst(&b, subst);
+        class_note("ord", &a_resolved, args[0].span());
+        class_note("ord", &b_resolved, args[1].span());
         // Ordering is STRICT same-type — unlike equality there is NO subtype-compatible path.
         // Cross-type (i64 vs f64) must fail here: unify rejects it, producing TypeMismatch.
         // This is the principal doc: the error KIND changes from NoMatchingClause (old defclause

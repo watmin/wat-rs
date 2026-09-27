@@ -1,0 +1,3 @@
+(:wat::core::defstruct :u::St [n <- :wat::core::i64])
+(:wat::core::newtype :u::Box :u::St)
+(:wat::core::extend-type :u::Box :wat::core::Orderable)

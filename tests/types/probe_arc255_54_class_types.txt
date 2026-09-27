@@ -1,0 +1,71 @@
+eq	(:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+eq	(:wat::core::HashMap :- [:wat::core::keyword _])
+eq	(:wat::core::HashSet :- [:wat::core::i64])
+eq	(:wat::core::List :- [:wat::core::i64])
+eq	(:wat::core::Option :- [_])
+eq	(:wat::core::Vector :- [:wat::core::i64])
+eq	(:wat::core::Vector :- [_])
+eq	(:wat::stream::Stream :- [_])
+eq	:T
+eq	:eq::Method
+eq	:eq::Status
+eq	:my::Color
+eq	:my::HPt
+eq	:my::Pt
+eq	:probe255rf::VariantEx.V
+eq	:test::rd::HPt
+eq	:test::rd::Pt
+eq	:user::NodeKind
+eq	:user::NodeKind.Map
+eq	:user::NodeKind.Set
+eq	:wat::WatAST
+eq	:wat::core::Bytes
+eq	:wat::core::Record
+eq	:wat::core::String
+eq	:wat::core::Uuid
+eq	:wat::core::Value
+eq	:wat::core::bool
+eq	:wat::core::char
+eq	:wat::core::f64
+eq	:wat::core::i64
+eq	:wat::core::keyword
+eq	:wat::core::u8
+eq	:wat::fmt::BreakKind
+eq	:wat::holon::HolonAST
+eq	:wat::holon::Vector
+eq	:wat::program::PeerKind
+eq	:wat::runtime::ExpandTime
+eq	:wat::runtime::Kind
+eq	:wat::runtime::Totality
+eq	[:wat::core::i64 :-> :wat::core::i64]
+eq	_
+ord	(:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+ord	(:wat::core::HashSet :- [:wat::core::i64])
+ord	(:wat::core::Option :- [_])
+ord	(:wat::core::Option.Some :- [(:wat::core::Option.Some :- [:wat::core::i64])])
+ord	(:wat::core::Option.Some :- [:wat::core::i64])
+ord	(:wat::core::Result.Err :- [_ :wat::core::String])
+ord	(:wat::core::Result.Ok :- [:(wat::core::i64,wat::core::i64) _])
+ord	(:wat::core::Result.Ok :- [:wat::core::i64 _])
+ord	(:wat::core::Vector :- [(:wat::core::Vector :- [:wat::core::i64])])
+ord	(:wat::core::Vector :- [:wat::core::String])
+ord	(:wat::core::Vector :- [:wat::core::i64])
+ord	(:wat::core::Vector :- [:wat::core::u8])
+ord	:(wat::core::i64,(wat::core::i64,wat::core::i64))
+ord	:(wat::core::i64,wat::core::String)
+ord	:(wat::core::i64,wat::core::i64,wat::core::i64)
+ord	:my::Color
+ord	:my::Point
+ord	:wat::core::String
+ord	:wat::core::bigint
+ord	:wat::core::bool
+ord	:wat::core::f64
+ord	:wat::core::i64
+ord	:wat::core::keyword
+ord	:wat::core::nil
+ord	:wat::core::rational
+ord	:wat::holon::HolonAST
+ord	:wat::holon::Vector
+ord	:wat::time::Duration
+ord	:wat::time::Instant
+ord	_
