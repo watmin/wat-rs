@@ -98,23 +98,37 @@ pub(crate) fn eval_struct_new(
     // above). An unregistered class raises rather than falling back to a positional guess —
     // mirrors `eval_aggregate_new`'s `:15812` guard.
     let type_key = format!(":{}", class);
-    let names: Arc<Vec<String>> = match sym.types().and_then(|types| types.get(&type_key)) {
-        Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
-        Some(crate::types::TypeDef::Newtype(_)) => Arc::new(vec!["0".to_string()]),
-        _ => {
-            return Err(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("type {} is not a registered struct or newtype", type_key),
-                },
-            )
-            .into());
+    match sym.types().and_then(|types| types.get(&type_key)) {
+        Some(crate::types::TypeDef::Aggregate(a)) => Ok(Value::Aggregate(Arc::new(
+            AggregateValue::struct_(class, a.names_arc(), fields),
+        ))),
+        // Stone 255.55 — the newtype constructor stamps `is_newtype`. The
+        // generic `struct_` path does not.
+        Some(crate::types::TypeDef::Newtype(_)) => {
+            let inner = if fields.len() == 1 {
+                fields.pop().expect("len checked above")
+            } else {
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::ArityMismatch {
+                        op: OP.into(),
+                        expected: 1,
+                        got: fields.len(),
+                    },
+                )
+                .into());
+            };
+            Ok(Value::Aggregate(Arc::new(AggregateValue::newtype(class, inner))))
         }
-    };
-    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
-        class, names, fields,
-    ))))
+        _ => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("type {type_key} is not a registered struct or newtype"),
+            },
+        )
+        .into()),
+    }
 }
 
 /// Arc 048 — `(:wat::core::variant <type-path> <variant-name> field1 field2 ...)`

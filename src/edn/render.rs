@@ -2505,7 +2505,32 @@ fn edn_to_typed_value_inner(
                         return edn_to_typed_value_inner(&a.expr, edn, types, ctx);
                     }
                     crate::types::TypeDef::Newtype(n) => {
-                        return edn_to_typed_value_inner(&n.inner, edn, types, ctx);
+                        // Stone 255.55 — a newtype is tagged `#ns/Name <inner>`.
+                        // A bare inner value is not this type.
+                        let inner_ty = n.inner.clone();
+                        let class = n.name.trim_start_matches(':').to_string();
+                        let (ns, name) = struct_tag_for(p);
+                        return match edn {
+                            Edn::Tagged(tag, body) => {
+                                if tag.namespace() != ns || tag.name() != name {
+                                    return Err(EdnCoerceError {
+                                        expected: crate::check::format_type(target),
+                                        got: format!(
+                                            "Tagged({}/{})",
+                                            tag.namespace(),
+                                            tag.name()
+                                        ),
+                                        path: String::new(),
+                                    });
+                                }
+                                let inner =
+                                    edn_to_typed_value_inner(&inner_ty, body, types, ctx)?;
+                                Ok(Value::Aggregate(Arc::new(AggregateValue::newtype(
+                                    class, inner,
+                                ))))
+                            }
+                            other => Err(mismatch(target, other)),
+                        };
                     }
                     _ => {}
                 }
@@ -3538,6 +3563,24 @@ fn tagged_to_value(
     // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
     let types = types.ok_or(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::NoTypeRegistry })?;
 
+    // Stone 255.55 — a newtype body is the inner value, any EDN shape.
+    // Resolve it before the map/enum switch, which only accepts a map.
+    let newtype_path = ns_to_wat_path(ns, name);
+    let newtype_parts = if let Some(crate::types::TypeDef::Newtype(n)) = types.get(&newtype_path)
+    {
+        Some((
+            n.inner.clone(),
+            newtype_path.trim_start_matches(':').to_string(),
+        ))
+    } else {
+        None
+    };
+    if let Some((inner_ty, class)) = newtype_parts {
+        let inner = edn_to_value_caps(body, Some(types), allow_caps, foreign, ctx)?;
+        let inner = rewrap_option_field(&inner_ty, inner);
+        return Ok(Value::Aggregate(Arc::new(AggregateValue::newtype(class, inner))));
+    }
+
     // Body shape disambiguates struct vs enum.
     // Arc 293.2b: For Map bodies, resolve the TypeDef to route:
     //   Aggregate(kind!=Struct) → reconstruct_record,
@@ -4565,6 +4608,23 @@ pub fn value_to_edn_with(
         Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             let type_key = format!(":{}", sv.class);
             let tag = tag_from_type_path(&type_key);
+            // Stone 255.55 — a newtype has no field name. `#ns/Name <inner>`,
+            // never a map keyed by `:0` (that keyword panics: F-030).
+            if sv.is_newtype {
+                let Some(inner) = sv.fields.first() else {
+                    return Err(RuntimeError::new(
+                        crate::rust_caller_span!(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: ":wat::edn::write".into(),
+                            reason: format!("newtype {type_key} has no inner value"),
+                        },
+                    ));
+                };
+                return Ok(OwnedValue::Tagged(
+                    tag,
+                    Box::new(value_to_edn_with(inner, types)?),
+                ));
+            }
             // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
             let entries: Vec<(OwnedValue, OwnedValue)> = sv
                 .names
@@ -5168,6 +5228,45 @@ mod tests {
     use super::*;
     use crate::runtime::SymbolTable;
     use crate::types::TypeExpr;
+
+    /// Measured before this stone: `struct_` with field `"0"` panics in
+    /// `Keyword::new` (`invalid keyword name "0"`). The marker writes a tag.
+    #[test]
+    fn a_newtype_renders_as_a_tag_around_its_inner_value() {
+        let v = Value::Aggregate(Arc::new(AggregateValue::newtype(
+            "u::T".to_string(),
+            Value::i64(7),
+        )));
+        let edn = value_to_edn_with(&v, None).expect("a newtype renders");
+        assert_eq!(
+            edn,
+            OwnedValue::Tagged(Tag::ns("u", "T"), Box::new(OwnedValue::Integer(7)))
+        );
+    }
+
+    /// A struct whose only field is named `"0"` is not a newtype. The writer
+    /// still refuses that keyword.
+    #[test]
+    fn the_marker_not_the_shape_decides() {
+        let v = Value::Aggregate(Arc::new(AggregateValue::struct_(
+            "u::NotANewtype".to_string(),
+            Arc::new(vec!["0".to_string()]),
+            vec![Value::i64(7)],
+        )));
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            value_to_edn_with(&v, None)
+        }));
+        let msg = caught.expect_err("names == [\"0\"] is not a newtype");
+        let text = msg
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| msg.downcast_ref::<&str>().map(|s| (*s).to_string()))
+            .unwrap_or_else(|| format!("{msg:?}"));
+        assert_eq!(
+            text,
+            "invalid keyword name \"0\": first character must be non-numeric"
+        );
+    }
 
     // ─── Arc 138 canary ─────────────────────────────────────────────────
 

@@ -5958,7 +5958,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
 /// `None` for, plus pairs whose type lacks a canonical order
 /// (HashMap / HashSet / Enum / Struct / HolonAST / unit). Callers
 /// (currently `eval_compare`) translate `None` into `TypeMismatch`.
-fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
+pub fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
     use std::cmp::Ordering;
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => Some(x.cmp(y)),
@@ -6077,6 +6077,17 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         // type checker would normally enforce dim equality upstream, but
         // honest lex if mismatched values arrive.
         (Value::Vector(x), Value::Vector(y)) => Some(x.data().cmp(y.data())),
+        // Stone 255.55 — a newtype orders by its inner value. Same class only.
+        // A different class, or an aggregate that is not a newtype, stays None.
+        (Value::Aggregate(a), Value::Aggregate(b)) if a.is_newtype && b.is_newtype => {
+            if a.class != b.class {
+                return None;
+            }
+            match (a.fields.first(), b.fields.first()) {
+                (Some(x), Some(y)) => values_compare(x, y),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }

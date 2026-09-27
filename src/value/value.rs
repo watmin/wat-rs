@@ -1018,6 +1018,9 @@ pub struct AggregateValue {
     pub nature: Nature,
     /// `Empty` for Struct/Record; `Hologram(h)` for HolonRecord.
     pub holon: HolonForm,
+    /// Stone 255.55 — stamped only by [`AggregateValue::newtype`]. Not part of
+    /// identity, equality, or `Debug`: a class is always or never a newtype.
+    pub is_newtype: bool,
     /// FxHash of `(nature, class, fields)` — Hash cache, not EDN.
     /// `DESIGN-STONE-aggregate-identity`. Private so construction must restamp.
     identity: u64,
@@ -1070,6 +1073,17 @@ impl AggregateValue {
         nature: Nature,
         holon: HolonForm,
     ) -> Self {
+        Self::from_parts_marked(class, names, fields, nature, holon, false)
+    }
+
+    fn from_parts_marked(
+        class: Arc<str>,
+        names: Arc<Vec<String>>,
+        fields: Arc<Vec<Value>>,
+        nature: Nature,
+        holon: HolonForm,
+        is_newtype: bool,
+    ) -> Self {
         // Stamp only a shallow payload. A Session's fields include the facts
         // PV — hashing that at every insert is O(n²). identity 0 → Hash walks
         // (`DESIGN-STONE-aggregate-identity`).
@@ -1089,6 +1103,7 @@ impl AggregateValue {
             fields,
             nature,
             holon,
+            is_newtype,
             identity,
         }
     }
@@ -1097,6 +1112,18 @@ impl AggregateValue {
     /// `class` must be WITHOUT the leading colon.
     pub fn struct_(class: String, names: Arc<Vec<String>>, fields: Vec<Value>) -> Self {
         Self::from_parts(Arc::from(class), names, Arc::new(fields), Nature::Struct, HolonForm::Empty)
+    }
+    /// A newtype: Struct nature, one positional field, `is_newtype` set.
+    /// `class` is without the leading colon.
+    pub fn newtype(class: String, inner: Value) -> Self {
+        Self::from_parts_marked(
+            Arc::from(class),
+            Arc::new(vec!["0".to_string()]),
+            Arc::new(vec![inner]),
+            Nature::Struct,
+            HolonForm::Empty,
+            true,
+        )
     }
     /// Construct a base-Record aggregate (no hologram).
     pub fn record(class: String, names: Arc<Vec<String>>, fields: Arc<Vec<Value>>) -> Self {
