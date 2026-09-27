@@ -1,0 +1,67 @@
+diff --git a/src/types.rs b/src/types.rs
+index 77433da3e..f47ec501d 100644
+--- a/src/types.rs
++++ b/src/types.rs
+@@ -6458,6 +6458,36 @@ pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<Typ
+ ///
+ /// Any other node variant → `TypeError::MalformedTypeExpr` with a
+ /// descriptive reason.
++/// F1: `wat.core/<builtin type>` is not a type spelling. Call position is
++/// untouched; this fires only from [`parse_type_node`] and [`parse_type_form`].
++fn forbidden_core_type_symbol(spelling: &str) -> Option<String> {
++    let (ns, name) = spelling.split_once('/')?;
++    if ns != "wat.core" || name.is_empty() || name.contains('/') {
++        return None;
++    }
++    let colon_free = format!("wat::core::{name}");
++    let colon = format!(":{colon_free}");
++    let hit = crate::runtime::is_builtin_primitive(&colon_free)
++        || crate::check::BARE_PRIMITIVES.iter().any(|(_, fq)| *fq == colon)
++        || crate::check::BARE_CONTAINER_HEADS
++            .iter()
++            .any(|(_, fq)| *fq == colon_free)
++        || name == "Value";
++    if hit { Some(name.to_string()) } else { None }
++}
++
++fn core_type_in_type_position(spelling: &str, name: &str, span: &Span) -> TypeError {
++    TypeError::new(
++        span.clone(),
++        TypeErrorKind::MalformedTypeExpr {
++            raw: spelling.into(),
++            reason: format!(
++                "type position refuses {spelling}; types live in wat.type (write wat.type/{name})"
++            ),
++        },
++    )
++}
++
+ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
+     match node {
+         WatAST::Keyword(kw, span) => parse_type_expr_with_span(kw, span),
+@@ -6467,6 +6497,9 @@ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
+             // mapping — `ns_to_wat_path`, the same path `normalize_symbol_refs` uses —
+             // then parse. (Single source: do NOT reinvent the `a.b/c`→`:a::b::c` rule.)
+             let s = ident.as_str();
++            if let Some(name) = forbidden_core_type_symbol(s) {
++                return Err(core_type_in_type_position(s, &name, span));
++            }
+             let kw = if s.contains('/') {
+                 crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method())
+             } else {
+@@ -6579,11 +6612,14 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
+     // Mirrors the <> arm in parse_type_inner which stores `raw_head = s[..lt_index]`
+     // (the FQDN before `<`, no colon). We must produce the SAME string for unification.
+     let raw_head: String = match &items[0] {
+-        WatAST::Symbol(ident, _) => {
++        WatAST::Symbol(ident, span_head) => {
+             // Pre-normalize symbol `wat.type/Vector` → keyword FQDN via the ONE
+             // canonical mapping (`ns_to_wat_path`), then strip the leading `:` for the
+             // bare head-storage convention. (Single source — no reinvented `.`/`/` rule.)
+             let s = ident.as_str();
++            if let Some(name) = forbidden_core_type_symbol(s) {
++                return Err(core_type_in_type_position(s, &name, span_head));
++            }
+             if s.contains('/') {
+                 let kw = crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
+                 kw.strip_prefix(':').unwrap_or(&kw).to_string()

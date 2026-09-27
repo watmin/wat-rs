@@ -1,0 +1,59 @@
+diff --git a/crates/wat-doc/src/lib.rs b/crates/wat-doc/src/lib.rs
+index 94588ff31..ee1bca631 100644
+--- a/crates/wat-doc/src/lib.rs
++++ b/crates/wat-doc/src/lib.rs
+@@ -456,6 +456,18 @@ fn type_token_is_expressible(token: &str) -> bool {
+     wat_reader::parse_one_with_file(token, "<wat-doc @arg/@ret type token>").is_ok()
+ }
+ 
++/// A type token may be a keyword, a `(…)` / `[…]` form, or a symbol
++/// (`wat.type/i64`, `wat.core/i64`). The reader check still follows.
++fn type_token_shape_ok(token: &str) -> bool {
++    token.starts_with(':')
++        || token.starts_with('(')
++        || token.starts_with('[')
++        || matches!(
++            wat_reader::parse_one_with_file(token, "<wat-doc type token>"),
++            Ok(wat_reader::WatAST::Symbol(_, _))
++        )
++}
++
+ /// Parse an `@example`/`@example-norun` payload slice (the text left or right
+ /// of `#=>`) as a single, complete wat form — the SAME reader every other
+ /// verb's own source goes through (mirrors [`type_token_is_expressible`]'s
+@@ -638,7 +650,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
+                 // REFERENCE `(Head :- [args])`, or a fn type `[arg… :-> ret]`.
+                 // Those are still gated by the reader check just below; this
+                 // clause only rules out a BARE non-keyword symbol like `Bytes`.
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@arg".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::Bytes`); grammar is `@arg <name> <type> <desc>`",
+@@ -690,7 +702,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
+                 // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
+                 // still gated by the reader check just below; this clause
+                 // only rules out a BARE non-keyword symbol like `Bytes`.
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@ret".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
+@@ -1486,7 +1498,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
+                 // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
+                 // still gated by the reader check just below; this clause
+                 // only rules out a BARE non-keyword symbol like `Bytes`.
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@arg".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::Bool`); grammar is `@arg <name> <type> <desc>`",
+@@ -1529,7 +1541,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
+                         why: "separator used in type position; grammar is `@ret <type> <desc>`",
+                     });
+                 }
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@ret".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",

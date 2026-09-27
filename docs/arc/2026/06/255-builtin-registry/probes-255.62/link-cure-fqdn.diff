@@ -1,0 +1,13 @@
+diff --git a/crates/wat-macros/src/edn_doc.rs b/crates/wat-macros/src/edn_doc.rs
+index dbe26e84c..0a8bc0d8a 100644
+--- a/crates/wat-macros/src/edn_doc.rs
++++ b/crates/wat-macros/src/edn_doc.rs
+@@ -283,7 +283,7 @@ fn fqdn_of(ns: Option<&str>, name: &str) -> String {
+             }
+             // rune:lint(one-variant-separator, edn) — final reassembly of the translated wat
+             // FQDN for the plain (non-Type/method) case, completing the EDN→wat translation.
+-            format!(":{wat_ns}::{name}")
++            format!(":{ns}/{name}")
+         }
+         None => format!(":{name}"),
+     }
