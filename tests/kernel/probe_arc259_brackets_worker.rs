@@ -52,7 +52,7 @@ fn run_compute_nil(path: &str) {
     let func = compute_fn(&world, path);
     let got = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute eval");
-    assert_eq!(got, Value::Unit, "each-worker returns nil; got {got:?}");
+    assert_eq!(got, Value::Nil, "each-worker returns nil; got {got:?}");
 }
 
 /// `map-worker` with a `worker-init` that IGNORES the worker-id and doubles each item.

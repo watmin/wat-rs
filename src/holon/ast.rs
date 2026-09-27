@@ -52,9 +52,9 @@ pub(crate) fn from_holon_item(
     // Arc 230: Symbol/Keyword/Nil/Tag variants retired. Recognise via accessors.
     // Symbol composition → keyword Value (Symbol carried colon-prefixed keywords).
     if let Some(s) = item.as_symbol() {
-        // nil composition (symbol("nil")) → Value::Unit.
+        // nil composition (symbol("nil")) → Value::Nil.
         if s == "nil" {
-            return Ok(Value::Unit);
+            return Ok(Value::Nil);
         }
         return Ok(Value::wat__core__keyword(Arc::new(s.to_string())));
     }
@@ -384,10 +384,10 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         // no leading colon). Pre-arc-221 used HolonAST::symbol(k.as_str()) which
         // violated the honest-primitive discipline; retired here.
         Value::wat__core__keyword(k) => HolonAST::keyword(&k),
-        // Arc 230: Value::Unit (wat's nil) → HolonAST::nil() composition.
+        // Arc 230: Value::Nil (wat's nil) → HolonAST::nil() composition.
         // Arc 221 minted HolonAST::Nil; arc 230 supersedes with Bind composition.
         // HolonAST::nil() = Bind(Atom(String("Symbol")), Atom(String("nil"))).
-        Value::Unit => HolonAST::nil(),
+        Value::Nil => HolonAST::nil(),
         // Arc 221 Stone 221.4 — Uuid → HolonAST::Bind(Tag("uuid"), String(hex)).
         // Closes arc 207 false-flag (5-day-latent gap since 2026-05-17).
         // Uses tagged composition per arc 221 doctrine correction — bare-leaf

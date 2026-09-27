@@ -218,9 +218,9 @@ pub(crate) fn eval_holon_from_holon(
         call_span: list_span.clone(),
     };
     if let Some(s) = holon.as_symbol() {
-        // nil composition (symbol("nil")) → Value::Unit.
+        // nil composition (symbol("nil")) → Value::Nil.
         if s == "nil" {
-            return Ok(TrackedValue::new(Value::Unit, prov()));
+            return Ok(TrackedValue::new(Value::Nil, prov()));
         }
         return Ok(TrackedValue::new(
             Value::wat__core__keyword(Arc::new(s.to_string())),
@@ -532,9 +532,9 @@ pub(crate) fn eval_holon_leaf(
         // Arc 230: Keyword → HolonAST::keyword() composition (Bind(Atom("Keyword"), Atom(s))).
         // keyword() strips the leading colon; same semantics as arc 221 Stone 221.4b.
         Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
-        // Arc 230: Value::Unit (wat nil) → HolonAST::nil() composition.
+        // Arc 230: Value::Nil (wat nil) → HolonAST::nil() composition.
         // HolonAST::nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil.
-        Value::Unit => HolonAST::nil(),
+        Value::Nil => HolonAST::nil(),
         other => {
             return Err(RuntimeError::new(
                 v.span().clone(),

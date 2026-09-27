@@ -231,7 +231,7 @@ pub(crate) fn reckoner_observe(
     r.with_mut(":wat::holon::Reckoner/observe", span.clone(), |r| {
         r.observe(&v, holon::Label::from_index(label_idx as usize), weight)
     })?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 
@@ -334,7 +334,7 @@ pub(crate) fn eval_reckoner_resolve(
     r.with_mut(":wat::holon::Reckoner/resolve", list_span.clone(), |r| {
         r.resolve(conviction, correct)
     })?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 

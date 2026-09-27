@@ -4,7 +4,7 @@
 //!   - record          → `#ns/Type {field-map}` (map body)
 //!   - enum variant    → `#ns/Variant [field-vec]` (vector body, ANY arity:
 //!     unit = `[]`, N fields = `[v0 v1 …]`)
-//!   - `nil`           → the unit value (`Value::Unit`) ONLY — never a variant
+//!   - `nil`           → the unit value (`Value::Nil`) ONLY — never a variant
 //!
 //! This RETIRES the arc-298.1 Option/Result direct-body special-case:
 //!   None → `[]`, Some(v) → `[v]`, Some(nil) → `[nil]`, Ok(v) → `[v]`, Err(e) → `[e]`.
@@ -108,7 +108,7 @@ fn option_some_writes_single_element_vector_body() {
 fn option_some_of_unit_writes_nil_inside_vector() {
     // Some(nil): arity is VISIBLE — `[nil]`, one field holding the unit value —
     // and never collides with None (`[]`).
-    let v = Value::Option(Arc::new(Some(Value::Unit)));
+    let v = Value::Option(Arc::new(Some(Value::Nil)));
     wat::assert_edn_matches_file!(write_value(&v), "probe_arc278_a0_uniform_variant__option_some_unit.edn", "Some(nil) must write `#wat.core/Option.Some {:value nil}` (arity visible)");
 }
 
@@ -117,7 +117,7 @@ fn option_variants_round_trip() {
     for v in [
         Value::Option(Arc::new(None)),
         Value::Option(Arc::new(Some(Value::i64(7)))),
-        Value::Option(Arc::new(Some(Value::Unit))),
+        Value::Option(Arc::new(Some(Value::Nil))),
         Value::Option(Arc::new(Some(Value::String(Arc::new("x".into()))))),
     ] {
         assert_eq!(round_trip(&v), v, "Option variant must round-trip via vector body");
@@ -156,7 +156,7 @@ fn bare_nil_decodes_to_unit_value() {
     let decoded = edn_to_value(&owned, None, None).expect("decode nil");
     assert_eq!(
         decoded,
-        Value::Unit,
+        Value::Nil,
         "a bare `nil` must decode to the unit value, never a variant"
     );
 }

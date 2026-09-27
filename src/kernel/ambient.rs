@@ -83,5 +83,5 @@ pub(crate) fn eval_user_signal_reset(
         .into());
     }
     flag.store(false, Ordering::SeqCst);
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }

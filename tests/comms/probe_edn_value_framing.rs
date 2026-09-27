@@ -64,7 +64,7 @@ fn multiline_edn_value_frames_as_one_over_pipe() {
             // (The build's own tests assert the map's field values; here we
             // assert only that a multi-line frame yields a value, not an error.)
             assert!(
-                !matches!(v, Value::Unit),
+                !matches!(v, Value::Nil),
                 "multi-line frame must decode to the map value, not nil; got {:?}",
                 v
             );

@@ -43,21 +43,21 @@ fn t1_canonical_main_freezes_and_invokes() {
         .expect("canonical [] -> :wat::core::nil signature validates");
 
     // expected_user_main_signature exposes the canonical shape: empty
-    // params + nil return (canonicalized to TypeExpr::Tuple(vec![])).
+    // params + nil return (canonicalized to TypeExpr::Path(":wat::core::nil".into())).
     let (params, ret) = expected_user_main_signature();
     assert!(params.is_empty(), "expected zero params; got {}", params.len());
     assert_eq!(
         ret,
-        TypeExpr::Tuple(vec![]),
-        "expected nil/Unit return (TypeExpr::Tuple(vec![]))"
+        TypeExpr::Path(":wat::core::nil".into()),
+        "expected nil return (TypeExpr::Path :wat::core::nil)"
     );
 
-    // Invoke — should produce Value::Unit (the nil literal evaluates
+    // Invoke — should produce Value::Nil (the nil literal evaluates
     // to Unit per runtime.rs).
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main runs");
     assert!(
-        matches!(result, Value::Unit),
-        "expected Value::Unit; got {:?}",
+        matches!(result, Value::Nil),
+        "expected Value::Nil; got {:?}",
         result
     );
 }
@@ -137,8 +137,8 @@ fn t3_runtime_argv_ambient_reachable_from_main() {
     let result = invoke_user_main(&world, Vec::new())
         .expect(":user::main with (:wat::runtime::argv) reaches the ambient");
     assert!(
-        matches!(result, Value::Unit),
-        "expected Value::Unit; got {:?}",
+        matches!(result, Value::Nil),
+        "expected Value::Nil; got {:?}",
         result
     );
 }

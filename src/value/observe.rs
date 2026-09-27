@@ -193,7 +193,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
     }
     match v {
         // ── Primitive leaves ──────────────────────────────────────
-        Value::Unit => "()".to_string(),
+        Value::Nil => "nil".to_string(),
         Value::bool(b) => if *b { "true" } else { "false" }.to_string(),
         Value::i64(n) => n.to_string(),
         Value::u8(n) => n.to_string(),

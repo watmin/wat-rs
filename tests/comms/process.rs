@@ -355,7 +355,7 @@ fn probe_arc209_c0b2ei0_value_round_trip_over_process_pair() {
     assert_eq!(got_str, v_str, "String Value must round-trip");
 
     // Unit (nil)
-    let v_unit = Value::Unit;
+    let v_unit = Value::Nil;
     tx.send(v_unit.clone()).expect("send Unit");
     let got_unit = rx.recv().expect("recv Unit");
     assert_eq!(got_unit, v_unit, "Unit Value must round-trip");

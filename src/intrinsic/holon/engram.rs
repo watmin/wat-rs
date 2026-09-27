@@ -198,7 +198,7 @@ pub(crate) fn library_add(
             lib.add(&name, s, None, std::collections::HashMap::new());
         })
     })??;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 

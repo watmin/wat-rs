@@ -184,7 +184,7 @@ pub struct Config {
     pub redef_allowed: bool,
     /// Arc 157 slice 1a-ii — eval-time redef opt-in. Default `false`.
     /// Carrier + setter scaffolding wired; eval-time `def` binding is not
-    /// yet wired (eval arm returns Value::Unit). A future arc opens IFF
+    /// yet wired (eval arm returns Value::Nil). A future arc opens IFF
     /// a caller surfaces wanting eval-time def redef.
     pub eval_redef_allowed: bool,
 }

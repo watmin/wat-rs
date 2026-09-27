@@ -4,7 +4,7 @@
 //!   (a) `Value::wat__core__keyword` → `HolonAST::keyword(&k)` (Keyword leaf,
 //!       not Symbol). Closes the pre-arc-221 convention where keyword atoms
 //!       were silently encoded as `HolonAST::Symbol(":foo")`.
-//!   (b) `Value::Unit` (wat's nil) → `HolonAST::Nil` (Nil leaf, not Symbol("nil")).
+//!   (b) `Value::Nil` (wat's nil) → `HolonAST::Nil` (Nil leaf, not Symbol("nil")).
 //!   (c) `Value::wat__core__Uuid` → `HolonAST::Bind(Tag("uuid"), String(hex))`
 //!       per arc 221 doctrine correction. Closes arc 207 false-flag (5-day-latent
 //!       gap since 2026-05-17; Uuid had no value_to_atom arm until Stone 221.4).

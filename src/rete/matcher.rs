@@ -834,7 +834,7 @@ pub(crate) fn value_to_ast_literal(v: Value) -> Option<WatAST> {
         Value::bool(b) => Some(WatAST::BoolLit(b, crate::rust_caller_span!())),
         Value::String(s) => Some(WatAST::StringLit((*s).clone(), crate::rust_caller_span!())),
         Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), crate::rust_caller_span!())),
-        Value::Unit => Some(WatAST::NilLit(crate::rust_caller_span!())),
+        Value::Nil => Some(WatAST::NilLit(crate::rust_caller_span!())),
         // An enum UNIT variant's literal spelling is the keyword path the author wrote —
         // `:d6::Grade::Hi` — and `expr_ir::keyword_value` reads that keyword straight back to this
         // same `Value::Enum`, so the substitution round-trips exactly. Without this arm an

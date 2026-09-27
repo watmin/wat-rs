@@ -1616,13 +1616,13 @@ fn invoke_user_main_orchestrated(
 /// maps to `libc::exit(N)` via slice 1i's `StdErrService` epilogue.
 /// User code never participates in exit-code arithmetic.
 ///
-/// `:wat::core::nil` canonicalizes to `TypeExpr::Tuple(vec![])` at
+/// `:wat::core::nil` canonicalizes to `TypeExpr::Path(":wat::core::nil".into())` at
 /// type-check time (per `src/types.rs:1740`); the validator
 /// compares against that internal form so wat source written as
 /// `-> :wat::core::nil` flows through unification cleanly.
 pub fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
     let params = vec![]; // empty — argv is ambient (REALIZATIONS pass 7)
-    let ret = TypeExpr::Tuple(vec![]); // :wat::core::nil canonical (REALIZATIONS pass 10)
+    let ret = TypeExpr::Path(":wat::core::nil".into()); // :wat::core::nil canonical (REALIZATIONS pass 10)
     (params, ret)
 }
 
@@ -1908,7 +1908,7 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
         // "eval refused mutation form". 255.9 measured this pair BYPASSED-but-BACKSTOPPED
         // and reported "no mutation head escapes both walls"; two do
         // (`set-redef!` / `set-eval-redef!`), because their eval arms are reachable
-        // `Ok(Value::Unit)` returns rather than `DeclarationInExpressionPosition` raisers.
+        // `Ok(Value::Nil)` returns rather than `DeclarationInExpressionPosition` raisers.
         // Restrained to `is_reference()` — a bare symbol head is a local callable.
         // The refusal reports the CANONICAL identity, so the diagnostic is byte-identical
         // in either spelling.
@@ -2182,7 +2182,7 @@ mod tests {
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
-        assert!(matches!(result, Value::Unit));
+        assert!(matches!(result, Value::Nil));
     }
 
     #[test]
@@ -2196,7 +2196,7 @@ mod tests {
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
-        assert!(matches!(result, Value::Unit));
+        assert!(matches!(result, Value::Nil));
     }
 
     #[test]
@@ -2296,7 +2296,7 @@ mod tests {
     /// "eval refused mutation form: :wat::config::set-redef!". 255.9 reported this pair
     /// BYPASSED-but-BACKSTOPPED and concluded "no mutation head escapes both walls";
     /// `set-redef!` and `set-eval-redef!` do, because their eval arms are reachable
-    /// `Ok(Value::Unit)` returns rather than `DeclarationInExpressionPosition` raisers.
+    /// `Ok(Value::Nil)` returns rather than `DeclarationInExpressionPosition` raisers.
     ///
     /// Row 1/2 — the refusal fires in EITHER spelling and names the SAME canonical head,
     /// byte for byte (a `contains` would pass on a wall that named the other spelling).

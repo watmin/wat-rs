@@ -302,7 +302,7 @@ fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) ->
                     op: op.into(),
                     expected: ":wat::core::String (ReadFrameOutcome::Frame text)",
                     got: Box::new(crate::runtime::ValueSnapshot::of(
-                        other.unwrap_or(&Value::Unit),
+                        other.unwrap_or(&Value::Nil),
                     )),
                 })),
                 }
@@ -351,7 +351,7 @@ pub fn eval_kernel_println(
     let mut line = wat_edn::write(&edn);
     line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// `(:wat::kernel::pprintln v)` → `:wat::core::nil`. Pretty (multi-line indented) EDN twin of
@@ -367,13 +367,13 @@ pub fn eval_kernel_pprintln(
     let mut line = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym)?;
     line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// `(:wat::kernel::eprintln v)` → `:wat::core::nil` (type), a **terminating** form at runtime.
 /// Serialize `v` to compact EDN, write-line it via the primed `StdErr` service, then **TERMINATE
 /// non-zero** via `eprintln_terminate` (the death split — the write is the service's act, the
-/// terminate the verb's own; arc 278 no-hidden-failures). NEVER returns `Value::Unit` on success.
+/// terminate the verb's own; arc 278 no-hidden-failures). NEVER returns `Value::Nil` on success.
 /// Arc 170 Strike 3 — routes through the primed defservice (was: `stderr_ctrl` Req path).
 pub fn eval_kernel_eprintln(
     args: &[WatAST],

@@ -1278,7 +1278,7 @@ fn eval_let_tail(
 
     let body = &args[1..];
     if body.is_empty() {
-        return Ok(TrackedValue::from(Value::Unit));
+        return Ok(TrackedValue::from(Value::Nil));
     }
     let last_idx = body.len() - 1;
     for form in &body[..last_idx] {
@@ -1600,9 +1600,9 @@ pub(crate) fn eval_inner(
             Value::String(Arc::new(s.clone())),
             Provenance::Literal { span: span.clone() },
         )),
-        // Arc 244 — NilLit is the canonical nil VALUE literal; evals to Value::Unit.
+        // Arc 244 — NilLit is the canonical nil VALUE literal; evals to Value::Nil.
         WatAST::NilLit(span) => Ok(TrackedValue::new(
-            Value::Unit,
+            Value::Nil,
             Provenance::Literal { span: span.clone() },
         )),
         // Arc 215 stone 2 — `[...]` vector literals at expression position.
@@ -1677,7 +1677,7 @@ pub(crate) fn eval_inner(
         }
         WatAST::Keyword(k, span) => {
             // Arc 153 slice 1a — `:wat::core::nil` at value
-            // position evaluates to `Value::Unit` (the nil
+            // position evaluates to `Value::Nil` (the nil
             // singleton). The infer hook in check.rs types this
             // keyword as `:wat::core::nil` (singleton type);
             // evaluation here returns the singleton value.
@@ -1687,7 +1687,7 @@ pub(crate) fn eval_inner(
             // Provenance::Literal{span} (they appear as keyword literals in source).
             if k == ":wat::core::nil" {
                 return Ok(TrackedValue::new(
-                    Value::Unit,
+                    Value::Nil,
                     Provenance::Literal { span: span.clone() },
                 ));
             }
@@ -1768,9 +1768,9 @@ pub(crate) fn eval_inner(
         // Stone 242.2 — Doctrine 1: bare `nil` is the value form for the nil singleton.
         // The type-check arm (check.rs `is_primitive_type_keyword_in_value_position`)
         // now rejects `:wat::core::nil` as a keyword in value position; bare `nil`
-        // (WatAST::Symbol) is the canonical value form. Evaluate to Value::Unit.
+        // (WatAST::Symbol) is the canonical value form. Evaluate to Value::Nil.
         WatAST::Symbol(ident, span) if ident.as_str() == "nil" => Ok(TrackedValue::new(
-            Value::Unit,
+            Value::Nil,
             Provenance::Literal { span: span.clone() },
         )),
         WatAST::Symbol(ident, span) => {
@@ -1858,7 +1858,7 @@ fn eval_list(
     // the value level.
     let head = match items.first() {
         Some(h) => h,
-        None => return Ok(TrackedValue::from(Value::Unit)),
+        None => return Ok(TrackedValue::from(Value::Nil)),
     };
     let rest = &items[1..];
 
@@ -2303,7 +2303,7 @@ fn dispatch_keyword_head_value(
         // so there is no way to mutate the flag here — and no need to,
         // because freeze-time processing already set it.
         // ⛔ Arc 255 Stone 1a-ε — the `":wat::config::set-redef!" | ":wat::config::set-eval-redef!"
-        // => Ok(Value::Unit)` arm that stood here is DELETED. Both are registered rows carrying a
+        // => Ok(Value::Nil)` arm that stood here is DELETED. Both are registered rows carrying a
         // `role = eval` handler now, so the registry-first door hoisted above this match answers
         // them by name and this arm could never fire — the "a registered row may not keep its
         // literal arm" gate (`intrinsic/mod.rs`) demanded the deletion and named both rows. The
@@ -2717,7 +2717,7 @@ fn dispatch_keyword_head_value(
         // shared arithmetic/conversion fns these arms used to call directly.
         // Arc 237 follow-on — derive is a no-op at runtime (edge already registered
         // at splice/pre-check time by splice_type_decls in types.rs). Accept as unit.
-        ":wat::core::derive" => Ok(Value::Unit),
+        ":wat::core::derive" => Ok(Value::Nil),
         // Arc 255 home #4 phase 2 (the string carve, builder-amended to all four
         // `string_ops.rs` families + the fifth unnamed one, `List/of`) — the 19
         // `:wat::string::*` verbs (including `declare-acronyms`), the 7
@@ -3162,7 +3162,7 @@ fn dispatch_keyword_head_value(
         // declaration has done its job. Returns :() for the value
         // position (if a user writes it inside an expression — unusual
         // but not illegal).
-        // ⛔ Arc 255 Stone 1a-ε — the `":wat::core::use!" => Ok(Value::Unit)` arm that stood here
+        // ⛔ Arc 255 Stone 1a-ε — the `":wat::core::use!" => Ok(Value::Nil)` arm that stood here
         // is DELETED, for the same reason and by the same gate as the two config setters above:
         // `use!` is a registered row with a `role = eval` handler, so the registry-first door
         // answers it and this arm was unreachable. The no-op moved to
@@ -4129,7 +4129,7 @@ fn eval_let(
     // Implicit-do body: args[1..]. Empty body → :wat::core::nil singleton.
     let body = &args[1..];
     if body.is_empty() {
-        return Ok(TrackedValue::from(Value::Unit));
+        return Ok(TrackedValue::from(Value::Nil));
     }
     let last_idx = body.len() - 1;
     for form in &body[..last_idx] {
@@ -5756,7 +5756,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Two Char values with the same codepoint are equal; a Char and a
         // String are NOT equal (cross-type falls through to `_ => None`).
         (Value::wat__core__Char(x), Value::wat__core__Char(y)) => Some(x == y),
-        (Value::Unit, Value::Unit) => Some(true),
+        (Value::Nil, Value::Nil) => Some(true),
         (Value::Vec(xs), Value::Vec(ys)) => {
             if xs.len() != ys.len() {
                 return Some(false);
@@ -7331,8 +7331,8 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
         Value::wat__core__BigInt(n) => Ok(WatAST::BigIntLit(*n, span)),
         Value::bool(b) => Ok(WatAST::BoolLit(b, span)),
         Value::String(s) => Ok(WatAST::StringLit((*s).clone(), span)),
-        // Arc 244 — Value::Unit (nil) → NilLit; closes the quasiquote ~nil gap (AUDIT §3 site 9).
-        Value::Unit => Ok(WatAST::NilLit(span)),
+        // Arc 244 — Value::Nil (nil) → NilLit; closes the quasiquote ~nil gap (AUDIT §3 site 9).
+        Value::Nil => Ok(WatAST::NilLit(span)),
         Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
         Value::wat__WatAST(a) => Ok((*a).clone()),
         Value::holon__HolonAST(h) => Ok(holon_to_watast(&h)),
@@ -7476,7 +7476,7 @@ fn emit_doc_contract(
         if *run {
             match expected {
                 Some(e) => entry.push(Value::wat__WatAST(Arc::new(e.clone()))),
-                None => entry.push(Value::Unit),
+                None => entry.push(Value::Nil),
             }
         }
         ex_vals.push(metadata_vec(entry));
@@ -9357,9 +9357,9 @@ pub(crate) fn try_match_pattern(
                 .into())
             }
         }
-        // Arc 244 — NilLit pattern matches Value::Unit (the nil value).
+        // Arc 244 — NilLit pattern matches Value::Nil (the nil value).
         WatAST::NilLit(_) => match value {
-            Value::Unit => Ok(Some(outer.clone())),
+            Value::Nil => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
         // Set literals are not match sub-patterns.
@@ -12731,7 +12731,7 @@ pub(crate) fn eval_form_against_defs(
     // A `do`/`let` is RUN here (it is an expression), and its nested defs were already
     // registered by `register_runtime_defs` above — registration precedes evaluation
     // precisely so a form that both declares and computes sees its own declaration.
-    let mut result = Value::Unit;
+    let mut result = Value::Nil;
     for f in &contributed {
         if head_of(f).map(|h| is_declaration_head(&h)).unwrap_or(false) {
             continue;
@@ -14449,7 +14449,7 @@ pub(crate) fn run_program(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let mut last = Value::Unit;
+    let mut last = Value::Nil;
     for form in forms {
         last = run_constrained(form, env, sym)?;
     }
@@ -14757,7 +14757,7 @@ mod tests {
             panic!("type-check errors in test wat:\n{}", errors);
         }
         let env = Environment::new();
-        let mut last = Value::Unit;
+        let mut last = Value::Nil;
         for form in &rest {
             // Stone 241.11 — `defn` macro-expands to `(:wat::core::def ...)` which
             // `register_defines` pre-registers into `sym` and leaves in `rest`
@@ -17343,14 +17343,14 @@ mod tests {
     //
     // The two tests below survive because neither one actually asserts a
     // flag: `reset_sighup_returns_unit` asserts the verb's return SHAPE
-    // (`Value::Unit`), independent of any prior flag state, and
+    // (`Value::Nil`), independent of any prior flag state, and
     // `user_signal_predicates_refuse_arguments` asserts `ArityMismatch`
     // shape only. They no longer touch the process-global statics at all.
 
     #[test]
     fn reset_sighup_returns_unit() {
         let v = eval_expr("(:wat::kernel::reset-sighup!)").expect("reset");
-        assert!(matches!(v, Value::Unit));
+        assert!(matches!(v, Value::Nil));
     }
 
     #[test]
@@ -20008,7 +20008,7 @@ mod tests {
         sym.set_coincident_sigma_fn(Arc::new(crate::holon::sigma::DefaultCoincidentSigma));
         let rest = register_defines(expanded, &mut sym)?;
         let env = Environment::new();
-        let mut last = Value::Unit;
+        let mut last = Value::Nil;
         for form in &rest {
             // Stone 241.11 — skip declaration forms (already pre-registered);
             // mirrors the same guard in `run()`.

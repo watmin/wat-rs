@@ -3,7 +3,7 @@
 //! `:wat::kernel::eprintln` was DESIGNED as a dying declaration (builder, arc
 //! 109 `INVENTORY.md:1284`: "eprintln is a 'we are crashing, here's what I
 //! know' and exits") but was IMPLEMENTED as a benign stderr write that returned
-//! `Value::Unit` and let the caller continue — the masking law's own shape,
+//! `Value::Nil` and let the caller continue — the masking law's own shape,
 //! baked into the primitive. This probe pins the corrected behavior: a program
 //! that runs `(do (eprintln <v>) (println "AFTER"))` must terminate at the
 //! eprintln so the following form never runs.

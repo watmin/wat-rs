@@ -53,7 +53,7 @@ fn value_to_doc_ast(v: &Value) -> WatAST {
         )),
         Value::Vec(items) => WatAST::vector(items.iter().map(value_to_doc_ast).collect()),
         Value::wat__WatAST(a) => (**a).clone(),
-        Value::Unit => WatAST::nil(),
+        Value::Nil => WatAST::nil(),
         other => panic!("unexpected metadata-of value for from_metadata: {other:?}"),
     }
 }

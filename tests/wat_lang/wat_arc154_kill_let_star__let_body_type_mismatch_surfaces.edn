@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":t::main: body produces :wat::core::i64; signature declares :()"
+      :message ":t::main: body produces :wat::core::i64; signature declares :wat::core::nil"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch.wat.bad"
         :line 5
@@ -18,7 +18,7 @@
       }
       :causes []
       :function ":t::main"
-      :expected ":()"
+      :expected ":wat::core::nil"
       :got ":wat::core::i64"
       :remedies []
     }

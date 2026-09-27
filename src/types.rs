@@ -2068,42 +2068,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // in `wat/core.wat`.
     ::wat_source_derive::wat_alias_register_from!(env, "wat/core.wat", ":wat::core::Bytes");
 
-    // :wat::core::nil — arc 153. Renamed from `:wat::core::unit`
-    // (which arc 109 slice 1d minted). Same type-theoretic role as
-    // Rust's `()`: singleton type, one inhabitant, "no meaningful
-    // return value." The name `nil` ships the marker effect the
-    // user wants without collapsing wat's existing
-    // `(Option :- [T])::None` / `Some(t)` discipline (per arc 153
-    // DESIGN — `nil` ≠ `None` ≠ `false` ≠ empty-list).
-    //
-    //   typealias :wat::core::nil = :()
-    //
-    // The bare empty-tuple type spelling `:()` continues to fire
-    // `BareLegacyUnitType` per arc 109 slice 1d (steering toward
-    // `:wat::core::nil`). The empty-tuple LITERAL VALUE `()` at
-    // value position is a list literal and stays untouched; the
-    // `:wat::core::nil` keyword is also accepted at value position
-    // (additive recognition; both spellings evaluate to the nil
-    // singleton).
-    //
-    // Note: the retired `:wat::core::unit` typealias was removed in
-    // arc 153 slice 2 closure per substrate-as-teacher § "Retire
-    // the hint when its window closes." All in-tree consumers
-    // migrated during sweep 1b; out-of-tree callers spelling
-    // `:wat::core::unit` now produce a TypeMismatch resolving the
-    // unknown FQDN against `:()`.
-    // ⛔ ARC 296 K NAMED FLOOR — `:wat::core::nil` stays a Rust AliasDef.
-    // STOP-2: the unit the language is built out of is `TypeExpr::Tuple(vec![])`,
-    // not a path. A wat `typealias` expr of `:wat::core::nil` only becomes
-    // Tuple([]) via the canonicalize special-case that EXISTS because nil is
-    // already the unit — the concept declaring itself. `:()` as the expr is the
-    // retired spelling the BareLegacyUnitType walker steers AWAY from. Impossible
-    // in principle, not "not moved yet".
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::nil".into(),
-        type_params: vec![],
-        expr: TypeExpr::Tuple(vec![]),
-    }));
+    // :wat::core::nil is a builtin leaf, registered with the other leaves
+    // below. A tuple type has at least one slot. `:()` does not parse.
 
     // Arc 163 slice 3e — the typealiases for Option / Result /
     // HashMap / HashSet / Vector are RETIRED. They were originally
@@ -3527,10 +3493,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ] {
         env.register_builtin_leaf(name);
     }
-    // 255.1 — `nil` is the unit type (`TypeExpr::Tuple([])`), not a Path leaf,
-    // so it never went through `register_builtin_leaf`. Denotation makes
-    // `wat.type/nil` a member once `:wat::core::nil` is.
-    env.register_use_declared_leaf(":wat::core::nil");
+    // 255.57 — `nil` is a leaf path. Denotation makes `wat.type/nil` a
+    // member once `:wat::core::nil` is.
+    env.register_builtin_leaf(":wat::core::nil");
 }
 
 /// Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
@@ -6449,7 +6414,7 @@ pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, Type
 /// Arc 109 Stone ②-i-b — span-carrying, NON-canonicalizing sibling of
 /// [`parse_type_expr_with_span`]. Byte-identical except `canonicalize=false`:
 /// preserves the source spelling — `:wat::core::nil` stays `Path(":wat::core::nil")`
-/// instead of collapsing to `Tuple(vec![])` (`parse_type_inner`'s `canonicalize &&
+/// (`parse_type_inner` no longer rewrites it; the old `canonicalize &&
 /// raw_path == ":wat::core::nil"` arm below), so the renderer can round-trip what
 /// the user actually wrote instead of a type it already lost. Still calls
 /// `reject_any` — the `:Any` ban applies on every path, canonicalizing or not.
@@ -6906,7 +6871,7 @@ fn parse_type_inner(
     // reduce to the internal empty-tuple form so unify sees it as
     // identical to the legacy `:()` spelling and to validators
     // (e.g. user::main return-type check) that compare against
-    // `TypeExpr::Tuple(vec![])`. The retired `:wat::core::unit`
+    // `TypeExpr::Path(":wat::core::nil".into())`. The retired `:wat::core::unit`
     // FQDN spelling was supported during the migration window via
     // `BareLegacyUnitName` walker scaffolding; both the typealias
     // and the walker firing path retired at arc 153 slice 2 per
@@ -6923,10 +6888,6 @@ fn parse_type_inner(
     // walk (`canonicalize=false`) preserves source spelling, and only ATOM paths
     // reach this arm — parametric heads parse via the `<>`/`()` branches above.
     let raw_path = crate::edn::render::canonical_identity(&raw_path);
-    let denoted = crate::edn::render::type_denotation(&raw_path);
-    if canonicalize && denoted == ":wat::core::nil" {
-        return Ok(TypeExpr::Tuple(vec![]));
-    }
     // Arc 163 slice 3f + 3h — FQDN IS the canonical storage form.
     // Source FQDN flows through unchanged. Source bare-form is
     // rejected by the `BareLegacyPrimitive` walker at check time
@@ -6939,7 +6900,7 @@ fn parse_type_inner(
 
 /// Parse the body of a tuple-literal type.
 ///
-/// - Empty body `` → unit (0-tuple): `Tuple(vec![])`.
+/// - Empty body `` → refused. The empty product is `:wat::core::nil`, not a tuple.
 /// - Single type with no trailing comma: Rust grouping — returns the
 ///   inner type directly (NOT wrapped in Tuple).
 /// - Trailing comma or multiple elements: `Tuple(vec![...])`.
@@ -6953,7 +6914,14 @@ fn parse_tuple_body(
 ) -> Result<TypeExpr, TypeError> {
     let trimmed = inside.trim();
     if trimmed.is_empty() {
-        return Ok(TypeExpr::Tuple(Vec::new()));
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
+                raw: original.into(),
+                reason: "a tuple type needs at least one slot; the empty product is :wat::core::nil"
+                    .into(),
+            },
+        ));
     }
     let has_trailing_comma = trimmed.ends_with(',');
     let effective = if has_trailing_comma {
@@ -7629,7 +7597,10 @@ mod tests {
             Some(":wat::core::i64"),
         );
         // variants with no nameable head say so rather than fabricating one
-        assert_eq!(TypeExpr::Tuple(vec![]).base_fqdn(), None);
+        assert_eq!(
+            TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into())]).base_fqdn(),
+            None
+        );
     }
 
     // STONE-finish-the-param-spec (arc 109) — `peel_param_spec`'s four pinned edge
@@ -8322,12 +8293,17 @@ mod tests {
     // ─── Tuple literal types ────────────────────────────────────────────
 
     #[test]
-    fn type_expr_tuple_unit() {
-        // :() is the unit / 0-tuple.
-        let t = parse_type_expr(":()").unwrap();
-        match t {
-            TypeExpr::Tuple(elements) => assert!(elements.is_empty()),
-            other => panic!("expected Tuple([]), got {:?}", other),
+    fn type_expr_empty_tuple_is_refused() {
+        let err = parse_type_expr(":()").expect_err("empty tuple type");
+        match err.kind() {
+            TypeErrorKind::MalformedTypeExpr { raw, reason } => {
+                assert_eq!(raw, ":()");
+                assert_eq!(
+                    reason,
+                    "a tuple type needs at least one slot; the empty product is :wat::core::nil"
+                );
+            }
+            other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
     }
 
@@ -9146,7 +9122,7 @@ mod tests {
             (":wat::core::Struct", "Aggregate"),
             (":wat::core::Option", "Enum"),
             (":wat::core::Result", "Enum"),
-            (":wat::core::nil", "Alias"),
+
         ];
         for (name, kind) in structured {
             let regs = sym.registrations(name);
@@ -9165,6 +9141,7 @@ mod tests {
         }
 
         let leaves: &[&str] = &[
+            ":wat::core::nil",
             ":wat::core::i64",
             ":wat::core::f64",
             ":wat::core::bool",

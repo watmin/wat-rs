@@ -1624,7 +1624,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
                 // supertype level; flavor enforcement is a runtime contract.
                 | ":wat::core::Record"
                 | ":wat::holon::Record"
-                // Arc 221 Stone 221.4 — nil (Value::Unit) is atomizable; value_to_atom
+                // Arc 221 Stone 221.4 — nil (Value::Nil) is atomizable; value_to_atom
                 // dispatches via the Nil arm → HolonAST::Nil leaf. The nil type is
                 // `:wat::core::nil`; Doctrine 1 (arc 242) requires bare `nil` in value
                 // position but the checker still types nil as `:wat::core::nil`. Allow
@@ -1664,7 +1664,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
         TypeExpr::Fn { .. } => false,
         // Arc 216 Stone 7 — (Tuple :- [T1 T2 …]) is atomizable iff ALL element types are atomizable.
         // Encoding: positional-Bind Bundle (same shape as (Vector :- [T])). Empty tuple = unit; unit
-        // is Value::Unit, not Value::Tuple — but conservatively allow Tuple([]) since the 0-tuple
+        // is Value::Nil, not Value::Tuple — but conservatively allow Tuple([]) since the 0-tuple
         // is handled elsewhere and an empty is_atomizable call should not panic.
         TypeExpr::Tuple(elements) => elements.iter().all(is_atomizable),
     }
@@ -2801,9 +2801,9 @@ fn infer_list(
                     } });
                 }
                 return if local_errors.is_empty() {
-                    CheckResult::ok(TypeExpr::Tuple(vec![]))
+                    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
                 } else {
-                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+                    CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
                 };
             }
             // Arc 237 follow-on — `:wat::core::derive` type-check arm.
@@ -2820,9 +2820,9 @@ fn infer_list(
                     } });
                 }
                 return if local_errors.is_empty() {
-                    CheckResult::ok(TypeExpr::Tuple(vec![]))
+                    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
                 } else {
-                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+                    CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
                 };
             }
             // Arc 265 — `:wat::string::declare-acronyms` type-check arm.
@@ -2840,9 +2840,9 @@ fn infer_list(
                     } });
                 }
                 return if local_errors.is_empty() {
-                    CheckResult::ok(TypeExpr::Tuple(vec![]))
+                    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
                 } else {
-                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+                    CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
                 };
             }
             // Arc 157 slice 1a-ii — config setters for redef opt-in.
@@ -8539,7 +8539,7 @@ fn infer_def(
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
         // HARVEST (236.2): existing diagnostic; def is a declaration — return unit with errors.
-        return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
     }
 
     // Arg 0 must be a keyword (the name).
@@ -8557,7 +8557,7 @@ fn infer_def(
             // Still infer the expr so internal errors surface.
             let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; def is a declaration — return unit with errors.
-            return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
         }
     };
 
@@ -8573,7 +8573,7 @@ fn infer_def(
                 reason: "second arg of 4-item def must be a metadata-map `{key val ...}`".into(),
                 remedies: vec![],
             } });
-            return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
         }
         // Empty {} check: Map with 0 pairs or legacy List with only [head, K, V] = 3 items.
         let is_empty = match meta_node {
@@ -8587,7 +8587,7 @@ fn infer_def(
                 reason: "empty metadata-map `{}` is illegal; provide at least one key-value pair".into(),
                 remedies: vec![],
             } });
-            return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
         }
         2usize // expr is at args[2]
     } else {
@@ -8675,9 +8675,9 @@ fn infer_def(
     // Return unit — `def` is a declaration, not a value expression.
     // HARVEST (236.2): silent-by-intent — declaration forms return unit type.
     if local_errors.is_empty() {
-        CheckResult::ok(TypeExpr::Tuple(vec![]))
+        CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
     } else {
-        CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+        CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
     }
 }
 
@@ -8728,7 +8728,7 @@ fn infer_defclause(
                 reason: format!("{}", e),
                 remedies: vec![],
             } });
-            return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
         }
     };
 
@@ -8935,9 +8935,9 @@ fn infer_defclause(
     }
 
     if local_errors.is_empty() {
-        CheckResult::ok(TypeExpr::Tuple(vec![]))
+        CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
     } else {
-        CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+        CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
     }
 }
 
@@ -8987,7 +8987,7 @@ fn infer_config_set_bool(
             remedies: vec![],
         } });
         // HARVEST (236.2): existing diagnostic; declaration — return unit with errors.
-        return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
     }
     // The argument must be a bool literal — infer it to surface any
     // type errors, then verify it's a bool.
@@ -9011,9 +9011,9 @@ fn infer_config_set_bool(
     // Returns Unit — setter is a declaration.
     // HARVEST (236.2): silent-by-intent — declaration forms return unit type.
     if local_errors.is_empty() {
-        CheckResult::ok(TypeExpr::Tuple(vec![]))
+        CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
     } else {
-        CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+        CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
     }
 }
 
@@ -18257,6 +18257,9 @@ pub fn format_type(t: &TypeExpr) -> String {
             crate::types::render_fn_type_ref(&in_parts, &format_type(ret))
         }
         TypeExpr::Tuple(elements) => {
+            if elements.is_empty() {
+                return ":wat::core::nil".to_string();
+            }
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
             if elements.len() == 1 {
                 // 1-tuple requires trailing comma to disambiguate
@@ -18326,6 +18329,9 @@ fn format_type_inner(t: &TypeExpr) -> String {
             crate::types::render_fn_type_ref(&in_parts, &format_type_inner(ret))
         }
         TypeExpr::Tuple(elements) => {
+            if elements.is_empty() {
+                return "wat::core::nil".to_string();
+            }
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
             if elements.len() == 1 {
                 format!("({},)", inner[0])
@@ -18410,7 +18416,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // backings (real stdio, StringIo). Byte-oriented primitives with
     // char-level conveniences.
     let string_ty = || TypeExpr::Path(":wat::core::String".into());
-    let unit_ty = || TypeExpr::Tuple(vec![]);
+    let unit_ty = || TypeExpr::Path(":wat::core::nil".into());
     let vec_u8_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
         args: vec![u8_ty()],
@@ -20033,7 +20039,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![hologram_ty(), holon_ty(), holon_ty()],
-            ret: TypeExpr::Tuple(vec![]),
+            ret: TypeExpr::Path(":wat::core::nil".into()),
             rest_param_type: None,
         },
     );
@@ -20911,7 +20917,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 type_param_bounds: vec![],
                 params: vec![],
-                ret: TypeExpr::Tuple(vec![]),
+                ret: TypeExpr::Path(":wat::core::nil".into()),
                 rest_param_type: None,
             },
         );
@@ -21055,7 +21061,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::kernel::HandlePool".into(),
                 args: vec![t_var()],
             }],
-            ret: TypeExpr::Tuple(vec![]),
+            ret: TypeExpr::Path(":wat::core::nil".into()),
             rest_param_type: None,
         },
     );
@@ -21722,7 +21728,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // f64). ReckConfig is encoded in the constructor name (Discrete
     // vs Continuous).
     let reckoner_ty = || TypeExpr::Path(":wat::holon::Reckoner".into());
-    let unit_ty = || TypeExpr::Tuple(vec![]);
+    let unit_ty = || TypeExpr::Path(":wat::core::nil".into());
     env.register(
         ":wat::holon::Reckoner/new-discrete".into(),
         TypeScheme {
@@ -24036,11 +24042,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            // Arc 255 STONE-the-round-trip-closes, Q1: `:wat::core::nil` is a `TypeDef::Alias`
-            // to `Tuple(vec![])` (`src/types.rs:1069`); the doc-type parser canonicalizes it on
-            // every row, and `unit_ty()`/direct `Tuple(vec![])` is the house spelling for a
-            // nil return elsewhere in this function (13 occurrences vs. this row's lone
-            // unresolved `Path`, measured). Resolved to match — same type, house spelling.
+            // 255.57 — nil is the path `:wat::core::nil`. `unit_ty()` builds that path.
             ret: unit_ty(),
             rest_param_type: None,
         },

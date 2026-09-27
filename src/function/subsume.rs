@@ -230,7 +230,7 @@ pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
         Value::f64(_) => ":wat::core::f64",
         Value::bool(_) => ":wat::core::bool",
         Value::String(_) => ":wat::core::String",
-        Value::Unit => ":wat::core::nil",
+        Value::Nil => ":wat::core::nil",
         Value::wat__core__keyword(_) => ":wat::core::keyword",
         Value::wat__core__fn(_) => ":wat::core::fn",
         Value::wat__core__clauses(_) => ":wat::core::clauses",

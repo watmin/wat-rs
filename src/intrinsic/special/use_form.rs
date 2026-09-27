@@ -29,7 +29,7 @@ use std::collections::HashMap;
 /// the build-time `RustDepsRegistry` and, if present, recorded into a program-global
 /// `UseDeclarations` set — "one `use!` anywhere enables the symbol everywhere" (the pass's own
 /// comment, `resolve/walk.rs:39`). By the time evaluation reaches this form the declaration has
-/// already done its job; the eval arm (`runtime.rs:2947`) returns `Ok(Value::Unit)` without
+/// already done its job; the eval arm (`runtime.rs:2947`) returns `Ok(Value::Nil)` without
 /// inspecting its argument at all.
 ///
 /// **Category ground —** `collect_use_declarations` REGISTERS a program-level entity — the
@@ -50,7 +50,7 @@ use std::collections::HashMap;
 ///
 /// **Purity ground —** measured directly, the same method `config_set_redef.rs`'s row uses:
 /// `:wat::core::use!` appears in `src/runtime.rs` exactly once as a real eval arm
-/// (`dispatch_keyword_head_value`, `:2947`, `=> Ok(Value::Unit)`), reached (not refused) at
+/// (`dispatch_keyword_head_value`, `:2947`, `=> Ok(Value::Nil)`), reached (not refused) at
 /// expression position, so `Unevaluated` would be a lie about a form that measurably evaluates.
 /// The arm ignores `args` completely — it never calls `eval`/`step_list` on the keyword
 /// argument, so no sub-form's effect (there is none to have; the argument is a bare keyword
@@ -58,17 +58,17 @@ use std::collections::HashMap;
 /// Unconditionally free of effect at the moment it runs. `Pure`.
 ///
 /// **Determinism ground —** the eval arm consults nothing — no clock, no entropy, no read of
-/// `env`/`sym` state — and returns the same `Value::Unit` unconditionally, for any argument
+/// `env`/`sym` state — and returns the same `Value::Nil` unconditionally, for any argument
 /// that reached it (malformed arguments are refused earlier, at check/resolve). `Deterministic`.
 ///
-/// **Totality ground —** read directly: the eval arm is `Ok(Value::Unit)` with no match, no
+/// **Totality ground —** read directly: the eval arm is `Ok(Value::Nil)` with no match, no
 /// unwrap, no fallible sub-call — defined unconditionally for every input that reaches it, the
 /// strongest form of `Total` (it does not even inspect its argument to fail on a bad shape).
 /// `Total`.
 ///
 /// **Expand-time ground —** the eval arm evaluates none of its own sub-forms (the keyword
 /// argument is read, never evaluated) and consults no runtime-only state (no clock, no spawn,
-/// no submitted-form evaluation) to produce its unconditional `Ok(Value::Unit)` — legal
+/// no submitted-form evaluation) to produce its unconditional `Ok(Value::Nil)` — legal
 /// unconditionally, the same shape `fn`'s own `Legal` ruling argues
 /// (`fn_form.rs`: "unconditionally free ... regardless of what happens elsewhere"). `Legal`.
 ///
@@ -85,7 +85,7 @@ use std::collections::HashMap;
 pub(crate) struct Use;
 
 /// Arc 255 Stone 1a-ε — the `role = eval` pointer for `:wat::core::use!`. The dispatch arm at
-/// `runtime.rs:2947` (`=> Ok(Value::Unit)`) stays untouched (STOP-5); this is a new, standalone
+/// `runtime.rs:2947` (`=> Ok(Value::Nil)`) stays untouched (STOP-5); this is a new, standalone
 /// delegate carrying the canonical `NativeHandler` signature purely to host the registration —
 /// the same move `fn_form.rs`'s `eval_fn_form` makes for `:wat::core::fn`. Its body is the
 /// identical no-op the existing arm already performs.
@@ -96,7 +96,7 @@ fn eval_use_form(
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// Arc 255 Stone 1a-ε — the `role = check` pointer for `:wat::core::use!`. The inline arm at
@@ -115,5 +115,5 @@ pub(crate) fn infer_use_form(
     _fresh: &mut InferCtx,
     _subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    CheckResult::ok(TypeExpr::Tuple(vec![]))
+    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
 }

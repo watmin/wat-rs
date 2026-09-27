@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":user::bad: body produces :wat::core::i64; signature declares :()"
+      :message ":user::bad: body produces :wat::core::i64; signature declares :wat::core::nil"
       :location #wat.core/Span {
         :file "tests/function/defn_bad_type.wat"
         :line 6
@@ -18,7 +18,7 @@
       }
       :causes []
       :function ":user::bad"
-      :expected ":()"
+      :expected ":wat::core::nil"
       :got ":wat::core::i64"
       :remedies []
     }

@@ -1359,7 +1359,7 @@ fn ord(
 /// `(:wat::rete::lower expr) -> :wat::core::nil`
 ///
 /// Rule-compile refuse: eval `expr` to a quoted `WatAST`, then run it through the compile pass
-/// `lower()` (above) for validation only — the built `Program` is discarded (`Ok(Value::Unit)`)
+/// `lower()` (above) for validation only — the built `Program` is discarded (`Ok(Value::Nil)`)
 /// and nothing about it outlives this call. Raises (via `LowerError::into_eval`) iff `lower`
 /// refuses the form (an unsupported head, a non-lexical HOF callee, or an unbound symbol);
 /// returns `nil` on success. `#49 — rule-compile refuse: lower the where expr or raise.`
@@ -1373,7 +1373,7 @@ fn ord(
 /// `lower_rete_defn`/`lower_named_rete_fn` never call `eval_inner` or `apply_function` — no user
 /// code is EXECUTED, only walked and translated to `Expr`/`Program` IR. The `LowerCx` (slot
 /// table, next-slot counter) and the resulting `Program` are both freshly allocated per call and
-/// dropped when `eval_lower` returns (the `Ok(Value::Unit)` discards the `Program` outright) —
+/// dropped when `eval_lower` returns (the `Ok(Value::Nil)` discards the `Program` outright) —
 /// nothing is cached, interned, or otherwise retained past the call.
 ///
 /// @added         1.0.0
@@ -1407,7 +1407,7 @@ pub(crate) fn eval_lower(
         }
     };
     lower(&ast, sym).map_err(LowerError::into_eval)?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 #[cfg(test)]

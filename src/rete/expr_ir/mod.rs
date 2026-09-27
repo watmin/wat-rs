@@ -460,7 +460,7 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
             Ok(Expr::Lit(crate::rete::matcher::ast_literal_value(ast).unwrap()))
         }
         WatAST::Keyword(k, _) => Ok(Expr::Lit(keyword_value(k, cx.sym))),
-        WatAST::NilLit(_) => Ok(Expr::Lit(Value::Unit)),
+        WatAST::NilLit(_) => Ok(Expr::Lit(Value::Nil)),
         WatAST::Symbol(id, span) => {
             let name = id.as_str();
             if name.starts_with('?') || cx.slots.contains_key(name) {
@@ -858,14 +858,14 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
             WatAST::List(parts, _) if !parts.is_empty() => {
                 let pat = lower_pat(&parts[0], cx)?;
                 let body = if parts.len() == 1 {
-                    Expr::Lit(Value::Unit)
+                    Expr::Lit(Value::Nil)
                 } else {
                     lower_expr(&parts[1], cx)?
                 };
                 arms.push((pat, body));
             }
             WatAST::Keyword(k, _) => {
-                arms.push((Pat::Lit(keyword_value(k, cx.sym)), Expr::Lit(Value::Unit)));
+                arms.push((Pat::Lit(keyword_value(k, cx.sym)), Expr::Lit(Value::Nil)));
             }
             other => {
                 return Err(LowerError::unsupported(other.span().clone(), "malformed match arm".into()));

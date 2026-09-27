@@ -70,7 +70,7 @@ fn eval_go(src: &str) -> Result<Value, StartupError> {
 #[test]
 fn quote_door_accepts_a_shallow_nest() {
     match eval_go(&quote_world(8)) {
-        Ok(Value::Unit) => {}
+        Ok(Value::Nil) => {}
         Ok(other) => panic!("lower returns nil, got {other:?}"),
         Err(e) => panic!("shallow quoted nest must lower, got {e}"),
     }

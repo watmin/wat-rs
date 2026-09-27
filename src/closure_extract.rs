@@ -2055,7 +2055,7 @@ fn encode_value_with_path(
         }
         // Stone 242.2 / Arc 244 — Doctrine 1: bare `nil` is the value form; `:wat::core::nil`
         // is the TYPE keyword. Arc 244 canonicalizes this to NilLit (not Symbol("nil")).
-        Value::Unit => Ok(WatAST::NilLit(span)),
+        Value::Nil => Ok(WatAST::NilLit(span)),
 
         // ─── containers ────────────────────────────────────────────────
         Value::Vec(items) => {
@@ -2495,7 +2495,7 @@ fn value_static_type_keyword(
         Value::f64(_) => WatAST::Keyword(":wat::core::f64".into(), span.clone()),
         Value::String(_) => WatAST::Keyword(":wat::core::String".into(), span.clone()),
         Value::wat__core__keyword(_) => WatAST::Keyword(":wat::core::keyword".into(), span.clone()),
-        Value::Unit => nil_kw(),
+        Value::Nil => nil_kw(),
         Value::Vec(items) => {
             let inner = if let Some(first) = items.first() {
                 value_static_type_keyword(first, state, span)?
@@ -3235,16 +3235,9 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
             WatAST::Keyword(":wat::core::fn".into(), span.clone()),
             args_vec,
             WatAST::Symbol(Identifier::bare("->"), span.clone()),
-            // Arc 278 — the ROUND-TRIP renderer, not `check::format_type`.
-            // `check::format_type` renders the unit type (`Tuple(vec![])`) as
-            // `:()`, the spelling arcs 109/153/179 retired; a child's freeze
-            // rejects it with `BareLegacyUnitType`. The sibling emit sites
-            // above already use `format_type_for_emit`; this one did not, and
-            // `fn-forms` routes EVERY call through this path (see
-            // `eval_kernel_fn_forms`' doc — it fronts extraction uniformly via
-            // the inline-lambda path), so any nil-returning fn in a closure
-            // shipped a program the child could not start. Proven by run:
-            // wat-scripts/scratch-pad/probe-arc278-union-closure-boots-a-process-child.wat
+            // Arc 278 — the round-trip renderer, not `check::format_type`.
+            // Freeze emits `format_type_for_emit`. `fn-forms` routes every
+            // call through this path.
             format_type_for_emit(&func.ret_type, &span),
             rewritten_body,
         ],

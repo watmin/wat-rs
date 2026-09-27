@@ -155,7 +155,7 @@ fn io_writer_write_string_returns_byte_count() {
 #[test]
 fn io_writer_flush_is_ok_for_string_writer() {
     // flush on an IOWriter backed by an in-memory buffer returns nil.
-    assert!(matches!(run_fn(":my::compute-flush"), Value::Unit));
+    assert!(matches!(run_fn(":my::compute-flush"), Value::Nil));
 }
 
 // ─── Full round-trip: reader → writer ────────────────────────────────────

@@ -658,7 +658,7 @@ fn unpack_cmp(v: &Value, span: &Span) -> Result<CmpKind, EvalBreak> {
 /// Two of these carry an OPTIONAL tail, and the codec encodes optionality two different ways —
 /// know which you are looking at. Here it is ARITY: `:pvar` has three items when the variant
 /// carries a payload and two when it does not. Inside a fixed-arity vector (`pack_prog`,
-/// `pack_compiled_cond`) absence is instead `Value::Unit` in the slot. Both are read back
+/// `pack_compiled_cond`) absence is instead `Value::Nil` in the slot. Both are read back
 /// faithfully; neither is inferable from the other.
 fn pack_pat(p: &Pat) -> Value {
     match p {
@@ -1112,12 +1112,12 @@ fn unpack_expr(v: &Value, span: &Span, depth: u32) -> Result<Expr, EvalBreak> {
 /// `Program` → `[:prog frame_len [params…] [names…] [reads…] root]`.
 ///
 /// `names` is the debug-name table and is positionally aligned with slots, so an unnamed slot
-/// must occupy its position: it packs as `Value::Unit`, not as an omission. Dropping unnamed
+/// must occupy its position: it packs as `Value::Nil`, not as an omission. Dropping unnamed
 /// entries would shift every later name onto the wrong slot.
 fn pack_prog(p: &Program) -> Value {
     let names = p.names.iter().map(|n| match n {
         Some(s) => Value::String(Arc::new(s.to_string())),
-        None => Value::Unit,
+        None => Value::Nil,
     });
     let reads = p.reads.iter().map(|(k, s)| pv([k.clone(), Value::i64(*s as i64)]));
     let params = p.params.iter().map(|s| Value::i64(*s as i64));
@@ -1317,7 +1317,7 @@ fn unpack_cond_op(v: &Value, span: &Span, depth: u32) -> Result<Op, EvalBreak> {
 
 /// `CompiledCond` → `[:cond n_slots fact_bind [keys…] [out_slots…] [seed_reads…] [ops…]]`.
 ///
-/// `fact_bind` is optional and sits at a FIXED position, so absence is `Value::Unit` rather than
+/// `fact_bind` is optional and sits at a FIXED position, so absence is `Value::Nil` rather than
 /// a shorter vector (contrast `pack_pat`'s `:pvar`, where absence is arity). Everything after it
 /// is a homogeneous sequence, which is why they can be read back without per-item tags.
 fn pack_compiled_cond(c: &CompiledCond) -> Value {
@@ -1330,7 +1330,7 @@ fn pack_compiled_cond(c: &CompiledCond) -> Value {
         .map(|(k, s)| pv([k.clone(), Value::i64(*s as i64)]));
     let bind = match c.fact_bind() {
         Some(v) => v.clone(),
-        None => Value::Unit,
+        None => Value::Nil,
     };
     pv([
         kw(":cond"),
@@ -2565,7 +2565,7 @@ mod slot_zip_import {
         let cond = pv([
             kw(":cond"),
             Value::i64(1),
-            Value::Unit,
+            Value::Nil,
             pv([Value::String(Arc::new("?x".into()))]),
             pv([]),
             pv([]),

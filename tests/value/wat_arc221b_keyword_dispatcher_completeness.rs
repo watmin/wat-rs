@@ -15,7 +15,7 @@
 //!      — a bare keyword form recognized as already-terminal with Keyword leaf.
 //!   5. EDN keyword reader (`to_holon_inner`'s keyword arm, `src/runtime.rs`) — EDN `:foo::bar` parsed to
 //!      `HolonAST::Keyword("foo::bar")` (no leading colon).
-//!   6. Value::Unit consistency (Option A) — `Value::Unit` → `HolonAST::Nil` via
+//!   6. Value::Nil consistency (Option A) — `Value::Nil` → `HolonAST::Nil` via
 //!      both the 14018 dispatcher and `:wat::holon::leaf`.
 //!
 //! Wat source lives in the co-located fixture: wat_arc221b_keyword_dispatcher_completeness.wat
@@ -121,11 +121,11 @@ fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
     wat::assert_edn_matches_file!(s, "wat_arc221b_keyword_dispatcher_completeness__keyword_bar.edn", "edn::write Keyword must emit exact golden");
 }
 
-// ─── Probe 5 — Value::Unit consistency — `:wat::holon::leaf` nil (arc 230) ──────
+// ─── Probe 5 — Value::Nil consistency — `:wat::holon::leaf` nil (arc 230) ──────
 
 /// Arc 230 — `nil()` is now `Bind(Atom("Symbol"), Atom("nil"))`.
 /// `(:wat::holon::leaf :wat::core::nil)` where `:wat::core::nil` evaluates to
-/// `Value::Unit` (wat's nil). Pre-arc-230 this emitted a `Nil`-tagged form; the
+/// `Value::Nil` (wat's nil). Pre-arc-230 this emitted a `Nil`-tagged form; the
 /// Nil variant is retired. Arc 294.j: EDN write now emits the bare `nil` literal
 /// — `holon_to_watast`'s Symbol intercept maps the `"nil"` composition straight
 /// to `WatAST::NilLit`, no tag either way.
@@ -137,7 +137,7 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     // Symbol-ness is CORRECT (arc 230: nil = Bind(Atom("Symbol"), Atom("nil"))), so
     // `is-Nil?` is the honest discriminator here rather than is-Keyword?/is-Symbol?.
     assert_eq!(run_string(&world, ":t::probe-5-is-nil"), "true",
-        "`leaf` of Value::Unit must produce the nil leaf — THE arc-230 claim");
+        "`leaf` of Value::Nil must produce the nil leaf — THE arc-230 claim");
 
     let s = run_string(&world, ":t::probe-5");
     wat::assert_edn_matches_file!(s, "wat_arc221b_keyword_dispatcher_completeness__symbol_nil.edn", "holon_leaf unit must emit exact golden");

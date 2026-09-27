@@ -35,7 +35,7 @@ use wat_macros::wat_special_form;
 /// `dispatch_keyword_head_value`, `eval_tail`, or `step_list`. No `handler`, no eval arm, no
 /// tail arm. Shape ②, not shape ① (`def`'s regime, which REFUSES itself at eval with
 /// `DeclarationInExpressionPosition`) and not shape ③ (`use!`'s regime, which evaluates to
-/// `Ok(Value::Unit)` as a no-op) — there is no eval arm here to refuse OR return from. All four
+/// `Ok(Value::Nil)` as a no-op) — there is no eval arm here to refuse OR return from. All four
 /// consumers of `@Purity` ask a RUNTIME question, and `:wat::load-file!` has no runtime to ask
 /// it about — `Pure` would demand a runnable `@example` of a verb that cannot be run,
 /// `Effectful` would claim an effect there is no call to have, `Preserving` would claim

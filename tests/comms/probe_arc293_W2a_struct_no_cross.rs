@@ -107,7 +107,7 @@ fn record_still_sends_after_backstop() {
              only bare structs (§7 is struct-specific)"
         );
     assert!(
-        matches!(got, Value::Unit),
+        matches!(got, Value::Nil),
         "expected nil (send' returns unit on success); got {got:?}"
     );
 }

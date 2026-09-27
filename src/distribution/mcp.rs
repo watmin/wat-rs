@@ -384,13 +384,13 @@ fn eval_one_form(form: WatAST, session: &mut Session) -> (String, bool) {
                     ("nil".to_string(), false, true)
                 }
                 "Evaluated" => {
-                    let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
+                    let v = ev.fields.first().cloned().unwrap_or(Value::Nil);
                     (render_edn(&v, types), false, true)
                 }
                 // CheckFailed / Raised are values. The session survives them
                 // and is untouched (same as --repl).
                 _ => {
-                    let v = ev.fields.first().cloned().unwrap_or(Value::Unit);
+                    let v = ev.fields.first().cloned().unwrap_or(Value::Nil);
                     (render_edn(&v, types), true, false)
                 }
             },

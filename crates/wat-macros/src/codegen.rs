@@ -346,7 +346,7 @@ fn classify_receiver(r: &Receiver) -> syn::Result<ReceiverKind> {
 /// Given the method's return type, emit code that turns a local `result`
 /// binding into a wat Value.
 ///
-///   Return = ()               → Ok(::wat::runtime::Value::Unit)
+///   Return = ()               → Ok(::wat::runtime::Value::Nil)
 ///   Return = Self              → Ok(make_rust_opaque(TYPE_PATH, <wrapped>))
 ///                                where <wrapped> depends on scope.
 ///   Return = Result<Self, E>   → Ok(Value::Result(Arc::new(Ok/Err(..)))),
@@ -395,7 +395,7 @@ fn emit_return_marshal(
     match output {
         ReturnType::Default => Ok(quote! {
             let _ = result;
-            Ok(::wat::runtime::Value::Unit)
+            Ok(::wat::runtime::Value::Nil)
         }),
         ReturnType::Type(_, ty) => {
             if type_is_self(ty) || types_equal(ty, self_type) {
@@ -529,11 +529,11 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
 
     // Return-type expression.
     let return_ty_ts = match &method.sig.output {
-        ReturnType::Default => quote! { ::wat::types::TypeExpr::Tuple(vec![]) },
+        ReturnType::Default => quote! { ::wat::types::TypeExpr::Path(":wat::core::nil".into()) },
         ReturnType::Type(_, ty) => rust_type_to_type_expr_tokens(ty, attr)?,
     };
 
-    let fallback_ty = quote! { ::wat::types::TypeExpr::Tuple(vec![]) };
+    let fallback_ty = quote! { ::wat::types::TypeExpr::Path(":wat::core::nil".into()) };
 
     Ok(quote! {
         fn #scheme_ident(
@@ -659,14 +659,14 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
 
     // Tuples: (), (A,), (A, B), (A, B, C), ...
     //
-    // The unit tuple () becomes TypeExpr::Tuple([]). Non-empty tuples
+    // Rust `()` is `:wat::core::nil`. A tuple type has at least one slot.
     // recurse on each element. Arity up to 6 is supported by the
     // marshaling-trait impls (see src/rust_deps/marshal.rs); we emit
     // the TypeExpr for any arity here — the checker doesn't care about
     // the trait-bound limit.
     if let Type::Tuple(tup) = ty {
         if tup.elems.is_empty() {
-            return Ok(quote! { ::wat::types::TypeExpr::Tuple(vec![]) });
+            return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::nil".into()) });
         }
         let inner: Vec<TokenStream> = tup
             .elems

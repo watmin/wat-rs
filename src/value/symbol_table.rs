@@ -116,7 +116,7 @@ pub struct SymbolTable {
     /// `eval-ast!` flow). Default `false` (opt-in). Toggled via
     /// `(:wat::config::set-eval-redef! true)`. Type-stability check applies.
     /// NOTE: eval-time `def` binding is not yet wired (eval arm returns
-    /// `Value::Unit`); this flag is write-only scaffolding — config-parsed,
+    /// `Value::Nil`); this flag is write-only scaffolding — config-parsed,
     /// read by no eval path.
     // rune:purgare(future-fixture) — eval-time def-redef scaffolding: config-parsed into this field but no eval path reads it (the read-side gate is unbuilt); write-only by present construction.
     pub eval_redef_allowed: bool,

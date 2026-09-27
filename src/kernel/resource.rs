@@ -387,7 +387,7 @@ pub(crate) fn eval_allow_prime(
                         }
                     };
                     sl.allow(pid, list_span.clone())?;
-                    Ok(Value::Unit)
+                    Ok(Value::Nil)
                 }
                 None => Err(RuntimeError::new(
                     args[0].span().clone(),
@@ -466,7 +466,7 @@ pub(crate) fn eval_deny_prime(
                         }
                     };
                     sl.deny(pid, list_span.clone())?;
-                    Ok(Value::Unit)
+                    Ok(Value::Nil)
                 }
                 None => Err(RuntimeError::new(
                     args[0].span().clone(),
@@ -669,7 +669,7 @@ pub(crate) fn eval_handle_pool_finish(
             )
         }).into());
     }
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// DESIGN-STONE-process-signal-owner-to-child.md — the type path of the closed

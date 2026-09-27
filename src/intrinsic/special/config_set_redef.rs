@@ -40,7 +40,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// Ordinarily written as a leading entry-file setter (see the module doc's STOP-3 finding for
 /// where it is actually processed); by the time evaluation reaches this form — whichever
 /// position it appeared at — the flag has already been committed, and the eval arm
-/// (`runtime.rs:2120`) returns `Ok(Value::Unit)` without inspecting its argument at all
+/// (`runtime.rs:2120`) returns `Ok(Value::Nil)` without inspecting its argument at all
 /// (measured with a probe that puts a `println` inside the argument expression —
 /// `wat-scripts/scratch-pad/1a-epsilon-probe/probe-noeval-args.wat` — and the println never
 /// fires: the eval arm does not even evaluate its own sub-form).
@@ -58,21 +58,21 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 ///
 /// **Purity ground —** measured directly: `:wat::config::set-redef!` appears in
 /// `src/runtime.rs` exactly once as a real eval arm (`dispatch_keyword_head_value`, `:2120`,
-/// `=> Ok(Value::Unit)`), reached (not refused) at expression position — `Unevaluated` would be
+/// `=> Ok(Value::Nil)`), reached (not refused) at expression position — `Unevaluated` would be
 /// a lie about a form that measurably evaluates. The arm ignores `args` completely (proven
 /// above by the non-firing `println` probe), so no sub-form's effect can leak through either.
 /// Unconditionally free of effect at the moment it runs. `Pure`.
 ///
 /// **Determinism ground —** the eval arm consults nothing (no clock, no entropy, no read of
-/// `env`/`sym`) and returns the same `Value::Unit` unconditionally for any argument that
+/// `env`/`sym`) and returns the same `Value::Nil` unconditionally for any argument that
 /// reached it. `Deterministic`.
 ///
-/// **Totality ground —** read directly: the eval arm is `Ok(Value::Unit)` with no match, no
+/// **Totality ground —** read directly: the eval arm is `Ok(Value::Nil)` with no match, no
 /// unwrap, no fallible sub-call — defined unconditionally for every input that reaches it, the
 /// strongest form of `Total` (it does not even inspect its argument). `Total`.
 ///
 /// **Expand-time ground —** the eval arm evaluates none of its own sub-forms and consults no
-/// runtime-only state to produce its unconditional `Ok(Value::Unit)` — legal unconditionally,
+/// runtime-only state to produce its unconditional `Ok(Value::Nil)` — legal unconditionally,
 /// the same shape `fn`'s own `Legal` ruling argues. `Legal`.
 ///
 /// @added 1.0.0
@@ -109,7 +109,7 @@ fn eval_config_set_redef(
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// Arc 255 Stone 1a-ε — the `role = eval` pointer for `:wat::config::set-eval-redef!`.
@@ -124,5 +124,5 @@ fn eval_config_set_eval_redef(
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }

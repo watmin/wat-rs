@@ -1080,9 +1080,9 @@ pub(crate) fn eval_string_declare_acronyms(
     _acronyms: &WatAST,
     _env: &Environment, // rune:lint(unused-env) — both args are accepted and ignored; see doc block above
     _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (always `Ok(Value::Unit)`)
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (always `Ok(Value::Nil)`)
 ) -> Result<Value, EvalBreak> {
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// `(:wat::string::to-i64 s)` → `s` parsed as a base-10 `:i64`, or `None` if

@@ -69,8 +69,8 @@ fn empty_bindings() {
 #[test]
 fn empty_body() {
     match run_expr(":t::test5-empty-body") {
-        Value::Unit => {}
-        other => panic!("expected Value::Unit (:wat::core::nil); got {:?}", other),
+        Value::Nil => {}
+        other => panic!("expected Value::Nil (:wat::core::nil); got {:?}", other),
     }
 }
 

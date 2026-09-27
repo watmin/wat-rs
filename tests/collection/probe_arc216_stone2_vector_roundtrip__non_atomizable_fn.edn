@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":user::compute: body produces :wat::holon::HolonAST; signature declares :()"
+      :message ":user::compute: body produces :wat::holon::HolonAST; signature declares :wat::core::nil"
       :location #wat.core/Span {
         :file "tests/collection/probe_arc216_stone2_vector_roundtrip_p10.wat.bad"
         :line 4
@@ -18,7 +18,7 @@
       }
       :causes []
       :function ":user::compute"
-      :expected ":()"
+      :expected ":wat::core::nil"
       :got ":wat::holon::HolonAST"
       :remedies []
     }

@@ -54,9 +54,8 @@ pub enum Value {
     String(Arc<String>),
     /// A `Vec<Value>` — constructed by `:wat::core::vec`.
     Vec(Arc<Vec<Value>>),
-    /// The empty tuple / Rust unit `()`. Named `Unit` since `()` isn't
-    /// a legal identifier.
-    Unit,
+    /// The nil value. One inhabitant. EDN `nil`. Not a tuple.
+    Nil,
     /// Keyword literal — leading `:` included. Wat-source type
     /// `:wat::core::keyword`.
     wat__core__keyword(Arc<String>),
@@ -149,7 +148,7 @@ pub enum Value {
     /// (`peer-pair'`, `spawn`,
     /// `select`) and destructured in `let` via the
     /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
-    /// [`Value::Unit`] — tuples start at arity 1.
+    /// [`Value::Nil`] — tuples start at arity 1.
     Tuple(Arc<Vec<Value>>),
     /// A claim-or-panic handle pool — `(:HandlePool :- [T])` per FOUNDATION.
     /// Backing: a bounded crossbeam channel pre-filled with N handles
@@ -642,7 +641,7 @@ impl PartialEq for Value {
             (Value::wat__core__PersistentVector(a), Value::wat__core__PersistentVector(b)) => a == b,
             // --- Structurally-equal but NOT atomizable ---
             (Value::u8(a), Value::u8(b)) => a == b,
-            (Value::Unit, Value::Unit) => true,
+            (Value::Nil, Value::Nil) => true,
             (Value::Tuple(a), Value::Tuple(b)) => a == b,
             (Value::Option(a), Value::Option(b)) => a == b,
             (Value::Result(a), Value::Result(b)) => a == b,
@@ -821,7 +820,7 @@ impl std::hash::Hash for Value {
             }
             // --- Structural but NOT atomizable: honest hash impls (STOP-4 surface) ---
             Value::u8(n) => n.hash(state),
-            Value::Unit => {
+            Value::Nil => {
                 // Unit has no payload; discriminant alone is the hash
             }
             Value::Tuple(xs) => xs.hash(state),
@@ -1040,7 +1039,7 @@ fn value_is_shallow(v: &Value) -> bool {
         | Value::u8(_)
         | Value::f64(_)
         | Value::String(_)
-        | Value::Unit
+        | Value::Nil
         | Value::wat__core__keyword(_)
         | Value::wat__core__Char(_)
         | Value::wat__core__Uuid(_)
@@ -1397,12 +1396,9 @@ value_key_eligibility_table! {
             } => KeyEligibility::Hashable
         ]
     },
-    // Unit's checker-facing type is `:wat::core::nil` (see `WatAST::NilLit`'s checked type,
-    // `src/check.rs:1898`) — NOT `type_name()`'s runtime display label `"()"`. The two are an
-    // intentional, pre-existing divergence (display label vs. checker vocabulary), not a
-    // classification bug; the probe uses the checker's own string.
-    Value::Unit => {
-        type_name: "()",
+    // Nil's display label and its checker path agree: the value is `nil`.
+    Value::Nil => {
+        type_name: "nil",
         key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::core::nil".to_string()) ]
     },
@@ -1764,7 +1760,7 @@ impl Value {
             Value::f64(_) => self.type_name().to_string(),
             Value::String(_) => self.type_name().to_string(),
             Value::Vec(_) => self.type_name().to_string(),
-            Value::Unit => self.type_name().to_string(),
+            Value::Nil => self.type_name().to_string(),
             Value::wat__core__keyword(_) => self.type_name().to_string(),
             Value::wat__core__fn(_) => self.type_name().to_string(),
             Value::wat__WatAST(_) => self.type_name().to_string(),

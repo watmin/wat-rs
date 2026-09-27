@@ -129,21 +129,20 @@ impl FromWat for String {
     }
 }
 
-// Unit / `:()` — the 0-tuple. Shims that return `()` from a `&mut self`
-// method marshal through this.
+// Rust `()` marshals as wat nil.
 impl ToWat for () {
     fn to_wat(self) -> Value {
-        Value::Unit
+        Value::Nil
     }
 }
 
 impl FromWat for () {
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError> {
         match v {
-            Value::Unit => Ok(()),
+            Value::Nil => Ok(()),
             other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "()",
+                expected: "nil",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
             })),
         }

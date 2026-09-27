@@ -2565,7 +2565,7 @@ mod completeness_gate {
     // here after registering would fail this ledger's own STALE check.
     //
     // ⛔ CORRECTED at the end of the same stone: this note first said the scan "still finds the
-    // `\":wat::core::use!\" => Ok(Value::Unit)` arm at `runtime.rs:2947` — that arm is unchanged
+    // `\":wat::core::use!\" => Ok(Value::Nil)` arm at `runtime.rs:2947` — that arm is unchanged
     // by this stone, STOP-5". Both halves went stale within the hour. The brief's STOP-5 said not
     // to touch the eval arms; registering a `role = eval` handler then made
     // `registry_first_door_owns_every_handler_row_no_literal_arm_survives` demand the arm's

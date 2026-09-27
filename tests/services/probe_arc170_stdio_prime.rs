@@ -118,7 +118,7 @@ fn primed_stdout_batched_small_is_one_chunk() {
         probe_span(),
     )
     .expect("small batched write raised");
-    assert!(matches!(ret, Value::Unit), "batched write returns nil; got {ret:?}");
+    assert!(matches!(ret, Value::Nil), "batched write returns nil; got {ret:?}");
     let got = read_exact_n(r.as_raw_fd(), payload.len());
     assert_eq!(got, payload.as_bytes(), "small payload lands verbatim as one chunk");
     drop(w);
@@ -158,7 +158,7 @@ fn primed_stdout_batched_over_512kib_lands_all_bytes() {
         probe_span(),
     )
     .expect("run-stdout-batched raised (RequestTooLarge / lost / closed)");
-    assert!(matches!(ret, Value::Unit), "batched write returns nil; got {ret:?}");
+    assert!(matches!(ret, Value::Nil), "batched write returns nil; got {ret:?}");
 
     let got = reader.join().expect("reader thread panicked");
     assert_eq!(

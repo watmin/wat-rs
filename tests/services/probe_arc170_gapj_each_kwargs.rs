@@ -32,7 +32,7 @@ fn each_with_kwargs_tail_fires_every_side_effect_and_returns_nil() {
             assert_eq!(items.len(), 2, "expected a 2-tuple (each-out, final-count); got {items:?}");
             assert_eq!(
                 items[0],
-                Value::Unit,
+                Value::Nil,
                 "arc 170 gap J: `each` must return nil even with a kwargs tail; got {:?}",
                 items[0]
             );

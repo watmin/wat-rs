@@ -11,7 +11,7 @@
 //! (`wat_special_form_impl.rs`'s `emit`), so two `role = eval` attributes on one fn would mint
 //! the same shim name twice — a duplicate-definition error. See `config_set_redef.rs`'s doc on
 //! `eval_config_set_redef` for the full mechanism. Both fns' bodies are the identical
-//! `Ok(Value::Unit)` no-op the shared arm at `runtime.rs:2120` already performs.
+//! `Ok(Value::Nil)` no-op the shared arm at `runtime.rs:2120` already performs.
 
 use wat_macros::wat_special_form;
 
@@ -29,14 +29,14 @@ use wat_macros::wat_special_form;
 ///
 /// **Purity ground —** measured directly: `:wat::config::set-eval-redef!` shares
 /// `:wat::config::set-redef!`'s literal eval arm (`runtime.rs:2120`,
-/// `":wat::config::set-redef!" | ":wat::config::set-eval-redef!" => Ok(Value::Unit)`) — the SAME
+/// `":wat::config::set-redef!" | ":wat::config::set-eval-redef!" => Ok(Value::Nil)`) — the SAME
 /// non-firing-`println`-probe evidence applies verbatim (the arm ignores `args`, whichever of
 /// the two heads reached it). `Pure`.
 ///
 /// **Determinism ground —** identical: the eval arm consults nothing and returns the same
-/// `Value::Unit` unconditionally. `Deterministic`.
+/// `Value::Nil` unconditionally. `Deterministic`.
 ///
-/// **Totality ground —** identical: `Ok(Value::Unit)`, no match, no fallible sub-call, defined
+/// **Totality ground —** identical: `Ok(Value::Nil)`, no match, no fallible sub-call, defined
 /// unconditionally for every input that reaches it. `Total`.
 ///
 /// **Expand-time ground —** identical: no sub-forms evaluated, no runtime-only state consulted.

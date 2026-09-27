@@ -715,7 +715,7 @@ pub fn eval_read_string_with_comments(
         Err(e) => {
             let malformed = read_outcome_malformed(&e, sym);
             let cause = match malformed {
-                Value::Enum(ev) => ev.fields.first().cloned().unwrap_or(Value::Unit),
+                Value::Enum(ev) => ev.fields.first().cloned().unwrap_or(Value::Nil),
                 other => other,
             };
             Value::Enum(Arc::new(crate::runtime::EnumValue {
@@ -1762,7 +1762,7 @@ fn eval_keyword_to_type_form_impl(
             op: op.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     // Arc 109 Stone ②-i-b — the NON-canonicalizing preserving parse: keeps the source
-    // spelling (`:wat::core::nil` stays `Path`, not collapsed to `Tuple(vec![])`) so the
+    // spelling (`:wat::core::nil` stays `Path`) so the
     // renderer below can round-trip what was actually written instead of a type that
     // canonicalization already erased. See `parse_type_expr_preserving_with_span`'s doc.
     let te = crate::types::parse_type_expr_preserving_with_span(&kw, list_span).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
@@ -2277,7 +2277,7 @@ fn edn_to_value_caps(
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
     match edn {
-        Edn::Nil => Ok(Value::Unit),
+        Edn::Nil => Ok(Value::Nil),
         Edn::Bool(b) => Ok(Value::bool(*b)),
         Edn::Integer(n) => Ok(Value::i64(*n)),
         Edn::Float(x) => Ok(Value::f64(*x)),
@@ -2449,7 +2449,7 @@ fn map_keyword_field<'a>(
 /// [`value_to_edn_with`]; this function is its asymmetric inverse —
 /// asymmetric because the caller declares `T`, so the coercion can
 /// disambiguate shapes that EDN itself doesn't (`nil` → `:None` vs
-/// `Value::Unit`, vector → tuple vs `Vec`, map → struct, etc.).
+/// `Value::Nil`, vector → tuple vs `Vec`, map → struct, etc.).
 ///
 /// Recursive coercion rules (table):
 ///
@@ -2459,7 +2459,7 @@ fn map_keyword_field<'a>(
 /// | `:wat::core::f64` | `Float` OR `Integer` (widening) | `Value::f64(f)` |
 /// | `:wat::core::String` | `String` | `Value::String(s.into())` |
 /// | `:wat::core::bool` | `Bool` | `Value::Bool(b)` |
-/// | `:wat::core::nil` / `:()` | `Nil` | `Value::Unit` |
+/// | `:wat::core::nil` / `:()` | `Nil` | `Value::Nil` |
 /// | `:wat::core::keyword` | `Keyword` | `Value::wat__core__keyword(...)` |
 /// | `:(A,B,...)` (tuple) | `Vector` of len N | recurse per element |
 /// | `:wat::core::Vector<T>` | `Vector` | recurse on each element |
@@ -2575,7 +2575,7 @@ fn edn_to_typed_value_inner(
                 other => Err(mismatch(target, other)),
             },
             ":wat::core::nil" => match edn {
-                Edn::Nil => Ok(Value::Unit),
+                Edn::Nil => Ok(Value::Nil),
                 other => Err(mismatch(target, other)),
             },
             ":wat::core::keyword" => match edn {
@@ -2912,7 +2912,7 @@ fn edn_to_typed_value_inner(
             // `:()` (empty tuple = unit) accepts Nil.
             if elements.is_empty() {
                 return match edn {
-                    Edn::Nil => Ok(Value::Unit),
+                    Edn::Nil => Ok(Value::Nil),
                     other => Err(mismatch(target, other)),
                 };
             }
@@ -4130,7 +4130,7 @@ fn reconstruct_holon_record(
 
 /// Arc 113 slice 3 — when a declared field type is `Option<T>` but
 /// the EDN-bridged value isn't already a `Value::Option`, wrap it.
-/// `Value::Unit` (Nil round-trip) → `None`; anything else → `Some`.
+/// `Value::Nil` (Nil round-trip) → `None`; anything else → `Some`.
 /// Already-Option values pass through. Non-Option declared types
 /// pass through unchanged.
 fn rewrap_option_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
@@ -4143,7 +4143,7 @@ fn rewrap_option_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
     }
     match v {
         Value::Option(_) => v, // already wrapped
-        Value::Unit => Value::Option(Arc::new(None)),
+        Value::Nil => Value::Option(Arc::new(None)),
         other => Value::Option(Arc::new(Some(other))),
     }
 }
@@ -4516,7 +4516,7 @@ pub fn value_to_edn_with(
 ) -> Result<OwnedValue, RuntimeError> {
     Ok(match v {
         // ── Primitive leaves ─────────────────────────────────────
-        Value::Unit => OwnedValue::Nil,
+        Value::Nil => OwnedValue::Nil,
         Value::bool(b) => OwnedValue::Bool(*b),
         Value::i64(n) => OwnedValue::Integer(*n),
         Value::u8(n) => OwnedValue::Integer(*n as i64),
@@ -5360,7 +5360,7 @@ mod tests {
     fn arc170_1fi_coerce_nil_to_unit() {
         let t = TypeExpr::Path(":wat::core::nil".into());
         let v = coerce(&t, "nil").unwrap();
-        assert!(matches!(v, Value::Unit));
+        assert!(matches!(v, Value::Nil));
     }
 
     #[test]

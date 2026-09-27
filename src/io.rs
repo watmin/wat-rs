@@ -1164,7 +1164,7 @@ pub fn eval_ioreader_rewind(
     arity(op, args, 1, list_span)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     reader.rewind(list_span.clone())?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 // ─── IOWriter construction + snapshot ───────────────────────────────────
@@ -1435,7 +1435,7 @@ pub fn eval_iowriter_write_all(
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     writer.write_all(&bytes, list_span.clone())?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// `(:wat::io::IOWriter/write-string <writer> <String>)` → `:i64`
@@ -1474,7 +1474,7 @@ pub fn eval_iowriter_print(
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     writer.write_all(s.as_bytes(), list_span.clone())?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// `(:wat::io::IOWriter/println <writer> <String>)` → `:()`. Unit-
@@ -1493,7 +1493,7 @@ pub fn eval_iowriter_println(
     let mut bytes = s.as_bytes().to_vec();
     bytes.push(b'\n');
     writer.write_all(&bytes, list_span.clone())?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// `(:wat::io::IOWriter/writeln <writer> <String>)` → `:i64` (bytes
@@ -1526,7 +1526,7 @@ pub fn eval_iowriter_flush(
     arity(op, args, 1, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     writer.flush(list_span.clone())?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 /// `(:wat::io::IOWriter/close <writer>)` → `:()`. Idempotent.
@@ -1554,7 +1554,7 @@ pub fn eval_iowriter_close(
     arity(op, args, 1, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     writer.close(list_span.clone())?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 // ─── :wat::kernel::pipe (arc 012 slice 1b) ───────────────────────────────

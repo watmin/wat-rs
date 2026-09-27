@@ -22,7 +22,7 @@
 use wat::freeze::startup_from_file;
 use wat::runtime::{apply_function, Value};
 
-/// Eval a fixture whose `compute` returns nil; assert the result is `Value::Unit`.
+/// Eval a fixture whose `compute` returns nil; assert the result is `Value::Nil`.
 fn run_compute_nil(path: &str) {
     let world = startup_from_file(path).expect("startup should succeed");
     let func = world
@@ -32,7 +32,7 @@ fn run_compute_nil(path: &str) {
         .clone();
     let got = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute eval");
-    assert_eq!(got, Value::Unit, "brackets/each returns nil; got {got:?}");
+    assert_eq!(got, Value::Nil, "brackets/each returns nil; got {got:?}");
 }
 
 /// `brackets/each` over 50 items returns nil — and, by completing at all (no hang),

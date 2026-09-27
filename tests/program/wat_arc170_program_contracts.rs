@@ -59,7 +59,7 @@ fn t1_canonical_nil_main_freezes() {
     assert_eq!(params.len(), 0, "expected 0 params (argv is ambient), got {}", params.len());
     assert_eq!(
         ret,
-        TypeExpr::Tuple(vec![]),
+        TypeExpr::Path(":wat::core::nil".into()),
         "expected nil (Tuple([])) return"
     );
 }
@@ -87,8 +87,8 @@ fn t2_canonical_main_returns_nil_value() {
     let world = freeze_trivial();
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
     assert!(
-        matches!(result, Value::Unit),
-        "expected nil (Value::Unit); got {:?}", result
+        matches!(result, Value::Nil),
+        "expected nil (Value::Nil); got {:?}", result
     );
 }
 
@@ -99,8 +99,8 @@ fn t2_canonical_main_with_let_body_returns_nil() {
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t2_let.wat");
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
     assert!(
-        matches!(result, Value::Unit),
-        "expected nil (Value::Unit); got {:?}", result
+        matches!(result, Value::Nil),
+        "expected nil (Value::Nil); got {:?}", result
     );
 }
 
@@ -116,8 +116,8 @@ fn t3_argv_reachable_via_ambient() {
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t3_argv.wat");
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main runs");
     assert!(
-        matches!(result, Value::Unit),
-        "expected nil (Value::Unit); got {:?}", result
+        matches!(result, Value::Nil),
+        "expected nil (Value::Nil); got {:?}", result
     );
 }
 

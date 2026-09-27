@@ -84,7 +84,7 @@ fn as_close_outcome(v: &Value) -> &Arc<wat::runtime::EnumValue> {
 /// `close'` drains + joins the worker (join Ok) → `CloseOutcome::Closed[None]`
 /// (None = a thread has no OS exit code — loci-agnostic, R32).
 ///
-/// RED before the wall: close' returned `Value::Unit` for a clean thread close,
+/// RED before the wall: close' returned `Value::Nil` for a clean thread close,
 /// so `as_close_outcome` panics ("not a CloseOutcome enum value"). GREEN after.
 #[test]
 fn thread_clean_close_yields_closed_none() {

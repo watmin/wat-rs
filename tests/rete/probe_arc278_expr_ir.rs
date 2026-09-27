@@ -7,7 +7,7 @@ use wat::runtime::Value;
 #[test]
 fn lower_accepts_a_comparison() {
     let v = call_beside_value(file!(), ":user::cmp-lower-ok").expect("lower");
-    assert!(matches!(v, Value::Unit), "lower returns nil, got {v:?}");
+    assert!(matches!(v, Value::Nil), "lower returns nil, got {v:?}");
 }
 
 #[test]

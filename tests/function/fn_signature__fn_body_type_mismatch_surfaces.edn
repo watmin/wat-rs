@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":anonymous: body produces :wat::core::i64; signature declares :()"
+      :message ":anonymous: body produces :wat::core::i64; signature declares :wat::core::nil"
       :location #wat.core/Span {
         :file "tests/function/fn_signature_body_mismatch.wat"
         :line 4
@@ -18,7 +18,7 @@
       }
       :causes []
       :function ":anonymous"
-      :expected ":()"
+      :expected ":wat::core::nil"
       :got ":wat::core::i64"
       :remedies []
     }

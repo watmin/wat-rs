@@ -197,7 +197,7 @@ fn finish_forked_child(
         // clean nil-return maps to libc::exit(0). REALIZATIONS pass 10
         // — nil IS the success exit code; user code never participates
         // in exit-code arithmetic.
-        Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
+        Ok(Ok(Value::Nil)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Ok(other)) => {
             // Arc 296 — structured BadReturn: the type name is a genuinely flat
             // message, carried through the ToEdn-generic boundary as a
@@ -266,7 +266,7 @@ pub(crate) fn finish_in_process(
     outcome: std::thread::Result<Result<Value, RuntimeError>>,
 ) -> i32 {
     match outcome {
-        Ok(Ok(Value::Unit)) => EXIT_SUCCESS,
+        Ok(Ok(Value::Nil)) => EXIT_SUCCESS,
         Ok(Ok(other)) => {
             emit_structured_exit(
                 Some(world),

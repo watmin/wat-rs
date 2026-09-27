@@ -106,11 +106,18 @@ fn contract_06_tuple() {
 }
 
 #[test]
-fn contract_07_empty_tuple_is_not_nil() {
-    assert_eq!(
-        eval_string(":user::c07").expect("eval_string"),
-        include_str!("probe_arc251_keyword_to_type_form__contract-07-empty-tuple.wat")
-    );
+fn contract_07_empty_tuple_type_is_refused() {
+    let err = eval_string(":user::c07").expect_err("empty tuple type");
+    match err.kind() {
+        RuntimeErrorKind::MalformedForm { head, reason } => {
+            assert_eq!(head, ":wat::keyword::to-type-form");
+            assert_eq!(
+                reason,
+                "type-keyword parse failed: MalformedTypeExpr { raw: \":()\", reason: \"a tuple type needs at least one slot; the empty product is :wat::core::nil\" }"
+            );
+        }
+        other => panic!("expected MalformedForm, got {other:?}"),
+    }
 }
 
 #[test]

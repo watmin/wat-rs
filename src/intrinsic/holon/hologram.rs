@@ -125,7 +125,7 @@ pub(crate) fn eval_hologram_put(
         }
     };
     store.with_mut(OP, list_span.clone(), |s| s.put(key, val))?;
-    Ok(Value::Unit)
+    Ok(Value::Nil)
 }
 
 

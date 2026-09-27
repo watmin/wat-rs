@@ -91,7 +91,7 @@ pub fn typed_send(
 /// variant — the pipe-fd close arm that consumed it was annihilated
 /// (arc 278, dead-send-half cut). Kept in the signature unchanged.
 ///
-/// Returns `Ok(())` always — callers convert to `Value::Unit` (nil).
+/// Returns `Ok(())` always — callers convert to `Value::Nil` (nil).
 pub fn sender_close(
     sender: &SenderInner,
     _span: Span,

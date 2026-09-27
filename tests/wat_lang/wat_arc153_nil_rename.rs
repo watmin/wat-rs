@@ -12,9 +12,9 @@
 //!   2. **Value-position recognition.** `:wat::core::nil` at
 //!      value position parses as a Keyword; the substrate's
 //!      `infer` arm types it as the singleton (internally
-//!      `TypeExpr::Tuple(vec![])`); the runtime's `eval` arm
-//!      returns `Value::Unit`. Originally the empty-list literal
-//!      `()` at value position ALSO evaluated to `Value::Unit` --
+//!      `TypeExpr::Path(":wat::core::nil".into())`); the runtime's `eval` arm
+//!      returns `Value::Nil`. Originally the empty-list literal
+//!      `()` at value position ALSO evaluated to `Value::Nil` --
 //!      both spellings produced the same singleton.
 //!
 //! ## Arc 179 — `()` retired at value position
@@ -149,7 +149,7 @@ fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
     );
 }
 
-// --- 7. Value observable: nil keyword evaluates to Value::Unit ---------
+// --- 7. Value observable: nil keyword evaluates to Value::Nil ---------
 
 #[test]
 fn value_position_nil_evaluates_to_value_unit() {

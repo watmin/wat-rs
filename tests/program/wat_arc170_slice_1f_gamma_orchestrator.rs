@@ -131,7 +131,7 @@ fn row_a_single_thread_println() {
     let _stderr_capture = Arc::clone(&rig.stderr_capture);
 
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
-    assert!(matches!(result, Ok(Value::Unit)), "got {:?}", result);
+    assert!(matches!(result, Ok(Value::Nil)), "got {:?}", result);
 
     // Drain the orchestrator's stdout captured by the test pipe.
     // The wat-side StdOutService writes line + newline via
@@ -161,7 +161,7 @@ fn row_d_scope_drop_cascade() {
     let world = startup_beside(file!()).expect("startup");
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
     assert!(
-        matches!(result, Ok(Value::Unit)),
+        matches!(result, Ok(Value::Nil)),
         "scope-drop cascade should join all 3 services; got {:?}",
         result
     );
@@ -191,7 +191,7 @@ fn row_e_readln_roundtrip() {
     let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_e.wat");
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
     assert!(
-        matches!(result, Ok(Value::Unit)),
+        matches!(result, Ok(Value::Nil)),
         "readln roundtrip should land main nil; got {:?}",
         result
     );
