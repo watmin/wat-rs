@@ -2,8 +2,10 @@
   [xs <- (:wat::core::Vector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn :- [:wat::core::i64]
-      [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::i64::+ acc x))
+    (wat.core/fn :- [T]
+      [acc :- wat.core/i64
+       x   :- T]
+      :- wat.type/i64
+      acc)
     0
     xs))

@@ -107,3 +107,15 @@ Multi-clause `defclause` whose clauses do not share a signature-letter set. Lett
 Of those, 45 `sort` calls are the direct argument of `:wat::core::reverse`. 23 are the direct argument of a `vec->pvec` whose parameter is `(Vector :- [:wat::core::i64])` (the shape at `wat-scripts/perf/grid/negation.wat:84`, the call at `:94`). None is the direct argument of `nth`, `get`, or `conj`. One let-bound `sorted` is passed to `length` (`tests/collection/sort.wat:51`). One let-bound `sorted` is passed to `into` (`wat-scripts/scratch-pad/probe-derive-decomposition.wat:95`).
 
 `reverse` does not accept a `Stream`. `StreamContainer::ordered` is false for `Stream` (`src/collection/seq_container.rs:300`). `infer_reverse` then expects `(Vector :- [T])`, `(PersistentVector :- [T])`, or `(List :- [T])` (`src/collection/infer.rs:1083`). The intrinsic's argument note says a `(Stream :- [T])` is refused (`src/intrinsic/collection.rs:348`).
+
+## Amend F1
+
+The builder ruled the fixture. The inner lambda in `wat-scripts/fmt/fixtures/generic-fn.wat` is now the target spelling, a real generic `fn`. The enclosing `defn`, the `foldl`, `0`, and `xs` are unchanged. The return type stays `wat.type/i64`. `./target/release/wat --check` on that file returned rc 0.
+
+Floor `.floor/2026-09-27T01-20-07Z`: 6155 passed, 22 skipped, rc 0. That is 6145 at `352eada3d` plus the 10 rows. The earlier floor `.floor/2026-09-27T00-41-21Z` stays the red record and was not re-run.
+
+Clippy `--release --all-targets -- -D warnings` first returned rc 101. The only diagnostic was `clippy::type_complexity` on `peel_type_binder`'s return type (`src/function/metadata.rs:50` at that run). The return is now the alias `PeeledTypeBinder`. The second clippy returned rc 0. The alias is the same type. The green floor was taken before that alias.
+
+Census `.census/2026-09-27T01-27-24Z.txt` against `.census/2026-09-26T07-20-42Z.txt`: `census-diff: no STOP-8`. 0 rc flips. 215 nonzero of 2287. Two files are new to the stamp, both rc 0: `tests/types/probe_arc255_48_featureless_surface.wat` and `tests/types/probe_arc255_51_bounded_param.wat`.
+
+Delta `.delta/2026-09-27T01-28-29Z`: NEW 2 / RECOVERY 0. The two new files are `wat-scripts/probes/arc-170/probe-c1-clean-surface.wat` and `wat/holon/Ngram.wat`.

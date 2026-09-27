@@ -26,6 +26,12 @@ pub(super) fn peel_metadata_preamble(args: &[WatAST]) -> &[WatAST] {
     if args[0].is_metadata_map() { &args[1..] } else { args }
 }
 
+/// Named so `peel_type_binder`'s signature stays under `clippy::type_complexity`.
+type PeeledTypeBinder<'a> = Result<
+    (Option<Vec<crate::types::BinderParam>>, &'a [WatAST]),
+    (crate::span::Span, String),
+>;
+
 /// Arc 109 gamma-i — peels an optional `:- [T U ...]` type-param binder from
 /// fn-form args, immediately after the (already-peeled) metadata preamble
 /// and immediately before the args-vector. Mirrors `types.rs`'s
@@ -45,9 +51,7 @@ pub(super) fn peel_metadata_preamble(args: &[WatAST]) -> &[WatAST] {
 /// UNPEELED — `(None, args)` — so the existing `parse_fn_signature_prefix`
 /// diagnostic ("expected a vector ... got keyword") fires naturally on the
 /// stray `:-` keyword, rather than this peel inventing a second error path.
-pub(crate) fn peel_type_binder(
-    args: &[WatAST],
-) -> Result<(Option<Vec<crate::types::BinderParam>>, &[WatAST]), (crate::span::Span, String)> {
+pub(crate) fn peel_type_binder(args: &[WatAST]) -> PeeledTypeBinder<'_> {
     let (peeled, rest) = crate::types::peel_param_spec(args);
     match peeled {
         Some(items) => Ok((Some(crate::types::parse_binder_entries(items)?), rest)),
