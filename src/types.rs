@@ -870,7 +870,7 @@ pub struct TypeEnv {
     /// `(extend-type :- [P…] <child> <target> …)`), kept STRUCTURED with the parameters the
     /// binder declared, keyed by the child's HEAD (`:hello::Box`). The binder is what makes a
     /// name a parameter of the edge — never its spelling. A consumer asks
-    /// [`generic_edge_targets`], which pattern-matches the child against an actual type,
+    /// [`generic_edge_matches`], which pattern-matches the child against an actual type,
     /// binds the parameters, and hands back the target instantiated under those bindings.
     /// Written only by [`Self::register_generic_edge`]; retracted beside the other edge
     /// stores in [`Self::retract_for_door_replace`].
@@ -891,6 +891,10 @@ pub struct TypeEnv {
 #[derive(Debug, Clone)]
 pub(crate) struct GenericEdge {
     pub(crate) params: Vec<String>,
+    /// Parallel to `params`. `None` is today's unbounded parameter. `Some` is
+    /// `[Name :< Bound]` (stone 255.52): the edge holds only when the binding
+    /// is assignable to the bound. An existence walk must not use that edge.
+    pub(crate) bounds: Vec<Option<TypeExpr>>,
     pub(crate) child: TypeExpr,
     pub(crate) target: TypeExpr,
 }
@@ -1478,7 +1482,13 @@ impl TypeEnv {
     /// Stone 255.22 — record a GENERIC edge (its form declared a non-empty binder). Keyed by
     /// the child's head denotation so every spelling of one head finds it. The identical edge
     /// re-registered (door-replace, a duplicated form) is not stored twice.
-    pub(crate) fn register_generic_edge(&mut self, params: Vec<String>, child: TypeExpr, target: TypeExpr) {
+    pub(crate) fn register_generic_edge(
+        &mut self,
+        params: Vec<String>,
+        bounds: Vec<Option<TypeExpr>>,
+        child: TypeExpr,
+        target: TypeExpr,
+    ) {
         let key = match &child {
             TypeExpr::Parametric { head, .. } => {
                 crate::edn::render::type_denotation(&parametric_head_fqdn(head))
@@ -1488,9 +1498,17 @@ impl TypeEnv {
         };
         let slot = self.generic_edges.entry(key).or_default();
         if !slot.iter().any(|e| {
-            e.params == params && type_exprs_same(&e.child, &child) && type_exprs_same(&e.target, &target)
+            e.params == params
+                && bounds_same(&e.bounds, &bounds)
+                && type_exprs_same(&e.child, &child)
+                && type_exprs_same(&e.target, &target)
         }) {
-            slot.push(GenericEdge { params, child, target });
+            slot.push(GenericEdge {
+                params,
+                bounds,
+                child,
+                target,
+            });
         }
     }
 
@@ -1718,7 +1736,7 @@ fn base_of_rendered_type(s: &str) -> &str {
 /// `sub` is a type as a string: a bare name (`:wat::core::Vector`, what a runtime value's class
 /// answers) or a `format_type` rendering (`(:hello::Box :- [:wat::core::String])`). Walk the
 /// `extend-type` edges from `sub` itself, from its HEAD, and from every GENERIC edge declared on
-/// its head ([`generic_edge_targets`]'s store — the binder is what makes those edges generic),
+/// its head ([`generic_edge_matches`]'s store — the binder is what makes those edges generic),
 /// and at each parent compare its BASE name (via [`base_of_rendered_type`], just above)
 /// against `sup`'s base name.
 ///
@@ -1741,7 +1759,15 @@ pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
         }
     }
     if let Some(edges) = env.generic_edges.get(&crate::edn::render::type_denotation(head)) {
-        stack.extend(edges.iter().map(|e| crate::check::format_type(&e.target)));
+        // Stone 255.52 — a bounded edge is conditional. Pushing its target here
+        // would admit `(Vector :- [:u::Out])` as `:u::Mark`. Only unbounded
+        // edges answer an existence question. The checker decides a bound.
+        stack.extend(
+            edges
+                .iter()
+                .filter(|e| e.bounds.iter().all(|b| b.is_none()))
+                .map(|e| crate::check::format_type(&e.target)),
+        );
     }
     let mut visited = std::collections::HashSet::new();
     while let Some(p) = stack.pop() {
@@ -1832,30 +1858,22 @@ fn match_edge_child(
     }
 }
 
-/// Stone 255.22 — the TARGETS the GENERIC edges declared on `actual`'s head reach at
-/// `surface` (head compared through [`parametric_heads_unify`]), each INSTANTIATED under the
-/// bindings its child pattern-matched from `actual`. `(extend-type :- [Elem] (Box :- [Elem])
-/// (Greets :- [Elem]))` asked of `(Box :- [String])` at `Greets` answers `[(Greets :- [String])]`.
+/// Stone 255.22 — each GENERIC edge declared on `actual`'s head whose target's head is
+/// `surface` and whose child pattern-matches `actual`, as the edge plus the bindings of its
+/// binder names. The checker instantiates the target and, for a bounded edge, asks
+/// `assignable` of each binding (stone 255.52). An existence walk does not: a bounded edge
+/// is not a string subtype and [`family_extends`] skips it.
 ///
 /// DIRECT edges only, for the reason [`parametric_extensions_of`] gives (a `derive` chain has no
 /// method body under the child's own name). The caller decides what more than one answer means.
-pub(crate) fn generic_edge_targets(actual: &TypeExpr, surface: &str, env: &TypeEnv) -> Vec<TypeExpr> {
-    generic_edge_matches(actual, surface, env)
-        .into_iter()
-        .map(|(target, bindings)| crate::check::rename(target, &bindings))
-        .collect()
-}
-
-/// Stone 255.22 — the one walk under [`generic_edge_targets`]: each GENERIC edge declared on
-/// `actual`'s head whose target's head is `surface` and whose child pattern-matches `actual`,
-/// as (the edge's declared target, the bindings of its binder names). The method path reads
-/// the bindings directly: an extend-type method's registered scheme is written in the edge's
-/// OWN parameter names, so it is instantiated by these bindings, not by the surface's.
+/// The method path reads the bindings directly: an extend-type method's registered scheme is
+/// written in the edge's OWN parameter names, so it is instantiated by these bindings, not by
+/// the surface's.
 pub(crate) fn generic_edge_matches<'e>(
     actual: &TypeExpr,
     surface: &str,
     env: &'e TypeEnv,
-) -> Vec<(&'e TypeExpr, HashMap<String, TypeExpr>)> {
+) -> Vec<(&'e GenericEdge, HashMap<String, TypeExpr>)> {
     let key = match actual {
         TypeExpr::Parametric { head, .. } => {
             crate::edn::render::type_denotation(&parametric_head_fqdn(head))
@@ -1875,10 +1893,18 @@ pub(crate) fn generic_edge_matches<'e>(
         .filter(|e| target_head(&e.target).is_some_and(|h| parametric_heads_unify(&h, surface)))
         .filter_map(|e| {
             let mut bindings = HashMap::new();
-            match_edge_child(&e.child, actual, &e.params, &mut bindings)
-                .then_some((&e.target, bindings))
+            match_edge_child(&e.child, actual, &e.params, &mut bindings).then_some((e, bindings))
         })
         .collect()
+}
+
+fn bounds_same(a: &[Option<TypeExpr>], b: &[Option<TypeExpr>]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| match (x, y) {
+            (None, None) => true,
+            (Some(x), Some(y)) => type_exprs_same(x, y),
+            _ => false,
+        })
 }
 
 /// Seeds a fresh [`TypeEnv`] with wat-rs's own `:wat::*` declarations.
@@ -4696,6 +4722,9 @@ fn splice_type_decls(
                 )
             })?;
             let binder = binder.unwrap_or_default();
+            let bound_types: Vec<Option<TypeExpr>> =
+                binder.iter().map(|p| p.bound.clone()).collect();
+            let binder: Vec<String> = binder.into_iter().map(|p| p.name).collect();
             let child_node = ops.first().cloned();
             let target_node = ops.get(1).cloned();
             // Arc 109 identity 2c remainder — the TARGET slot also accepts a parametric-type
@@ -4776,8 +4805,32 @@ fn splice_type_decls(
                     ));
                 }
             }
+            for bound in bound_types.iter().flatten() {
+                if let Some(name) = first_free_type_name(bound, &binder, env) {
+                    return Err(TypeError::new(
+                        decl_span,
+                        TypeErrorKind::EdgeFreeTypeName {
+                            name,
+                            slot: "bound".into(),
+                            child: crate::check::format_type(&child_te),
+                            target: crate::check::format_type(&target_te),
+                        },
+                    ));
+                }
+            }
             if !binder.is_empty() {
-                env.register_generic_edge(binder.clone(), child_te.clone(), target_te.clone());
+                env.register_generic_edge(
+                    binder.clone(),
+                    bound_types.clone(),
+                    child_te.clone(),
+                    target_te.clone(),
+                );
+            }
+            // Stone 255.52 — a bounded edge is not also a string subtype. The
+            // rendered child `(Vector :- [:T])` <: Mark would be an existence
+            // fact, and `family_extends` / `is_subtype` would then ignore the bound.
+            if bound_types.iter().any(|b| b.is_some()) {
+                return Ok(WatAST::List(items, span));
             }
             // Arc 109 stone 1 — the protocol slot also accepts a parametric-type FORM
             // (`(:Proto :- [T])`, ②-iii's eventual spelling) alongside the bare (non-parametric)
@@ -5829,13 +5882,13 @@ pub(crate) fn peel_param_spec(args: &[WatAST]) -> (Option<&[WatAST]>, &[WatAST])
 /// `(:wat::core::extend-type [:- [P …]] <child> <target> <methods…>)`: the binder, when
 /// present, rides the form head (it reads like Rust's `impl<T>` — *for any `T`, a `(Box :- [T])`
 /// is a `(Greets :- [T])`*). `items` is the WHOLE form, head included. Returns the declared
-/// parameter names (BARE, `"T"`/`"Elem"`; `None` when the form has no binder, `Some(vec![])`
-/// for an expressed empty binder) and the operand slice after it: `operands[0]` is the child,
+/// parameters (`None` when the form has no binder, `Some(vec![])`
+/// for an expressed empty binder; a `[Name :< Bound]` entry keeps its bound) and the operand slice after it: `operands[0]` is the child,
 /// `operands[1]` the target, `operands[2..]` the method impls. Every reader indexes
 /// `operands`, never `items` — so the binder moves no reader's child/target/method offsets.
 ///
 /// Refused (`Err(reason)`, the caller wraps it in its own error type): a `:-` not followed by
-/// a `[…]` vector, and a binder entry that is not a bare, namespace-less symbol.
+/// a `[…]` vector, and a binder entry that is not a bare name or `[Name :< Type]`.
 /// One entry of a type binder: a bare name, or `[Name :< Bound]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BinderParam {
@@ -5925,25 +5978,12 @@ pub(crate) fn parse_binder_entries(items: &[WatAST]) -> Result<Vec<BinderParam>,
 
 pub(crate) fn extend_type_operands(
     items: &[WatAST],
-) -> Result<(Option<Vec<String>>, &[WatAST]), String> {
+) -> Result<(Option<Vec<BinderParam>>, &[WatAST]), String> {
     let tail = items.get(1..).unwrap_or(&[]);
     match peel_param_spec(tail) {
         (Some(entries), rest) => {
             let params = parse_binder_entries(entries).map_err(|(_, reason)| reason)?;
-            if let Some(bounded) = params.iter().find(|p| p.bound.is_some()) {
-                let shown = entries
-                    .iter()
-                    .find_map(|item| match item {
-                        WatAST::Vector(_, _) => Some(render_binder_entry(item)),
-                        _ => None,
-                    })
-                    .unwrap_or_else(|| format!("[{} :< …]", bounded.name));
-                return Err(format!(
-                    "extend-type does not accept a bounded type parameter yet \
-                     (conditional membership is a later stone); entry {shown}"
-                ));
-            }
-            Ok((Some(params.into_iter().map(|p| p.name).collect()), rest))
+            Ok((Some(params), rest))
         }
         (None, _) if tail.first().is_some_and(is_binder_marker) => Err(
             "an extend-type `:-` binder must be followed by a `[P …]` vector of parameter names"

@@ -1,0 +1,4 @@
+(:wat::core::defsurface :u::Mark :nature :wat::core::Record :features [])
+(:wat::core::extend-type :- [[T :< :u::NoSuch]]
+  (:wat::core::Vector :- [T])
+  :u::Mark)

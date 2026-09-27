@@ -51,6 +51,16 @@ pub(crate) struct PendingBound {
     pub span: Span,
 }
 
+/// A conditional `extend-type` matched, and one binding missed its bound.
+#[derive(Debug, Clone)]
+pub(crate) struct MembershipMiss {
+    pub argument: String,
+    pub surface: String,
+    pub param: String,
+    pub bound: String,
+    pub got: String,
+}
+
 pub(crate) struct ParamBoundGuard<'a> {
     env: &'a CheckEnv<'a>,
 }
@@ -70,6 +80,9 @@ pub struct CheckEnv<'a> {
     /// Call-site instantiations of a bounded parameter that were still a
     /// unification variable. Rechecked at the end of the enclosing definition.
     pub(crate) pending_bounds: std::cell::RefCell<Vec<PendingBound>>,
+    /// Stone 255.52 — the conditional edge that failed inside the `assignable`
+    /// just attempted. Taken by the call site that turns the `false` into an error.
+    pub(crate) membership_miss: std::cell::RefCell<Option<MembershipMiss>>,
     /// Arc 048 — keyword paths for user-enum unit variants mapped to
     /// the enum's type. When `infer` sees one of these as a value-
     /// position keyword (e.g. `:trading::types::PhaseLabel::Valley`),
@@ -182,6 +195,17 @@ impl<'a> CheckEnv<'a> {
 
     pub(crate) fn take_pending_bounds(&self) -> Vec<PendingBound> {
         std::mem::take(&mut *self.pending_bounds.borrow_mut())
+    }
+
+    pub(crate) fn note_membership(&self, miss: MembershipMiss) {
+        let mut slot = self.membership_miss.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(miss);
+        }
+    }
+
+    pub(crate) fn take_membership(&self) -> Option<MembershipMiss> {
+        self.membership_miss.borrow_mut().take()
     }
 
     /// Build an env with built-in schemes for `:wat::core::*` and
@@ -305,6 +329,7 @@ impl<'a> CheckEnv<'a> {
             schemes: HashMap::new(),
             param_bounds: std::cell::RefCell::new(Vec::new()),
             pending_bounds: std::cell::RefCell::new(Vec::new()),
+            membership_miss: std::cell::RefCell::new(None),
             unit_variant_types,
             types,
             defined_values: HashMap::new(),

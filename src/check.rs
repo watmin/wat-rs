@@ -6168,12 +6168,18 @@ fn infer_list(
                 let arg_ty = infer_component_against(arg, expected, env, locals, fresh, subst, &mut local_errors);
                 if let Some(arg_ty) = arg_ty {
                     if !assignable(&arg_ty, expected, subst, env) {
-                        local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: callee.clone(),
-                            param: format!("#{}", i + 1),
-                            expected: format_type(&apply_subst(expected, subst)),
-                            got: format_type(&apply_subst(&arg_ty, subst))
-                        } });
+                        let expected = format_type(&apply_subst(expected, subst));
+                        let got = format_type(&apply_subst(&arg_ty, subst));
+                        local_errors.push(CheckError {
+                            span: arg.span().clone(),
+                            kind: mismatch_or_membership(
+                                callee.clone(),
+                                format!("#{}", i + 1),
+                                expected,
+                                got,
+                                env,
+                            ),
+                        });
                     }
                 }
             }
@@ -6229,12 +6235,18 @@ fn infer_list(
             let arg_ty = infer_component_against(arg, expected, env, locals, fresh, subst, &mut local_errors);
             if let Some(arg_ty) = arg_ty {
                 if !assignable(&arg_ty, expected, subst, env) {
-                    local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                        callee: callee.clone(),
-                        param: format!("#{}", i + 1),
-                        expected: format_type(&apply_subst(expected, subst)),
-                        got: format_type(&apply_subst(&arg_ty, subst))
-                    } });
+                    let expected = format_type(&apply_subst(expected, subst));
+                    let got = format_type(&apply_subst(&arg_ty, subst));
+                    local_errors.push(CheckError {
+                        span: arg.span().clone(),
+                        kind: mismatch_or_membership(
+                            callee.clone(),
+                            format!("#{}", i + 1),
+                            expected,
+                            got,
+                            env,
+                        ),
+                    });
                 }
             }
         }
@@ -17296,6 +17308,102 @@ fn nature_floor_ok(actual: &TypeExpr, surface_path: &str, types: &TypeEnv) -> bo
 /// `defn :T/<name>` sigs are registered) via the `resolve_method` closure.
 /// All callers previously passed `env.types()` as the last arg; they now pass
 /// `env` directly.
+fn mismatch_or_membership(
+    callee: String,
+    param: String,
+    expected: String,
+    got: String,
+    env: &CheckEnv,
+) -> CheckErrorKind {
+    if let Some(miss) = env.take_membership() {
+        if miss.argument == got && miss.surface == expected {
+            return CheckErrorKind::MembershipBound {
+                argument: miss.argument,
+                surface: miss.surface,
+                param: miss.param,
+                bound: miss.bound,
+                got: miss.got,
+            };
+        }
+    }
+    CheckErrorKind::TypeMismatch {
+        callee,
+        param,
+        expected,
+        got,
+    }
+}
+
+/// Bounded generic edges whose bindings satisfy their bounds, plus every
+/// unbounded edge. A failed bound is not a target.
+fn admitted_edge_targets(
+    actual: &TypeExpr,
+    surface: &str,
+    subst: &Subst,
+    env: &CheckEnv,
+) -> Vec<TypeExpr> {
+    crate::types::generic_edge_matches(actual, surface, env.types())
+        .into_iter()
+        .filter_map(|(edge, bindings)| {
+            bound_failure(edge, &bindings, subst, env)
+                .is_none()
+                .then(|| rename(&edge.target, &bindings))
+        })
+        .collect()
+}
+
+/// `(held, miss)`. `held` when any matching edge may count. `miss` is the
+/// first bound that failed, and only when none held.
+fn conditional_edge(
+    actual: &TypeExpr,
+    surface: &str,
+    subst: &Subst,
+    env: &CheckEnv,
+) -> (bool, Option<crate::check::env::MembershipMiss>) {
+    let mut held = false;
+    let mut miss = None;
+    for (edge, bindings) in crate::types::generic_edge_matches(actual, surface, env.types()) {
+        match bound_failure(edge, &bindings, subst, env) {
+            None => held = true,
+            Some(m) => {
+                if miss.is_none() {
+                    miss = Some(m);
+                }
+            }
+        }
+    }
+    if held { (true, None) } else { (false, miss) }
+}
+
+fn bound_failure(
+    edge: &crate::types::GenericEdge,
+    bindings: &HashMap<String, TypeExpr>,
+    subst: &Subst,
+    env: &CheckEnv,
+) -> Option<crate::check::env::MembershipMiss> {
+    for (name, bound) in edge.params.iter().zip(edge.bounds.iter()) {
+        let Some(bound) = bound else { continue };
+        let Some(got) = bindings.get(name) else { continue };
+        let bound = rename(bound, bindings);
+        let got_r = reduce(&walk(got, subst), subst, env.types());
+        let bound_r = reduce(&walk(&bound, subst), subst, env.types());
+        if !assignable(&got_r, &bound_r, &mut subst.clone(), env) {
+            if let Some(deeper) = env.take_membership() {
+                return Some(deeper);
+            }
+            return Some(crate::check::env::MembershipMiss {
+                argument: format_type(&got_r),
+                surface: format_type(&bound_r),
+                param: name.clone(),
+                bound: format_type(&bound_r),
+                got: format_type(&got_r),
+            });
+        }
+    }
+    let _ = env.take_membership();
+    None
+}
+
 pub(crate) fn assignable(
     actual: &TypeExpr,
     expected: &TypeExpr,
@@ -17374,13 +17482,24 @@ pub(crate) fn assignable(
         // Stone 255.22 — OR a GENERIC edge (its form declared a `:- [P …]` binder) whose child
         // pattern-matches `a` reaches `ep` (`generic_edge_targets`); OR `a`'s family reaches it
         // by walking edges (`family_extends`). Neither guesses a parameter's spelling any more.
-        if crate::types::is_subtype(&format_type(&a), ep, types)
-            || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types)
-            || !crate::types::generic_edge_targets(&a, ep, types).is_empty()
-            || crate::types::family_extends(&format_type(&a), ep, types)
-        {
+        // Stone 255.52 — `generic_edge_targets` is not an existence test. A
+        // bounded edge counts only when each binding is assignable to its bound
+        // (`conditional_edge`). `family_extends` and the two `is_subtype`s do
+        // not see a bounded edge: it is not a string subtype, and the existence
+        // walk skips it. Unbounded edges still pass all four.
+        let rendered = crate::types::is_subtype(&format_type(&a), ep, types);
+        let head_edge =
+            crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types);
+        let family = crate::types::family_extends(&format_type(&a), ep, types);
+        let (held, miss) = conditional_edge(&a, ep, subst, env);
+        if rendered || head_edge || family || held {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
             return nature_floor_ok(&a, ep, types);
+        }
+        if let Some(mut miss) = miss {
+            miss.argument = format_type(&a);
+            miss.surface = ep.clone();
+            env.note_membership(miss);
         }
     }
     // Arc 170 C2 Gap 1 — a CONCRETE type satisfies a PARAMETRIC-SURFACE param iff its FULL-ARGS
@@ -17494,7 +17613,7 @@ pub(crate) fn assignable(
         // `(Seqable :- [i64])`), and a family with no edge offers no candidate.
         if ah != eh {
             let bare = crate::types::parametric_head_fqdn(eh);
-            let mut candidates = crate::types::generic_edge_targets(&a, &bare, types);
+            let mut candidates = admitted_edge_targets(&a, &bare, subst, env);
             candidates.extend(crate::types::parametric_extensions_of(
                 &crate::types::parametric_head_fqdn(ah),
                 &bare,
@@ -17969,8 +18088,9 @@ fn occurs(id: u64, ty: &TypeExpr, subst: &Subst) -> bool {
     }
 }
 
-/// Instantiate a scheme's universally-quantified type parameters with
-/// fresh unification variables. Produces monomorphic `(params, ret)`.
+/// After a call's arguments unify, each bounded parameter that is concrete
+/// must be assignable to its bound. A variable is recorded and rechecked
+/// when the enclosing definition ends.
 fn enforce_type_bounds(
     bounds: &[(String, TypeExpr, TypeExpr)],
     subst: &Subst,
@@ -17992,6 +18112,9 @@ fn enforce_type_bounds(
             continue;
         }
         if !assignable(&got, bound, &mut subst.clone(), env) {
+            // The membership miss belongs to this bound check. `BoundNotSatisfied`
+            // is the error; leaving the miss would retitle a later mismatch.
+            let _ = env.take_membership();
             local_errors.push(CheckError {
                 span: span.clone(),
                 kind: CheckErrorKind::BoundNotSatisfied {
@@ -18027,6 +18150,7 @@ fn flush_pending_bounds(
                 },
             });
         } else if !assignable(&got, &pending.bound, &mut subst.clone(), env) {
+            let _ = env.take_membership();
             errors.push(CheckError {
                 span: pending.span,
                 kind: CheckErrorKind::BoundNotSatisfied {
@@ -18047,6 +18171,8 @@ struct Instance {
     bounds: Vec<(String, TypeExpr, TypeExpr)>,
 }
 
+/// Instantiate a scheme's universally-quantified type parameters with
+/// fresh unification variables. Produces monomorphic `(params, ret)`.
 fn instantiate(scheme: &TypeScheme, fresh: &mut InferCtx) -> Instance {
     if scheme.type_params.is_empty() {
         return Instance {

@@ -100,12 +100,9 @@ fn an_extend_type_keyword_entry_names_the_entry() {
 }
 
 #[test]
-fn an_extend_type_bounded_entry_names_the_entry() {
-    let result = startup_from_file("tests/types/probe_arc255_51_binder_extend_bounded.wat.bad");
-    wat::assert_startup_error!(result,
-        wat::freeze::StartupError::Type(err)
-            if matches!(err.kind(), wat::types::TypeErrorKind::MalformedDecl { head, reason }
-                if head == "extend-type"
-                && reason == "extend-type does not accept a bounded type parameter yet (conditional membership is a later stone); entry [T :< :u::Mark]")
-    );
+fn a_bounded_extend_type_registers() {
+    match startup_from_file("tests/types/probe_arc255_51_binder_extend_bounded.wat") {
+        Ok(_) => {}
+        Err(err) => panic!("[T :< Mark] on extend-type is conditional membership; got {err:?}"),
+    }
 }

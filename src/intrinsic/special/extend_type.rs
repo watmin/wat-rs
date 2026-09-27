@@ -23,7 +23,7 @@ use wat_macros::wat_special_form;
 /// prose ("registers a program-level entity ... visible to everything after it") is not just a
 /// face-value fit here — it is confirmed by what the form measurably does to BOTH the type
 /// lattice and the symbol table: `env.register_subtype` (`src/types.rs:3918`) writes the `(T,
-/// P)` edge that `is_subtype`'s exact-string lookup and `family_extends`/`generic_edge_targets`
+/// P)` edge that `is_subtype`'s exact-string lookup and `family_extends`/`generic_edge_matches`
 /// (`src/types.rs`; a generic edge is matched by its `:- [P …]` binder, stone 255.22) consult for the rest of the program, and
 /// `register_extend_type_surface_impls`/`register_extend_type_methods`
 /// (`src/declare/register.rs`) register every method impl into `sym.functions`, visible to

@@ -117,6 +117,15 @@ pub enum CheckErrorKind {
         param: String,
         bound: String,
     },
+    /// Stone 255.52 — `actual` matched a conditional `extend-type`, and a
+    /// binder parameter's binding was not its bound.
+    MembershipBound {
+        argument: String,
+        surface: String,
+        param: String,
+        bound: String,
+        got: String,
+    },
     /// Arc 138 slice 1 — function body type does not match declared return type.
     ///
     /// `remedies` stores the typo-based candidates from `variant_typo_remedies`
@@ -474,6 +483,19 @@ impl CheckErrorKind {
                     f,
                     "{}{}: type parameter {} bounded by {} is still unresolved",
                     prefix, function, param, bound
+                )
+            }
+            CheckErrorKind::MembershipBound {
+                argument,
+                surface,
+                param,
+                bound,
+                got,
+            } => {
+                write!(
+                    f,
+                    "{}{argument} is not a {surface}: type parameter {param} is bounded by {bound}; got {got}",
+                    prefix
                 )
             }
             CheckErrorKind::TypeMismatch { callee, param, expected, got } => {
