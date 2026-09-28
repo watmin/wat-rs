@@ -12832,7 +12832,8 @@ fn process_let_binding(
 /// `Tuple` / `PersistentMap` / `PersistentVector` still do NOT use THIS helper — splicing
 /// still corrupts them, unchanged from the reasoning above — but each now detects and
 /// parses its own leading bracket directly via `split_type_param_bracket` /
-/// `parse_bracket_type_keyword`, just below. Unlike this helper's UNCONDITIONAL splice
+/// `parse_param_spec_slot` (STONE-255.70 — `parse_bracket_type_keyword` retired, see that fn's
+/// retirement note below), just below. Unlike this helper's UNCONDITIONAL splice
 /// (sound only because Vector/HashMap/HashSet already required a leading type keyword,
 /// so a literal Vector was never a legal first arg for them), those three's bracket
 /// detection is by the `:-` MARKER alone (arc 109 "THE LAST DOORS" door 2 retired the
@@ -12922,54 +12923,20 @@ pub(crate) fn split_type_param_bracket(
     })
 }
 
-/// Arc 109 step ①b — parse one keyword token from inside a leading
-/// `[T]` / `[K V]` / `[T1 T2 …]` bracket into a `TypeExpr`. Shared by
+/// STONE-255.70 — `parse_bracket_type_keyword` (bare-`WatAST::Keyword`-only) is RETIRED.
 /// `infer_tuple_constructor`, `infer_persistentmap_constructor`, and
-/// `infer_persistentvector_constructor` — each calls this once per
-/// bracket slot rather than duplicating the parse+fallback logic three
-/// times. Mirrors the leading-type-keyword read already used by
-/// `infer_hashset_constructor` / `infer_list_constructor` (Arc 215 stone
-/// 2's `:wat::type::Infer` handling included): a valid type path parses
-/// straight through; `:wat::type::Infer` routes to a fresh variable (T is
-/// inferred from the elements at that position); anything else is a
-/// `MalformedForm` diagnostic that ALSO falls back to a fresh variable —
-/// poison-and-continue, so one bad slot doesn't abort checking the rest
-/// of the constructor.
-fn parse_bracket_type_keyword(
-    head: &str,
-    node: &WatAST,
-    fresh: &mut InferCtx,
-    local_errors: &mut Vec<CheckError>,
-) -> TypeExpr {
-    let WatAST::Keyword(k, kspan) = node else {
-        // A `:-`-marked bracket's elements are never sniffed or shape-checked
-        // ahead of time (that's the whole point of requiring the marker) — a
-        // non-Keyword slot (a nested list, a literal) reaches here and gets a
-        // named diagnostic + poison-and-continue, rather than being silently
-        // accepted or panicking.
-        local_errors.push(CheckError { span: node.span().clone(), kind: CheckErrorKind::MalformedForm {
-            head: head.into(),
-            reason: "bracketed type must be a type keyword".into(),
-            remedies: vec![],
-        } });
-        return fresh.fresh();
-    };
-    if k == crate::types::INFER_TYPE_PATH {
-        return fresh.fresh();
-    }
-    match crate::types::parse_type_expr(k) {
-        Ok(t) => t,
-        Err(_) => {
-            local_errors.push(CheckError { span: kspan.clone(), kind: CheckErrorKind::MalformedForm {
-                head: head.into(),
-                reason: format!("bracketed type {} is not a valid type keyword", k),
-                remedies: vec![],
-            } });
-            fresh.fresh()
-        }
-    }
-}
-
+/// `infer_persistentvector_constructor` now call `parse_param_spec_slot` (just below) for each
+/// bracket slot, exactly like `infer_hashset_constructor`/`infer_list_constructor` already did —
+/// one door (`parse_type_node`, `src/types.rs`) reading every type-node shape (bare keyword,
+/// namespaced symbol, nested parametric `(Head :- […])` form, fn-type bracket), not a
+/// hand-rolled recognizer that accepts only `WatAST::Keyword`. This is the K1 class 255.67
+/// retired five times elsewhere: a constructor's own `:-` bracket was the one door that still had
+/// a private side door. Closing it converts the 35 compound-element-type sites
+/// (`(wat.type/PersistentVector :- [(wat.type/Tuple :- [A B])])`) SCORE-STONE-255.69 found
+/// inexpressible — `parse_type_node`'s `WatAST::List` arm already parses a nested `(Head :- […])`
+/// form (`parse_type_form`), so once every bracket slot reads through it, the nested form
+/// type-checks with no new grammar.
+///
 /// Arc 109 stone 3 (THE WALL) — parse one slot of a `:- [...]` param-spec
 /// bracket into a `TypeExpr`. `Vector` / `HashMap` / `HashSet`'s ONE type
 /// slot (or, for `HashMap`, each of its two: K and V), reached only after
@@ -12977,15 +12944,14 @@ fn parse_bracket_type_keyword(
 /// keyword and unmarked-bracket doors this stone closes never reach this
 /// helper at all.
 ///
-/// Unlike `parse_bracket_type_keyword` above (bare keyword only — Tuple /
-/// PersistentMap / PersistentVector's bracket slots), this routes through
-/// `parse_type_node`, the substrate's one door reading every type-node
-/// shape (Keyword, namespaced Symbol, parametric `List` reference, and the
-/// `[args :-> ret]` function-type bracket) — so a nested parametric element
-/// type (`:- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]`)
-/// parses the same as a bare type keyword slot does. `:wat::type::Infer`
-/// routes to a fresh type variable (T is inferred from the elements),
-/// matching `parse_bracket_type_keyword`'s special case.
+/// STONE-255.70 — now also Tuple / PersistentMap / PersistentVector's bracket slots (the retired
+/// `parse_bracket_type_keyword`'s three callers, see that fn's retirement note above): routes
+/// through `parse_type_node`, the substrate's one door reading every type-node shape (Keyword,
+/// namespaced Symbol, parametric `List` reference, and the `[args :-> ret]` function-type
+/// bracket) — so a nested parametric element type
+/// (`:- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]`) parses the same as a bare
+/// type keyword slot does. `:wat::type::Infer` routes to a fresh type variable (T is inferred
+/// from the elements).
 fn parse_param_spec_slot(
     head: &str,
     node: &WatAST,
@@ -15644,7 +15610,8 @@ fn infer_hashmap_constructor(
 /// is bypassed (see its doc comment): this fn has no leading-type-arg read
 /// path, so a spliced bare type keyword would flow into the elementwise
 /// `infer()` calls below and trip Doctrine-1. `split_type_param_bracket`
-/// detects + `parse_bracket_type_keyword` parses the bracket directly instead —
+/// detects + `parse_param_spec_slot` (STONE-255.70; `parse_bracket_type_keyword`
+/// retired) parses the bracket through the type door instead —
 /// arc 109 "THE LAST DOORS" door 2 retired the unmarked `[K V]` spelling this
 /// comment used to also name; `:- [K V]` is the only one recognised now.
 fn infer_persistentmap_constructor(
@@ -15666,8 +15633,8 @@ fn infer_persistentmap_constructor(
                 } });
                 (Some((fresh.fresh(), fresh.fresh())), rest)
             } else {
-                let k_t = parse_bracket_type_keyword(":wat::core::PersistentMap", &inner[0], fresh, &mut local_errors);
-                let v_t = parse_bracket_type_keyword(":wat::core::PersistentMap", &inner[1], fresh, &mut local_errors);
+                let k_t = parse_param_spec_slot(":wat::core::PersistentMap", &inner[0], fresh, &mut local_errors);
+                let v_t = parse_param_spec_slot(":wat::core::PersistentMap", &inner[1], fresh, &mut local_errors);
                 (Some((k_t, v_t)), rest)
             }
         }
@@ -15768,7 +15735,7 @@ fn infer_persistentvector_constructor(
                 } });
                 (Some(fresh.fresh()), rest)
             } else {
-                let t = parse_bracket_type_keyword(":wat::core::PersistentVector", &inner[0], fresh, &mut local_errors);
+                let t = parse_param_spec_slot(":wat::core::PersistentVector", &inner[0], fresh, &mut local_errors);
                 (Some(t), rest)
             }
         }
@@ -15926,7 +15893,7 @@ fn infer_tuple_constructor(
     if let Some((inner, _bspan, rest)) = split_type_param_bracket(args) {
         let mut expected: Vec<TypeExpr> = Vec::with_capacity(inner.len());
         for node in inner.iter() {
-            expected.push(parse_bracket_type_keyword(":wat::core::Tuple", node, fresh, &mut local_errors));
+            expected.push(parse_param_spec_slot(":wat::core::Tuple", node, fresh, &mut local_errors));
         }
         let (val, mut errs) = check_tuple_constructor_against(rest, &expected, head_span, env, locals, fresh, subst).into_parts();
         local_errors.append(&mut errs);
@@ -16482,7 +16449,17 @@ fn check_compound_against_expected(
 /// `(:wat::core::List x1 x2 ...)` — no leading type-keyword; all args
 /// are data elements.  Infers T from the first element (fresh var then
 /// unification); returns `(List :- [T])`.  Zero args → `(List :- [T])` with a fresh T.
-/// Mirrors `infer_list_constructor` but for the `:wat::core::List` head.
+///
+/// STONE-255.70 — now ALSO takes an optional leading `:- [T]` bracket, exactly as
+/// `infer_persistentvector_constructor` does (bracket detection via `split_type_param_bracket`,
+/// the slot parsed through the type door via `parse_param_spec_slot` — never a bare-keyword-only
+/// recognizer): `(:wat::core::List :- [wat.type/i64] 1 2 3)` now checks. The bracket stays
+/// OPTIONAL (not required, unlike `infer_list_constructor`'s Vector arm) — the wall that makes an
+/// untyped constructor call illegal is a later stone; this one must not flip any bracket-less
+/// `List` call still standing elsewhere in the corpus (STOP-2). With a bracket: T is the declared
+/// unification target every element up-casts against (`assignable`), matching
+/// `infer_persistentvector_constructor`'s "declared common supertype" contract. Bracket-less:
+/// unchanged from before this stone — T is a fresh variable, elements unify against it.
 fn infer_linked_list_constructor(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `arg.span()`, more precise than the coarse head span
@@ -16493,11 +16470,32 @@ fn infer_linked_list_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let elem_ty = fresh.fresh();
-    for (i, arg) in args.iter().enumerate() {
+    let (declared_t, values): (Option<TypeExpr>, &[WatAST]) = match split_type_param_bracket(args) {
+        Some((inner, bspan, rest)) => {
+            if inner.len() != 1 {
+                local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::List".into(),
+                    reason: format!("bracket must declare exactly 1 type [T]; got {}", inner.len()),
+                    remedies: vec![],
+                } });
+                (Some(fresh.fresh()), rest)
+            } else {
+                let t = parse_param_spec_slot(":wat::core::List", &inner[0], fresh, &mut local_errors);
+                (Some(t), rest)
+            }
+        }
+        None => (None, args),
+    };
+    let elem_ty = declared_t.clone().unwrap_or_else(|| fresh.fresh());
+    for (i, arg) in values.iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
-            if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
+            let ok = if declared_t.is_some() {
+                assignable(&arg_ty, &elem_ty, subst, env)
+            } else {
+                unify(&arg_ty, &elem_ty, subst, env.types()).is_ok()
+            };
+            if !ok {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::List".into(),
                     param: format!("#{}", i + 1),
