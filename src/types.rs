@@ -2578,6 +2578,91 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::HygieneScopeDivergence");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::PublicOpInAlarm");
 
+    // ─── Excursus 003 sweep S2 — LoadFetchError / HashError's flat records ────
+    // Declared in `wat/kernel/diagnostics.wat`. Registered BEFORE
+    // wat/load-errors.wat's records below: `Fetch.cause` /
+    // `VerificationFailed.cause` are typed `:wat::core::Value`, but strict
+    // decode still resolves whatever tag the wire actually carries.
+
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::NotFound");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::LoadOther");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::OutOfScope");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::UnsupportedAlgorithm");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Mismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::UnsupportedSignatureAlgorithm");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidBase64");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidSignatureLength");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidPubKeyLength");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidPubKey");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::SignatureMismatch");
+
+    // ─── Excursus 003 sweep S2 — the TypeErrorKind wat records ────────────────
+    // Declared in `wat/types-errors.wat`. All 23 `TypeErrorKind` variants
+    // (`src/types/error.rs:76`).
+
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::DuplicateType");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::ReservedPrefix");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::UnnamespacedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::DottedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::MalformedDecl");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::MalformedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::MalformedField");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::MalformedVariant");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::MalformedTypeExpr");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::AnyBanned");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::CyclicAlias");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::AliasArityMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::InnerColonInCompoundArg");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::CyclicUnion");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::EmptyUnion");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::SingleMemberUnion");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::InvalidUnionMember");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::CyclicSubtype");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::ImpureFieldInPureAggregate");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::ImpureVariantFieldInPureEnum");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::HolonRecordCapacityExceeded");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::UnconsumedTypeParam");
+    ::wat_source_derive::wat_record_from!(env, "wat/types-errors.wat", ":wat::type::UnknownNamedType");
+
+    // ─── Excursus 003 sweep S2 — the LoadErrorKind wat records ────────────────
+    // Declared in `wat/load-errors.wat`. All 8 `LoadErrorKind` variants
+    // (`src/load/loader.rs:295`).
+
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::MalformedLoadForm");
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::ReservedStdlibLabel");
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::SetterInLoadedFile");
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::DuplicateLoad");
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::CycleDetected");
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::Fetch");
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::Parse");
+    ::wat_source_derive::wat_record_from!(env, "wat/load-errors.wat", ":wat::load::VerificationFailed");
+
+    // ─── Excursus 003 sweep S2 — the ConfigErrorKind wat records ──────────────
+    // Declared in `wat/config-errors.wat`. All 8 `ConfigErrorKind` variants
+    // (`src/config.rs:222`).
+
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::SetterAfterNonSetter");
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::DuplicateField");
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::RequiredFieldMissing");
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::UnknownSetter");
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::BadArity");
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::BadType");
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::BadValue");
+    ::wat_source_derive::wat_record_from!(env, "wat/config-errors.wat", ":wat::config::MalformedSetter");
+
+    // ─── Excursus 003 sweep S2 — the ResolveError wat records ─────────────────
+    // Declared in `wat/resolve-errors.wat`. `ResolveError`'s 1 variant plus
+    // its nested `UnresolvedReference` sub-value (`src/resolve/error.rs:25`).
+
+    ::wat_source_derive::wat_record_from!(env, "wat/resolve-errors.wat", ":wat::resolve::UnresolvedReferences");
+    ::wat_source_derive::wat_record_from!(env, "wat/resolve-errors.wat", ":wat::resolve::UnresolvedReference");
+
+    // ─── Excursus 003 sweep S2 — the StdlibErrorKind wat record ───────────────
+    // Declared in `wat/stdlib-errors.wat`. `StdlibErrorKind`'s 1 variant
+    // (`src/load/stdlib.rs:716`).
+
+    ::wat_source_derive::wat_record_from!(env, "wat/stdlib-errors.wat", ":wat::stdlib::ParseFailed");
+
     // (:wat::kernel::RecvOutcome :- [O]) — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
     // recv' RETURNED O and RAISED on close/crash — a raise unwinds past the reader

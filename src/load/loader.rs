@@ -447,6 +447,147 @@ impl crate::edn::contract::ToEdn for LoadError {
     }
 }
 
+// ─── Excursus 003 sweep S2 — the LoadErrorKind taxonomy's declaration gates ──
+//
+// G-list, G-strict (per the brief's per-strike gate list;
+// docs/excursus/2026/09/003-the-little-wat-findings/
+// BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md), the same
+// shape S1 used in `src/check/error_edn.rs::excursus_003_s1_gates`.
+//
+// G-mirror (no golden moved) is a `git diff --stat -- '*.edn'` check, not a
+// Rust assertion — stated in the strike report, not here.
+#[cfg(test)]
+mod excursus_003_s2_gates {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use super::{LoadError, LoadErrorKind, LoadFetchError};
+    use crate::edn::contract::WatError;
+    use crate::edn::render::decode_trusted_wire;
+    use crate::hash::HashError;
+    use crate::parser::{ParseError, ParseErrorKind};
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn s() -> Span {
+        Span::new(Arc::new("test.wat".to_string()), 1, 0)
+    }
+
+    /// The one ruled exception to full strict decode: `Parse`'s nested
+    /// `ParseError` (`crates/wat-reader/src/parser.rs:37`) is S3's taxonomy —
+    /// undeclared until S3 runs. `decode_trusted_wire` is all-or-nothing (any
+    /// unresolved nested tag fails the WHOLE decode with `UnknownTag`), so
+    /// `Parse`'s OWN tag being declared here does not make it decode typed
+    /// TODAY. This is NOT a G-list exception (the record IS declared, and
+    /// belongs in the declared set) — only a G-strict one, expected to flip
+    /// to `is_ok()` once S3 declares `:wat::parse::*` (see this file's
+    /// `wat/load-errors.wat` header note: "silently upgrades ... no change
+    /// needed here").
+    const G_STRICT_S3_PENDING: &[&str] = &["Parse"];
+
+    /// One instance of every `LoadErrorKind` variant (8, measured against
+    /// `src/load/loader.rs:295`), paired with its Rust variant name — the
+    /// same name `error_edn()` tags it with on the wire (`#wat.load/<Name>`).
+    fn all_variants() -> Vec<(&'static str, LoadErrorKind)> {
+        vec![
+            ("MalformedLoadForm", LoadErrorKind::MalformedLoadForm { reason: "bad form".into() }),
+            ("ReservedStdlibLabel", LoadErrorKind::ReservedStdlibLabel { label: "wat/core.wat".into() }),
+            ("SetterInLoadedFile", LoadErrorKind::SetterInLoadedFile {
+                loaded_path: "foo.wat".into(), setter_head: "set-dims!".into(),
+            }),
+            ("DuplicateLoad", LoadErrorKind::DuplicateLoad { path: "foo.wat".into() }),
+            ("CycleDetected", LoadErrorKind::CycleDetected { cycle: vec!["a.wat".into(), "b.wat".into()] }),
+            ("Fetch", LoadErrorKind::Fetch(LoadFetchError::NotFound("missing.wat".into()))),
+            // S3-pending — see `G_STRICT_S3_PENDING` above.
+            ("Parse", LoadErrorKind::Parse {
+                path: "foo.wat".into(),
+                err: ParseError { span: Span::new(Arc::new("inner.wat".to_string()), 7, 3), kind: ParseErrorKind::UnexpectedRParen },
+            }),
+            ("VerificationFailed", LoadErrorKind::VerificationFailed {
+                path: "foo.wat".into(), err: HashError::UnsupportedAlgorithm { algo: "SHA1".into() },
+            }),
+        ]
+    }
+
+    /// Scan `wat/load-errors.wat`'s OWN source for every top-level
+    /// `(:wat::core::defrecord :wat::load::<Name> ...)` form.
+    fn declared_load_kind_names() -> BTreeSet<String> {
+        let src = include_str!("../../wat/load-errors.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/load-errors.wat")
+            .expect("wat/load-errors.wat must parse");
+        let mut names = BTreeSet::new();
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defrecord" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            let Some(bare) = name.as_str().strip_prefix(":wat::load::") else { continue };
+            names.insert(bare.to_string());
+        }
+        names
+    }
+
+    /// G-list — the declaration is the list. The set of tags `error_edn()`
+    /// produces for `all_variants()` must equal the set of `defrecord
+    /// :wat::load::*` names in `wat/load-errors.wat`.
+    ///
+    /// Mutation (recorded in the strike report): add a stray
+    /// `(:wat::core::defrecord :wat::load::Bogus [])` to
+    /// `wat/load-errors.wat` — RED (declared has an extra name `produced`
+    /// never names).
+    #[test]
+    fn g_list_declaration_is_the_list() {
+        let produced: BTreeSet<String> = all_variants().iter().map(|(name, _)| name.to_string()).collect();
+        let declared = declared_load_kind_names();
+        assert_eq!(
+            produced, declared,
+            "declared `:wat::load::<Kind>` records in wat/load-errors.wat must equal the \
+             LoadErrorKind tags error_edn() produces"
+        );
+    }
+
+    /// G-strict — every declared kind decodes typed, EXCEPT the one named
+    /// `G_STRICT_S3_PENDING` exception (`Parse`, whose nested `ParseError` is
+    /// S3's undeclared taxonomy) — asserted to STILL fail today, proving the
+    /// exception is real and not merely unexercised.
+    ///
+    /// Mutation (recorded in the strike report): comment out one
+    /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::load::
+    /// DuplicateLoad`) — RED, and the assertion message names `DuplicateLoad`.
+    #[test]
+    fn g_strict_every_declared_kind_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        for (name, kind) in all_variants() {
+            let err = LoadError::new(s(), kind);
+            let wire = wat_edn::write(&err.error_edn());
+            let decoded = decode_trusted_wire(&wire, Some(&types), None);
+            if G_STRICT_S3_PENDING.contains(&name) {
+                // `decode_trusted_wire` fails either way for an S3-pending kind
+                // (outer unregistered, or outer registered but nested
+                // unresolved) — `is_err()` alone cannot observe THIS kind's
+                // own registration going missing. Check it directly.
+                assert!(
+                    types.contains(&format!(":wat::load::{name}")), // rune:lint(loose-assert) — TypeEnv::contains is an exact registry membership lookup, not a substring/prefix/suffix string match; the lint's syntactic detector cannot see the receiver's type. // rune:lint(one-variant-separator, namespace) — composes a `:wat::load::<Kind>` namespaced type path for a registry lookup; no enum variant involved.
+                    "{name}'s OWN record must be registered even though full strict decode \
+                     cannot succeed yet (its nested taxonomy is S3's, not declared here)"
+                );
+                assert!(
+                    decoded.is_err(),
+                    "{name}: expected to remain foreign until S3 declares its nested taxonomy, \
+                     but decode_trusted_wire succeeded — {decoded:?}"
+                );
+            } else {
+                assert!(
+                    decoded.is_ok(),
+                    "{name}: decode_trusted_wire(error_edn()) must succeed as a typed record; got {decoded:?}"
+                );
+            }
+        }
+    }
+}
+
 // The-little-wat stone P: `From<LoadFetchError> for LoadError` used to live here, stamping
 // `crate::rust_caller_span!()` on every fetch failure — naming wat-rs's own `loader.rs`
 // instead of the user's `load-file!` call. Deleted outright (not patched): with no blanket

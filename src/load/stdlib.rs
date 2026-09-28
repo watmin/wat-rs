@@ -91,6 +91,42 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/check-errors.wat",
         source: include_str!("../../wat/check-errors.wat"),
     },
+    // Excursus 003 sweep S2 — the 23 declared `:wat::type::<Kind>` records
+    // mirroring `TypeErrorKind`. After `wat/kernel/diagnostics.wat`:
+    // `MalformedVariant` references `:wat::kernel::Remedy`, declared there.
+    WatSource {
+        path: "wat/types-errors.wat",
+        source: include_str!("../../wat/types-errors.wat"),
+    },
+    // Excursus 003 sweep S2 — the 8 declared `:wat::load::<Kind>` records
+    // mirroring `LoadErrorKind`. After `wat/kernel/diagnostics.wat`: `Fetch`/
+    // `VerificationFailed` carry a `:wat::core::Value` payload whose real wire
+    // tag resolves against the flat `LoadFetchError`/`HashError` records
+    // declared there.
+    WatSource {
+        path: "wat/load-errors.wat",
+        source: include_str!("../../wat/load-errors.wat"),
+    },
+    // Excursus 003 sweep S2 — the 8 declared `:wat::config::<Kind>` records
+    // mirroring `ConfigErrorKind`. After core.wat only (no nested types).
+    WatSource {
+        path: "wat/config-errors.wat",
+        source: include_str!("../../wat/config-errors.wat"),
+    },
+    // Excursus 003 sweep S2 — `ResolveError`'s one declared
+    // `:wat::resolve::UnresolvedReferences` record plus its nested
+    // `:wat::resolve::UnresolvedReference` sub-value. After core.wat only.
+    WatSource {
+        path: "wat/resolve-errors.wat",
+        source: include_str!("../../wat/resolve-errors.wat"),
+    },
+    // Excursus 003 sweep S2 — `StdlibErrorKind`'s one declared
+    // `:wat::stdlib::ParseFailed` record. After core.wat only (`cause` types
+    // the generic `:wat::core::Error` slot — `ParseError` is S3's taxonomy).
+    WatSource {
+        path: "wat/stdlib-errors.wat",
+        source: include_str!("../../wat/stdlib-errors.wat"),
+    },
     // Arc 296 J — `:wat::edn::*` read/validate outcomes. After core.wat (`Error`).
     WatSource {
         path: "wat/edn.wat",
@@ -793,6 +829,114 @@ impl crate::edn::contract::ToEdn for StdlibError {
             }
             other => other,
         }
+    }
+}
+
+// ─── Excursus 003 sweep S2 — the StdlibErrorKind taxonomy's declaration gates ─
+//
+// G-list, G-strict (per the brief's per-strike gate list;
+// docs/excursus/2026/09/003-the-little-wat-findings/
+// BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md), the same
+// shape S1 used in `src/check/error_edn.rs::excursus_003_s1_gates`. Only ONE
+// `StdlibErrorKind` variant exists (`ParseFailed`).
+//
+// G-mirror (no golden moved) is a `git diff --stat -- '*.edn'` check, not a
+// Rust assertion — stated in the strike report, not here.
+#[cfg(test)]
+mod excursus_003_s2_gates {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use super::{StdlibError, StdlibErrorKind};
+    use crate::edn::contract::WatError;
+    use crate::edn::render::decode_trusted_wire;
+    use crate::parser::{ParseError, ParseErrorKind};
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn s() -> Span {
+        Span::new(Arc::new("test.wat".to_string()), 1, 0)
+    }
+
+    /// Scan `wat/stdlib-errors.wat`'s OWN source for every top-level
+    /// `(:wat::core::defrecord :wat::stdlib::<Name> ...)` form.
+    fn declared_stdlib_kind_names() -> BTreeSet<String> {
+        let src = include_str!("../../wat/stdlib-errors.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/stdlib-errors.wat")
+            .expect("wat/stdlib-errors.wat must parse");
+        let mut names = BTreeSet::new();
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defrecord" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            let Some(bare) = name.as_str().strip_prefix(":wat::stdlib::") else { continue };
+            names.insert(bare.to_string());
+        }
+        names
+    }
+
+    /// G-list — the declaration is the list. `StdlibErrorKind` produces
+    /// exactly one tag, `ParseFailed`; `wat/stdlib-errors.wat` must declare
+    /// exactly that name.
+    ///
+    /// Mutation (recorded in the strike report): add a stray
+    /// `(:wat::core::defrecord :wat::stdlib::Bogus [])` to
+    /// `wat/stdlib-errors.wat` — RED (declared has an extra name the
+    /// produced set never names).
+    #[test]
+    fn g_list_declaration_is_the_list() {
+        let produced: BTreeSet<String> = ["ParseFailed"].iter().map(|s| s.to_string()).collect();
+        let declared = declared_stdlib_kind_names();
+        assert_eq!(
+            produced, declared,
+            "declared `:wat::stdlib::<Kind>` records in wat/stdlib-errors.wat must equal the \
+             StdlibErrorKind tags error_edn() produces"
+        );
+    }
+
+    /// G-strict — `ParseFailed` is declared (its OWN tag is registered —
+    /// checked directly via `TypeEnv::contains`, since the decode-based check
+    /// below cannot observe THIS registration on its own: decode fails either
+    /// way, see next paragraph), but its nested `cause: ParseError`
+    /// (`crates/wat-reader/src/parser.rs:37`) is S3's undeclared taxonomy.
+    /// `decode_trusted_wire` is all-or-nothing (any unresolved nested tag
+    /// fails the WHOLE decode with `UnknownTag`), so `ParseFailed` is
+    /// EXPECTED to stay foreign TODAY — asserted here so the exception is
+    /// proven real, not merely unexercised. Expected to flip to `is_ok()`
+    /// once S3 declares `:wat::parse::*` (see this file's
+    /// `wat/stdlib-errors.wat` header note; verified empirically during this
+    /// strike by temporarily stub-registering `:wat::parse::UnexpectedRParen`
+    /// and confirming decode then succeeds — reverted, not committed).
+    ///
+    /// Mutation (recorded in the strike report): comment out
+    /// `wat_record_from!(env, "wat/stdlib-errors.wat",
+    /// ":wat::stdlib::ParseFailed")` in `src/types.rs` — RED on the
+    /// `types.contains` assertion.
+    #[test]
+    fn g_strict_parse_failed_stays_foreign_pending_s3() {
+        let types = TypeEnv::with_builtins();
+        assert!(
+            types.contains(":wat::stdlib::ParseFailed"), // rune:lint(loose-assert) — TypeEnv::contains is an exact registry membership lookup, not a substring/prefix/suffix string match; the lint's syntactic detector cannot see the receiver's type.
+            "ParseFailed's OWN record must be registered even though full strict decode \
+             cannot succeed yet (see this test's doc)"
+        );
+        let err = StdlibError::new(
+            s(),
+            StdlibErrorKind::ParseFailed {
+                path: "wat/core.wat",
+                cause: ParseError { span: Span::new(Arc::new("wat/core.wat".to_string()), 7, 3), kind: ParseErrorKind::UnexpectedRParen },
+            },
+        );
+        let wire = wat_edn::write(&err.error_edn());
+        let decoded = decode_trusted_wire(&wire, Some(&types), None);
+        assert!(
+            decoded.is_err(),
+            "ParseFailed: expected to remain foreign until S3 declares its nested taxonomy, \
+             but decode_trusted_wire succeeded — {decoded:?}"
+        );
     }
 }
 

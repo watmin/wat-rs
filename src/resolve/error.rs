@@ -155,3 +155,92 @@ impl crate::edn::contract::WatError for UnresolvedReference {
         crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
+
+// ─── Excursus 003 sweep S2 — the ResolveError taxonomy's declaration gates ───
+//
+// G-list, G-strict (per the brief's per-strike gate list;
+// docs/excursus/2026/09/003-the-little-wat-findings/
+// BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md), the same
+// shape S1 used in `src/check/error_edn.rs::excursus_003_s1_gates`. Only ONE
+// `ResolveError` variant exists (`UnresolvedReferences`) plus its nested
+// `UnresolvedReference` sub-value — both driven here.
+//
+// G-mirror (no golden moved) is a `git diff --stat -- '*.edn'` check, not a
+// Rust assertion — stated in the strike report, not here.
+#[cfg(test)]
+mod excursus_003_s2_gates {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use super::{ResolveError, UnresolvedReference};
+    use crate::edn::contract::WatError;
+    use crate::edn::render::decode_trusted_wire;
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn s() -> Span {
+        Span::new(Arc::new("test.wat".to_string()), 1, 0)
+    }
+
+    /// Scan `wat/resolve-errors.wat`'s OWN source for every top-level
+    /// `(:wat::core::defrecord :wat::resolve::<Name> ...)` form.
+    fn declared_resolve_kind_names() -> BTreeSet<String> {
+        let src = include_str!("../../wat/resolve-errors.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/resolve-errors.wat")
+            .expect("wat/resolve-errors.wat must parse");
+        let mut names = BTreeSet::new();
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defrecord" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            let Some(bare) = name.as_str().strip_prefix(":wat::resolve::") else { continue };
+            names.insert(bare.to_string());
+        }
+        names
+    }
+
+    /// G-list — the declaration is the list. `ResolveError` produces exactly
+    /// ONE top-level tag (`UnresolvedReferences`); its embedded
+    /// `UnresolvedReference` items are a SECOND real produced tag on the wire
+    /// (inside `:causes`), also declared. The declared set in
+    /// `wat/resolve-errors.wat` must equal both.
+    ///
+    /// Mutation (recorded in the strike report): add a stray
+    /// `(:wat::core::defrecord :wat::resolve::Bogus [])` to
+    /// `wat/resolve-errors.wat` — RED (declared has an extra name the
+    /// produced set never names).
+    #[test]
+    fn g_list_declaration_is_the_list() {
+        let produced: BTreeSet<String> =
+            ["UnresolvedReferences", "UnresolvedReference"].iter().map(|s| s.to_string()).collect();
+        let declared = declared_resolve_kind_names();
+        assert_eq!(
+            produced, declared,
+            "declared `:wat::resolve::<Kind>` records in wat/resolve-errors.wat must equal the \
+             ResolveError/UnresolvedReference tags error_edn() produces"
+        );
+    }
+
+    /// G-strict — both the `ResolveError` aggregate and its nested
+    /// `UnresolvedReference` items decode typed end to end (the strict decode
+    /// is all-or-nothing, so this also proves the embedded items decode typed).
+    ///
+    /// Mutation (recorded in the strike report): comment out
+    /// `wat_record_from!(env, "wat/resolve-errors.wat",
+    /// ":wat::resolve::UnresolvedReference")` in `src/types.rs` — RED, naming
+    /// the aggregate's decode failure (the nested tag is now unresolved).
+    #[test]
+    fn g_strict_resolve_error_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        let err = ResolveError::UnresolvedReferences(vec![
+            UnresolvedReference { path: ":user::ghost".into(), context: "call head", span: s() },
+            UnresolvedReference { path: ":user::ghost2".into(), context: "macro call (not expanded)", span: s() },
+        ]);
+        let wire = wat_edn::write(&err.error_edn());
+        let decoded = decode_trusted_wire(&wire, Some(&types), None);
+        assert!(decoded.is_ok(), "ResolveError::UnresolvedReferences must decode typed; got {decoded:?}");
+    }
+}

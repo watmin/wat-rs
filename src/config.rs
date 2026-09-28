@@ -368,6 +368,105 @@ impl crate::edn::contract::ToEdn for ConfigError {
     }
 }
 
+// ─── Excursus 003 sweep S2 — the ConfigErrorKind taxonomy's declaration gates ─
+//
+// G-list, G-strict (per the brief's per-strike gate list;
+// docs/excursus/2026/09/003-the-little-wat-findings/
+// BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md), the same
+// shape S1 used in `src/check/error_edn.rs::excursus_003_s1_gates`.
+//
+// G-mirror (no golden moved) is a `git diff --stat -- '*.edn'` check, not a
+// Rust assertion — stated in the strike report, not here.
+#[cfg(test)]
+mod excursus_003_s2_gates {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use super::{ConfigError, ConfigErrorKind};
+    use crate::edn::contract::WatError;
+    use crate::edn::render::decode_trusted_wire;
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn s() -> Span {
+        Span::new(Arc::new("test.wat".to_string()), 1, 0)
+    }
+
+    /// One instance of every `ConfigErrorKind` variant (8, measured against
+    /// `src/config.rs:222`), paired with its Rust variant name — the same
+    /// name `error_edn()` tags it with on the wire (`#wat.config/<Name>`).
+    fn all_variants() -> Vec<(&'static str, ConfigErrorKind)> {
+        vec![
+            ("SetterAfterNonSetter", ConfigErrorKind::SetterAfterNonSetter { setter_head: "set-dims!".into() }),
+            ("DuplicateField", ConfigErrorKind::DuplicateField { field: "dims".into() }),
+            ("RequiredFieldMissing", ConfigErrorKind::RequiredFieldMissing { field: "dims".into() }),
+            ("UnknownSetter", ConfigErrorKind::UnknownSetter { head: "set-bogus!".into() }),
+            ("BadArity", ConfigErrorKind::BadArity { head: "set-dims!".into(), expected: 1, got: 2 }),
+            ("BadType", ConfigErrorKind::BadType { field: "dims".into(), expected: "i64", got: "string" }),
+            ("BadValue", ConfigErrorKind::BadValue { field: "capacity-mode".into(), reason: "not a recognized variant".into() }),
+            ("MalformedSetter", ConfigErrorKind::MalformedSetter),
+        ]
+    }
+
+    /// Scan `wat/config-errors.wat`'s OWN source for every top-level
+    /// `(:wat::core::defrecord :wat::config::<Name> ...)` form.
+    fn declared_config_kind_names() -> BTreeSet<String> {
+        let src = include_str!("../wat/config-errors.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/config-errors.wat")
+            .expect("wat/config-errors.wat must parse");
+        let mut names = BTreeSet::new();
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defrecord" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            let Some(bare) = name.as_str().strip_prefix(":wat::config::") else { continue };
+            names.insert(bare.to_string());
+        }
+        names
+    }
+
+    /// G-list — the declaration is the list. The set of tags `error_edn()`
+    /// produces for `all_variants()` must equal the set of `defrecord
+    /// :wat::config::*` names in `wat/config-errors.wat`.
+    ///
+    /// Mutation (recorded in the strike report): add a stray
+    /// `(:wat::core::defrecord :wat::config::Bogus [])` to
+    /// `wat/config-errors.wat` — RED (declared has an extra name `produced`
+    /// never names).
+    #[test]
+    fn g_list_declaration_is_the_list() {
+        let produced: BTreeSet<String> = all_variants().iter().map(|(name, _)| name.to_string()).collect();
+        let declared = declared_config_kind_names();
+        assert_eq!(
+            produced, declared,
+            "declared `:wat::config::<Kind>` records in wat/config-errors.wat must equal the \
+             ConfigErrorKind tags error_edn() produces"
+        );
+    }
+
+    /// G-strict — every declared kind decodes typed.
+    ///
+    /// Mutation (recorded in the strike report): comment out one
+    /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::config::
+    /// BadArity`) — RED, and the assertion message names `BadArity`.
+    #[test]
+    fn g_strict_every_declared_kind_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        for (name, kind) in all_variants() {
+            let err = ConfigError { span: s(), kind };
+            let wire = wat_edn::write(&err.error_edn());
+            let decoded = decode_trusted_wire(&wire, Some(&types), None);
+            assert!(
+                decoded.is_ok(),
+                "{name}: decode_trusted_wire(error_edn()) must succeed as a typed record; got {decoded:?}"
+            );
+        }
+    }
+}
+
 /// Collect the entry file's leading `(:wat::config::set-*!)` setters and
 /// commit them to a [`Config`]. Returns the config plus the remaining
 /// forms (load!s, program body) for further processing.

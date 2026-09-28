@@ -161,6 +161,94 @@
 ;; The `:ensure :fn` signature is structurally malformed.
 (:wat::core::defrecord :wat::kernel::MalformedSignature [])
 
+;; ─── Excursus 003 S2: LoadFetchError's three flat records ──────────────────
+;;
+;; Mirrors `crate::load::loader::LoadFetchError` (`src/load/loader.rs:192`), the
+;; payload of `LoadErrorKind::Fetch` (`wat/load-errors.wat`). Its hand-written
+;; `ToEdn` impl (`src/load/loader.rs:224`) calls `edn_tag`, which tags under
+;; `crate::error_ns::KERNEL` ("wat.kernel") — FLAT per-variant, not a dotted
+;; `LoadFetchError.<Variant>` — the same "sum type whose sub-values ride flat
+;; per-variant tags" shape S1 found for `EnsureFnInvalidReason` (see above):
+;; wat has no union/sum type, and a `defenum` here would register under a path
+;; the general decoder's undotted-tag branch never consults. Three independent
+;; flat records, exactly mirroring that precedent.
+;;
+;; `LoadErrorKind::Fetch.cause` (`wat/load-errors.wat`) is declared
+;; `:wat::core::Value`, not a nominal record or `defenum` — the same rationale
+;; as `EnsureFnInvalid.reason` above: no common shape across the three
+;; variants, and decode is tag-driven regardless of the declared field type.
+
+;; The loader's requested path does not exist under its domain.
+(:wat::core::defrecord :wat::kernel::NotFound
+  [path <- :wat::core::String])
+
+;; Loader-specific I/O or resolution failure; `reason` is prose. Tag `LoadOther`
+;; (not the Rust variant name `Other`, which the hand-written writer renames).
+(:wat::core::defrecord :wat::kernel::LoadOther
+  [path   <- :wat::core::String
+   reason <- :wat::core::String])
+
+;; The requested path's canonical target escapes the loader's allowed scope
+;; (e.g. `../../etc/passwd`, or a symlink pointing outside the scope).
+(:wat::core::defrecord :wat::kernel::OutOfScope
+  [path  <- :wat::core::String
+   scope <- :wat::core::String])
+
+;; ─── Excursus 003 S2: HashError's eight flat records ────────────────────────
+;;
+;; Mirrors `crate::hash::HashError` (`src/hash.rs:471`), the payload of
+;; `LoadErrorKind::VerificationFailed.cause` (`wat/load-errors.wat`) and (out of
+;; this strike's scope) `RuntimeErrorKind::EvalVerificationFailed.error`. Its
+;; hand-written `ToEdn` impl (`src/hash.rs:563`) also calls `edn_tag` — the
+;; SAME flat, `wat.kernel`-namespaced, one-tag-per-variant shape as
+;; `LoadFetchError` above, for the same reason (no union/sum type; a `defenum`
+;; would register under a path undotted-tag lookup never consults). Eight
+;; independent flat records. `usize` fields (`expected`/`got`) type
+;; `:wat::core::i64`, matching every other `usize` field in this sweep.
+;;
+;; `LoadErrorKind::VerificationFailed.cause` is declared `:wat::core::Value`,
+;; same rationale as `LoadFetchError`/`EnsureFnInvalidReason` above.
+
+;; The requested digest algorithm is not supported (this build supports sha256).
+(:wat::core::defrecord :wat::kernel::UnsupportedAlgorithm
+  [algo <- :wat::core::String])
+
+;; A computed digest did not match the expected one.
+(:wat::core::defrecord :wat::kernel::Mismatch
+  [algo     <- :wat::core::String
+   expected <- :wat::core::String
+   actual   <- :wat::core::String])
+
+;; The requested signature algorithm is not supported (this build supports ed25519).
+(:wat::core::defrecord :wat::kernel::UnsupportedSignatureAlgorithm
+  [algo <- :wat::core::String])
+
+;; A base64-encoded field failed to decode.
+(:wat::core::defrecord :wat::kernel::InvalidBase64
+  [field  <- :wat::core::String
+   reason <- :wat::core::String])
+
+;; A decoded signature's byte length did not match the algorithm's expectation.
+(:wat::core::defrecord :wat::kernel::InvalidSignatureLength
+  [algo     <- :wat::core::String
+   expected <- :wat::core::i64
+   got      <- :wat::core::i64])
+
+;; A decoded public key's byte length did not match the algorithm's expectation.
+(:wat::core::defrecord :wat::kernel::InvalidPubKeyLength
+  [algo     <- :wat::core::String
+   expected <- :wat::core::i64
+   got      <- :wat::core::i64])
+
+;; A decoded public key's bytes do not form a valid key for the algorithm.
+(:wat::core::defrecord :wat::kernel::InvalidPubKey
+  [algo   <- :wat::core::String
+   reason <- :wat::core::String])
+
+;; A signature verification check failed (the bytes don't verify against the key).
+(:wat::core::defrecord :wat::kernel::SignatureMismatch
+  [algo <- :wat::core::String])
+
 ;; ─── Arc 296: :wat::kernel::StartupError — RETIRED (excursus 003 strike A, F7) ───
 ;;
 ;; The `{message}` defstruct that used to live here (mirroring `register_builtin_types`,
