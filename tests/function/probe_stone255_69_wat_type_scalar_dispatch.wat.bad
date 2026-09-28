@@ -1,0 +1,7 @@
+;; STONE 255.69 — a `wat.type/` head naming NO registered type must still
+;; refuse, even after `constructor_head_key`'s generic redirect (255.69's own
+;; fix must not widen acceptance beyond the checker's `is_known_type` door).
+;; `Nope` is declared nowhere, so this is an UnresolvedReference at check
+;; time — the same refusal the un-generalized code gave, unchanged.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println (:wat::core::str (wat.type/Nope 1))))

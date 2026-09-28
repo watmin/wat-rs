@@ -135,24 +135,35 @@ pub(crate) fn parametric_heads_unify(h1: &str, h2: &str) -> bool {
     a == b || crate::edn::render::type_denotation(&a) == crate::edn::render::type_denotation(&b)
 }
 
-/// Dispatch key for a type-constructor head. `wat.type/Vector` and
-/// `:wat::core::Vector` are one constructor. Any other head is returned
-/// unchanged, so a match on the old key keeps its old arms.
+/// Dispatch key for a `wat.type/X` head — arc 255 Stone ⑤-E resolves EVERY
+/// member of the 24-name closed set (`WAT_TYPE_HARD_PRIMITIVES`) to a
+/// `:wat::type::X` keyword uniformly, at check time, whether `X` names a
+/// container (`Vector`) or a scalar (`u8`, `char`). Runtime dispatch used to
+/// answer only for the seven container names (a hand-listed match arm) —
+/// `wat.type/u8`/`wat.type/char` type-checked but died `UnknownFunction` at
+/// run time, since `:wat::type::u8` was never rewritten to the registered
+/// `:wat::core::u8` intrinsic. STONE 255.69 — generalized: a type constructs
+/// its own values, through the SAME door (`canonical_type_key`), for every
+/// hard primitive the checker already accepts here, not a list of names.
+///
+/// The registry-membership guard is what makes this safe to generalize: a
+/// hard primitive with no registered `:wat::core::…` intrinsic (there is no
+/// constructor FUNCTION for `nil`/`bool`/`Never`/… — they are literals, not
+/// callables) must fall through to `head` UNCHANGED, so the caller's
+/// existing dispatch chain still names the ORIGINAL spelling in its
+/// `UnknownFunction` diagnostic rather than a denoted key nothing backs.
 pub(crate) fn constructor_head_key(head: &str) -> std::borrow::Cow<'_, str> {
-    // K1 (AMEND-STONE-255.67) — the same door every other type-entry site now
-    // uses. All seven container names below are members of the 24-name closed
-    // set, so `canonical_type_key` denotes them identically to the old blind
-    // `type_denotation`; named here for the K1 paper trail, not a behavior change.
+    // K1 (AMEND-STONE-255.67, generalized 255.69) — the same door every other
+    // type-entry site uses. `denoted == head` for anything `canonical_type_key`
+    // does not touch (not a `wat.type/`/`:wat::type::` spelling, or a
+    // `:wat::type::` name outside the closed set) — the registry check below is
+    // then moot (a no-op lookup on the unchanged head is harmless but the `!=`
+    // guard skips it, since a redirect to the SAME string is never observable).
     let denoted = canonical_type_key(head);
-    match denoted.as_str() {
-        ":wat::core::Vector"
-        | ":wat::core::HashMap"
-        | ":wat::core::HashSet"
-        | ":wat::core::PersistentVector"
-        | ":wat::core::PersistentMap"
-        | ":wat::core::List"
-        | ":wat::core::Tuple" => std::borrow::Cow::Owned(denoted),
-        _ => std::borrow::Cow::Borrowed(head),
+    if denoted != head && crate::intrinsic::registry().contains(&denoted) {
+        std::borrow::Cow::Owned(denoted)
+    } else {
+        std::borrow::Cow::Borrowed(head)
     }
 }
 
