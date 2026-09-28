@@ -593,3 +593,21 @@ slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
 [[profile.slow.overrides]]
 filter = 'test(=probe_ex003_hashability_looks_inside::no_rust_panic_face_reaches_the_user)'
 slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+# ─── probe_rational_C5c_nan_unordered::c5c_nan_is_unordered_gate (excursus 003, 2026-09-28) ───
+# 23 rows, each a FULL fresh stdlib freeze (`call_beside_value` → `startup_beside`). 27.5–27.7s before
+# sweep S1, 28.6–28.8s after S1, killed at 30.03s with S2. Same measured cause as the hashability
+# probe above: each declared stdlib record adds per-freeze cost; the whole floor grew 1103s → 1205s
+# (+9%) across S1+S2. The per-freeze cost is surfaced for measurement before S3; this override does
+# not dispose of it. warn 60s, kill 120s; one per profile.
+[[profile.default.overrides]]
+filter = 'test(=probe_rational_C5c_nan_unordered::c5c_nan_is_unordered_gate)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+[[profile.ci.overrides]]
+filter = 'test(=probe_rational_C5c_nan_unordered::c5c_nan_is_unordered_gate)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+[[profile.slow.overrides]]
+filter = 'test(=probe_rational_C5c_nan_unordered::c5c_nan_is_unordered_gate)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
