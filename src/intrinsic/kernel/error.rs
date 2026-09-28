@@ -1,35 +1,41 @@
 //! `:wat::kernel::` error-surface intrinsics — arc 255 home #6
-//! (255.1c-kernel-error). Four verbs over the two error types —
+//! (255.1c-kernel-error). Six verbs over the two error types —
 //! `LociDiedError/message`, `Failure/message`, `Failure/location`,
-//! `LociDiedError/to-failure` — one *subject* (the surface of
-//! `LociDiedError` and `Failure`), but **NOT one `@Category`**.
+//! `Failure/actual`, `Failure/expected`, `LociDiedError/to-failure` — one
+//! *subject* (the surface of `LociDiedError` and `Failure`), but **NOT one
+//! `@Category`**.
 //!
 //! ## ★ A HOME is a code-organization unit; a CATEGORY is a per-row label
 //!
 //! Home #4 ruled the carve boundary is the CATEGORY, never the decomposition
 //! table's row — a mis-drawn table row must not split a category. That was
 //! never "a module must be single-category," and this home is the first
-//! proof: three rows are `@Category Projection` (each returns a component that
-//! was already there — `wat/runtime-meta.wat`'s `:Projection` prose names all
-//! three outright), and the fourth, `LociDiedError/to-failure`, is
-//! `@Category Transform` — it matches `ev.variant_name`
-//! (`runtime.rs:27812`) and CONSTRUCTS a `Failure`, a **different-kind**
-//! value, not a part that was already there. See
+//! proof: five rows are `@Category Projection` (each returns a component that
+//! was already there — `wat/runtime-meta.wat`'s `:Projection` prose names the
+//! original three outright; `Failure/actual` / `Failure/expected`, added at
+//! excursus 003 strike A, are the same shape one hop further), and the sixth,
+//! `LociDiedError/to-failure`, is `@Category Transform` — it matches
+//! `ev.variant_name` (`runtime.rs:27812`) and CONSTRUCTS a `Failure`, a
+//! **different-kind** value, not a part that was already there. See
 //! `DESIGN-STONE-255.1c-kernel-error.md` for the full derivation.
 //!
-//! ## ★ The `Failure/*` pair projects one hop deeper
+//! ## ★ The `Failure/*` family projects one hop deeper
 //!
 //! Arc 278's string-wrap annihilation removed `Failure`'s stored
 //! `message`/`location` fields — `Failure` now carries the raised
 //! `:wat::core::Error` structurally in a mandatory `error` field.
 //! `Failure/message` / `Failure/location` read `error.message` /
-//! `error.location` (`runtime.rs:6757`'s dispatch comment). Still
-//! `@Category Projection` — a part that already existed — through a hop the
-//! rider derives from the body, not the name.
+//! `error.location` (`runtime.rs:6757`'s dispatch comment). Excursus 003
+//! strike A (F2) removed `actual`/`expected` too — `Failure/actual` /
+//! `Failure/expected` now read `error.actual` / `error.expected`, present only
+//! when `error` is an `:wat::runtime::AssertionFailed` record (`None`
+//! otherwise). Every one of the four is still `@Category Projection` — a part
+//! that already existed — through a hop the rider derives from the body, not
+//! the name.
 //!
 //! ## ★ The bodies do NOT live here
 //!
-//! Every one of the four delegates to the SAME `crate::kernel::error::eval_*`
+//! Every one of the six delegates to the SAME `crate::kernel::error::eval_*`
 //! fn — arc 109 Stone 4a homed the died-error cluster in `src/kernel/error.rs`
 //! (docs/arc/2026/04/109-kill-std/); it previously existed as a literal-match
 //! arm in `runtime.rs`. See `kernel/mod.rs` for the tier-wide "bodies do not
@@ -37,9 +43,9 @@
 //!
 //! ## ★ The gate is LIVE here — unlike home #5
 //!
-//! All four have registered `TypeScheme`s (`check.rs:18101, 18121, 18130,
-//! 18147`), so `doc_arg_ret_types_match_checker_scheme` checks every
-//! `@arg`/`@ret` below against them. `Failure/*` take `:wat::core::Record`
+//! All six have registered `TypeScheme`s in `check.rs`, so
+//! `doc_arg_ret_types_match_checker_scheme` checks every `@arg`/`@ret` below
+//! against them. `Failure/*` take `:wat::core::Record`
 //! in their schemes — NOT a `:wat::kernel::Failure` path (preserving the
 //! prior auto-generated non-generic-record accessor's contract exactly,
 //! `register_aggregate_methods`, arc 293.R2.2). The `@arg` types below match
@@ -141,7 +147,7 @@ pub(crate) fn eval_failure_message(
 /// @Category      Projection
 /// @arg     f :wat::core::Record the Failure to read a location from
 /// @ret     (:wat::core::Option :- [:wat::core::Span]) `Some` of `f`'s `error.location`
-/// @example (:wat::kernel::Failure/location (:wat::kernel::Failure :error (:wat::core::Fault :message "boom" :location (:wat::core::Span :file "test" :line 1 :col 1 :end :wat::core::Option::None) :causes (:wat::core::Vector :- [:wat::core::Error])) :frames (:wat::core::Vector :- [:wat::kernel::Frame]) :actual :wat::core::Option::None :expected :wat::core::Option::None)) #=> (:wat::core::Option::Some {:value (:wat::core::Span :file "test" :line 1 :col 1 :end :wat::core::Option::None)})
+/// @example (:wat::kernel::Failure/location (:wat::kernel::Failure :error (:wat::core::Fault :message "boom" :location (:wat::core::Span :file "test" :line 1 :col 1 :end :wat::core::Option::None) :causes (:wat::core::Vector :- [:wat::core::Error])) :frames (:wat::core::Vector :- [:wat::kernel::Frame]) :frames-elided 0)) #=> (:wat::core::Option::Some {:value (:wat::core::Span :file "test" :line 1 :col 1 :end :wat::core::Option::None)})
 // Deciding line for `@Category Projection`: `runtime.rs:27452`
 // `eval_failure_location` reads `record_field_by_name(&error, "location", …)`
 // off the `error` field already held by `f` — same one-hop-deeper
@@ -157,6 +163,61 @@ pub(crate) fn eval_failure_location(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     crate::kernel::error::eval_failure_location(std::slice::from_ref(f), env, sym, list_span)
+}
+
+/// `(:wat::kernel::Failure/actual f)` → `(:wat::core::Option :- [wat::core::String])`.
+/// Excursus 003 strike A (F2) — `actual`/`expected` LEFT `Failure`'s stored fields
+/// (they meant something only for an assertion, and duplicated
+/// `:wat::runtime::AssertionFailed`'s own fields). DERIVED accessor: reads
+/// `error.actual` when `f`'s `error` is an `AssertionFailed` record, `None` otherwise.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Unreviewed
+/// @Category      Projection
+/// @arg     f :wat::core::Record the Failure to read an actual-value from
+/// @ret     (:wat::core::Option :- [:wat::core::String]) `Some` of `f`'s `error.actual` when `error` is an AssertionFailed, `None` otherwise
+/// @example (:wat::kernel::Failure/actual (:wat::kernel::message-only-failure "boom")) #=> :wat::core::Option::None
+// Deciding line for `@Category Projection`: reads a component (`actual`) that was
+// already there on `f.error` when it is an `AssertionFailed` — same one-hop-deeper
+// projection as `Failure/message` / `Failure/location` above; `record_field_by_name`
+// answering `None` for every other error class is the "absent field" case, not a
+// second kind of value being built.
+//
+// `@arg f :wat::core::Record`, NOT `:wat::kernel::Failure` — matches the registered
+// scheme (`check.rs`) exactly, mirroring `Failure/message` / `Failure/location`.
+#[wat_intrinsic(":wat::kernel::Failure/actual")]
+pub(crate) fn eval_failure_actual(
+    f: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::kernel::error::eval_failure_actual(std::slice::from_ref(f), env, sym, list_span)
+}
+
+/// `(:wat::kernel::Failure/expected f)` → `(:wat::core::Option :- [wat::core::String])`.
+/// The `expected` sibling of [`eval_failure_actual`]; same derivation, same fallback.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Unreviewed
+/// @Category      Projection
+/// @arg     f :wat::core::Record the Failure to read an expected-value from
+/// @ret     (:wat::core::Option :- [:wat::core::String]) `Some` of `f`'s `error.expected` when `error` is an AssertionFailed, `None` otherwise
+/// @example (:wat::kernel::Failure/expected (:wat::kernel::message-only-failure "boom")) #=> :wat::core::Option::None
+#[wat_intrinsic(":wat::kernel::Failure/expected")]
+pub(crate) fn eval_failure_expected(
+    f: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::kernel::error::eval_failure_expected(std::slice::from_ref(f), env, sym, list_span)
 }
 
 /// `(:wat::kernel::LociDiedError/to-failure err)` → `:wat::kernel::Failure`.

@@ -232,6 +232,35 @@ fn empty_causes() -> Value {
     Value::Vec(Arc::new(Vec::new()))
 }
 
+/// Excursus 003 strike A (F2) — build a bare `:wat::runtime::AssertionFailed`
+/// `Value::Aggregate(Record)` directly from an assertion's own message/location/
+/// actual/expected, NOT from a `RuntimeErrorKind` (the `AssertionFailed` arm of
+/// `to_record` above builds one from that path; this is the panic path's own
+/// builder). This is now the natural home for an unhandled `assertion-failed!` /
+/// `option`/`result::expect` panic's `:wat::kernel::Failure.error`: "an assertion is
+/// the same concept whichever path raised it" (BRIEF-shape-strike-A-one-death-
+/// shape.md) — the record already carries `actual`/`expected` as its own fields, so
+/// `Failure` no longer needs to duplicate them. `causes` is empty (an assertion names
+/// no nested cause of its own).
+pub(crate) fn assertion_failed_value(
+    message: String,
+    location: crate::span::Span,
+    actual: Option<String>,
+    expected: Option<String>,
+) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::runtime::AssertionFailed".to_string(),
+        assertion_failed_names(),
+        Arc::new(vec![
+            Value::String(Arc::new(message)),
+            crate::runtime::value_from_span(location),
+            empty_causes(),
+            Value::Option(Arc::new(actual.map(|s| Value::String(Arc::new(s))))),
+            Value::Option(Arc::new(expected.map(|s| Value::String(Arc::new(s))))),
+        ]),
+    )))
+}
+
 /// A nested ERROR (rule 2 of the brief this file implements) becomes ONE
 /// `:wat::core::Fault` in `causes` — its `Display` text as the Fault's
 /// message, and the OUTER `RuntimeError`'s own raising-site span as the

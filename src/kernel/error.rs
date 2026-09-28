@@ -211,6 +211,47 @@ pub(crate) fn eval_failure_location(
     }
 }
 
+/// `(:wat::kernel::Failure/actual f) -> (:Option :- [:wat::core::String])` — excursus 003
+/// strike A (F2). `actual`/`expected` LEFT `Failure`'s own stored fields (they meant
+/// something only for an assertion, and duplicated `:wat::runtime::AssertionFailed`'s own
+/// fields); this is now a DERIVED accessor, the same shape `Failure/message` /
+/// `Failure/location` already use. Reads `error.actual` when `error` is an
+/// `AssertionFailed` record (it has that field); returns `:wat::core::Option::None` for
+/// every other error kind (a `Fault`, a `DivisionByZero`, …, none of which carry it) —
+/// `record_field_by_name` already answers `None` when the named field is absent on the
+/// error's own registered type, so no per-class branch is needed here.
+pub(crate) fn eval_failure_actual(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::Failure/actual";
+    let error = failure_error_field(OP, args, env, sym, list_span)?;
+    let types = sym.types().map(|a| a.as_ref());
+    match record_field_by_name(&error, "actual", types) {
+        Some(v @ Value::Option(_)) => Ok(v),
+        _ => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::kernel::Failure/expected f) -> (:Option :- [:wat::core::String])` — the
+/// `expected` sibling of [`eval_failure_actual`]; same derivation, same fallback.
+pub(crate) fn eval_failure_expected(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::Failure/expected";
+    let error = failure_error_field(OP, args, env, sym, list_span)?;
+    let types = sym.types().map(|a| a.as_ref());
+    match record_field_by_name(&error, "expected", types) {
+        Some(v @ Value::Option(_)) => Ok(v),
+        _ => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
 /// Shared arity-1 eval + `error`-field extraction for the derived `Failure/*`
 /// accessors. Evaluates the single Failure arg and returns its `error` field
 /// (the raised `:wat::core::Error`).
@@ -266,12 +307,26 @@ pub(crate) fn single_died_chain(died: Value) -> Value {
 /// Fault rides in `Panic.failure` — instead of falling to the opaque string-wrap
 /// (which resurrected the arc-278-annihilated string-wrap for a structured
 /// `AssertionPayload`). Thread tier now loci-agnostic-equal to the process tier.
+///
+/// Excursus 003 strike A — cascade-aware: when `assertion` carries an `upstream_chain`
+/// (arc 113 slice 2, `result::expect` re-panicking on an Err that already carried a
+/// death chain), this thread's death is conj'd onto its FRONT (`conj_died_chain`)
+/// instead of always emitting a singleton chain. A `None` upstream is unaffected —
+/// `conj_died_chain(fresh, None)` is exactly `single_died_chain(fresh)` — so every
+/// existing (non-cascading) caller's output is byte-identical to before. Now also the
+/// ONE renderer `wat::panic_hook`'s hook calls for every `AssertionPayload` panic
+/// (the main-thread / uncaught case), so a cascaded assertion reaches stderr with its
+/// whole chain regardless of which locus caught it.
 pub(crate) fn thread_crash_panic_edn(
     message: String,
     assertion: Option<crate::assertion::AssertionPayload>,
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
-    let chain = single_died_chain(thread_died_error_panic(message, assertion));
+    let upstream = assertion.as_ref().and_then(|p| p.upstream_chain.clone());
+    let chain = crate::process::died::conj_died_chain_value(
+        thread_died_error_panic(message, assertion),
+        upstream,
+    );
     crate::edn::render::value_to_edn_string_lossy(&chain, types)
 }
 
@@ -290,8 +345,8 @@ pub(crate) fn thread_crash_runtime_edn(
 
 /// Excursus 003 step 3b — derive the human headline from a failure-carrying
 /// `LociDiedError` variant's ONE `:wat::kernel::Failure` payload: `failure.error.message`.
-/// Every one of the six failure variants (`Panic` / `RuntimeError` / `StartupError` /
-/// `EntryFormFailure` / `MainSignature` / `BadReturn`) now shares this ONE shape — no
+/// Every one of the failure-carrying variants (`Panic` / `RuntimeError` / `StartupError` /
+/// `MainSignature`) now shares this ONE shape — no
 /// per-variant String-vs-structured-Error branching left to do (that was the whole
 /// defect this step cures: the field used to be a bare `String` holding the error's
 /// OWN serialized EDN for five of the six, and a structured `:wat::core::Error` for
@@ -321,8 +376,8 @@ fn failure_payload_message(
 /// message without discriminating variants.
 ///
 /// Field 0 is the `:wat::kernel::Failure` payload for `Panic` / `RuntimeError` /
-/// `StartupError` / `EntryFormFailure` / `MainSignature` / `BadReturn` (excursus 003
-/// step 3b); the derived message is `failure.error.message`.
+/// `StartupError` / `MainSignature` (excursus 003 step 3b; `EntryFormFailure` /
+/// `BadReturn` retired at strike A); the derived message is `failure.error.message`.
 pub(crate) fn eval_died_error_message(
     args: &[WatAST],
     env: &Environment,
@@ -354,9 +409,7 @@ pub(crate) fn eval_died_error_message(
                 Ok(LociDiedError::Panic)
                 | Ok(LociDiedError::RuntimeError)
                 | Ok(LociDiedError::StartupError)
-                | Ok(LociDiedError::EntryFormFailure)
-                | Ok(LociDiedError::MainSignature)
-                | Ok(LociDiedError::BadReturn) => {
+                | Ok(LociDiedError::MainSignature) => {
                     match ev.fields.first().and_then(|f| failure_payload_message(f, types)) {
                         Some(s) => Ok(Value::String(s)),
                         None => Err(RuntimeError::new(
@@ -444,7 +497,7 @@ pub(crate) fn eval_died_error_to_failure(
         Value::Enum(ev) if ev.type_path == LociDiedError::WAT_TYPE_PATH => {
             match ev.variant_name.parse::<LociDiedError>() {
                 // Excursus 003 step 3b — field 0 IS the `:wat::kernel::Failure` now,
-                // for every one of the six failure variants (Panic included: its
+                // for every one of the failure-carrying variants (Panic included: its
                 // separate `message` field and `Option<Failure>` field 1 are gone,
                 // collapsed into this one mandatory `Failure`). `to-failure` is just
                 // "hand back what is already there" — no more message-only synthesis
@@ -452,9 +505,7 @@ pub(crate) fn eval_died_error_to_failure(
                 Ok(LociDiedError::Panic)
                 | Ok(LociDiedError::RuntimeError)
                 | Ok(LociDiedError::StartupError)
-                | Ok(LociDiedError::EntryFormFailure)
-                | Ok(LociDiedError::MainSignature)
-                | Ok(LociDiedError::BadReturn) => match ev.fields.first() {
+                | Ok(LociDiedError::MainSignature) => match ev.fields.first() {
                     Some(failure @ Value::Aggregate(_)) => Ok(failure.clone()),
                     _ => Err(RuntimeError::new(
                         args[0].span().clone(),

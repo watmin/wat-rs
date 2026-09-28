@@ -39,12 +39,10 @@
             (:g2::Result :cause cause :message "WRONG:Panic")]
           [:wat::kernel::LociDiedError.StartupError {:failure _sf}
             (:g2::Result :cause cause :message "WRONG:StartupError")]
-          [:wat::kernel::LociDiedError.EntryFormFailure {:failure _ef}
-            (:g2::Result :cause cause :message "WRONG:EntryFormFailure")]
+          
           [:wat::kernel::LociDiedError.MainSignature {:failure _mf}
             (:g2::Result :cause cause :message "WRONG:MainSignature")]
-          [:wat::kernel::LociDiedError.BadReturn {:failure _bf}
-            (:g2::Result :cause cause :message "WRONG:BadReturn")]
+          
           [:wat::kernel::LociDiedError.Disconnected {}
             (:g2::Result :cause cause :message "WRONG:Disconnected")]
           [:wat::kernel::LociDiedError.Stopped {}

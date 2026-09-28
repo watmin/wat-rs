@@ -14,20 +14,22 @@
 ;; categorically superior to positional for hand-written source). The PROVEN form is the KWARGS
 ;; ctor below — same bare head `:wat::kernel::Failure`, not struct-new, not a Value-erasure, not
 ;; the generated-code-only `Failure'` prime. Field names grounded exact from the builtin's
-;; registration (src/types.rs): error/frames/actual/expected (arc 278 the string-wrap
-;; annihilation — the stored message/location fields were REMOVED; Failure carries the raised
-;; `:wat::core::Error` STRUCTURALLY in a mandatory `error` field, and `Failure/message` is now a
-;; DERIVED accessor reading `error.message`). Order/types cross-checked against `message_only_failure`.
+;; registration (src/types.rs): error/frames (arc 278 the string-wrap annihilation — the
+;; stored message/location fields were REMOVED; Failure carries the raised `:wat::core::Error`
+;; STRUCTURALLY in a mandatory `error` field, and `Failure/message` is now a DERIVED accessor
+;; reading `error.message`). Order/types cross-checked against `message_only_failure`.
 ;;
-;; Excursus 003 step 3b — `Failure` gained a fifth field, `frames-elided <- :wat::core::i64`
-;; (step 2's wat-call-stack cap, recorded on the `Failure` that carries the capped frames);
-;; 0 here, honestly, since this probe captures none.
+;; Excursus 003 step 3b — `Failure` gained a third field (at the time, a fifth),
+;; `frames-elided <- :wat::core::i64` (step 2's wat-call-stack cap, recorded on the `Failure`
+;; that carries the capped frames); 0 here, honestly, since this probe captures none.
+;;
+;; Excursus 003 strike A (F2) — `actual`/`expected` LEFT `Failure` entirely (they duplicated
+;; the assertion's own record, `:wat::runtime::AssertionFailed`; this probe was never an
+;; assertion, so it never needed them). `Failure` is `{error frames frames-elided}` now.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [f (:wat::kernel::Failure
          :error (:wat::core::Fault/of "hello")
          :frames (:wat::core::Vector :- [:wat::kernel::Frame])
-         :actual :wat::core::Option.None
-         :expected :wat::core::Option.None
          :frames-elided 0)]
     (:wat::kernel::println (:wat::kernel::Failure/message f))))

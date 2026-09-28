@@ -1,0 +1,10 @@
+# ORACLE for drop-retired-locidiederror-arms — HISTORY, never the tool.
+#
+# before.pre / after.post are the whole of tests/kernel/wat_run_sandboxed.wat, pre- and
+# post-migration: the codemod deletes the one arm matching a retired LociDiedError
+# variant (`:wat::kernel::LociDiedError.BadReturn`), leaving a blank line in its place
+# (drop-deftest-prelude.wat's own precedent — the residual blank line is wat-fmt's job).
+# The change adds no new text (`changed_after` is empty), so only the REMOVED line needs
+# a historical anchor.
+
+history 180a300e1 tests/kernel/wat_run_sandboxed.wat

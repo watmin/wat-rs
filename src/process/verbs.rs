@@ -64,10 +64,10 @@ pub(crate) fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError
 /// error's `error_edn()` floor record (`:message`/`:location`/`:causes` + variant
 /// coordinate fields), a fully-structured, navigable tagged record, NOT a
 /// `to_wire_edn` String (the double-encoded mask this stone kills), wrapped in the
-/// SAME `#wat.kernel/Failure {…}` envelope every other failure variant now carries
-/// (`actual`/`expected` always `#wat.core/Option.None {}` — a startup failure has
-/// no returned/expected VALUE to attribute). `frames`/`frames-elided`: step 3c
-/// ruling (c) — `StartupError::Runtime(re)` DOES have a captured call stack (step
+/// SAME `#wat.kernel/Failure {…}` envelope every other failure variant now carries.
+/// Excursus 003 strike A (F2) — `actual`/`expected` are no longer part of that
+/// envelope at all (they meant something only for an assertion, which a startup
+/// failure never is). `frames`/`frames-elided`: step 3c ruling (c) — `StartupError::Runtime(re)` DOES have a captured call stack (step
 /// 2 snapshotted it at construction), so this Failure carries `re`'s own
 /// `wat_frames()` + the one Rust frame, and its real `frames_elided()`; every OTHER
 /// `StartupError` cause fires before any wat call stack exists, so those stay
@@ -118,14 +118,6 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
                 frames_val,
             ),
             (
-                wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("actual")),
-                crate::edn::contract::edn_option_none(),
-            ),
-            (
-                wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("expected")),
-                crate::edn::contract::edn_option_none(),
-            ),
-            (
                 wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("frames-elided")),
                 wat_edn::OwnedValue::Integer(frames_elided_val),
             ),
@@ -165,8 +157,7 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
 // One declaration; all child branches call this.
 
 /// Encode `chain` (a `Vector<LociDiedError>`) as a BARE self-describing EDN line
-/// and write it to stderr via `emit_panic_envelope`. Shared tail of
-/// `emit_structured_exit` and `emit_panics_to_stderr` (Stone 6.w L3 dedup).
+/// and write it to stderr via `emit_panic_envelope`. `emit_structured_exit`'s tail.
 ///
 /// Arc 278 the LociDiedError stone — the `#wat.kernel/ProcessPanics` wrapper tag
 /// is ANNIHILATED: the chain crosses as a bare `[#wat.kernel.LociDiedError/… …]`
@@ -200,14 +191,21 @@ pub(crate) fn emit_structured_exit(
     emit_chain_envelope(chain, types);
 }
 
-// ─── emit_panics_to_stderr ───────────────────────────────────────────────────
-
-/// Arc 113 slice 3 / Stone 6.w merge — emit the cascade chain as a tagged
-/// EDN line on stderr just before `_exit`. Stderr is the diagnostic
-/// channel by convention; the wat-side sandbox driver scans for the marker
-/// and hands the parsed chain to `failure-from-process-died`. Used by ALL
-/// fork/spawn child exit paths (spawn-process). libc::write is fork-safe;
-/// no atexit handler is involved.
+/// Arc 113 slice 3 / Stone 6.w merge — emit the cascade chain as a tagged EDN line on
+/// stderr just before `_exit`. Used by `finish_forked_child`'s `AssertionPayload` arm
+/// ONLY — that function's one caller (`run_user_main_in_child`, called by
+/// `run_forms_as_server_child`, called by `distribution::spawned_runtime::serve()`)
+/// ALWAYS runs under `crate::process::child::install_silent_panic_hook()` (installed
+/// first thing in `serve()`, "fd 2 is the parent's err CHANNEL, and `emit_structured_exit`
+/// is the sole author of what crosses it" — that fn's own doc), which REPLACES
+/// `wat::panic_hook`'s hook with a no-op for this whole call tree. So unlike
+/// `finish_in_process` (the top-level `wat <file>` twin, where the hook stays live and
+/// would double-print if this ALSO fired — excursus 003 strike A, F1's actual defect),
+/// this fn is NOT redundant with the hook: for a fork/exec child it is the ONLY writer,
+/// exactly as `serve()`'s own doc says. Measured, not assumed: removing this call here
+/// (as its sibling arm in `finish_in_process` correctly has) turned a real death into a
+/// silent `RecvOutcome::Closed` at the parent — the hook never fires to compensate,
+/// because THIS process's hook is the silent one.
 fn emit_panics_to_stderr(
     world: &crate::freeze::FrozenWorld,
     payload: &crate::assertion::AssertionPayload,
@@ -221,6 +219,25 @@ fn emit_panics_to_stderr(
     emit_chain_envelope(chain, Some(world.types()));
 }
 
+/// Excursus 003 strike A (F7) — `:user::main` returning non-nil is an internal-invariant
+/// break, not a reachable user-facing outcome: `validate_user_main_signature` checks the
+/// DECLARED signature is `[] -> :wat::core::nil` at freeze, and the type checker then
+/// proves the body's return type matches its declaration — so a body that could return
+/// something else is refused before the program ever runs
+/// (`tests/diagnostics/probe_excursus003_g3_one_shape_per_variant.rs` measures no
+/// constructible counter-example: every attempted non-nil `:user::main` body is a
+/// check-time `TypeMismatch`). This arm is therefore a GUARD kept for the case that
+/// invariant breaks anyway (a checker bug, an unsafe internal shortcut) — reaching it
+/// means an internal invariant broke, which is a panic's meaning, so it routes to
+/// `Panic` (a `Fault` naming the offending type) rather than the retired `BadReturn`
+/// death shape, which had no producer to keep alive for (F7 RULING).
+fn bad_return_panic_value(other: &Value) -> Value {
+    crate::process::died::process_died_error_panic_value(
+        format!(":user::main returned {}, not nil", other.type_name()),
+        None,
+    )
+}
+
 // ─── finish_forked_child — shared exit-protocol tail ────────────────────────
 
 /// Shared exit-protocol tail for all fork/spawn child branches (Stone 6.w
@@ -229,7 +246,8 @@ fn emit_panics_to_stderr(
 ///
 /// Maps `outcome` to the canonical exit-code + envelope convention:
 /// - `Ok(Ok(Unit))` → EXIT_SUCCESS
-/// - `Ok(Ok(other))` → structured BadReturn envelope → EXIT_RUNTIME_ERROR
+/// - `Ok(Ok(other))` → structured Panic envelope (excursus 003 strike A — routed here,
+///   not a dedicated BadReturn shape; see this arm's own comment) → EXIT_RUNTIME_ERROR
 /// - `Ok(Err(runtime_err))` → structured EDN RuntimeError envelope → EXIT_RUNTIME_ERROR
 /// - `Err(panic_payload)` → AssertionPayload chain or plain-string Panic → EXIT_PANIC
 fn finish_forked_child(
@@ -246,18 +264,8 @@ fn finish_forked_child(
         // in exit-code arithmetic.
         Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Ok(other)) => {
-            // Arc 296 — structured BadReturn: the type name is a genuinely flat
-            // message, carried through the ToEdn-generic boundary as a
-            // FlatMessage (the string IS the datum — no structure to lose).
-            emit_structured_exit(
-                Some(world),
-                crate::process::died::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
-                    tag: "BadReturnType",
-                    key: "got-type",
-                    message: other.type_name(),
-                    span: crate::rust_caller_span!(),
-                }),
-            );
+            // Excursus 003 strike A (F7) — routed to Panic; see `bad_return_panic_value`'s doc.
+            emit_structured_exit(Some(world), bad_return_panic_value(&other));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Ok(Err(runtime_err)) => {
@@ -272,9 +280,12 @@ fn finish_forked_child(
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Err(panic_payload) => {
-            // Arc 170 slice 1i — all panic paths emit structured EDN.
-            // AssertionPayload carries the full cascade chain + Failure;
-            // plain panics (bare String / &str) emit a message-only Panic.
+            // Excursus 003 strike A (F1) — this locus's own panic hook is the SILENT
+            // one (`install_silent_panic_hook`, installed by `spawned_runtime::serve()`
+            // before anything that can panic — see `emit_panics_to_stderr`'s own doc for
+            // the full chain), so THIS is the sole writer for an AssertionPayload panic
+            // here — unlike `finish_in_process`'s matching arm, where the hook stays
+            // live and this call would double-print.
             if let Some(payload) =
                 panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
             {
@@ -297,16 +308,20 @@ fn finish_forked_child(
     }
 }
 
-/// In-process twin of [`finish_forked_child`] — same outcome match, same
-/// structured-EDN emissions, same exit codes, but it RETURNS the code instead
-/// of calling `libc::_exit`.
+/// In-process twin of [`finish_forked_child`] — same outcome match, same exit codes,
+/// but it RETURNS the code instead of calling `libc::_exit`.
 ///
 /// `wat <file>` runs its program in the cli's own process (arc 170 — the fork
 /// that used to wrap it was annihilated once arc 104's reason expired). There
 /// is no child to `_exit`; `run_with_args` maps this code to an `ExitCode`.
-/// The BYTES on fd 2 are identical to the forked path's — the same emitters
-/// are called in the same order — so every black-box cli test that asserts on
-/// stderr keeps passing unchanged.
+/// The BYTES on fd 2 for the `Ok(Ok(other))` / `Ok(Err(runtime_err))` /
+/// plain-panic arms are identical to the forked path's — the same emitters are
+/// called in the same order. The `AssertionPayload` arm is the ONE place the
+/// twins genuinely diverge (excursus 003 strike A, F1): THIS process never
+/// silences `wat::panic_hook`'s hook (only a fork/exec child does, via
+/// `install_silent_panic_hook` — see `emit_panics_to_stderr`'s doc), so the
+/// hook is already the sole writer here, and calling `emit_panics_to_stderr`
+/// too would double-print — exactly the "two death shapes" F1 found.
 pub(crate) fn finish_in_process(
     world: &crate::freeze::FrozenWorld,
     // rune:perspicere(intentional-structure) — mirrors finish_forked_child:
@@ -316,15 +331,8 @@ pub(crate) fn finish_in_process(
     match outcome {
         Ok(Ok(Value::Unit)) => EXIT_SUCCESS,
         Ok(Ok(other)) => {
-            emit_structured_exit(
-                Some(world),
-                crate::process::died::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
-                    tag: "BadReturnType",
-                    key: "got-type",
-                    message: other.type_name(),
-                    span: crate::rust_caller_span!(),
-                }),
-            );
+            // Excursus 003 strike A (F7) — routed to Panic; see `bad_return_panic_value`'s doc.
+            emit_structured_exit(Some(world), bad_return_panic_value(&other));
             EXIT_RUNTIME_ERROR
         }
         Ok(Err(runtime_err)) => {
@@ -335,11 +343,13 @@ pub(crate) fn finish_in_process(
             EXIT_RUNTIME_ERROR
         }
         Err(panic_payload) => {
-            if let Some(payload) =
-                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            // Excursus 003 strike A (F1) — see `finish_forked_child`'s matching arm's
+            // doc: the panic hook already wrote the one canonical chain line for an
+            // AssertionPayload panic; only a plain panic needs an explicit emission here.
+            if panic_payload
+                .downcast_ref::<crate::assertion::AssertionPayload>()
+                .is_none()
             {
-                emit_panics_to_stderr(world, payload);
-            } else {
                 let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
                     s.clone()
                 } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
@@ -529,5 +539,55 @@ fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result
             expected: "(Vector :- [wat::WatAST])",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
         })),
+    }
+}
+
+#[cfg(test)]
+mod ga3_bad_return_tests {
+    use super::*;
+
+    /// GA3 (excursus 003 strike A) — `bad_return_panic_value` (the retired
+    /// `LociDiedError::BadReturn` guard's replacement action, F7) builds a `Panic`
+    /// value naming the offending type, never a bare/fabricated shape.
+    ///
+    /// This is a UNIT test of the pure value-construction helper, not an end-to-end
+    /// drive of the guard's own outer match arm: that arm is measured PROVABLY
+    /// UNREACHABLE from any legal wat program (`validate_user_main_signature` +
+    /// the type checker refuse every non-nil `:user::main` body at `--check` time —
+    /// see `tests/diagnostics/probe_excursus003_g3_one_shape_per_variant.rs`'s own
+    /// measurement, independently re-confirmed this strike). Faking an end-to-end
+    /// test would require bypassing the type checker to hand-construct an illegal
+    /// runtime value, which is exactly the "do not fake a test for it" the brief
+    /// warns against — so this proves the ACTION the guard takes if it is ever
+    /// reached (an internal invariant breaking), not that it can be reached.
+    #[test]
+    fn bad_return_panic_value_names_the_offending_type_as_a_panic() {
+        let value = bad_return_panic_value(&Value::i64(42));
+        let ev = match &value {
+            Value::Enum(ev) => ev,
+            other => panic!("expected a LociDiedError enum value; got {other:?}"),
+        };
+        assert_eq!(ev.type_path, ":wat::kernel::LociDiedError");
+        assert_eq!(
+            ev.variant_name, "Panic",
+            "routes to Panic, not a dedicated BadReturn shape (F7 RULING)"
+        );
+        let failure = match ev.fields.first() {
+            Some(Value::Aggregate(f)) if f.class.as_ref() == "wat::kernel::Failure" => f,
+            other => panic!("expected a Failure record; got {other:?}"),
+        };
+        let error = match failure.fields.first() {
+            Some(Value::Aggregate(e)) => e,
+            other => panic!("expected Failure.error to be a record; got {other:?}"),
+        };
+        let message = match error.fields.first() {
+            Some(Value::String(s)) => s.to_string(),
+            other => panic!("expected error.message to be a String; got {other:?}"),
+        };
+        assert_eq!(
+            message,
+            ":user::main returned wat::core::i64, not nil",
+            "names the offending type by its wat type_name()"
+        );
     }
 }

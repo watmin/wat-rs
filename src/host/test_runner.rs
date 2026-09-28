@@ -689,9 +689,13 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
             ));
         }
     };
-    // Arc 278 the string-wrap annihilation — Failure fields are now
-    // [error, frames, actual, expected]. `error` (:wat::core::Error, canonically
-    // a Fault [message, location, causes]) carries the message + location.
+    // Excursus 003 strike A (F2) — Failure fields are now [error, frames,
+    // frames-elided]. `error` (:wat::core::Error, canonically a Fault [message,
+    // location, causes]) carries the message + location. `actual`/`expected` LEFT
+    // Failure entirely — they now live on `error` itself, ONLY when `error` is a
+    // `:wat::runtime::AssertionFailed` record (the assertion's own fields; every
+    // other error class simply has none, same as `Failure/actual` / `Failure/expected`'s
+    // derivation on the wat side, `src/kernel/error.rs`).
     let error = match fv.fields.first() {
         Some(Value::Aggregate(a)) => Some(a),
         _ => None,
@@ -701,8 +705,15 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
         _ => "<missing message>".to_string(),
     };
     let location = error.and_then(|e| e.fields.get(1)).and_then(failure_location);
-    let actual = fv.fields.get(2).and_then(option_string_field);
-    let expected = fv.fields.get(3).and_then(option_string_field);
+    let assertion_failed = error.filter(|e| e.class.as_ref() == "wat::runtime::AssertionFailed");
+    let actual = assertion_failed
+        .and_then(|e| aggregate_field_by_name(e, "actual"))
+        .as_ref()
+        .and_then(option_string_field);
+    let expected = assertion_failed
+        .and_then(|e| aggregate_field_by_name(e, "expected"))
+        .as_ref()
+        .and_then(option_string_field);
 
     // Discriminate AssertionFailed from generic Panic by whether
     // actual/expected are populated — arc 064's `assert-eq` pathway
@@ -975,6 +986,16 @@ fn failure_frames_vec(v: &Value) -> Option<Vec<String>> {
     }
 }
 
+/// Read a field off a record `Value::Aggregate` by name, using the aggregate's OWN
+/// self-carried `names` (never a `TypeEnv` lookup — this module has none in scope;
+/// `AggregateValue::names` is "carried, never looked up", arc 296 G). Excursus 003
+/// strike A (F2) — backs `failure_to_edn`'s `actual`/`expected` derivation off the
+/// `error` field when it is an `:wat::runtime::AssertionFailed` record.
+fn aggregate_field_by_name(agg: &crate::value::value::AggregateValue, name: &str) -> Option<Value> {
+    let idx = agg.names.iter().position(|n| n == name)?;
+    agg.fields.get(idx).cloned()
+}
+
 fn option_string_field(v: &Value) -> Option<String> {
     match v {
         Value::Option(opt) => match &**opt {
@@ -1032,49 +1053,54 @@ mod arc116_diagnostic_tests {
 
     /// Build a synthetic :wat::kernel::Failure Value mimicking the
     /// shape arc 064 produces from an assert-eq.
+    ///
+    /// Excursus 003 strike A (F2) — `Failure` is `{error frames frames-elided}`;
+    /// `actual`/`expected` LEFT it and now live on the assertion's OWN error record
+    /// (`:wat::runtime::AssertionFailed`), never on `Failure` itself. This helper
+    /// mirrors `failure_value_from_assertion_payload`'s own two-case split: when the
+    /// caller supplies an `actual`/`expected` (an assertion), `error` is an
+    /// `AssertionFailed`; otherwise (a plain panic) it stays a bare `:wat::core::Fault`.
     fn make_failure(
         message: &str,
         location: Option<(&str, i64, i64)>,
         actual: Option<&str>,
         expected: Option<&str>,
     ) -> Value {
-        // Arc 278 the string-wrap annihilation — the location + message live on the
-        // Failure's mandatory `error` (:wat::core::Fault [message, location, causes]).
-        // Fault's location is a bare (non-Option) Span; synthesize a `<runtime>`
-        // Span when the caller supplies none. Excursus 003 D1 — was the narrower
-        // three-field "a location" record (no `end`); this helper's own `end` is
-        // always `None` (it never had one to carry).
         let (loc_file, loc_line, loc_col) = location.unwrap_or(("<runtime>", 0, 0));
-        let location_value = Value::Aggregate(Arc::new(
-            AggregateValue::record("wat::core::Span".into(), crate::runtime::span_names(), Arc::new(vec![
-                Value::String(Arc::new(loc_file.to_string())),
-                Value::i64(loc_line),
-                Value::i64(loc_col),
-                Value::Option(Arc::new(None)),
-            ])),
-        ));
-        let error_field = Value::Aggregate(Arc::new(
-            AggregateValue::record("wat::core::Fault".into(), crate::runtime::fault_names(), Arc::new(vec![
-                Value::String(Arc::new(message.to_string())),
-                location_value,
-                Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
-            ])),
-        ));
-        let actual_field = match actual {
-            Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s.to_string()))))),
-            None => Value::Option(Arc::new(None)),
+        let error_field = if actual.is_some() || expected.is_some() {
+            crate::value::runtime_records::assertion_failed_value(
+                message.to_string(),
+                crate::span::Span::new(Arc::new(loc_file.to_string()), loc_line, loc_col),
+                actual.map(str::to_string),
+                expected.map(str::to_string),
+            )
+        } else {
+            // Fault's location is a bare (non-Option) Span; synthesize a `<runtime>`
+            // Span when the caller supplies none. Excursus 003 D1 — was the narrower
+            // three-field "a location" record (no `end`); this helper's own `end` is
+            // always `None` (it never had one to carry).
+            let location_value = Value::Aggregate(Arc::new(
+                AggregateValue::record("wat::core::Span".into(), crate::runtime::span_names(), Arc::new(vec![
+                    Value::String(Arc::new(loc_file.to_string())),
+                    Value::i64(loc_line),
+                    Value::i64(loc_col),
+                    Value::Option(Arc::new(None)),
+                ])),
+            ));
+            Value::Aggregate(Arc::new(
+                AggregateValue::record("wat::core::Fault".into(), crate::runtime::fault_names(), Arc::new(vec![
+                    Value::String(Arc::new(message.to_string())),
+                    location_value,
+                    Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
+                ])),
+            ))
         };
-        let expected_field = match expected {
-            Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s.to_string()))))),
-            None => Value::Option(Arc::new(None)),
-        };
-        // Arc 293.W.2b — Failure is now Nature::Record (pure EDN data)
-        // Arc 278 — fields [error, frames, actual, expected].
+        // Excursus 003 strike A — Failure is now `{error frames frames-elided}`, three
+        // fields (was `[error, frames, actual, expected]` pre-strike-A).
         Value::Aggregate(Arc::new(AggregateValue::record("wat::kernel::Failure".into(), crate::runtime::failure_names(), Arc::new(vec![
             error_field,
             Value::Vec(Arc::new(Vec::new())), // no frames
-            actual_field,
-            expected_field,
+            Value::i64(0),                    // frames-elided
         ]))))
     }
 

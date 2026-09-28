@@ -93,10 +93,11 @@ fn assert_failure_error_is_a_record(fn_name: &str, cause: &Value, variant: &str)
 fn panic_carries_a_record_error() {
     let (cause, message) = g3_report(":g3::panic-report");
     let class = assert_failure_error_is_a_record(":g3::panic-report", &cause, "Panic");
-    // An AssertionPayload panic's Failure builder wraps the assertion message as a
-    // `:wat::core::Fault` (item 2 of the brief: "with an AssertionPayload, use the existing
-    // Failure builder").
-    assert_eq!(class, "wat::core::Fault", "an assertion-failed! panic's error record class");
+    // Excursus 003 strike A (F2) — an AssertionPayload panic's `Failure.error` is now
+    // its OWN record, `:wat::runtime::AssertionFailed` (carrying `actual`/`expected`
+    // as its own fields), not a generic `:wat::core::Fault`: "an assertion is the same
+    // concept whichever path raised it" (BRIEF-shape-strike-A-one-death-shape.md).
+    assert_eq!(class, "wat::runtime::AssertionFailed", "an assertion-failed! panic's error record class");
     assert_eq!(message, "g3-panic-sentinel", "LociDiedError/message must be the assertion text");
 }
 

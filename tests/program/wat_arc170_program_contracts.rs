@@ -291,8 +291,9 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
     // Arc 278 the string-wrap annihilation — Failure.fields[0] is the mandatory `error`
-    // (Fault); its fields[0] is the message String. Must carry the structured assert-eq
-    // diagnostic, read STRUCTURALLY off the surfaced Panic — no string re-parse.
+    // (an assert-eq's own :wat::runtime::AssertionFailed, excursus 003 strike A F2); its
+    // fields[0] is the message String. Must carry the structured assert-eq diagnostic,
+    // read STRUCTURALLY off the surfaced Panic — no string re-parse.
     let message = match &failure_struct.fields[0] {
         wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
             wat::runtime::Value::String(s) => s.to_string(),
@@ -478,10 +479,10 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 
-    // Failure.message (arc 278 — fields[0] is `error` (Fault); its fields[0] is the message
-    // String) must carry the structured assert-eq diagnostic, read STRUCTURALLY off the
-    // surfaced Panic — no string re-parse. Phase C′ emit_panics_to_stderr is active for
-    // spawn_process; the child's assertion diagnostic rides the Lost cause intact.
+    // Failure.message (arc 278 — fields[0] is `error`, an assert-eq's own
+    // :wat::runtime::AssertionFailed (excursus 003 strike A F2); its fields[0] is the
+    // message String) must carry the structured assert-eq diagnostic, read STRUCTURALLY
+    // off the surfaced Panic — no string re-parse.
     let message = match &failure_struct.fields[0] {
         wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
             wat::runtime::Value::String(s) => s.to_string(),

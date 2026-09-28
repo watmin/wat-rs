@@ -14,7 +14,9 @@
 //!
 //! The claims, one per channel the wall must keep honest:
 //!  1. a FAILING deftest is reported as `DeftestOutcome::Failed`, carrying the structured
-//!     `:wat::kernel::Failure` (message / location / actual / expected);
+//!     `:wat::kernel::Failure` (excursus 003 strike A: `error` — an assert-eq's own
+//!     `:wat::runtime::AssertionFailed`, itself message / location / actual / expected —
+//!     `frames` / `frames-elided`);
 //!  2. a PASSING deftest is reported as `DeftestOutcome::Passed`;
 //!  3. the two verbs refuse each other's targets — `call_beside_value` will not run a
 //!     deftest (that is the ignore-the-verdict path), and `call_beside` will not invent a
@@ -55,20 +57,22 @@ fn failing_deftest_is_reported_as_failed() {
              Failed — a fired assertion is not a pass; got: {other:?}"
         ),
     };
-    // :wat::kernel::Failure — fields [error, frames, actual, expected] (arc 278).
+    // :wat::kernel::Failure — fields [error, frames, frames-elided] (excursus 003 strike A, F2:
+    // actual/expected LEFT this record — they are the assertion's OWN fields now, below).
     let f = aggregate_fields(&failure, "wat::kernel::Failure");
-    // :wat::core::Fault — fields [message, location, causes].
-    let fault = aggregate_fields(&f[0], "wat::core::Fault");
+    // An assert-eq failure's `error` is its own record now, :wat::runtime::AssertionFailed —
+    // fields [message, location, causes, actual, expected].
+    let assertion_failed = aggregate_fields(&f[0], "wat::runtime::AssertionFailed");
     assert_eq!(
-        match &fault[0] {
+        match &assertion_failed[0] {
             Value::String(s) => (**s).clone(),
-            other => panic!("Fault.message must be a String; got {other:?}"),
+            other => panic!("AssertionFailed.message must be a String; got {other:?}"),
         },
         "assert-eq failed"
     );
     // :wat::core::Span — fields [file, line, col, end]. The fixture's false assertion
     // is the SECOND deftest in the co-located .wat.
-    let loc = aggregate_fields(&fault[1], "wat::core::Span");
+    let loc = aggregate_fields(&assertion_failed[1], "wat::core::Span");
     assert_eq!(
         match &loc[0] {
             Value::String(s) => std::path::Path::new(&**s)
@@ -78,8 +82,8 @@ fn failing_deftest_is_reported_as_failed() {
         },
         Some("probe_deftest_verdict_wall.wat".to_string())
     );
-    assert_eq!(option_string(&f[2]), Some("4".to_string()), "Failure.actual");
-    assert_eq!(option_string(&f[3]), Some("4242".to_string()), "Failure.expected");
+    assert_eq!(option_string(&assertion_failed[3]), Some("4".to_string()), "AssertionFailed.actual");
+    assert_eq!(option_string(&assertion_failed[4]), Some("4242".to_string()), "AssertionFailed.expected");
 }
 
 /// The other half of the claim: the wall does not simply call everything a failure.

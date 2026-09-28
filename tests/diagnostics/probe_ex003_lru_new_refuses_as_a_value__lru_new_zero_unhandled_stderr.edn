@@ -1,38 +1,8 @@
 [
-  #wat.kernel/AssertionFailure {
-    :thread "main"
-    :message ":wat::cache::Lru/new refused the capacity: it must be positive"
-    :location #wat.core/Span {
-      :file "tests/diagnostics/probe_ex003_lru_new_refuses_as_a_value__lru_new_zero_unhandled.wat"
-      :line 12
-      :col 14
-      :end #wat.core/Option.Some {
-        :value #wat.core/Pos {
-          :line 12
-          :col 79
-        }
-      }
-    }
-    :actual nil
-    :expected nil
-    :frames [
-      #wat.kernel/Frame {
-        :symbol ":user::main"
-        :span #wat.core/Span {
-          :file "src/freeze.rs"
-          :line 0
-          :col 13
-          :end #wat.core/Option.None {}
-        }
-        :kind #wat.kernel/FrameKind.Wat {}
-      }
-    ]
-    :upstream-chain nil
-  }
   [
     #wat.kernel/LociDiedError.Panic {
       :failure #wat.kernel/Failure {
-        :error #wat.core/Fault {
+        :error #wat.runtime/AssertionFailed {
           :message ":wat::cache::Lru/new refused the capacity: it must be positive"
           :location #wat.core/Span {
             :file "tests/diagnostics/probe_ex003_lru_new_refuses_as_a_value__lru_new_zero_unhandled.wat"
@@ -46,6 +16,8 @@
             }
           }
           :causes []
+          :actual #wat.core/Option.None {}
+          :expected #wat.core/Option.None {}
         }
         :frames [
           #wat.kernel/Frame {
@@ -59,8 +31,6 @@
             :kind #wat.kernel/FrameKind.Wat {}
           }
         ]
-        :actual #wat.core/Option.None {}
-        :expected #wat.core/Option.None {}
         :frames-elided 0
       }
     }

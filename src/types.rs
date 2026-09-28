@@ -2274,10 +2274,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                              cast: wat's word for this fact, not Rust's "shutdown").
     //   StartupError(message)    — the locus didn't come up (fork/exec fail,
     //                              or a remote ECONNREFUSED).
-    //   EntryFormFailure(message)— the peer program's entry form was malformed.
     //   MainSignature(message)   — the peer's :user::main had a bad signature.
-    //   BadReturn(message)       — the peer returned a value that won't cross
-    //                              the wire.
+    //
+    // Excursus 003 strike A (F7) retired `EntryFormFailure` (no producer anywhere) and
+    // `BadReturn` (its only producer, a runtime guard, now routes to `Panic` instead —
+    // see `src/process/verbs.rs`'s `Ok(Ok(other))` arms).
     //
     // Purity::Pure — a death report crosses back to the owner as EDN data; its
     // payload is String / (Option :- [Failure]) (no live resource), unlike
@@ -2408,24 +2409,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::kernel::Failure"
     );
 
-    // :wat::kernel::AssertionFailure — arc 278 (DESIGN-loci-died-error.md): the
-    // registered record that the panic-hook `#wat.kernel/AssertionFailure {…}`
-    // envelope writer now routes through (via the derived `ToEdn`), replacing
-    // the hand-built Map with the wrong field shapes. `:frames` is a
-    // `(Vector :- [Frame])` (was the ad-hoc `{:callee,:at}` map); `:location` is an
-    // `(Option :- [Location])` (was a bare `Span`); `:upstream-chain` is a
-    // `(Vector :- [LociDiedError])` (was heterogeneous Thread|Process). Every field
-    // type (Frame, Location, Failure, LociDiedError) is registered above/below
-    // — the record is EDN all the way down.
-    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
-    // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::AssertionFailure …)`
-    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
-    // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(
-        env,
-        "wat/kernel/diagnostics.wat",
-        ":wat::kernel::AssertionFailure"
-    );
+    // :wat::kernel::AssertionFailure — RETIRED (excursus 003 strike A, F1). Used to be
+    // registered here (the panic-hook's own hand-built envelope shape, arc 278
+    // DESIGN-loci-died-error.md); an unhandled assertion now reports through the SAME
+    // `LociDiedError.Panic` chain every other death uses (`wat/kernel/diagnostics.wat`'s
+    // `LociDiedError` doc), so this record has no declaration to read anymore.
 
     // :wat::kernel::StopAccepted — arc 170 "stopping is a protocol" Phase 2. The shutdown worker's
     // one notice, emitted exactly once on STDOUT (via the primed StdOut service, never a raw fd-1
@@ -3051,25 +3039,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   (proc  (:wat::kernel::Process :- [I O]))     (spawn-process forms)
     //   (rcv   (:Result :- [:() :ProcessDiedError])) (Process/join-result proc)
 
-    // :wat::kernel::StartupError — error variant of the Result
-    // returned by `:wat::kernel::spawn-program` / `-ast` (arc 105a).
-    // Captured when freeze (parse + type-check + config + macro)
-    // or `:user::main` signature validation fails. Single field
-    // for now (the diagnostic message); extensible to kind /
-    // location if a real consumer surfaces.
-    //
-    // Auto-generated `StartupError/new` + `StartupError/message`
-    // accessor land in the symbol table at freeze time via
-    // register_struct_methods.
-    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
-    // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::kernel::StartupError …)`
-    // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
-    // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(
-        env,
-        "wat/kernel/diagnostics.wat",
-        ":wat::kernel::StartupError"
-    );
+    // :wat::kernel::StartupError — RETIRED (excursus 003 strike A, F7). Was a `{message}`
+    // struct, constructed nowhere and read nowhere (dead since step 3b gave
+    // `LociDiedError.StartupError` its own `Failure` payload) — not to be confused with
+    // that live enum variant, or with `crate::freeze::StartupError` (the Rust-side
+    // freeze-error type, unrelated).
 
     // :wat::holon::CoincidentExplanation — arc 069 diagnostic record
     // returned by `:wat::holon::coincident-explain`. Bundles the raw

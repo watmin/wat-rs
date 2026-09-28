@@ -11848,16 +11848,36 @@ pub(crate) fn format_panic_payload(payload: &Box<dyn std::any::Any + Send>) -> S
 
 /// Convert an [`AssertionPayload`] into a `:wat::kernel::Failure`
 /// `Value::Aggregate(Record)`. Field order mirrors the type registration:
-/// `(error, frames, actual, expected)`.
+/// `(error, frames, frames-elided)`.
 /// Arc 293.W.2b — Failure is now Nature::Record (pure EDN data; all fields pure).
 ///
 /// Arc 278 the string-wrap annihilation — the mandatory `error` field carries
-/// the raised `:wat::core::Error` STRUCTURALLY. When the payload came from
-/// `raise!` (`raised_error = Some(e)`), that error value rides directly. Every
-/// other panic (assert-* failures, `expect`, plain panics) has no structured
-/// error, so a `:wat::core::Fault` is SYNTHESIZED from the payload's `message`
-/// + `location` — honest (a panic IS an error with that message), not fabrication.
+/// the raised `:wat::core::Error` STRUCTURALLY. Excursus 003 strike A (F2) — three
+/// cases, in order:
+///   1. The payload came from `raise!` (`raised_error = Some(e)`): that error value
+///      rides directly, unchanged from before.
+///   2. Otherwise, this IS an assertion (an `assert-*` failure or an `expect` on
+///      `None`/`Err`) — `error` becomes `:wat::runtime::AssertionFailed`
+///      (`assertion_failed_value`), carrying `message`/`actual`/`expected` as ITS
+///      OWN fields: "an assertion is the same concept whichever path raised it"
+///      (BRIEF-shape-strike-A-one-death-shape.md). `actual`/`expected` are `None`
+///      for an `expect` panic (it never had them) and whenever `assert-*` had none
+///      to show — same as before, just relocated one level in.
+///   3. `location` is `Some` in the overwhelming majority (an `assert-*` panic's
+///      `location` is already the caller's own call-stack top, D4's own no-op case);
+///      `#[track_caller]` supplies the Rust call site as the fallback for the rare
+///      no-frame edge (`AssertionPayload.location`'s own doc: fires "outside any
+///      user-function call context") — the SAME convention `flat_message_failure`
+///      already uses for "no location at all".
+#[track_caller]
 pub(crate) fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
+    // Captured HERE, at the top, not inside the `unwrap_or_else` closure below: a
+    // `#[track_caller]` fn's `Location::caller()` only resolves to the REAL caller
+    // when read directly in the fn's own body — read inside a plain closure, it
+    // reports the closure's OWN definition site instead (this function's line, not
+    // its caller's), which measured empty in the no-frame case (a probe caught it,
+    // this comment records why the call moved).
+    let no_frame_caller = std::panic::Location::caller();
     let crate::assertion::AssertionPayload {
         message,
         actual,
@@ -11874,11 +11894,18 @@ pub(crate) fn failure_value_from_assertion_payload(p: crate::assertion::Assertio
         thread_name: _,
         raised_error,
     } = p;
-    // The mandatory structured cause: the raised Error verbatim, or a Fault
-    // synthesized from the bare message + location.
     let error_field = match raised_error {
         Some(e) => e,
-        None => fault_value(message, location),
+        None => {
+            let loc = location.unwrap_or_else(|| {
+                crate::span::Span::new(
+                    Arc::new(no_frame_caller.file().to_string()),
+                    no_frame_caller.line() as i64,
+                    no_frame_caller.column() as i64,
+                )
+            });
+            crate::value::runtime_records::assertion_failed_value(message, loc, actual, expected)
+        }
     };
     let frames_field = Value::Vec(Arc::new(
         frames
@@ -11886,19 +11913,11 @@ pub(crate) fn failure_value_from_assertion_payload(p: crate::assertion::Assertio
             .map(value_from_frame)
             .collect::<Vec<_>>(),
     ));
-    let actual_field = match actual {
-        Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
-        None => Value::Option(Arc::new(None)),
-    };
-    let expected_field = match expected {
-        Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
-        None => Value::Option(Arc::new(None)),
-    };
     // Excursus 003 step 3b — `frames-elided` joins the floor (see `failure_record`'s
     // doc). An `AssertionPayload`'s frames are the full, uncapped
     // `snapshot_call_stack()` (`src/assertion.rs`), never `capped_wat_frames()` — so
     // nothing was elided, honestly 0, not a stand-in for "not measured".
-    failure_record(error_field, frames_field, actual_field, expected_field, 0)
+    failure_record(error_field, frames_field, 0)
 }
 
 ::wat_source_derive::wat_field_names_from!(
@@ -11913,18 +11932,17 @@ pub(crate) fn failure_names() -> Arc<Vec<String>> {
 }
 
 /// The ONE assembly point for a `:wat::kernel::Failure` `Value::Aggregate(Record)` —
-/// excursus 003 step 3b added `frames-elided` as a fifth field, so every constructor
-/// (`failure_value_from_assertion_payload`, `message_only_failure`,
+/// every constructor (`failure_value_from_assertion_payload`, `message_only_failure`,
 /// `flat_message_failure`, `runtime_error_failure`) builds through here rather than
 /// each hand-rolling the positional vec and risking one falling out of step with the
-/// wat declaration's field count. `actual_field` / `expected_field` are ALREADY
-/// `Value::Option(...)`-wrapped (callers differ on whether they start from a `String`
-/// or an `Option<String>`).
+/// wat declaration's field count. Excursus 003 strike A (F2) — `actual`/`expected`
+/// LEFT the record (they moved into the assertion's own error record,
+/// `:wat::runtime::AssertionFailed`; `Failure/actual` / `Failure/expected` read them
+/// back out as DERIVED accessors, `src/kernel/error.rs`), so this assembly point is
+/// back down to three fields, matching `frames-elided`'s step-3b arrival before it.
 fn failure_record(
     error_field: Value,
     frames_field: Value,
-    actual_field: Value,
-    expected_field: Value,
     frames_elided: usize,
 ) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
@@ -11933,8 +11951,6 @@ fn failure_record(
         Arc::new(vec![
             error_field,
             frames_field,
-            actual_field,
-            expected_field,
             Value::i64(frames_elided as i64),
         ]),
     )))
@@ -12174,8 +12190,6 @@ pub(crate) fn message_only_failure(message: String) -> Value {
     failure_record(
         fault_value(message, None),           // error (synthesized Fault)
         Value::Vec(Arc::new(Vec::new())),      // frames
-        Value::Option(Arc::new(None)),         // actual
-        Value::Option(Arc::new(None)),         // expected
         0,                                     // frames-elided: no frames captured at all
     )
 }
@@ -12213,8 +12227,6 @@ pub(crate) fn flat_message_failure(message: String) -> Value {
     failure_record(
         error_field,
         Value::Vec(Arc::new(frames)),
-        Value::Option(Arc::new(None)),
-        Value::Option(Arc::new(None)),
         frames_elided,
     )
 }
@@ -12233,8 +12245,6 @@ pub(crate) fn runtime_error_failure(re: &RuntimeError) -> Value {
     failure_record(
         error_field,
         Value::Vec(Arc::new(frames)),
-        Value::Option(Arc::new(None)),
-        Value::Option(Arc::new(None)),
         re.frames_elided(),
     )
 }

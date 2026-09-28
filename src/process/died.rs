@@ -1,10 +1,13 @@
 //! The `:wat::kernel::LociDiedError` process-tier construction vocabulary —
 //! arc 109 Stone 4b (`docs/arc/2026/04/109-kill-std/DESIGN-STONE-the-died-
-//! error-cluster-decomposes.md`, map item 4b). Ten items: the four
+//! error-cluster-decomposes.md`, map item 4b). Originally ten items: the four
 //! `ProcessDiedError::{Panic,RuntimeError,MainSignature,BadReturn}` builders
 //! and their four `_value` cross-module accessor siblings, plus the
 //! `conj_died_chain`/`conj_died_chain_value` pair — `conj_died_chain`'s only
 //! caller in the tree is `conj_died_chain_value`, so the two move together.
+//! Excursus 003 strike A (F7) retired the `BadReturn` pair (no legally
+//! reachable producer; `:user::main` returning non-nil now routes to
+//! `process_died_error_panic_value` instead), so eight remain.
 //!
 //! Measured: `src/process/verbs.rs` and `src/distribution/mod.rs` are this
 //! vocabulary's only callers anywhere in the tree; every other reference is
@@ -165,26 +168,9 @@ pub(crate) fn process_died_error_main_signature_value(e: &impl crate::edn::contr
     process_died_error_main_signature(e.message())
 }
 
-/// Build a `:wat::kernel::LociDiedError::BadReturn(failure)` enum value
-/// (arc 170 slice 1i; excursus 003 step 3b). Emitted by fork / spawn-process child
-/// branches when `:user::main` returns a non-nil value at runtime. `failure.error`
-/// is a synthesized `:wat::core::Fault` (`flat_message_failure`).
-pub(crate) fn process_died_error_bad_return(message: String) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "BadReturn".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "BadReturn"),
-        fields: vec![flat_message_failure(message)],
-    }))
-}
-
-/// Cross-module pub(crate) accessor.
-///
-/// Arc 296 strike 2 / excursus 003 step 3b — generic over
-/// [`crate::edn::contract::WatError`]. The bad-return type name is a flat message
-/// carried via a [`crate::edn::contract::FlatMessage`] (itself a `WatError`); reads
-/// `e.message()`, never `to_wire_edn(e)` (see `process_died_error_runtime_value`'s
-/// doc for why).
-pub(crate) fn process_died_error_bad_return_value(e: &impl crate::edn::contract::WatError) -> Value {
-    process_died_error_bad_return(e.message())
-}
+// `process_died_error_bad_return` / `process_died_error_bad_return_value` — RETIRED
+// (excursus 003 strike A, F7). `LociDiedError::BadReturn` had no producer that could
+// ever be legally reached (the type checker refuses any `:user::main` body that could
+// return non-nil before it runs); `:user::main` returning non-nil now routes to
+// `process_died_error_panic_value` instead (`src/process/verbs.rs`'s
+// `bad_return_panic_value`), so these two builders have no caller left.

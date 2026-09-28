@@ -465,19 +465,19 @@
 ;; every call site to route through instead of hand-rolling. Field values mirror Rust's
 ;; `message_only_failure` exactly (arc 278 the string-wrap annihilation): the mandatory `error`
 ;; carries a SYNTHESIZED `:wat::core::Fault` (from `msg`; `Failure/message` derives back to it),
-;; actual/expected empty, frames empty. Bare-positional construction of a builtin record is retired
+;; frames empty. Bare-positional construction of a builtin record is retired
 ;; (arc-294 9a's kwargs flip) — this is the kwargs ctor, proven in
 ;; wat-scripts/scratch-pad/probe-failure-record-ctor.wat. Homed here (loads well before
 ;; wat/service.wat, its first client) because this file already owns the recv'-outcome /
 ;; Failure/message crash-parity pattern (see the two `assertion-failed!` sites below).
 ;; Excursus 003 step 3b — `frames-elided` joins the floor (mirrors Rust's `message_only_failure`,
-;; `src/runtime.rs`): honestly 0, since this constructor captures no frames at all.
+;; `src/runtime.rs`): honestly 0, since this constructor captures no frames at all. Excursus 003
+;; strike A (F2) — `actual`/`expected` LEFT `Failure` (they moved into the assertion's own error
+;; record; a message-only Failure was never an assertion, so it never carried them meaningfully).
 (:wat::core::defn :wat::kernel::message-only-failure [msg <- :wat::core::String] -> :wat::kernel::Failure
   (:wat::kernel::Failure
     :error (:wat::core::Fault/of msg)
     :frames (:wat::core::Vector :- [:wat::kernel::Frame])
-    :actual :wat::core::Option.None
-    :expected :wat::core::Option.None
     :frames-elided 0))
 
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
@@ -632,8 +632,8 @@
     ;; in a different coat. So: NOT Ok. `Err` carries the fact by name.
     ;;
     ;; (Naming debt, stated not buried: the Err type is `LociDiedError` and nothing died.
-    ;; That enum has already outgrown its name — it also carries StartupError, BadReturn
-    ;; and MainSignature, none of them deaths. Renaming it is its own stone, not this one;
+    ;; That enum has already outgrown its name — it also carries StartupError and
+    ;; MainSignature, neither of them deaths. Renaming it is its own stone, not this one;
     ;; the VARIANT here is exact.)
     [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::core::Result.Err {:error :wat::kernel::LociDiedError.Stopped})]

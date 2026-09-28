@@ -20830,6 +20830,36 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Excursus 003 strike A (F2) — `Failure/actual` / `Failure/expected` are DERIVED
+    // accessors too, the exact same shape as `Failure/message` / `Failure/location`
+    // just above: `actual`/`expected` were removed from the `:wat::kernel::Failure`
+    // registration (they meant something only for an assertion, and duplicated
+    // `:wat::runtime::AssertionFailed`'s own fields), so no accessor is auto-minted
+    // for them either. Same `:wat::core::Record` param type, same reasoning.
+    env.register(
+        ":wat::kernel::Failure/actual".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Record".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Path(":wat::core::String".into())],
+            },
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::kernel::Failure/expected".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Record".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Path(":wat::core::String".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     // (:wat::kernel::LociDiedError/to-failure err) -> :wat::kernel::Failure
     // — arc 278. Always returns a structured Failure, preserving arc 064's
     // actual/expected/location/frames when the death carried an

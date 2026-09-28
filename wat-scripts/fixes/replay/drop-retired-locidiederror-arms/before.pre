@@ -139,7 +139,7 @@
           [:wat::kernel::LociDiedError.Panic {:failure _pf} "panic"]
           [:wat::kernel::LociDiedError.StartupError {:failure _sm} "startup-error"]
           [:wat::kernel::LociDiedError.MainSignature {:failure _mm} "main-signature"]
-          
+          [:wat::kernel::LociDiedError.BadReturn {:failure _bm} "bad-return"]
           [_ "other-lost"])]
       [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
       [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

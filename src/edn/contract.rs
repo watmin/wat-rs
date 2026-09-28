@@ -192,14 +192,11 @@ pub(crate) fn edn_int(n: i64) -> OwnedValue {
     OwnedValue::Integer(n)
 }
 
-/// `#wat.core/Option.None {}` — the SAME tag `Value::Option(None)` renders to
-/// (`src/edn/render.rs`'s `value_to_edn_in`) and the derive-generated `ToEdn` for
-/// `Option<T>` produces, kept here as the ONE hand-rolled-`OwnedValue` builder for
-/// sites that construct a wire payload directly (never through a `Value`) — excursus
-/// 003 step 3b's `startup_error_chain_edn` (`src/process/verbs.rs`) is the first.
-pub(crate) fn edn_option_none() -> OwnedValue {
-    OwnedValue::Tagged(Tag::ns("wat.core", "Option.None"), Box::new(OwnedValue::Map(vec![])))
-}
+// `edn_option_none` — RETIRED (excursus 003 strike A). Was the ONE hand-rolled-`OwnedValue`
+// `#wat.core/Option.None {}` builder, minted for `startup_error_chain_edn`'s (now-removed)
+// `:actual`/`:expected` fields (`src/process/verbs.rs`) — its only caller left with them
+// (F2: `actual`/`expected` are no longer part of any Failure envelope). Re-add a three-line
+// `Tag::ns("wat.core", "Option.None")` builder if a future direct-`OwnedValue` site needs one.
 
 // Stone B (arc 296): `edn_span`, `push_span_field`, `splice_span` retired —
 // `Span: ToEdn` (via derive in `wat-reader`) subsumes all three. Callers that

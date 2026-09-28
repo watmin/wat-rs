@@ -40,8 +40,6 @@
           :kind #wat.kernel/FrameKind.Rust {}
         }
       ]
-      :actual #wat.core/Option.None {}
-      :expected #wat.core/Option.None {}
       :frames-elided 0
     }
   }

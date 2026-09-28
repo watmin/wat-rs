@@ -43,8 +43,8 @@
           [:wat::kernel::LociDiedError.Disconnected {} (:wat::core::Option.Some {:value "WRONG:Disconnected"})]
           [:wat::kernel::LociDiedError.Stopped {} (:wat::core::Option.Some {:value "WRONG:Stopped"})]
           [:wat::kernel::LociDiedError.StartupError {:failure _m} (:wat::core::Option.Some {:value "WRONG:StartupError"})]
-          [:wat::kernel::LociDiedError.EntryFormFailure {:failure _m} (:wat::core::Option.Some {:value "WRONG:EntryFormFailure"})]
+          
           [:wat::kernel::LociDiedError.MainSignature {:failure _m} (:wat::core::Option.Some {:value "WRONG:MainSignature"})]
-          [:wat::kernel::LociDiedError.BadReturn {:failure _m} (:wat::core::Option.Some {:value "WRONG:BadReturn"})])]
+          )]
       [:wat::kernel::RecvOutcome.Stopped {} (:wat::core::Option.Some {:value "UNEXPECTED-STOPPED"})]
       [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])))

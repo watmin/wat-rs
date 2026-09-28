@@ -123,10 +123,11 @@
 ;;                              cast: wat's word for this fact, not Rust's "shutdown").
 ;;   StartupError(message)    — the locus didn't come up (fork/exec fail,
 ;;                              or a remote ECONNREFUSED).
-;;   EntryFormFailure(message)— the peer program's entry form was malformed.
 ;;   MainSignature(message)   — the peer's :user::main had a bad signature.
-;;   BadReturn(message)       — the peer returned a value that won't cross
-;;                              the wire.
+;;
+;; Excursus 003 strike A (F7) retired `EntryFormFailure` (no producer anywhere) and
+;; `BadReturn` (its only producer, a runtime guard, now routes to `Panic` instead —
+;; see `src/process/verbs.rs`'s `Ok(Ok(other))` arms).
 ;;
 ;; Purity::Pure — a death report crosses back to the owner as EDN data; its
 ;; payload is String / (Option :- [Failure]) (no live resource), unlike
@@ -177,9 +178,7 @@
 ;;
 ;; :wat::kernel::Failure — structured panic / assertion payload
 ;; populated when a sandboxed `:user::main` fails. Slice 2b fills
-;; the carried error / frames from `catch_unwind`; slice 3's
-;; `:wat::test::assert-*` primitives additionally populate actual /
-;; expected when the panic payload carries an AssertionPayload.
+;; the carried error / frames from `catch_unwind`.
 ;; Arc 293.W.2b — Failure is pure EDN data (all fields are pure scalars/records); flipped
 ;; Struct → Record. Location and Frame also flipped to Record (pure data, no live resources).
 ;; This is the 2616-cascade root: ThreadDiedError/ProcessDiedError (Pure enums) carry
@@ -193,24 +192,19 @@
 ;; `error` field is pure: `:wat::core::Error` is a `:nature :wat::core::Record` surface
 ;; (core.wat), and `is_pure_type` reads a surface's declared nature — post-load containment
 ;; (`validate_aggregate_containment`, freeze/env.rs) sees Error registered and passes.
+;; Excursus 003 strike A (F2) — `actual`/`expected` LEFT this record too, for the same
+;; reason: they duplicated the assertion's own error record
+;; (`:wat::runtime::AssertionFailed`). `Failure/actual` / `Failure/expected` are DERIVED
+;; accessors now, reading `error.actual` / `error.expected` when present.
 ;; ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
 ;; is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Failure …)`
 ;; in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
 ;; source of truth; Rust consumes it.
 ;;
-;; :wat::kernel::AssertionFailure — arc 278 (DESIGN-loci-died-error.md): the
-;; registered record that the panic-hook `#wat.kernel/AssertionFailure {…}`
-;; envelope writer now routes through (via the derived `ToEdn`), replacing
-;; the hand-built Map with the wrong field shapes. `:frames` is a
-;; `(Vector :- [Frame])` (was the ad-hoc `{:callee,:at}` map); `:location` is an
-;; `(Option :- [Location])` (was a bare `Span`); `:upstream-chain` is a
-;; `(Vector :- [LociDiedError])` (was heterogeneous Thread|Process). Every field
-;; type (Frame, Location, Failure, LociDiedError) is registered above/below
-;; — the record is EDN all the way down.
-;; ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
-;; is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::AssertionFailure …)`
-;; in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
-;; source of truth; Rust consumes it.
+;; :wat::kernel::AssertionFailure — RETIRED (excursus 003 strike A, F1). Used to be
+;; registered here (the panic-hook's own hand-built envelope shape); an unhandled
+;; assertion now reports through the SAME `LociDiedError.Panic` chain every other death
+;; uses — see `wat/kernel/diagnostics.wat`'s own retirement note.
 ;;
 ;; :wat::kernel::StopAccepted — arc 170 "stopping is a protocol" Phase 2. The shutdown worker's
 ;; one notice, emitted exactly once on STDOUT (via the primed StdOut service, never a raw fd-1
