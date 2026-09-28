@@ -1620,6 +1620,17 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                     // rune:lint(one-variant-separator, namespace) — assembles the wat::core namespace prefix onto a core type's tail
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":wat::core::{tail}"), unk),
                 }
+            } else if body == "wat::WatAST" {
+                // Case 1b — arc 255.67: `:wat::WatAST` is the one `wat.type/` leaf whose
+                // internal key is NOT `:wat::core::<tail>` (`type_denotation`'s own carve-out,
+                // `src/types.rs`'s `type_denotation`: "AST" => ":wat::WatAST"). Without this
+                // case it fell through to Case 3 (a generic `::`-namespaced user type) and
+                // rendered `wat/WatAST` — wrong namespace, wrong tail — because `body` DOES
+                // contain `::` even though it isn't `wat::core::`-prefixed.
+                match mode {
+                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare("wat.type/AST".to_string()), unk),
+                    TypeFormHeadMode::Colon => WatAST::Keyword(":wat::WatAST".to_string(), unk),
+                }
             } else if let Some((_bare, fqdn)) = crate::check::BARE_PRIMITIVES.iter().find(|(bare, _)| *bare == format!(":{body}").as_str()) {
                 // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body} (Clojure)
                 // or the primitive's own core FQDN keyword, `fqdn` (Colon; already colon-prefixed).

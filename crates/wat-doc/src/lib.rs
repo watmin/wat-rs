@@ -456,6 +456,28 @@ fn type_token_is_expressible(token: &str) -> bool {
     wat_reader::parse_one_with_file(token, "<wat-doc @arg/@ret type token>").is_ok()
 }
 
+/// arc 255.67 — a type token may be a keyword, a `(…)` / `[…]` structural form, or a
+/// NAMESPACED symbol (`wat.type/i64`, `wat.core/Option`, `u/Person`) — the cutover's surface
+/// spelling for the 24 `wat.type/` hard primitives. A bare, unnamespaced symbol (`Bytes`) stays
+/// refused: `bare_symbol_without_colon_is_still_refused_by_the_colon_rule` keeps its meaning,
+/// because a namespaced symbol must contain `/` and parse as a single `Symbol` form — `Bytes`
+/// does neither. Reused verbatim from the shape the 255.64 probe layer built for this
+/// (`docs/arc/2026/06/255-builtin-registry/probes-255.64/src.diff`'s `type_token_shape_ok`
+/// hunk) — everything else in that older exploratory diff (the `language-provided-spelling`
+/// intrinsic, the `edn_doc.rs`/`type_denotation` Instant/Duration changes) predates and
+/// disagrees with the accepted ruling (FINDING "`wat.type/` is closed": Instant/Duration stay
+/// `wat.time/`, not `wat.type/`) and is NOT reused.
+fn type_token_shape_ok(token: &str) -> bool {
+    token.starts_with(':')
+        || token.starts_with('(')
+        || token.starts_with('[')
+        || (token.contains('/')
+            && matches!(
+                wat_reader::parse_one_with_file(token, "<wat-doc type token>"),
+                Ok(WatAST::Symbol(_, _))
+            ))
+}
+
 /// Parse an `@example`/`@example-norun` payload slice (the text left or right
 /// of `#=>`) as a single, complete wat form — the SAME reader every other
 /// verb's own source goes through (mirrors [`type_token_is_expressible`]'s
@@ -638,7 +660,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 // REFERENCE `(Head :- [args])`, or a fn type `[arg… :-> ret]`.
                 // Those are still gated by the reader check just below; this
                 // clause only rules out a BARE non-keyword symbol like `Bytes`.
-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
+                if !type_token_shape_ok(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::Bytes`); grammar is `@arg <name> <type> <desc>`",
@@ -690,7 +712,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
                 // still gated by the reader check just below; this clause
                 // only rules out a BARE non-keyword symbol like `Bytes`.
-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
+                if !type_token_shape_ok(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
@@ -1486,7 +1508,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                 // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
                 // still gated by the reader check just below; this clause
                 // only rules out a BARE non-keyword symbol like `Bytes`.
-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
+                if !type_token_shape_ok(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::Bool`); grammar is `@arg <name> <type> <desc>`",
@@ -1529,7 +1551,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                         why: "separator used in type position; grammar is `@ret <type> <desc>`",
                     });
                 }
-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
+                if !type_token_shape_ok(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
@@ -2417,6 +2439,20 @@ mod arc109_reader_adjudicates_type_tokens {
                 why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
             }
         );
+    }
+
+    /// arc 255.67 — the cutover's surface spelling. A namespaced symbol
+    /// (`wat.type/i64`) is now a legal type token, alongside the keyword and
+    /// the two structural forms; `bare_symbol_without_colon_is_still_refused_
+    /// by_the_colon_rule` above proves the un-namespaced case (`Bytes`, no
+    /// `/`) is still refused by the exact same gate.
+    #[test]
+    fn namespaced_symbol_type_is_accepted() {
+        for ty in ["wat.type/i64", "wat.core/Option", "u/Person"] {
+            let doc = parse(&doc_with_ret_type(ty))
+                .unwrap_or_else(|e| panic!("`{ty}` must be accepted, got {e:?}"));
+            assert_eq!(doc.ret_type, ty);
+        }
     }
 
     /// The two surviving STRUCTURAL spellings both round-trip through a real
