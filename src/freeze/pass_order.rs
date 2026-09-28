@@ -18,11 +18,24 @@
 //!
 //! ## What it is
 //!
-//! Each pass announces itself via [`record`]. Outside the crate's own test
-//! build, `record` is an empty function with no state behind it — nothing is
-//! allocated, nothing is locked, the pipeline is untouched in every shipped
-//! binary. Under `cfg(test)` the names accumulate in a thread-local, and
-//! `freeze`'s own unit test asserts the sequence against `EXPECTED_ORDER`.
+//! Each pass announces itself via [`record`]. Under `cfg(test)` the names
+//! accumulate in a thread-local, and `freeze`'s own unit test asserts the
+//! sequence against `EXPECTED_ORDER`.
+//!
+//! ## Excursus 003 D5 — the SAME call sites also carry opt-in phase timing
+//!
+//! Outside `cfg(test)`, `record` used to be a true no-op. It no longer is:
+//! [`take_phase_durations`] answers "where does a freeze spend its time,
+//! and which phase grows with declared records" (`AUDIT-the-shape-of-an-
+//! error.md`'s Strike B worklist, the S2 cost row) by timestamping these
+//! SAME announce points, in every build, when `WAT_FREEZE_PHASE_TIMING` is
+//! set. The cost when unset is exactly one `OnceLock` read (a relaxed load
+//! after first init) per `record` call — no allocation, no lock, no
+//! `Instant::now()` — so a normal, unmeasured `wat` run is unaffected to
+//! within noise. See `crate::freeze::take_freeze_phase_timings` for the
+//! public accessor and exactly which steps this covers (steps 2 through
+//! 7.7; step 8's own work and step 9, `FrozenWorld::freeze`'s body, are
+//! the caller's own residual — this module has no announce point after 8).
 //!
 //! ## ⛔ WHAT THIS GATE CANNOT SEE — read before trusting it
 //!
@@ -69,6 +82,16 @@ pub(crate) const EXPECTED_ORDER: &[&str] = &[
     // announce, so it does. That divergence is itself the argument for the gate.
     "7.7-normalize-stored-function-bodies",
     "8-check-program",
+    // Excursus 003 D5 — the ONE new announce point this instrument adds to the pipeline
+    // itself (everything else in D5 only changed what the EXISTING points do). Marks the
+    // boundary `check_program` ⇒ `FrozenWorld::freeze`'s own body, so a phase-timing
+    // reader can tell "check_program's own cost" (the `8-check-program` → `9-freeze`
+    // delta) apart from "freeze()'s own body" (the residual after this — see
+    // `crate::freeze::take_freeze_phase_timings`'s doc). `FrozenWorld::freeze` is called
+    // from exactly one place in this pipeline (`startup_from_forms_post_config`, right
+    // after the check-program match block below), so this fires exactly once per
+    // successful freeze on this path.
+    "9-freeze",
 ];
 
 #[cfg(test)]
@@ -77,14 +100,61 @@ thread_local! {
         const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Announce that `step` is running. A no-op — and no state — outside the crate's
-/// own test build.
+/// Excursus 003 D5 — is phase timing on for this process? Read from the environment
+/// exactly ONCE (`OnceLock`), so every `record` call after the first pays a single
+/// relaxed load, never a syscall. Off by default: a normal `wat` invocation never sets
+/// `WAT_FREEZE_PHASE_TIMING`, so this is `false` for the process's whole life.
+fn timing_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("WAT_FREEZE_PHASE_TIMING").is_some())
+}
+
+thread_local! {
+    /// Excursus 003 D5 — per-thread phase-boundary timestamps, populated only when
+    /// [`timing_enabled`] is true. A freeze that runs on a spawned thread (a sandboxed
+    /// eval, a `:process`/`:thread` peer) carries its OWN trace, never mixed with its
+    /// parent's — matching `TRACE` above and `USER_SOURCE_FILES`'s thread-local shape.
+    static TIMING: std::cell::RefCell<Vec<(&'static str, std::time::Instant)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Announce that `step` is running. Under `cfg(test)`, also appends to `TRACE` (the
+/// order gate). When [`timing_enabled`], also stamps an `Instant` into `TIMING` (the
+/// Excursus 003 D5 phase-timing instrument — see the module doc). Neither is state a
+/// normal, unmeasured `wat` run pays for beyond the one `OnceLock` read.
 #[inline]
 pub(crate) fn record(step: &'static str) {
     #[cfg(test)]
     TRACE.with(|t| t.borrow_mut().push(step));
-    #[cfg(not(test))]
-    let _ = step;
+
+    if timing_enabled() {
+        TIMING.with(|t| t.borrow_mut().push((step, std::time::Instant::now())));
+    }
+}
+
+/// Drain this thread's recorded phase-boundary timestamps into per-phase durations —
+/// phase `i`'s duration is the wall-clock time from `record(i)` to `record(i+1)`, i.e.
+/// "how long step i's own work took before the NEXT step announced itself". The very
+/// LAST announced step's own duration (step 8, `check_program`) is therefore NOT
+/// included, nor is anything after it (step 9, `FrozenWorld::freeze`'s body) — neither
+/// has a following announce point in this module. A caller recovers both by bracketing
+/// its OWN call to `startup_from_source`/`startup_from_forms*` with `Instant::now()`
+/// and subtracting the sum of these durations from that outer total; see
+/// `examples/freeze_phase_timing.rs`.
+///
+/// Empty unless [`timing_enabled`]. Clears the thread's trace on every call (including
+/// when timing is off, which is always a no-op clear of an already-empty Vec) so a
+/// second freeze on the same thread starts from zero.
+pub(crate) fn take_phase_durations() -> Vec<(&'static str, std::time::Duration)> {
+    TIMING.with(|t| {
+        let mut v = t.borrow_mut();
+        let out = v
+            .windows(2)
+            .map(|w| (w[0].0, w[1].1.duration_since(w[0].1)))
+            .collect();
+        v.clear();
+        out
+    })
 }
 
 #[cfg(test)]

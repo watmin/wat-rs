@@ -50,9 +50,15 @@
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
 pub(crate) mod env;
+// Excursus 003 D5 — opt-in freeze-count logging (`WAT_FREEZE_COUNT_LOG`). `pub`, like
+// `validator` below: an external example (`examples/freeze_phase_timing.rs`) reaches it
+// indirectly through `take_freeze_phase_timings`, but the module itself documents the
+// counting half of the same instrument. See its own doc for the zero-cost-when-off shape.
+pub mod measure;
 // Stone 255.12 instrument debt B — the startup pipeline's pass ORDER, announced by
-// the passes themselves and pinned by a gate. A no-op (and zero state) outside the
-// crate's own test build. Read its module doc for what it CANNOT see.
+// the passes themselves and pinned by a gate. Outside the crate's own test build it is a
+// no-op UNLESS Excursus 003 D5's opt-in phase timing (`WAT_FREEZE_PHASE_TIMING`) is on —
+// read its module doc for what both halves cover and cannot see.
 pub(crate) mod pass_order;
 // Arc 109 Stone 4c — the `:wat::kernel::StopFailure`/`StopFailed` diagnostic
 // vocabulary (`docs/arc/2026/04/109-kill-std/`), a genuinely internal builder
@@ -532,6 +538,11 @@ impl FrozenWorld {
         loader: Arc<dyn crate::load::loader::SourceLoader>,
         declared_rete_defns: std::collections::BTreeSet<String>,
     ) -> Result<Self, StartupError> {
+        // Excursus 003 D5 — the one new pass_order announce point this instrument adds
+        // (see that module's EXPECTED_ORDER comment): separates "check_program's own
+        // cost" (the 8-check-program → 9-freeze delta, from `take_freeze_phase_timings`)
+        // from "this fn's own body" (everything after this point, part of the residual).
+        crate::freeze::pass_order::record("9-freeze");
         let ctx = Arc::new(EncodingCtx::from_config(&config));
         // BRIEF-construction-inside-a-fn.md, gap (b) — the HolonRecord bundle-capacity
         // budget (`bundle_capacity_verdict`, runtime.rs) is a freeze-time-computable fact
@@ -662,6 +673,13 @@ impl FrozenWorld {
                 unreachable!("interpreter bug: eval-loop control signal escaped to freeze layer")
             }
         })?;
+
+        // Excursus 003 D5 — the one door every SUCCESSFUL startup path funnels through
+        // (in-process re-freezes, `startup_beside`/`call_beside_value`, spawned children
+        // all end up here, right before the `FrozenWorld` they asked for is actually
+        // handed back); see `measure`'s module doc. No-op unless `WAT_FREEZE_COUNT_LOG`
+        // is set.
+        crate::freeze::measure::log_freeze_if_enabled();
 
         Ok(FrozenWorld {
             config,
@@ -983,6 +1001,36 @@ impl From<StdlibError> for StartupError {
 /// located `MalformedForm`) earns the right to outrank the deferred resolve error.
 fn is_unknown_callee(e: &crate::check::CheckError) -> bool {
     matches!(e.kind, crate::check::CheckErrorKind::UnknownCallee { .. })
+}
+
+/// Excursus 003 D5 — drain this thread's phase-boundary timestamps from the just-completed
+/// freeze into per-phase durations. Call it immediately after a
+/// `startup_from_source`/`startup_from_forms*` call, on the SAME thread — the trace is
+/// thread-local and cleared on every read (see [`pass_order::take_phase_durations`]).
+///
+/// Empty unless `WAT_FREEZE_PHASE_TIMING` was set (any value) in the environment before the
+/// freeze ran — read once per process via `OnceLock`, so a normal run that never sets it
+/// pays one relaxed load per pipeline pass and allocates nothing.
+///
+/// Covers steps 2 ("2-collect-entry-file") through 8 ("8-check-program") — the pipeline's
+/// `pass_order::record` announce points (`src/freeze/pass_order.rs`; also the order gate
+/// `the_startup_passes_run_in_the_declared_order`'s `EXPECTED_ORDER`). The
+/// "8-check-program" phase's own duration (the delta ending at the ONE announce point D5
+/// added, "9-freeze", right at the top of [`FrozenWorld::freeze`]) is `check_program`'s own
+/// cost in isolation. It does NOT cover:
+/// - the initial entry-source parse in [`startup_from_source`] (before step 2 even starts,
+///   for callers that enter via source text rather than pre-parsed forms via
+///   [`startup_from_forms`]);
+/// - [`FrozenWorld::freeze`]'s own body AFTER its `record("9-freeze")` call
+///   (`validate_holon_record_capacity`, the encoding-ctx / sigma-fn setup,
+///   `register_runtime_defs`) — there is no announce point after that to close a delta.
+///
+/// A caller recovers both remaining gaps as one combined residual: bracket the OUTER
+/// `startup_from_source` call with `Instant::now()`/`.elapsed()` and subtract the sum of
+/// this function's durations from that total. See `examples/freeze_phase_timing.rs`, which
+/// does exactly this.
+pub fn take_freeze_phase_timings() -> Vec<(&'static str, std::time::Duration)> {
+    pass_order::take_phase_durations()
 }
 
 pub fn startup_from_source(
