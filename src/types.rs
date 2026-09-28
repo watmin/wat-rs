@@ -135,6 +135,23 @@ pub(crate) fn parametric_heads_unify(h1: &str, h2: &str) -> bool {
     a == b || crate::edn::render::type_denotation(&a) == crate::edn::render::type_denotation(&b)
 }
 
+/// Dispatch key for a type-constructor head. `wat.type/Vector` and
+/// `:wat::core::Vector` are one constructor. Any other head is returned
+/// unchanged, so a match on the old key keeps its old arms.
+pub(crate) fn constructor_head_key(head: &str) -> std::borrow::Cow<'_, str> {
+    let denoted = crate::edn::render::type_denotation(head);
+    match denoted.as_str() {
+        ":wat::core::Vector"
+        | ":wat::core::HashMap"
+        | ":wat::core::HashSet"
+        | ":wat::core::PersistentVector"
+        | ":wat::core::PersistentMap"
+        | ":wat::core::List"
+        | ":wat::core::Tuple" => std::borrow::Cow::Owned(denoted),
+        _ => std::borrow::Cow::Borrowed(head),
+    }
+}
+
 /// Structural equality through the denotation door. `wat.type/i64` and
 /// `:wat::core::i64` are one path. The ruling-A field lock compares parsed
 /// variant fields to a `:wat::core::i64` literal; a converted `wat.type/i64`

@@ -182,6 +182,14 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
                 }
                 _ => {}
             }
+            if let Some(head) = head_candidates.first().cloned() {
+                // T-door: `wat.type/Vector` is the same constructor as
+                // `:wat::core::Vector`. The allow-list names the old key.
+                let disp = crate::types::constructor_head_key(&head);
+                if disp.as_ref() != head {
+                    head_candidates.insert(0, disp.into_owned());
+                }
+            }
             match head_candidates.first() {
                 Some(head) => {
                     // Pure literal data: skip entirely.

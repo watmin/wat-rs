@@ -1942,6 +1942,8 @@ fn dispatch_keyword_head(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
+    let head_owned = crate::types::constructor_head_key(head);
+    let head = head_owned.as_ref();
     // Arc 255 Stone G — the registry-first door, hoisted to THIS TrackedValue-returning
     // function (not `dispatch_keyword_head_value`, whose `Result<Value, _>` signature would
     // force a discard of whatever provenance the handler stamped). `NativeHandler` now returns
@@ -2048,6 +2050,8 @@ fn dispatch_keyword_head_value(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    let head_owned = crate::types::constructor_head_key(head);
+    let head = head_owned.as_ref();
     // Arc 278 #55 (S3b+S4) slice one — THE ONE TABLE (`rete::vocabulary::RETE_OPS`), consulted
     // FIRST for rete-namespaced heads. Routes generically by `class` (`dispatch_rete_op`, below)
     // — never a per-op match arm added to the giant match that follows (STOP-2: no rete op named
@@ -10059,7 +10063,9 @@ fn conforms_check(
         TypeExpr::Parametric { head, args } => {
             // Verify the value's collection classifier matches the head.
             let value_tag = value.type_name();
-            let classifier_ok = match head.as_str() {
+            let head_owned = crate::types::constructor_head_key(head);
+            let head_key = head_owned.as_ref().strip_prefix(':').unwrap_or(head_owned.as_ref());
+            let classifier_ok = match head_key {
                 "wat::core::Vector" => value_tag == "wat::core::Vector",
                 "wat::core::List" => value_tag == "wat::core::List",
                 "wat::core::HashSet" => value_tag == "wat::core::HashSet",
@@ -10072,7 +10078,7 @@ fn conforms_check(
                 return Ok(false);
             }
             // Recurse element-wise for known collection classifiers.
-            match head.as_str() {
+            match head_key {
                 "wat::core::Vector" => {
                     if args.is_empty() {
                         return Ok(true);

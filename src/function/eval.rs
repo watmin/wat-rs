@@ -237,7 +237,7 @@ pub(crate) fn select_defclause_clause(
         if let Some((_rest_name, rest_ty)) = &clause.args.rest_param {
             let elem_ty = match rest_ty {
                 crate::types::TypeExpr::Parametric { head, args }
-                    if head == "wat::core::Vector" && args.len() == 1 =>
+                    if crate::types::parametric_heads_unify(head, "wat::core::Vector") && args.len() == 1 =>
                 {
                     &args[0]
                 }

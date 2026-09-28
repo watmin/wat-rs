@@ -3693,7 +3693,13 @@ pub(crate) fn canonical_identity(s: &str) -> String {
 pub(crate) fn type_denotation(s: &str) -> String {
     let id = canonical_identity(s);
     if let Some(tail) = id.strip_prefix(":wat::type::") {
-        // rune:lint(one-variant-separator, namespace) — wat.type member → core denotation
+        // `:wat::WatAST` is not a `wat::core` key. The surface spelling is
+        // `wat.type/AST` (cutover). Every other `wat.type/` tail still
+        // denotes the core key.
+        if tail == "AST" {
+            return ":wat::WatAST".to_string();
+        }
+        // rune:lint(one-variant-separator, namespace) — wat.type member → its registered key
         return format!(":wat::core::{tail}");
     }
     id

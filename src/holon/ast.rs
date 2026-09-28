@@ -1066,7 +1066,7 @@ pub(crate) fn is_holon_arg_canonical(form: &WatAST) -> bool {
                 // Fixed by peeling the param-spec the same way the checker
                 // does — `peel_param_spec` — rather than assuming its
                 // absence; the elements are whatever remains after the peel.
-                ":wat::core::Vector" => {
+                k if crate::types::constructor_head_key(k).as_ref() == ":wat::core::Vector" => {
                     let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
                     peeled.is_some() && rest.iter().all(is_holon_arg_canonical)
                 }

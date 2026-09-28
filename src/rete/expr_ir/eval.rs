@@ -820,6 +820,8 @@ impl OpExec {
     /// equality (`I64Eq` is not `Eq`) — equality on `i64` can take a direct integer compare,
     /// while the generic form has to go through value equality.
     fn of(core: &str) -> Self {
+        let core_owned = crate::types::constructor_head_key(core);
+        let core = core_owned.as_ref();
         // Arc 255 Stone C — `core` arrives as `row.core_name`, which for the per-type
         // numerics reads `:wat::i64::+` (B-i's home), not `:wat::core::i64::+`. Through
         // Stone B this table's arms were still keyed on the OLD spelling, folding the new

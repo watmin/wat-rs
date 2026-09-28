@@ -797,7 +797,7 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
     let is_vector = matches!(
         &rest_ty,
         crate::types::TypeExpr::Parametric { head, .. }
-            if head == "wat::core::Vector" || head == "wat::core::Vec"
+            if crate::types::parametric_heads_unify(head, "wat::core::Vector") || head == "wat::core::Vec"
     );
     if !is_vector {
         let span = args_vec

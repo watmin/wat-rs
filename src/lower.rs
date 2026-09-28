@@ -262,7 +262,7 @@ fn lower_bundle(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError
             let head = items.first().ok_or_else(|| LowerError { span: list_span.clone(), kind: LowerErrorKind::BundleShape })?;
             match head {
                 WatAST::Keyword(k, _)
-                    if k == ":wat::core::Vector" =>
+                    if crate::types::constructor_head_key(k).as_ref() == ":wat::core::Vector" =>
                 {
                     let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
                     if peeled.is_none() {

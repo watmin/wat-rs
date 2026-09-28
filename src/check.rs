@@ -1649,7 +1649,10 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
         },
         // Type variables (Var) — unresolved; conservatively allow
         TypeExpr::Var(_) => true,
-        TypeExpr::Parametric { head, args } => match head.as_str() {
+        TypeExpr::Parametric { head, args } => {
+            let key_owned = crate::types::constructor_head_key(head);
+            let key = key_owned.as_ref().strip_prefix(':').unwrap_or(key_owned.as_ref());
+            match key {
             // Arc 216 Stone 1 — (HashSet :- [T']) is atomizable iff T' is atomizable
             "wat::core::HashSet" => args.len() == 1 && is_atomizable(&args[0]),
             // Arc 216 Stone 2 — (Vector :- [T']) atomizable iff T' atomizable
@@ -1659,6 +1662,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
                 args.len() == 2 && is_atomizable(&args[0]) && is_atomizable(&args[1])
             }
             _ => false,
+            }
         },
         // Function types — not atomizable
         TypeExpr::Fn { .. } => false,
@@ -2733,7 +2737,8 @@ fn infer_list(
                 return infer_rete_form(op.core_name, args, head_span, env, locals, fresh, subst);
             }
         }
-        match k.as_str() {
+        let k_disp = crate::types::constructor_head_key(k);
+        match k_disp.as_ref() {
             ":wat::core::variant-name" => {
                 return infer_rete_form(":wat::core::variant-name", args, head_span, env, locals, fresh, subst);
             }
@@ -3335,7 +3340,7 @@ fn infer_list(
                 if let Some(lt) = &list_arg_ty {
                     let reduced = reduce(lt, subst, env.types());
                     match &reduced {
-                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::List" => {
+                        TypeExpr::Parametric { head, args: ta } if crate::types::parametric_heads_unify(head, "wat::core::List") => {
                             if let Some(inner) = ta.first() {
                                 let _ = unify(&elem_ty, inner, subst, env.types());
                             }
@@ -3399,12 +3404,21 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::core::Tuple" => {
+            ":wat::core::Tuple"
+                if !(k_disp.as_ref() != k.as_str()
+                    && matches!(
+                        split_type_param_bracket(args),
+                        Some((inner, _, rest)) if !inner.is_empty() && rest.is_empty()
+                    )) =>
+            {
                 // Arc 109 step ①b — `(Tuple [T1 T2 …] …)` now accepted too. Not wired
                 // to `unwrap_type_param_bracket` (splicing still corrupts this fn — see
                 // that helper's doc comment); `infer_tuple_constructor` detects and
                 // parses its own leading bracket internally, so this call site is
                 // unchanged from step ①'s STOP-3 shape.
+                // A denoted head with a type bracket and no values is the type form
+                // (`keyword/to-type-form`'s golden), not a tuple value. The old key
+                // still takes this arm, and `(Tuple :- [])` still does too.
                 let (val, mut errs) = infer_tuple_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -5877,7 +5891,7 @@ fn infer_list(
                             return unresolved_accessor_placeholder(fresh, local_errors);
                         }
                         Some(TypeExpr::Parametric { head, .. })
-                            if head == "wat::core::HashMap" =>
+                            if crate::types::parametric_heads_unify(head, "wat::core::HashMap") =>
                         {
                             return unresolved_accessor_placeholder(fresh, local_errors);
                         }
@@ -6132,7 +6146,7 @@ fn infer_list(
             .as_ref()
             .and_then(|rest_ty| match rest_ty {
                 TypeExpr::Parametric { head, args }
-                    if head == "wat::core::Vector" && args.len() == 1 =>
+                    if crate::types::parametric_heads_unify(head, "wat::core::Vector") && args.len() == 1 =>
                 {
                     Some(args[0].clone())
                 }
@@ -12275,7 +12289,7 @@ fn infer_select_prime(
     // Match (Vector :- [elem]).
     let elem_ty = match &vec_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if head == "wat::core::Vector" && targs.len() == 1 =>
+            if crate::types::parametric_heads_unify(head, "wat::core::Vector") && targs.len() == 1 =>
         {
             targs[0].clone()
         }
@@ -12414,7 +12428,7 @@ fn infer_poll_prime(
     // Match (Vector :- [elem]).
     let elem_ty = match &vec_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if head == "wat::core::Vector" && targs.len() == 1 =>
+            if crate::types::parametric_heads_unify(head, "wat::core::Vector") && targs.len() == 1 =>
         {
             targs[0].clone()
         }
@@ -15244,7 +15258,7 @@ fn infer_holon_bundle(
             if let Some(t) = infer(other, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                 let resolved = reduce(&t, subst, env.types());
                 let ok = match &resolved {
-                    TypeExpr::Parametric { head, args: ta } if head == "wat::core::Vector" => {
+                    TypeExpr::Parametric { head, args: ta } if crate::types::parametric_heads_unify(head, "wat::core::Vector") => {
                         ta.len() == 1 && is_holon_or_record(&ta[0], env.types())
                     }
                     _ => false,
@@ -16113,7 +16127,7 @@ fn vector_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeEx
     let reduced = reduce(&walk(t, subst), subst, types);
     match reduced {
         TypeExpr::Parametric { head, args }
-            if head == "wat::core::Vector" && args.len() == 1 =>
+            if crate::types::parametric_heads_unify(&head, "wat::core::Vector") && args.len() == 1 =>
         {
             Some(args[0].clone())
         }
@@ -16208,7 +16222,7 @@ fn map_kv_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<(TypeExpr, 
     let reduced = reduce(&walk(t, subst), subst, types);
     match reduced {
         TypeExpr::Parametric { head, args }
-            if head == "wat::core::HashMap" && args.len() == 2 =>
+            if crate::types::parametric_heads_unify(&head, "wat::core::HashMap") && args.len() == 2 =>
         {
             Some((args[0].clone(), args[1].clone()))
         }
@@ -16223,7 +16237,7 @@ fn set_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeExpr>
     let reduced = reduce(&walk(t, subst), subst, types);
     match reduced {
         TypeExpr::Parametric { head, args }
-            if head == "wat::core::HashSet" && args.len() == 1 =>
+            if crate::types::parametric_heads_unify(&head, "wat::core::HashSet") && args.len() == 1 =>
         {
             Some(args[0].clone())
         }

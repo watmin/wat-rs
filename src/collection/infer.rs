@@ -57,22 +57,22 @@ pub(crate) fn infer_contains(
         let reduced = reduce(&coll_ty, subst, env.types());
         // Extract the expected element/key type from the collection shape.
         let elem_ty_opt: Option<TypeExpr> = match &reduced {
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::Vector") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashSet" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashSet") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashMap" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashMap") => {
                 // contains? on HashMap checks the KEY, not the value.
                 targs.first().map(|k| apply_subst(k, subst))
             }
             // Arc-278-0a — PersistentMap: contains? checks the KEY, same as HashMap.
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentMap" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentMap") => {
                 targs.first().map(|k| apply_subst(k, subst))
             }
             // Arc-278-0b — PersistentVector: contains? checks element membership, same as Vector.
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentVector") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
             // Unresolved type variable — e.g., returned by `from-holon` which has a
@@ -85,7 +85,7 @@ pub(crate) fn infer_contains(
             // Var arm that cites this comment as the policy source.
             TypeExpr::Var(_) => None,
             // seq-1b — List: element membership, same scan as Vector
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::List") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
             // seq-1b — Tuple: scan over Value; element check uses PartialEq
@@ -306,20 +306,20 @@ pub(crate) fn infer_get(
         // Match collection shape; extract (expected_arg1_type, return_element_type).
         // NO HashSet arm — HashSet has no get.
         let shape_opt: Option<(TypeExpr, TypeExpr)> = match &reduced {
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::Vector") => {
                 // arg1 is the INDEX (i64), independent of the element type T.
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
                 let idx_ty = TypeExpr::Path(":wat::core::i64".into());
                 Some((idx_ty, elem_ty))
             }
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashMap" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashMap") => {
                 // arg1 is the KEY (K); return wraps VALUE (V).
                 let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
                 let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((key_ty, val_ty))
             }
             // Arc-278-0a — PersistentMap: same K→V get semantics as HashMap.
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentMap" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentMap") => {
                 let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
                 let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((key_ty, val_ty))
@@ -327,7 +327,7 @@ pub(crate) fn infer_get(
             // Arc-278-0b — PersistentVector: same i64→Option<T> get semantics as std Vector.
             // arg1 is the INDEX (i64), independent of the element type T.
             // Returns Option<T> — None on out-of-bounds, Some(elem) on hit (safe, never raises).
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentVector") => {
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
                 let idx_ty = TypeExpr::Path(":wat::core::i64".into());
                 Some((idx_ty, elem_ty))
@@ -336,7 +336,7 @@ pub(crate) fn infer_get(
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
             // seq-1b — List: index i64 → Option<T>
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::List") => {
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
                 let idx_ty = TypeExpr::Path(":wat::core::i64".into());
                 Some((idx_ty, elem_ty))
@@ -348,7 +348,7 @@ pub(crate) fn infer_get(
                 Some((idx_ty, elem_ty))
             }
             // seq-1b — HashSet: element membership-as-lookup; arg1 is T, return Option<T>
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashSet" => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashSet") => {
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((elem_ty.clone(), elem_ty))
             }
@@ -683,9 +683,9 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut InferCtx) -> Option<TypeExpr> {
     match reduced {
         TypeExpr::Parametric { head, args }
-            if head == "wat::core::Vector"
-                || head == "wat::core::List"
-                || head == "wat::core::PersistentVector"
+            if crate::types::parametric_heads_unify(head, "wat::core::Vector")
+                || crate::types::parametric_heads_unify(head, "wat::core::List")
+                || crate::types::parametric_heads_unify(head, "wat::core::PersistentVector")
                 || head == "wat::stream::Stream"
                 // ── Stone 118.B7 — `Seqable<T>` ITSELF ────────────────────────────────────────
                 //

@@ -207,11 +207,15 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     // time, not a confusing failure (or silent wrong behaviour) at first expansion.
     use crate::types::TypeExpr;
     fn is_watast(ty: &TypeExpr) -> bool {
-        matches!(ty, TypeExpr::Path(p) if p == ":wat::WatAST")
+        matches!(ty, TypeExpr::Path(p)
+            if p == ":wat::WatAST"
+                || crate::edn::render::type_denotation(p) == ":wat::WatAST")
     }
     fn is_watast_vec(ty: &TypeExpr) -> bool {
         matches!(ty, TypeExpr::Parametric { head, args }
-            if head == "wat::core::Vector" && args.len() == 1 && is_watast(&args[0]))
+            if crate::types::parametric_heads_unify(head, "wat::core::Vector")
+                && args.len() == 1
+                && is_watast(&args[0]))
     }
     for (ident, ty) in &spec.fixed_params {
         if !is_watast(ty) {

@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 195; // 255.56: 198 → 195 — is_type_equatable and is_type_orderable deleted. 255.38: 208 → 198.
+const LEDGER_TOTAL: usize = 149; // 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -779,19 +779,18 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "infer_config_set_bool", 1, "Ex1"),
     ("src/check.rs", "infer_defclause", 1, "Ax1"),
     ("src/check.rs", "infer_deny_prime", 1, "Ex1"),
-    ("src/check.rs", "infer_holon_bundle", 1, "Ex1"),
-    ("src/check.rs", "infer_list", 6, "Ax3+Ex3"),
+    ("src/check.rs", "infer_list", 2, "Ax2"),
     ("src/check.rs", "infer_match", 3, "Ax2+Ex1"),
     ("src/check.rs", "infer_nth", 1, "Ex1"),
     ("src/check.rs", "infer_option_try", 1, "Ex1"),
-    ("src/check.rs", "infer_poll_prime", 1, "Ex1"),
+
     ("src/check.rs", "infer_polymorphic_time_arith", 5, "Ax1+Ex4"),
     ("src/check.rs", "infer_positional_accessor", 1, "Ex1"),
-    ("src/check.rs", "infer_select_prime", 1, "Ex1"),
+
     ("src/check.rs", "infer_signal", 1, "Ex1"),
     ("src/check.rs", "infer_thread_prog_type", 1, "Ex1"),
     ("src/check.rs", "infer_try", 1, "Ex1"),
-    ("src/check.rs", "is_atomizable", 2, "Ex2"),
+    ("src/check.rs", "is_atomizable", 1, "Ex1"),
     ("src/check.rs", "is_fn_def_form", 1, "Ax1"),
     ("src/check.rs", "is_fn_form_expr", 1, "Ax1"),
     ("src/check.rs", "is_holon_or_record", 1, "Ex1"),
@@ -799,28 +798,27 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "is_must_use_type", 2, "Ex2"),
     ("src/check.rs", "is_primitive_type_keyword_in_value_position", 1, "Ax1"),
     ("src/check.rs", "is_pure_type", 3, "Ex3"),
-    ("src/check.rs", "map_kv_of", 1, "Ex1"),
+
     ("src/check.rs", "preregister_defclause_in_env", 1, "Ax1"),
 
-    ("src/check.rs", "set_elem_of", 1, "Ex1"),
+
     ("src/check.rs", "transport_marker", 1, "Ex1"),
     ("src/check.rs", "unify", 1, "Ex1"),
     ("src/check.rs", "validate_def_position_with_wrapper", 1, "Ax1"),
-    ("src/check.rs", "vector_elem_of", 1, "Ex1"),
+
     ("src/check.rs", "walk_for_bare_primitives", 4, "Ax4"),
     ("src/closure_extract.rs", "rewrite_with_scope", 2, "Ax2"),
     ("src/closure_extract.rs", "split_body_prelude", 1, "Ax1"),
     ("src/closure_extract.rs", "walk_free_symbols", 1, "Ax1"),
-    ("src/collection/infer.rs", "extract_lazyable_elem", 5, "Ex5"),
-    ("src/collection/infer.rs", "infer_contains", 7, "Ex7"),
-    ("src/collection/infer.rs", "infer_get", 7, "Ex7"),
-    ("src/collection/map_container.rs", "of_type", 2, "Ex2"),
-    ("src/collection/seq_container.rs", "of_type", 10, "Ex10"),
+    ("src/collection/infer.rs", "extract_lazyable_elem", 2, "Ex2"),
+    ("src/collection/infer.rs", "infer_contains", 1, "Ex1"),
+    ("src/collection/infer.rs", "infer_get", 1, "Ex1"),
+    ("src/collection/seq_container.rs", "of_type", 2, "Ex2"),
     ("src/declare/parse.rs", "parse_type_slot", 1, "Ax1"),
-    ("src/declare/parse.rs", "try_parse_user_variadic_def_fn_form", 2, "Ex2"),
+    ("src/declare/parse.rs", "try_parse_user_variadic_def_fn_form", 1, "Ex1"),
     ("src/edn/render.rs", "rewrap_option_field", 1, "Ex1"),
     ("src/freeze.rs", "is_deftest_fn", 2, "Ex2"),
-    ("src/function/eval.rs", "select_defclause_clause", 1, "Ex1"),
+
     ("src/function/subsume.rs", "value_matches_type_by_name", 1, "Ex1"),
     ("src/holon/ast.rs", "is_holon_arg_canonical", 1, "Ax1"),
     ("src/holon/ast.rs", "try_recognize_holon_value", 1, "Ax1"),
@@ -828,13 +826,13 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/intrinsic/holon/atom.rs", "eval_holon_from_holon", 1, "Ax1"),
     ("src/load/loader.rs", "parse_payload_interface", 1, "Ax1"),
     ("src/load/loader.rs", "parse_verify_algo", 1, "Ax1"),
-    ("src/lower.rs", "lower_bundle", 1, "Ax1"),
+
     ("src/lower.rs", "lower_call", 1, "Ax1"),
     ("src/macros/eval.rs", "validate_pure_total", 1, "Ax1"),
     ("src/macros/eval.rs", "validate_quasiquote_template", 3, "Ax3"),
     ("src/macros/expand.rs", "is_quasiquote_form", 1, "Ax1"),
     ("src/macros/parse.rs", "is_watast", 1, "Ex1"),
-    ("src/macros/parse.rs", "is_watast_vec", 1, "Ex1"),
+
     ("src/macros/parse.rs", "parse_defmacro_form", 1, "Ax1"),
     ("src/match_arm.rs", "builtin_variant", 1, "Ax1"),
     ("src/resolve/boundary.rs", "is_unquote_escape", 2, "Ax2"),
@@ -882,9 +880,7 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     // `canonical_identity` on the Symbol arm only. ⭐ CRATE-WIDE SHAPE B: 3 → 1 — the last one
     // is `rete/purity.rs::walk_rete_defn_callees`, which now carries the calibration anchor.
     ("src/rete/purity.rs", "walk_rete_defn_callees", 1, "Bx1"),
-    ("src/runtime.rs", "conforms_check", 4, "Ex4"),
-    ("src/runtime.rs", "dispatch_keyword_head", 1, "Ax1"),
-    ("src/runtime.rs", "dispatch_keyword_head_value", 3, "Ax3"),
+    ("src/runtime.rs", "conforms_check", 2, "Ex2"),
     ("src/runtime.rs", "eval_inner", 3, "Ax3"),
     ("src/runtime.rs", "eval_tail", 1, "Ax1"),
     ("src/runtime.rs", "is_builtin_primitive", 1, "Ex1"),
