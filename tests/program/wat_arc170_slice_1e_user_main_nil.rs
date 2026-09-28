@@ -62,6 +62,24 @@ fn t1_canonical_main_freezes_and_invokes() {
     );
 }
 
+// ─── T1b. arc 255.67 — `[] -> wat.type/nil` is the SAME canonical shape ──────
+
+#[test]
+fn t1b_new_spelling_main_freezes_and_invokes() {
+    // `wat.type/nil` denotes to the identical `:wat::core::nil` (arc 251.2/255.66's
+    // door); `check_legacy_user_main_signature` must recognize it too, not just the
+    // bare keyword.
+    let world = freeze_ok("tests/program/wat_arc170_slice_1e_user_main_nil_new_spelling.wat");
+    validate_user_main_signature(&world)
+        .expect("[] -> wat.type/nil must validate as the canonical signature");
+    let result = invoke_user_main(&world, Vec::new()).expect(":user::main runs");
+    assert!(
+        matches!(result, Value::Nil),
+        "expected Value::Nil; got {:?}",
+        result
+    );
+}
+
 // ─── T2. Non-canonical main signatures are REJECTED at freeze (arc-170 wall) ──
 
 #[test]

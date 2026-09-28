@@ -24,15 +24,15 @@
 ;; The source-unit `:wat::source::File` lifted to wat/source.wat (arc 283) — shared by every tool.
 
 (:wat::core::defrecord :wat::deporder::SymDef
-  [file <- :wat::core::String
-   kind <- :wat::core::String])
+  [file <- wat.type/String
+   kind <- wat.type/String])
 
 (:wat::core::defrecord :wat::deporder::Violation
-  [referencer     <- :wat::core::String
-   referencer-pos <- :wat::core::i64
-   definer        <- :wat::core::String
-   definer-pos    <- :wat::core::i64
-   symbol         <- :wat::core::String])
+  [referencer     <- wat.type/String
+   referencer-pos <- wat.type/i64
+   definer        <- wat.type/String
+   definer-pos    <- wat.type/i64
+   symbol         <- wat.type/String])
 
 ;; ─── Predicate helpers ────────────────────────────────────────────────
 
@@ -40,10 +40,10 @@
 ;; Mirror of fix.wat's structural? (same predicate, deporder namespace).
 ;; Set membership replaces the 4-deep if/= ladder.
 (:wat::core::defn :wat::deporder::structural?
-  [node <- :wat::WatAST]
-  -> :wat::core::bool
+  [node <- wat.type/AST]
+  -> wat.type/bool
   (:wat::core::let [k       (:wat::core::ast-kind node)
-                    kinds   (:wat::core::HashSet :- [:wat::core::String]
+                    kinds   (wat.type/HashSet :- [wat.type/String]
                               "list" "vector" "map" "set")]
     (:wat::core::contains? kinds k)))
 
@@ -54,8 +54,8 @@
 ;; :wat:: namespaces, so this broadens the predicate to cover test
 ;; fixtures that use short namespaces like :t:: .
 (:wat::core::defn :wat::deporder::qual-keyword?
-  [node <- :wat::WatAST]
-  -> :wat::core::bool
+  [node <- wat.type/AST]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::string::contains? (:wat::core::ast-name node) "::")
     false))
@@ -65,9 +65,9 @@
 ;; stdlib to avoid false STOP-2 triggers.
 ;; Set membership replaces the 13-deep if/= ladder.
 (:wat::core::defn :wat::deporder::is-def-head?
-  [nm <- :wat::core::String]
-  -> :wat::core::bool
-  (:wat::core::let [heads (:wat::core::HashSet :- [:wat::core::String]
+  [nm <- wat.type/String]
+  -> wat.type/bool
+  (:wat::core::let [heads (wat.type/HashSet :- [wat.type/String]
                              ":wat::core::defn"
                              ":wat::core::defmacro"
                              ":wat::core::defenum"
@@ -97,15 +97,15 @@
 ;; def-head-kind — "defmacro" if the head is defmacro (order-free);
 ;; "eval-dep" for all other recognized def-heads.
 (:wat::core::defn :wat::deporder::def-head-kind
-  [nm <- :wat::core::String]
-  -> :wat::core::String
+  [nm <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::core::= nm ":wat::core::defmacro") "defmacro" "eval-dep"))
 
 ;; def-form? — true if the top-level form is a definition form
 ;; (a list whose head ast-name is a recognized def-head).
 (:wat::core::defn :wat::deporder::def-form?
-  [form <- :wat::WatAST]
-  -> :wat::core::bool
+  [form <- wat.type/AST]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind form) "list")
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -117,8 +117,8 @@
 ;; defined-name — the ast-name of child[1] of a definition form.
 ;; This is the symbol being defined; it must NOT be counted as a reference.
 (:wat::core::defn :wat::deporder::defined-name
-  [form <- :wat::WatAST]
-  -> :wat::core::String
+  [form <- wat.type/AST]
+  -> wat.type/String
   (:wat::core::let [ch   (:wat::core::ast->children form)
                     name-node (:wat::core::nth ch 1)]
     (:wat::core::ast-name name-node)))
@@ -129,43 +129,43 @@
 ;; every ::-namespaced :wat:: keyword node found anywhere in the tree.
 ;; Returns (Vector :- [String]). Mirrors fix.wat's structural?+recurse pattern.
 (:wat::core::defn :wat::deporder::collect-kwds
-  [node <- :wat::WatAST]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [node <- wat.type/AST]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::deporder::qual-keyword? node)
-    (:wat::core::Vector :- [:wat::core::String] (:wat::core::ast-name node))
+    (wat.type/Vector :- [wat.type/String] (:wat::core::ast-name node))
     (:wat::core::if (:wat::deporder::structural? node)
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                         child <- :wat::WatAST]
-          -> (:wat::core::Vector :- [:wat::core::String])
+        (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String])
+                         child <- wat.type/AST]
+          -> (wat.type/Vector :- [wat.type/String])
           (:wat::core::concat acc (:wat::deporder::collect-kwds child)))
-        (:wat::core::Vector :- [:wat::core::String])
+        (wat.type/Vector :- [wat.type/String])
         (:wat::core::ast->children node))
-      (:wat::core::Vector :- [:wat::core::String]))))
+      (wat.type/Vector :- [wat.type/String]))))
 
 ;; collect-form-refs — collect keyword references from a single form,
 ;; excluding the defined-name (child[1]) if the form is a definition form.
 ;; For def-forms: collect from all children EXCEPT child[1].
 ;; For other forms: collect from all children (via collect-kwds).
 (:wat::core::defn :wat::deporder::collect-form-refs
-  [form <- :wat::WatAST]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [form <- wat.type/AST]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::deporder::def-form? form)
     (:wat::core::let [ch (:wat::core::ast->children form)
                       ;; child[0] = the head keyword (e.g. :wat::core::defn) — collect it
                       head-refs (:wat::core::if (:wat::core::empty? ch)
-                                  (:wat::core::Vector :- [:wat::core::String])
+                                  (wat.type/Vector :- [wat.type/String])
                                   (:wat::deporder::collect-kwds
                                     (:wat::core::first ch)))
                       ;; skip child[1] (the defined name); collect from child[2..] (the body)
                       ;; Arc 118.2a — `drop` flipped LAZY; `foldl` below (unchanged) needs it eager.
                       body-ch (:wat::core::into [] (:wat::core::drop ch 2))
                       body-refs (:wat::core::foldl
-                                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                                   c <- :wat::WatAST]
-                                    -> (:wat::core::Vector :- [:wat::core::String])
+                                  (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String])
+                                                   c <- wat.type/AST]
+                                    -> (wat.type/Vector :- [wat.type/String])
                                     (:wat::core::concat acc (:wat::deporder::collect-kwds c)))
-                                  (:wat::core::Vector :- [:wat::core::String])
+                                  (wat.type/Vector :- [wat.type/String])
                                   body-ch)]
       (:wat::core::concat head-refs body-refs))
     (:wat::deporder::collect-kwds form)))
@@ -174,16 +174,16 @@
 
 ;; build-file-syms — update sym-map with all definitions from one file.
 (:wat::core::defn :wat::deporder::build-file-syms
-  [sym-map <- (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
+  [sym-map <- (wat.type/HashMap :- [wat.type/String :wat::deporder::SymDef])
    file    <- :wat::source::File]
-  -> (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
+  -> (wat.type/HashMap :- [wat.type/String :wat::deporder::SymDef])
   (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms (:wat::core::ast->children tree)
                     path  (:wat::source::File/path file)]
     (:wat::core::foldl
-      (:wat::core::fn [m    <- (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
-                       form <- :wat::WatAST]
-        -> (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
+      (:wat::core::fn [m    <- (wat.type/HashMap :- [wat.type/String :wat::deporder::SymDef])
+                       form <- wat.type/AST]
+        -> (wat.type/HashMap :- [wat.type/String :wat::deporder::SymDef])
         (:wat::core::if (:wat::deporder::def-form? form)
           (:wat::core::let [dname (:wat::deporder::defined-name form)
                             head-nm (:wat::core::ast-name
@@ -196,28 +196,28 @@
 
 ;; build-symbol-map — Pass 1: build the full symbol→SymDef map from all files.
 (:wat::core::defn :wat::deporder::build-symbol-map
-  [files <- (:wat::core::Vector :- [:wat::source::File])]
-  -> (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
+  [files <- (wat.type/Vector :- [:wat::source::File])]
+  -> (wat.type/HashMap :- [wat.type/String :wat::deporder::SymDef])
   (:wat::core::foldl
     :wat::deporder::build-file-syms
-    (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
+    (wat.type/HashMap :- [wat.type/String :wat::deporder::SymDef])
     files))
 
 ;; ─── Pass 2: detect violations ────────────────────────────────────────
 
 ;; build-pos-map — path → position (i64) map for all files.
 (:wat::core::defn :wat::deporder::build-pos-map
-  [files <- (:wat::core::Vector :- [:wat::source::File])]
-  -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+  [files <- (wat.type/Vector :- [:wat::source::File])]
+  -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
   (:wat::core::let [n (:wat::core::length files)]
     (:wat::core::foldl
-      (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
-                       i <- :wat::core::i64]
-        -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+      (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+                       i <- wat.type/i64]
+        -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
         (:wat::core::let [file (:wat::core::Option/expect  
                                   (:wat::core::get files i) "build-pos-map: get")]
           (:wat::hashmap::assoc m (:wat::source::File/path file) i)))
-      (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+      (wat.type/HashMap :- [wat.type/String wat.type/i64])
       (:wat::core::range 0 n))))
 
 ;; check-file-violations — for one file at position ref-pos, collect all
@@ -226,26 +226,26 @@
 ;; (definer-pos > ref-pos), and whose kind is not "defmacro".
 (:wat::core::defn :wat::deporder::check-file-violations
   [file    <- :wat::source::File
-   ref-pos <- :wat::core::i64
-   sym-map <- (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
-   pos-map <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])]
-  -> (:wat::core::Vector :- [:wat::deporder::Violation])
+   ref-pos <- wat.type/i64
+   sym-map <- (wat.type/HashMap :- [wat.type/String :wat::deporder::SymDef])
+   pos-map <- (wat.type/HashMap :- [wat.type/String wat.type/i64])]
+  -> (wat.type/Vector :- [:wat::deporder::Violation])
   (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms (:wat::core::ast->children tree)
                     path  (:wat::source::File/path file)
                     ;; collect all keyword refs from all forms in this file
                     all-refs (:wat::core::foldl
-                               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                                form <- :wat::WatAST]
-                                 -> (:wat::core::Vector :- [:wat::core::String])
+                               (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String])
+                                                form <- wat.type/AST]
+                                 -> (wat.type/Vector :- [wat.type/String])
                                  (:wat::core::concat acc (:wat::deporder::collect-form-refs form)))
-                               (:wat::core::Vector :- [:wat::core::String])
+                               (wat.type/Vector :- [wat.type/String])
                                forms)]
     ;; for each ref, check if it creates a violation
     (:wat::core::foldl
-      (:wat::core::fn [viols <- (:wat::core::Vector :- [:wat::deporder::Violation])
-                       kwd   <- :wat::core::String]
-        -> (:wat::core::Vector :- [:wat::deporder::Violation])
+      (:wat::core::fn [viols <- (wat.type/Vector :- [:wat::deporder::Violation])
+                       kwd   <- wat.type/String]
+        -> (wat.type/Vector :- [:wat::deporder::Violation])
         (:wat::core::let [sym-opt (:wat::hashmap::get sym-map kwd)]
           (:wat::core::match sym-opt 
             [:wat::core::Option.None {} viols]
@@ -265,29 +265,29 @@
                       ;; violation: definer loads AFTER referencer
                       (:wat::core::if (:wat::i64::> def-pos ref-pos)
                         (:wat::core::concat viols
-                          (:wat::core::Vector :- [:wat::deporder::Violation]
+                          (wat.type/Vector :- [:wat::deporder::Violation]
                             (:wat::deporder::Violation :referencer path :referencer-pos ref-pos :definer def-path :definer-pos def-pos :symbol kwd)))
                         viols)]))))])))
-      (:wat::core::Vector :- [:wat::deporder::Violation])
+      (wat.type/Vector :- [:wat::deporder::Violation])
       all-refs)))
 
 ;; ─── verify — the main pure function ─────────────────────────────────
 
 (:wat::core::defn :wat::deporder::verify
-  [files <- (:wat::core::Vector :- [:wat::source::File])]
-  -> (:wat::core::Vector :- [:wat::deporder::Violation])
+  [files <- (wat.type/Vector :- [:wat::source::File])]
+  -> (wat.type/Vector :- [:wat::deporder::Violation])
   (:wat::core::let [sym-map (:wat::deporder::build-symbol-map files)
                     pos-map (:wat::deporder::build-pos-map files)
                     n       (:wat::core::length files)]
     (:wat::core::foldl
-      (:wat::core::fn [viols <- (:wat::core::Vector :- [:wat::deporder::Violation])
-                       i     <- :wat::core::i64]
-        -> (:wat::core::Vector :- [:wat::deporder::Violation])
+      (:wat::core::fn [viols <- (wat.type/Vector :- [:wat::deporder::Violation])
+                       i     <- wat.type/i64]
+        -> (wat.type/Vector :- [:wat::deporder::Violation])
         (:wat::core::let [file (:wat::core::Option/expect  
                                   (:wat::core::get files i) "verify: get file")]
           (:wat::core::concat viols
             (:wat::deporder::check-file-violations file i sym-map pos-map))))
-      (:wat::core::Vector :- [:wat::deporder::Violation])
+      (wat.type/Vector :- [:wat::deporder::Violation])
       (:wat::core::range 0 n))))
 
 ;; ─── stdlib surface ───────────────────────────────────────────────────
@@ -297,13 +297,13 @@
 ;; each inner Vector is [path, source] in STDLIB_FILES order.
 (:wat::core::defn :wat::deporder::stdlib-sources
   []
-  -> (:wat::core::Vector :- [:wat::source::File])
+  -> (wat.type/Vector :- [:wat::source::File])
   (:wat::core::let [pairs (:wat::stdlib::sources)
                     n     (:wat::core::length pairs)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::source::File])
-                       i   <- :wat::core::i64]
-        -> (:wat::core::Vector :- [:wat::source::File])
+      (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::source::File])
+                       i   <- wat.type/i64]
+        -> (wat.type/Vector :- [:wat::source::File])
         (:wat::core::let [pair   (:wat::core::Option/expect  
                                     (:wat::core::get pairs i) "stdlib-sources: get pair")
                           path   (:wat::core::Option/expect  
@@ -311,13 +311,13 @@
                           source (:wat::core::Option/expect  
                                     (:wat::core::get pair 1) "stdlib-sources: get source")]
           (:wat::core::concat acc
-            (:wat::core::Vector :- [:wat::source::File]
+            (wat.type/Vector :- [:wat::source::File]
               (:wat::source::File :path path :source source)))))
-      (:wat::core::Vector :- [:wat::source::File])
+      (wat.type/Vector :- [:wat::source::File])
       (:wat::core::range 0 n))))
 
 ;; verify-stdlib — the two-line surface: wrap intrinsic then verify.
 (:wat::core::defn :wat::deporder::verify-stdlib
   []
-  -> (:wat::core::Vector :- [:wat::deporder::Violation])
+  -> (wat.type/Vector :- [:wat::deporder::Violation])
   (:wat::deporder::verify (:wat::deporder::stdlib-sources)))

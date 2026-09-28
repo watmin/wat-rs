@@ -58,7 +58,7 @@
 ;; Named by an intueri cast (2026-07-28), which also caught the frame-vs-line lie.
 ;; PURITY Impure: an I/O outcome
 (:wat::core::defenum :wat::kernel::ReadFrameOutcome :wat::enum::Impure
-  :Frame [text <- :wat::core::String]
+  :Frame [text <- wat.type/String]
   :Eof
 ;; Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested
 ;; while `stdio-read-frame` (`stdio.wat`) was blocked waiting on
@@ -380,8 +380,8 @@
 ;; Registered as a builtin for the same load-order reason as SendOutcome — close' is a
 ;; kernel intrinsic used before any wat defenum would load.
 (:wat::core::defenum :wat::kernel::CloseOutcome :wat::enum::Pure
-  :Closed [exit <- (:wat::core::Option :- [:wat::core::i64])]
-  :Signaled [signal <- :wat::core::i64]
+  :Closed [exit <- (:wat::core::Option :- [wat.type/i64])]
+  :Signaled [signal <- wat.type/i64]
   :Failed [cause <- :wat::kernel::Failure])
 
 ;; :wat::kernel::Signal — Arc 278 process-signal-owner-to-child stone

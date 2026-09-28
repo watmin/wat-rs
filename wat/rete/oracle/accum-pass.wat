@@ -26,13 +26,13 @@
 ;; assoc or drop. The PersistentMap/assoc on the BARE bindings PM accepts any value
 ;; (i64/PV/PM) via STONE-Value UP (i64 <: Value, PV <: Value, PM <: Value).
 (:wat::core::defn :wat::rete::accumulate-pass-for-token
-  [acc-form   <- :wat::WatAST
-   gathered   <- (:wat::core::PersistentVector :- [:wat::rete::Element])
-   result-var <- :wat::core::String
+  [acc-form   <- wat.type/AST
+   gathered   <- (wat.type/PersistentVector :- [:wat::rete::Element])
+   result-var <- wat.type/String
    tok        <- :wat::rete::Token
-   node-id    <- :wat::core::i64
-   bm         <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])]
-  -> (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])
+   node-id    <- wat.type/i64
+   bm         <- (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Token])])]
+  -> (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Token])])
   (:wat::core::let [acc-ch (:wat::core::ast->children acc-form)
                     acc-hd (:wat::core::first acc-ch)
                     acc-nm (:wat::core::ast-name acc-hd)
@@ -143,14 +143,14 @@
 
 ;; acc-operand-keys — `?var` args of the acc-form (`max ?v` → [?v]; count → []).
 (:wat::core::defn :wat::rete::acc-operand-keys
-  [acc-form <- :wat::WatAST]
-  -> (:wat::core::PersistentVector :- [:wat::core::String])
+  [acc-form <- wat.type/AST]
+  -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::let [ch (:wat::core::ast->children acc-form)
                     n  (:wat::core::length ch)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
-                       i   <- :wat::core::i64]
-        -> (:wat::core::PersistentVector :- [:wat::core::String])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
+                       i   <- wat.type/i64]
+        -> (wat.type/PersistentVector :- [wat.type/String])
         (:wat::core::let [kid (:wat::core::Option/expect
                                 (:wat::core::get ch i)
                                 "acc-operand-keys")]
@@ -165,13 +165,13 @@
 
 ;; keys-minus — `from` without any name in `drop`.
 (:wat::core::defn :wat::rete::keys-minus
-  [from <- (:wat::core::PersistentVector :- [:wat::core::String])
-   drop <- (:wat::core::PersistentVector :- [:wat::core::String])]
-  -> (:wat::core::PersistentVector :- [:wat::core::String])
+  [from <- (wat.type/PersistentVector :- [wat.type/String])
+   drop <- (wat.type/PersistentVector :- [wat.type/String])]
+  -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
-                     k   <- :wat::core::String]
-      -> (:wat::core::PersistentVector :- [:wat::core::String])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
+                     k   <- wat.type/String]
+      -> (wat.type/PersistentVector :- [wat.type/String])
       (:wat::core::if (:wat::vector::contains? drop k)
         acc
         (:wat::vector::conj acc k)))
@@ -181,13 +181,13 @@
 ;; project-group-keys — element's bindings restricted to `keys` (the group key).
 (:wat::core::defn :wat::rete::project-group-keys
   [el   <- :wat::rete::Element
-   keys <- (:wat::core::PersistentVector :- [:wat::core::String])]
-  -> :wat::core::PersistentMap
+   keys <- (wat.type/PersistentVector :- [wat.type/String])]
+  -> wat.type/PersistentMap
   (:wat::core::let [eb (:wat::rete::Element/bindings el)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentMap
-                       k   <- :wat::core::String]
-        -> :wat::core::PersistentMap
+      (:wat::core::fn [acc <- wat.type/PersistentMap
+                       k   <- wat.type/String]
+        -> wat.type/PersistentMap
         (:wat::core::match (:wat::map::get eb k)
           [:wat::core::Option.Some {:value v} (:wat::map::assoc acc k v)]
           [:wat::core::Option.None {} acc]))
@@ -208,11 +208,11 @@
 ;; has invariant parametric types — (Option :- [i64]) is not (Option :- [Value]). The dispatch is inlined
 ;; in accumulate-pass-for-token where each fold's specific return type is handled directly.
 (:wat::core::defn :wat::rete::accumulate-pass
-  [network   <- :wat::core::PersistentMap
-   alpha-mem <- :wat::core::PersistentMap
-   beta-mem  <- :wat::core::PersistentMap
-   node-id   <- :wat::core::i64]
-  -> :wat::core::PersistentMap
+  [network   <- wat.type/PersistentMap
+   alpha-mem <- wat.type/PersistentMap
+   beta-mem  <- wat.type/PersistentMap
+   node-id   <- wat.type/i64]
+  -> wat.type/PersistentMap
   (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::map::get network node-id)
                              "accumulate-pass: node not found")
@@ -237,13 +237,13 @@
                         from-keys     (:wat::rete::cond-bind-keys from-cond)
                         operand-keys  (:wat::rete::acc-operand-keys acc-form)]
         (:wat::core::foldl
-          (:wat::core::fn [bm  <- :wat::core::PersistentMap
+          (:wat::core::fn [bm  <- wat.type/PersistentMap
                            tok <- :wat::rete::Token]
-            -> :wat::core::PersistentMap
+            -> wat.type/PersistentMap
             (:wat::core::let [gathered (:wat::core::foldl
-                                          (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Element])
+                                          (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Element])
                                                            el  <- :wat::rete::Element]
-                                            -> (:wat::core::PersistentVector :- [:wat::rete::Element])
+                                            -> (wat.type/PersistentVector :- [:wat::rete::Element])
                                             (:wat::core::match (:wat::rete::alpha-match-under from-cond
                                                                  (:wat::rete::Element/fact el)
                                                                  (:wat::rete::Token/bindings tok))
@@ -253,9 +253,9 @@
                                           (:wat::core::PersistentVector)
                                           from-els)
                               tok-keys (:wat::core::foldl
-                                          (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
-                                                           k   <- :wat::core::String]
-                                            -> (:wat::core::PersistentVector :- [:wat::core::String])
+                                          (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
+                                                           k   <- wat.type/String]
+                                            -> (wat.type/PersistentVector :- [wat.type/String])
                                             (:wat::vector::conj acc k))
                                           (:wat::core::PersistentVector)
                                           (:wat::map::keys
@@ -271,23 +271,23 @@
                   (:wat::core::let [key-maps
                                     (:wat::rete::distinct-maps
                                       (:wat::core::foldl
-                                        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
+                                        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                                          el  <- :wat::rete::Element]
-                                          -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
+                                          -> (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                           (:wat::vector::conj
                                             acc
                                             (:wat::rete::project-group-keys el group-keys)))
                                         (:wat::core::PersistentVector)
                                         gathered))]
                     (:wat::core::foldl
-                      (:wat::core::fn [bm2 <- :wat::core::PersistentMap
-                                       km  <- :wat::core::PersistentMap]
-                        -> :wat::core::PersistentMap
+                      (:wat::core::fn [bm2 <- wat.type/PersistentMap
+                                       km  <- wat.type/PersistentMap]
+                        -> wat.type/PersistentMap
                         (:wat::core::let [group-els
                                           (:wat::core::foldl
-                                            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Element])
+                                            (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Element])
                                                              el  <- :wat::rete::Element]
-                                              -> (:wat::core::PersistentVector :- [:wat::rete::Element])
+                                              -> (wat.type/PersistentVector :- [:wat::rete::Element])
                                               (:wat::core::if
                                                 (:wat::vector::contains?
                                                   (:wat::vector::conj
@@ -300,9 +300,9 @@
                                           km-keys (:wat::map::keys km)
                                           ext-binds
                                           (:wat::core::foldl
-                                            (:wat::core::fn [nb <- :wat::core::PersistentMap
-                                                             k  <- :wat::core::String]
-                                              -> :wat::core::PersistentMap
+                                            (:wat::core::fn [nb <- wat.type/PersistentMap
+                                                             k  <- wat.type/String]
+                                              -> wat.type/PersistentMap
                                               (:wat::core::match (:wat::map::get km k)
                                                 [:wat::core::Option.Some {:value v}
                                                  (:wat::map::assoc nb k v)]

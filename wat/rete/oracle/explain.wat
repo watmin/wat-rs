@@ -8,14 +8,14 @@
 ;; harvest-support — first-producer-wins index: derived-fact → Support{rule, token}.
 ;; Replay on a session whose beta is still live (fire-once$oracle of the closure).
 (:wat::core::defn :wat::rete::harvest-support
-  [network  <- :wat::core::PersistentMap
-   beta-mem <- :wat::core::PersistentMap
-   rules    <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
-  -> :wat::core::PersistentMap
+  [network  <- wat.type/PersistentMap
+   beta-mem <- wat.type/PersistentMap
+   rules    <- (wat.type/PersistentVector :- [:wat::rete::Rule])]
+  -> wat.type/PersistentMap
   (:wat::core::foldl
-    (:wat::core::fn [sup     <- :wat::core::PersistentMap
-                     node-id <- :wat::core::i64]
-      -> :wat::core::PersistentMap
+    (:wat::core::fn [sup     <- wat.type/PersistentMap
+                     node-id <- wat.type/i64]
+      -> wat.type/PersistentMap
       (:wat::core::let [node (:wat::core::Option/expect
                                 (:wat::map::get network node-id)
                                 "harvest-support: node")]
@@ -26,13 +26,13 @@
                             toks  (:wat::rete::tokens-from-parents beta-mem
                                     (:wat::rete::node-parents node-id network))]
             (:wat::core::foldl
-              (:wat::core::fn [s   <- :wat::core::PersistentMap
+              (:wat::core::fn [s   <- wat.type/PersistentMap
                                tok <- :wat::rete::Token]
-                -> :wat::core::PersistentMap
+                -> wat.type/PersistentMap
                 (:wat::core::foldl
-                  (:wat::core::fn [s2   <- :wat::core::PersistentMap
-                                   form <- :wat::WatAST]
-                    -> :wat::core::PersistentMap
+                  (:wat::core::fn [s2   <- wat.type/PersistentMap
+                                   form <- wat.type/AST]
+                    -> wat.type/PersistentMap
                     (:wat::core::let [derived (:wat::rete::eval-insert form
                                                  (:wat::rete::Token/bindings tok))]
                       (:wat::core::match (:wat::map::get s2 derived)

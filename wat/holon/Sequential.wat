@@ -22,13 +22,13 @@
 ;; the result is a LAZY Stream, not an eager Vector — `(into [] ...)` forces it back to a
 ;; Vector so `get`/`rest` below (both Vector ops) keep working unchanged.
 (:wat::core::defmacro :wat::holon::Sequential
-  [items <- :wat::WatAST]
-  -> :wat::WatAST
+  [items <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::core::let
      [positioned
        (:wat::core::into []
          (:wat::core::map-indexed
-           (:wat::core::fn [i <- :wat::core::i64 item <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
+           (:wat::core::fn [i <- wat.type/i64 item <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
              (:wat::core::if (:wat::core::= i 0)
                item
                (:wat::holon::Permute item i)))

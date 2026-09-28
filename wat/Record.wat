@@ -106,8 +106,8 @@
 ;; kwargs-lower itself) — a data-skip past the F5 purity gate, proven by the arc-294
 ;; de-risk (`derisk_agg_kwargs.wat`).
 (:wat::core::defmacro :wat::core::defrecord
-  [& args <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::WatAST
+  [& args <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/AST
   ;; Arc 293 surface-splice — the constructor `defn` is DELETED from this macro. The ctor
   ;; is now minted (for EVERY aggregate nature) in `register_aggregate_methods` (runtime.rs)
   ;; from the REGISTERED fields — so `~@:Surface` splices in the field vector are expanded
@@ -146,7 +146,7 @@
      field-ch     (:wat::core::ast->children fields)
      clean-field-ch
      (:wat::core::foldl
-       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
+       (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
          (:wat::core::let
            [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "defrecord kwargs companion: field-ch index")
             is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
@@ -155,17 +155,17 @@
            (:wat::core::if is-splice
              acc
              (:wat::core::conj acc item))))
-       (:wat::core::Vector :- [:wat::WatAST])
+       (wat.type/Vector :- [wat.type/AST])
        (:wat::core::range 0 (:wat::core::length field-ch)))
      field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::i64::/ field-len 3)
      fname-nodes  (:wat::core::foldl
-                    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
+                    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
                       (:wat::core::conj acc
                         (:wat::core::Option/expect
                           (:wat::core::get clean-field-ch (:wat::i64::* i 3))
                           "defrecord kwargs companion: fname index")))
-                    (:wat::core::Vector :- [:wat::WatAST])
+                    (wat.type/Vector :- [wat.type/AST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::keyword::to-string fqdn)
@@ -181,10 +181,10 @@
      ns-parts      (:wat::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
-                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
+                     (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "defrecord kwargs companion: ns-part index")))
-                     (:wat::core::Vector :- [:wat::core::String])
+                     (wat.type/Vector :- [wat.type/String])
                      (:wat::core::range 0 (:wat::i64::- n-ns-parts 1)))
      ns-joined     (:wat::string::join "::" ns-lead)
      ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))
@@ -195,8 +195,8 @@
        (:wat::core::recordtype ~fqdn ~@binder :wat::core::Record
          [~@field-ch])
        (:wat::core::defmacro ~fqdn-bare-kw
-         [& ~call-args-sym <- (:wat::core::Vector :- [:wat::WatAST])]
-         -> :wat::WatAST
+         [& ~call-args-sym <- (wat.type/Vector :- [wat.type/AST])]
+         -> wat.type/AST
          ;; Arc 294 item (C) — emit the LIVE `kwargs-construct` form over the bare `:T`
          ;; keyword; check/eval resolve `:T`'s (splice-merged, post-register) field order
          ;; and reorder the kwargs there. Replaces the expand-time `kwargs-lower` forward,
@@ -222,8 +222,8 @@
 ;; only the `recordtype` parent differs: `:wat::holon::Record` vs `:wat::core::Record`).
 ;; See the BASE macro's comments for the full rationale + the splice-field known gap.
 (:wat::core::defmacro :wat::holon::defrecord
-  [& args <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::WatAST
+  [& args <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/AST
   ;; Arc 293 surface-splice — constructor `defn` DELETED (see the BASE macro above). The
   ;; holon ctor is minted in `register_aggregate_methods` from the registered fields; the
   ;; `aggregate-new` body is nature-blind and derives the hologram internally for HolonRecord.
@@ -242,7 +242,7 @@
      ;; walk, so the companion bakes only the record's OWN literal fields.
      clean-field-ch
      (:wat::core::foldl
-       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
+       (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
          (:wat::core::let
            [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "holon defrecord kwargs companion: field-ch index")
             is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
@@ -251,17 +251,17 @@
            (:wat::core::if is-splice
              acc
              (:wat::core::conj acc item))))
-       (:wat::core::Vector :- [:wat::WatAST])
+       (wat.type/Vector :- [wat.type/AST])
        (:wat::core::range 0 (:wat::core::length field-ch)))
      field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::i64::/ field-len 3)
      fname-nodes  (:wat::core::foldl
-                    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
+                    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
                       (:wat::core::conj acc
                         (:wat::core::Option/expect
                           (:wat::core::get clean-field-ch (:wat::i64::* i 3))
                           "holon defrecord kwargs companion: fname index")))
-                    (:wat::core::Vector :- [:wat::WatAST])
+                    (wat.type/Vector :- [wat.type/AST])
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::keyword::to-string fqdn)
@@ -276,10 +276,10 @@
      ns-parts      (:wat::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
-                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
+                     (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "holon defrecord kwargs companion: ns-part index")))
-                     (:wat::core::Vector :- [:wat::core::String])
+                     (wat.type/Vector :- [wat.type/String])
                      (:wat::core::range 0 (:wat::i64::- n-ns-parts 1)))
      ns-joined     (:wat::string::join "::" ns-lead)
      ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))
@@ -288,8 +288,8 @@
        (:wat::core::recordtype ~fqdn ~@binder :wat::holon::Record
          [~@field-ch])
        (:wat::core::defmacro ~fqdn-bare-kw
-         [& ~call-args-sym <- (:wat::core::Vector :- [:wat::WatAST])]
-         -> :wat::WatAST
+         [& ~call-args-sym <- (wat.type/Vector :- [wat.type/AST])]
+         -> wat.type/AST
          ;; Arc 294 item (C) — LIVE `kwargs-construct` over the bare `:T` (see the BASE macro).
          (:wat::core::let
            [~(:wat::core::symbol-node "_kc-type") (:wat::core::keyword-node ~bare-kw-str)]

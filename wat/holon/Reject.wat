@@ -30,9 +30,9 @@
 ;; freshly-built-`Err` idiom (see `wat-tests/core/result-expect.wat`), rather
 ;; than fabricating a weight.
 (:wat::core::defmacro :wat::holon::Reject
-  [x <- :wat::WatAST
-   y <- :wat::WatAST]
-  -> :wat::WatAST
+  [x <- wat.type/AST
+   y <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::holon::Blend
      ~x
      ~y

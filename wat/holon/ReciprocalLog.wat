@@ -28,9 +28,9 @@
 ;; `ln(non-positive)` produces undefined behavior.
 
 (:wat::core::defmacro :wat::holon::ReciprocalLog
-  [n     <- :wat::WatAST
-   value <- :wat::WatAST]
-  -> :wat::WatAST
+  [n     <- wat.type/AST
+   value <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::holon::Log
      ~value
      (:wat::core::/ 1.0 ~n)

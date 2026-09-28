@@ -12,7 +12,7 @@
 ;; reconstructs the observation as the subspace sees it.
 
 (:wat::core::defmacro :wat::holon::Project
-  [x <- :wat::WatAST
-   y <- :wat::WatAST]
-  -> :wat::WatAST
+  [x <- wat.type/AST
+   y <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::holon::Subtract ~x (:wat::holon::Reject ~x ~y)))

@@ -16,12 +16,12 @@
 ;; ── the service ─────────────────────────────────────────────────────────────────
 (:wat::service::defservice :wat::telemetry::span
   :satisfies :wat::telemetry::Span
-  :durable   [namespace     <- :wat::core::String
+  :durable   [namespace     <- wat.type/String
               uuid          <- :wat::core::Uuid
               tags          <- :wat::telemetry::Tags
-              start-time-ns <- :wat::core::i64
-              counters      <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
-              durations     <- (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples])]
+              start-time-ns <- wat.type/i64
+              counters      <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+              durations     <- (wat.type/HashMap :- [wat.type/keyword :wat::telemetry::Samples])]
   :ephemeral [sink <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
@@ -70,7 +70,7 @@
         rec   (:wat::telemetry::span::State/durable s)
         ds    (:wat::telemetry::span::Record/durations rec)
         samples (:wat::core::match (:wat::hashmap::get ds name) 
-                  [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::i64])]
+                  [:wat::core::Option.None {} (wat.type/Vector :- [wat.type/i64])]
                   [:wat::core::Option.Some {:value v} v])
         rec'  (:wat::telemetry::span::Record
                 :namespace (:wat::telemetry::span::Record/namespace rec)
@@ -98,7 +98,7 @@
               :level (:wat::telemetry::Span::LogRequest/level req)
               :message (:wat::telemetry::Span::LogRequest/message req))
         resp (:wat::telemetry::Journal/write-logs (:wat::telemetry::span::State/sink s)
-               (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l)))
+               (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l)))
         lresp (:wat::core::match resp
                 [:wat::kernel::RecvOutcome.Message {:msg sresp}
                   (:wat::core::match sresp
@@ -145,26 +145,26 @@
         ;; counter metrics: one per counter key.
         counter-metrics
         (:wat::core::foldl
-          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::telemetry::Metric]) name <- :wat::core::keyword]
-            -> (:wat::core::Vector :- [:wat::telemetry::Metric])
+          (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::telemetry::Metric]) name <- wat.type/keyword]
+            -> (wat.type/Vector :- [:wat::telemetry::Metric])
             (:wat::core::conj acc
               (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
                 :start-time-ns start :name name
                 :value (:wat::telemetry::Numeric.I64
                          {:val (:wat::core::Option/expect (:wat::hashmap::get cs name) "counter present")})
                 :unit :wat::telemetry::Unit.Count)))
-          (:wat::core::Vector :- [:wat::telemetry::Metric])
+          (wat.type/Vector :- [:wat::telemetry::Metric])
           (:wat::hashmap::keys cs))
         ;; duration metrics: <name>/count + <name>/duration per duration key, folded onto the counters.
         all-metrics
         (:wat::core::foldl
-          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::telemetry::Metric]) name <- :wat::core::keyword]
-            -> (:wat::core::Vector :- [:wat::telemetry::Metric])
+          (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::telemetry::Metric]) name <- wat.type/keyword]
+            -> (wat.type/Vector :- [:wat::telemetry::Metric])
             (:wat::core::let
               [samples (:wat::core::Option/expect (:wat::hashmap::get ds name) "duration present")
                cnt (:wat::core::count samples)
                total (:wat::core::foldl
-                       (:wat::core::fn [a <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a x))
+                       (:wat::core::fn [a <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::core::+ a x))
                        0 samples)
                base (:wat::keyword::to-string name)
                count-name (:wat::keyword::from-string (:wat::core::format "{base}/count" :base base))
@@ -218,8 +218,8 @@
 ;; name + elapsed-nanos to the PURE `Span/timed` op, return the body's value untouched. No closure
 ;; enters the actor. `Span/timed` (the op) ≠ `:wat::telemetry'::timed` (this macro) — FQDN.
 (:wat::core::defmacro :wat::telemetry::timed
-  [span <- :wat::WatAST  name <- :wat::WatAST  body <- :wat::WatAST]
-  -> :wat::WatAST
+  [span <- wat.type/AST  name <- wat.type/AST  body <- wat.type/AST]
+  -> wat.type/AST
   (:wat::core::let
     [start-sym   (:wat::core::fresh-symbol "start")
      ret-sym     (:wat::core::fresh-symbol "ret")
@@ -239,8 +239,8 @@
 ;; Stone B) so the caller never serializes by hand. `:wat::telemetry::log` (this macro) ≠ `Span/log`
 ;; (the op) — FQDN disambiguates.
 (:wat::core::defmacro :wat::telemetry::log
-  [span <- :wat::WatAST  level <- :wat::WatAST  message <- :wat::WatAST]
-  -> :wat::WatAST
+  [span <- wat.type/AST  level <- wat.type/AST  message <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::telemetry::Span/log ~span
      (:wat::telemetry::Span::LogRequest
        :emitted-from ~(:wat::kernel::macro-call-site)
@@ -252,9 +252,9 @@
 ;; mints uuid + start-time at the call site, starts + dials span', runs the body, closes.
 ;; (Close-on-error needs a wat unwind primitive — a named follow-on; the happy path always closes.)
 (:wat::core::defmacro :wat::telemetry::with-span
-  [span-name <- :wat::WatAST  sink-addr <- :wat::WatAST
-   namespace <- :wat::WatAST  tags <- :wat::WatAST  body <- :wat::WatAST]
-  -> :wat::WatAST
+  [span-name <- wat.type/AST  sink-addr <- wat.type/AST
+   namespace <- wat.type/AST  tags <- wat.type/AST  body <- wat.type/AST]
+  -> wat.type/AST
   (:wat::core::let
     [uuid-sym   (:wat::core::fresh-symbol "uuid")
      start-sym  (:wat::core::fresh-symbol "start")
@@ -267,8 +267,8 @@
         ~start-sym (:wat::time::epoch-nanos (:wat::time::now))
         ~rec-sym   (:wat::telemetry::span::Record
                      :namespace ~namespace :uuid ~uuid-sym :tags ~tags :start-time-ns ~start-sym
-                     :counters (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
-                     :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples]))
+                     :counters (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+                     :durations (wat.type/HashMap :- [wat.type/keyword :wat::telemetry::Samples]))
         ~h-sym     (:wat::telemetry::span/start :locus (:wat::spawn::thread)
                      :record ~rec-sym :sink-addr ~sink-addr)
         ;; arc 278 the connect'-outcome wall — the generated dial faces all four arms;

@@ -47,9 +47,9 @@
 ;; pools run concurrently — three runners numbered 0,1,2 from two different call sites are
 ;; indistinguishable without it.
 (:wat::core::defrecord :wat::process::Bracket
-  [id   <- :wat::core::i64
-   file <- :wat::core::String
-   line <- :wat::core::i64])
+  [id   <- wat.type/i64
+   file <- wat.type/String
+   line <- wat.type/i64])
 
 ;; Service — a defservice's identity: its own FQDN. `name` is a KEYWORD, not a String —
 ;; builder-ruled, grounded at wat/telemetry.wat's Span::IncrRequest/TimedRequest (`name <-
@@ -80,6 +80,6 @@
 ;; label (ALIVS ARGVIT — the consumer found the flaw). Bracket is UNAFFECTED: `map-worker`
 ;; is positional, so its origin is the real caller (proven by the same probes).
 (:wat::core::defrecord :wat::process::Service
-  [name <- :wat::core::keyword
-   file <- :wat::core::String
-   line <- :wat::core::i64])
+  [name <- wat.type/keyword
+   file <- wat.type/String
+   line <- wat.type/i64])

@@ -7,22 +7,22 @@
 ;; record class and the field names.
 
 (:wat::core::defrecord :wat::doc::Row
-  [doc          <- :wat::core::Value
-   added        <- :wat::core::Value
-   args         <- :wat::core::Value
-   ret          <- :wat::core::Value
-   examples     <- :wat::core::Value
-   see          <- :wat::core::Value
-   purity       <- :wat::core::Value
-   determinism  <- :wat::core::Value
-   totality     <- :wat::core::Value
-   expand-time  <- :wat::core::Value
-   category     <- :wat::core::Value
-   deprecated   <- (:wat::core::Option :- [:wat::core::Value])
-   alias        <- (:wat::core::Option :- [:wat::core::Value])])
+  [doc          <- wat.type/Value
+   added        <- wat.type/Value
+   args         <- wat.type/Value
+   ret          <- wat.type/Value
+   examples     <- wat.type/Value
+   see          <- wat.type/Value
+   purity       <- wat.type/Value
+   determinism  <- wat.type/Value
+   totality     <- wat.type/Value
+   expand-time  <- wat.type/Value
+   category     <- wat.type/Value
+   deprecated   <- (:wat::core::Option :- [wat.type/Value])
+   alias        <- (:wat::core::Option :- [wat.type/Value])])
 
 (:wat::core::defn :wat::doc::from-map
-  [m <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])]
+  [m <- (wat.type/HashMap :- [wat.type/keyword wat.type/Value])]
   -> :wat::doc::Row
   (:wat::doc::Row
     :doc          (:wat::core::Option/expect (:wat::core::get m :doc) "doc")
@@ -40,7 +40,7 @@
     :alias        (:wat::core::get m :alias)))
 
 (:wat::core::defn :wat::doc::of
-  [name <- :wat::core::keyword]
+  [name <- wat.type/keyword]
   -> :wat::doc::Row
   (:wat::doc::from-map
     (:wat::core::Option/expect

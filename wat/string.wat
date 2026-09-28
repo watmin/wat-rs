@@ -40,8 +40,8 @@
    ;; reader that loaded THIS file produced them); nothing here is stringified.
    :examples [[(:wat::string::capitalize "object") "Object"]
               [(:wat::string::capitalize "") ""]]}
-  [w <- :wat::core::String]
-  -> :wat::core::String
+  [w <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::string::length w) 0)
     w
     (:wat::string::concat
@@ -54,8 +54,8 @@
 ;; Bijection partner of :wat::core::string::pascal->kebab on the disciplined subset
 ;; (one uppercase letter per word, no consecutive-capital acronym runs).
 (:wat::core::defn :wat::string::kebab->pascal
-  [s <- :wat::core::String]
-  -> :wat::core::String
+  [s <- wat.type/String]
+  -> wat.type/String
   ;; Arc 118.2a — `map` flipped LAZY (returns Stream); `string::join` needs a Vector eagerly
   ;; (this string is fully materialized either way — no lazy pipeline benefit here).
   (:wat::string::join ""
@@ -66,8 +66,8 @@
 ;; ":foo-bar" → "foo-bar"; "foo-bar" → "foo-bar" (idempotent on bare strings).
 ;; Promoted from :wat::fix::rename-strip-colon (Arc 260.1b Part A dedup).
 (:wat::core::defn :wat::string::strip-leading-colon
-  [s <- :wat::core::String]
-  -> :wat::core::String
+  [s <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::string::subs s 0 1) ":")
     (:wat::string::subs s 1 (:wat::string::length s))
     s))

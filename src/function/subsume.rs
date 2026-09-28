@@ -209,7 +209,17 @@ pub(in crate::function) fn value_matches_type_by_name(
                         // bare `:wat::WatAST` Path) — never competes at this arm; permissive.
                         StreamContainer::Tuple | StreamContainer::WatAstList => return true,
                     };
-                    head.as_str() == canonical_head
+                    // arc 255.67 — `head` is the DECLARED clause's raw Parametric head,
+                    // stored un-denoted (a `wat.type/Vector` clause stores `wat::type::Vector`,
+                    // same reason `parametric_heads_unify` exists). A bare `==` against the
+                    // canonical `wat::core::…` name refused every converted container clause
+                    // — found by this stone's own stdlib conversion breaking
+                    // `:wat::test::spawn-peer`'s `(wat.type/Vector :- [wat.type/AST])` clause
+                    // with `NoMatchingClause`, declared type shown correctly (denoted for
+                    // display by `format_type`) while THIS raw compare, upstream of display,
+                    // silently disagreed.
+                    crate::edn::render::type_denotation(&crate::types::parametric_head_fqdn(head))
+                        == format!(":{canonical_head}")
                 }
                 // Not a seq-container value at all (HashMap, Option, Result, a bare fn, …) —
                 // permissive fallback unchanged from before this arc.

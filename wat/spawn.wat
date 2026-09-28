@@ -31,8 +31,8 @@
 ;;   #wat.kernel/Address #wat.kernel/SocketAddressWire {:minter-pid 4242 :name [1 2 3 4 5]}
 ;; The cap codec builds/reads this record; the connect gate verifies minter-pid.
 (:wat::core::defrecord :wat::kernel::SocketAddressWire
-  [minter-pid <- :wat::core::i64
-   name       <- (:wat::core::Vector :- [:wat::core::i64])])
+  [minter-pid <- wat.type/i64
+   name       <- (wat.type/Vector :- [wat.type/i64])])
 
 ;; ── Stone 255.29 / 255.31 — ThreadAddressWire (the thread-tier address as data) ──
 ;; The record a thread address encodes as, so a Status or PoolMsg holding one
@@ -43,14 +43,14 @@
 ;; A decoded copy is inert. connect on it is Rejected: dialable only through
 ;; the live value. `address-wire?` stays false: this record is not a socket.
 (:wat::core::defrecord :wat::kernel::ThreadAddressWire
-  [minter-pid <- :wat::core::i64
-   id         <- :wat::core::i64])
+  [minter-pid <- wat.type/i64
+   id         <- wat.type/i64])
 
 ;; ── Per-env launch records (what each env hands the post-spawn hook) ─────────
 ;; ThreadLaunch is empty — no fields yet; grows if a need appears (don't build
 ;; the forcing function). ProcessLaunch carries the child pid, owner-side.
 (:wat::core::defrecord :wat::spawn::ThreadLaunch [])
-(:wat::core::defrecord :wat::spawn::ProcessLaunch [pid <- :wat::core::i64])
+(:wat::core::defrecord :wat::spawn::ProcessLaunch [pid <- wat.type/i64])
 
 ;; ── The keys (locus opts records) ───────────────────────────────────────────
 ;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::core::Record.
@@ -60,9 +60,9 @@
 ;; the peer is spawned, before spawn-program' returns, for effects. Receives
 ;; the per-env launch record. Required with a no-op default on the bare ctors.
 (:wat::core::defstruct :wat::spawn::ThreadOpts
-  [init-fn       <- [:-> :wat::core::Record]
-   post-spawn-fn <- [:wat::spawn::ThreadLaunch :-> :wat::core::nil]
-   runner-count  <- :wat::core::i64])
+  [init-fn       <- [:-> wat.type/Record]
+   post-spawn-fn <- [:wat::spawn::ThreadLaunch :-> wat.type/nil]
+   runner-count  <- wat.type/i64])
 ;; Arc 170 gap J — `uses` (the locus-carried Vector<(keyword,Capability)>) is RETIRED. The
 ;; bracket's per-worker provisioning (grant + Setup dial) is now an ORTHOGONAL layer riding on
 ;; `map`/`each` themselves (wat/bracket.wat's `map-worker`, absorbing the former `uses'`), not a
@@ -87,11 +87,11 @@
 ;; wat/process.wat) — no caller mints its own tag, so `ps` output stays a set
 ;; an operator can learn once and match exhaustively.
 (:wat::core::defstruct :wat::spawn::ProcessOpts
-  [post-spawn-fn    <- [:wat::spawn::ProcessLaunch :-> :wat::core::nil]
-   env-fn           <- :wat::core::String
-   max-message-bytes <- :wat::core::i64
-   runner-count      <- :wat::core::i64
-   label             <- (:wat::core::Option :- [:wat::core::Record])])
+  [post-spawn-fn    <- [:wat::spawn::ProcessLaunch :-> wat.type/nil]
+   env-fn           <- wat.type/String
+   max-message-bytes <- wat.type/i64
+   runner-count      <- wat.type/i64
+   label             <- (:wat::core::Option :- [wat.type/Record])])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
 ;; in `edn::render` (src/edn/render.rs).  Do NOT scatter the literal: change it here and there
@@ -129,57 +129,57 @@
 ;;   — post-spawn-fn/env-fn/max-message-bytes default; runner-count is n.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
-    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    :init-fn (:wat::core::fn [] -> wat.type/Record (:wat::program::EmptyEnv))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> wat.type/nil nil)
     :runner-count (:wat::program::cpu-count)))
 
-(:wat::core::defn :wat::spawn::thread::init [f <- [:-> :wat::core::Record]] -> :wat::spawn::ThreadOpts
+(:wat::core::defn :wat::spawn::thread::init [f <- [:-> wat.type/Record]] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts :init-fn f
-    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> wat.type/nil nil)
     :runner-count (:wat::program::cpu-count)))
 
-(:wat::core::defn :wat::spawn::thread::post-spawn [g <- [:wat::spawn::ThreadLaunch :-> :wat::core::nil]] -> :wat::spawn::ThreadOpts
+(:wat::core::defn :wat::spawn::thread::post-spawn [g <- [:wat::spawn::ThreadLaunch :-> wat.type/nil]] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
+    :init-fn (:wat::core::fn [] -> wat.type/Record (:wat::program::EmptyEnv))
     :post-spawn-fn g
     :runner-count (:wat::program::cpu-count)))
 
-(:wat::core::defn :wat::spawn::thread::runner-count [n <- :wat::core::i64] -> :wat::spawn::ThreadOpts
+(:wat::core::defn :wat::spawn::thread::runner-count [n <- wat.type/i64] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
-    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    :init-fn (:wat::core::fn [] -> wat.type/Record (:wat::program::EmptyEnv))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> wat.type/nil nil)
     :runner-count n))
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> wat.type/nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count (:wat::program::cpu-count)
     :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process::post-spawn [f <- [:wat::spawn::ProcessLaunch :-> :wat::core::nil]] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::post-spawn [f <- [:wat::spawn::ProcessLaunch :-> wat.type/nil]] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES :runner-count (:wat::program::cpu-count) :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process::env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::env [s <- wat.type/String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> wat.type/nil nil)
     :env-fn s
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count (:wat::program::cpu-count)
     :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process::max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::max-message-bytes [n <- wat.type/i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> wat.type/nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes n
     :runner-count (:wat::program::cpu-count)
     :label :wat::core::Option.None))
 
-(:wat::core::defn :wat::spawn::process::runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
+(:wat::core::defn :wat::spawn::process::runner-count [n <- wat.type/i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> wat.type/nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count n
@@ -218,11 +218,11 @@
   :Shutdown                                                              ;; owner dropped the handle (self-peer drained) — exit; deadlock-free termination
   :Admin      [msg   <- :A]                                             ;; owner sent an admin op over the lineage peer (Ok path); A = self-peer's recv type
   :Connection [peer  <- (:wat::kernel::Peer :- [I O])]
-  :Message    [idx   <- :wat::core::i64  msg   <- :O]
-  :Closed     [idx   <- :wat::core::i64]
-  :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]
-  :Malformed  [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
-  :Rejected   [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])   ;; arc 278 Stone 1a: over-FOO (400-class) — reply cause (non-blocking) + EVICT + keep serving
+  :Message    [idx   <- wat.type/i64  msg   <- :O]
+  :Closed     [idx   <- wat.type/i64]
+  :Lost       [idx   <- wat.type/i64  cause <- :wat::kernel::Failure]
+  :Malformed  [idx   <- wat.type/i64  cause <- :wat::kernel::Failure]   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
+  :Rejected   [idx   <- wat.type/i64  cause <- :wat::kernel::Failure])   ;; arc 278 Stone 1a: over-FOO (400-class) — reply cause (non-blocking) + EVICT + keep serving
 
 ;; ── (PoolMsg :- [D I]) — the universal pool wire message (arc 170 M1-pool) ──
 ;;
@@ -248,7 +248,7 @@
 ;; phantom).
 (:wat::core::defenum :wat::bracket::PoolMsg :- [D I] :wat::enum::Pure
   :Setup [deps <- :D]
-  :Work  [pair <- (:wat::core::Tuple :- [:wat::core::i64 I])])
+  :Work  [pair <- (wat.type/Tuple :- [wat.type/i64 I])])
 
 ;; ── Spawned :- [S R] — the owner family ─────────────────────────────────────
 ;; The owner's end of a spawn. S is what the owner sends, R what it receives.
@@ -371,7 +371,7 @@
   ;; parameter. Peer' is the wire-capable peer (pure I/O only); ThreadSelfPeer' is the
   ;; in-locus escape hatch for thread workers that carry Sender/Receiver or other impure types.
   ([locus <- :wat::spawn::ThreadOpts
-    prog <- [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]] -> (:wat::kernel::Thread :- [R S])
+    prog <- [(:wat::kernel::Peer :- [S R]) :-> wat.type/nil]] -> (:wat::kernel::Thread :- [R S])
     (:wat::kernel::spawn-thread prog (:wat::spawn::ThreadOpts/init-fn locus) (:wat::spawn::ThreadOpts/post-spawn-fn locus)))
   ;; process — forms ((Vector :- [wat::WatAST])); I,O are the forms-server's free request/response vars.
   ;; The locus's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
@@ -381,7 +381,7 @@
   ;; The locus's label (extracted via ProcessOpts/label) is arc 170 closure #6's
   ;; ps-visible identity — a VALUE (unlike env-fn), read straight off the locus.
   ([locus <- :wat::spawn::ProcessOpts
-    prog <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::kernel::Process :- [I O])
+    prog <- (wat.type/Vector :- [wat.type/AST])] -> (:wat::kernel::Process :- [I O])
     (:wat::kernel::spawn-process prog (:wat::spawn::ProcessOpts/post-spawn-fn locus) (:wat::spawn::ProcessOpts/env-fn locus) (:wat::spawn::ProcessOpts/max-message-bytes locus) (:wat::spawn::ProcessOpts/label locus))))
 
 ;; ── Locus — the locus-agnostic service-launch surface (arc 209 host-parity-4a) ─
@@ -413,10 +413,10 @@
   [(launch :- [S R St Sh Lu]
      [self          <- (:wat::spawn::Locus :- [T])
       ship          <- :Sh
-      init          <- :wat::core::keyword
-      serve         <- :wat::core::keyword
-      service-forms <- (:wat::core::Vector :- [:wat::WatAST])
-      lu-addr-kw    <- :wat::core::keyword
+      init          <- wat.type/keyword
+      serve         <- wat.type/keyword
+      service-forms <- (wat.type/Vector :- [wat.type/AST])
+      lu-addr-kw    <- wat.type/keyword
       ;; arc 278 startup-crash parity: lu-mk-kw is the CONSTRUCTOR twin of
       ;; lu-addr-kw (which extracts the addr FROM the lineage-up value). It builds
       ;; the lineage-up value FROM the address — for defservice, Status::Started.
@@ -425,7 +425,7 @@
       ;; runs, making an :init crash surface over the crash-aware launch handshake
       ;; instead of deadlocking the owner's connect'. Process ignores it (its
       ;; child-main-form owns the ctor).
-      lu-mk-kw      <- :wat::core::keyword] -> (:wat::spawn::Launched :- [S R Sh Lu T]))
+      lu-mk-kw      <- wat.type/keyword] -> (:wat::spawn::Launched :- [S R Sh Lu T]))
    ;; Arc 170 M1-pool — work-fn is a GENERIC W (not `[I :-> O]`): the thread/non-dial
    ;; tiers pass a 1-param `[I :-> O]`, the process DIAL tier a 2-param `[(Peer' :- [S R]) I :-> O]`.
    ;; The impl reifies (process, fn-forms) or applies (thread, unifying W~[I :-> O] locally)
@@ -439,7 +439,7 @@
    ;; carrier is never welded into this surface's return type, only named by it.
    (spawn-runner :- [D I O W] [self    <- (:wat::spawn::Locus :- [T])
                                work-fn <- :W]
-     -> (:wat::spawn::Spawned :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])]))
+     -> (:wat::spawn::Spawned :- [(:wat::bracket::PoolMsg :- [D I]) (wat.type/Tuple :- [wat.type/i64 O])]))
    ;; ── runner-count — the tier-blind pool-count reader ──
    ;; 255.19 — was a defclause keyed on the concrete loci ("a new locus type joins as one
    ;; more clause here"): a per-locus list OUTSIDE the surface, which a generic
@@ -448,7 +448,7 @@
    ;; ThreadOpts and ProcessOpts that is their own `runner-count` field ACCESSOR (the method
    ;; key and the accessor are the same name, so an extend-type arm would be a duplicate
    ;; define); a new locus without that field implements it in its `extend-type`.
-   (runner-count [self <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64)
+   (runner-count [self <- (:wat::spawn::Locus :- [T])] -> wat.type/i64)
    ;; ── with-label — attach the ps-visible identity to a locus (arc 170 closure #6) ──
    ;; 255.19 — a surface method (was a defclause returning the BARE `Locus`, which erased T:
    ;; a process locus through it type-checked as a Shared launch). It KEEPS the transport:
@@ -477,7 +477,7 @@
    ;; live witness — it goes RED the day the set is genuinely closed, which is its whole job.
    ;; DESCRIBES only, never crosses as anything but inert EDN (see ProcessOpts' `label` field doc).
    (with-label [self <- (:wat::spawn::Locus :- [T])
-                r    <- :wat::core::Record]
+                r    <- wat.type/Record]
      -> (:wat::spawn::Locus :- [T]))])
 
 ;; ── Arc 278 Strike A — the ONE canonical Failure constructor ─────────────────
@@ -495,10 +495,10 @@
 ;; wat-scripts/scratch-pad/probe-failure-record-ctor.wat. Homed here (loads well before
 ;; wat/service.wat, its first client) because this file already owns the recv'-outcome /
 ;; Failure/message crash-parity pattern (see the two `assertion-failed!` sites below).
-(:wat::core::defn :wat::kernel::message-only-failure [msg <- :wat::core::String] -> :wat::kernel::Failure
+(:wat::core::defn :wat::kernel::message-only-failure [msg <- wat.type/String] -> :wat::kernel::Failure
   (:wat::kernel::Failure
     :error (:wat::core::Fault/of msg)
-    :frames (:wat::core::Vector :- [:wat::kernel::Frame])
+    :frames (wat.type/Vector :- [:wat::kernel::Frame])
     :actual :wat::core::Option.None
     :expected :wat::core::Option.None))
 
@@ -521,7 +521,7 @@
       ;; the reason (parity with the honest serve-loop-crash path), instead of hanging.
       [b  (:wat::kernel::listener self :S :R)
        sp (:wat::kernel::spawn-program self
-            (:wat::core::fn [self-peer <- (:wat::kernel::Peer :- [Lu Sh])] -> :wat::core::nil
+            (:wat::core::fn [self-peer <- (:wat::kernel::Peer :- [Lu Sh])] -> wat.type/nil
               (:wat::core::let
                 ;; :init runs BEFORE Started is sent — a crash here dies before the send.
                 [st (:wat::core::apply  init ship [])
@@ -546,7 +546,7 @@
                 ;; pure state from here; a hand-rolled serve ignoring it is unaffected).
                 (:wat::core::apply  serve self-peer
                   (:wat::spawn::Bound/listener b)
-                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [R S])])
+                  (wat.type/Vector :- [(:wat::kernel::Peer :- [R S])])
                   0
                   st []))))
        ;; Crash-aware readiness barrier: value discarded (the parent already holds the address).
@@ -654,8 +654,8 @@
 ;; owner end `(Spawned :- [I O])`: this drains the child the caller spawned.
 (:wat::core::defn :wat::kernel::recv-all-loop :- [I O]
   [p   <- (:wat::spawn::Spawned :- [I O])
-   acc <- (:wat::core::Vector :- [O])]
-  -> (:wat::core::Result :- [(:wat::core::Vector :- [O]) :wat::kernel::LociDiedError])
+   acc <- (wat.type/Vector :- [O])]
+  -> (:wat::core::Result :- [(wat.type/Vector :- [O]) :wat::kernel::LociDiedError])
   (:wat::core::match (:wat::kernel::recv p)
     [:wat::kernel::RecvOutcome.Message {:msg v}
       (:wat::kernel::recv-all-loop p (:wat::core::conj acc v))]
@@ -679,5 +679,5 @@
 
 (:wat::core::defn :wat::kernel::recv-all :- [I O]
   [p <- (:wat::spawn::Spawned :- [I O])]
-  -> (:wat::core::Result :- [(:wat::core::Vector :- [O]) :wat::kernel::LociDiedError])
-  (:wat::kernel::recv-all-loop p (:wat::core::Vector :- [:O])))
+  -> (:wat::core::Result :- [(wat.type/Vector :- [O]) :wat::kernel::LociDiedError])
+  (:wat::kernel::recv-all-loop p (wat.type/Vector :- [:O])))

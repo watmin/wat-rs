@@ -36,46 +36,46 @@
 ;; One declared field — name in declaration order, type as a WatAST form
 ;; (the same rendering `field-types-of` already uses).
 (:wat::core::defrecord :wat::runtime::TypeField
-  [name <- :wat::core::keyword
-   type <- :wat::WatAST])
+  [name <- wat.type/keyword
+   type <- wat.type/AST])
 
 ;; One enum variant — unit variants have an empty `fields` vector.
 (:wat::core::defrecord :wat::runtime::TypeVariant
-  [name <- :wat::core::keyword
-   fields <- (:wat::core::Vector :- [:wat::runtime::TypeField])])
+  [name <- wat.type/keyword
+   fields <- (wat.type/Vector :- [:wat::runtime::TypeField])])
 
 ;; One surface member. A Method reports its parameter names (declaration
 ;; order) and return type; the full ArgSpec is not a wat value.
 (:wat::core::defenum :wat::runtime::TypeSurfaceMember :wat::enum::Pure
-  :Field  [name <- :wat::core::keyword  type <- :wat::WatAST]
-  :Method [name <- :wat::core::keyword
-           params <- (:wat::core::Vector :- [:wat::core::keyword])
-           ret <- :wat::WatAST])
+  :Field  [name <- wat.type/keyword  type <- wat.type/AST]
+  :Method [name <- wat.type/keyword
+           params <- (wat.type/Vector :- [wat.type/keyword])
+           ret <- wat.type/AST])
 
 ;; Kind-appropriate body. A Newtype with only `:inner` is an ANSWER (kind +
 ;; wrapped type), not an omission — "nothing else to say" lives in the row.
 (:wat::core::defenum :wat::runtime::TypeBody :wat::enum::Pure
   :Aggregate [nature <- :wat::runtime::TypeNature
-              fields <- (:wat::core::Vector :- [:wat::runtime::TypeField])]
+              fields <- (wat.type/Vector :- [:wat::runtime::TypeField])]
   :Enum      [purity <- :wat::runtime::TypePurity
-              variants <- (:wat::core::Vector :- [:wat::runtime::TypeVariant])]
-  :Newtype   [inner <- :wat::WatAST]
-  :Alias     [expr <- :wat::WatAST]
-  :Union     [members <- (:wat::core::Vector :- [:wat::WatAST])]
+              variants <- (wat.type/Vector :- [:wat::runtime::TypeVariant])]
+  :Newtype   [inner <- wat.type/AST]
+  :Alias     [expr <- wat.type/AST]
+  :Union     [members <- (wat.type/Vector :- [wat.type/AST])]
   :Surface   [nature <- (:wat::core::Option :- [:wat::runtime::TypeNature])
-              members <- (:wat::core::Vector :- [:wat::runtime::TypeSurfaceMember])]
+              members <- (wat.type/Vector :- [:wat::runtime::TypeSurfaceMember])]
   ;; A builtin's structure, parameters included, is not declared anywhere
   ;; (`builtin_names` holds names only) — so the row's `type-params` is empty
   ;; and the body has nothing else to say.
   :Builtin []
-  :Marker  [children <- (:wat::core::Vector :- [:wat::core::keyword])])
+  :Marker  [children <- (wat.type/Vector :- [wat.type/keyword])])
 
 ;; THE row. `type-params` is on the row (every TypeDef carries them), not
 ;; buried in a kind-specific body. `body` is the rest.
 (:wat::core::defrecord :wat::runtime::TypeInfo
-  [name <- :wat::core::keyword
+  [name <- wat.type/keyword
    kind <- :wat::runtime::TypeKind
-   type-params <- (:wat::core::Vector :- [:wat::core::String])
+   type-params <- (wat.type/Vector :- [wat.type/String])
    body <- :wat::runtime::TypeBody])
 
 ;; Outcome of `:wat::runtime::declared-types`. `Ok` carries the types the
@@ -83,6 +83,6 @@
 ;; `Refused` names the form that could not register and why — never a panic,
 ;; never a silent drop.
 (:wat::core::defenum :wat::runtime::DeclaredTypes :wat::enum::Pure
-  :Ok [types <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])]
-  :Refused [form <- :wat::WatAST
-            cause <- :wat::core::String])
+  :Ok [types <- (wat.type/Vector :- [:wat::runtime::TypeInfo])]
+  :Refused [form <- wat.type/AST
+            cause <- wat.type/String])

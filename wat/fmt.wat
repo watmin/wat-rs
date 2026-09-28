@@ -11,15 +11,15 @@
   :Align [])
 
 (:wat::core::defrecord :wat::fmt::Break
-  [id   <- :wat::core::i64
+  [id   <- wat.type/i64
    kind <- :wat::fmt::BreakKind])
 
 (:wat::core::defrecord :wat::fmt::Comment
-  [text     <- :wat::core::String
-   line     <- :wat::core::i64
-   col      <- :wat::core::i64
-   end-line <- :wat::core::i64
-   end-col  <- :wat::core::i64])
+  [text     <- wat.type/String
+   line     <- wat.type/i64
+   col      <- wat.type/i64
+   end-line <- wat.type/i64
+   end-col  <- wat.type/i64])
 
 ;; A rule claims exactly the node it dispatched on and positions that node's
 ;; immediate children. The fallback (R11) fires where the parent is unclaimed.
@@ -27,69 +27,69 @@
 ;; (a specific rule) or Fallback (R11). R11 cannot assert Claim: that is
 ;; `not Claim -> Claim` and it races the per-child Breaks.
 (:wat::core::defrecord :wat::fmt::Claim
-  [form <- :wat::core::i64])
+  [form <- wat.type/i64])
 
 (:wat::core::defrecord :wat::fmt::Fallback
-  [node <- :wat::core::i64])
+  [node <- wat.type/i64])
 
 ;; Vertical separation, a different axis from Break.kind. A node may carry both.
 (:wat::core::defrecord :wat::fmt::BlankBefore
-  [id <- :wat::core::i64])
+  [id <- wat.type/i64])
 
 ;; This form's broken children align their second token. The emitter
 ;; computes the pad from this pass's first tokens. No rule names a width.
 (:wat::core::defrecord :wat::fmt::AlignPairs
-  [form <- :wat::core::i64])
+  [form <- wat.type/i64])
 
 ;; Pad child i so child i+1 lines up, i stepping by stride.
 ;; 2 = key/value (AlignPairs). 3 = name / binder / type.
 (:wat::core::defrecord :wat::fmt::AlignStride
-  [form   <- :wat::core::i64
-   stride <- :wat::core::i64])
+  [form   <- wat.type/i64
+   stride <- wat.type/i64])
 
 ;; A list form's grouping identity: head name plus either the trailing
 ;; pair-run key sequence or positional arity ("#N").
 (:wat::core::defrecord :wat::fmt::FormSig
-  [form <- :wat::core::i64
-   head <- :wat::core::String
-   keys <- :wat::core::String])
+  [form <- wat.type/i64
+   head <- wat.type/String
+   keys <- wat.type/String])
 
 ;; A member of an adjacent same-sig group. group is the first member's id.
 (:wat::core::defrecord :wat::fmt::TableRow
-  [form  <- :wat::core::i64
-   group <- :wat::core::i64])
+  [form  <- wat.type/i64
+   group <- wat.type/i64])
 
 ;; One-line rendered width. From the walk, not rete. leaf = length(source);
 ;; interior = Σ children + n + 1.
 (:wat::core::defrecord :wat::fmt::Width
-  [id <- :wat::core::i64
-   w  <- :wat::core::i64])
+  [id <- wat.type/i64
+   w  <- wat.type/i64])
 
 ;; Pair collection whose every child is an atom. The emitter inlines it
 ;; when indent + Width fits the budget.
 (:wat::core::defrecord :wat::fmt::AllAtoms
-  [form <- :wat::core::i64])
+  [form <- wat.type/i64])
 
 ;; After this node, write ` []`. A bare enum variant: both spellings are
 ;; legal and equivalent, so the insert is value-preserving. Idempotent —
 ;; a tag that already has a vector sibling does not get this fact.
 (:wat::core::defrecord :wat::fmt::EmptyVecAfter
-  [id <- :wat::core::i64])
+  [id <- wat.type/i64])
 
 (:wat::core::defrecord :wat::fmt::Acc
-  [out      <- :wat::core::String
-   next-id  <- :wat::core::i64
-   comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
-   col      <- :wat::core::i64])
+  [out      <- wat.type/String
+   next-id  <- wat.type/i64
+   comments <- (wat.type/PersistentVector :- [:wat::fmt::Comment])
+   col      <- wat.type/i64])
 
 (:wat::core::defrecord :wat::fmt::SigAcc
-  [next-id <- :wat::core::i64
-   sigs    <- (:wat::core::PersistentVector :- [:wat::fmt::FormSig])])
+  [next-id <- wat.type/i64
+   sigs    <- (wat.type/PersistentVector :- [:wat::fmt::FormSig])])
 
 (:wat::core::defrecord :wat::fmt::WAcc
-  [next-id <- :wat::core::i64
-   last-w  <- :wat::core::i64
-   facts   <- (:wat::core::PersistentVector :- [:wat::fmt::Width])])
+  [next-id <- wat.type/i64
+   last-w  <- wat.type/i64
+   facts   <- (wat.type/PersistentVector :- [:wat::fmt::Width])])
 
 (:wat::rete::defquery :wat::fmt::q-break
   :params []
@@ -127,7 +127,7 @@
   :params []
   :when [(?ev :- :wat::fmt::EmptyVecAfter)])
 
-(:wat::core::defn :wat::fmt::spaces [n <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wat::fmt::spaces [n <- wat.type/i64] -> wat.type/String
   (:wat::core::if (:wat::i64::<= n 0)
     ""
     (:wat::string::concat " " (:wat::fmt::spaces (:wat::i64::- n 1)))))
@@ -135,8 +135,8 @@
 ;; Drop trailing spaces/tabs on the current line. A newline after pad or
 ;; the inter-token space would otherwise leave R9 whitespace.
 (:wat::core::defn :wat::fmt::rstrip-ws
-  [s <- :wat::core::String]
-  -> :wat::core::String
+  [s <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::string::empty? s)
     s
     (:wat::core::if (:wat::core::or (:wat::string::ends-with? s " ")
@@ -144,7 +144,7 @@
       (:wat::fmt::rstrip-ws (:wat::string::subs s 0 (:wat::i64::- (:wat::string::length s) 1)))
       s)))
 
-(:wat::core::defn :wat::fmt::ensure-nl [s <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :wat::fmt::ensure-nl [s <- wat.type/String] -> wat.type/String
   (:wat::core::if (:wat::string::empty? s)
     s
     (:wat::core::if (:wat::string::ends-with? s "\n")
@@ -154,8 +154,8 @@
 ;; Column of the next write, given the previous column and a suffix just appended.
 ;; Derived from EMITTED text, never from a source span.
 (:wat::core::defn :wat::fmt::col-after
-  [col <- :wat::core::i64  s <- :wat::core::String]
-  -> :wat::core::i64
+  [col <- wat.type/i64  s <- wat.type/String]
+  -> wat.type/i64
   (:wat::core::if (:wat::string::empty? s)
     col
     (:wat::core::if (:wat::string::ends-with? s "\n")
@@ -167,7 +167,7 @@
         (:wat::i64::+ col (:wat::string::length s))))))
 
 (:wat::core::defn :wat::fmt::write
-  [acc <- :wat::fmt::Acc  s <- :wat::core::String]
+  [acc <- :wat::fmt::Acc  s <- wat.type/String]
   -> :wat::fmt::Acc
   (:wat::fmt::Acc
     :out      (:wat::string::concat (:wat::fmt::Acc/out acc) s)
@@ -187,8 +187,8 @@
         :col      0))))
 
 (:wat::core::defn :wat::fmt::comment-before?
-  [c <- :wat::fmt::Comment  line <- :wat::core::i64  col <- :wat::core::i64]
-  -> :wat::core::bool
+  [c <- :wat::fmt::Comment  line <- wat.type/i64  col <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::if (:wat::i64::< (:wat::fmt::Comment/line c) line)
     true
     (:wat::core::if (:wat::i64::= (:wat::fmt::Comment/line c) line)
@@ -199,7 +199,7 @@
 ;; newline now would leave a blank line of spaces.
 (:wat::core::defn :wat::fmt::pending-indent?
   [acc <- :wat::fmt::Acc]
-  -> :wat::core::bool
+  -> wat.type/bool
   (:wat::core::let [col (:wat::fmt::Acc/col acc)]
     (:wat::core::if (:wat::i64::<= col 0)
       false
@@ -232,10 +232,10 @@
 
 (:wat::core::defn :wat::fmt::flush-comments
   [acc     <- :wat::fmt::Acc
-   line    <- :wat::core::i64
-   col     <- :wat::core::i64
-   indent  <- :wat::core::i64
-   restore <- :wat::core::bool]
+   line    <- wat.type/i64
+   col     <- wat.type/i64
+   indent  <- wat.type/i64
+   restore <- wat.type/bool]
   -> :wat::fmt::Acc
   (:wat::core::if (:wat::core::empty? (:wat::fmt::Acc/comments acc))
     acc
@@ -262,8 +262,8 @@
 ;; Exactly one blank line at the end of `out` (two trailing newlines).
 ;; Missing → insert. Already present → leave. Extra → trim. Never spaces.
 (:wat::core::defn :wat::fmt::trim-extra-nl
-  [s <- :wat::core::String]
-  -> :wat::core::String
+  [s <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::string::ends-with? s "\n\n\n")
     (:wat::fmt::trim-extra-nl
       (:wat::string::subs s 0 (:wat::i64::- (:wat::string::length s) 1)))
@@ -286,13 +286,13 @@
         :comments (:wat::fmt::Acc/comments acc)
         :col      0))))
 
-(:wat::core::defn :wat::fmt::open-of [kind <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :wat::fmt::open-of [kind <- wat.type/String] -> wat.type/String
   (:wat::core::if (:wat::core::= kind "list") "("
     (:wat::core::if (:wat::core::= kind "vector") "["
       (:wat::core::if (:wat::core::= kind "set") "#{"
         "{"))))
 
-(:wat::core::defn :wat::fmt::close-of [kind <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :wat::fmt::close-of [kind <- wat.type/String] -> wat.type/String
   (:wat::core::if (:wat::core::= kind "list") ")"
     (:wat::core::if (:wat::core::= kind "vector") "]"
       "}")))
@@ -300,8 +300,8 @@
 (:wat::core::defn :wat::fmt::pad-break
   [acc      <- :wat::fmt::Acc
    bk       <- :wat::fmt::BreakKind
-   indent   <- :wat::core::i64
-   open-col <- :wat::core::i64]
+   indent   <- wat.type/i64
+   open-col <- wat.type/i64]
   -> :wat::fmt::Acc
   (:wat::core::match bk
     [:wat::fmt::BreakKind.Block {}
@@ -310,9 +310,9 @@
       (:wat::fmt::write (:wat::fmt::write-nl acc) (:wat::fmt::spaces (:wat::i64::+ open-col 1)))]))
 
 (:wat::core::defn :wat::fmt::claimed?
-  [claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   parent-id <- :wat::core::i64]
-  -> :wat::core::bool
+  [claims    <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   parent-id <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::if (:wat::i64::= parent-id 0)
     true
     (:wat::core::match (:wat::core::get claims parent-id)
@@ -321,8 +321,8 @@
 
 (:wat::core::defn :wat::fmt::apply-blank
   [acc    <- :wat::fmt::Acc
-   id     <- :wat::core::i64
-   blanks <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
+   id     <- wat.type/i64
+   blanks <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])]
   -> :wat::fmt::Acc
   (:wat::core::match (:wat::core::get blanks id)
     [:wat::core::Option.Some {:value _}
@@ -332,11 +332,11 @@
 (:wat::core::defn :wat::fmt::apply-break
   [acc       <- :wat::fmt::Acc
    bk        <- :wat::fmt::BreakKind
-   indent    <- :wat::core::i64
-   open-col  <- :wat::core::i64
-   id        <- :wat::core::i64
-   parent-id <- :wat::core::i64
-   claims    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
+   indent    <- wat.type/i64
+   open-col  <- wat.type/i64
+   id        <- wat.type/i64
+   parent-id <- wat.type/i64
+   claims    <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])]
   -> :wat::fmt::Acc
   (:wat::core::if (:wat::fmt::claimed? claims parent-id)
     (:wat::fmt::pad-break acc bk indent open-col)
@@ -347,8 +347,8 @@
 ;; Child 1 is the symbol/keyword `:-` and child 2 is a vector. Shared by
 ;; type DECLARATIONS (arity 3, atomic) and CONSTRUCTORS (arity > 3, glue then explode).
 (:wat::core::defn :wat::fmt::colon-args?
-  [node <- :wat::WatAST]
-  -> :wat::core::bool
+  [node <- wat.type/AST]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind node) "list"))
     false
     (:wat::core::let [kids (:wat::core::ast->children node)]
@@ -365,57 +365,57 @@
               (:wat::core::= (:wat::core::ast-kind c2) "vector"))))))))
 
 (:wat::core::defn :wat::fmt::type-application?
-  [node <- :wat::WatAST]
-  -> :wat::core::bool
+  [node <- wat.type/AST]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::not (:wat::fmt::colon-args? node))
     false
     (:wat::i64::= (:wat::core::length (:wat::core::ast->children node)) 3)))
 
 (:wat::core::defn :wat::fmt::type-constructor?
-  [node <- :wat::WatAST]
-  -> :wat::core::bool
+  [node <- wat.type/AST]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::not (:wat::fmt::colon-args? node))
     false
     (:wat::i64::> (:wat::core::length (:wat::core::ast->children node)) 3)))
 
 (:wat::core::defn :wat::fmt::subtree-size
-  [node <- :wat::WatAST]
-  -> :wat::core::i64
+  [node <- wat.type/AST]
+  -> wat.type/i64
   (:wat::core::if (:wat::core::not (:wat::grep::structural? node))
     1
     (:wat::core::foldl
-      (:wat::core::fn [n <- :wat::core::i64  child <- :wat::WatAST] -> :wat::core::i64
+      (:wat::core::fn [n <- wat.type/i64  child <- wat.type/AST] -> wat.type/i64
         (:wat::i64::+ n (:wat::fmt::subtree-size child)))
       1
       (:wat::core::ast->children node))))
 
 (:wat::core::defn :wat::fmt::count-colon-args
-  [node <- :wat::WatAST]
-  -> :wat::core::i64
+  [node <- wat.type/AST]
+  -> wat.type/i64
   (:wat::core::let [here (:wat::core::if (:wat::fmt::colon-args? node) 1 0)]
     (:wat::core::if (:wat::core::not (:wat::grep::structural? node))
       here
       (:wat::core::foldl
-        (:wat::core::fn [n <- :wat::core::i64  child <- :wat::WatAST] -> :wat::core::i64
+        (:wat::core::fn [n <- wat.type/i64  child <- wat.type/AST] -> wat.type/i64
           (:wat::i64::+ n (:wat::fmt::count-colon-args child)))
         here
         (:wat::core::ast->children node)))))
 
 (:wat::core::defn :wat::fmt::count-type-apps
-  [node <- :wat::WatAST]
-  -> :wat::core::i64
+  [node <- wat.type/AST]
+  -> wat.type/i64
   (:wat::core::let [here (:wat::core::if (:wat::fmt::type-application? node) 1 0)]
     (:wat::core::if (:wat::core::not (:wat::grep::structural? node))
       here
       (:wat::core::foldl
-        (:wat::core::fn [n <- :wat::core::i64  child <- :wat::WatAST] -> :wat::core::i64
+        (:wat::core::fn [n <- wat.type/i64  child <- wat.type/AST] -> wat.type/i64
           (:wat::i64::+ n (:wat::fmt::count-type-apps child)))
         here
         (:wat::core::ast->children node)))))
 
 (:wat::core::defn :wat::fmt::kw-key?
-  [n <- :wat::WatAST]
-  -> :wat::core::bool
+  [n <- wat.type/AST]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind n) "keyword"))
     false
     (:wat::core::let [nm (:wat::core::ast-name n)]
@@ -424,10 +424,10 @@
         (:wat::core::not (:wat::core::= nm "->"))))))
 
 (:wat::core::defn :wat::fmt::even-keys?
-  [kids <- (:wat::core::Vector :- [:wat::WatAST])
-   i    <- :wat::core::i64
-   lim  <- :wat::core::i64]
-  -> :wat::core::bool
+  [kids <- (wat.type/Vector :- [wat.type/AST])
+   i    <- wat.type/i64
+   lim  <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::if (:wat::i64::>= i lim)
     true
     (:wat::core::if (:wat::fmt::kw-key? (:wat::core::nth kids i))
@@ -435,9 +435,9 @@
       false)))
 
 (:wat::core::defn :wat::fmt::run-from?
-  [kids <- (:wat::core::Vector :- [:wat::WatAST])
-   s    <- :wat::core::i64]
-  -> :wat::core::bool
+  [kids <- (wat.type/Vector :- [wat.type/AST])
+   s    <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::let [n   (:wat::core::length kids)
                     len (:wat::i64::- n s)]
     (:wat::core::if (:wat::i64::< len 2)
@@ -447,9 +447,9 @@
         (:wat::fmt::even-keys? kids s n)))))
 
 (:wat::core::defn :wat::fmt::find-run
-  [kids <- (:wat::core::Vector :- [:wat::WatAST])
-   s    <- :wat::core::i64]
-  -> :wat::core::i64
+  [kids <- (wat.type/Vector :- [wat.type/AST])
+   s    <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::>= s (:wat::core::length kids))
     -1
     (:wat::core::if (:wat::fmt::run-from? kids s)
@@ -457,11 +457,11 @@
       (:wat::fmt::find-run kids (:wat::i64::+ s 1)))))
 
 (:wat::core::defn :wat::fmt::join-from
-  [kids <- (:wat::core::Vector :- [:wat::WatAST])
-   i    <- :wat::core::i64
-   lim  <- :wat::core::i64
-   acc  <- :wat::core::String]
-  -> :wat::core::String
+  [kids <- (wat.type/Vector :- [wat.type/AST])
+   i    <- wat.type/i64
+   lim  <- wat.type/i64
+   acc  <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::i64::>= i lim)
     acc
     (:wat::core::let [nm   (:wat::core::ast-name (:wat::core::nth kids i))
@@ -471,8 +471,8 @@
       (:wat::fmt::join-from kids (:wat::i64::+ i 2) lim acc2))))
 
 (:wat::core::defn :wat::fmt::form-keys
-  [kids <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::core::String
+  [kids <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/String
   (:wat::core::let [s (:wat::fmt::find-run kids 1)]
     (:wat::core::if (:wat::i64::< s 0)
       (:wat::string::concat "#" (:wat::i64::to-string (:wat::i64::- (:wat::core::length kids) 1)))
@@ -480,7 +480,7 @@
 
 (:wat::core::defn :wat::fmt::sigs-walk
   [acc  <- :wat::fmt::SigAcc
-   node <- :wat::WatAST]
+   node <- wat.type/AST]
   -> :wat::fmt::SigAcc
   (:wat::core::let
     [id   (:wat::fmt::SigAcc/next-id acc)
@@ -501,27 +501,27 @@
      acc1 (:wat::fmt::SigAcc :next-id (:wat::i64::+ id 1) :sigs sigs2)]
     (:wat::core::if (:wat::grep::structural? node)
       (:wat::core::foldl
-        (:wat::core::fn [a <- :wat::fmt::SigAcc  child <- :wat::WatAST] -> :wat::fmt::SigAcc
+        (:wat::core::fn [a <- :wat::fmt::SigAcc  child <- wat.type/AST] -> :wat::fmt::SigAcc
           (:wat::fmt::sigs-walk a child))
         acc1
         (:wat::core::ast->children node))
       acc1)))
 
 (:wat::core::defn :wat::fmt::form-sigs-of
-  [forms <- :wat::WatAST]
-  -> (:wat::core::PersistentVector :- [:wat::fmt::FormSig])
+  [forms <- wat.type/AST]
+  -> (wat.type/PersistentVector :- [:wat::fmt::FormSig])
   (:wat::fmt::SigAcc/sigs
     (:wat::core::foldl
-      (:wat::core::fn [a <- :wat::fmt::SigAcc  form <- :wat::WatAST] -> :wat::fmt::SigAcc
+      (:wat::core::fn [a <- :wat::fmt::SigAcc  form <- wat.type/AST] -> :wat::fmt::SigAcc
         (:wat::fmt::sigs-walk a form))
       (:wat::fmt::SigAcc
         :next-id 1
-        :sigs (:wat::core::PersistentVector :- [:wat::fmt::FormSig]))
+        :sigs (wat.type/PersistentVector :- [:wat::fmt::FormSig]))
       (:wat::core::ast->children forms))))
 
 (:wat::core::defn :wat::fmt::width-walk
   [acc  <- :wat::fmt::WAcc
-   node <- :wat::WatAST]
+   node <- wat.type/AST]
   -> :wat::fmt::WAcc
   (:wat::core::let
     [id   (:wat::fmt::WAcc/next-id acc)
@@ -539,7 +539,7 @@
                 :last-w  0
                 :facts   (:wat::fmt::WAcc/facts acc))
          acc2 (:wat::core::foldl
-                (:wat::core::fn [a <- :wat::fmt::WAcc  child <- :wat::WatAST] -> :wat::fmt::WAcc
+                (:wat::core::fn [a <- :wat::fmt::WAcc  child <- wat.type/AST] -> :wat::fmt::WAcc
                   (:wat::core::let [a2 (:wat::fmt::width-walk a child)]
                     (:wat::fmt::WAcc
                       :next-id (:wat::fmt::WAcc/next-id a2)
@@ -556,46 +556,46 @@
                      (:wat::fmt::Width :id id :w w)))))))
 
 (:wat::core::defn :wat::fmt::widths-of
-  [forms <- :wat::WatAST]
-  -> (:wat::core::PersistentVector :- [:wat::fmt::Width])
+  [forms <- wat.type/AST]
+  -> (wat.type/PersistentVector :- [:wat::fmt::Width])
   (:wat::fmt::WAcc/facts
     (:wat::core::foldl
-      (:wat::core::fn [a <- :wat::fmt::WAcc  form <- :wat::WatAST] -> :wat::fmt::WAcc
+      (:wat::core::fn [a <- :wat::fmt::WAcc  form <- wat.type/AST] -> :wat::fmt::WAcc
         (:wat::fmt::width-walk a form))
       (:wat::fmt::WAcc
         :next-id 1
         :last-w  0
-        :facts   (:wat::core::PersistentVector :- [:wat::fmt::Width]))
+        :facts   (wat.type/PersistentVector :- [:wat::fmt::Width]))
       (:wat::core::ast->children forms))))
 
 (:wat::core::defn :wat::fmt::widths-map
-  [ws <- (:wat::core::PersistentVector :- [:wat::fmt::Width])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+  [ws <- (wat.type/PersistentVector :- [:wat::fmt::Width])]
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
                      x <- :wat::fmt::Width]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
       (:wat::hashmap::assoc m (:wat::fmt::Width/id x) (:wat::fmt::Width/w x)))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     ws))
 
 (:wat::core::defn :wat::fmt::token-widths
-  [node <- :wat::WatAST]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  [node <- wat.type/AST]
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [v <- (:wat::core::PersistentVector :- [:wat::core::i64])
-                     c <- :wat::WatAST]
-      -> (:wat::core::PersistentVector :- [:wat::core::i64])
+    (:wat::core::fn [v <- (wat.type/PersistentVector :- [wat.type/i64])
+                     c <- wat.type/AST]
+      -> (wat.type/PersistentVector :- [wat.type/i64])
       (:wat::vector::conj v (:wat::string::length (:wat::core::ast->source c))))
-    (:wat::core::PersistentVector :- [:wat::core::i64])
+    (wat.type/PersistentVector :- [wat.type/i64])
     (:wat::core::ast->children node)))
 
 (:wat::core::defn :wat::fmt::max-vec
-  [a   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   b   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   i   <- :wat::core::i64
-   acc <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  [a   <- (wat.type/PersistentVector :- [wat.type/i64])
+   b   <- (wat.type/PersistentVector :- [wat.type/i64])
+   i   <- wat.type/i64
+   acc <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [na (:wat::core::length a)
                     nb (:wat::core::length b)]
     (:wat::core::if (:wat::core::if (:wat::i64::>= i na) (:wat::i64::>= i nb) false)
@@ -607,41 +607,41 @@
         (:wat::fmt::max-vec a b (:wat::i64::+ i 1) (:wat::vector::conj acc v))))))
 
 (:wat::core::defn :wat::fmt::merge-widths
-  [gw <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
-   g  <- :wat::core::i64
-   tw <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+  [gw <- (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
+   g  <- wat.type/i64
+   tw <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
   (:wat::core::match (:wat::core::get gw g)
     [:wat::core::Option.None {} (:wat::hashmap::assoc gw g tw)]
     [:wat::core::Option.Some {:value prev}
       (:wat::hashmap::assoc gw g
-        (:wat::fmt::max-vec prev tw 0 (:wat::core::PersistentVector :- [:wat::core::i64])))]))
+        (:wat::fmt::max-vec prev tw 0 (wat.type/PersistentVector :- [wat.type/i64])))]))
 
 ;; '(' + tokens + one space between + ')'. The emitter consults 120;
 ;; table.wat names no budget.
 (:wat::core::defn :wat::fmt::sum-i64
-  [v   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   i   <- :wat::core::i64
-   acc <- :wat::core::i64]
-  -> :wat::core::i64
+  [v   <- (wat.type/PersistentVector :- [wat.type/i64])
+   i   <- wat.type/i64
+   acc <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::>= i (:wat::core::length v))
     acc
     (:wat::fmt::sum-i64 v (:wat::i64::+ i 1) (:wat::i64::+ acc (:wat::core::nth v i)))))
 
 (:wat::core::defn :wat::fmt::table-line-width
-  [cols <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::i64
+  [cols <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/i64
   (:wat::core::let [n (:wat::core::length cols)]
     (:wat::core::if (:wat::i64::= n 0)
       2
       (:wat::i64::+ (:wat::fmt::sum-i64 cols 0 0) (:wat::i64::+ n 1)))))
 
 (:wat::core::defn :wat::fmt::table-row-fits?
-  [tables <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   gw     <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
-   id     <- :wat::core::i64
-   indent <- :wat::core::i64]
-  -> :wat::core::bool
+  [tables <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   gw     <- (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
+   id     <- wat.type/i64
+   indent <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::match (:wat::core::get tables id)
     [:wat::core::Option.None {} false]
     [:wat::core::Option.Some {:value g}
@@ -651,11 +651,11 @@
           (:wat::i64::<= (:wat::i64::+ indent (:wat::fmt::table-line-width cols)) 120)])]))
 
 (:wat::core::defn :wat::fmt::gw-walk
-  [node   <- :wat::WatAST
-   id     <- :wat::core::i64
-   tables <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   gw     <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+  [node   <- wat.type/AST
+   id     <- wat.type/i64
+   tables <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   gw     <- (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])]
+  -> (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
   (:wat::core::let
     [gw1 (:wat::core::match (:wat::core::get tables id)
             [:wat::core::Option.Some {:value g} (:wat::fmt::merge-widths gw g (:wat::fmt::token-widths node))]
@@ -667,12 +667,12 @@
         gw1))))
 
 (:wat::core::defn :wat::fmt::gw-kids
-  [kids   <- (:wat::core::Vector :- [:wat::WatAST])
-   i      <- :wat::core::i64
-   id     <- :wat::core::i64
-   tables <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   gw     <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
+  [kids   <- (wat.type/Vector :- [wat.type/AST])
+   i      <- wat.type/i64
+   id     <- wat.type/i64
+   tables <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   gw     <- (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])]
+  -> (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
   (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
     gw
     (:wat::core::let [child (:wat::core::nth kids i)
@@ -684,13 +684,13 @@
 ;; Break (a key with a riding value). Prefix compounds do not contribute:
 ;; their next sibling is also broken. From THIS pass's source spelling.
 (:wat::core::defn :wat::fmt::broken-key-width
-  [kids    <- (:wat::core::Vector :- [:wat::WatAST])
-   i       <- :wat::core::i64
-   id      <- :wat::core::i64
-   breaks  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
-   empties <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   acc     <- :wat::core::i64]
-  -> :wat::core::i64
+  [kids    <- (wat.type/Vector :- [wat.type/AST])
+   i       <- wat.type/i64
+   id      <- wat.type/i64
+   breaks  <- (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
+   empties <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   acc     <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
     acc
     (:wat::core::let
@@ -717,11 +717,11 @@
 ;; Max first-token among children at indices 0, stride, 2*stride, …
 ;; so the next token (`<-`) lines up. Includes the unbroken first name.
 (:wat::core::defn :wat::fmt::stride-name-width
-  [kids   <- (:wat::core::Vector :- [:wat::WatAST])
-   i      <- :wat::core::i64
-   stride <- :wat::core::i64
-   acc    <- :wat::core::i64]
-  -> :wat::core::i64
+  [kids   <- (wat.type/Vector :- [wat.type/AST])
+   i      <- wat.type/i64
+   stride <- wat.type/i64
+   acc    <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
     acc
     (:wat::core::let
@@ -735,26 +735,26 @@
 
 (:wat::core::defn :wat::fmt::emit-kids
   [acc        <- :wat::fmt::Acc
-   kids       <- (:wat::core::Vector :- [:wat::WatAST])
-   i          <- :wat::core::i64
-   ctor?      <- :wat::core::bool
-   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
-   claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   tables     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   gw         <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
-   atoms      <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   widths     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   strides    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   empties    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   indent     <- :wat::core::i64
-   open-col   <- :wat::core::i64
-   parent-id  <- :wat::core::i64
-   pair-width <- :wat::core::i64
-   stride     <- :wat::core::i64
-   tblw       <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   skip-br?   <- :wat::core::bool]
+   kids       <- (wat.type/Vector :- [wat.type/AST])
+   i          <- wat.type/i64
+   ctor?      <- wat.type/bool
+   breaks     <- (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
+   claims     <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   blanks     <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   aligns     <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   tables     <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   gw         <- (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
+   atoms      <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   widths     <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   strides    <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   empties    <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   indent     <- wat.type/i64
+   open-col   <- wat.type/i64
+   parent-id  <- wat.type/i64
+   pair-width <- wat.type/i64
+   stride     <- wat.type/i64
+   tblw       <- (wat.type/PersistentVector :- [wat.type/i64])
+   skip-br?   <- wat.type/bool]
   -> :wat::fmt::Acc
   (:wat::core::if (:wat::i64::>= i (:wat::core::length kids))
     acc
@@ -814,23 +814,23 @@
 
 (:wat::core::defn :wat::fmt::emit-node
   [acc        <- :wat::fmt::Acc
-   node       <- :wat::WatAST
-   breaks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
-   claims     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   blanks     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   aligns     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   tables     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   gw         <- (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])])
-   atoms      <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   widths     <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   strides    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   empties    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   indent     <- :wat::core::i64
-   open-col   <- :wat::core::i64
-   first?     <- :wat::core::bool
-   parent-id  <- :wat::core::i64
-   force-leaf <- :wat::core::bool
-   skip-br?   <- :wat::core::bool]
+   node       <- wat.type/AST
+   breaks     <- (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
+   claims     <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   blanks     <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   aligns     <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   tables     <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   gw         <- (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
+   atoms      <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   widths     <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   strides    <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   empties    <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   indent     <- wat.type/i64
+   open-col   <- wat.type/i64
+   first?     <- wat.type/bool
+   parent-id  <- wat.type/i64
+   force-leaf <- wat.type/bool
+   skip-br?   <- wat.type/bool]
   -> :wat::fmt::Acc
   (:wat::core::let
     [id        (:wat::fmt::Acc/next-id acc)
@@ -910,9 +910,9 @@
                        [:wat::core::Option.Some {:value g}
                          (:wat::core::match (:wat::core::get gw g)
                            [:wat::core::Option.Some {:value v} v]
-                           [:wat::core::Option.None {} (:wat::core::PersistentVector :- [:wat::core::i64])])]
-                       [:wat::core::Option.None {} (:wat::core::PersistentVector :- [:wat::core::i64])])
-                     (:wat::core::PersistentVector :- [:wat::core::i64]))
+                           [:wat::core::Option.None {} (wat.type/PersistentVector :- [wat.type/i64])])]
+                       [:wat::core::Option.None {} (wat.type/PersistentVector :- [wat.type/i64])])
+                     (wat.type/PersistentVector :- [wat.type/i64]))
          acc3      (:wat::fmt::emit-kids acc2 kids 0
                      (:wat::fmt::type-constructor? node)
                      breaks claims blanks aligns tables gw atoms widths strides empties this-indent this-open id pw st tblw skip-kids)
@@ -931,25 +931,25 @@
           false))))))
 
 (:wat::core::defn :wat::fmt::emit
-  [forms    <- :wat::WatAST
-   comments <- (:wat::core::PersistentVector :- [:wat::fmt::Comment])
-   breaks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
-   claims   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   blanks   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   aligns   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   tables   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   atoms    <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   widths   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   strides  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   empties  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
-  -> :wat::core::String
+  [forms    <- wat.type/AST
+   comments <- (wat.type/PersistentVector :- [:wat::fmt::Comment])
+   breaks   <- (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
+   claims   <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   blanks   <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   aligns   <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   tables   <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   atoms    <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   widths   <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   strides  <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   empties  <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])]
+  -> wat.type/String
   (:wat::core::let
     [top  (:wat::core::ast->children forms)
      gw   (:wat::fmt::gw-kids top 0 1 tables
-            (:wat::core::HashMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::i64])]))
+            (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])]))
      acc0 (:wat::fmt::Acc :out "" :next-id 1 :comments comments :col 0)
      acc1 (:wat::core::foldl
-            (:wat::core::fn [acc <- :wat::fmt::Acc  form <- :wat::WatAST] -> :wat::fmt::Acc
+            (:wat::core::fn [acc <- :wat::fmt::Acc  form <- wat.type/AST] -> :wat::fmt::Acc
               (:wat::core::let [acc-b (:wat::core::if (:wat::string::empty? (:wat::fmt::Acc/out acc))
                                      acc
                                      (:wat::fmt::ensure-blank acc))]
@@ -968,18 +968,18 @@
 
 (:wat::core::defn :wat::fmt::break-kind-name
   [k <- :wat::fmt::BreakKind]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::match k
     [:wat::fmt::BreakKind.Block {} "Block"]
     [:wat::fmt::BreakKind.Align {} "Align"]))
 
 (:wat::core::defn :wat::fmt::breaks-map
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
+  -> (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
       (:wat::core::let [b (:wat::core::Option/expect
                             (:wat::map::get binding "?b")
                             "fmt::breaks-map: no ?b")
@@ -996,30 +996,30 @@
                   :n (:wat::i64::to-string id)
                   :a (:wat::fmt::break-kind-name prev)
                   :b (:wat::fmt::break-kind-name k))))])))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::fmt::BreakKind])
+    (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
     (:wat::rete::query session (:wat::fmt::q-break))))
 
 (:wat::core::defn :wat::fmt::claims-set
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [c (:wat::core::Option/expect
                             (:wat::map::get binding "?c")
                             "fmt::claims-set: no ?c")]
         (:wat::hashmap::assoc m (:wat::fmt::Claim/form c) true)))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-claim))))
 
 (:wat::core::defn :wat::fmt::owned-set
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [f (:wat::core::Option/expect
                             (:wat::map::get binding "?f")
                             "fmt::owned-set: no ?f")]
@@ -1029,106 +1029,106 @@
 
 (:wat::core::defn :wat::fmt::blanks-set
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [bl (:wat::core::Option/expect
                              (:wat::map::get binding "?bl")
                              "fmt::blanks-set: no ?bl")]
         (:wat::hashmap::assoc m (:wat::fmt::BlankBefore/id bl) true)))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-blank))))
 
 (:wat::core::defn :wat::fmt::aligns-set
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [ap (:wat::core::Option/expect
                              (:wat::map::get binding "?ap")
                              "fmt::aligns-set: no ?ap")]
         (:wat::hashmap::assoc m (:wat::fmt::AlignPairs/form ap) true)))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-align))))
 
 (:wat::core::defn :wat::fmt::tables-map
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
       (:wat::core::let [tr (:wat::core::Option/expect
                              (:wat::map::get binding "?t")
                              "fmt::tables-map: no ?t")]
         (:wat::hashmap::assoc m (:wat::fmt::TableRow/form tr) (:wat::fmt::TableRow/group tr))))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     (:wat::rete::query session (:wat::fmt::q-table))))
 
 (:wat::core::defn :wat::fmt::strides-map
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
       (:wat::core::let [st (:wat::core::Option/expect
                              (:wat::map::get binding "?st")
                              "fmt::strides-map: no ?st")]
         (:wat::hashmap::assoc m (:wat::fmt::AlignStride/form st) (:wat::fmt::AlignStride/stride st))))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     (:wat::rete::query session (:wat::fmt::q-stride))))
 
 (:wat::core::defn :wat::fmt::empties-set
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [ev (:wat::core::Option/expect
                              (:wat::map::get binding "?ev")
                              "fmt::empties-set: no ?ev")]
         (:wat::hashmap::assoc m (:wat::fmt::EmptyVecAfter/id ev) true)))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-empty-vec))))
 
 (:wat::core::defn :wat::fmt::atoms-set
   [session <- :wat::rete::Session]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-                     binding <- :wat::core::PersistentMap]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+                     binding <- wat.type/PersistentMap]
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [aa (:wat::core::Option/expect
                              (:wat::map::get binding "?aa")
                              "fmt::atoms-set: no ?aa")]
         (:wat::hashmap::assoc m (:wat::fmt::AllAtoms/form aa) true)))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-atoms))))
 
 (:wat::core::defn :wat::fmt::format-source
-  [path  <- :wat::core::String
-   src   <- :wat::core::String
-   rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
-  -> :wat::core::String
+  [path  <- wat.type/String
+   src   <- wat.type/String
+   rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])]
+  -> wat.type/String
   (:wat::core::match (:wat::core::read-string-with-comments src)
     [:wat::core::ReadWithCommentsOutcome.Forms {:forms forms :comments comments}
       (:wat::core::let
         [facts   (:wat::grep::facts-of path src)
          rec0    (:wat::grep::facts-as-records facts)
          records (:wat::core::foldl
-                   (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                   (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])
                                     s   <- :wat::fmt::FormSig]
-                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
+                     -> (wat.type/PersistentVector :- [wat.type/Record])
                      (:wat::vector::conj acc s))
                    rec0
                    (:wat::fmt::form-sigs-of forms))
-         queries (:wat::core::PersistentVector :- [:wat::rete::Query]
+         queries (wat.type/PersistentVector :- [:wat::rete::Query]
                    (:wat::fmt::q-break)
                    (:wat::fmt::q-claim)
                    (:wat::fmt::q-fallback)
@@ -1140,7 +1140,7 @@
                    (:wat::fmt::q-empty-vec))]
         (:wat::rete::with-overlay rules queries
           (:wat::core::fn [overlay <- :wat::rete::Overlay]
-            -> :wat::core::String
+            -> wat.type/String
             (:wat::core::let [fired (:wat::core::match (overlay records)
                                       [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
                                       [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}

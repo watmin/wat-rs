@@ -77,4 +77,4 @@
 ;; serve loop matches on it, before any wat defenum would load.
 (:wat::core::defenum :wat::edn::Validation :wat::enum::Pure
   :Valid
-  :Invalid [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+  :Invalid [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])

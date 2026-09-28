@@ -17,8 +17,8 @@
 ;; `get` past the end, then `Option/expect`.
 
 (:wat::core::defmacro :wat::kernel::assertion-failed!
-  [& args <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::WatAST
+  [& args <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/AST
   (:wat::core::let
     [n (:wat::core::length args)]
     (:wat::core::if
@@ -35,13 +35,13 @@
         "assertion-failed! takes kwargs :message / :actual / :expected; the positional (message actual expected) form is retired")
       (:wat::core::let
         [nkv (:wat::i64::/ n 2)
-         empty (:wat::core::Vector :- [:wat::WatAST])
+         empty (wat.type/Vector :- [wat.type/AST])
          slots
            (:wat::core::foldl
              (:wat::core::fn
-               [acc <- (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])])
-                i   <- :wat::core::i64]
-               -> (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])])
+               [acc <- (wat.type/Vector :- [(wat.type/Vector :- [wat.type/AST])])
+                i   <- wat.type/i64]
+               -> (wat.type/Vector :- [(wat.type/Vector :- [wat.type/AST])])
                (:wat::core::let
                  [k (:wat::core::Option/expect
                       (:wat::core::get args (:wat::i64::* i 2))
@@ -58,18 +58,18 @@
                      (:wat::core::get args n)
                      "assertion-failed! kwargs keys must be keywords")
                    (:wat::core::if (:wat::core::= kn ":message")
-                     (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])]
+                     (wat.type/Vector :- [(wat.type/Vector :- [wat.type/AST])]
                        (:wat::core::conj msg-slot v) act-slot exp-slot)
                      (:wat::core::if (:wat::core::= kn ":actual")
-                       (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])]
+                       (wat.type/Vector :- [(wat.type/Vector :- [wat.type/AST])]
                          msg-slot (:wat::core::conj act-slot v) exp-slot)
                        (:wat::core::if (:wat::core::= kn ":expected")
-                         (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])]
+                         (wat.type/Vector :- [(wat.type/Vector :- [wat.type/AST])]
                            msg-slot act-slot (:wat::core::conj exp-slot v))
                          (:wat::core::Option/expect
                            (:wat::core::get args n)
                            "assertion-failed! unknown kwarg — write :message / :actual / :expected")))))))
-             (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::WatAST])]
+             (wat.type/Vector :- [(wat.type/Vector :- [wat.type/AST])]
                empty empty empty)
              (:wat::core::range 0 nkv))
          msg-slot (:wat::core::Option/expect (:wat::core::get slots 0) "msg-slot")
@@ -83,7 +83,7 @@
          ;; A string literal kwarg is wrapped in Some in the TEMPLATE
          ;; (quasiquote — F5 does not see it as a call). An already-Option
          ;; form (`(:wat::core::Some …)` / a computed Option) is spliced as-is.
-         str? (:wat::core::fn [n <- :wat::WatAST] -> :wat::core::bool
+         str? (:wat::core::fn [n <- wat.type/AST] -> wat.type/bool
                 (:wat::core::= (:wat::core::ast-kind n) "string"))]
         (:wat::core::if has-act
           (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get act-slot 0) "actual")]

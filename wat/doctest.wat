@@ -11,18 +11,18 @@
 ;; not need the record type at registration time — only at call time.
 
 (:wat::core::defrecord :wat::intrinsic::Example
-  [fqdn          <- :wat::core::keyword
-   expr          <- :wat::WatAST
-   expected      <- (:wat::core::Option :- [:wat::WatAST])
-   run           <- :wat::core::bool
-   pure          <- :wat::core::bool
-   deterministic <- :wat::core::bool])
+  [fqdn          <- wat.type/keyword
+   expr          <- wat.type/AST
+   expected      <- (:wat::core::Option :- [wat.type/AST])
+   run           <- wat.type/bool
+   pure          <- wat.type/bool
+   deterministic <- wat.type/bool])
 
 ;; Stone 255.56 — the example result has no single type. The comparison's
 ;; parameters say it compares Equatable values.
 (:wat::core::defn :wat::doctest::matches?
   [got <- :wat::core::Equatable want <- :wat::core::Equatable]
-  -> :wat::core::bool
+  -> wat.type/bool
   (:wat::core::= got want))
 
 ;; ─── Row — the enumerable registry census record ──────────────────────
@@ -63,24 +63,24 @@
 ;; call time, same as Example/examples.
 
 (:wat::core::defrecord :wat::intrinsic::Row
-  [name          <- :wat::core::keyword
+  [name          <- wat.type/keyword
    kind          <- :wat::runtime::Kind
-   arity         <- :wat::core::i64
+   arity         <- wat.type/i64
    purity        <- :wat::runtime::Purity
    determinism   <- :wat::runtime::Determinism
    totality      <- :wat::runtime::Totality
    expand-time   <- :wat::runtime::ExpandTime
    category      <- :wat::runtime::Category
-   syntax        <- :wat::core::String
-   ret-type      <- :wat::core::String
-   alias-of      <- (:wat::core::Option :- [:wat::core::String])
-   has-handler   <- :wat::core::bool])
+   syntax        <- wat.type/String
+   ret-type      <- wat.type/String
+   alias-of      <- (:wat::core::Option :- [wat.type/String])
+   has-handler   <- wat.type/bool])
 
 ;; ─── Doctest failure record ───────────────────────────────────────────
 
 (:wat::core::defrecord :wat::doctest::Failure
-  [fqdn   <- :wat::core::keyword
-   reason <- :wat::core::String])
+  [fqdn   <- wat.type/keyword
+   reason <- wat.type/String])
 
 ;; ─── verify-examples — the self-hosting doctest runner ───────────────
 ;;
@@ -95,11 +95,11 @@
 
 (:wat::core::defn :wat::doctest::verify-examples
   []
-  -> (:wat::core::Vector :- [:wat::doctest::Failure])
+  -> (wat.type/Vector :- [:wat::doctest::Failure])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::doctest::Failure])
+    (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::doctest::Failure])
                      ex  <- :wat::intrinsic::Example]
-      -> (:wat::core::Vector :- [:wat::doctest::Failure])
+      -> (wat.type/Vector :- [:wat::doctest::Failure])
       ;; The Example values are Value::wat__Record (the seam builds the
       ;; :wat::core::Record::def representation), so the generated named accessors
       ;; :wat::intrinsic::Example/<field> work directly — no positional indexing.
@@ -110,7 +110,7 @@
                                                      (:wat::intrinsic::Example/pure ex)
                                                      (:wat::intrinsic::Example/deterministic ex)))
                                   (:wat::core::concat acc
-                                    (:wat::core::Vector :- [:wat::doctest::Failure]
+                                    (wat.type/Vector :- [:wat::doctest::Failure]
                                       (:wat::doctest::Failure
                                         :fqdn (:wat::intrinsic::Example/fqdn ex)
                                         :reason "doctested @example on a non-pure∧deterministic intrinsic")))
@@ -124,14 +124,14 @@
                     [:wat::core::Result.Ok {:value want}
                       (:wat::core::if (:wat::core::not (:wat::doctest::matches? got want))
                         (:wat::core::concat acc1
-                          (:wat::core::Vector :- [:wat::doctest::Failure]
+                          (wat.type/Vector :- [:wat::doctest::Failure]
                             (:wat::doctest::Failure
                               :fqdn fqdn
                               :reason "@example result did not match #=>")))
                         acc1)]
                     [:wat::core::Result.Err {:error err}
                       (:wat::core::concat acc1
-                        (:wat::core::Vector :- [:wat::doctest::Failure]
+                        (wat.type/Vector :- [:wat::doctest::Failure]
                           (:wat::doctest::Failure
                             :fqdn fqdn
                             :reason (:wat::string::concat
@@ -139,7 +139,7 @@
                                       (:wat::core::EvalError/message err)))))])]
                 [:wat::core::Result.Err {:error err}
                   (:wat::core::concat acc1
-                    (:wat::core::Vector :- [:wat::doctest::Failure]
+                    (wat.type/Vector :- [:wat::doctest::Failure]
                       (:wat::doctest::Failure
                         :fqdn fqdn
                         :reason (:wat::string::concat
@@ -147,11 +147,11 @@
                                   (:wat::core::EvalError/message err)))))])]
             [:wat::core::Option.None {}
               (:wat::core::concat acc1
-                (:wat::core::Vector :- [:wat::doctest::Failure]
+                (wat.type/Vector :- [:wat::doctest::Failure]
                   (:wat::doctest::Failure
                     :fqdn fqdn
                     :reason "run=true example missing expected")))]))
         ;; run=false: skip
         acc))
-    (:wat::core::Vector :- [:wat::doctest::Failure])
+    (wat.type/Vector :- [:wat::doctest::Failure])
     (:wat::intrinsic::examples)))

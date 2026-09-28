@@ -4692,10 +4692,18 @@ fn splice_type_decls(
         // pre-check point so assignable sees the edge; cycle check surfaces as CyclicSubtype.
         ":wat::core::derive" => {
             let decl_span = span.clone();
+            // arc 255.67 — same `type_denotation` fix as extend-type's child/protocol arms
+            // just below (identity for anything not `wat.type/`-prefixed); currently
+            // theoretical for `derive` specifically (measured: zero corpus occurrences of a
+            // `wat.type/` hard primitive as either argument), kept in step for the same
+            // reason `register_subtype` must never see an un-denoted `wat.type/` key.
             let child = match items.get(1) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                        id.receiver(),
+                        id.method(),
+                    ))
                 }
                 _ => {
                     return Err(TypeError::new(
@@ -4710,7 +4718,10 @@ fn splice_type_decls(
             let parent = match items.get(2) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                        id.receiver(),
+                        id.method(),
+                    ))
                 }
                 _ => {
                     return Err(TypeError::new(
@@ -4763,8 +4774,19 @@ fn splice_type_decls(
             // re-render through it rather than hand-rolling a second stringifier.
             let type_name = match &child_node {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
+                // arc 255.67 — denote through the SAME door the List/parametric arm below
+                // already uses (`type_denotation`, identity for anything not `wat.type/`-
+                // prefixed). Without it, `(extend-type wat.type/String :wat::core::Equatable)`
+                // registered the subtype edge under `:wat::type::String`, not
+                // `:wat::core::String` — a KEY every OTHER consumer (`classify`,
+                // `is_subtype_parent`) looks up denoted, so the edge was invisible and
+                // `String` silently lost `Equatable` membership. Found by this stone's own
+                // corpus conversion of `wat/class.wat`'s leaf-Equatable/Orderable rows.
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                        id.receiver(),
+                        id.method(),
+                    ))
                 }
                 Some(node @ WatAST::List(_, _)) => {
                     crate::check::format_type(&parse_type_node(node)?)
@@ -4961,8 +4983,14 @@ fn splice_type_decls(
             // name never found the second. Renders the FULL name, exactly as the child arm does.
             let protocol_name = match (&target_node, &target_te) {
                 (Some(WatAST::Keyword(k, _)), _) => k.clone(),
+                // arc 255.67 — same `type_denotation` fix as the child arm above, for the
+                // (currently theoretical, for the 24 hard primitives — none is a protocol
+                // target in the corpus) symmetric case of a `wat.type/…` target.
                 (Some(WatAST::Symbol(id, _)), _) => {
-                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                        id.receiver(),
+                        id.method(),
+                    ))
                 }
                 // Stone 255.15 — a PARAMETRIC target keeps its structure: the one door
                 // writes the rendered edge AND the `TypeExpr` it was rendered from.
@@ -7808,6 +7836,34 @@ mod tests {
         let mut env = TypeEnv::with_builtins();
         let rest = register_types(forms, &mut env).map_err(|e| format!("type: {:?}", e))?;
         Ok((env, rest))
+    }
+
+    /// arc 255.67 — `extend-type`'s CHILD arm must denote a `wat.type/…` SYMBOL before
+    /// `register_subtype` stores it, matching `is_subtype`'s own documented invariant
+    /// ("edges are stored under the core spelling"). Before the fix, the symbol arm called
+    /// `ns_to_wat_path` directly (no denotation), registering the edge under
+    /// `:wat::type::i64` — a key `is_subtype`'s denoted query never reaches — so
+    /// `(extend-type wat.type/i64 …)` silently registered NOTHING a caller could see.
+    /// Found by `wat-scripts/fixes/types-to-wat-type.wat`'s own corpus conversion:
+    /// `wat/class.wat`'s `(extend-type wat.type/String :wat::core::Equatable)` stopped
+    /// registering `String`'s `Equatable` membership, breaking `=` on strings everywhere.
+    #[test]
+    fn extend_type_symbol_child_denotes_before_registering_the_subtype_edge() {
+        // `:wat::core::Record` is a real builtin, already "known" to `with_builtins()`
+        // (unlike `Equatable`/`Orderable`, which only become known targets once the real
+        // stdlib's own extend-type chain first introduces them — not reachable from
+        // `with_builtins()` alone). Semantically odd (i64 "is a" Record), but this test is
+        // about the DENOTATION mechanism, not the declaration's meaning.
+        let (env, _) = collect("(:wat::core::extend-type wat.type/i64 :wat::core::Record)")
+            .expect("extend-type with a wat.type/ symbol child registers");
+        assert!(
+            is_subtype(":wat::core::i64", ":wat::core::Record", &env),
+            "the edge must be visible under the denoted key :wat::core::i64"
+        );
+        // The colon spelling registers the identical edge — both spellings, one key.
+        let (env2, _) = collect("(:wat::core::extend-type :wat::core::i64 :wat::core::Record)")
+            .expect("extend-type with the colon spelling registers");
+        assert!(is_subtype(":wat::core::i64", ":wat::core::Record", &env2));
     }
 
     // ─── Struct ─────────────────────────────────────────────────────────

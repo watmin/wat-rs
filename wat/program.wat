@@ -44,8 +44,8 @@
 (:wat::core::defrecord :wat::program::Env
   [started-at <- :wat::time::Instant
    peer-started-at <- :wat::time::Instant
-   process-id <- :wat::core::i64
-   os-thread-id <- :wat::core::i64
+   process-id <- wat.type/i64
+   os-thread-id <- wat.type/i64
    peer-kind <- :wat::program::PeerKind
-   cpu-count <- :wat::core::i64
-   user-data <- :wat::core::Record])
+   cpu-count <- wat.type/i64
+   user-data <- wat.type/Record])

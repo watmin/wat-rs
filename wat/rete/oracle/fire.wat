@@ -16,10 +16,10 @@
 ;; walk-alpha-ids — activate-alpha over sorted node-ids.
 ;; acc: node-id → (PV :- [Element]) (FLAT — assoc under alpha-id, not nested by bindings).
 (:wat::core::defn :wat::rete::walk-alpha-ids
-  [facts   <- :wat::core::PersistentVector
-   network <- :wat::core::PersistentMap
-   ids     <- (:wat::core::Vector :- [:wat::core::i64])
-   i       <- :wat::core::i64
+  [facts   <- wat.type/PersistentVector
+   network <- wat.type/PersistentMap
+   ids     <- (wat.type/Vector :- [wat.type/i64])
+   i       <- wat.type/i64
    acc     <- :wat::rete::AlphaMemory]
   -> :wat::rete::AlphaMemory
   (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
@@ -34,10 +34,10 @@
 ;; walk-beta-ids — root-join-pass over sorted node-ids. Reads amem; writes beta.
 ;; acc: node-id → (PV :- [Token]).
 (:wat::core::defn :wat::rete::walk-beta-ids
-  [network <- :wat::core::PersistentMap
+  [network <- wat.type/PersistentMap
    amem    <- :wat::rete::AlphaMemory
-   ids     <- (:wat::core::Vector :- [:wat::core::i64])
-   i       <- :wat::core::i64
+   ids     <- (wat.type/Vector :- [wat.type/i64])
+   i       <- wat.type/i64
    acc     <- :wat::rete::BetaMemory]
   -> :wat::rete::BetaMemory
   (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
@@ -54,11 +54,11 @@
 ;; rune:intueri(naming) — oracle populate-then-emit walker (acc+filter+hash-join);
 ;; the name is the historical walk-sorted-ids split, not filter-alone.
 (:wat::core::defn :wat::rete::walk-filter-ids
-  [facts   <- :wat::core::PersistentVector
-   network <- :wat::core::PersistentMap
+  [facts   <- wat.type/PersistentVector
+   network <- wat.type/PersistentMap
    amem    <- :wat::rete::AlphaMemory
-   ids     <- (:wat::core::Vector :- [:wat::core::i64])
-   i       <- :wat::core::i64
+   ids     <- (wat.type/Vector :- [wat.type/i64])
+   i       <- wat.type/i64
    acc     <- :wat::rete::BetaMemory]
   -> :wat::rete::BetaMemory
   (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
@@ -77,11 +77,11 @@
 ;; walk-prod-ids — production-pass over sorted node-ids. Reads bmem+rules; writes
 ;; production. acc: node-id → (PV :- [Record]).
 (:wat::core::defn :wat::rete::walk-prod-ids
-  [network <- :wat::core::PersistentMap
+  [network <- wat.type/PersistentMap
    bmem    <- :wat::rete::BetaMemory
-   rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
-   ids     <- (:wat::core::Vector :- [:wat::core::i64])
-   i       <- :wat::core::i64
+   rules   <- (wat.type/PersistentVector :- [:wat::rete::Rule])
+   ids     <- (wat.type/Vector :- [wat.type/i64])
+   i       <- wat.type/i64
    acc     <- :wat::rete::ProductionMemory]
   -> :wat::rete::ProductionMemory
   (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
@@ -95,13 +95,13 @@
 
 ;; collect-query-memory — QueryNode name → parent-token bindings (the fire's answers).
 (:wat::core::defn :wat::rete::collect-query-memory
-  [network  <- :wat::core::PersistentMap
-   beta-mem <- :wat::core::PersistentMap]
-  -> :wat::core::PersistentMap
+  [network  <- wat.type/PersistentMap
+   beta-mem <- wat.type/PersistentMap]
+  -> wat.type/PersistentMap
   (:wat::core::foldl
-    (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                     node-id <- :wat::core::i64]
-      -> :wat::core::PersistentMap
+    (:wat::core::fn [acc     <- wat.type/PersistentMap
+                     node-id <- wat.type/i64]
+      -> wat.type/PersistentMap
       (:wat::core::let [node (:wat::core::Option/expect
                                 (:wat::map::get network node-id)
                                 "collect-query-memory: node")]
@@ -110,9 +110,9 @@
                             pids  (:wat::rete::node-parents node-id network)
                             toks  (:wat::rete::tokens-from-parents beta-mem pids)
                             maps  (:wat::core::foldl
-                                     (:wat::core::fn [a   <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
+                                     (:wat::core::fn [a   <- (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                                       tok <- :wat::rete::Token]
-                                       -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
+                                       -> (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                        (:wat::vector::conj a
                                          (:wat::rete::Token/bindings tok)))
                                      (:wat::core::PersistentVector)
@@ -194,16 +194,16 @@
 ;; WHY foldl-over-values: production-memory is a PersistentMap from node-id to (PV :- [Record]);
 ;; the outer foldl visits each node's PV, the inner foldl conj's each record into the accumulator.
 (:wat::core::defn :wat::rete::collect-derived
-  [prod-mem <- :wat::core::PersistentMap]
-  -> :wat::core::PersistentVector
+  [prod-mem <- wat.type/PersistentMap]
+  -> wat.type/PersistentVector
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector
-                     pv  <- :wat::core::PersistentVector]
-      -> :wat::core::PersistentVector
+    (:wat::core::fn [acc <- wat.type/PersistentVector
+                     pv  <- wat.type/PersistentVector]
+      -> wat.type/PersistentVector
       (:wat::core::foldl
-        (:wat::core::fn [a <- :wat::core::PersistentVector
-                         f <- :wat::core::Record]
-          -> :wat::core::PersistentVector
+        (:wat::core::fn [a <- wat.type/PersistentVector
+                         f <- wat.type/Record]
+          -> wat.type/PersistentVector
           (:wat::vector::conj a f))
         acc
         pv))
@@ -214,13 +214,13 @@
 ;; WHY contains?-before-conj: the dedup guard is the termination invariant — if a derived fact is already in
 ;; facts, re-adding it would grow facts every round and spin the fixpoint forever.
 (:wat::core::defn :wat::rete::merge-facts
-  [facts   <- :wat::core::PersistentVector
-   derived <- :wat::core::PersistentVector]
-  -> :wat::core::PersistentVector
+  [facts   <- wat.type/PersistentVector
+   derived <- wat.type/PersistentVector]
+  -> wat.type/PersistentVector
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector
-                     f   <- :wat::core::Record]
-      -> :wat::core::PersistentVector
+    (:wat::core::fn [acc <- wat.type/PersistentVector
+                     f   <- wat.type/Record]
+      -> wat.type/PersistentVector
       (:wat::core::if (:wat::vector::contains? acc f)
         acc
         (:wat::vector::conj acc f)))
@@ -239,13 +239,13 @@
 ;;      That is what lets `fire-support-fixpoint` below keep a length test while retracting —
 ;;      see the ⚠ there.
 (:wat::core::defn :wat::rete::retain-supported
-  [facts     <- :wat::core::PersistentVector
-   supported <- :wat::core::PersistentVector]
-  -> :wat::core::PersistentVector
+  [facts     <- wat.type/PersistentVector
+   supported <- wat.type/PersistentVector]
+  -> wat.type/PersistentVector
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector
-                     f   <- :wat::core::Record]
-      -> :wat::core::PersistentVector
+    (:wat::core::fn [acc <- wat.type/PersistentVector
+                     f   <- wat.type/Record]
+      -> wat.type/PersistentVector
       (:wat::core::if (:wat::vector::contains? supported f)
         (:wat::vector::conj acc f)
         acc))
@@ -282,7 +282,7 @@
                     old-bag   (:wat::rete::factbag::of session)
                     new-bag   (:wat::core::foldl
                                 (:wat::core::fn [acc <- :wat::rete::FactBag
-                                                 f   <- :wat::core::Record]
+                                                 f   <- wat.type/Record]
                                   -> :wat::rete::FactBag
                                   (:wat::rete::factbag::add-if-absent acc f))
                                 old-bag
@@ -335,7 +335,7 @@
 ;; One extra `fire-once` per fire-fixpoint, zero fact movement — the whole existing differential
 ;; corpus sees the same answers it saw before.
 (:wat::core::defn :wat::rete::fire-support-fixpoint
-  [base    <- :wat::core::PersistentVector
+  [base    <- wat.type/PersistentVector
    session <- :wat::rete::Session]
   -> :wat::rete::Session
   ;; ⛔ HAND-FACED — same reason as `fire-grow-fixpoint` above.
@@ -350,7 +350,7 @@
                     supported (:wat::rete::merge-facts base derived)
                     old-bag   (:wat::rete::factbag::of session)
                     new-bag   (:wat::rete::factbag::retain old-bag
-                                (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool
+                                (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool
                                   (:wat::vector::contains? supported f)))]
     (:wat::core::if (:wat::core::= (:wat::rete::factbag::size new-bag) (:wat::rete::factbag::size old-bag))
       fired
@@ -387,8 +387,8 @@
 ;; facts:   accumulated Session.facts after each stratum (input + all derived so far).
 ;; derived: dedup union of all derived facts across completed strata.
 (:wat::core::defrecord :wat::rete::FireStratAcc
-  [facts   <- :wat::core::PersistentVector
-   derived <- :wat::core::PersistentVector])
+  [facts   <- wat.type/PersistentVector
+   derived <- wat.type/PersistentVector])
 
 
 ;; fire-stratified-loop — recursive descent over strata [current..max-s].
@@ -401,12 +401,12 @@
 ;; and causing compile to reject the argument at the call site. Recursive descent on
 ;; an index always filters the original typed PV — no type information is lost.
 (:wat::core::defn :wat::rete::fire-stratified-loop
-  [rules       <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
-   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
-   current     <- :wat::core::i64
-   max-s       <- :wat::core::i64
-   acc-facts   <- :wat::core::PersistentVector
-   acc-derived <- :wat::core::PersistentVector]
+  [rules       <- (wat.type/PersistentVector :- [:wat::rete::Rule])
+   type-strata <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+   current     <- wat.type/i64
+   max-s       <- wat.type/i64
+   acc-facts   <- wat.type/PersistentVector
+   acc-derived <- wat.type/PersistentVector]
   -> :wat::rete::FireStratAcc
   (:wat::core::if (:wat::i64::> current max-s)
     (:wat::rete::FireStratAcc :facts acc-facts :derived acc-derived)
@@ -414,7 +414,7 @@
                       ;; eagerly, so materialize via `into` (was container-preserving from `rules`).
                       stratum-rules (:wat::core::into (:wat::core::PersistentVector)
                                       (:wat::core::filter
-                                        (:wat::core::fn [r <- :wat::rete::Rule] -> :wat::core::bool
+                                        (:wat::core::fn [r <- :wat::rete::Rule] -> wat.type/bool
                                           (:wat::core::= (:wat::rete::rule-stratum r type-strata) current))
                                         rules))
                       ;; fresh compiled network for this stratum only — no shared-alpha edge
@@ -428,7 +428,7 @@
                       ;; seed with ALL accumulated facts so negation sees complete prior strata
                       sub-sess2   (:wat::core::foldl
                                     (:wat::core::fn [s <- :wat::rete::Session
-                                                     f <- :wat::core::Record]
+                                                     f <- wat.type/Record]
                                       -> :wat::rete::Session
                                       ;; HAND-FACED (arc 278 S2c) — stdlib. The oracle enforces
                                       ;; no ceiling, so only `Inserted` is reachable.
@@ -468,9 +468,9 @@
                     final-ts  (:wat::rete::stratify rules)
                     ;; compute highest stratum number across all rules (0 if rules is empty)
                     max-s     (:wat::core::foldl
-                                (:wat::core::fn [mx   <- :wat::core::i64
+                                (:wat::core::fn [mx   <- wat.type/i64
                                                  rule <- :wat::rete::Rule]
-                                  -> :wat::core::i64
+                                  -> wat.type/i64
                                   (:wat::core::let [rs (:wat::rete::rule-stratum rule final-ts)]
                                     (:wat::core::if (:wat::i64::> rs mx) rs mx)))
                                 0
@@ -520,12 +520,12 @@
 ;; the oracle walks QueryNodes. An imported Export of production rules has empty
 ;; rules AND ProductionNodes (no AST) — refuse that, do not silently harvest 0.
 (:wat::core::defn :wat::rete::network-has-production?
-  [net <- :wat::core::PersistentMap]
-  -> :wat::core::bool
+  [net <- wat.type/PersistentMap]
+  -> wat.type/bool
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool
-                     k   <- :wat::core::i64]
-      -> :wat::core::bool
+    (:wat::core::fn [acc <- wat.type/bool
+                     k   <- wat.type/i64]
+      -> wat.type/bool
       (:wat::core::if acc
         true
         (:wat::core::let [node (:wat::core::Option/expect

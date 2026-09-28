@@ -61,9 +61,9 @@
 ;; grounded precisely because it names a limitation instead of a capability.
 
 (:wat::core::defn :repl::eval-and-loop
-  [defs <- (:wat::core::Vector :- [:wat::WatAST])
-   text <- :wat::core::String]
-  -> :wat::core::nil
+  [defs <- (wat.type/Vector :- [wat.type/AST])
+   text <- wat.type/String]
+  -> wat.type/nil
   ;; The PARSE is a turn outcome too, not a precondition. The codemod's uniform arm for this
   ;; site was `assertion-failed!` — correct for a tool parsing a file it owns, fatal for a
   ;; prompt — so the REPL refines it, which is the entire reason `read-string` became total:
@@ -77,9 +77,9 @@
       (:repl::eval-form defs (:wat::core::first forms))]))
 
 (:wat::core::defn :repl::eval-form
-  [defs <- (:wat::core::Vector :- [:wat::WatAST])
-   form <- :wat::WatAST]
-  -> :wat::core::nil
+  [defs <- (wat.type/Vector :- [wat.type/AST])
+   form <- wat.type/AST]
+  -> wat.type/nil
   (:wat::core::let
     []
     (:wat::core::match (:wat::eval-with-defs! form defs)
@@ -122,8 +122,8 @@
 ;; A multi-line form therefore reaches `read-string` truncated and raises UnclosedParen.
 ;; That is a real limitation of this REPL, named rather than discovered by the next person.
 (:wat::core::defn :repl::turn
-  [defs <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::core::nil
+  [defs <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/nil
   (:wat::core::match (:wat::kernel::read-frame )
     [:wat::kernel::ReadFrameOutcome.Frame {:text text}
       (:repl::eval-and-loop defs text)]

@@ -58,7 +58,7 @@
 ;; slots carry the rendered values so the test runner can display them
 ;; alongside the source location. Used to be `:None :None` (just "the
 ;; assertion fired"); arc 064 closed the diagnostic gap.
-(:wat::core::defn :wat::test::assert-eq :- [[T :< :wat::core::Equatable]] [actual <- :T expected <- :T] -> :wat::core::nil
+(:wat::core::defn :wat::test::assert-eq :- [[T :< :wat::core::Equatable]] [actual <- :T expected <- :T] -> wat.type/nil
   (:wat::core::if (:wat::core::= actual expected) 
       nil
       (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Option.Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option.Some {:value (:wat::core::show expected)}))))
@@ -70,12 +70,12 @@
 ;; Each carries its own honest message (not delegated to assert-eq, which would
 ;; mis-report "assert-eq failed"); the actual slot shows the bool, the expected
 ;; slot the word it should have been.
-(:wat::core::defn :wat::test::assert-true [actual <- :wat::core::bool] -> :wat::core::nil
+(:wat::core::defn :wat::test::assert-true [actual <- wat.type/bool] -> wat.type/nil
   (:wat::core::if actual 
       nil
       (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Option.Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option.Some {:value "true"}))))
 
-(:wat::core::defn :wat::test::assert-false [actual <- :wat::core::bool] -> :wat::core::nil
+(:wat::core::defn :wat::test::assert-false [actual <- wat.type/bool] -> wat.type/nil
   (:wat::core::if actual 
       (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Option.Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option.Some {:value "false"}))
       nil))
@@ -85,7 +85,7 @@
 ;; String substring check. Unlike assert-eq, both sides are :wat::core::String so
 ;; we can populate actual/expected with the real values — the failure
 ;; in a RunResult shows the user which haystack/needle fired.
-(:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :wat::test::assert-contains [haystack <- wat.type/String needle <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:wat::string::contains? haystack needle) 
       nil
       (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Option.Some {:value haystack}) :expected (:wat::core::Option.Some {:value needle}))))
@@ -112,7 +112,7 @@
 ;; smallest sigma at which the pair would coincide — distinguishes
 ;; "calibration boundary" from "structurally distant" from "encoding
 ;; shape wrong" without a separate diagnostic round-trip.
-(:wat::core::defn :wat::test::assert-coincident [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::core::nil
+(:wat::core::defn :wat::test::assert-coincident [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> wat.type/nil
   (:wat::core::let
       [expl
         (:wat::holon::coincident-explain a b)
@@ -127,7 +127,7 @@
 ;; line, indented, so a developer reading test output sees the full
 ;; story without horizontal scrolling. Used by assert-coincident;
 ;; consumers wanting raw values call coincident-explain directly.
-(:wat::core::defn :wat::test::render-coincident-explanation [expl <- :wat::holon::CoincidentExplanation] -> :wat::core::String
+(:wat::core::defn :wat::test::render-coincident-explanation [expl <- :wat::holon::CoincidentExplanation] -> wat.type/String
   (:wat::string::concat
       "\n  cosine            = "
       (:wat::f64::to-string
@@ -166,8 +166,8 @@
 ;; `:wat::WatAST` into a `(:wat::core::Vector :- [wat::WatAST])`.
 
 (:wat::core::defmacro :wat::test::program
-  [& forms <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::WatAST
+  [& forms <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/AST
   `(:wat::core::forms ~@forms))
 
 ;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031; arc 170 slice 3 phase E V5; arc 170 slice 4a-γ-flip) ───
@@ -253,9 +253,9 @@
 ;; presence is irrelevant; their meaning is purely proc-macro-side.
 ;; An annotation attaches to the IMMEDIATELY NEXT deftest; intervening
 ;; non-annotation forms clear the pending annotation.
-(:wat::core::defn :wat::test::ignore [_reason <- :wat::core::String] -> :wat::core::nil nil)
+(:wat::core::defn :wat::test::ignore [_reason <- wat.type/String] -> wat.type/nil nil)
 
-(:wat::core::defn :wat::test::should-panic [_expected <- :wat::core::String] -> :wat::core::nil nil)
+(:wat::core::defn :wat::test::should-panic [_expected <- wat.type/String] -> wat.type/nil nil)
 
 ;; Arc 123 — :time-limit annotation. Sibling-form preceding a
 ;; deftest: when present, the proc macro wraps the generated
@@ -274,7 +274,7 @@
 ;;   (:wat::test::time-limit "30s")        ;; supported
 ;;   (:wat::test::time-limit "5m")         ;; supported
 ;;   (:wat::test::deftest :my::test () body)
-(:wat::core::defn :wat::test::time-limit [_dur <- :wat::core::String] -> :wat::core::nil nil)
+(:wat::core::defn :wat::test::time-limit [_dur <- wat.type/String] -> wat.type/nil nil)
 
 ;; ── run-thread' / deftest' — the test layer on the NEW substrate (the pipe model) ──
 ;;
@@ -308,7 +308,7 @@
 ;; capability; the macros below only hand it a program. The peer is a
 ;; let-bound local, so its type never reaches the signature.
 (:wat::core::defn :wat::test::spawn-thread-program
-  [prog <- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64]) :-> :wat::core::nil]]
+  [prog <- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64]) :-> wat.type/nil]]
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::thread) prog)]
     (:wat::core::match (:wat::kernel::recv p)
@@ -353,17 +353,17 @@
 ;; corpus migration a recorded wat-fix codemod rather than a hand-sorted sweep.
 (:wat::core::defclause :wat::test::spawn-peer
   ([locus <- :wat::spawn::ThreadOpts
-    prog  <- [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]]
+    prog  <- [(:wat::kernel::Peer :- [S R]) :-> wat.type/nil]]
     -> (:wat::kernel::Thread :- [R S])
     (:wat::kernel::spawn-program locus prog))
   ([locus <- :wat::spawn::ProcessOpts
-    prog  <- (:wat::core::Vector :- [:wat::WatAST])]
+    prog  <- (wat.type/Vector :- [wat.type/AST])]
     -> (:wat::kernel::Process :- [I O])
     (:wat::kernel::spawn-program locus prog)))
 
 (:wat::core::defmacro :wat::test::run-thread
-  [body <- :wat::WatAST]
-  -> :wat::WatAST
+  [body <- wat.type/AST]
+  -> wat.type/AST
   ;; arc 278 the recv'-outcome wall reaches the harness: recv' RETURNS RecvOutcome (a VALUE), never
   ;; raises. The child's failing assertion crashes it → recv' returns `Lost[cause]`. We do NOT re-raise
   ;; (that would bend the value back into a control-flow raise); we RETURN the outcome — the Lost cause
@@ -373,7 +373,7 @@
   ;; The macro no longer emits `spawn-program` — it hands the program to
   ;; `:wat::test::spawn-thread-program`, which holds the capability (see above).
   `(:wat::test::spawn-thread-program
-     (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+     (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
        ;; arc 278 the send'-outcome wall — the PARENT faces the outcome via its own
        ;; `recv' p` in the holder fn (Message/Lost/Closed all become a RunResult); the
        ;; child's completion-signal send' just needs to proceed regardless.
@@ -385,9 +385,9 @@
            [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))))
 
 (:wat::core::defmacro :wat::test::deftest
-  [name <- :wat::WatAST
-   body <- :wat::WatAST]
-  -> :wat::WatAST
+  [name <- wat.type/AST
+   body <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body)))
 
 ;; ── run-hermetic' / deftest-hermetic' — the PROCESS-tier pipe-model siblings ──
@@ -417,7 +417,7 @@
 ;; The process-tier capability holder — the sibling of
 ;; `:wat::test::spawn-thread-program` above; same reason, same shape.
 (:wat::core::defn :wat::test::spawn-hermetic-program
-  [prog <- (:wat::core::Vector :- [:wat::WatAST])]
+  [prog <- (wat.type/Vector :- [wat.type/AST])]
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::process) prog)]
     (:wat::core::match (:wat::kernel::recv p)
@@ -438,8 +438,8 @@
           {:failure (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")})])))
 
 (:wat::core::defmacro :wat::test::run-hermetic
-  [body <- :wat::WatAST]
-  -> :wat::WatAST
+  [body <- wat.type/AST]
+  -> wat.type/AST
   ;; arc 278 the recv'-outcome wall reaches the harness (see run-thread' above): recv' RETURNS the
   ;; outcome. A failing child crashes → Lost[cause] → RETURNED as RunResult::Failed (not re-raised, not
   ;; swallowed as `_`). A passing child prints its pass-marker → Message → RunResult::Passed.
@@ -448,11 +448,11 @@
   ;; STOP-1 preserved: the FORMS interface is unchanged (shared with deftest-remote).
   `(:wat::test::spawn-hermetic-program
      (:wat::core::forms
-       (:wat::core::defn :user::main [] -> :wat::core::nil
+       (:wat::core::defn :user::main [] -> wat.type/nil
          (:wat::core::do ~body (:wat::kernel::println 0))))))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic
-  [name <- :wat::WatAST
-   body <- :wat::WatAST]
-  -> :wat::WatAST
+  [name <- wat.type/AST
+   body <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic ~body)))

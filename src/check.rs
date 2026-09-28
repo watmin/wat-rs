@@ -913,11 +913,23 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
             }
             // After the binder Vector, the defn shape is
             //   items[3] == `->` (Symbol or Keyword)
-            //   items[4] == :Ret keyword
+            //   items[4] == :Ret keyword OR `wat.type/nil` symbol (arc 255.67 cutover)
             //   items[5..] == body
             let ret = if items.len() >= 5 {
                 match &items[4] {
                     WatAST::Keyword(k, _) => Some(k.clone()),
+                    // arc 255.67 — `wat.type/nil` is the SAME return type as
+                    // `:wat::core::nil` (denotation door, arc 251.2/255.66); without this
+                    // arm a converted `[] -> wat.type/nil` fell through to `None` below
+                    // (only `WatAST::Keyword` was recognized), so `canonical_ret` went
+                    // false and every converted `:user::main` was newly refused as a
+                    // `BareLegacyMainSignature` — found by this stone's own stdlib
+                    // conversion (`wat-tests/core/core-arithmetic.wat` and hundreds of
+                    // other `:user::main`-carrying files, via the `deftest` macro's
+                    // synthesized main).
+                    WatAST::Symbol(id, _) if id.is_reference() => Some(
+                        crate::edn::render::ns_to_wat_path(id.receiver(), id.method()),
+                    ),
                     _ => None,
                 }
             } else {
@@ -931,9 +943,14 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
     // Arc 170 slice 1e — fire on anything that's NOT the canonical
     // post-slice-1e shape: empty params + return-type `:wat::core::nil`.
     // REALIZATIONS pass 7 (ambient runtime) + pass 10 (nil IS the
-    // exit code) — the canonical shape is `[] -> :wat::core::nil`.
+    // exit code) — the canonical shape is `[] -> :wat::core::nil`. Denote before
+    // comparing (arc 255.67) — `ret_type` may be the `wat.type/nil` spelling.
     let canonical_params = param_types.is_empty();
-    let canonical_ret = matches!(ret_type.as_deref(), Some(":wat::core::nil"));
+    let canonical_ret = ret_type
+        .as_deref()
+        .map(crate::edn::render::type_denotation)
+        .as_deref()
+        == Some(":wat::core::nil");
     if canonical_params && canonical_ret {
         return;
     }

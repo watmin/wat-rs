@@ -44,10 +44,10 @@
 
 ;; ─── the error channel — mirrors :wat::query::Fault/Error field-for-field ─────────────────────
 (:wat::core::defrecord :wat::sqlite::Fault
-  [op         <- :wat::core::keyword
-   code       <- :wat::core::i64
-   diagnostic <- :wat::core::String
-   message    <- :wat::core::String])
+  [op         <- wat.type/keyword
+   code       <- wat.type/i64
+   diagnostic <- wat.type/String
+   message    <- wat.type/String])
 
 (:wat::core::defenum :wat::sqlite::Error :wat::enum::Pure
   :Transient  [fault <- :wat::sqlite::Fault]   ;; SQLITE_BUSY/LOCKED — retry
@@ -56,15 +56,15 @@
 
 ;; ─── Param / Cell — bind / read marshaled values (i64/f64/String/nil; blob deferred) ──────────
 (:wat::core::defenum :wat::sqlite::Param :wat::enum::Pure
-  :I64 [v <- :wat::core::i64]
-  :F64 [v <- :wat::core::f64]
-  :Str [v <- :wat::core::String]
+  :I64 [v <- wat.type/i64]
+  :F64 [v <- wat.type/f64]
+  :Str [v <- wat.type/String]
   :Nil [])
 
 (:wat::core::defenum :wat::sqlite::Cell :wat::enum::Pure
-  :I64 [v <- :wat::core::i64]
-  :F64 [v <- :wat::core::f64]
-  :Str [v <- :wat::core::String]
+  :I64 [v <- wat.type/i64]
+  :F64 [v <- wat.type/f64]
+  :Str [v <- wat.type/String]
   :Nil [])
 
 ;; ─── classify — the ONE place a raw (code,diagnostic,message) fault becomes an Error ──────────
@@ -74,7 +74,7 @@
 ;; has first/second/third — no fourth accessor, wat/core.wat's format-macro note) — the caller
 ;; already knows which verb it invoked, so it supplies `op` as a keyword literal at the call site.
 (:wat::core::defn :wat::sqlite::classify
-  [op <- :wat::core::keyword raw <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+  [op <- wat.type/keyword raw <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
   -> :wat::sqlite::Error
   (:wat::core::let
     [code       (:wat::core::first raw)
@@ -89,14 +89,14 @@
 
 ;; ─── open / open-readonly ──────────────────────────────────────────────────────────────────────
 (:wat::core::defn :wat::sqlite::open
-  [path <- :wat::core::String] -> (:wat::core::Result :- [:wat::sqlite::Connection :wat::sqlite::Error])
+  [path <- wat.type/String] -> (:wat::core::Result :- [:wat::sqlite::Connection :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::Connection/open path)
     
     [:wat::core::Result.Ok {:value conn} (:wat::core::Result.Ok {:value conn})]
     [:wat::core::Result.Err {:error raw} (:wat::core::Result.Err {:error (:wat::sqlite::classify :open raw)})]))
 
 (:wat::core::defn :wat::sqlite::open-readonly
-  [path <- :wat::core::String] -> (:wat::core::Result :- [:wat::sqlite::ReadConnection :wat::sqlite::Error])
+  [path <- wat.type/String] -> (:wat::core::Result :- [:wat::sqlite::ReadConnection :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::ReadConnection/open_readonly path)
     
     [:wat::core::Result.Ok {:value conn} (:wat::core::Result.Ok {:value conn})]
@@ -104,17 +104,17 @@
 
 ;; ─── execute-ddl / execute (Connection only — RW verbs) ────────────────────────────────────────
 (:wat::core::defn :wat::sqlite::execute-ddl
-  [conn <- :wat::sqlite::Connection ddl <- :wat::core::String]
-  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  [conn <- :wat::sqlite::Connection ddl <- wat.type/String]
+  -> (:wat::core::Result :- [wat.type/nil :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::Connection/execute_ddl conn ddl)
     
     [:wat::core::Result.Ok {:value _} (:wat::core::Result.Ok {:value nil})]
     [:wat::core::Result.Err {:error raw} (:wat::core::Result.Err {:error (:wat::sqlite::classify :execute-ddl raw)})]))
 
 (:wat::core::defn :wat::sqlite::execute
-  [conn <- :wat::sqlite::Connection sql <- :wat::core::String
-   params <- (:wat::core::Vector :- [:wat::sqlite::Param])]
-  -> (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])
+  [conn <- :wat::sqlite::Connection sql <- wat.type/String
+   params <- (wat.type/Vector :- [:wat::sqlite::Param])]
+  -> (:wat::core::Result :- [wat.type/i64 :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::Connection/execute conn sql params)
     
     [:wat::core::Result.Ok {:value n} (:wat::core::Result.Ok {:value n})]
@@ -122,22 +122,22 @@
 
 ;; ─── pragma / begin / commit (Connection only) ─────────────────────────────────────────────────
 (:wat::core::defn :wat::sqlite::pragma
-  [conn <- :wat::sqlite::Connection name <- :wat::core::String value <- :wat::core::String]
-  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  [conn <- :wat::sqlite::Connection name <- wat.type/String value <- wat.type/String]
+  -> (:wat::core::Result :- [wat.type/nil :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::Connection/pragma conn name value)
     
     [:wat::core::Result.Ok {:value _} (:wat::core::Result.Ok {:value nil})]
     [:wat::core::Result.Err {:error raw} (:wat::core::Result.Err {:error (:wat::sqlite::classify :pragma raw)})]))
 
 (:wat::core::defn :wat::sqlite::begin
-  [conn <- :wat::sqlite::Connection] -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  [conn <- :wat::sqlite::Connection] -> (:wat::core::Result :- [wat.type/nil :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::Connection/begin conn)
     
     [:wat::core::Result.Ok {:value _} (:wat::core::Result.Ok {:value nil})]
     [:wat::core::Result.Err {:error raw} (:wat::core::Result.Err {:error (:wat::sqlite::classify :begin raw)})]))
 
 (:wat::core::defn :wat::sqlite::commit
-  [conn <- :wat::sqlite::Connection] -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  [conn <- :wat::sqlite::Connection] -> (:wat::core::Result :- [wat.type/nil :wat::sqlite::Error])
   (:wat::core::match (:rust::sqlite::Connection/commit conn)
     
     [:wat::core::Result.Ok {:value _} (:wat::core::Result.Ok {:value nil})]
@@ -152,16 +152,16 @@
 ;; `defn` (no runtime multi-dispatch), so its `:wat::sqlite'::Connection`/`ReadConnection`
 ;; parameter annotations resolve fine through the static-checker's alias unification.
 (:wat::core::defclause :wat::sqlite::select
-  ([conn <- :rust::sqlite::Connection sql <- :wat::core::String
-    params <- (:wat::core::Vector :- [:wat::sqlite::Param])]
-    -> (:wat::core::Result :- [(:wat::core::Vector :- [(:wat::core::Vector :- [:wat::sqlite::Cell])]) :wat::sqlite::Error])
+  ([conn <- :rust::sqlite::Connection sql <- wat.type/String
+    params <- (wat.type/Vector :- [:wat::sqlite::Param])]
+    -> (:wat::core::Result :- [(wat.type/Vector :- [(wat.type/Vector :- [:wat::sqlite::Cell])]) :wat::sqlite::Error])
     (:wat::core::match (:rust::sqlite::Connection/select conn sql params)
       
       [:wat::core::Result.Ok {:value rows} (:wat::core::Result.Ok {:value rows})]
       [:wat::core::Result.Err {:error raw} (:wat::core::Result.Err {:error (:wat::sqlite::classify :select raw)})]))
-  ([conn <- :rust::sqlite::ReadConnection sql <- :wat::core::String
-    params <- (:wat::core::Vector :- [:wat::sqlite::Param])]
-    -> (:wat::core::Result :- [(:wat::core::Vector :- [(:wat::core::Vector :- [:wat::sqlite::Cell])]) :wat::sqlite::Error])
+  ([conn <- :rust::sqlite::ReadConnection sql <- wat.type/String
+    params <- (wat.type/Vector :- [:wat::sqlite::Param])]
+    -> (:wat::core::Result :- [(wat.type/Vector :- [(wat.type/Vector :- [:wat::sqlite::Cell])]) :wat::sqlite::Error])
     (:wat::core::match (:rust::sqlite::ReadConnection/select conn sql params)
       
       [:wat::core::Result.Ok {:value rows} (:wat::core::Result.Ok {:value rows})]

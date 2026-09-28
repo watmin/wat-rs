@@ -62,11 +62,11 @@
 ;; passed by the caller. The filter captures the floor at the call
 ;; site's ambient d; pass through `Hologram/make` once and the entire
 ;; store carries the same threshold.
-(:wat::core::defn :wat::holon::filter-coincident [] -> [:wat::core::f64 :-> :wat::core::bool]
+(:wat::core::defn :wat::holon::filter-coincident [] -> [:wat::core::f64 :-> wat.type/bool]
   (:wat::core::let
       [floor
         (:wat::holon::coincident-floor (:wat::config::dim-count))]
-      (:wat::core::fn [cos <- :wat::core::f64] -> :wat::core::bool
+      (:wat::core::fn [cos <- wat.type/f64] -> wat.type/bool
         (:wat::core::< (:wat::core::- 1.0 cos) floor))))
 
 ;; ─── filter-present — looser, "signal detected above noise" ───────
@@ -77,11 +77,11 @@
 ;; lookup rather than "did I see this exact form before."
 ;;
 ;; d is read from the ambient `:wat::config::dim-count`.
-(:wat::core::defn :wat::holon::filter-present [] -> [:wat::core::f64 :-> :wat::core::bool]
+(:wat::core::defn :wat::holon::filter-present [] -> [:wat::core::f64 :-> wat.type/bool]
   (:wat::core::let
       [floor
         (:wat::holon::presence-floor (:wat::config::dim-count))]
-      (:wat::core::fn [cos <- :wat::core::f64] -> :wat::core::bool
+      (:wat::core::fn [cos <- wat.type/f64] -> wat.type/bool
         (:wat::core::> cos floor))))
 
 ;; ─── filter-accept-any — null gate, returns whatever scored best ──
@@ -90,7 +90,7 @@
 ;; population's nearest neighbor without any floor — e.g., taking the
 ;; cell's argmax for a soft scoring loop where the consumer applies
 ;; their own gate downstream.
-(:wat::core::defn :wat::holon::filter-accept-any [] -> [:wat::core::f64 :-> :wat::core::bool] (:wat::core::fn [_ <- :wat::core::f64] -> :wat::core::bool true))
+(:wat::core::defn :wat::holon::filter-accept-any [] -> [:wat::core::f64 :-> wat.type/bool] (:wat::core::fn [_ <- wat.type/f64] -> wat.type/bool true))
 
 ;; ─── Arc 296: :wat::holon::CapacityExceeded — moving the source of truth to wat ───
 ;;
@@ -104,8 +104,8 @@
 ;; budget). `cost` is what the Bundle was asked to hold; `budget` is what the
 ;; substrate could hold. Both i64 because wat integer literals are i64.
 (:wat::core::defstruct :wat::holon::CapacityExceeded
-  [cost   <- :wat::core::i64
-   budget <- :wat::core::i64])
+  [cost   <- wat.type/i64
+   budget <- wat.type/i64])
 
 ;; ─── Arc 296: :wat::holon::CoincidentExplanation — moving the source of truth to wat ───
 ;;
@@ -118,12 +118,12 @@
 ;; happened, the sigma feeding the floor, the same boolean `coincident?` would
 ;; have returned, and the smallest sigma at which the pair would coincide.
 (:wat::core::defstruct :wat::holon::CoincidentExplanation
-  [cosine             <- :wat::core::f64
-   floor              <- :wat::core::f64
-   dim                <- :wat::core::i64
-   sigma              <- :wat::core::i64
-   coincident         <- :wat::core::bool
-   min-sigma-to-pass  <- :wat::core::i64])
+  [cosine             <- wat.type/f64
+   floor              <- wat.type/f64
+   dim                <- wat.type/i64
+   sigma              <- wat.type/i64
+   coincident         <- wat.type/bool
+   min-sigma-to-pass  <- wat.type/i64])
 
 ;; ─── Arc 296: :wat::holon::Match — moving the source of truth to wat ───────
 ;;
@@ -179,10 +179,10 @@
 ;; `bytes-vector` itself has zero wat-corpus callers today.
 (:wat::core::defenum :wat::holon::VectorDecodeOutcome :wat::enum::Pure
   :Decoded [vector <- :wat::holon::Vector]
-  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64]
-  :TruncatedHeader [got <- :wat::core::i64]
-  :LengthMismatch [expected <- :wat::core::i64  got <- :wat::core::i64]
-  :InvalidCell [at <- :wat::core::i64])
+  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64]
+  :TruncatedHeader [got <- wat.type/i64]
+  :LengthMismatch [expected <- wat.type/i64  got <- wat.type/i64]
+  :InvalidCell [at <- wat.type/i64])
 
 ;; :wat::holon::CombineOutcome — Arc 278 the dimension-heresy strike, part
 ;; 2. `vector-bind` / `vector-bundle` / `vector-blend` each RAISED a
@@ -209,7 +209,7 @@
 ;; two `i64`s, all EDN-reconstructable.
 (:wat::core::defenum :wat::holon::CombineOutcome :wat::enum::Pure
   :Combined [vector <- :wat::holon::Vector]
-  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64])
+  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64])
 
 ;; :wat::holon::DegenerateSide — Arc 278 the cosine outcome wall
 ;; (BRIEF-cosine-outcome-wall.md, DESIGN-STONE-where-admits-only-rete-ops.md
@@ -260,9 +260,9 @@
 ;; marking it Impure would lie. Registered as a builtin, peer with the
 ;; other outcome walls in this family (`CombineOutcome`, `VectorDecodeOutcome`).
 (:wat::core::defenum :wat::holon::CosineOutcome :wat::enum::Pure
-  :Similarity [similarity <- :wat::core::f64]
+  :Similarity [similarity <- wat.type/f64]
   :Degenerate [side <- :wat::holon::DegenerateSide]
-  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64])
+  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64])
 
 ;; :wat::holon::DotOutcome — Arc 278 the cosine outcome wall's sibling for
 ;; `dot`. TWO enums, not one shared with `CosineOutcome` — `dot` performs
@@ -280,8 +280,8 @@
 ;;                        shared `pair_values_to_vectors` guard).
 ;; PURE, for the same reason `CosineOutcome` is.
 (:wat::core::defenum :wat::holon::DotOutcome :wat::enum::Pure
-  :Computed [product <- :wat::core::f64]
-  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64])
+  :Computed [product <- wat.type/f64]
+  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64])
 
 ;; ─── Arc 296 K: aliases that wat uses, declared in wat ──────────────────────
 ;;

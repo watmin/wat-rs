@@ -9,8 +9,8 @@
 ;; wrote for `s`.
 
 (:wat::core::defmacro :wat::holon::Amplify
-  [x <- :wat::WatAST
-   y <- :wat::WatAST
-   s <- :wat::WatAST]
-  -> :wat::WatAST
+  [x <- wat.type/AST
+   y <- wat.type/AST
+   s <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::holon::Blend ~x ~y 1.0 ~s))

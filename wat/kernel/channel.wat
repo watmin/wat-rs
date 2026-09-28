@@ -46,7 +46,7 @@
   (:rust::crossbeam_channel::Receiver :- [T]))
 
 (:wat::core::typealias :wat::kernel::Channel :- [T]
-  (:wat::core::Tuple :- [(:wat::kernel::Sender :- [T]) (:wat::kernel::Receiver :- [T])]))
+  (wat.type/Tuple :- [(:wat::kernel::Sender :- [T]) (:wat::kernel::Receiver :- [T])]))
 
 ;; Arc 113 — Err arm widened to a (wat::core::Vector :- [ThreadDiedError]) so cascades
 ;; carry the chain. Head = the immediate peer that died; tail =
@@ -65,13 +65,13 @@
 ;; the caller's vantage; the per-program-kind concrete name is
 ;; what surfaces today.
 (:wat::core::typealias :wat::kernel::ProcessPanics
-  (:wat::core::Vector :- [:wat::kernel::LociDiedError]))
+  (wat.type/Vector :- [:wat::kernel::LociDiedError]))
 
 (:wat::core::typealias :wat::kernel::ThreadPanics
-  (:wat::core::Vector :- [:wat::kernel::LociDiedError]))
+  (wat.type/Vector :- [:wat::kernel::LociDiedError]))
 
 (:wat::core::typealias :wat::kernel::CommResult :- [T]
   (:wat::core::Result :- [(:wat::core::Option :- [T]) :wat::kernel::ThreadPanics]))
 
 (:wat::core::typealias :wat::kernel::Chosen :- [T]
-  (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::CommResult :- [T])]))
+  (wat.type/Tuple :- [wat.type/i64 (:wat::kernel::CommResult :- [T])]))

@@ -21,20 +21,20 @@
 
 ;; ─── Tags — the dimension map every scope carries (keyword → string). ────────────
 (:wat::core::typealias :wat::telemetry::Tags
-  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String]))
+  (wat.type/HashMap :- [wat.type/keyword wat.type/String]))
 
 ;; ─── Samples — a span's duration samples (nanos) under one name. A bare keyword alias so it
 ;; can name a HashMap value type + a `match ->` annotation (compound types can't sit there). ─
 (:wat::core::typealias :wat::telemetry::Samples
-  (:wat::core::Vector :- [:wat::core::i64]))
+  (wat.type/Vector :- [wat.type/i64]))
 
 ;; ─── Numeric — a metric's value: an i64 count or an f64 gauge (fielded variants). ─
 ;; Variant names are :I64/:F64 (capitalized, per the sqlite Cell/Param exemplar): the
 ;; lowercase :i64/:f64 the design doc sketched collide with the RETIRED bare primitives
 ;; :i64/:f64 (arc-109) and are rejected as enum-variant names.
 (:wat::core::defenum :wat::telemetry::Numeric :wat::enum::Pure
-  :I64 [val <- :wat::core::i64]
-  :F64 [val <- :wat::core::f64])
+  :I64 [val <- wat.type/i64]
+  :F64 [val <- wat.type/f64])
 
 ;; ─── Unit — the unit a metric's value is measured in (bare variants). ────────────
 (:wat::core::defenum :wat::telemetry::Unit :wat::enum::Pure
@@ -65,7 +65,7 @@
 ;; unlike a `#`-delimited flat string which cannot be read back. Fields render in
 ;; declaration order, so the partition groups hierarchically (namespace, then kind).
 (:wat::core::defrecord :wat::telemetry::PartitionKey
-  [namespace <- :wat::core::String
+  [namespace <- wat.type/String
    kind      <- :wat::telemetry::Kind])
 
 ;; ─── Scope — the EXACT surface every telemetry record satisfies (identity + when). ─
@@ -73,17 +73,17 @@
 ;; Spliced into Metric/Log via `~@:wat::telemetry'::Scope`.
 (:wat::core::defsurface :wat::telemetry::Scope
   :nature :wat::core::Record
-  :features [namespace <- :wat::core::String
+  :features [namespace <- wat.type/String
              uuid      <- :wat::core::Uuid
              tags      <- :wat::telemetry::Tags
-             time-ns   <- :wat::core::i64])
+             time-ns   <- wat.type/i64])
 
 ;; ─── Metric — a measurement. Splices Scope (4 fields), then 4 own. ───────────────
 ;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  start-time-ns name value unit.
 (:wat::core::defrecord :wat::telemetry::Metric
   [~@:wat::telemetry::Scope
-   start-time-ns <- :wat::core::i64
-   name          <- :wat::core::keyword
+   start-time-ns <- wat.type/i64
+   name          <- wat.type/keyword
    value         <- :wat::telemetry::Numeric
    unit          <- :wat::telemetry::Unit])
 
@@ -95,7 +95,7 @@
    level   <- :wat::telemetry::Level
    ;; message is OPAQUE (arc 278 Stone B): EDN text the producer `edn::write`s at the call site;
    ;; the sink stores/returns it verbatim and never decodes (no `UnknownTag` across a fork).
-   message <- :wat::core::String])
+   message <- wat.type/String])
 
 ;; ─── Journal — arc 278 stone T1b.1: the telemetry sink's S4c contract, write half. ─
 ;; A `:nature :wat::kernel::Peer'` surface — a dialed `(Peer' :- [Journal::Op Journal::Reply])` IS a
@@ -115,54 +115,54 @@
 (:wat::core::defsurface :wat::telemetry::Journal :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::telemetry::Journal::WriteMetricsRequest
-     [batch <- (:wat::core::Vector :- [:wat::telemetry::Metric])])
+     [batch <- (wat.type/Vector :- [:wat::telemetry::Metric])])
    (:wat::core::defenum :wat::telemetry::Journal::WriteMetricsResponse :wat::enum::Pure
      :Success        []
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::telemetry::Journal::WriteLogsRequest
-     [batch <- (:wat::core::Vector :- [:wat::telemetry::Log])])
+     [batch <- (wat.type/Vector :- [:wat::telemetry::Log])])
    (:wat::core::defenum :wat::telemetry::Journal::WriteLogsResponse :wat::enum::Pure
      :Success        []
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    ;; ── query (CloudWatch read side): a namespace + time window [lo,hi] in epoch nanos, paged. ──
    (:wat::core::defrecord :wat::telemetry::Journal::QueryMetricsRequest
-     [namespace <- :wat::core::String
-      time-lo   <- :wat::core::i64
-      time-hi   <- :wat::core::i64
-      limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :- [:wat::core::String])])
+     [namespace <- wat.type/String
+      time-lo   <- wat.type/i64
+      time-hi   <- wat.type/i64
+      limit     <- wat.type/i64
+      cursor    <- (:wat::core::Option :- [wat.type/String])])
    ;; scan yields Success/Transient/Fatal only (a read can't constraint-fail) — mirror that.
    (:wat::core::defenum :wat::telemetry::Journal::QueryMetricsResponse :wat::enum::Pure
-     :Success   [metrics <- (:wat::core::Vector :- [:wat::telemetry::Metric])
-                 cursor  <- (:wat::core::Option :- [:wat::core::String])]
+     :Success   [metrics <- (wat.type/Vector :- [:wat::telemetry::Metric])
+                 cursor  <- (:wat::core::Option :- [wat.type/String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::telemetry::Journal::QueryLogsRequest
-     [namespace <- :wat::core::String
-      time-lo   <- :wat::core::i64
-      time-hi   <- :wat::core::i64
-      limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :- [:wat::core::String])])
+     [namespace <- wat.type/String
+      time-lo   <- wat.type/i64
+      time-hi   <- wat.type/i64
+      limit     <- wat.type/i64
+      cursor    <- (:wat::core::Option :- [wat.type/String])])
    (:wat::core::defenum :wat::telemetry::Journal::QueryLogsResponse :wat::enum::Pure
-     :Success   [logs   <- (:wat::core::Vector :- [:wat::telemetry::Log])
-                 cursor <- (:wat::core::Option :- [:wat::core::String])]
+     :Success   [logs   <- (wat.type/Vector :- [:wat::telemetry::Log])
+                 cursor <- (:wat::core::Option :- [wat.type/String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    ;; ── sift (arc 278 Stone 2 — server-side filtering, DESIGN-sift-server-side-filter.md): the
    ;; same namespace + time-window page as query-*, PLUS a `Sieve` (the pure filter spec — this
@@ -170,34 +170,34 @@
    ;; row, and returns only survivors; an impure/non-deterministic predicate is REJECTED —
    ;; `::Fatal` with a Fault, never a silent pass. ──
    (:wat::core::defrecord :wat::telemetry::Journal::SiftLogsRequest
-     [namespace <- :wat::core::String
-      time-lo   <- :wat::core::i64
-      time-hi   <- :wat::core::i64
-      limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :- [:wat::core::String])
+     [namespace <- wat.type/String
+      time-lo   <- wat.type/i64
+      time-hi   <- wat.type/i64
+      limit     <- wat.type/i64
+      cursor    <- (:wat::core::Option :- [wat.type/String])
       sieve     <- :wat::query::Sieve])
    (:wat::core::defenum :wat::telemetry::Journal::SiftLogsResponse :wat::enum::Pure
-     :Success   [logs   <- (:wat::core::Vector :- [:wat::telemetry::Log])
-                 cursor <- (:wat::core::Option :- [:wat::core::String])]
+     :Success   [logs   <- (wat.type/Vector :- [:wat::telemetry::Log])
+                 cursor <- (:wat::core::Option :- [wat.type/String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::telemetry::Journal::SiftMetricsRequest
-     [namespace <- :wat::core::String
-      time-lo   <- :wat::core::i64
-      time-hi   <- :wat::core::i64
-      limit     <- :wat::core::i64
-      cursor    <- (:wat::core::Option :- [:wat::core::String])
+     [namespace <- wat.type/String
+      time-lo   <- wat.type/i64
+      time-hi   <- wat.type/i64
+      limit     <- wat.type/i64
+      cursor    <- (:wat::core::Option :- [wat.type/String])
       sieve     <- :wat::query::Sieve])
    (:wat::core::defenum :wat::telemetry::Journal::SiftMetricsResponse :wat::enum::Pure
-     :Success   [metrics <- (:wat::core::Vector :- [:wat::telemetry::Metric])
-                 cursor  <- (:wat::core::Option :- [:wat::core::String])]
+     :Success   [metrics <- (wat.type/Vector :- [:wat::telemetry::Metric])
+                 cursor  <- (:wat::core::Option :- [wat.type/String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteMetricsRequest]
@@ -236,32 +236,32 @@
 (:wat::core::defsurface :wat::telemetry::Span :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat::telemetry::Span::IncrRequest
-     [name <- :wat::core::keyword])
+     [name <- wat.type/keyword])
    (:wat::core::defenum :wat::telemetry::Span::IncrResponse :wat::enum::Pure
      :Ok              []
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::telemetry::Span::TimedRequest
-     [name <- :wat::core::keyword  nanos <- :wat::core::i64])
+     [name <- wat.type/keyword  nanos <- wat.type/i64])
    (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure
      :Ok              []
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::telemetry::Span::LogRequest
      [emitted-from  <- :wat::kernel::Frame
       level   <- :wat::telemetry::Level
       ;; message OPAQUE (arc 278 Stone B): the `Span/log` caller `edn::write`s its record here, so
       ;; a forked `span'` never hits `UnknownTag` on a user type either — opaque before both wires.
-      message <- :wat::core::String])
+      message <- wat.type/String])
    (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure
      :Ok              []
      :Constraint      [err <- :wat::query::Constraint]
      :Transient       [err <- :wat::query::Transient]
      :Fatal           [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::telemetry::Span::CloseRequest [])
    (:wat::core::defenum :wat::telemetry::Span::CloseResponse :wat::enum::Pure
@@ -269,8 +269,8 @@
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [;; increment a named counter by 1 — a PURE state transition (emitted on close).
    (incr [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::IncrRequest]
@@ -302,11 +302,11 @@
 ;;      keyword's own text (the fqdn passed in by the caller IS the tag written on the wire).
 ;; This is the whole point: re-run this on ANY type keyword and the floor RE-DERIVES from the
 ;; LIVE field set — a field added/removed/retyped tomorrow needs no hand edits here.
-(:wat::core::defn :wat::telemetry::framing-floor-of [ty <- :wat::core::keyword] -> :wat::core::i64
+(:wat::core::defn :wat::telemetry::framing-floor-of [ty <- wat.type/keyword] -> wat.type/i64
   (:wat::core::let
     [tag-cost   (:wat::string::length (:wat::keyword::to-string ty))
      fixed-cost (:wat::core::foldl
-                  (:wat::core::fn [acc <- :wat::core::i64  t <- :wat::WatAST] -> :wat::core::i64
+                  (:wat::core::fn [acc <- wat.type/i64  t <- wat.type/AST] -> wat.type/i64
                     (:wat::i64::+ acc
                       (:wat::core::cond
                         ((:wat::core::= (:wat::core::ast-name t) "wat.type/i64")  20)
@@ -316,7 +316,7 @@
                         (:else 0))))
                   0 (:wat::runtime::field-types-of ty))
      key-cost   (:wat::core::foldl
-                  (:wat::core::fn [acc <- :wat::core::i64  k <- :wat::core::keyword] -> :wat::core::i64
+                  (:wat::core::fn [acc <- wat.type/i64  k <- wat.type/keyword] -> wat.type/i64
                     (:wat::i64::+ acc (:wat::string::length (:wat::keyword::to-string k))))
                   0 (:wat::runtime::field-names-of ty))]
     (:wat::i64::+ tag-cost (:wat::i64::+ fixed-cost key-cost))))

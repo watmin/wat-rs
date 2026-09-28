@@ -26,9 +26,9 @@
 ;; spliced into ordinary caller code, evaluated at normal runtime — not a macro-expansion-
 ;; time bootstrap site, so `mapv` is safe to reference directly.)
 (:wat::core::defmacro :wat::holon::Ngram
-  [n  <- :wat::WatAST
-   xs <- :wat::WatAST]
-  -> :wat::WatAST
+  [n  <- wat.type/AST
+   xs <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::holon::Bundle
      (:wat::core::mapv
        (:wat::core::fn [window <- :wat::holon::Holons] -> :wat::holon::HolonAST

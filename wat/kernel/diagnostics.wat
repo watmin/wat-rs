@@ -23,9 +23,9 @@
 ;; `<anonymous>` marker for an anon fn, or the macro name for a
 ;; macro-call-site (arc 109 — concrete, non-`Option` fields).
 (:wat::core::defrecord :wat::kernel::Frame
-  [file   <- :wat::core::String
-   line   <- :wat::core::i64
-   symbol <- :wat::core::String])
+  [file   <- wat.type/String
+   line   <- wat.type/i64
+   symbol <- wat.type/String])
 
 ;; ─── Arc 296: :wat::kernel::StartupError — moving the source of truth to wat ───
 ;;
@@ -39,7 +39,7 @@
 ;; (the diagnostic message); extensible to kind / location if a real
 ;; consumer surfaces.
 (:wat::core::defstruct :wat::kernel::StartupError
-  [message <- :wat::core::String])
+  [message <- wat.type/String])
 
 ;; ─── Arc 296: :wat::kernel::StopAccepted — moving the source of truth to wat ───
 ;;
@@ -55,7 +55,7 @@
 ;; held stdio Handles that were still live at the moment of the ask — an
 ;; already-gone Handle is silently omitted, never listed).
 (:wat::core::defrecord :wat::kernel::StopAccepted
-  [services <- (:wat::core::Vector :- [:wat::core::String])])
+  [services <- (wat.type/Vector :- [wat.type/String])])
 
 ;; ─── Arc 296: :wat::kernel::StopFailure — moving the source of truth to wat ───
 ;;
@@ -70,7 +70,7 @@
 ;; satisfies the `:wat::core::Error` surface, `wat/core.wat`) — never a
 ;; stringly message, never a bespoke `StopFailureCause` enum.
 (:wat::core::defrecord :wat::kernel::StopFailure
-  [service <- :wat::core::String
+  [service <- wat.type/String
    cause   <- :wat::core::Error])
 
 ;; ─── Arc 296: :wat::kernel::StopFailed — moving the source of truth to wat ───
@@ -88,7 +88,7 @@
 ;; before a non-zero exit. An empty collection means nothing changes — exit
 ;; as it always did.
 (:wat::core::defrecord :wat::kernel::StopFailed
-  [services <- (:wat::core::Vector :- [:wat::kernel::StopFailure])])
+  [services <- (wat.type/Vector :- [:wat::kernel::StopFailure])])
 
 ;; ─── Arc 296: :wat::kernel::Failure — moving the source of truth to wat ───
 ;;
@@ -106,9 +106,9 @@
 ;; payload carries an AssertionPayload.
 (:wat::core::defrecord :wat::kernel::Failure
   [error    <- :wat::core::Error
-   frames   <- (:wat::core::Vector :- [:wat::kernel::Frame])
-   actual   <- (:wat::core::Option :- [:wat::core::String])
-   expected <- (:wat::core::Option :- [:wat::core::String])])
+   frames   <- (wat.type/Vector :- [:wat::kernel::Frame])
+   actual   <- (:wat::core::Option :- [wat.type/String])
+   expected <- (:wat::core::Option :- [wat.type/String])])
 
 ;; ─── Arc 296 H-2c: :wat::kernel::LociDiedError — moving the source of truth to wat ───
 ;;
@@ -121,10 +121,10 @@
 ;; ask) and `wat_enum_register_from!` (the TypeEnv row). There is no second list.
 (:wat::core::defenum :wat::kernel::LociDiedError :wat::enum::Pure
 ;; Peer raised/panicked; `failure` is Some when the panic carried an AssertionPayload.
-  :Panic            [message <- :wat::core::String
+  :Panic            [message <- wat.type/String
                      failure <- (:wat::core::Option :- [:wat::kernel::Failure])]
 ;; A type/arity/etc. error surfaced at run.
-  :RuntimeError     [message <- :wat::core::String]
+  :RuntimeError     [message <- wat.type/String]
 ;; The wire dropped (was ChannelDisconnected).
   :Disconnected
 ;; A stop was requested mid-recv, any locus (arc 170: wat's word, not Rust's "shutdown").
@@ -132,11 +132,11 @@
 ;; The locus didn't come up. Cause is the structured `:wat::core::Error` floor record.
   :StartupError     [error   <- :wat::core::Error]
 ;; The peer program's entry form was malformed.
-  :EntryFormFailure [message <- :wat::core::String]
+  :EntryFormFailure [message <- wat.type/String]
 ;; The peer's :user::main had a bad signature.
-  :MainSignature    [message <- :wat::core::String]
+  :MainSignature    [message <- wat.type/String]
 ;; The peer returned a value that won't cross the wire.
-  :BadReturn        [message <- :wat::core::String])
+  :BadReturn        [message <- wat.type/String])
 
 ;; ─── Arc 296: :wat::kernel::AssertionFailure — moving the source of truth to wat ───
 ;;
@@ -152,10 +152,10 @@
 ;; `Span`); `upstream-chain` is a `(Vector :- [LociDiedError])` (was heterogeneous
 ;; Thread|Process) — the record is EDN all the way down.
 (:wat::core::defrecord :wat::kernel::AssertionFailure
-  [thread         <- :wat::core::String
-   message        <- :wat::core::String
+  [thread         <- wat.type/String
+   message        <- wat.type/String
    location       <- (:wat::core::Option :- [:wat::kernel::Location])
-   actual         <- (:wat::core::Option :- [:wat::core::String])
-   expected       <- (:wat::core::Option :- [:wat::core::String])
-   frames         <- (:wat::core::Vector :- [:wat::kernel::Frame])
-   upstream-chain <- (:wat::core::Vector :- [:wat::kernel::LociDiedError])])
+   actual         <- (:wat::core::Option :- [wat.type/String])
+   expected       <- (:wat::core::Option :- [wat.type/String])
+   frames         <- (wat.type/Vector :- [:wat::kernel::Frame])
+   upstream-chain <- (wat.type/Vector :- [:wat::kernel::LociDiedError])])

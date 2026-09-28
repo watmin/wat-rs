@@ -15,8 +15,8 @@
 ;; return nil; coordinate returns the bare address.
 (:wat::core::defsurface :wat::capability::Capability :nature :wat::core::Struct
   :features
-  [(grant      [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
-   (revoke     [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
+  [(grant      [self <- :wat::capability::Capability  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)
+   (revoke     [self <- :wat::capability::Capability  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)
    (coordinate [self <- :wat::capability::Capability] -> :wat::kernel::Address)])
 
 ;; `as-capability` (arc 170 N-service kwargs stone) — RETIRED. It forced a Handle's
@@ -72,5 +72,5 @@
 (:wat::core::defsurface :wat::capability::TypedCapability :- [S R T] :nature :wat::core::Struct
   :features
   [(coord  [self <- (:wat::capability::TypedCapability :- [S R T])] -> (:wat::kernel::Address :- [S R T]))
-   (grant  [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
-   (revoke [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)])
+   (grant  [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)
+   (revoke [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)])

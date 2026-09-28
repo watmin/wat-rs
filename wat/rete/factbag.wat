@@ -28,7 +28,7 @@
 ;; items — the ONE unwrap. Every other reader goes through a semantic door or this.
 (:wat::core::defn :wat::rete::factbag::items
   [b <- :wat::rete::FactBag]
-  -> (:wat::core::PersistentVector :- [:wat::core::Record])
+  -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::rete::FactBag/items b))
 
 (:wat::core::defn :wat::rete::factbag::empty [] -> :wat::rete::FactBag
@@ -36,19 +36,19 @@
 
 (:wat::core::defn :wat::rete::factbag::size
   [b <- :wat::rete::FactBag]
-  -> :wat::core::i64
+  -> wat.type/i64
   (:wat::core::length (:wat::rete::factbag::items b)))
 
 (:wat::core::defn :wat::rete::factbag::add
   [b <- :wat::rete::FactBag
-   f <- :wat::core::Record]
+   f <- wat.type/Record]
   -> :wat::rete::FactBag
   (:wat::rete::FactBag :items
     (:wat::vector::conj (:wat::rete::factbag::items b) f)))
 
 (:wat::core::defn :wat::rete::factbag::add-if-absent
   [b <- :wat::rete::FactBag
-   f <- :wat::core::Record]
+   f <- wat.type/Record]
   -> :wat::rete::FactBag
   (:wat::core::if (:wat::vector::contains? (:wat::rete::factbag::items b) f)
     b
@@ -56,8 +56,8 @@
 
 ;; FactBagDrop — fold state for remove-one. Payload plus a bool, same shape as StratifyAcc.
 (:wat::core::defrecord :wat::rete::FactBagDrop
-  [items   <- (:wat::core::PersistentVector :- [:wat::core::Record])
-   dropped <- :wat::core::bool])
+  [items   <- (wat.type/PersistentVector :- [wat.type/Record])
+   dropped <- wat.type/bool])
 
 ;; remove-one — drop the FIRST value-equal fact; every other fact keeps its position.
 ;; Absent => the bag is unchanged. Symmetric with `add`: one call moves the multiplicity by one.
@@ -65,11 +65,11 @@
 ;; property and fire.wat:316-322's convergence argument stay intact.
 (:wat::core::defn :wat::rete::factbag::remove-one
   [b    <- :wat::rete::FactBag
-   fact <- :wat::core::Record]
+   fact <- wat.type/Record]
   -> :wat::rete::FactBag
   (:wat::core::let [done (:wat::core::foldl
                            (:wat::core::fn [acc <- :wat::rete::FactBagDrop
-                                            f   <- :wat::core::Record]
+                                            f   <- wat.type/Record]
                              -> :wat::rete::FactBagDrop
                              (:wat::core::if (:wat::core::or (:wat::rete::FactBagDrop/dropped acc)
                                                             (:wat::core::not (:wat::core::= f fact)))
@@ -87,13 +87,13 @@
 ;; keeps matches, never dedups. fire.wat:316-322's length-as-set-test depends on this.
 (:wat::core::defn :wat::rete::factbag::retain
   [b    <- :wat::rete::FactBag
-   pred <- [:wat::core::Record :-> :wat::core::bool]]
+   pred <- [:wat::core::Record :-> wat.type/bool]]
   -> :wat::rete::FactBag
   (:wat::rete::FactBag :items
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
-                       f   <- :wat::core::Record]
-        -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])
+                       f   <- wat.type/Record]
+        -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::if (pred f)
           (:wat::vector::conj acc f)
           acc))
@@ -102,12 +102,12 @@
 
 (:wat::core::defn :wat::rete::factbag::count-of
   [b    <- :wat::rete::FactBag
-   fact <- :wat::core::Record]
-  -> :wat::core::i64
+   fact <- wat.type/Record]
+  -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [n <- :wat::core::i64
-                     f <- :wat::core::Record]
-      -> :wat::core::i64
+    (:wat::core::fn [n <- wat.type/i64
+                     f <- wat.type/Record]
+      -> wat.type/i64
       (:wat::core::if (:wat::core::= f fact)
         (:wat::i64::+ n 1)
         n))

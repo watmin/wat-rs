@@ -24,51 +24,51 @@
 
 ;; ─── the write input ─────────────────────────────────────────────────────────────────────────
 (:wat::core::defrecord :wat::query::IndexKey                 ;; a named GSI's own projected keys
-  [ipk <- :wat::core::String
-   isk <- :wat::core::String])
+  [ipk <- wat.type/String
+   isk <- wat.type/String])
 
 (:wat::core::defrecord :wat::query::StoredRow                ;; one record to `put`
-  [pk         <- :wat::core::String                          ;; EDN-form key string; consumer serializes <-> hydrates
-   sk         <- :wat::core::String
-   data       <- :wat::core::String                          ;; the record's tagged EDN, opaque to the backend
-   index-keys <- (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])]) ;; index-name -> (ipk,isk)
+  [pk         <- wat.type/String                          ;; EDN-form key string; consumer serializes <-> hydrates
+   sk         <- wat.type/String
+   data       <- wat.type/String                          ;; the record's tagged EDN, opaque to the backend
+   index-keys <- (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey])]) ;; index-name -> (ipk,isk)
 
 ;; ─── the read results — what scan / scan-index hand back ───────────────────────────────────
 (:wat::core::defrecord :wat::query::Row
-  [pk   <- :wat::core::String
-   sk   <- :wat::core::String
-   data <- :wat::core::String])
+  [pk   <- wat.type/String
+   sk   <- wat.type/String
+   data <- wat.type/String])
 
 (:wat::core::defrecord :wat::query::IndexRow                 ;; the 4-keyed index row
-  [pk   <- :wat::core::String                                ;; the base keys
-   sk   <- :wat::core::String
-   ipk  <- :wat::core::String                                ;; the GSI's own keys
-   isk  <- :wat::core::String
-   data <- :wat::core::String])
+  [pk   <- wat.type/String                                ;; the base keys
+   sk   <- wat.type/String
+   ipk  <- wat.type/String                                ;; the GSI's own keys
+   isk  <- wat.type/String
+   data <- wat.type/String])
 
 ;; ─── the pages — results + the keyset resume cursor (vocabulary; the operation model's own
 ;; `Store::ScanResponse::Success`/`ScanIndexResponse::Success` carry rows+cursor directly rather
 ;; than nesting one of these — kept as the shared shape for consumers that want to box a page) ────
 (:wat::core::defrecord :wat::query::Page
-  [rows        <- (:wat::core::Vector :- [:wat::query::Row])
-   next-cursor <- (:wat::core::Option :- [:wat::core::String])])
+  [rows        <- (wat.type/Vector :- [:wat::query::Row])
+   next-cursor <- (:wat::core::Option :- [wat.type/String])])
 
 (:wat::core::defrecord :wat::query::IndexPage
-  [rows        <- (:wat::core::Vector :- [:wat::query::IndexRow])
-   next-cursor <- (:wat::core::Option :- [:wat::core::String])])
+  [rows        <- (wat.type/Vector :- [:wat::query::IndexRow])
+   next-cursor <- (:wat::core::Option :- [wat.type/String])])
 
 ;; ─── schema declarations (ensure-schema input) ──────────────────────────────────────────────
 (:wat::core::defrecord :wat::query::TableSchema
-  [pk <- :wat::core::String
-   sk <- :wat::core::String])
+  [pk <- wat.type/String
+   sk <- wat.type/String])
 
 (:wat::core::defrecord :wat::query::IndexSchema
-  [name <- :wat::core::String                                ;; the GSI's name — S2's secondary-complete-tables
+  [name <- wat.type/String                                ;; the GSI's name — S2's secondary-complete-tables
                                                               ;; model makes this the table name (`index_<name>`)
-   pk  <- :wat::core::String
-   sk  <- :wat::core::String
-   ipk <- :wat::core::String
-   isk <- :wat::core::String])
+   pk  <- wat.type/String
+   sk  <- wat.type/String
+   ipk <- wat.type/String
+   isk <- wat.type/String])
 
 ;; ─── the error vocabulary — recovery-axis records over Reason ──────────────────────────────────
 ;; `Reason` has no members. A record satisfies it only by a declared extend-type edge
@@ -80,7 +80,7 @@
 (:wat::core::defrecord :wat::query::Fatal      [reason <- :wat::query::Reason]) ;; abort — unrecoverable
 
 ;; a concrete default `Reason` satisfier for a backend with nothing more structured to say.
-(:wat::core::defrecord :wat::query::Fault [message <- :wat::core::String])
+(:wat::core::defrecord :wat::query::Fault [message <- wat.type/String])
 (:wat::core::extend-type :wat::query::Fault :wat::query::Reason)
 
 ;; ─── the Sieve filter spec (arc 278 Stone 2 — the sift Predicate delivery) ───────────────────
@@ -95,14 +95,14 @@
 ;; process wire (the general wire-decode crashes on bare symbols); a `String` of `::`-source,
 ;; rebuilt with `read-string` on the far side, is loci-agnostic (thread == process).
 (:wat::core::defenum :wat::query::Sieve :wat::enum::Pure
-  :Predicate [pred <- :wat::core::String])
+  :Predicate [pred <- wat.type/String])
 
 ;; sieve-pred — the organic-UX capture macro. The user writes a REAL `(fn [log] -> :bool …)`;
 ;; this macro (modeled on `:wat::rete::defrule`, `wat/rete/syntax.wat`) captures the form,
 ;; `ast->source`s it into a String, and expands to a `Sieve::Predicate` — the user never types
 ;; a string themselves.
 (:wat::core::defmacro :wat::query::sieve-pred
-  [fn-form <- :wat::WatAST] -> :wat::WatAST
+  [fn-form <- wat.type/AST] -> wat.type/AST
   (:wat::core::let [src (:wat::core::ast->source fn-form)]
     `(:wat::query::Sieve.Predicate {:pred ~src})))
 
@@ -136,7 +136,7 @@
 ;; fire/collect fold) is INLINED directly into the `:impls` op body — never a sibling top-level
 ;; defn — for the same cross-fork reason as (1).
 (:wat::core::defmacro :wat::query::sift-rules-defsvc
-  [& clauses <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
+  [& clauses <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST
   (:wat::core::let
     [name-node  (:wat::core::Option/expect (:wat::core::get clauses 1) "sift-rules-defsvc: missing :name")
      defs-node  (:wat::core::Option/expect (:wat::core::get clauses 3) "sift-rules-defsvc: missing :defs")
@@ -187,8 +187,8 @@
      ;; VECTOR (child[5] of rch), quoted as-is — symmetric with when-vec; no more splicing.
      rule-lits
        (:wat::core::foldl
-         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) rf <- :wat::WatAST]
-           -> (:wat::core::Vector :- [:wat::WatAST])
+         (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) rf <- wat.type/AST]
+           -> (wat.type/Vector :- [wat.type/AST])
            (:wat::core::let
              [rch        (:wat::core::ast->children rf)
               rname      (:wat::core::Option/expect (:wat::core::get rch 1) "sift-rules-defsvc: rule missing name")
@@ -200,7 +200,7 @@
               then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "sift-rules-defsvc: rule missing :then")
               rule-lit   `(:wat::rete::make-rule ~rname-str (:wat::core::quote ~when-vec) (:wat::core::quote ~then-vec))]
              (:wat::core::conj acc rule-lit)))
-         (:wat::core::Vector :- [:wat::WatAST])
+         (wat.type/Vector :- [wat.type/AST])
          rules-children)
 
      ;; ── (2) derived-type-strs: UNIQUE type names across every rule's `:then` fact-forms — the
@@ -209,15 +209,15 @@
      ;; fact-form directly (no more `(insert (:Type …))` wrapper to unwrap).
      derived-type-strs
        (:wat::core::foldl
-         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) rf <- :wat::WatAST]
-           -> (:wat::core::Vector :- [:wat::core::String])
+         (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) rf <- wat.type/AST]
+           -> (wat.type/Vector :- [wat.type/String])
            (:wat::core::let
              [rch (:wat::core::ast->children rf)
               then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "sift-rules-defsvc: rule missing :then")
               then-forms (:wat::core::ast->children then-vec)]
              (:wat::core::foldl
-               (:wat::core::fn [acc2 <- (:wat::core::Vector :- [:wat::core::String]) tf <- :wat::WatAST]
-                 -> (:wat::core::Vector :- [:wat::core::String])
+               (:wat::core::fn [acc2 <- (wat.type/Vector :- [wat.type/String]) tf <- wat.type/AST]
+                 -> (wat.type/Vector :- [wat.type/String])
                  (:wat::core::let
                    ;; tf IS the fact-form directly (arc 278 Stone A dropped the insert wrapper).
                    [cch  (:wat::core::ast->children tf)
@@ -230,7 +230,7 @@
                    (:wat::core::if (:wat::vec::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                acc
                then-forms)))
-         (:wat::core::Vector :- [:wat::core::String])
+         (wat.type/Vector :- [wat.type/String])
          rules-children)
 
      ;; ── (2b) fired-upon-type-strs: UNIQUE type names appearing as the HEAD of any rule's
@@ -239,16 +239,16 @@
      ;; own "form::matches?-shaped clauses" contract). This is the CASCADED-UPON set.
      fired-upon-type-strs
        (:wat::core::foldl
-         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) rf <- :wat::WatAST]
-           -> (:wat::core::Vector :- [:wat::core::String])
+         (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) rf <- wat.type/AST]
+           -> (wat.type/Vector :- [wat.type/String])
            (:wat::core::let
              [rch      (:wat::core::ast->children rf)
               when-vec (:wat::core::Option/expect (:wat::core::get rch 3)
                          "sift-rules-defsvc: rule missing :when")
               conds    (:wat::core::ast->children when-vec)]
              (:wat::core::foldl
-               (:wat::core::fn [acc2 <- (:wat::core::Vector :- [:wat::core::String]) cf <- :wat::WatAST]
-                 -> (:wat::core::Vector :- [:wat::core::String])
+               (:wat::core::fn [acc2 <- (wat.type/Vector :- [wat.type/String]) cf <- wat.type/AST]
+                 -> (wat.type/Vector :- [wat.type/String])
                  (:wat::core::let
                    [cch  (:wat::core::ast->children cf)
                     ckw  (:wat::core::Option/expect (:wat::core::get cch 0)
@@ -260,7 +260,7 @@
                    (:wat::core::if (:wat::vec::contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
                acc
                conds)))
-         (:wat::core::Vector :- [:wat::core::String])
+         (wat.type/Vector :- [wat.type/String])
          rules-children)
 
      ;; ── (2c) deduction-type-strs: derived − fired-upon — the TERMINAL types (derived and no
@@ -268,12 +268,12 @@
      ;; (fire-to-fixpoint, already proven) but are deliberately EXCLUDED here — never returned.
      deduction-type-strs
        (:wat::core::foldl
-         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) tstr <- :wat::core::String]
-           -> (:wat::core::Vector :- [:wat::core::String])
+         (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) tstr <- wat.type/String]
+           -> (wat.type/Vector :- [wat.type/String])
            (:wat::core::if (:wat::vec::contains? fired-upon-type-strs tstr)
              acc
              (:wat::core::conj acc tstr)))
-         (:wat::core::Vector :- [:wat::core::String])
+         (wat.type/Vector :- [wat.type/String])
          derived-type-strs)
 
      fired-sym (:wat::core::symbol-node "fired")
@@ -285,8 +285,8 @@
      ;; types are NOT queried back — they stay internal to the fired session.
      query-lits
        (:wat::core::foldl
-         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) tstr <- :wat::core::String]
-           -> (:wat::core::Vector :- [:wat::WatAST])
+         (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) tstr <- wat.type/String]
+           -> (wat.type/Vector :- [wat.type/AST])
            (:wat::core::let
              [tkw  (:wat::core::keyword-node
                       (:wat::string::interpolate ":{tstr}" :tstr tstr))
@@ -295,23 +295,23 @@
                `(:wat::rete::make-query ~tstr
                   (:wat::core::quote [])
                   (:wat::core::quote [~cond])))))
-         (:wat::core::Vector :- [:wat::WatAST])
+         (wat.type/Vector :- [wat.type/AST])
          deduction-type-strs)
      query-calls
        (:wat::core::foldl
-         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) lit <- :wat::WatAST]
-           -> (:wat::core::Vector :- [:wat::WatAST])
+         (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) lit <- wat.type/AST]
+           -> (wat.type/Vector :- [wat.type/AST])
            (:wat::core::conj acc
              `(:wat::core::into (:wat::core::PersistentVector)
                 (:wat::core::map
-                  (:wat::core::fn [~pmap-sym <- :wat::core::PersistentMap] -> :wat::core::Value
+                  (:wat::core::fn [~pmap-sym <- wat.type/PersistentMap] -> wat.type/Value
                     (:wat::core::Option/expect
                       (:wat::map::get ~pmap-sym "?fact")
                       "sift-rules: ?fact"))
                   ;; `query` is a macro. This AST is spliced from an outer macro and is
                   ;; not re-expanded; emit the expansion (`query-read` + empty params).
                   (:wat::rete::query-read ~fired-sym ~lit (:wat::core::PersistentMap))))))
-         (:wat::core::Vector :- [:wat::WatAST])
+         (wat.type/Vector :- [wat.type/AST])
          query-lits)
 
      ;; concat-chain: `:wat::core::concat` is BINARY (Vector/concat's arity, not variadic) —
@@ -323,7 +323,7 @@
        (:wat::core::if (:wat::core::= (:wat::core::length query-calls) 0)
          `(:wat::core::PersistentVector)
          (:wat::core::foldl
-           (:wat::core::fn [acc <- :wat::WatAST qc <- :wat::WatAST] -> :wat::WatAST
+           (:wat::core::fn [acc <- wat.type/AST qc <- wat.type/AST] -> wat.type/AST
              `(:wat::core::concat ~acc ~qc))
            (:wat::core::first query-calls)
            (:wat::core::rest query-calls)))
@@ -333,8 +333,8 @@
      ;; or a silent skip — no-hidden-failures).
      def-type-strs
        (:wat::core::foldl
-         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) df <- :wat::WatAST]
-           -> (:wat::core::Vector :- [:wat::core::String])
+         (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) df <- wat.type/AST]
+           -> (wat.type/Vector :- [wat.type/String])
            (:wat::core::let
              [dch  (:wat::core::ast->children df)
               dn   (:wat::core::Option/expect (:wat::core::get dch 1) "sift-rules-defsvc: def missing a name")
@@ -343,7 +343,7 @@
                      (:wat::string::subs draw 1 (:wat::string::length draw))
                      draw)]
              (:wat::core::conj acc dstr)))
-         (:wat::core::Vector :- [:wat::core::String])
+         (wat.type/Vector :- [wat.type/String])
          defs-children)
 
      ;; synthetic binder symbols — every literal `let`/`fn` inside the templates below must use
@@ -364,17 +364,17 @@
          :messages
          [~@defs-children
           (:wat::core::defrecord ~req-kw
-            [namespace <- :wat::core::String
-             time-lo   <- :wat::core::i64
-             time-hi   <- :wat::core::i64
-             limit     <- :wat::core::i64
-             cursor    <- (:wat::core::Option :- [:wat::core::String])])
+            [namespace <- wat.type/String
+             time-lo   <- wat.type/i64
+             time-hi   <- wat.type/i64
+             limit     <- wat.type/i64
+             cursor    <- (:wat::core::Option :- [wat.type/String])])
           (:wat::core::defenum ~resp-kw :wat::enum::Pure
-            :Deductions [items  <- (:wat::core::PersistentVector :- [:wat::core::Value])
-                         cursor <- (:wat::core::Option :- [:wat::core::String])]
+            :Deductions [items  <- (wat.type/PersistentVector :- [wat.type/Value])
+                         cursor <- (:wat::core::Option :- [wat.type/String])]
             :Fatal      [err   <- :wat::query::Fault]
-            :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-            :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+            :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+            :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
          :features
          [(sift-rules [self <- ~surface-kw req <- ~req-kw] -> ~resp-kw :max-request-bytes 524288)])
        (:wat::service::defservice ~svc-kw
@@ -447,14 +447,14 @@
                     [:wat::telemetry::Journal::QueryLogsResponse.Success {:logs logs :cursor next-cur}
                       (:wat::core::if
                         (:wat::core::foldl
-                          (:wat::core::fn [~ok-sym <- :wat::core::bool ~log-sym <- :wat::telemetry::Log]
-                            -> :wat::core::bool
+                          (:wat::core::fn [~ok-sym <- wat.type/bool ~log-sym <- :wat::telemetry::Log]
+                            -> wat.type/bool
                             (:wat::core::if ~ok-sym
                               (:wat::core::match
                                 (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))
                                 [:wat::edn::ReadForeignOutcome.Value {:value ~payload-sym}
                                   (:wat::vec::contains?
-                                    (:wat::core::Vector :- [:wat::core::String] ~@def-type-strs)
+                                    (wat.type/Vector :- [wat.type/String] ~@def-type-strs)
                                     (:wat::core::type ~payload-sym))]
                                 [:wat::edn::ReadForeignOutcome.Malformed {:cause ~cause-sym}
                                   false])
@@ -463,9 +463,9 @@
                           logs)
                         (~resp-ded-kw
                           {:items (:wat::core::foldl
-                            (:wat::core::fn [~acc-sym <- (:wat::core::PersistentVector :- [:wat::core::Value])
+                            (:wat::core::fn [~acc-sym <- (wat.type/PersistentVector :- [wat.type/Value])
                                              ~log-sym <- :wat::telemetry::Log]
-                              -> (:wat::core::PersistentVector :- [:wat::core::Value])
+                              -> (wat.type/PersistentVector :- [wat.type/Value])
                               (:wat::core::concat ~acc-sym
                                 (:wat::core::let
                                   ;; ⛔ ARC 278 the fire-outcome wall, inside a MACRO TEMPLATE —
@@ -539,56 +539,56 @@
   :messages
   [(:wat::core::defrecord :wat::query::Store::EnsureSchemaRequest
      [table   <- :wat::query::TableSchema
-      indexes <- (:wat::core::Vector :- [:wat::query::IndexSchema])])
+      indexes <- (wat.type/Vector :- [:wat::query::IndexSchema])])
 
    (:wat::core::defenum :wat::query::Store::EnsureSchemaResponse :wat::enum::Pure
      :Success        []
      :Constraint     [err <- :wat::query::Constraint]
      :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::query::Store::PutRequest
-     [rows <- (:wat::core::Vector :- [:wat::query::StoredRow])])
+     [rows <- (wat.type/Vector :- [:wat::query::StoredRow])])
 
    (:wat::core::defenum :wat::query::Store::PutResponse :wat::enum::Pure
      :Success        []
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::query::Store::ScanRequest         ;; a base-table page request
-     [pk     <- :wat::core::String
-      sk-lo  <- :wat::core::String
-      sk-hi  <- :wat::core::String
-      limit  <- :wat::core::i64
-      cursor <- (:wat::core::Option :- [:wat::core::String])])        ;; None = first page; Some sk = resume after (keyset)
+     [pk     <- wat.type/String
+      sk-lo  <- wat.type/String
+      sk-hi  <- wat.type/String
+      limit  <- wat.type/i64
+      cursor <- (:wat::core::Option :- [wat.type/String])])        ;; None = first page; Some sk = resume after (keyset)
 
    (:wat::core::defenum :wat::query::Store::ScanResponse :wat::enum::Pure
-     :Success   [rows   <- (:wat::core::Vector :- [:wat::query::Row])
-                 cursor <- (:wat::core::Option :- [:wat::core::String])]
+     :Success   [rows   <- (wat.type/Vector :- [:wat::query::Row])
+                 cursor <- (:wat::core::Option :- [wat.type/String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
 
    (:wat::core::defrecord :wat::query::Store::ScanIndexRequest    ;; a GSI page request
-     [index  <- :wat::core::String
-      ipk    <- :wat::core::String
-      isk-lo <- :wat::core::String
-      isk-hi <- :wat::core::String
-      limit  <- :wat::core::i64
-      cursor <- (:wat::core::Option :- [:wat::core::String])])
+     [index  <- wat.type/String
+      ipk    <- wat.type/String
+      isk-lo <- wat.type/String
+      isk-hi <- wat.type/String
+      limit  <- wat.type/i64
+      cursor <- (:wat::core::Option :- [wat.type/String])])
 
    (:wat::core::defenum :wat::query::Store::ScanIndexResponse :wat::enum::Pure
-     :Success   [rows   <- (:wat::core::Vector :- [:wat::query::IndexRow])
-                 cursor <- (:wat::core::Option :- [:wat::core::String])]
+     :Success   [rows   <- (wat.type/Vector :- [:wat::query::IndexRow])
+                 cursor <- (:wat::core::Option :- [wat.type/String])]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at
    ;; consumer init.

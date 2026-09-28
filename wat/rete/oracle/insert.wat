@@ -21,7 +21,7 @@
 ;; side and not the other, i.e. compare two different things.
 (:wat::core::defn :wat::rete::insert$oracle
   [session <- :wat::rete::Session
-   fact    <- :wat::core::Record]
+   fact    <- wat.type/Record]
   -> :wat::rete::InsertOutcome
   (:wat::core::let
     [staged
@@ -46,12 +46,12 @@
 ;; swallowed: if it ever fires, the oracle has grown a ceiling and this comment is what was wrong.
 (:wat::core::defn :wat::rete::insert-all$oracle
   [session <- :wat::rete::Session
-   facts   <- (:wat::core::PersistentVector :- [:wat::core::Record])]
+   facts   <- (wat.type/PersistentVector :- [wat.type/Record])]
   -> :wat::rete::InsertOutcome
   (:wat::core::let
     [staged
      (:wat::core::foldl
-       (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::Record] -> :wat::rete::Session
+       (:wat::core::fn [acc <- :wat::rete::Session  f <- wat.type/Record] -> :wat::rete::Session
          (:wat::core::match (:wat::rete::insert$oracle acc f)
            [:wat::rete::InsertOutcome.Inserted {:session __s} __s]
            [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st}
@@ -69,7 +69,7 @@
 ;; cannot prove at load is a VALUE the caller must handle, never a raise.
 (:wat::core::defn :wat::rete::insert-all
   [session <- :wat::rete::Session
-   facts   <- (:wat::core::PersistentVector :- [:wat::core::Record])]
+   facts   <- (wat.type/PersistentVector :- [wat.type/Record])]
   -> :wat::rete::InsertOutcome
   (:wat::rete::insert-all$native session facts))
 
@@ -84,11 +84,11 @@
     (:wat::rete::insert$native session fact))
   ([session <- :wat::rete::Session
     fact    <- :T
-    & rest  <- (:wat::core::Vector :- [:wat::core::Record])] -> :wat::rete::InsertOutcome
+    & rest  <- (wat.type/Vector :- [wat.type/Record])] -> :wat::rete::InsertOutcome
     (:wat::rete::insert-all session
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
-                         f   <- :T] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])
+                         f   <- :T] -> (wat.type/PersistentVector :- [wat.type/Record])
           (:wat::vector::conj acc f))
         (:wat::vector::conj (:wat::core::PersistentVector) fact)
         rest))))
@@ -100,7 +100,7 @@
 ;; removals before the caller locks them in with fire-rules.
 (:wat::core::defn :wat::rete::retract
   [session <- :wat::rete::Session
-   fact    <- :wat::core::Record]
+   fact    <- wat.type/Record]
   -> :wat::rete::Session
   (:wat::rete::Session
     :network (:wat::rete::Session/network           session)

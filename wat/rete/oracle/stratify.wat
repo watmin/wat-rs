@@ -41,8 +41,8 @@
 ;; type-strata: (HashMap :- [String i64]) mapping produced-type FQDN → stratum number.
 ;; changed: true iff this sweep raised any stratum value.
 (:wat::core::defrecord :wat::rete::StratifyAcc
-  [type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
-   changed     <- :wat::core::bool])
+  [type-strata <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+   changed     <- wat.type/bool])
 
 ;; rule-produces — extract produced type-FQDNs (colon-free) from a Rule's RHS.
 ;; Arc 278 Stone A: each RHS entry IS the fact-form directly (:ProducedType …) — the
@@ -60,12 +60,12 @@
 ;; fails, which is the shape this cure exists to remove.
 (:wat::core::defn :wat::rete::rule-produces
   [rule <- :wat::rete::Rule]
-  -> (:wat::core::PersistentVector :- [:wat::core::String])
+  -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::let [rhs (:wat::rete::Rule/rhs rule)]
     (:wat::core::foldl
-      (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
-                       form <- :wat::WatAST]
-        -> (:wat::core::PersistentVector :- [:wat::core::String])
+      (:wat::core::fn [acc  <- (wat.type/PersistentVector :- [wat.type/String])
+                       form <- wat.type/AST]
+        -> (wat.type/PersistentVector :- [wat.type/String])
         (:wat::core::let [head      (:wat::core::first (:wat::core::ast->children form))
                           head-val0 (:wat::core::Result/expect (:wat::eval-ast! head)
                                       "rule-produces: :then item head failed to evaluate")
@@ -86,7 +86,7 @@
 
 ;; type-name-of — colon-stripped fact-type head, or None for engine forms / ?var.
 (:wat::core::defn :wat::rete::type-name-of
-  [form <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
+  [form <- wat.type/AST] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::let [ch (:wat::core::ast->children form)]
     (:wat::core::if (:wat::core::empty? ch)
       :wat::core::Option.None
@@ -107,7 +107,7 @@
 
 ;; negated-types-under — leaves under :not, including :and/:or combinators.
 (:wat::core::defn :wat::rete::negated-types-under
-  [form <- :wat::WatAST] -> (:wat::core::PersistentVector :- [:wat::core::String])
+  [form <- wat.type/AST] -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::let [ch (:wat::core::ast->children form)
                     hd (:wat::core::if (:wat::core::empty? ch)
                          ""
@@ -116,13 +116,13 @@
                       true
                       (:wat::core::= hd ":wat::rete::or"))
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
-                         kid <- :wat::WatAST]
-          -> (:wat::core::PersistentVector :- [:wat::core::String])
+        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
+                         kid <- wat.type/AST]
+          -> (wat.type/PersistentVector :- [wat.type/String])
           (:wat::core::foldl
-            (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
-                             t <- :wat::core::String]
-              -> (:wat::core::PersistentVector :- [:wat::core::String])
+            (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/String])
+                             t <- wat.type/String]
+              -> (wat.type/PersistentVector :- [wat.type/String])
               (:wat::vector::conj a t))
             acc
             (:wat::rete::negated-types-under kid)))
@@ -144,7 +144,7 @@
 ;; never seen (`strike-oracle-negation-recurses`, probe: a `defrule` of this exact shape with
 ;; C derived diverges from native — SCORE.md).
 (:wat::core::defn :wat::rete::rule-negates-in
-  [form <- :wat::WatAST] -> (:wat::core::PersistentVector :- [:wat::core::String])
+  [form <- wat.type/AST] -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::let [ch (:wat::core::ast->children form)
                     hd (:wat::core::if (:wat::core::empty? ch)
                          ""
@@ -153,13 +153,13 @@
                       true
                       (:wat::core::= hd ":wat::rete::or"))
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
-                         kid <- :wat::WatAST]
-          -> (:wat::core::PersistentVector :- [:wat::core::String])
+        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
+                         kid <- wat.type/AST]
+          -> (wat.type/PersistentVector :- [wat.type/String])
           (:wat::core::foldl
-            (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
-                             t <- :wat::core::String]
-              -> (:wat::core::PersistentVector :- [:wat::core::String])
+            (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/String])
+                             t <- wat.type/String]
+              -> (wat.type/PersistentVector :- [wat.type/String])
               (:wat::vector::conj a t))
             acc
             (:wat::rete::rule-negates-in kid)))
@@ -175,16 +175,16 @@
 ;; `hd == :not` check that only ever fired at the top level.
 (:wat::core::defn :wat::rete::rule-negates
   [rule <- :wat::rete::Rule]
-  -> (:wat::core::PersistentVector :- [:wat::core::String])
+  -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::let [lhs (:wat::rete::Rule/lhs rule)]
     (:wat::core::foldl
-      (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
-                       form <- :wat::WatAST]
-        -> (:wat::core::PersistentVector :- [:wat::core::String])
+      (:wat::core::fn [acc  <- (wat.type/PersistentVector :- [wat.type/String])
+                       form <- wat.type/AST]
+        -> (wat.type/PersistentVector :- [wat.type/String])
         (:wat::core::foldl
-          (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
-                           t <- :wat::core::String]
-            -> (:wat::core::PersistentVector :- [:wat::core::String])
+          (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/String])
+                           t <- wat.type/String]
+            -> (wat.type/PersistentVector :- [wat.type/String])
             (:wat::vector::conj a t))
           acc
           (:wat::rete::rule-negates-in form)))
@@ -216,12 +216,12 @@
 ;; `src/rete/kernel/tests/stratify_numbers.rs`. The facts agree; the strata do not.
 (:wat::core::defn :wat::rete::rule-consumes
   [rule <- :wat::rete::Rule]
-  -> (:wat::core::PersistentVector :- [:wat::core::String])
+  -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::let [lhs (:wat::rete::Rule/lhs rule)]
     (:wat::core::foldl
-      (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
-                       form <- :wat::WatAST]
-        -> (:wat::core::PersistentVector :- [:wat::core::String])
+      (:wat::core::fn [acc  <- (wat.type/PersistentVector :- [wat.type/String])
+                       form <- wat.type/AST]
+        -> (wat.type/PersistentVector :- [wat.type/String])
         (:wat::core::let [ch (:wat::core::ast->children form)
                           hd (:wat::core::if (:wat::core::empty? ch)
                                ""
@@ -260,8 +260,8 @@
       lhs)))
 
 (:wat::core::defn :wat::rete::stratify-sweep
-  [rules       <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
-   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])]
+  [rules       <- (wat.type/PersistentVector :- [:wat::rete::Rule])
+   type-strata <- (wat.type/HashMap :- [wat.type/String wat.type/i64])]
   -> :wat::rete::StratifyAcc
   (:wat::core::foldl
     (:wat::core::fn [acc  <- :wat::rete::StratifyAcc
@@ -274,9 +274,9 @@
                         consumed (:wat::rete::rule-consumes rule)
                         ;; req-neg = max(stratum[n]+1 for n in negated, default 0)
                         req-neg  (:wat::core::foldl
-                                   (:wat::core::fn [mx  <- :wat::core::i64
-                                                    neg <- :wat::core::String]
-                                     -> :wat::core::i64
+                                   (:wat::core::fn [mx  <- wat.type/i64
+                                                    neg <- wat.type/String]
+                                     -> wat.type/i64
                                      (:wat::core::let [ns (:wat::core::match
                                                              (:wat::hashmap::get ts neg)
                                                              
@@ -290,9 +290,9 @@
                         ;; NOT +1: a positive consumer may sit in the SAME stratum as its input
                         ;; (that is ordinary forward chaining); it merely may not sit BELOW it.
                         req-pos  (:wat::core::foldl
-                                   (:wat::core::fn [mx  <- :wat::core::i64
-                                                    con <- :wat::core::String]
-                                     -> :wat::core::i64
+                                   (:wat::core::fn [mx  <- wat.type/i64
+                                                    con <- wat.type/String]
+                                     -> wat.type/i64
                                      (:wat::core::let [cs (:wat::core::match
                                                              (:wat::hashmap::get ts con)
                                                            [:wat::core::Option.Some {:value v} v]
@@ -304,7 +304,7 @@
                         ;; for each produced type: raise stratum to required if higher
                         new-acc  (:wat::core::foldl
                                    (:wat::core::fn [inner <- :wat::rete::StratifyAcc
-                                                    p     <- :wat::core::String]
+                                                    p     <- wat.type/String]
                                      -> :wat::rete::StratifyAcc
                                      (:wat::core::let [its (:wat::rete::StratifyAcc/type-strata inner)
                                                        ich (:wat::rete::StratifyAcc/changed inner)
@@ -328,10 +328,10 @@
 ;; Sweeps until no stratum changes (converged) or remaining iterations run out.
 ;; Raises on negation cycle: rule set is not stratifiable (non-terminating strata).
 (:wat::core::defn :wat::rete::stratify-fix
-  [rules       <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
-   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
-   remaining   <- :wat::core::i64]
-  -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+  [rules       <- (wat.type/PersistentVector :- [:wat::rete::Rule])
+   type-strata <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+   remaining   <- wat.type/i64]
+  -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
   (:wat::core::let [result  (:wat::rete::stratify-sweep rules type-strata)
                     changed (:wat::rete::StratifyAcc/changed result)
                     new-ts  (:wat::rete::StratifyAcc/type-strata result)]
@@ -349,14 +349,14 @@
 ;; = max(max strata[p] for produced p, max strata[n]+1 for negated n).
 (:wat::core::defn :wat::rete::rule-stratum
   [rule        <- :wat::rete::Rule
-   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])]
-  -> :wat::core::i64
+   type-strata <- (wat.type/HashMap :- [wat.type/String wat.type/i64])]
+  -> wat.type/i64
   (:wat::core::let [produced (:wat::rete::rule-produces rule)
                     negated  (:wat::rete::rule-negates rule)
                     from-p   (:wat::core::foldl
-                               (:wat::core::fn [mx <- :wat::core::i64
-                                                p  <- :wat::core::String]
-                                 -> :wat::core::i64
+                               (:wat::core::fn [mx <- wat.type/i64
+                                                p  <- wat.type/String]
+                                 -> wat.type/i64
                                  (:wat::core::let [ps (:wat::core::match
                                                          (:wat::hashmap::get type-strata p)
                                                          
@@ -366,9 +366,9 @@
                                0
                                produced)
                     from-n   (:wat::core::foldl
-                               (:wat::core::fn [mx <- :wat::core::i64
-                                                n  <- :wat::core::String]
-                                 -> :wat::core::i64
+                               (:wat::core::fn [mx <- wat.type/i64
+                                                n  <- wat.type/String]
+                                 -> wat.type/i64
                                  (:wat::core::let [ns (:wat::core::match
                                                          (:wat::hashmap::get type-strata n)
                                                          
@@ -384,9 +384,9 @@
 ;; Returns (HashMap :- [String i64]) mapping each produced-type FQDN to its stratum number.
 ;; Raises "negation cycle" if the rule set is not stratifiable (cyclic negation dependency).
 (:wat::core::defn :wat::rete::stratify
-  [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
-  -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
-  (:wat::core::let [init-ts (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+  [rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])]
+  -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
+  (:wat::core::let [init-ts (wat.type/HashMap :- [wat.type/String wat.type/i64])
                     ;; length(rules)+1 sweeps is always enough for a stratifiable set
                     bound   (:wat::i64::+ (:wat::core::length rules) 1)]
     (:wat::rete::stratify-fix rules init-ts bound)))
