@@ -9,7 +9,15 @@
 //!
 //! Mutation (recorded in the strike report, not re-encoded here): re-add
 //! `causes <- (:wat::core::Vector :- [:wat::core::Error])` to the `defsurface` in
-//! `wat/core.wat` — this test goes RED, naming the unexpected extra field.
+//! `wat/core.wat`, alone (leaving `:wat::core::Fault` at two fields) — driven: RED, but
+//! by a CASCADE, not this test's own `assert_eq!`: the trivial fixture no longer freezes
+//! at all, because `:wat::core::Fault` (still `{message location}`) stops structurally
+//! satisfying the now three-field `Error` surface, and `wat/spawn.wat`'s own
+//! `:wat::kernel::Failure` construction (which passes a `Fault` where `[e <- Error]` is
+//! declared) refuses at check time with a `TypeMismatch` naming exactly that. The
+//! `.expect(...)` on `startup_beside` fails first. This is still the gate doing its job:
+//! any surface-shape drift away from `{message location}` reddens it, even before this
+//! test's own field-count assertion gets a chance to run.
 
 use wat::freeze::startup_beside;
 use wat::types::{SurfaceMember, TypeDef};

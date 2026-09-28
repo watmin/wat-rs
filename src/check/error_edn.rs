@@ -148,6 +148,7 @@ mod excursus_003_s1_gates {
     use crate::edn::render::decode_trusted_wire;
     use crate::span::Span;
     use crate::types::TypeEnv;
+    use wat_edn::OwnedValue;
 
     fn s() -> Span {
         Span::new(Arc::new("test.wat".to_string()), 1, 0)
@@ -304,13 +305,25 @@ mod excursus_003_s1_gates {
     /// WHOLE decode — success here is already proof of full, deep typing, not
     /// just the outer tag). Excursus 003 strike B1's GB4: `G_LIST_STOP_EXCEPTIONS`
     /// is now empty, so EVERY variant — `NoMatchingClauseAtCallSite` included —
-    /// must decode `Ok`. This is the "foreign count is 0" gate: mutate by
-    /// untagging `AttemptedClause` again (`src/check.rs::clause_attempts_to_edn`)
-    /// and this test goes RED on `NoMatchingClauseAtCallSite`.
+    /// must decode `Ok`.
     ///
     /// Mutation (recorded in the strike report): comment out one
     /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::check::
     /// ArityMismatch`) — RED, and the assertion message names `ArityMismatch`.
+    ///
+    /// ⚠ MEASURED, NOT ASSUMED: untagging `AttemptedClause` again
+    /// (`src/check.rs::clause_attempts_to_edn`) does NOT redden THIS test —
+    /// driven, not guessed. `edn_to_value_caps`'s `Edn::Map` arm
+    /// (`src/edn/render.rs`) decodes ANY untagged map generically as a
+    /// `HashMap`, unconditionally successfully, regardless of what the
+    /// enclosing `Vector`'s declared element type expected (decode is
+    /// value-shape-driven, never cross-checked against the declared field
+    /// type — the same fact `wat/kernel/diagnostics.wat`'s own header names
+    /// for `EnsureFnInvalidReason`). So `NoMatchingClauseAtCallSite`'s OUTER
+    /// decode still succeeds either way; this gate proves the OUTER tag is
+    /// registered (true, and worth proving), not that its INNER attempts are
+    /// tagged. `gb4_attempted_clauses_are_tagged_not_bare_maps` below is the
+    /// gate that actually reddens on that specific defect.
     #[test]
     fn g_strict_every_declared_kind_decodes_typed() {
         let types = TypeEnv::with_builtins();
@@ -329,6 +342,47 @@ mod excursus_003_s1_gates {
                     decoded.is_ok(),
                     "{name}: decode_trusted_wire(error_edn()) must succeed as a typed record; got {decoded:?}"
                 );
+            }
+        }
+    }
+
+    /// Excursus 003 strike B1, GB4 (the real one) — every element
+    /// `NoMatchingClauseAtCallSite.attempted-clauses` produces on the wire is a
+    /// TAGGED `#wat.check/AttemptedClause {…}` value, not a bare, untagged map —
+    /// the exact "record-shaped values are always tagged" violation item 6 closes
+    /// (`wat/check-errors.wat`'s former STOP section). Checked directly on
+    /// `clause_attempts_to_edn`'s own output (the field-level `via` helper,
+    /// `src/check.rs`), not through a round-trip decode — `g_strict_…` above
+    /// measured that decode alone cannot tell tagged from untagged here.
+    ///
+    /// Mutation (recorded in the strike report, not re-encoded here): revert
+    /// `clause_attempts_to_edn` to build a bare `OwnedValue::Map` per attempt
+    /// (dropping the `OwnedValue::Tagged` wrapper) — driven: RED, naming the
+    /// untagged element.
+    #[test]
+    fn gb4_attempted_clauses_are_tagged_not_bare_maps() {
+        let edn = crate::check::clause_attempts_to_edn(&[
+            (1, vec!["i64".to_string()]),
+            (2, vec!["i64".to_string(), "f64".to_string()]),
+        ]);
+        let items = match edn {
+            OwnedValue::Vector(items) => items,
+            other => panic!("expected a Vector of attempts; got {other:?}"),
+        };
+        assert_eq!(items.len(), 2, "expected one wire element per attempt");
+        for (i, item) in items.iter().enumerate() {
+            match item {
+                OwnedValue::Tagged(tag, _) => {
+                    assert_eq!(
+                        (tag.namespace(), tag.name()),
+                        ("wat.check", "AttemptedClause"),
+                        "attempt {i}: wrong tag: {tag:?}"
+                    );
+                }
+                other => panic!(
+                    "attempt {i}: expected a #wat.check/AttemptedClause tagged value, got an \
+                     untagged {other:?} — the exact defect item 6 closes"
+                ),
             }
         }
     }
