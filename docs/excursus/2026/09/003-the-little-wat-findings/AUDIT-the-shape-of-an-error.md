@@ -243,6 +243,8 @@ Each is recorded where found; B changes the wire, so B takes them.
 | S1 | `EnsureFnInvalidReason` tags `wat.kernel` by the derive's default namespace, though it is a check diagnostic | name its namespace deliberately |
 | S2 | `LoadFetchError` (3 variants, `src/load/loader.rs:192`) and `HashError` (8 variants, `src/hash.rs:471`, shared with `RuntimeErrorKind::EvalVerificationFailed`) ride FLAT `wat.kernel` per-variant tags; declared as 11 flat records under `:wat::core::Value`-typed fields | dotted enum tags on the wire; fields type as the enum |
 | S2 | cost, not wire: each declared stdlib record adds ~0.8ms per world freeze (hello-world 615–676ms → 682–717ms, 6 samples each); floor 1103s → 1205s (+9%) across S1+S2; two near-margin tests widened (`d0f126e18`, `42cca492a`) | measure where freeze time goes BEFORE S3 |
+| S3 | `ParseErrorKind::Lex.cause` — a lex failure rides inside a parse error as OPAQUE PROSE (`LexError`'s `Display`), no tag at all; the offending character, byte position and `LexErrorKind` variant are discarded at that one site though Rust still holds them. No `:wat::lex::*` declared — nothing produces a lex tag (gate `g_lex_never_produces_a_tag`) | give `LexError` a tagged wire form (or route it through `ParseError`'s floor); then declare `:wat::lex::*` |
+| S3 | cost, continued: a third near-margin test crossed with S3 — `nested_program_literals_start_on_the_child_path` (123 freezes) 157–160s before S1 → killed at 180.03s; widened `645d3ebae`. Floor 1103s → 1266s (+15%) across S1–S3 | the stdlib-freeze excursus after B |
 
 ## RULING 2026-09-28 — finish the shape work first; the stdlib-freeze cost is its own excursus after
 
