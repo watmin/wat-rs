@@ -139,7 +139,11 @@ pub(crate) fn parametric_heads_unify(h1: &str, h2: &str) -> bool {
 /// `:wat::core::Vector` are one constructor. Any other head is returned
 /// unchanged, so a match on the old key keeps its old arms.
 pub(crate) fn constructor_head_key(head: &str) -> std::borrow::Cow<'_, str> {
-    let denoted = crate::edn::render::type_denotation(head);
+    // K1 (AMEND-STONE-255.67) — the same door every other type-entry site now
+    // uses. All seven container names below are members of the 24-name closed
+    // set, so `canonical_type_key` denotes them identically to the old blind
+    // `type_denotation`; named here for the K1 paper trail, not a behavior change.
+    let denoted = canonical_type_key(head);
     match denoted.as_str() {
         ":wat::core::Vector"
         | ":wat::core::HashMap"
@@ -209,6 +213,76 @@ pub(crate) fn denoted_type_path(p: &str) -> String {
         return INFER_TYPE_PATH.to_string();
     }
     crate::edn::render::type_denotation(p)
+}
+
+/// The CLOSED set `wat.type/` holds (`FINDING-the-shape-of-a-declared-signature.md`
+/// § "`wat.type/` is closed", the ruling `BRIEF-STONE-255.67` ships under): exactly
+/// these 24 tails are hard primitives with an old `:wat::core::<tail>` home (`AST`'s
+/// home is `:wat::WatAST` instead — see [`canonical_type_key`]). Anything else
+/// spelled `:wat::type::<tail>` is NOT a member — `wat.type/Bogus`, `wat.type/nope` —
+/// and [`canonical_type_key`] must leave a non-member RAW so the existing
+/// `is_wat_type_spelling`-gated "not a member of wat.type" diagnostic
+/// (`src/types/error.rs`, `TypeErrorKind::UnknownNamedType`'s Display; regression-
+/// guarded by `tests/types/probe_255_1_identity.rs`) can still tell "spelled like a
+/// member, isn't one" apart from "not `wat.type/`-spelled at all" — a blind rewrite
+/// (`type_denotation`'s own contract, unchanged) would launder a bogus tail into a
+/// `:wat::core::Bogus` that never existed anywhere, silently losing that diagnostic.
+const WAT_TYPE_HARD_PRIMITIVES: &[&str] = &[
+    "i64",
+    "f64",
+    "u8",
+    "bigint",
+    "rational",
+    "char",
+    "String",
+    "bool",
+    "keyword",
+    "nil",
+    "Value",
+    "Never",
+    "Fn",
+    "Record",
+    "Struct",
+    "Vector",
+    "HashMap",
+    "HashSet",
+    "List",
+    "Tuple",
+    "PersistentVector",
+    "PersistentMap",
+    "Bytes",
+    "AST",
+];
+
+/// K1 (`AMEND-STONE-255.67-K1-canonicalize-at-parse.md`, builder-ruled 2026-09-28) —
+/// **the one function every entry point calls.** A type spelling is canonicalized
+/// the MOMENT it enters the system — parse, an `extend-type`/`derive` edge or
+/// method key, the member-method rekey, a constructor dispatch key — so that
+/// afterwards no parsed type, registered edge key, method key or constructor
+/// dispatch key carries a second spelling for some later `==` to disagree about.
+/// `wat.type/X` (and the retired `:wat::type::X` keyword) → the OLD canonical key
+/// `:wat::core::X`; `wat.type/AST` → `:wat::WatAST`. Identity for anything else,
+/// including `:wat::type::Infer` ([`denoted_type_path`]'s carve-out — a marker, not
+/// a `wat.type` member) and a `:wat::type::<tail>` outside the 24-name CLOSED set
+/// ([`WAT_TYPE_HARD_PRIMITIVES`]) — unlike [`denoted_type_path`]'s blind
+/// `type_denotation` door (still used, unchanged, at every pre-existing compare-time
+/// site), THIS door is membership-aware, because a non-member must stay raw for the
+/// "not a member of wat.type" diagnostic to still recognize it as `wat.type/`-spelled
+/// (see [`WAT_TYPE_HARD_PRIMITIVES`]'s doc).
+///
+/// T-door (per the ruling): the internal key this returns is still the OLD
+/// `:wat::core::…` spelling — stone 4 flips what that one key IS, not this fn.
+pub(crate) fn canonical_type_key(s: &str) -> String {
+    let id = crate::edn::render::canonical_identity(s);
+    if id == INFER_TYPE_PATH {
+        return INFER_TYPE_PATH.to_string();
+    }
+    if let Some(tail) = id.strip_prefix(":wat::type::") {
+        if WAT_TYPE_HARD_PRIMITIVES.contains(&tail) {
+            return crate::edn::render::type_denotation(&id);
+        }
+    }
+    id
 }
 
 /// Every `TypeExpr` in the tree, rewritten through the denotation door —
@@ -4692,15 +4766,18 @@ fn splice_type_decls(
         // pre-check point so assignable sees the edge; cycle check surfaces as CyclicSubtype.
         ":wat::core::derive" => {
             let decl_span = span.clone();
-            // arc 255.67 — same `type_denotation` fix as extend-type's child/protocol arms
-            // just below (identity for anything not `wat.type/`-prefixed); currently
-            // theoretical for `derive` specifically (measured: zero corpus occurrences of a
-            // `wat.type/` hard primitive as either argument), kept in step for the same
-            // reason `register_subtype` must never see an un-denoted `wat.type/` key.
+            // K1 (AMEND-STONE-255.67, `canonical_type_key`) — the SAME door every
+            // other type-entry site now uses, on BOTH arms (the first agent's fix
+            // patched only the Symbol arm below; the Keyword arm — a literal
+            // `:wat::type::X` keyword, the retired spelling the ruling also names —
+            // stayed un-denoted). Currently theoretical for `derive` specifically
+            // (measured: zero corpus occurrences of a `wat.type/` hard primitive as
+            // either argument), kept in step for the same reason `register_subtype`
+            // must never see an un-denoted `wat.type/` key.
             let child = match items.get(1) {
-                Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(WatAST::Keyword(k, _)) => canonical_type_key(k),
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                    canonical_type_key(&crate::edn::render::ns_to_wat_path(
                         id.receiver(),
                         id.method(),
                     ))
@@ -4716,9 +4793,9 @@ fn splice_type_decls(
                 }
             };
             let parent = match items.get(2) {
-                Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(WatAST::Keyword(k, _)) => canonical_type_key(k),
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                    canonical_type_key(&crate::edn::render::ns_to_wat_path(
                         id.receiver(),
                         id.method(),
                     ))
@@ -4773,17 +4850,19 @@ fn splice_type_decls(
             // is the substrate's ONE authoritative TypeExpr renderer (types.rs:1987), so
             // re-render through it rather than hand-rolling a second stringifier.
             let type_name = match &child_node {
-                Some(WatAST::Keyword(k, _)) => k.clone(),
-                // arc 255.67 — denote through the SAME door the List/parametric arm below
-                // already uses (`type_denotation`, identity for anything not `wat.type/`-
-                // prefixed). Without it, `(extend-type wat.type/String :wat::core::Equatable)`
-                // registered the subtype edge under `:wat::type::String`, not
-                // `:wat::core::String` — a KEY every OTHER consumer (`classify`,
-                // `is_subtype_parent`) looks up denoted, so the edge was invisible and
-                // `String` silently lost `Equatable` membership. Found by this stone's own
-                // corpus conversion of `wat/class.wat`'s leaf-Equatable/Orderable rows.
+                // K1 (AMEND-STONE-255.67, `canonical_type_key`) — BOTH arms now denote,
+                // not just the Symbol one. Without it, `(extend-type wat.type/String
+                // :wat::core::Equatable)` registered the subtype edge under
+                // `:wat::type::String`, not `:wat::core::String` — a KEY every OTHER
+                // consumer (`classify`, `is_subtype_parent`) looks up denoted, so the
+                // edge was invisible and `String` silently lost `Equatable` membership.
+                // Found by this stone's own corpus conversion of `wat/class.wat`'s
+                // leaf-Equatable/Orderable rows. The Keyword arm (a literal
+                // `:wat::type::X` keyword — the retired spelling the ruling also names)
+                // was left un-denoted by the first agent's fix; K1 covers it too.
+                Some(WatAST::Keyword(k, _)) => canonical_type_key(k),
                 Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                    canonical_type_key(&crate::edn::render::ns_to_wat_path(
                         id.receiver(),
                         id.method(),
                     ))
@@ -4982,12 +5061,12 @@ fn splice_type_decls(
             // declaration, two different keys, and `is_subtype`'s exact-string query for the full
             // name never found the second. Renders the FULL name, exactly as the child arm does.
             let protocol_name = match (&target_node, &target_te) {
-                (Some(WatAST::Keyword(k, _)), _) => k.clone(),
-                // arc 255.67 — same `type_denotation` fix as the child arm above, for the
-                // (currently theoretical, for the 24 hard primitives — none is a protocol
-                // target in the corpus) symmetric case of a `wat.type/…` target.
+                // K1 (AMEND-STONE-255.67, `canonical_type_key`) — same door as the child
+                // arm above, both arms now (currently theoretical, for the 24 hard
+                // primitives — none is a protocol target in the corpus).
+                (Some(WatAST::Keyword(k, _)), _) => canonical_type_key(k),
                 (Some(WatAST::Symbol(id, _)), _) => {
-                    crate::edn::render::type_denotation(&crate::edn::render::ns_to_wat_path(
+                    canonical_type_key(&crate::edn::render::ns_to_wat_path(
                         id.receiver(),
                         id.method(),
                     ))
@@ -6651,15 +6730,31 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
             ))
         }
     };
-    // Identity only. Denotation is the unify/format door, so a non-member
-    // `wat.type/Bogus` head keeps its origin for "not a member of wat.type".
+    // K1 (AMEND-STONE-255.67, `canonical_type_key`) — a `wat.type/`-spelled head
+    // that IS one of the 24 hard primitives denotes to its old `:wat::core::…` key
+    // HERE, at parse, the same door every other type-entry site now uses. A
+    // non-member head (`wat.type/Bogus`) is membership-aware identity (unchanged
+    // from before this fix) — `canonical_type_key` keeps it raw so "not a member of
+    // wat.type" still recognizes it downstream.
+    //
+    // Before this fix the parametric HEAD stayed un-denoted no matter what
+    // (`:wat::type::Vector`), relying on every consumer to denote again at compare
+    // time; `register_extend_type_surface_impls`'s `dispatch_type_base` (built
+    // straight off this `TypeExpr::Parametric.head` via `format!(":{head}")`,
+    // `src/declare/register.rs`) does not — it is the method-registration KEY, not
+    // a comparison — so an extend-type child spelled `(wat.type/Vector :- [T])`
+    // registered every impl under `:wat::type::Vector/<method>`, while the runtime
+    // dispatch lookup (`concrete_type_fqdn/method`, built from a live Value's
+    // type-erased class name, always the OLD `:wat::core::Vector`) asked for
+    // `:wat::core::Vector/<method>` and found nothing — the 38 "does not implement
+    // surface method seq" failures on the K1 amendment's red floor.
     let head_kw = if raw_head.starts_with(':') {
         raw_head
     } else {
         format!(":{raw_head}")
     };
-    let id = crate::edn::render::canonical_identity(&head_kw);
-    let raw_head = id.strip_prefix(':').unwrap_or(&id).to_string();
+    let denoted = canonical_type_key(&head_kw);
+    let raw_head = denoted.strip_prefix(':').unwrap_or(&denoted).to_string();
     // Parse args recursively.
     //
     // Arc 109 step ① originally accepted a bare bracketed type-param group
@@ -6943,9 +7038,20 @@ fn parse_type_inner(
     // walk (`canonicalize=false`) preserves source spelling, and only ATOM paths
     // reach this arm — parametric heads parse via the `<>`/`()` branches above.
     let raw_path = crate::edn::render::canonical_identity(&raw_path);
-    let denoted = crate::edn::render::type_denotation(&raw_path);
-    if canonicalize && denoted == ":wat::core::nil" {
-        return Ok(TypeExpr::Path(":wat::core::nil".into()));
+    // K1 (AMEND-STONE-255.67, `canonical_type_key`) — canonicalize EVERY
+    // `wat.type/`/`:wat::type::` atom here, at parse, not just `nil`. Before
+    // this fix only the `nil` return type was special-cased (`denoted ==
+    // ":wat::core::nil"` below); every other converted hard primitive
+    // (`wat.type/i64`, `wat.type/String`, …) fell through to the last line
+    // and stored the RAW `:wat::type::…` path — a second spelling every
+    // downstream `==`-shaped comparison had to remember to denote (and
+    // several didn't: the ~170 `insert-all` container-admission failures and
+    // the 38 `extend-type` method-resolution failures on the K1 amendment's
+    // red floor, `.floor/2026-09-28T05-09-49Z`). `canonical_type_key` is
+    // [`denoted_type_path`]'s Infer-carve-out-aware door, so `:wat::type::Infer`
+    // (a marker, not a `wat.type` member) still passes through unchanged.
+    if canonicalize {
+        return Ok(TypeExpr::Path(canonical_type_key(&raw_path)));
     }
     // Arc 163 slice 3f + 3h — FQDN IS the canonical storage form.
     // Source FQDN flows through unchanged. Source bare-form is
@@ -6954,6 +7060,8 @@ fn parse_type_inner(
     // forms so define-sig type positions are covered). The
     // canonicalize=true UPGRADE arm (`:i64` → `:wat::core::i64`
     // etc.) retired in slice 3h — raw_path passes through identity.
+    // (`canonicalize=false`, the audit-walker path, still preserves the raw
+    // source spelling — K1 only reaches the type-checker path above.)
     Ok(TypeExpr::Path(raw_path))
 }
 

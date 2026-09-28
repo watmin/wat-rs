@@ -319,7 +319,17 @@ fn rekey_type_member_functions(sym: &mut crate::runtime::SymbolTable) {
         {
             continue;
         }
-        let member = format!("{parent}/{method}");
+        // K1 (AMEND-STONE-255.67, `canonical_type_key`) — denote `parent` before
+        // building the rekeyed `Type/method` name. `is_known_type` above already
+        // tolerates either spelling (it denotes internally, via `classify`), but
+        // the REKEYED KEY itself did not — a `::`-qualified name whose type half
+        // was still `wat::type::…` (the retired keyword spelling) would have
+        // registered under `wat::type::Vector/method`, a key nothing else in the
+        // substrate looks up (every other consumer keys on the OLD
+        // `:wat::core::…` spelling). Identity for anything not `wat.type/`-spelled.
+        let denoted_parent = crate::types::canonical_type_key(&format!(":{parent}"));
+        let denoted_parent = denoted_parent.strip_prefix(':').unwrap_or(&denoted_parent);
+        let member = format!("{denoted_parent}/{method}");
         if member == name {
             continue;
         }
