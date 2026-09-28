@@ -52,7 +52,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 #[wat_intrinsic(":wat::core::List", value = list_of_value_door)]
 pub(crate) fn eval_list_ctor(
     args: &[WatAST],
-    _list_span: &Span,
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: each element's own error locates at `arg.span()` via `eval_inner`, more precise than the whole call's span
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -74,7 +74,10 @@ pub(crate) fn eval_list_ctor(
 /// the AST door off ALGEBRA must not silently drop `apply`'s substrate fallback for this ctor,
 /// the one BINDING sibling among Vector/HashMap/HashSet/PersistentVector/PersistentMap/Tuple that
 /// had one before this stone).
-fn list_of_value_door(vals: &[Value], _span: &Span) -> Result<Value, EvalBreak> {
+fn list_of_value_door(
+    vals: &[Value],
+    _span: &Span, // rune:lint(unused-span) — infallible: no error path, only `Value::clone` into a new `LinkedList`
+) -> Result<Value, EvalBreak> {
     let mut items = std::collections::LinkedList::new();
     for v in vals {
         items.push_back(v.clone());
