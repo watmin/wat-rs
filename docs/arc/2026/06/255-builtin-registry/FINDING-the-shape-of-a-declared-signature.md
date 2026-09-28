@@ -106,3 +106,18 @@ container, takes a `Stream` (`wat/fix.wat:1287` is `(reverse (sort eds))`).
   each instance is as pure as its type arguments (255.28). Measured: a `Pure` enum with a concrete struct field is
   refused; `(u/Box :- [u/Conn])` of a `Pure` `u/Box` is impure and refused inside a record. Proposed (D): rename the
   marker so the word says exactly that. Unruled.
+
+## Ruled 2026-09-27 — `wat.type/` is closed (supersedes the F1 list above where they differ)
+
+`wat.type/` holds exactly the hard primitives, the types the language itself provides:
+**`i64`, `f64`, `u8`, `bigint`, `rational`, `char`, `String`, `bool`, `keyword`, `nil`, `Value`, `Never`, `Fn`,
+`Record`, `Struct`, `Vector`, `HashMap`, `HashSet`, `List`, `Tuple`, `PersistentVector`, `PersistentMap`, `Bytes`,
+`AST`** (`AST` was `:wat::WatAST`). The builder: *"the core types, the real hard primitives are in wat.type/ — other
+typed things belong in their own homes"*; *"we put types in core because we didn't think this through"*.
+
+Own homes: `wat.time/Instant`, `wat.time/Duration`, `wat.uuid/UUID`, `wat.holon/HolonAST`, `wat.holon/Record`.
+Declared utilities stay where declared: `wat.core/Option`, `wat.core/Result`, `wat.core/Span`, `wat.core/Pos`,
+`wat.core/Error`, `wat.core/EvalError`, the read outcomes, `wat.core/Orderable`, `wat.core/Equatable`.
+**The new spelling becomes the canonical key** (C1). `(wat.type/Vector :- [T])` is the type in a type position and the
+empty vector elsewhere; `(wat.core/Vector …)` is an unknown function after the cutover. The cutover runs in seven
+green stones (`WEIGH-STONE-255.65`), with a temporary door (T-door) that stones 4 and 5 delete.
