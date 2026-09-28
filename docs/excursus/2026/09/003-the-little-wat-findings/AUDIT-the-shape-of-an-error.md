@@ -243,3 +243,11 @@ Each is recorded where found; B changes the wire, so B takes them.
 | S1 | `EnsureFnInvalidReason` tags `wat.kernel` by the derive's default namespace, though it is a check diagnostic | name its namespace deliberately |
 | S2 | `LoadFetchError` (3 variants, `src/load/loader.rs:192`) and `HashError` (8 variants, `src/hash.rs:471`, shared with `RuntimeErrorKind::EvalVerificationFailed`) ride FLAT `wat.kernel` per-variant tags; declared as 11 flat records under `:wat::core::Value`-typed fields | dotted enum tags on the wire; fields type as the enum |
 | S2 | cost, not wire: each declared stdlib record adds ~0.8ms per world freeze (hello-world 615–676ms → 682–717ms, 6 samples each); floor 1103s → 1205s (+9%) across S1+S2; two near-margin tests widened (`d0f126e18`, `42cca492a`) | measure where freeze time goes BEFORE S3 |
+
+## RULING 2026-09-28 — finish the shape work first; the stdlib-freeze cost is its own excursus after
+
+`MEASURE-where-a-freeze-spends-its-time.md` (`63bfc0054`): every freeze re-expands (~198ms) and
+re-checks (~217ms) the whole fixed stdlib, 5834 freezes per floor, nothing cached. Builder chose to
+land S3 now (~+45ms, known and measured; any test crossing its limit is surfaced with its history,
+then widened under the timing ruling), finish strike B while the shape work is hot, and THEN open a
+separate excursus — the stdlib frozen once — with the MEASURE doc as its baseline.
