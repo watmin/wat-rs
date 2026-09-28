@@ -242,9 +242,15 @@ slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
 # cohort, 2026-08-17). 29.4s × 4.4 = 129s. Warn 90s / kill 180s is the rete
 # envelope and covers that projection. Durable fix: split the gate
 # per-directory so each piece fits the default budget. Not built.
+#
+# 2026-09-28 (excursus 003): under the floor it ran 157–160s before sweep S1 (87–89% of the
+# 180s kill), crept to ~167s with S1, ~177s with S2, and was killed at 180.03s with S3. Each
+# declared stdlib record adds ~0.6ms per freeze and this gate freezes 123 worlds
+# (`MEASURE-where-a-freeze-spends-its-time.md`). Raised to warn 180s / kill 360s in all three
+# profiles. The stdlib-freeze excursus that follows the shape work is the cure, not this.
 [[profile.default.overrides]]
 filter = 'test(nested_program_literals_start_on_the_child_path)'
-slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+slow-timeout = { period = "180s", terminate-after = 2 }   # warn 180s, kill 360s
 priority = 99
 
 # C19 (arc 278) — the diagnostic-determinism gate: every `.wat.bad` run TWICE in two fresh
@@ -486,7 +492,7 @@ priority = 99
 
 [[profile.ci.overrides]]
 filter = 'test(nested_program_literals_start_on_the_child_path)'
-slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+slow-timeout = { period = "180s", terminate-after = 2 }   # warn 180s, kill 360s
 priority = 99
 
 [[profile.ci.overrides]]
@@ -537,7 +543,7 @@ priority = 99
 
 [[profile.slow.overrides]]
 filter = 'test(nested_program_literals_start_on_the_child_path)'
-slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+slow-timeout = { period = "180s", terminate-after = 2 }   # warn 180s, kill 360s
 priority = 99
 
 [[profile.slow.overrides]]
