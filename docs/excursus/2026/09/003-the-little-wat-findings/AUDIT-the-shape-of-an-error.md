@@ -222,3 +222,12 @@ field is re-added when a real consumer asks for it, not kept in case one does.
 | **D** | `Frame` → `{fn at}` | needs the tail-call ruling alongside |
 | **E** | `EvalError` carries the real error | largest; its own design note first |
 | **F** | the domain `Fault`s | needs a naming measurement |
+
+## RULING 2026-09-27 (2) — the hard work now: declare every startup-error taxonomy before B
+
+Strike B found `causes`' one real job: carrying a FOREIGN checker diagnostic (undeclared
+`#wat.check/…`, `#wat.resolve/…` tags) under a `Fault` with a fabricated `<runtime>:0:0` location, at
+four decode sites. Offered an interim wrapper, the builder: *"should we just do the hard work now?..
+deferral usually backfires"*. So the SWEEP (`BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md`)
+runs first — ~130 kinds, three strikes S1–S3, pure declaration (zero golden changes) — and B follows
+with no wrapper left anywhere. Delivery becomes **A ✓ → S1 → S2 → S3 → B → C → D → E → F**.
