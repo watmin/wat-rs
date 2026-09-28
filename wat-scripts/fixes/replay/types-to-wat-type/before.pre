@@ -1,0 +1,10 @@
+(:wat::core::defn :probe::f
+  [x <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  x)
+
+(:wat::core::extend-type :wat::core::f64 :wat::core::Equatable)
+
+(:wat::core::typealias :probe::Alias :wat::core::bool)
+
+(:wat::core::if (:wat::core::= (:wat::core::type-of x) :wat::core::i64) 1 2)
