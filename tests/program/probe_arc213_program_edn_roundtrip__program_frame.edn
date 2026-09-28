@@ -63,50 +63,50 @@
               :end-col 40
             }
             #wat.ast/Spanned {
-              :node :wat.core/i64
+              :node wat.type/i64
               :origin 0
               :line 10
               :col 41
               :end-line 10
-              :end-col 56
+              :end-col 53
             }
             #wat.ast/Spanned {
               :node y
               :origin 0
               :line 10
-              :col 58
+              :col 55
               :end-line 10
-              :end-col 59
+              :end-col 56
             }
             #wat.ast/Spanned {
               :node <-
               :origin 0
               :line 10
-              :col 60
+              :col 57
               :end-line 10
-              :end-col 62
+              :end-col 59
             }
             #wat.ast/Spanned {
-              :node :wat.core/i64
+              :node wat.type/i64
               :origin 0
               :line 10
-              :col 63
+              :col 60
               :end-line 10
-              :end-col 78
+              :end-col 72
             }
           ]
           :origin 0
           :line 10
           :col 35
           :end-line 10
-          :end-col 79
+          :end-col 73
         }
       )
       :origin 0
       :line 10
       :col 1
       :end-line 10
-      :end-col 80
+      :end-col 74
     }
     #wat.ast/Spanned {
       :node (
@@ -168,12 +168,12 @@
           :end-col 51
         }
         #wat.ast/Spanned {
-          :node :wat.core/i64
+          :node wat.type/i64
           :origin 0
           :line 11
           :col 52
           :end-line 11
-          :end-col 67
+          :end-col 64
         }
         #wat.ast/Spanned {
           :node (
@@ -325,12 +325,12 @@
           :end-col 37
         }
         #wat.ast/Spanned {
-          :node :wat.core/i64
+          :node wat.type/i64
           :origin 0
           :line 13
           :col 38
           :end-line 13
-          :end-col 53
+          :end-col 50
         }
         #wat.ast/Spanned {
           :node (
@@ -496,27 +496,27 @@
           :end-col 36
         }
         #wat.ast/Spanned {
-          :node :wat.core/nil
+          :node wat.type/nil
           :origin 0
           :line 16
           :col 37
           :end-line 16
-          :end-col 52
+          :end-col 49
         }
         #wat.ast/Spanned {
           :node nil
           :origin 0
           :line 16
-          :col 53
+          :col 50
           :end-line 16
-          :end-col 56
+          :end-col 53
         }
       )
       :origin 0
       :line 16
       :col 1
       :end-line 16
-      :end-col 57
+      :end-col 54
     }
   ]
 }

@@ -8,11 +8,11 @@
       :location #wat.core/Span {
         :file "tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03.wat.bad"
         :line 1
-        :col 50
+        :col 47
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 1
-            :col 65
+            :col 62
           }
         }
       }

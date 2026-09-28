@@ -3,11 +3,11 @@
   :location #wat.core/Span {
     :file "tests/macros/probe_arc258_stone2b_macro_error_c03.wat"
     :line 6
-    :col 50
+    :col 47
     :end #wat.core/Option.Some {
       :value #wat.core/Pos {
         :line 6
-        :col 63
+        :col 60
       }
     }
   }

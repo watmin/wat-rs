@@ -369,8 +369,17 @@ fn classify(stem: &str, src: &str) -> Option<UniformAxis> {
     if !src.contains(&format!("(:{ns}::items))")) {
         return None;
     }
-    let marker = format!("defn :{ns}::row-count [] -> :wat::core::i64 ");
-    let rc_at = src.find(&marker)? + marker.len();
+    // Stone 255.67 mechanism C: the corpus conversion (`types-to-wat-type.wat`) rewrites a
+    // `-> :wat::core::i64` return-type spelling to `-> wat.type/i64` (the SAME type, K1's door
+    // denotes them identically everywhere an AST is parsed) — but this walk keys off the raw
+    // FILE TEXT, not a parsed AST, so it is one more site that compared by spelling instead of
+    // denoting first. Try both spellings; a file written in either reads as the same axis.
+    let marker_core = format!("defn :{ns}::row-count [] -> :wat::core::i64 ");
+    let marker_wat_type = format!("defn :{ns}::row-count [] -> wat.type/i64 ");
+    let rc_at = match src.find(&marker_core) {
+        Some(p) => p + marker_core.len(),
+        None => src.find(&marker_wat_type)? + marker_wat_type.len(),
+    };
     let digits: String = src[rc_at..].chars().take_while(|c| c.is_ascii_digit()).collect();
     let rows: i64 = digits.parse().ok()?;
     if rows <= 0 {

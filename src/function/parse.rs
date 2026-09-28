@@ -823,12 +823,31 @@ pub(crate) fn parse_defclause_form(
     let items: &[WatAST] = &items;
 
     // Detect Option A: `-> :T` after the name keyword.
+    //
+    // Stone 255.67 mechanism B: this used to match ONLY `WatAST::Keyword`
+    // (`-> :wat::core::i64`) and silently fall through to `_ => (None,
+    // 2usize)` on a `WatAST::Symbol` (`-> wat.type/i64`) — no shared return
+    // type would be detected, `clause_offset` stayed 2, and the bare Symbol
+    // was then read as the first CLAUSE (which must be a list), so the whole
+    // form was refused as malformed. Routed through `parse_type_node` (the
+    // one type door), so a keyword or a `wat.type/…` shared return type
+    // reads the same.
     let (shared_return, clause_offset) = {
         let after_name = &items[2..];
         if after_name.len() >= 2 {
             match (&after_name[0], &after_name[1]) {
-                (arrow, WatAST::Keyword(k, _)) if crate::types::is_return_arrow(arrow) => {
-                    let ret = parse_type_keyword(k)?;
+                (arrow, node @ (WatAST::Keyword(_, _) | WatAST::Symbol(_, _)))
+                    if crate::types::is_return_arrow(arrow) =>
+                {
+                    let ret = crate::types::parse_type_node(node).map_err(|e| {
+                        RuntimeError::new(
+                            e.span().clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: HEAD.into(),
+                                reason: e.to_string(),
+                            },
+                        )
+                    })?;
                     (Some(ret), 4usize) // items[0]=head items[1]=name items[2]='-> items[3]=:T items[4..]=clauses
                 }
                 _ => (None, 2usize), // items[2..] = clauses
@@ -1258,6 +1277,26 @@ pub(crate) fn parse_extend_type_form(
                 // `:nil` would hide exactly the defect class this arc has spent the day
                 // digging out.
                 node @ WatAST::List(_, _) => {
+                    let te = crate::types::parse_type_node(node).map_err(|e| {
+                        RuntimeError::new(
+                            node.span().clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    "method impl `{}` return type after `->`: {}",
+                                    method_name, e
+                                ),
+                            },
+                        )
+                    })?;
+                    (body_items[2..].to_vec(), te)
+                }
+                // Stone 255.67 mechanism B: a `WatAST::Symbol` (`wat.type/i64`) used to
+                // fall to the `_` arm below, which reads NO annotation at all and hands
+                // the WHOLE `body_items` (including the `->` and the type symbol
+                // themselves) back as the method body — silently wrong, not an error.
+                // Routed through the same `parse_type_node` door as the List arm above.
+                node @ WatAST::Symbol(_, _) => {
                     let te = crate::types::parse_type_node(node).map_err(|e| {
                         RuntimeError::new(
                             node.span().clone(),

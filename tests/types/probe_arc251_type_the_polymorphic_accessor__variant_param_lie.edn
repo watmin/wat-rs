@@ -8,11 +8,11 @@
       :location #wat.core/Span {
         :file "tests/types/probe_arc251_type_the_polymorphic_accessor__variant_param_lie.wat"
         :line 5
-        :col 91
+        :col 85
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 5
-            :col 99
+            :col 93
           }
         }
       }

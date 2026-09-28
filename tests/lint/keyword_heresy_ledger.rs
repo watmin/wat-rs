@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 149; // 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
+const LEDGER_TOTAL: usize = 148; // 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -823,7 +823,6 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/holon/ast.rs", "is_holon_arg_canonical", 1, "Ax1"),
     ("src/holon/ast.rs", "try_recognize_holon_value", 1, "Ax1"),
     ("src/host/test_runner.rs", "source_has_config_setter", 2, "Ax2"),
-    ("src/intrinsic/holon/atom.rs", "eval_holon_from_holon", 1, "Ax1"),
     ("src/load/loader.rs", "parse_payload_interface", 1, "Ax1"),
     ("src/load/loader.rs", "parse_verify_algo", 1, "Ax1"),
 

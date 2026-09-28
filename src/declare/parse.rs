@@ -632,9 +632,14 @@ pub(crate) fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, A
     if !crate::types::is_return_arrow(&fn_items[2]) {
         return None;
     }
-    // Return type.
+    // Return type. Stone 255.67 mechanism B (same class as
+    // `try_parse_user_variadic_def_fn_form` above): routed through
+    // `parse_type_node` (the one type door) so a keyword or a `wat.type/…`
+    // symbol reads the same, instead of matching only `WatAST::Keyword`.
     let ret_type = match &fn_items[3] {
-        WatAST::Keyword(k, _) => parse_type_keyword(k).ok()?,
+        node @ (WatAST::Keyword(_, _) | WatAST::Symbol(_, _)) => {
+            crate::types::parse_type_node(node).ok()?
+        }
         _ => return None,
     };
     // Parse args with rest-binder allowed.
@@ -770,8 +775,27 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
         return Ok(None);
     }
     // Return type.
+    //
+    // Stone 255.67 mechanism B: this used to match ONLY `WatAST::Keyword`
+    // (`:wat::core::i64`) and silently fall through to `_ => return Ok(None)`
+    // on a `WatAST::Symbol` (`wat.type/i64`) — the whole variadic-def-fn form
+    // would then read as "not this shape" (not an error), so the function
+    // never registered and every call to it surfaced as an unrelated
+    // UnresolvedReference downstream. Routed through `parse_type_node` (the
+    // one type door, `src/types.rs`), which accepts both a Keyword and a
+    // Symbol, so a keyword or `wat.type/…` return type reads the same.
     let ret_type = match &fn_items[3] {
-        WatAST::Keyword(k, _) => parse_type_keyword(k)?,
+        node @ (WatAST::Keyword(_, _) | WatAST::Symbol(_, _)) => {
+            crate::types::parse_type_node(node).map_err(|e| {
+                RuntimeError::new(
+                    e.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::defn".into(),
+                        reason: e.to_string(),
+                    },
+                )
+            })?
+        }
         _ => return Ok(None),
     };
     // Parse args with rest-binder allowed. Errors (double `&`, incomplete

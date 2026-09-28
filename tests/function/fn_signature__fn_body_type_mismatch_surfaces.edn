@@ -8,11 +8,11 @@
       :location #wat.core/Span {
         :file "tests/function/fn_signature_body_mismatch.wat"
         :line 4
-        :col 112
+        :col 103
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 4
-            :col 113
+            :col 104
           }
         }
       }

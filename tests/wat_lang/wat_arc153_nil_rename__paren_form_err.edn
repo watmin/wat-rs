@@ -8,11 +8,11 @@
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc153_nil_rename_paren_form.wat.bad"
         :line 9
-        :col 60
+        :col 57
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 9
-            :col 62
+            :col 59
           }
         }
       }

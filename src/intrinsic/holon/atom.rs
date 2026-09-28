@@ -175,8 +175,26 @@ pub(crate) fn eval_holon_from_holon(
         }
         // Check if the type keyword starts with :wat::core::HashMap.
         // Keywords include the leading colon in their value (":wat::core::HashMap").
+        //
+        // Stone 255.67 mechanism B (same class as the two amendment-named
+        // recognizers, found during the search for others): the raw
+        // `k.starts_with(...)` prefix check never denoted its input, so a
+        // post-normalize `:wat::type::HashMap` keyword (the spelling
+        // `normalize_type_slot` produces for a `wat.type/HashMap` symbol
+        // here — it is not itself K1's door) silently compared unequal and
+        // `_hint_is_hashmap` came back `false` for a well-formed hint.
+        // Routed through `canonical_type_key` (K1's door) so either
+        // spelling denotes to the same `:wat::core::HashMap` before the
+        // prefix check, and a `WatAST::Symbol` arriving pre-normalize is
+        // accepted too.
         match &args[2] {
-            WatAST::Keyword(k, _) => k.starts_with(":wat::core::HashMap"),
+            WatAST::Keyword(k, _) => {
+                crate::types::canonical_type_key(k).starts_with(":wat::core::HashMap")
+            }
+            WatAST::Symbol(id, _) if id.is_reference() => {
+                let kw = crate::edn::render::ns_to_wat_path(id.receiver(), id.method());
+                crate::types::canonical_type_key(&kw).starts_with(":wat::core::HashMap")
+            }
             other => {
                 return Err(RuntimeError::new(
                     other.span().clone(),

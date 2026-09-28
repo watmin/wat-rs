@@ -8,11 +8,11 @@
       :location #wat.core/Span {
         :file "tests/types/probe_arc251_type_the_polymorphic_accessor__unknown_field.wat"
         :line 3
-        :col 62
+        :col 59
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 3
-            :col 74
+            :col 71
           }
         }
       }
