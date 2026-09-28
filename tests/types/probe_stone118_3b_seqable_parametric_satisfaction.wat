@@ -38,7 +38,7 @@
   (:t118b::count-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
 
 (:wat::core::defn :t::param-list [] -> wat.type/i64
-  (:t118b::count-of (:wat::core::List 1 2 3 4 5)))
+  (:t118b::count-of (wat.type/List :- [wat.type/i64] 1 2 3 4 5)))
 
 (:wat::core::defn :t::param-stream [] -> wat.type/i64
   (:t118b::count-of (:wat::stream::cons 1
@@ -54,7 +54,7 @@
   (:t118b::sum-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
 
 (:wat::core::defn :t::sum-list [] -> wat.type/i64
-  (:t118b::sum-of (:wat::core::List 1 2 3 4 5)))
+  (:t118b::sum-of (wat.type/List :- [wat.type/i64] 1 2 3 4 5)))
 
 (:wat::core::defn :t::sum-stream [] -> wat.type/i64
   (:t118b::sum-of (:wat::stream::cons 10

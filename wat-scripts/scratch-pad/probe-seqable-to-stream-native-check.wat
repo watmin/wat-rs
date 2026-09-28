@@ -18,7 +18,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/List :- [wat.type/i64])  i <- wat.type/i64] -> (wat.type/List :- [wat.type/i64])
       (:wat::linkedlist::conj acc i))
-    (:wat::core::List)
+    (wat.type/List :- [wat.type/i64])
     (:wat::core::reverse (:wat::core::range 0 n))))
 
 (:wat::core::defn :cx::build-pv [n <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/i64])

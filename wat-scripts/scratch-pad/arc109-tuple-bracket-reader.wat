@@ -24,7 +24,7 @@
 
 ;; bracketed tuple as a RETURN type, with a nested parametric inside it
 (:wat::core::defn :user::nested [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
-  (:wat::core::Tuple (wat.type/Vector :- [wat.type/i64] 1 2) "s"))
+  (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String] (wat.type/Vector :- [wat.type/i64] 1 2) "s"))
 
 ;; 255.57 — an empty `(wat.type/Tuple :- [])` is not a type. Nil is the path.
 
@@ -47,7 +47,7 @@
 
 ;; bracketed tuple as a RETURN type, with a nested `:-`-marked parametric inside it
 (:wat::core::defn :user::nested-colon [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
-  (:wat::core::Tuple (wat.type/Vector :- [wat.type/i64] 1 2) "s"))
+  (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String] (wat.type/Vector :- [wat.type/i64] 1 2) "s"))
 
 ;; 255.57 — `(wat.type/Tuple :- [])` is refused. A tuple type needs at least one slot.
 

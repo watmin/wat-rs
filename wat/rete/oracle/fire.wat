@@ -159,12 +159,12 @@
                     ;; `:wat::rete::topological-node-ids` — one definition.
                     node-ids (:wat::rete::topological-node-ids network)
                     new-amem (:wat::rete::walk-alpha-ids facts network node-ids 0
-                                 (:wat::core::PersistentMap))
+                                 (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Element])]))
                     new-bmem (:wat::rete::walk-beta-ids network new-amem node-ids 0
-                                 (:wat::core::PersistentMap))
+                                 (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Token])]))
                     filtered-bmem (:wat::rete::walk-filter-ids facts network new-amem node-ids 0 new-bmem)
                     new-pmem (:wat::rete::walk-prod-ids network filtered-bmem rules node-ids 0
-                                 (:wat::core::PersistentMap))
+                                 (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/Record])]))
                     qmem     (:wat::rete::collect-query-memory network filtered-bmem)]
     (:wat::rete::FireOutcome.Fired {:value
       (:wat::rete::Session

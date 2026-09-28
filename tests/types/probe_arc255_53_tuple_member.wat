@@ -10,7 +10,7 @@
 (:wat::core::defn :user::triple [] -> wat.type/i64
   (:u::take (wat.type/Tuple :- [:u::In :u::In :u::In] (:u::In :n 1) (:u::In :n 1) (:u::In :n 1))))
 (:wat::core::defn :user::nested [] -> wat.type/i64
-  (:u::take (:wat::core::Tuple (:u::In :n 1) (wat.type/Tuple :- [:u::In :u::In] (:u::In :n 1) (:u::In :n 1)))))
+  (:u::take (wat.type/Tuple :- [:u::In (wat.type/Tuple :- [:u::In :u::In])] (:u::In :n 1) (wat.type/Tuple :- [:u::In :u::In] (:u::In :n 1) (:u::In :n 1)))))
 (:wat::core::defn :user::vec-of-pair [] -> wat.type/i64
   (:u::take (wat.type/Vector :- [(wat.type/Tuple :- [:u::In :u::In])]
               (wat.type/Tuple :- [:u::In :u::In] (:u::In :n 1) (:u::In :n 1)))))

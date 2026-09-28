@@ -100,7 +100,7 @@
     (:wat::core::rest (:wat::core::ast->children exp))))
 
 (:wat::core::defn :probe::emitted-defn-binders [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/String]) (wat.type/Vector :- [wat.type/String])])
-  (:wat::core::Tuple
+  (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/String]) (wat.type/Vector :- [wat.type/String])]
     (:probe::defn-rows
       (:wat::core::macroexpand
         (:wat::core::quote

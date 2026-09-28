@@ -40,7 +40,7 @@
         (wat.type/Vector :- [wat.type/String]
           (:probe::elems-of (wat.type/Vector :- [wat.type/i64] 1 2 3))
           (:probe::elems-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4))
-          (:probe::elems-of (:wat::core::List 1 2 3 4 5))
+          (:probe::elems-of (wat.type/List :- [wat.type/i64] 1 2 3 4 5))
           (:probe::elems-of (:wat::stream::cons 7
                               (:wat::stream::lazy
                                 (:wat::stream::cons 8
@@ -51,7 +51,7 @@
         (wat.type/Vector :- [wat.type/i64]
           (:probe::count-via-seq (wat.type/Vector :- [wat.type/i64] 1 2 3))
           (:probe::count-via-seq (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4))
-          (:probe::count-via-seq (:wat::core::List 1 2 3 4 5))
+          (:probe::count-via-seq (wat.type/List :- [wat.type/i64] 1 2 3 4 5))
           (:probe::count-via-seq (:wat::stream::cons 1
                                    (:wat::stream::lazy
                                      (:wat::stream::cons 2

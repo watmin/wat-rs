@@ -288,7 +288,7 @@
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])  a <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
         (:wat::vector::conj acc (:wc::build-inner i a)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
       (:wat::core::range 0 outer-len))))
 
 ;; seed session items — stage Item(i) for i in [0, items) via the BATCH verb (one rebuild). Every

@@ -73,7 +73,7 @@
 
      ;; ── linkedlist (5) success paths ─────────────────────────────────────
      _l0 (:wat::core::List)
-     _l1 (:wat::core::List 1 2 3)
+     _l1 (wat.type/List :- [wat.type/i64] 1 2 3)
      _39 (:wat::kernel::println (:wat::string::concat "linkedlist::length      " (:wat::edn::write (:wat::linkedlist::length _l1))))
      _40 (:wat::kernel::println (:wat::string::concat "linkedlist::empty? true " (:wat::edn::write (:wat::linkedlist::empty? _l0))))
      _41 (:wat::kernel::println (:wat::string::concat "linkedlist::empty? false" (:wat::edn::write (:wat::linkedlist::empty? _l1))))

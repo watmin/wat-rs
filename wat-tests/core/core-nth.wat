@@ -37,7 +37,7 @@
       (:wat::test::assert-eq (:wat::core::nth v 2) 30))))
 
 (:wat::test::deftest :wat-tests::core::core-nth::nth-list-positions
-  (:wat::core::let [v (:wat::core::List 10 20 30)]
+  (:wat::core::let [v (wat.type/List :- [wat.type/i64] 10 20 30)]
     (:wat::core::do
       (:wat::test::assert-eq (:wat::core::nth v 0) 10)
       (:wat::test::assert-eq (:wat::core::nth v 1) 20)

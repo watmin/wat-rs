@@ -83,7 +83,7 @@
    alpha-id <- wat.type/i64]
   -> :wat::rete::Token
   (:wat::rete::Token
-    :matches (:wat::core::PersistentVector
+    :matches (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/Record wat.type/i64])]
       (wat.type/Tuple :- [wat.type/Record wat.type/i64] (:wat::rete::Element/fact el) alpha-id))
     :bindings (:wat::rete::Element/bindings el)))
 
@@ -648,7 +648,7 @@
       (:wat::vector::conj
         (wat.type/PersistentVector :- [:wat::rete::Token])
         (:wat::rete::Token
-          :matches (:wat::core::PersistentVector)
+          :matches (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/Record wat.type/i64])])
           :bindings (:wat::core::PersistentMap)))
       (:wat::rete::tokens-from-parents beta-mem pids))))
 
@@ -764,7 +764,7 @@
                -> wat.type/PersistentMap
                (:wat::rete::append-token bm node-id
                  (:wat::rete::Token
-                   :matches (:wat::core::PersistentVector)
+                   :matches (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/Record wat.type/i64])])
                    :bindings ext)))
              beta-mem
              (:wat::rete::distinct-maps

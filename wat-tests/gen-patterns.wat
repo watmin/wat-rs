@@ -161,7 +161,7 @@
 
 ;; 4 keys x 3 values = 12 Puts, + 4 Dels = 16 commands; sequences of 0..2 => 273 programs
 (:wat::core::defn :wat-tests::pat::gen-cmd [] -> (:wat::gen::Gen :- [:wat-tests::pat::Cmd])
-  (:wat::gen::one-of (:wat::core::PersistentVector
+  (:wat::gen::one-of (wat.type/PersistentVector :- [(:wat::gen::Gen :- [:wat-tests::pat::Cmd])]
     (:wat::gen::lift2 :wat-tests::pat::mk-put (:wat::gen::ints 0 4) (:wat::gen::ints 0 3))
     (:wat::gen::fmap  :wat-tests::pat::mk-del (:wat::gen::ints 0 4)))))
 

@@ -14,4 +14,4 @@
   (:wat::core::= (:probe::which-container [1 2 3]) "vector"))
 
 (:wat::core::defn :user::list-clause-dispatches [] -> wat.type/bool
-  (:wat::core::= (:probe::which-container (:wat::core::List 1 2 3)) "list"))
+  (:wat::core::= (:probe::which-container (wat.type/List :- [wat.type/i64] 1 2 3)) "list"))

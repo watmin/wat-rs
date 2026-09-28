@@ -432,19 +432,19 @@
                                                names (:wat::core::second acc)]
                                (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
                                  ;; literal → append inner text to template
-                                 (:wat::core::Tuple
+                                 (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])]
                                    (:wat::string::concat tmpl (:wat::core::ast-name arg))
                                    names)
                                  ;; symbol → append {name} to template; dedup-add to names
                                  (:wat::core::let [nm (:wat::core::ast-name arg)]
-                                   (:wat::core::Tuple
+                                   (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])]
                                      (:wat::string::concat tmpl
                                        (:wat::string::concat "{"
                                          (:wat::string::concat nm "}")))
                                      (:wat::core::if (:wat::core::contains? names nm)
                                        names
                                        (:wat::core::conj names nm)))))))
-                           (:wat::core::Tuple "" (wat.type/Vector :- [wat.type/String]))
+                           (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])] "" (wat.type/Vector :- [wat.type/String]))
                            args)
                         template   (:wat::core::first build-result)
                         kwarg-names (:wat::core::second build-result)

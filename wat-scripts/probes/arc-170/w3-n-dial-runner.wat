@@ -46,7 +46,7 @@
           ;; deps : (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]) — connect' EACH component into its typed Peer'
           (:probe::multi-dial-runner self work-fn
             (:wat::core::Option.Some
-              {:value (:wat::core::Tuple
+              {:value (wat.type/Tuple :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])]
                 (:wat::core::match (:wat::kernel::connect (:wat::core::first deps)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
                 (:wat::core::match (:wat::kernel::connect (:wat::core::second deps)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))}))]
         [:wat::bracket::PoolMsg.Work {:pair pair}

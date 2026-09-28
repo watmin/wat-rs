@@ -3,5 +3,5 @@
   -> wat.type/i64 1)
 (:wat::core::defn :user::nested []
   -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
-  (:wat::core::Tuple [] "s"))
+  (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String] [] "s"))
 (:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "x"))

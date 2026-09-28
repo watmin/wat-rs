@@ -137,9 +137,9 @@
             (:user::collect-hoist-targets (:wat::core::into [] (:wat::core::rest (:wat::core::ast->children it))))
             (:user::collect-hoist-targets tl)))
         ((:wat::core::= tag "plain")
-          (:wat::core::conj (:user::collect-hoist-targets tl) (:wat::core::Tuple it (:user::bound-vars-of-plain it))))
+          (:wat::core::conj (:user::collect-hoist-targets tl) (wat.type/Tuple :- [wat.type/AST (wat.type/Vector :- [wat.type/String])] it (:user::bound-vars-of-plain it))))
         ((:wat::core::= tag "factbind")
-          (:wat::core::conj (:user::collect-hoist-targets tl) (:wat::core::Tuple it (:user::bound-vars-of-factbind it))))
+          (:wat::core::conj (:user::collect-hoist-targets tl) (wat.type/Tuple :- [wat.type/AST (wat.type/Vector :- [wat.type/String])] it (:user::bound-vars-of-factbind it))))
         (:else (:user::collect-hoist-targets tl))))))
 
 (:wat::core::defn :user::collect-where-sites [items <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/AST wat.type/AST])])

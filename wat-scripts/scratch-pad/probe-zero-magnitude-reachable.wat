@@ -69,12 +69,12 @@
                   (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :two-cancellations-identical both-zero))))]
           [:wat::holon::CombineOutcome.DimensionMismatch {:expected e :got g}
             (:wat::kernel::println
-              (:wat::core::PersistentMap :unexpected-w-mismatch
+              (wat.type/PersistentMap :- [wat.type/keyword (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64])] :unexpected-w-mismatch
                 (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :expected e :got g)))])]
 
       [:wat::holon::CombineOutcome.DimensionMismatch {:expected e :got g}
         (:wat::kernel::println
-          (:wat::core::PersistentMap :unexpected-dimension-mismatch
+          (wat.type/PersistentMap :- [wat.type/keyword (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64])] :unexpected-dimension-mismatch
             (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :expected e :got g)))])))
 
 (:wat::core::defn :user::main [] -> wat.type/nil

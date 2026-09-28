@@ -25,7 +25,7 @@
 
 ;; ── row 3: List — the whole Seqable set, not just Stream.
 (:wat::core::defn :probe::join-list [] -> wat.type/String
-  (:wat::string::join "-" (:wat::core::List 1 2 3)))
+  (:wat::string::join "-" (wat.type/List :- [wat.type/i64] 1 2 3)))
 
 ;; ── row 4a/4b: rendering parity — same non-string (bool) elements, one path Vector,
 ;;    one path Stream. Both must render identically ("true,false,true"), proving the

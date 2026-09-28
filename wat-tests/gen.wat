@@ -132,7 +132,7 @@
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     a  (:wat::gen::ints 0 3)
                     b  (:wat::gen::ints 100 105)
-                    o  (:wat::gen::one-of (:wat::core::PersistentVector a b))
+                    o  (:wat::gen::one-of (wat.type/PersistentVector :- [(:wat::gen::Gen :- [wat.type/i64])] a b))
                     v  ((:wat::gen::Gen/at o) i)
                     ok (:wat::core::if (:wat::core::< i 3)
                          (:wat::core::= v i)
@@ -312,7 +312,7 @@
   -> wat.type/bool
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     ev (:wat::gen::such-that :wat-tests::gen::evenp (:wat::gen::ints 0 10))
-                    g  (:wat::gen::one-of (:wat::core::PersistentVector ev (:wat::gen::ints 100 102)))
+                    g  (:wat::gen::one-of (wat.type/PersistentVector :- [(:wat::gen::Gen :- [wat.type/i64])] ev (:wat::gen::ints 100 102)))
                     v  ((:wat::gen::Gen/at g) i)
                     ok (:wat::core::if (:wat::core::< i 5)
                          (:wat-tests::gen::evenp v)
@@ -340,7 +340,7 @@
   -> wat.type/bool
   (:wat::core::let [i     (:wat-tests::gen::at0 c 0)
                     empty (:wat::gen::such-that :wat-tests::gen::nevr (:wat::gen::ints 0 10))
-                    g     (:wat::gen::one-of (:wat::core::PersistentVector empty (:wat::gen::ints 7 9)))]
+                    g     (:wat::gen::one-of (wat.type/PersistentVector :- [(:wat::gen::Gen :- [wat.type/i64])] empty (:wat::gen::ints 7 9)))]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card empty) 0)
         (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 2)
@@ -704,7 +704,7 @@
      ;; yielded card 1 and at(0) = 102: one point enumerated, TWO REAL POINTS
      ;; UNREACHABLE, with no raise and no `EmptySpace`. The empty branch must now
      ;; contribute nothing and the good branch must arrive whole and in order.
-     ob      (:wat::gen::one-of (:wat::core::PersistentVector
+     ob      (:wat::gen::one-of (wat.type/PersistentVector :- [(:wat::gen::Gen :- [wat.type/i64])]
                (:wat::gen::ints 5 3) (:wat::gen::ints 100 103)))
      ob-card (:wat::gen::Gen/card ob)
      ob-at   (:wat::gen::Gen/at ob)

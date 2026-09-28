@@ -1712,13 +1712,13 @@
                   (:wat::core::not (:wat::fix::singleton-enum? info enum-names))
                   false)
                 (:wat::core::let [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))]
-                  (:wat::core::Tuple
+                  (wat.type/Tuple :- [(wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])]) (wat.type/Vector :- [wat.type/String])]
                     (:wat::fix::fill-enum (:wat::core::first acc) info nm)
                     (:wat::core::if (:wat::vec::contains? (:wat::core::second acc) nm)
                       (:wat::core::second acc)
                       (:wat::core::conj (:wat::core::second acc) nm))))
                 acc))
-            (:wat::core::Tuple m filled)
+            (wat.type/Tuple :- [(wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])]) (wat.type/Vector :- [wat.type/String])] m filled)
             types)]
     (:wat::fix::EnumFields
       :fields   (:wat::core::first pair)

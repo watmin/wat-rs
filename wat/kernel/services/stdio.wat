@@ -135,7 +135,7 @@
    stdout-fd <- wat.type/i64
    stderr-fd <- wat.type/i64]
   -> (wat.type/Tuple :- [:wat::kernel::stdin-svc::Handle :wat::kernel::stdout-svc::Handle :wat::kernel::stderr-svc::Handle])
-  (:wat::core::Tuple
+  (wat.type/Tuple :- [(:wat::kernel::stdin-svc::Handle :- [:wat::kernel::Transport.Shared]) (:wat::kernel::stdout-svc::Handle :- [:wat::kernel::Transport.Shared]) (:wat::kernel::stderr-svc::Handle :- [:wat::kernel::Transport.Shared])]
     (:wat::kernel::stdin-svc/start  :locus (:wat::spawn::thread) :record (:wat::kernel::stdin-svc::Record)  :fd stdin-fd)
     (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread) :record (:wat::kernel::stdout-svc::Record) :fd stdout-fd)
     (:wat::kernel::stderr-svc/start :locus (:wat::spawn::thread) :record (:wat::kernel::stderr-svc::Record) :fd stderr-fd)))

@@ -92,7 +92,7 @@
   (:wat::core::contains? (wat.type/HashSet :- [wat.type/i64] 1 2 3) 2))
 
 (:wat::core::defn :user::list-value [] -> wat.type/bool
-  (:wat::core::= (wat.type/List 1 2 3) (:wat::core::List 1 2 3)))
+  (:wat::core::= (wat.type/List :- [wat.type/i64] 1 2 3) (wat.type/List :- [wat.type/i64] 1 2 3)))
 
 (:wat::core::defn :user::tuple-value [] -> wat.type/bool
   (:wat::core::= (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2) (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)))

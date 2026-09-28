@@ -9,7 +9,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "core::List 1 2 3: "
-      (:wat::edn::write (:wat::core::List 1 2 3))))
+      (:wat::edn::write (wat.type/List :- [wat.type/i64] 1 2 3))))
     (:wat::kernel::println (:wat::string::concat "core::List (empty): "
       (:wat::edn::write (:wat::core::List))))
     (:wat::kernel::println (:wat::string::concat "math::pi: "

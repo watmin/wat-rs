@@ -153,7 +153,7 @@
                                [:wat::core::Option.Some {:value existing} existing]
                                [:wat::core::Option.None {} (wat.type/PersistentVector :- [wat.type/Record])])]
         (:wat::map::assoc acc k (:wat::vector::conj pv fact))))
-    (:wat::core::PersistentMap)
+    (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/Record])])
     els))
 
 ;; acc::gather-vals (8-custom) — gather bindings[var] into a (Vector :- [i64]) in gather order

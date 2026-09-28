@@ -28,7 +28,7 @@
 (:wat::core::defn :t::p4-rt-nested [] -> (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) wat.type/String])
   (:wat::core::let
     [inner (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)
-     outer (:wat::core::Tuple inner "outer")
+     outer (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) wat.type/String] inner "outer")
      h     (:wat::holon::to-holon outer)
      rt    (:wat::holon::from-holon h)]
     rt))
@@ -37,7 +37,7 @@
 (:wat::core::defn :t::p5-rt-with-vec [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
   (:wat::core::let
     [v  [1 2 3]
-     t  (:wat::core::Tuple v "tag")
+     t  (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String] v "tag")
      h  (:wat::holon::to-holon t)
      rt (:wat::holon::from-holon h)]
     rt))
@@ -46,7 +46,7 @@
 (:wat::core::defn :t::p6-rt-with-set [] -> (wat.type/Tuple :- [(wat.type/HashSet :- [wat.type/i64]) wat.type/String])
   (:wat::core::let
     [s  (wat.type/HashSet :- [wat.type/i64] 1 2)
-     t  (:wat::core::Tuple s "label")
+     t  (wat.type/Tuple :- [(wat.type/HashSet :- [wat.type/i64]) wat.type/String] s "label")
      h  (:wat::holon::to-holon t)
      rt (:wat::holon::from-holon h)]
     rt))

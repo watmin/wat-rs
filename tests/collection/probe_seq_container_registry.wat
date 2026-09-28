@@ -10,7 +10,7 @@
   (:wat::core::first (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::first-list [] -> wat.type/i64
-  (:wat::core::first (:wat::core::List 10 20 30)))
+  (:wat::core::first (wat.type/List :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::first-tuple [] -> wat.type/i64
   (:wat::core::first (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 10 20)))
@@ -46,10 +46,10 @@
 ;; ── seq-1b: searchable (contains?) ──
 
 (:wat::core::defn :p::list-contains-found [] -> wat.type/bool
-  (:wat::core::contains? (:wat::core::List 10 20 30) 20))
+  (:wat::core::contains? (wat.type/List :- [wat.type/i64] 10 20 30) 20))
 
 (:wat::core::defn :p::list-contains-not-found [] -> wat.type/bool
-  (:wat::core::contains? (:wat::core::List 10 20 30) 99))
+  (:wat::core::contains? (wat.type/List :- [wat.type/i64] 10 20 30) 99))
 
 (:wat::core::defn :p::tuple-contains-found [] -> wat.type/bool
   (:wat::core::contains? (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 10 20 30) 20))
@@ -70,10 +70,10 @@
 ;; ── seq-1b: gettable (get → Option) ──
 
 (:wat::core::defn :p::list-get-found [] -> (:wat::core::Option :- [wat.type/i64])
-  (:wat::core::get (:wat::core::List 10 20 30) 1))
+  (:wat::core::get (wat.type/List :- [wat.type/i64] 10 20 30) 1))
 
 (:wat::core::defn :p::list-get-oob [] -> (:wat::core::Option :- [wat.type/i64])
-  (:wat::core::get (:wat::core::List 10 20 30) 99))
+  (:wat::core::get (wat.type/List :- [wat.type/i64] 10 20 30) 99))
 
 (:wat::core::defn :p::watastlist-get-found [] -> (:wat::core::Option :- [wat.type/AST])
   (:wat::core::get (:wat::core::quote (a b c)) 1))

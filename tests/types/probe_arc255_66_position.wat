@@ -51,8 +51,8 @@
 ;; form is the annotation; the value is the elements.
 (:wat::core::defn :user::plist [] -> wat.type/bool
   (:wat::core::=
-    (wat.type/List 1 2)
-    (:wat::core::List 1 2)))
+    (wat.type/List :- [wat.type/i64] 1 2)
+    (wat.type/List :- [wat.type/i64] 1 2)))
 
 (:wat::core::defn :user::takes-list [xs :- (wat.type/List :- [wat.type/i64])] -> wat.type/i64
   1)

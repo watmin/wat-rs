@@ -949,7 +949,7 @@
   ;; not assumed.
   (:wat::core::let [ga-at (:wat::gen::Gen/at ga)]
     (:wat::gen::one-of
-      (:wat::core::into (:wat::core::PersistentVector)
+      (:wat::core::into (wat.type/PersistentVector :- [(:wat::gen::Gen :- [:B])])
         (:wat::core::mapv
           (:wat::core::fn [i <- wat.type/i64] -> (:wat::gen::Gen :- [B])
             (f (ga-at i)))
