@@ -772,7 +772,6 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "derived_nature", 1, "Ex1"),
     ("src/check.rs", "extract_def_binding", 1, "Ax1"),
     ("src/check.rs", "extract_redef_setter", 1, "Ax1"),
-    ("src/check.rs", "infer", 2, "Ax2"),
     ("src/check.rs", "infer_accept_prime", 1, "Ex1"),
     ("src/check.rs", "infer_allow_prime", 1, "Ex1"),
 
@@ -781,6 +780,13 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "infer_deny_prime", 1, "Ex1"),
     ("src/check.rs", "infer_list", 2, "Ax2"),
     ("src/check.rs", "infer_match", 3, "Ax2+Ex1"),
+    // STONE 255.68 — `infer` split into a thin recording wrapper + `infer_node` (the old
+    // dispatch body, unrenamed contents): the wrapper calls `type_record::note` when
+    // `WAT_CHECK_TYPES=1` recording is on, then delegates. Every recursive call site still goes
+    // through the wrapper (`infer`), so these 2 pre-existing sites (`:wat::core::Option.None`,
+    // `:wat::core::nil` — unrelated to type_record) now live under the renamed dispatch fn.
+    // Total unchanged: 148.
+    ("src/check.rs", "infer_node", 2, "Ax2"),
     ("src/check.rs", "infer_nth", 1, "Ex1"),
     ("src/check.rs", "infer_option_try", 1, "Ex1"),
 

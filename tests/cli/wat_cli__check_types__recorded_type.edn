@@ -1,0 +1,9 @@
+{
+  :tag "TYPE"
+  :file "tests/cli/wat_cli__check_types.wat"
+  :line 11
+  :col 23
+  :ty "(:wat::core::PersistentVector :- [:wat::core::i64])"
+  :wide "(:wat::core::PersistentVector :- [:wat::core::i64])"
+  :check-errors 0
+}
