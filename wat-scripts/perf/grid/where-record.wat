@@ -116,9 +116,9 @@
      l4          (:wr::L4 :v v4)
      l3          (:wr::L3 :l4 l4 :w w3)
      l2          (:wr::L2 :l3 l3 :u u2)
-     tags        (:wat::core::into (:wat::core::PersistentVector)
+     tags        (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
                    (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 tagslen)))
-     bagitems    (:wat::core::into (:wat::core::PersistentVector)
+     bagitems    (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
                    (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 bagitemslen)))
      bag         (:wr::Bag :items bagitems :label (:wat::string::concat "b" (:wat::i64::to-string i)))]
     (:wr::Client :l2 l2 :rep rep :tags tags :bag bag)))
@@ -299,7 +299,7 @@
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
 (:wat::core::defn :wr::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wr::chain2))
       ((:wat::core::= row 2)  (:wr::chain3))
@@ -331,7 +331,7 @@
               :client2 (:wr::client-of j)
               :status  (:wr::status-of i)
               :note    (:wr::note-of i)))))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
@@ -374,7 +374,7 @@
   (:wat::core::let
     [rules   (:wr::build-rules row)
      rule    (:wat::core::first rules)
-     staged  (:wr::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wr::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wr::items))
+     staged  (:wr::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wr::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wr::items))
      fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      derived (:wr::derived-ints fired)
      n       (:wat::vec::length derived)]

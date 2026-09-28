@@ -21,7 +21,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; ── map (8) success paths ───────────────────────────────────────────
-     _m0 (:wat::core::PersistentMap)
+     _m0 (wat.type/PersistentMap :- [wat.type/String wat.type/i64])
      _m1 (:wat::map::assoc _m0 "a" 1)
      _01 (:wat::kernel::println (:wat::string::concat "map::length        " (:wat::edn::write (:wat::map::length _m1))))
      _02 (:wat::kernel::println (:wat::string::concat "map::empty? true   " (:wat::edn::write (:wat::map::empty? _m0))))

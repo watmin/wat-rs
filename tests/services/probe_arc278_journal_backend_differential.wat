@@ -40,7 +40,7 @@
 (:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [msh        (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-                  :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+                  :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      maddr      (:wat::query::mem-store::Handle/addr msh)
      ssh        (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
                   :record (:wat::query::sqlite-store::Record

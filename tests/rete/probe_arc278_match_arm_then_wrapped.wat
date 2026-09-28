@@ -26,8 +26,8 @@
   (:wat::core::match (:wat::rete::fire-rules
     (:wat::core::match (:wat::rete::insert
       (:wat::core::match (:wat::rete::compile-all
-                           (:wat::core::PersistentVector (:mac::r))
-                           (:wat::core::PersistentVector (:mac::by-ok)))
+                           (wat.type/PersistentVector :- [:wat::rete::Rule] (:mac::r))
+                           (wat.type/PersistentVector :- [:wat::rete::Query] (:mac::by-ok)))
         [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
         [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
           (:wat::kernel::assertion-failed! :message "compile: may not terminate")])

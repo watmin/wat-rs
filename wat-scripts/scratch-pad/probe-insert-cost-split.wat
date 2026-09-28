@@ -97,7 +97,7 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:ins::Reading])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:ins::Reading])
       (:wat::vector::conj acc (:ins::Reading :g 0 :v i)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [:ins::Reading])
     (:wat::core::range 0 n)))
 
 ;; ── arm 3 — floor + the native prime `insert'` ───────────────────────────────

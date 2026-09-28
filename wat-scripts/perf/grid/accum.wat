@@ -140,7 +140,7 @@
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :acc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; seed-readings session g W — stage Reading(g, val(g,j)) for j in [0, W), threading the session.
 ;; reading-facts acc g W — group g's W Readings, appended to a FACT VECTOR. No longer threads a
@@ -162,7 +162,7 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  g <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [wat.type/Record])
       (:acc::reading-facts (:wat::vector::conj acc (:acc::Group g)) g W))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/Record])
     (:wat::core::range 0 G)))
 
 ;; seed session G W — stage Group(g) + its W Readings for every g in [0, G).
@@ -203,7 +203,7 @@
                     groups  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [groups readings]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [groups readings]")
                     rules   (:wat::rete::collect-rules :acc)
-                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acc::q-CountF) (:acc::q-SumF) (:acc::q-MinF) (:acc::q-MaxF) (:acc::q-ExistsF))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:acc::q-CountF) (:acc::q-SumF) (:acc::q-MinF) (:acc::q-MaxF) (:acc::q-ExistsF))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     facts   (:acc::all-facts groups reads)
                     ;; protocol: insert + fire + query. Compile and fact-construct are setup.
                     p0      (:wat::time::now)
@@ -223,4 +223,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "accum" :size (:wat::core::PersistentVector groups reads) :derived derived :native-ns fir-ns :oracle-derived (:acc::derived-vector ofired) :oracle-ns (:acc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))
+      (:grid::Result :axis "accum" :size (wat.type/PersistentVector :- [wat.type/i64] groups reads) :derived derived :native-ns fir-ns :oracle-derived (:acc::derived-vector ofired) :oracle-ns (:acc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

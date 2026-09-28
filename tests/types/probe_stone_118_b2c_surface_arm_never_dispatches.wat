@@ -31,7 +31,7 @@
   (:my::count-via-clause (:wat::core::List 1 2 3)))
 
 (:wat::core::defn :my::clause-persistentvector [] -> wat.type/i64
-  (:my::count-via-clause (:wat::core::PersistentVector 1 2 3)))
+  (:my::count-via-clause (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))
 
 (:wat::core::defn :my::clause-stream [] -> wat.type/i64
   (:my::count-via-clause
@@ -48,7 +48,7 @@
   (:my::count-via-defn (:wat::core::List 1 2 3)))
 
 (:wat::core::defn :my::defn-persistentvector [] -> wat.type/i64
-  (:my::count-via-defn (:wat::core::PersistentVector 1 2 3)))
+  (:my::count-via-defn (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))
 
 (:wat::core::defn :my::defn-stream [] -> wat.type/i64
   (:my::count-via-defn

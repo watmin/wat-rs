@@ -145,7 +145,7 @@
       [:wat::kernel::RecvOutcome.Message {:msg resp}
         (:wat::core::match resp
           [:probe::CallCtx3::WhoamiResponse.Ok {:caller-id caller-id :namespace _namespace :operation operation}
-            (:wat::core::Tuple caller-id operation)]
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String] caller-id operation)]
           [:probe::CallCtx3::WhoamiResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
           [:probe::CallCtx3::WhoamiResponse.RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
       [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -198,7 +198,7 @@
   (:wat::core::match (:probe::CallCtx3/peek-mark c (:probe::CallCtx3::PeekMarkRequest))
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
-        [:probe::CallCtx3::PeekMarkResponse.Ok {:seen-op seen-op :seen-ns seen-ns} (:wat::core::Tuple seen-op seen-ns)]
+        [:probe::CallCtx3::PeekMarkResponse.Ok {:seen-op seen-op :seen-ns seen-ns} (wat.type/Tuple :- [wat.type/String wat.type/keyword] seen-op seen-ns)]
         [:probe::CallCtx3::PeekMarkResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
         [:probe::CallCtx3::PeekMarkResponse.RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
     [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -231,7 +231,7 @@
      seen (:probe::peek-until c 40)
      seen-op (:wat::core::first seen)
      seen-ns (:wat::core::second seen)]
-    (:wat::core::Tuple (:wat::core::= seen-op "-mark") (:wat::core::= seen-ns :probe::callctx3svc))))
+    (wat.type/Tuple :- [wat.type/bool wat.type/bool] (:wat::core::= seen-op "-mark") (:wat::core::= seen-ns :probe::callctx3svc))))
 
 ;; ── (4) ★ THE STABILITY GATE ───────────────────────────────────────────────────────────────
 ;; Connect c1, c2, c3 IN ORDER (each `connect'` is a blocking handshake, so the server has
@@ -260,7 +260,7 @@
      _  (:probe::whoami-id c2)
      c3 (:probe::connect! h)
      id-before (:probe::whoami-id c3)]
-    (:wat::core::Tuple id-before c1 c3)))
+    (wat.type/Tuple :- [wat.type/i64 :probe::CallCtx3 :probe::CallCtx3] id-before c1 c3)))
 
 ;; Returns Tuple(id-before, id-after) — the harness asserts they are EQUAL (and, as a second,
 ;; independent proof, that id-after is the ANALYTICALLY correct value 2 — the third id ever
@@ -280,4 +280,4 @@
      ;; works after the middle eviction (not asserted on by the harness; a raise here would fail
      ;; the test regardless, same as every other `assertion-failed!` transport guard in this file).
      _         (:probe::whoami-id c1)]
-    (:wat::core::Tuple id-before id-after)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/i64] id-before id-after)))

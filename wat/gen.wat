@@ -346,7 +346,7 @@
                   :rem (:wat::gen::shift (:wat::gen::GenAcc/rem acc) b)
                   :out (:wat::vector::conj (:wat::gen::GenAcc/out acc)
                          (:wat::gen::digit (:wat::gen::GenAcc/rem acc) b))))
-              (:wat::gen::GenAcc :rem i :out (:wat::core::PersistentVector))
+              (:wat::gen::GenAcc :rem i :out (wat.type/PersistentVector :- [wat.type/i64]))
               bases)))))
 
 ;; ── the driver ───────────────────────────────────────────────────────────────
@@ -502,7 +502,7 @@
 (:wat::core::defn :wat::gen::such-that :- [T]
   [pred <- [T :-> wat.type/bool]  g <- (:wat::gen::Gen :- [T])] -> (:wat::gen::Gen :- [T])
   (:wat::core::let [at   (:wat::gen::Gen/at g)
-                    keep (:wat::core::into (:wat::core::PersistentVector)
+                    keep (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
                            (:wat::core::filter
                              (:wat::core::fn [i <- wat.type/i64] -> wat.type/bool (pred (at i)))
                              (:wat::core::range 0 (:wat::gen::Gen/card g))))]
@@ -537,7 +537,7 @@
   ;; speeds up every `one-of` caller besides.
   (:wat::core::let
     [n     (:wat::core::length gs)
-     cards (:wat::core::into (:wat::core::PersistentVector)
+     cards (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
              (:wat::core::mapv
                (:wat::core::fn [g <- (:wat::gen::Gen :- [T])] -> wat.type/i64
                  (:wat::gen::Gen/card g))
@@ -742,7 +742,7 @@
     (:wat::gen::fmap
       (:wat::core::fn [c <- :wat::gen::Coord] -> R
         (f (fa (:wat::gen::nth c 0)) (fb (:wat::gen::nth c 1))))
-      (:wat::gen::coords (:wat::core::PersistentVector
+      (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64]
                            (:wat::gen::Gen/card ga)
                            (:wat::gen::Gen/card gb))))))
 
@@ -758,7 +758,7 @@
         (f (fa (:wat::gen::nth c 0))
            (fb (:wat::gen::nth c 1))
            (fc (:wat::gen::nth c 2))))
-      (:wat::gen::coords (:wat::core::PersistentVector
+      (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64]
                            (:wat::gen::Gen/card ga)
                            (:wat::gen::Gen/card gb)
                            (:wat::gen::Gen/card gc))))))
@@ -855,7 +855,7 @@
                     -> :wat::gen::Coord
       (:wat::vector::conj acc
         (:wat::core::if (:wat::core::= i j) v (:wat::gen::nth c i))))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/i64])
     (:wat::core::range 0 (:wat::core::length c))))
 
 ;; Lower ONE dimension as far as it will go while still failing.
@@ -971,7 +971,7 @@
   (:wat::core::let
     [c     (:wat::gen::Gen/card g)
      at    (:wat::gen::Gen/at g)
-     bases (:wat::core::into (:wat::core::PersistentVector)
+     bases (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
              (:wat::core::mapv
                (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64 c)
                (:wat::core::range 0 n)))
@@ -980,7 +980,7 @@
     (:wat::gen::gen
       (:wat::gen::Gen/card coords)
       (:wat::core::fn [k <- wat.type/i64] -> (wat.type/PersistentVector :- [T])
-            (:wat::core::into (:wat::core::PersistentVector)
+            (:wat::core::into (wat.type/PersistentVector :- [:T])
               (:wat::core::mapv at (cat k)))))))
 
 (:wat::core::defn :wat::gen::vector-upto :- [T]

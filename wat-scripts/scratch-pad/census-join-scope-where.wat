@@ -152,7 +152,7 @@
         ((:wat::core::= tag "where")
           (:wat::core::concat
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/AST wat.type/AST])]
-              (:wat::core::Tuple it (:wat::core::nth (:wat::core::ast->children it) 1)))
+              (wat.type/Tuple :- [wat.type/AST wat.type/AST] it (:wat::core::nth (:wat::core::ast->children it) 1)))
             (:user::collect-where-sites tl)))
         ((:wat::core::= tag "and")
           (:wat::core::concat

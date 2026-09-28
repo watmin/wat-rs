@@ -62,7 +62,7 @@
 ;; ~proportional to the facts the engine actually processes, so a "redo" shows up as time tracking N
 ;; instead of being buried under join work. Hit(k) :- Req(?k) AND k mod 10 == 3.
 (:wat::core::defn :ovl::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::core::let [conds   (:wat::core::quasiquote (:ovl::Req (?k :- :k)))
                       where-c (:wat::core::quasiquote
                                 (:wat::rete::where
@@ -71,8 +71,8 @@
                                       (:wat::i64::* (:wat::i64::/ ?k 10) 10)))))
                       ins     (:wat::core::quasiquote (:ovl::Hit ?k))]
       (:wat::rete::Rule :name "mod10"
-        :lhs (:wat::core::PersistentVector conds where-c)
-        :rhs (:wat::core::PersistentVector ins)))))
+        :lhs (wat.type/PersistentVector :- [wat.type/AST] conds where-c)
+        :rhs (wat.type/PersistentVector :- [wat.type/AST] ins)))))
 
 ;; stage session lo hi — insert Req(i) for i in [lo, hi) in ONE rebuild.
 (:wat::core::defn :ovl::stage
@@ -84,7 +84,7 @@
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj acc (:ovl::Req :k i)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range lo hi))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :ovl::derived-count [fired <- :wat::rete::Session] -> wat.type/i64
@@ -105,7 +105,7 @@
 ;; rung n — the three timings at one base size, plus the non-vacuity assertion.
 (:wat::core::defn :ovl::rung [n <- wat.type/i64] -> wat.type/String
   (:wat::core::let
-    [staged    (:ovl::stage (:wat::core::match (:wat::rete::compile-all (:ovl::rules) (:wat::core::PersistentVector (:ovl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) 0 n)
+    [staged    (:ovl::stage (:wat::core::match (:wat::rete::compile-all (:ovl::rules) (wat.type/PersistentVector :- [:wat::rete::Query] (:ovl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) 0 n)
 
      ;; (1) COLD — fire an unfired base of n facts. The yardstick.
      c0        (:wat::time::now)
@@ -154,4 +154,4 @@
       (:wat::kernel::println (:ovl::rung n)))
     nil
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::PersistentVector 1000 2000 4000 8000))))
+      (wat.type/PersistentVector :- [wat.type/i64] 1000 2000 4000 8000))))

@@ -13,8 +13,8 @@
   [w <- (:wat::kernel::Process :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (wat.type/Tuple :- [wat.type/i64 wat.type/i64])])]
   -> wat.type/nil
   (:wat::core::let
-    [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
-     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 1 5)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
+    [_ (:wat::core::match (:wat::kernel::send w (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 0 3)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 5)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      ra (:wat::kernel::recv w)
      a  (:wat::core::match ra
           [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -43,7 +43,7 @@
     [work-fn (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::* n 2))
      ;; wf — the index-wrapping closure that CAPTURES work-fn (the exact bracket shape)
      wf (:wat::core::fn [pair <- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])] -> (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
-          (:wat::core::Tuple (:wat::core::first pair)
+          (wat.type/Tuple :- [wat.type/i64 wat.type/i64] (:wat::core::first pair)
                              (work-fn (:wat::core::second pair))))
      w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat

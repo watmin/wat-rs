@@ -28,7 +28,7 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
-    (:wat::core::PersistentMap
+    (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool]
       ;; ACCEPT — same user enum, both operands. The row's whole job.
       :same-variant      (:wat::rete::core::enum::= :eq::Method.POST :eq::Method.POST)
       ;; NON-VACUITY: a row hard-wired to `true` passes the line above and fails this one.

@@ -41,7 +41,7 @@
 
 ;; ── the shared domain: real words, not single chars ──────────────────────────
 (:wat::core::defn :wat-tests::pat::words [] -> (wat.type/PersistentVector :- [wat.type/String])
-  (:wat::core::PersistentVector "alpha" "beta" "gamma"))
+  (wat.type/PersistentVector :- [wat.type/String] "alpha" "beta" "gamma"))
 
 (:wat::core::defn :wat-tests::pat::join-dots
   [v <- (wat.type/PersistentVector :- [wat.type/String])] -> wat.type/String
@@ -176,7 +176,7 @@
       (:wat::core::match c
         [:wat-tests::pat::Cmd.Put {:k k :v v} (:wat::map::assoc m k v)]
         [:wat-tests::pat::Cmd.Del {:k k}   (:wat::map::dissoc m k)]))
-    (:wat::core::PersistentMap)
+    (wat.type/PersistentMap :- [wat.type/i64 wat.type/i64])
     cmds))
 
 ;; THE MODEL — last command touching `k` wins. No map involved.
@@ -258,7 +258,7 @@
 (:wat::test::deftest :wat-tests::pat::p4-algebraic
   (:wat-tests::pat::held
     (:wat::gen::check
-      (:wat::gen::coords (:wat::core::PersistentVector 5 5))
+      (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 5 5))
       :wat-tests::pat::law-set-algebra) 25))
 
 
@@ -287,7 +287,7 @@
   (:wat::core::let
     [len (:wat::gen::nth c 0)
      idx (:wat::gen::nth c 1)
-     v   (:wat::core::into (:wat::core::PersistentVector)
+     v   (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
            (:wat::core::mapv
              (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64
                (:wat::i64::* i 10))
@@ -299,7 +299,7 @@
 ;; the dependent space, as a coordinate: length 1..4, then a valid index for THAT length
 (:wat::core::defn :wat-tests::pat::pair [len <- wat.type/i64  idx <- wat.type/i64]
   -> :wat::gen::Coord
-  (:wat::core::PersistentVector len idx))
+  (wat.type/PersistentVector :- [wat.type/i64] len idx))
 
 (:wat::core::defn :wat-tests::pat::gen-valid-index [] -> (:wat::gen::Gen :- [:wat::gen::Coord])
   (:wat::gen::bind (:wat::gen::ints 1 5)
@@ -336,14 +336,14 @@
    id       <- wat.type/String])
 
 (:wat::core::defn :wat-tests::pat::render [r <- :wat-tests::pat::Req] -> wat.type/String
-  (:wat::string::join "/" (:wat::core::PersistentVector
+  (:wat::string::join "/" (wat.type/PersistentVector :- [wat.type/String]
     (:wat-tests::pat::Req/method r) (:wat-tests::pat::Req/resource r) (:wat-tests::pat::Req/id r))))
 
 (:wat::core::defn :wat-tests::pat::gen-req [] -> (:wat::gen::Gen :- [:wat-tests::pat::Req])
   (:wat::gen::record :wat-tests::pat::Req
-    (:wat::gen::elements (:wat::core::PersistentVector "GET" "POST" "DELETE"))
-    (:wat::gen::elements (:wat::core::PersistentVector "users" "orders" "carts"))
-    (:wat::gen::elements (:wat::core::PersistentVector "1" "42" "999"))))
+    (:wat::gen::elements (wat.type/PersistentVector :- [wat.type/String] "GET" "POST" "DELETE"))
+    (:wat::gen::elements (wat.type/PersistentVector :- [wat.type/String] "users" "orders" "carts"))
+    (:wat::gen::elements (wat.type/PersistentVector :- [wat.type/String] "1" "42" "999"))))
 
 ;; the property is about the DOMAIN, and it uses two real substrate verbs
 (:wat::core::defn :wat-tests::pat::law-domain [r <- :wat-tests::pat::Req] -> wat.type/bool
@@ -397,7 +397,7 @@
   (:wat-tests::pat::held
     (:wat-tests::pat::check-parts
       (:wat::gen::vector-of
-        (:wat::gen::elements (:wat::core::PersistentVector "api" "v1" "v2")) 2)) 9))
+        (:wat::gen::elements (wat.type/PersistentVector :- [wat.type/String] "api" "v1" "v2")) 2)) 9))
 
 
 ;; ── the shared assertion ─────────────────────────────────────────────────────

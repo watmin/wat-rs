@@ -13,7 +13,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
-     session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector))
+     session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query]))
                [:wat::rete::CompileOutcome.Compiled {:session s} s]
                [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile")])
      session (:wat::core::match (:wat::rete::insert session (:probe::In :v 1))

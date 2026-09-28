@@ -65,7 +65,7 @@
       (:wat::core::match (:wat::rete::fire-rules
         (:wat::core::match (:wat::rete::insert
           (:wat::core::match (:wat::rete::compile-all rules
-            (:wat::core::PersistentVector
+            (wat.type/PersistentVector :- [:wat::rete::Query]
               (:wndq::q-not-S2) (:wndq::q-not-S3) (:wndq::q-Hit) (:wndq::q-S2))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
           (:wndq::S1 :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
       q)))
@@ -74,10 +74,10 @@
 ;; agreement by breaking the ABSENT case fails visibly in the same output.
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [none  (:wat::core::PersistentVector)
-     d1    (:wat::core::PersistentVector (:wndq::r1))
-     d2    (:wat::core::PersistentVector (:wndq::r1) (:wndq::r2))
-     ruled (:wat::core::PersistentVector (:wndq::r1) (:wndq::r-not-S2))]
+    [none  (wat.type/PersistentVector :- [:wat::rete::Rule])
+     d1    (wat.type/PersistentVector :- [:wat::rete::Rule] (:wndq::r1))
+     d2    (wat.type/PersistentVector :- [:wat::rete::Rule] (:wndq::r1) (:wndq::r2))
+     ruled (wat.type/PersistentVector :- [:wat::rete::Rule] (:wndq::r1) (:wndq::r-not-S2))]
     (:wndq::line 1 "query-no-chain" (:wndq::run none  (:wndq::q-not-S2)))
     (:wndq::line 2 "query-chain-d1" (:wndq::run d1    (:wndq::q-not-S2)))
     (:wndq::line 3 "query-chain-d2" (:wndq::run d2    (:wndq::q-not-S3)))

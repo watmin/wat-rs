@@ -84,8 +84,8 @@
                                 (:wat::rete::where (:wat::rete::i64::>= ?n (:wat::core::unquote threshold))))
                     ins       (:wat::core::quasiquote (:mf::Busy ?loc ?n))]
     (:wat::rete::Rule :name "min-finding"
-      :lhs (:wat::core::PersistentVector station-c acc-c where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] station-c acc-c where-c)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
 ;; i64-mod a b — non-negative modulo via truncating division (no native i64::mod/rem; only
 ;; + - * / exist — same idiom strat-neg.wat uses for its even test `(* (/ ?k 2) 2)`). a >= 0 and
@@ -122,14 +122,14 @@
             (:wat::vector::conj acc (:mf::Station i))
             i
             (:mf::i64-mod i span)))
-        (:wat::core::PersistentVector)
+        (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::range 0 stations))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :mf::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every activated Busy fact, canonically encoded (loc*1M + n) and sorted
 ;; ascending. THIS is the accuracy witness: the full activated set, not a count — a mismatch
@@ -151,8 +151,8 @@
   (:wat::core::let [params    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     stations  (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [stations threshold]")
                     threshold (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [stations threshold]")
-                    rules     (:wat::core::PersistentVector (:mf::build-rule threshold))
-                    staged    (:mf::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:mf::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) stations threshold)
+                    rules     (wat.type/PersistentVector :- [:wat::rete::Rule] (:mf::build-rule threshold))
+                    staged    (:mf::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:mf::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) stations threshold)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0        (:wat::time::now)
                     fired     (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -165,4 +165,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "min-finding" :size (:wat::core::PersistentVector stations threshold) :derived derived :native-ns nat-ns :oracle-derived (:mf::derived-vector ofired) :oracle-ns (:mf::ns-between o0 o1)))))
+      (:grid::Result :axis "min-finding" :size (wat.type/PersistentVector :- [wat.type/i64] stations threshold) :derived derived :native-ns nat-ns :oracle-derived (:mf::derived-vector ofired) :oracle-ns (:mf::ns-between o0 o1)))))

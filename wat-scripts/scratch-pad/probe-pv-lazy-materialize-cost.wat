@@ -86,13 +86,13 @@
                                               i   <- wat.type/i64]
                                -> (wat.type/PersistentVector :- [wat.type/i64])
                                (:wat::vector::conj acc i))
-                             (:wat::core::PersistentVector)
+                             (wat.type/PersistentVector :- [wat.type/i64])
                              (:wat::core::range 0 n))
                     b1     (:wat::time::now)
 
                     ;; THE SUSPECT — lazy filter materialised into a PersistentVector.
                     p0     (:wat::time::now)
-                    ipv    (:wat::core::into (:wat::core::PersistentVector)
+                    ipv    (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
                              (:wat::core::filter :cx::keep? pv))
                     p1     (:wat::time::now)
 
@@ -111,7 +111,7 @@
                                (:wat::core::if (:cx::keep? x)
                                  (:wat::vector::conj acc x)
                                  acc))
-                             (:wat::core::PersistentVector)
+                             (wat.type/PersistentVector :- [wat.type/i64])
                              pv)
                     f1     (:wat::time::now)
 

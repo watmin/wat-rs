@@ -83,8 +83,8 @@
     `(:wat::core::do
        (:wat::core::defn :usr::rules-template [] -> :wat::rete::Session
          (:wat::core::match (:wat::rete::compile-all
-           (:wat::core::PersistentVector ~@rule-lits)
-           (:wat::core::PersistentVector ~@query-lits)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+           (wat.type/PersistentVector :- [:wat::rete::Rule] ~@rule-lits)
+           (wat.type/PersistentVector :- [:wat::rete::Query] ~@query-lits)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
        (:wat::core::defn :usr::deduce-one
          [template <- :wat::rete::Session  seed <- :usr::Temp]
          -> (wat.type/PersistentVector :- [wat.type/Value])

@@ -15,8 +15,8 @@
 (:wat::core::defn :test::compile-temp-rule [] -> :wat::rete::Session
   (:wat::core::let
     [cond  (:wat::core::quote (:user::Temp (?t :- :value) (:wat::rete::i64::> ?t 20)))
-     rule  (:wat::rete::Rule :name "r" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))]
-    (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
+     rule  (:wat::rete::Rule :name "r" :lhs (wat.type/PersistentVector :- [wat.type/AST] cond) :rhs (wat.type/PersistentVector :- [wat.type/AST]))]
+    (:wat::core::match (:wat::rete::compile (wat.type/PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
 
 (:wat::core::defn :test::seed-temps [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert

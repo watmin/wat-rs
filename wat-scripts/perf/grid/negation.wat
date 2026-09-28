@@ -52,12 +52,12 @@
 ;; build-rules — the single-rule set: Ok(k) :- Item(k) AND NOT Bad(k).
 ;; Two LHS conditions: bind ?k off Item, then negate Bad on the same ?k. One RHS insert.
 (:wat::core::defn :neg::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::rete::Rule :name "ok"
-      :lhs (:wat::core::PersistentVector
+      :lhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:neg::Item (?k :- :k)))
         (:wat::core::quasiquote (:wat::rete::not (:neg::Bad (?k :- :k)))))
-      :rhs (:wat::core::PersistentVector
+      :rhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:neg::Ok ?k))))))
 
 ;; seed session items — stage Item(i) for every i in [0, items), plus Bad(i) for every EVEN i,
@@ -75,14 +75,14 @@
           (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
             (:wat::vector::conj a2 (:neg::Bad i))
             a2)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :neg::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived Ok fact's key, sorted ascending. This IS the accuracy
 ;; witness: a missing/extra Ok anywhere shows up in the byte-for-byte compare.
@@ -101,7 +101,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:neg::build-rules)
-                    staged  (:neg::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:neg::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    staged  (:neg::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:neg::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -114,4 +114,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "negation" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:neg::derived-vector ofired) :oracle-ns (:neg::ns-between o0 o1)))))
+      (:grid::Result :axis "negation" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:neg::derived-vector ofired) :oracle-ns (:neg::ns-between o0 o1)))))

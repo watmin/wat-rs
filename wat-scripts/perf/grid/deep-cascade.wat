@@ -67,15 +67,15 @@
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
-      :lhs (:wat::core::PersistentVector c1 c2)
-      :rhs (:wat::core::PersistentVector t1 t2))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] t1 t2))))
 
 ;; build-rules depth — the rule set [rule1 .. rule depth], folding build-rule over (range 1 depth+1).
 (:wat::core::defn :dc::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:dc::build-rule k)))
-    (:wat::core::PersistentVector (:dc::build-rule 1))
+    (wat.type/PersistentVector :- [:wat::rete::Rule] (:dc::build-rule 1))
     (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
 ;; seed-level-0 session width — stage Node(0,i)+Tag(0,i) for i in [0, width), threading the session.
@@ -87,7 +87,7 @@
       (:wat::vector::conj
         (:wat::vector::conj acc (:cascade::Node :level 0 :id i))
         (:cascade::Tag :level 0 :id i)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/Record])
     (:wat::core::range 0 width)))
 
 (:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- wat.type/i64] -> :wat::rete::Session
@@ -104,7 +104,7 @@
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :dc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; codes fired — every DERIVED Node/Tag fact (level > 0), canonically encoded, into one (Vector :- [i64]).
 ;; Level-0 facts are the seeded input, excluded from the witness (mirrors accum/negation excluding
@@ -134,7 +134,7 @@
                     depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:dc::build-rules depth)
-                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:cascade::q-Node) (:cascade::q-Tag))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     facts   (:dc::level-0-facts width)
                     p0      (:wat::time::now)
                     staged  (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
@@ -153,4 +153,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "deep-cascade" :size (:wat::core::PersistentVector depth width) :derived derived :native-ns fir-ns :oracle-derived (:dc::derived-vector ofired) :oracle-ns (:dc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))
+      (:grid::Result :axis "deep-cascade" :size (wat.type/PersistentVector :- [wat.type/i64] depth width) :derived derived :native-ns fir-ns :oracle-derived (:dc::derived-vector ofired) :oracle-ns (:dc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

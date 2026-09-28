@@ -89,8 +89,8 @@
                                     :undefined -1))))
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]
     (:wat::rete::Rule :name (:wat::i64::to-string i)
-      :lhs (:wat::core::PersistentVector a-c b-c where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
 ;; build-rules n — the N-rule set [r0 .. r(n-1)], folding build-rule over (range 0 n). Every rule
 ;; shares the leading [A]⋈[B] join-prefix; only the trailing literal differs (mirrors strat-neg's
@@ -100,7 +100,7 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:nsh::build-rule i n)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::range 0 n)))
 
 ;; seed session items — stage A(i) AND B(i) for i in [0, items), threading the staging session, so
@@ -114,14 +114,14 @@
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj (:wat::vector::conj acc (:nsh::A i)) (:nsh::B i)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :nsh::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived Out fact's key k, sorted ascending. THE (one-time) sanity
 ;; witness: the full derived set. Expected = [0 1 .. items-1], independent of rule-count N.
@@ -143,7 +143,7 @@
                     rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
                     items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
                     rules   (:nsh::build-rules rules-n)
-                    staged  (:nsh::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:nsh::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    staged  (:nsh::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:nsh::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -156,4 +156,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "node-share" :size (:wat::core::PersistentVector rules-n items) :derived derived :native-ns nat-ns :oracle-derived (:nsh::derived-vector ofired) :oracle-ns (:nsh::ns-between o0 o1)))))
+      (:grid::Result :axis "node-share" :size (wat.type/PersistentVector :- [wat.type/i64] rules-n items) :derived derived :native-ns nat-ns :oracle-derived (:nsh::derived-vector ofired) :oracle-ns (:nsh::ns-between o0 o1)))))

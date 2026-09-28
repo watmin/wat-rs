@@ -189,7 +189,7 @@
 (:wat::core::defn :user::sift-rules-arena-thread [] -> wat.type/i64
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
@@ -253,7 +253,7 @@
 (:wat::core::defn :user::sift-rules-arena-process [] -> wat.type/i64
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process::post-spawn
@@ -327,7 +327,7 @@
 (:wat::core::defn :user::sift-rules-arena-fatal-thread [] -> wat.type/bool
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
@@ -356,7 +356,7 @@
 (:wat::core::defn :user::sift-rules-arena-fatal-process [] -> wat.type/bool
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process::post-spawn

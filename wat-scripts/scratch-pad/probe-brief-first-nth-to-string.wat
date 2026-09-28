@@ -21,7 +21,7 @@
     ;; ── first, happy path, all three containers (fallback NOT taken) ────────────────
     (:wat::kernel::println
       (:wat::rete::core::PersistentVector/first
-        (:wat::core::PersistentVector 7 8 9) :undefined -1))             ;; expect 7
+        (wat.type/PersistentVector :- [wat.type/i64] 7 8 9) :undefined -1))             ;; expect 7
     (:wat::kernel::println
       (:wat::rete::core::Vector/first
         (wat.type/Vector :- [wat.type/i64] 7 8 9) :undefined -1))       ;; expect 7
@@ -32,7 +32,7 @@
     ;; ── first, fallback FIRES on empty, all three containers ────────────────────────
     (:wat::kernel::println
       (:wat::rete::core::PersistentVector/first
-        (:wat::core::PersistentVector) :undefined -1))                  ;; expect -1
+        (wat.type/PersistentVector :- [wat.type/i64]) :undefined -1))                  ;; expect -1
     (:wat::kernel::println
       (:wat::rete::core::Vector/first
         (wat.type/Vector :- [wat.type/i64]) :undefined -1))            ;; expect -1
@@ -46,8 +46,8 @@
     ;; caller's actual fallback VALUE is what comes back, not a hardcoded stand-in.
     (:wat::kernel::println
       (:wat::rete::core::PersistentVector/first
-        (:wat::core::PersistentVector) :undefined 0))                   ;; expect 0
+        (wat.type/PersistentVector :- [wat.type/i64]) :undefined 0))                   ;; expect 0
     (:wat::kernel::println
       (:wat::rete::core::PersistentVector/first
-        (:wat::core::PersistentVector) :undefined 99))                  ;; expect 99
+        (wat.type/PersistentVector :- [wat.type/i64]) :undefined 99))                  ;; expect 99
     nil))

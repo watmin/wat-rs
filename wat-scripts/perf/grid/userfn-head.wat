@@ -76,10 +76,10 @@
 
 
 (:wat::core::defn :ufh::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector (:ufh::bad) (:ufh::via) (:ufh::out)))
+  (wat.type/PersistentVector :- [:wat::rete::Rule] (:ufh::bad) (:ufh::via) (:ufh::out)))
 
 (:wat::core::defn :ufh::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::PersistentVector))
+  (wat.type/PersistentVector :- [wat.type/Record]))
 
 (:wat::core::defn :ufh::seed-facts [items <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::foldl
@@ -107,7 +107,7 @@
   (:wat::i64::+ (:wat::i64::* kind 1000000000000000) id))
 
 (:wat::core::defn :ufh::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector — sorted, NOT deduped. Every Rate AND every Out.
 ;; Pre-cure oracle is Rate-only (Out dropped). Post-cure both. Empty is a third failure.
@@ -134,7 +134,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:ufh::build-rules)
-                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:ufh::q-Rate) (:ufh::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:ufh::q-Rate) (:ufh::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     ;; Variable MUST be named `staged` so GRID_SKIP_ORACLE / axes_live rewrite
                     ;; `fire-rules$oracle staged` and not a first-fire leftover.
                     staged  (:ufh::seed session items)
@@ -147,4 +147,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "userfn-head" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:ufh::derived-vector ofired) :oracle-ns (:ufh::ns-between o0 o1)))))
+      (:grid::Result :axis "userfn-head" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:ufh::derived-vector ofired) :oracle-ns (:ufh::ns-between o0 o1)))))

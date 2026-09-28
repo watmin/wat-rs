@@ -29,7 +29,7 @@
 (:wat::core::defn :oas0::readback [s <- :wat::rete::Session]
   -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rows (:wat::rete::query s (:oas0::q))]
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/i64]
       (:wat::core::length rows)
       (:wat::core::foldl
         (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
@@ -42,7 +42,7 @@
 (:wat::core::defn :oas0::staged [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :oas0)
-          (:wat::core::PersistentVector (:oas0::q)))
+          (wat.type/PersistentVector :- [:wat::rete::Query] (:oas0::q)))
         [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
         [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
           (:wat::kernel::assertion-failed! :message "oas0: the rule set may not terminate")])
@@ -70,7 +70,7 @@
 (:wat::core::defn :oas1::readback [s <- :wat::rete::Session]
   -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rows (:wat::rete::query s (:oas1::q))]
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/i64]
       (:wat::core::length rows)
       (:wat::core::foldl
         (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
@@ -83,7 +83,7 @@
 (:wat::core::defn :oas1::staged [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :oas1)
-          (:wat::core::PersistentVector (:oas1::q)))
+          (wat.type/PersistentVector :- [:wat::rete::Query] (:oas1::q)))
         [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
         [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
           (:wat::kernel::assertion-failed! :message "oas1: the rule set may not terminate")])
@@ -121,7 +121,7 @@
 (:wat::core::defn :oas2::readback [s <- :wat::rete::Session]
   -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rows (:wat::rete::query s (:oas2::q))]
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/i64]
       (:wat::core::length rows)
       (:wat::core::foldl
         (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
@@ -134,7 +134,7 @@
 (:wat::core::defn :oas2::staged [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :oas2)
-          (:wat::core::PersistentVector (:oas2::q)))
+          (wat.type/PersistentVector :- [:wat::rete::Query] (:oas2::q)))
         [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
         [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
           (:wat::kernel::assertion-failed! :message "oas2: the rule set may not terminate")])

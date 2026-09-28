@@ -54,9 +54,9 @@
   (:wat::core::let
     [xs
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])]
-        (:wat::core::Tuple 30 "alice")
-        (:wat::core::Tuple 25 "carol")
-        (:wat::core::Tuple 28 "bob"))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String] 30 "alice")
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String] 25 "carol")
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String] 28 "bob"))
      sorted
       (:wat::core::sort
         (:wat::core::fn [a <- (wat.type/Tuple :- [wat.type/i64 wat.type/String]) b <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> wat.type/bool

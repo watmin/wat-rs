@@ -8,10 +8,10 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     ;; ── PersistentVector, 6 verbs: concat, conj, contains?, empty?, get, length ──────────
-    [pv0     (:wat::core::PersistentVector 1 2 3)
+    [pv0     (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)
      pv-e    (:wat::core::PersistentVector)
      pv1     (:wat::vector::conj pv0 4)
-     pv2     (:wat::vector::concat pv0 (:wat::core::PersistentVector 4 5))]
+     pv2     (:wat::vector::concat pv0 (wat.type/PersistentVector :- [wat.type/i64] 4 5))]
     (:wat::core::do
       (:user::check "vector::length"    (:wat::core::= (:wat::vector::length pv0) 3))
       (:user::check "vector::empty?/t"  (:wat::vector::empty? pv-e))

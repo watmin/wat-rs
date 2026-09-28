@@ -64,17 +64,17 @@
      row9-f64-div (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0)]
 
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::PersistentMap :row2-similar-above-0.9 row2-similar-above-0.9))
-      (:wat::kernel::println (:wat::core::PersistentMap :row5-happy-scalar row5-happy-scalar))
-      (:wat::kernel::println (:wat::core::PersistentMap :row3-degenerate-fallback row3-degenerate-fallback))
-      (:wat::kernel::println (:wat::core::PersistentMap :row4-run-a row4-run-a))
-      (:wat::kernel::println (:wat::core::PersistentMap :row4-run-b row4-run-b))
-      (:wat::kernel::println (:wat::core::PersistentMap :row6-dot-happy row6-dot-happy))
-      (:wat::kernel::println (:wat::core::PersistentMap :row6-dot-zero-honest row6-dot-zero-honest))
-      (:wat::kernel::println (:wat::core::PersistentMap :row7-presence row7-presence))
-      (:wat::kernel::println (:wat::core::PersistentMap :row7-coincident row7-coincident))
-      (:wat::kernel::println (:wat::core::PersistentMap :row9-i64-div row9-i64-div))
-      (:wat::kernel::println (:wat::core::PersistentMap :row9-f64-div row9-f64-div)))))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row2-similar-above-0.9 row2-similar-above-0.9))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row5-happy-scalar row5-happy-scalar))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row3-degenerate-fallback row3-degenerate-fallback))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row4-run-a row4-run-a))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row4-run-b row4-run-b))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-dot-happy row6-dot-happy))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-dot-zero-honest row6-dot-zero-honest))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row7-presence row7-presence))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row7-coincident row7-coincident))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :row9-i64-div row9-i64-div))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row9-f64-div row9-f64-div)))))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:probe::run))

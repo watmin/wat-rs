@@ -93,7 +93,7 @@
 
 
 (:wat::core::defn :wjo::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::core::cond
       ((:wat::core::= row 1) (:wjo::where-between))
       ((:wat::core::= row 2) (:wjo::join-then-where))
@@ -113,7 +113,7 @@
         (:wat::vector::conj
           (:wat::vector::conj acc (:wjo::Left :k i :n i))
           (:wjo::Right :k i :m i)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :wjo::derived-ints
@@ -142,7 +142,7 @@
 (:wat::core::defn :wjo::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let [rules   (:wjo::build-rules row)
                     rule    (:wat::core::first rules)
-                    staged  (:wjo::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wjo::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wjo::items))
+                    staged  (:wjo::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wjo::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wjo::items))
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     derived (:wjo::derived-ints fired)
                     n       (:wat::vec::length derived)]

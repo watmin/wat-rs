@@ -21,7 +21,7 @@
 (:wat::rete::defquery :cap::q :params [] :when [(?fact :- :cap::Reach)])
 
 (:wat::core::defn :cap::edges [] -> (wat.type/PersistentVector :- [:cap::Edge])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:cap::Edge])
     (:wat::core::mapv
       (:wat::core::fn [i <- wat.type/i64] -> :cap::Edge
         (:cap::Edge :a i :b (:wat::i64::+ i 1)))
@@ -38,8 +38,8 @@
       (:wat::core::match (:wat::rete::insert
         (:wat::core::match (:wat::rete::insert-all
           (:wat::core::match (:wat::rete::compile-all
-            (:wat::core::PersistentVector (:cap::seed) (:cap::step))
-            (:wat::core::PersistentVector (:cap::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+            (wat.type/PersistentVector :- [:wat::rete::Rule] (:cap::seed) (:cap::step))
+            (wat.type/PersistentVector :- [:wat::rete::Query] (:cap::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
           (:cap::edges)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
         (:cap::Start :n 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     [:wat::rete::FireOutcome.Fired {:value fired}

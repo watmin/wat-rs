@@ -90,13 +90,13 @@
 (:wat::core::defn :user::substrate-arity []
   -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])]
-    (:wat::core::Tuple ":wat::core::Vector" 1)           ;; Vector<T>
-    (:wat::core::Tuple ":wat::core::HashSet" 1)          ;; HashSet<T>
-    (:wat::core::Tuple ":wat::core::PersistentVector" 1) ;; PersistentVector<T>
-    (:wat::core::Tuple ":wat::core::Option" 1)           ;; Option<T>
-    (:wat::core::Tuple ":wat::core::HashMap" 2)          ;; HashMap<K,V>
-    (:wat::core::Tuple ":wat::core::PersistentMap" 2)    ;; PersistentMap<K,V>
-    (:wat::core::Tuple ":wat::core::Result" 2)))         ;; Result<Ok,Err>
+    (wat.type/Tuple :- [wat.type/String wat.type/i64] ":wat::core::Vector" 1)           ;; Vector<T>
+    (wat.type/Tuple :- [wat.type/String wat.type/i64] ":wat::core::HashSet" 1)          ;; HashSet<T>
+    (wat.type/Tuple :- [wat.type/String wat.type/i64] ":wat::core::PersistentVector" 1) ;; PersistentVector<T>
+    (wat.type/Tuple :- [wat.type/String wat.type/i64] ":wat::core::Option" 1)           ;; Option<T>
+    (wat.type/Tuple :- [wat.type/String wat.type/i64] ":wat::core::HashMap" 2)          ;; HashMap<K,V>
+    (wat.type/Tuple :- [wat.type/String wat.type/i64] ":wat::core::PersistentMap" 2)    ;; PersistentMap<K,V>
+    (wat.type/Tuple :- [wat.type/String wat.type/i64] ":wat::core::Result" 2)))         ;; Result<Ok,Err>
 
 ;; substrate-head? — true for exactly the seven names above. Load-bearing distinction (found
 ;; live, `wat-tests/edn/roundtrip.wat`): a user-declared record/struct's POSITIONAL
@@ -164,7 +164,7 @@
                                           false)
                                         false)
                         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])]
-                          (:wat::core::Tuple (:wat::core::ast-name nm) (:wat::core::length (:wat::core::ast->children brk))))
+                          (wat.type/Tuple :- [wat.type/String wat.type/i64] (:wat::core::ast-name nm) (:wat::core::length (:wat::core::ast->children brk))))
                         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])))
                     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])))))
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])]))]
@@ -362,7 +362,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
-        (:wat::core::Tuple 0 0 0)
+        (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)
         (:wat::core::let [h (:wat::core::first ch)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
             (:wat::core::let [hn   (:wat::core::ast-name h)
@@ -371,15 +371,15 @@
                 ;; Tuple: excluded from the arity table BY DESIGN (param count == value
                 ;; count); a non-`:-` leading keyword is ambiguous, never guessed.
                 (:wat::core::if (:wat::core::empty? args)
-                  (:wat::core::Tuple 0 0 0)
+                  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)
                   (:wat::core::let [a0 (:wat::core::first args)]
                     (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind a0) "keyword")
                                       (:wat::core::= (:wat::core::ast-name a0) ":-")
                                       false)
-                      (:wat::core::Tuple 1 0 0)
+                      (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 1 0 0)
                       (:wat::core::if (:wat::core::= (:wat::core::ast-kind a0) "keyword")
-                        (:wat::core::Tuple 6 0 0)
-                        (:wat::core::Tuple 0 0 0)))))
+                        (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 6 0 0)
+                        (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)))))
                 (:wat::core::let [n (:user::arity-lookup table hn)]
                   (:wat::core::if (:wat::core::empty? args)
                     ;; zero args at all — no evidence of an ATTEMPTED type-spec (a mandatory-
@@ -387,12 +387,12 @@
                     ;; MalformedForm at the checker; a head that allows "no spec, infer from
                     ;; values" — PersistentVector/PersistentMap — has nothing to convert here
                     ;; either way). Not this stone's business; never guess an arity out of thin air.
-                    (:wat::core::Tuple 0 0 0)
+                    (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)
                     (:wat::core::let [a0 (:wat::core::first args)]
                       (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind a0) "keyword")
                                         (:wat::core::= (:wat::core::ast-name a0) ":-")
                                         false)
-                        (:wat::core::Tuple 1 0 0)
+                        (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 1 0 0)
                         (:wat::core::if (:wat::core::= (:wat::core::ast-kind a0) "vector")
                           (:wat::core::if (:wat::i64::< n 0)
                             ;; unknown head — the STRICT all-keyword bar only (never the
@@ -402,14 +402,14 @@
                             ;; the permissive check and false-flag :wat::core::let/quote/
                             ;; quasiquote/fn as unknown parametric heads).
                             (:wat::core::if (:user::bracket-all-keyword? a0)
-                              (:wat::core::Tuple 7 n (:wat::core::length (:wat::core::ast->children a0)))
-                              (:wat::core::Tuple 0 0 0))
+                              (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 n (:wat::core::length (:wat::core::ast->children a0)))
+                              (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0))
                             ;; known head — the permissive nested-type-shaped bar (real sites
                             ;; nest compound type refs), then compare length against the source.
                             (:wat::core::if (:user::bracket-type-shaped? a0 table)
                               (:wat::core::let [m (:wat::core::length (:wat::core::ast->children a0))]
-                                (:wat::core::if (:wat::core::= m n) (:wat::core::Tuple 4 n m) (:wat::core::Tuple 5 n m)))
-                              (:wat::core::Tuple 0 0 0)))
+                                (:wat::core::if (:wat::core::= m n) (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 4 n m) (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 5 n m)))
+                              (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)))
                           ;; bare keyword/compound form — but ONLY if arg[0] itself is
                           ;; TYPE-SHAPED (a keyword or a compound type-reference list). A
                           ;; head like PersistentVector/PersistentMap legitimately allows
@@ -437,19 +437,19 @@
                           ;; stone's business at all; anything else is presumed kwargs and left
                           ;; alone, matching the `got > n` reasoning just above.
                           (:wat::core::if (:wat::i64::< n 0)
-                            (:wat::core::Tuple 0 0 0)
+                            (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)
                             (:wat::core::let [got (:wat::core::length args)]
                               (:wat::core::if (:user::substrate-head? hn)
                                 (:wat::core::if (:wat::i64::< got n)
-                                  (:wat::core::Tuple 3 n got)
+                                  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 3 n got)
                                   (:wat::core::if (:user::all-type-shaped? (:user::take-n args n) table)
-                                    (:wat::core::Tuple 2 n got)
-                                    (:wat::core::Tuple 0 0 0)))
+                                    (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 2 n got)
+                                    (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)))
                                 (:wat::core::if (:wat::core::if (:wat::core::= got n) (:user::all-type-shaped? (:user::take-n args n) table) false)
-                                  (:wat::core::Tuple 2 n got)
-                                  (:wat::core::Tuple 0 0 0))))))))))))
-            (:wat::core::Tuple 0 0 0)))))
-    (:wat::core::Tuple 0 0 0)))
+                                  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 2 n got)
+                                  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0))))))))))))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)))))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 0 0 0)))
 
 ;; ── edit collection ───────────────────────────────────────────────────────────────────────
 ;; args-edits-split — walk the args of a `bare-ok` site with a live idx/n split: open-bracket
@@ -471,12 +471,12 @@
                       tl     (:wat::core::into [] (:wat::core::rest args))
                       open-e (:wat::core::if (:wat::core::= idx 0)
                                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                                 (:wat::core::Tuple (:user::start-off h lines) "" ":- ["))
+                                 (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off h lines) "" ":- ["))
                                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
                       h-e    (:user::collect-edits h table lines)
                       close-e (:wat::core::if (:wat::core::= idx (:wat::i64::- n 1))
                                 (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                                  (:wat::core::Tuple (:user::end-off h lines) "" "]"))
+                                  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off h lines) "" "]"))
                                 (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
                       rest-e (:user::args-edits-split tl (:wat::i64::+ idx 1) n table lines)]
       (:wat::core::concat open-e (:wat::core::concat h-e (:wat::core::concat close-e rest-e))))))
@@ -499,7 +499,7 @@
           (:wat::core::let [vec-node (:wat::core::nth ch 1)]
             (:wat::core::concat
               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                (:wat::core::Tuple (:user::start-off vec-node lines) "" ":- "))
+                (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off vec-node lines) "" ":- "))
               (:user::collect-edits-seq ch table lines)))
           (:user::collect-edits-seq ch table lines))))
     (:wat::core::if (:wat::fix::structural? node)
@@ -542,7 +542,7 @@
                                                   (:wat::core::= kind 7))))
                               (:wat::core::let [hn (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch)))]
                                 (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                                  (:wat::core::Tuple (:user::node-line node) hn
+                                  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::node-line node) hn
                                     (:user::classify-message kind hn (:wat::core::second cls) (:wat::core::third cls)))))
                               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
       (:wat::core::concat here (:user::collect-reports-seq ch table)))

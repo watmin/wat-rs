@@ -18,6 +18,6 @@
     (:wat::kernel::println (:wat::edn::write (:wat::core::range 0 5)))
     ;; A second receiver kind per gated verb, to exercise more than Vector alone.
     (:wat::kernel::println (:wat::edn::write (:wat::core::length (:wat::core::List 1 2 3))))
-    (:wat::kernel::println (:wat::edn::write (:wat::core::nth (:wat::core::PersistentVector 5 6 7) 1)))
+    (:wat::kernel::println (:wat::edn::write (:wat::core::nth (wat.type/PersistentVector :- [wat.type/i64] 5 6 7) 1)))
     (:wat::kernel::println (:wat::edn::write (:wat::core::rest (:wat::core::List 1 2 3))))
-    (:wat::kernel::println (:wat::edn::write (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))))
+    (:wat::kernel::println (:wat::edn::write (:wat::core::reverse (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))))

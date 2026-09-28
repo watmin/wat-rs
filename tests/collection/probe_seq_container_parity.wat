@@ -3,17 +3,17 @@
 ;; startup_beside type-checks all defns; tests eval individual functions.
 
 (:wat::core::defn :p::first-pv [] -> wat.type/i64
-  (:wat::core::first (:wat::core::PersistentVector 10 20 30)))
+  (:wat::core::first (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::second-pv [] -> wat.type/i64
-  (:wat::core::second (:wat::core::PersistentVector 10 20 30)))
+  (:wat::core::second (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::third-pv [] -> wat.type/i64
-  (:wat::core::third (:wat::core::PersistentVector 10 20 30)))
+  (:wat::core::third (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::rest-pv [] -> wat.type/i64
   (:wat::vector::length
-    (:wat::core::rest (:wat::core::PersistentVector 10 20 30))))
+    (:wat::core::rest (wat.type/PersistentVector :- [wat.type/i64] 10 20 30))))
 
 (:wat::core::defn :p::conj-list [] -> wat.type/i64
   (:wat::core::length

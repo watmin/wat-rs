@@ -9,5 +9,5 @@
   (:wat::core::let
     [n   200000
      s   (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x) (:wat::core::range 0 n))
-     out (:wat::core::into (:wat::core::PersistentVector) s)]
+     out (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) s)]
     (:wat::kernel::println (:wat::core::length out))))

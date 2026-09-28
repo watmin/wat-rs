@@ -41,4 +41,4 @@
     (:wat::string::join ","
       (wat.type/Vector :- [wat.type/i64]
         (:sq::count-of (wat.type/Vector :- [wat.type/i64] 10 20 30))
-        (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))))))
+        (:sq::count-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4))))))

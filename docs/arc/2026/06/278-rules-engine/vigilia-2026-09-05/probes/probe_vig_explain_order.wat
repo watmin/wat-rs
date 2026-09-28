@@ -59,7 +59,7 @@
 (:wat::core::defn :user::attribution [] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::mapv
     (:wat::core::fn [s <- wat.type/String] -> wat.type/String s)
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/String]
       (:vex::rule-of (:vex::nat) (:vex::Out :k 1))
       (:vex::rule-of (:vex::ora) (:vex::Out :k 1))
       (:vex::rule-of (:vex::nat) (:vex::Solo :k 1))

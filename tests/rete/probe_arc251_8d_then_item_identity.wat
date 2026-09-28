@@ -24,7 +24,7 @@
 (:wat::core::defn :user::kw-ctor [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
-      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t1) (:wat::core::PersistentVector (:t1::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t1) (wat.type/PersistentVector :- [:wat::rete::Query] (:t1::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
        session (:wat::core::match (:wat::rete::insert session (:t1::In 1)) [:wat::rete::InsertOutcome.Inserted {:session __a} __a] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
        fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __f} __f] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")])]
       (:wat::rete::query fired (:t1::q)))))
@@ -41,7 +41,7 @@
 (:wat::core::defn :user::sym-ctor [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
-      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t2) (:wat::core::PersistentVector (:t2::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t2) (wat.type/PersistentVector :- [:wat::rete::Query] (:t2::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
        session (:wat::core::match (:wat::rete::insert session (:t2::In 1)) [:wat::rete::InsertOutcome.Inserted {:session __a} __a] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
        fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __f} __f] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")])]
       (:wat::rete::query fired (:t2::q)))))
@@ -58,7 +58,7 @@
 (:wat::core::defn :user::sym-type-ctor [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
-      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t3) (:wat::core::PersistentVector (:t3::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t3) (wat.type/PersistentVector :- [:wat::rete::Query] (:t3::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
        session (:wat::core::match (:wat::rete::insert session (:t3::In 1)) [:wat::rete::InsertOutcome.Inserted {:session __a} __a] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
        fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __f} __f] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")])]
       (:wat::rete::query fired (:t3::q)))))
@@ -75,7 +75,7 @@
 (:wat::core::defn :user::sym-head-and-type [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
-      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t4) (:wat::core::PersistentVector (:t4::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t4) (wat.type/PersistentVector :- [:wat::rete::Query] (:t4::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
        session (:wat::core::match (:wat::rete::insert session (:t4::In 1)) [:wat::rete::InsertOutcome.Inserted {:session __a} __a] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
        fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __f} __f] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")])]
       (:wat::rete::query fired (:t4::q)))))
@@ -92,7 +92,7 @@
 (:wat::core::defn :user::kw-computation [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
-      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t5) (:wat::core::PersistentVector (:t5::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t5) (wat.type/PersistentVector :- [:wat::rete::Query] (:t5::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
        session (:wat::core::match (:wat::rete::insert session (:t5::In 1)) [:wat::rete::InsertOutcome.Inserted {:session __a} __a] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
        fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __f} __f] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")])]
       (:wat::rete::query fired (:t5::q)))))
@@ -109,7 +109,7 @@
 (:wat::core::defn :user::sym-computation [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
-      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t6) (:wat::core::PersistentVector (:t6::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      [session (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :t6) (wat.type/PersistentVector :- [:wat::rete::Query] (:t6::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
        session (:wat::core::match (:wat::rete::insert session (:t6::In 1)) [:wat::rete::InsertOutcome.Inserted {:session __a} __a] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
        fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __f} __f] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")])]
       (:wat::rete::query fired (:t6::q)))))

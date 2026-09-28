@@ -115,7 +115,7 @@
                                        -> (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                        (:wat::vector::conj a
                                          (:wat::rete::Token/bindings tok)))
-                                     (:wat::core::PersistentVector)
+                                     (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                      toks)]
             (:wat::map::assoc acc qname maps))
           acc)))
@@ -412,7 +412,7 @@
     (:wat::rete::FireStratAcc :facts acc-facts :derived acc-derived)
     (:wat::core::let [;; Arc 118.2a — `filter` flipped LAZY; `compile` needs `(PersistentVector :- [Rule])`
                       ;; eagerly, so materialize via `into` (was container-preserving from `rules`).
-                      stratum-rules (:wat::core::into (:wat::core::PersistentVector)
+                      stratum-rules (:wat::core::into (wat.type/PersistentVector :- [:wat::rete::Rule])
                                       (:wat::core::filter
                                         (:wat::core::fn [r <- :wat::rete::Rule] -> wat.type/bool
                                           (:wat::core::= (:wat::rete::rule-stratum r type-strata) current))
@@ -481,7 +481,7 @@
                                 (:wat::core::PersistentVector))
                     all-d     (:wat::rete::FireStratAcc/derived final-acc)
                     ;; pack derived facts into a production-memory structure the caller can query
-                    fprod-m   (:wat::map::assoc (:wat::core::PersistentMap) 0 all-d)
+                    fprod-m   (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/PersistentVector]) 0 all-d)
                     closed    (:wat::rete::FireStratAcc/facts final-acc)
                     q-seed    (:wat::rete::Session
                                 :network (:wat::rete::Session/network session)

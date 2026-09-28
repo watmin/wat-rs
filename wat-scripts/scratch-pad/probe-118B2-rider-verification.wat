@@ -16,7 +16,7 @@
         (:wat::core::into [] (:wat::core::interpose 0 (:wat::core::List 1 2 3)))))
     (:wat::kernel::println
       (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::interpose 0 (:wat::core::PersistentVector 1 2 3)))))
+        (:wat::core::into [] (:wat::core::interpose 0 (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
     ;; interpose over a single-element and an empty input (edge cases: no sep at all).
     (:wat::kernel::println
       (:wat::string::join "," (:wat::core::into [] (:wat::core::interpose 0 (wat.type/Vector :- [wat.type/i64] 1)))))
@@ -78,7 +78,7 @@
     (:wat::kernel::println
       (:wat::string::join ","
         (:wat::core::into []
-          (:wat::core::into (:wat::core::PersistentVector)
+          (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
             (:wat::core::keep (:wat::core::fn [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
                                  (:wat::core::Option.Some {:value x}))
               (wat.type/Vector :- [wat.type/i64] 7 8 9))))))))

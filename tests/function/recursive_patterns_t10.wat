@@ -2,7 +2,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [row
-                (:wat::core::Option.Some {:value (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)})
+                (:wat::core::Option.Some {:value (wat.type/Tuple :- [wat.type/i64 wat.type/f64 wat.type/f64 wat.type/f64 wat.type/f64 wat.type/f64] 1700000000 100.0 110.0 95.0 105.0 1234.5)})
                line
                 (:wat::core::match row 
                   [:wat::core::Option.Some {:value (ts open high low close volume)}

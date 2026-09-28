@@ -63,7 +63,7 @@
 (:wat::core::defn :wat-tests::rete::nest::seed
   [world <- wat.type/i64  q <- :wat::rete::Query] -> :wat::rete::Session
   (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector) (:wat::core::PersistentVector q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+    [s0 (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule]) (wat.type/PersistentVector :- [:wat::rete::Query] q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      s1 (:wat::core::if (:wat-tests::rete::nest::has world 1)
           (:wat::core::match (:wat::rete::insert s0 (:wat-tests::rete::nest::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s0)
      s2 (:wat::core::if (:wat-tests::rete::nest::has world 2)
@@ -79,8 +79,8 @@
 ;; A query whose ONLY condition is the combinator: it activates or it does not, so the row count is
 ;; the truth value. Built fresh per case because the shape is the query.
 (:wat::core::defn :wat-tests::rete::nest::query-for [shape <- wat.type/i64] -> :wat::rete::Query
-  (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector)
-    :lhs (:wat::core::PersistentVector (:wat-tests::rete::nest::shape shape))))
+  (:wat::rete::Query :name "q" :params (wat.type/PersistentVector :- [wat.type/String])
+    :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat-tests::rete::nest::shape shape))))
 
 (:wat::core::defn :wat-tests::rete::nest::rows
   [c <- :wat-tests::rete::nest::Case  oracle? <- wat.type/bool] -> wat.type/i64

@@ -32,5 +32,5 @@
      s      (:wat::core::map
               (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
               (:wat::core::range 0 n))
-     out    (:probe::drain-next (:wat::core::PersistentVector) s)]
+     out    (:probe::drain-next (wat.type/PersistentVector :- [wat.type/i64]) s)]
     (:wat::kernel::println (:wat::core::length out))))

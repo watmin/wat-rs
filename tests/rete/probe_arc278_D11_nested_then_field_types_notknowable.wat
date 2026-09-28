@@ -83,7 +83,7 @@
 (:wat::core::defn :d11n::fired [] -> :wat::rete::Session
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :d11n)
-          (:wat::core::PersistentVector (:d11n::q1) (:d11n::q2) (:d11n::q3) (:d11n::q4)))
+          (wat.type/PersistentVector :- [:wat::rete::Query] (:d11n::q1) (:d11n::q2) (:d11n::q3) (:d11n::q4)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
           [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
      s1 (:wat::core::match (:wat::rete::insert s0 (:d11n::In :k 7 :s "seed"))

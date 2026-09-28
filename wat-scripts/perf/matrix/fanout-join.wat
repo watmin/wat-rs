@@ -29,8 +29,8 @@
                     c1   (:wat::core::quote (:fan::Left  (?k :- :key) (?l :- :lid)))
                     c2   (:wat::core::quote (:fan::Right (?k :- :key) (?r :- :rid)))
                     rhs  (:wat::core::quote (:fan::Pair ?k ?l ?r))
-                    rule (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
-                    s0   (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    rule (:wat::rete::Rule :name "fan" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs))
+                    s0   (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] rule) (wat.type/PersistentVector :- [:wat::rete::Query] (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     staged (:wat::core::foldl
                               (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
                                 (:fan::seed-key acc k fanout))

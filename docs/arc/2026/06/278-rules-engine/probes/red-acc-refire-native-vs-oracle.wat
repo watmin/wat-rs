@@ -83,13 +83,13 @@
 
 (:wat::core::defn :d2::compile [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :d2)
-      (:wat::core::PersistentVector (:d2::q-out) (:d2::q-tally) (:d2::q-stale)))
+      (wat.type/PersistentVector :- [:wat::rete::Query] (:d2::q-out) (:d2::q-tally) (:d2::q-stale)))
     [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
       (:wat::kernel::assertion-failed! :message "terminate")]))
 
 (:wat::core::defn :d2::counts [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/i64]
     (:wat::core::length (:wat::rete::query fired (:d2::q-out)))
     (:wat::core::length (:wat::rete::query fired (:d2::q-tally)))
     (:wat::core::length (:wat::rete::query fired (:d2::q-stale)))))

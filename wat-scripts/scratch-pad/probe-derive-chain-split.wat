@@ -77,15 +77,15 @@
                                     (:wat::i64::* (:wat::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
                     ins     (:wat::core::quasiquote (:dc::Out ?k))]
     (:wat::rete::Rule :name (:wat::i64::to-string i)
-      :lhs (:wat::core::PersistentVector a-c b-c where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
 (:wat::core::defn :dc::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:dc::build-rule i n)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::range 0 n)))
 
 (:wat::core::defn :dc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
@@ -108,7 +108,7 @@
                                 (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
                     items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
-                    staged  (:dc::seed (:wat::core::match (:wat::rete::compile-all (:dc::build-rules rules-n) (:wat::core::PersistentVector (:dc::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    staged  (:dc::seed (:wat::core::match (:wat::rete::compile-all (:dc::build-rules rules-n) (wat.type/PersistentVector :- [:wat::rete::Query] (:dc::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
 
                     ;; ── the chain as the axis writes it, link by link ────────
@@ -128,7 +128,7 @@
                                                x   <- wat.type/i64]
                                 -> (wat.type/PersistentVector :- [wat.type/i64])
                                 (:wat::vector::conj acc x))
-                              (:wat::core::PersistentVector)
+                              (wat.type/PersistentVector :- [wat.type/i64])
                               sorted)
                     q5      (:wat::time::now)
 
@@ -144,7 +144,7 @@
                                                       (:wat::map::get p "?fact")
                                                       "q-Out: ?fact")]
                                   (:wat::vector::conj acc (:dc::Out/k f))))
-                              (:wat::core::PersistentVector)
+                              (wat.type/PersistentVector :- [wat.type/i64])
                               q)
                     d1      (:wat::time::now)]
     (:wat::kernel::println

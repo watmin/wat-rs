@@ -31,8 +31,8 @@
 
 (:wat::core::defn :user::source-hits [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:wat::core::length
       (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:exp::q-Hit)))))
 
@@ -42,16 +42,16 @@
 (:wat::core::defn :user::cool-export [] -> :wat::rete::Export
   (:wat::rete::export
     (:wat::core::match (:wat::rete::compile-all
-      (:wat::core::PersistentVector (:exp::cool))
-      (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
+      (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+      (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
 
 ;; Op::Eval across the wire, NATIVE: compile the computed-inline rule, export it, import it, fire.
 ;; `(c + 5) < 20` admits c=10 and rejects c=30, so the answer is 1 — and it is 1 only if the
 ;; `Op::Eval` survived pack -> unpack -> bounds-check -> exec.
 (:wat::core::defn :user::computed-roundtrip-hits [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool-computed))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool-computed))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1 (:wat::rete::import (:wat::rete::export s0))]
     (:wat::core::length
       (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s1)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:exp::q-Hit)))))
@@ -61,8 +61,8 @@
 ;; whose rule stopped discriminating (which would make the round-trip agree at the wrong number).
 (:wat::core::defn :user::computed-source-hits [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool-computed))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool-computed))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:wat::core::length
       (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:exp::q-Hit)))))
 
@@ -71,8 +71,8 @@
 
 (:wat::core::defn :user::spec-on-import [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1 (:wat::rete::import (:wat::rete::export s0))]
     (:wat::core::length
       (:wat::rete::query
@@ -81,8 +81,8 @@
 
 (:wat::core::defn :user::spec-once-on-import [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1 (:wat::rete::import (:wat::rete::export s0))]
     (:wat::core::length
       (:wat::rete::query
@@ -91,8 +91,8 @@
 
 (:wat::core::defn :user::import-hits [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     exp (:wat::rete::export s0)
                     s1 (:wat::rete::import exp)]
     (:wat::core::length
@@ -100,15 +100,15 @@
 
 (:wat::core::defn :user::export-sizes [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     exp (:wat::rete::export s0)
                     sl (:wat::string::length (:wat::edn::write s0))
                     el (:wat::string::length (:wat::edn::write exp))
                     nc (:wat::core::length (:wat::rete::Export/classes exp))
                     nn (:wat::core::length (:wat::rete::Export/nodes exp))
                     ncond (:wat::core::length (:wat::rete::Export/conds exp))]
-    (:wat::core::PersistentVector sl el nc nn ncond)))
+    (wat.type/PersistentVector :- [wat.type/i64] sl el nc nn ncond)))
 
 ;; Negation over a DERIVED fact. Source fire is stratified. Import must match.
 (:wat::core::defrecord :sn::A   [k <- wat.type/i64])
@@ -134,31 +134,31 @@
     (:sn::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :sn::counts [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/i64]
     (:wat::core::length (:wat::rete::query fired (:sn::q-Bad)))
     (:wat::core::length (:wat::rete::query fired (:sn::q-Ok)))))
 
 (:wat::core::defn :user::strat-source-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:sn::mark-bad) (:sn::ok))
-                         (:wat::core::PersistentVector (:sn::q-Bad) (:sn::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:sn::mark-bad) (:sn::ok))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:sn::q-Bad) (:sn::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:sn::counts (:wat::core::match (:wat::rete::fire-rules (:sn::seed s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))))
 
 (:wat::core::defn :user::strat-import-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:sn::mark-bad) (:sn::ok))
-                         (:wat::core::PersistentVector (:sn::q-Bad) (:sn::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:sn::mark-bad) (:sn::ok))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:sn::q-Bad) (:sn::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     exp (:wat::rete::export s0)
                     s1 (:wat::rete::import exp)]
     (:sn::counts (:wat::core::match (:wat::rete::fire-rules (:sn::seed s1)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))))
 
 (:wat::core::defn :user::reexport-shape [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     e1 (:wat::rete::export s0)
                     e2 (:wat::rete::export (:wat::rete::import e1))]
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/i64]
       (:wat::core::length (:wat::rete::Export/deps e1))
       (:wat::core::length (:wat::rete::Export/deps e2))
       (:wat::core::length (:wat::rete::Export/nodes e1))
@@ -170,8 +170,8 @@
 
 (:wat::core::defn :user::reexport-deps-length [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     e1 (:wat::rete::export s0)
                     s1 (:wat::rete::import e1)
                     e2 (:wat::rete::export s1)]
@@ -179,8 +179,8 @@
 
 (:wat::core::defn :user::edn-roundtrip-hits [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     exp (:wat::rete::export s0)
                     txt (:wat::edn::write exp)
                     exp2 (:wat::edn::read txt)
@@ -191,8 +191,8 @@
 ;; One EDN value: write(e) == write(export(import(e))).
 (:wat::core::defn :user::reexport-edn-identical [] -> wat.type/bool
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     e1 (:wat::rete::export s0)
                     e2 (:wat::rete::export (:wat::rete::import e1))]
     (:wat::core::= (:wat::edn::write e1) (:wat::edn::write e2))))
@@ -200,8 +200,8 @@
 ;; Fire of import(export(import(e))) — the re-export, not the original export.
 (:wat::core::defn :user::reexport-import-fires [] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     e1 (:wat::rete::export s0)
                     e2 (:wat::rete::export (:wat::rete::import e1))
                     s2 (:wat::rete::import e2)]
@@ -211,8 +211,8 @@
 ;; The compiled program as an EDN string — source of tests/rete/hello.rete.edn.
 (:wat::core::defn :user::export-edn [] -> wat.type/String
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector (:exp::cool))
-                         (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
+                         (wat.type/PersistentVector :- [:wat::rete::Rule] (:exp::cool))
+                         (wat.type/PersistentVector :- [:wat::rete::Query] (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:wat::edn::write (:wat::rete::export s0))))
 
 ;; Arc 278 D3 — fire an Export the CALLER supplies, so a tampered one is observable end-to-end.

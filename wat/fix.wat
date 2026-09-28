@@ -327,7 +327,7 @@
   (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                     old-len (:wat::core::ast-name node)]
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-      (:wat::core::Tuple off old-len ""))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len ""))))
 
 ;; empty-edits — no-op edit list (class B skip; bare data keyword; non-arrow symbol).
 (:wat::core::defn :wat::fix::empty-edits []
@@ -357,22 +357,22 @@
             ;; post-arrow keyword is a type annotation → convert to type form
             ;; (not a rete field name: prev-rete-var? carried across the arrow)
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-              (:wat::core::Tuple off old-len
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
                 (:wat::core::write-forms (:wat::keyword::to-type-form node))))
             (:wat::core::if (:wat::fix::type-shaped-keyword? node)
               ;; parametric/tuple keyword → type form
               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                (:wat::core::Tuple off old-len
+                (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
                   (:wat::core::write-forms (:wat::keyword::to-type-form node))))
               (:wat::core::if (:wat::fix::marker-keyword? node)
                 ;; trailing-`::` namespace-prefix marker → namespace symbol
                 (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                  (:wat::core::Tuple off old-len
+                  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
                     (:wat::fix::marker-to-namespace-text node)))
                 (:wat::core::if (:wat::fix::head-keyword? node)
                   ;; ::-namespaced call head → faithful-Clojure symbol
                   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                    (:wat::core::Tuple off old-len
+                    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
                       (:wat::core::ast-name (:wat::keyword::to-symbol node))))
                   ;; bare data keyword (no ::, not type-shaped) — no edit
                   (:wat::fix::empty-edits))))))
@@ -388,7 +388,7 @@
                             nm      (:wat::core::ast-name node)
                             old-len nm]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-              (:wat::core::Tuple off old-len ":-")))
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len ":-")))
           ;; non-arrow symbol, or synthesized arrow — no edit
           (:wat::fix::empty-edits))
         ;; int, float, bool, string, nil — no edit
@@ -682,7 +682,7 @@
                                                                  "(:wat::core::Vector :- [:wat::WatAST])"
                                                                  ":wat::WatAST")]
                                      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                                       (:wat::core::Tuple off old-len new-text)))
+                                       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len new-text)))
                                    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
                       ;; update after-amp?: set when current token is `&`
                       next-after-amp? (:wat::core::if (:wat::fix::amp? h) true after-amp?)
@@ -715,7 +715,7 @@
                           off     (:wat::fix::fix-text-offset-of span lines)
                           old-len (:wat::core::ast-name h)]
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-            (:wat::core::Tuple off old-len ":wat::WatAST")))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len ":wat::WatAST")))
         ;; not yet — recurse tracking whether current token is `->`
         (:wat::fix::rettype-edit-walk tl (:wat::fix::right-arrow? h) lines)))))
 
@@ -922,7 +922,7 @@
           ;; rename-in-name's char-walk arithmetic below).
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-              (:wat::core::Tuple off name new-name)))))
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off name new-name)))))
       ;; non-keyword leaf (symbol, int, float, bool, string, nil) — no edit
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
@@ -1063,7 +1063,7 @@
         (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-              (:wat::core::Tuple off old new)))
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))))
 
@@ -1119,7 +1119,7 @@
       (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
         (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-            (:wat::core::Tuple off old new)))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
@@ -1234,8 +1234,8 @@
    lines <- (wat.type/Vector :- [wat.type/String])]
   -> (wat.type/Vector :- [:wat::fix::Edit])
   (wat.type/Vector :- [:wat::fix::Edit]
-    (:wat::core::Tuple (:wat::fix::node-start-offset node lines) "" before)
-    (:wat::core::Tuple (:wat::fix::node-end-offset   node lines) "" after)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-start-offset node lines) "" before)
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-end-offset   node lines) "" after)))
 
 ;; wrap-node-edits — one node's edits plus its descendants'.
 ;; The idempotency cut lives HERE, not in the matcher: for an already-wrapped match we skip
@@ -1330,7 +1330,7 @@
       (:wat::core::if (:wat::fix::rehead-defn-target? kids names)
         (:wat::core::concat
           (wat.type/Vector :- [:wat::fix::Edit]
-            (:wat::core::Tuple
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
               (:wat::fix::fix-text-offset-of (:wat::core::ast-span (:wat::core::first kids)) lines)
               ":wat::core::defn"
               ":wat::rete::core::defn"))
@@ -1426,9 +1426,9 @@
      gap-text  (:wat::fix::fix-text-span-text (:wat::core::ast-end-span head) dh-end-span lines src)
      dl-end    (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span drop-list) lines)]
     (wat.type/Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple head-off head-name ":wat::core::nth")
-      (:wat::core::Tuple head-end gap-text "")
-      (:wat::core::Tuple (:wat::i64::- dl-end 1) ")" ""))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-off head-name ":wat::core::nth")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-end gap-text "")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::i64::- dl-end 1) ")" ""))))
 
 ;; first-of-drop-scan — recursive walk. A match emits its 3 edits AND still recurses into
 ;; X and n (a nested hit inside either operand is a SEPARATE hit, per the census's own
@@ -1581,10 +1581,10 @@
                 (:wat::fix::same-form? n refused))
               forms))]
     (:wat::core::if (:wat::core::empty? hits)
-      (:wat::core::Tuple
+      (wat.type/Tuple :- [wat.type/AST wat.type/bool]
         (:wat::core::if (:wat::core::empty? forms) refused (:wat::core::first forms))
         true)
-      (:wat::core::Tuple (:wat::core::first hits) false))))
+      (wat.type/Tuple :- [wat.type/AST wat.type/bool] (:wat::core::first hits) false))))
 
 (:wat::core::defn :wat::fix::variant-field-names
   [v <- :wat::runtime::TypeVariant]

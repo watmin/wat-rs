@@ -56,7 +56,7 @@
     [sh (:probe::modestore/start :locus (:wat::spawn::thread)
           :record (:probe::modestore::Record
                     :mode mode
-                    :rows (:wat::core::PersistentVector)))]
+                    :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))]
     (:wat::core::let
       [jh (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
             :record (:wat::telemetry::journal::Record)

@@ -32,7 +32,7 @@
   (:wat::rete::FactBag/items b))
 
 (:wat::core::defn :wat::rete::factbag::empty [] -> :wat::rete::FactBag
-  (:wat::rete::FactBag :items (:wat::core::PersistentVector)))
+  (:wat::rete::FactBag :items (wat.type/PersistentVector :- [wat.type/Record])))
 
 (:wat::core::defn :wat::rete::factbag::size
   [b <- :wat::rete::FactBag]
@@ -79,7 +79,7 @@
                                (:wat::rete::FactBagDrop
                                  :items (:wat::rete::FactBagDrop/items acc)
                                  :dropped true)))
-                           (:wat::rete::FactBagDrop :items (:wat::core::PersistentVector) :dropped false)
+                           (:wat::rete::FactBagDrop :items (wat.type/PersistentVector :- [wat.type/Record]) :dropped false)
                            (:wat::rete::factbag::items b))]
     (:wat::rete::FactBag :items (:wat::rete::FactBagDrop/items done))))
 
@@ -97,7 +97,7 @@
         (:wat::core::if (pred f)
           (:wat::vector::conj acc f)
           acc))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::rete::factbag::items b))))
 
 (:wat::core::defn :wat::rete::factbag::count-of

@@ -36,10 +36,10 @@
 (:wat::rete::defquery :dea::q-Tally :params [] :when [(?f :- :dea::Tally)])
 
 (:wat::core::defn :dea::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector (:dea::mark-bad) (:dea::ok) (:dea::seen) (:dea::tally)))
+  (wat.type/PersistentVector :- [:wat::rete::Rule] (:dea::mark-bad) (:dea::ok) (:dea::seen) (:dea::tally)))
 
 (:wat::core::defn :dea::queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
-  (:wat::core::PersistentVector (:dea::q-Bad) (:dea::q-Ok) (:dea::q-Seen) (:dea::q-Tally)))
+  (wat.type/PersistentVector :- [:wat::rete::Query] (:dea::q-Bad) (:dea::q-Ok) (:dea::q-Seen) (:dea::q-Tally)))
 
 (:wat::core::defn :dea::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s
@@ -49,7 +49,7 @@
 
 (:wat::core::defn :dea::counts [fired <- :wat::rete::Session]
   -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/i64]
     (:wat::core::length (:wat::rete::query fired (:dea::q-Bad)))
     (:wat::core::length (:wat::rete::query fired (:dea::q-Ok)))
     (:wat::core::length (:wat::rete::query fired (:dea::q-Seen)))

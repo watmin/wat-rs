@@ -83,17 +83,17 @@
                     c (:wat::core::quasiquote (:rla::Link (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:rla::Link (:wat::core::unquote k)))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
-      :lhs (:wat::core::PersistentVector c)
-      :rhs (:wat::core::PersistentVector t))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] c)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] t))))
 
 ;; ★ THE CELL. leading accumulate, then a join — accum-lead-rule-cascade's exact shape.
 ;; Reading (the accumulate's :from source) is what gets duplicated + retracted.
 (:wat::core::defn :rla::busy-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "busy"
-    :lhs (:wat::core::PersistentVector
+    :lhs (wat.type/PersistentVector :- [wat.type/AST]
       (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:rla::Reading)))
       (:wat::core::quote (:rla::Anchor (?k :- :k))))
-    :rhs (:wat::core::PersistentVector
+    :rhs (wat.type/PersistentVector :- [wat.type/AST]
       (:wat::core::quote (:rla::Busy ?k ?n)))))
 
 (:wat::core::defn :rla::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
@@ -101,7 +101,7 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:rla::build-link k)))
-    (:wat::core::PersistentVector (:rla::busy-rule))
+    (wat.type/PersistentVector :- [:wat::rete::Rule] (:rla::busy-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
 
 ;; seed-facts items anchors — Reading(i) once each for i in [0,items), then ONE extra
@@ -116,7 +116,7 @@
                     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  v <- wat.type/i64]
                                     -> (wat.type/PersistentVector :- [wat.type/Record])
                       (:wat::vector::conj acc (:rla::Reading :v v)))
-                    (:wat::core::PersistentVector)
+                    (wat.type/PersistentVector :- [wat.type/Record])
                     (:wat::core::range 0 items))
                   (:rla::Reading :v 0))
      with-anch (:wat::core::foldl
@@ -145,7 +145,7 @@
   (:wat::i64::+ (:wat::i64::* k 1000000000000000) n))
 
 (:wat::core::defn :rla::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; Busy only. Link is derived and unqueried.
 (:wat::core::defn :rla::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
@@ -166,7 +166,7 @@
                     anchors (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [items anchors depth]")
                     depth   (:wat::core::Option/expect (:wat::core::get params 2) "stdin: [items anchors depth]")
                     rules   (:rla::build-rules depth)
-                    seeded  (:rla::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:rla::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items anchors)
+                    seeded  (:rla::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:rla::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items anchors)
                     ;; fire; retract Reading(0) ONCE; the retracted session is what both
                     ;; engines re-fire. Variable MUST be named `staged` so GRID_SKIP_ORACLE /
                     ;; axes_live rewrite `fire-rules$oracle staged` (the re-fire).
@@ -181,4 +181,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "retract-lead-accum" :size (:wat::core::PersistentVector items anchors depth) :derived derived :native-ns nat-ns :oracle-derived (:rla::derived-vector ofired) :oracle-ns (:rla::ns-between o0 o1)))))
+      (:grid::Result :axis "retract-lead-accum" :size (wat.type/PersistentVector :- [wat.type/i64] items anchors depth) :derived derived :native-ns nat-ns :oracle-derived (:rla::derived-vector ofired) :oracle-ns (:rla::ns-between o0 o1)))))

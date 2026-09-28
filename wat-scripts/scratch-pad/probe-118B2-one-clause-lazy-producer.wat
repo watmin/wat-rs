@@ -72,7 +72,7 @@
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5))))
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::PersistentVector 1 2 3 4 5))))
+              (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4 5))))
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::List 1 2 3 4 5))))
             ;; 4th slot: a CONCRETE (Stream :- [i64]). It was `(Seqable/seq (Vector …))` while this

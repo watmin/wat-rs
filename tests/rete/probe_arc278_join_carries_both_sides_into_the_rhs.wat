@@ -39,17 +39,17 @@
   (:wat::core::match (:wat::rete::insert-all
     (:wat::core::match (:wat::rete::insert-all
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :jb)
-                               (:wat::core::PersistentVector (:jb::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-      (:wat::core::PersistentVector (:jb::Temp :loc "MCI" :celsius 5))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-    (:wat::core::PersistentVector (:jb::Wind :loc "MCI" :kph 40))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+                               (wat.type/PersistentVector :- [:wat::rete::Query] (:jb::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      (wat.type/PersistentVector :- [:jb::Temp] (:jb::Temp :loc "MCI" :celsius 5))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (wat.type/PersistentVector :- [:jb::Wind] (:jb::Wind :loc "MCI" :kph 40))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :jb::readback [s <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rows (:wat::rete::query s (:jb::q))]
     (:wat::core::if (:wat::core::= (:wat::core::length rows) 1)
       (:wat::core::let [f (:wat::core::Option/expect
                             (:wat::map::get (:wat::core::first rows) "?fact") "fact")]
-        (:wat::core::PersistentVector (:wat::core::length rows) (:jb::Both/celsius f) (:jb::Both/kph f)))
-      (:wat::core::PersistentVector (:wat::core::length rows) 0 0))))
+        (wat.type/PersistentVector :- [wat.type/i64] (:wat::core::length rows) (:jb::Both/celsius f) (:jb::Both/kph f)))
+      (wat.type/PersistentVector :- [wat.type/i64] (:wat::core::length rows) 0 0))))
 
 ;; [rows, celsius, kph] under native, then the same under $oracle. Expect 1/5/40 twice.
 (:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])

@@ -50,7 +50,7 @@
                                   false)
                     old-text   (:wat::core::if next-is-nl (:wat::string::concat span-text "\n") span-text)]
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-      (:wat::core::Tuple off old-text ""))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text ""))))
 
 ;; ── Internal: map a vector of matched forms to deletion edits ─────────────────────────
 (:wat::core::defn :user::wat-grep-strip-edits

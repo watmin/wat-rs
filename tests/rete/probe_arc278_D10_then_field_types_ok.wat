@@ -43,10 +43,10 @@
   (:wat::core::match (:wat::rete::fire-rules
     (:wat::core::match (:wat::rete::insert-all
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :dok)
-        (:wat::core::PersistentVector (:dok::q-out) (:dok::q-sum) (:dok::q-pos)))
+        (wat.type/PersistentVector :- [:wat::rete::Query] (:dok::q-out) (:dok::q-sum) (:dok::q-pos)))
         [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
         [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-      (:wat::core::PersistentVector (:dok::In :k 7 :s "seed")))
+      (wat.type/PersistentVector :- [:dok::In] (:dok::In :k 7 :s "seed")))
       [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
       [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
     )

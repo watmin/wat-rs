@@ -12,7 +12,7 @@
 
 ;; test2: (Result :- [(Tuple :- [i64 i64]) i64]) — tuple payload → returns i64 11
 (:wat::core::defn :t::wrap-it [] -> (:wat::core::Result :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) wat.type/i64])
-  (:wat::core::Result.Ok {:value (:wat::core::Tuple 7 11)}))
+  (:wat::core::Result.Ok {:value (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 7 11)}))
 
 (:wat::core::defn :t::test2-result-tuple [] -> wat.type/i64
   (:wat::core::let

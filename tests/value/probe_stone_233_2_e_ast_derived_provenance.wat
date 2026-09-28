@@ -17,4 +17,4 @@
   (:wat::core::let [x 42] x))
 
 (:wat::core::defn :user::destructure-lookup [] -> wat.type/i64
-  (:wat::core::let [[a b] (:wat::core::Tuple 1 2)] a))
+  (:wat::core::let [[a b] (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)] a))

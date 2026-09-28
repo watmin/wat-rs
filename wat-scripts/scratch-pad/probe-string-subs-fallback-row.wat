@@ -32,20 +32,20 @@
      ;; ROW 6 — every other Fallback family, unregressed.
      row6-i64-div    (:wat::rete::i64::/ 1 0 :undefined -1)
      row6-f64-div    (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0)
-     row6-pv-get     (:wat::rete::vector::get (:wat::core::PersistentVector 7 8 9) 99 :undefined -1)
-     row6-pv-first   (:wat::rete::core::PersistentVector/first (:wat::core::PersistentVector) :undefined -1)
+     row6-pv-get     (:wat::rete::vector::get (wat.type/PersistentVector :- [wat.type/i64] 7 8 9) 99 :undefined -1)
+     row6-pv-first   (:wat::rete::core::PersistentVector/first (wat.type/PersistentVector :- [wat.type/i64]) :undefined -1)
      row6-cosine     (:wat::rete::holon::cosine zero other :undefined -1.0)]
 
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::PersistentMap :row2-happy row2-happy))
-      (:wat::kernel::println (:wat::core::PersistentMap :row3-out-of-range row3-out-of-range))
-      (:wat::kernel::println (:wat::core::PersistentMap :row4-run-a row4-run-a))
-      (:wat::kernel::println (:wat::core::PersistentMap :row4-run-b row4-run-b))
-      (:wat::kernel::println (:wat::core::PersistentMap :row6-i64-div row6-i64-div))
-      (:wat::kernel::println (:wat::core::PersistentMap :row6-f64-div row6-f64-div))
-      (:wat::kernel::println (:wat::core::PersistentMap :row6-pv-get row6-pv-get))
-      (:wat::kernel::println (:wat::core::PersistentMap :row6-pv-first row6-pv-first))
-      (:wat::kernel::println (:wat::core::PersistentMap :row6-cosine row6-cosine)))))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :row2-happy row2-happy))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :row3-out-of-range row3-out-of-range))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :row4-run-a row4-run-a))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :row4-run-b row4-run-b))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :row6-i64-div row6-i64-div))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-f64-div row6-f64-div))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :row6-pv-get row6-pv-get))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :row6-pv-first row6-pv-first))
+      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-cosine row6-cosine)))))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:probe::run))

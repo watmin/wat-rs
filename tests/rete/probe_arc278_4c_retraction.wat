@@ -24,11 +24,11 @@
     [ca1   (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))
      ca2   (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))
      ra1   (:wat::core::quote (:weather::ColdAndWindy ?loc))
-     ruleA (:wat::rete::Rule :name "A" :lhs (:wat::core::PersistentVector ca1 ca2) :rhs (:wat::core::PersistentVector ra1))
+     ruleA (:wat::rete::Rule :name "A" :lhs (wat.type/PersistentVector :- [wat.type/AST] ca1 ca2) :rhs (wat.type/PersistentVector :- [wat.type/AST] ra1))
      cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc :- :location)))
      rb1   (:wat::core::quote (:weather::WeatherAlert ?loc))
-     ruleB (:wat::rete::Rule :name "B" :lhs (:wat::core::PersistentVector cb1) :rhs (:wat::core::PersistentVector rb1))]
-    (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
+     ruleB (:wat::rete::Rule :name "B" :lhs (wat.type/PersistentVector :- [wat.type/AST] cb1) :rhs (wat.type/PersistentVector :- [wat.type/AST] rb1))]
+    (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] ruleA ruleB) (wat.type/PersistentVector :- [:wat::rete::Query] (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
 
 (:wat::core::defn :test::seed-oslo [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert
@@ -61,14 +61,14 @@
 (:wat::core::defn :user::part-a-temperature-in-facts [] -> wat.type/i64
   ;; rune:vocare(vantage-bypass-test) — input-vs-derived layout: Temperature must remain in Session/facts after fire
   (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
-    (:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter
+    (:wat::core::length (:wat::core::into (wat.type/PersistentVector :- [wat.type/Record]) (:wat::core::filter
       (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool (:wat::core::= (:wat::core::type f) "weather::Temperature"))
       (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
 
 (:wat::core::defn :user::part-a-coldandwindy-in-facts [] -> wat.type/i64
   ;; rune:vocare(vantage-bypass-test) — input-vs-derived layout: derived ColdAndWindy must NOT leak into Session/facts
   (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
-    (:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter
+    (:wat::core::length (:wat::core::into (wat.type/PersistentVector :- [wat.type/Record]) (:wat::core::filter
       (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool (:wat::core::= (:wat::core::type f) "weather::ColdAndWindy"))
       (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
 

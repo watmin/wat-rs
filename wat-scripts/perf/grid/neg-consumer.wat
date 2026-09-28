@@ -64,20 +64,20 @@
 
 
 (:wat::core::defn :nc::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     ;; THE GATE — negates a base fact, so the stratifier lifts it correctly.
     (:wat::rete::Rule :name "ok"
-      :lhs (:wat::core::PersistentVector
+      :lhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:nc::Item (?k :- :k)))
         (:wat::core::quasiquote (:wat::rete::not (:nc::Bad (?k :- :k)))))
-      :rhs (:wat::core::PersistentVector
+      :rhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:nc::Ok ?k))))
     ;; THE SUBJECT — consumes the gate's output POSITIVELY and negates nothing.
     (:wat::rete::Rule :name "final"
-      :lhs (:wat::core::PersistentVector
+      :lhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:nc::Ok  (?k :- :k)))
         (:wat::core::quasiquote (:nc::Tag (?k :- :k))))
-      :rhs (:wat::core::PersistentVector
+      :rhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:nc::Final ?k))))))
 
 (:wat::core::defn :nc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
@@ -91,11 +91,11 @@
           (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
             (:wat::vector::conj a3 (:nc::Bad i))
             a3)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :nc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 (:wat::core::defn :nc::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
@@ -111,7 +111,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:nc::build-rules)
-                    staged  (:nc::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:nc::q-Final))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    staged  (:nc::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:nc::q-Final))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; NATIVE — the production fast path. Timed alone.
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -123,7 +123,7 @@
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "neg-consumer"
-                     :size (:wat::core::PersistentVector items)
+                     :size (wat.type/PersistentVector :- [wat.type/i64] items)
                      :derived (:nc::derived-vector fired)
                      :native-ns (:nc::ns-between n0 n1)
                      :oracle-derived (:nc::derived-vector ofired)

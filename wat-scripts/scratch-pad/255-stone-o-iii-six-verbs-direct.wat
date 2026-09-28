@@ -17,15 +17,15 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [_01 (:wat::kernel::println (:wat::string::concat "length        " (:wat::edn::write (:wat::vector::length (:wat::core::PersistentVector 1 2 3)))))
+    [_01 (:wat::kernel::println (:wat::string::concat "length        " (:wat::edn::write (:wat::vector::length (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
      _02 (:wat::kernel::println (:wat::string::concat "empty? true   " (:wat::edn::write (:wat::vector::empty? (:wat::core::PersistentVector)))))
-     _03 (:wat::kernel::println (:wat::string::concat "empty? false  " (:wat::edn::write (:wat::vector::empty? (:wat::core::PersistentVector 1)))))
-     _04 (:wat::kernel::println (:wat::string::concat "contains? true  " (:wat::edn::write (:wat::vector::contains? (:wat::core::PersistentVector 1 2 3) 2))))
-     _05 (:wat::kernel::println (:wat::string::concat "contains? false " (:wat::edn::write (:wat::vector::contains? (:wat::core::PersistentVector 1 2 3) 9))))
-     _06 (:wat::kernel::println (:wat::string::concat "get in-range  " (:wat::edn::write (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 0))))
-     _07 (:wat::kernel::println (:wat::string::concat "get oob       " (:wat::edn::write (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 9))))
-     _08 (:wat::kernel::println (:wat::string::concat "conj          " (:wat::edn::write (:wat::vector::length (:wat::vector::conj (:wat::core::PersistentVector) 1)))))
-     _09 (:wat::kernel::println (:wat::string::concat "concat        " (:wat::edn::write (:wat::vector::length (:wat::vector::concat (:wat::core::PersistentVector 1) (:wat::core::PersistentVector 2))))))
+     _03 (:wat::kernel::println (:wat::string::concat "empty? false  " (:wat::edn::write (:wat::vector::empty? (wat.type/PersistentVector :- [wat.type/i64] 1)))))
+     _04 (:wat::kernel::println (:wat::string::concat "contains? true  " (:wat::edn::write (:wat::vector::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 2))))
+     _05 (:wat::kernel::println (:wat::string::concat "contains? false " (:wat::edn::write (:wat::vector::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 9))))
+     _06 (:wat::kernel::println (:wat::string::concat "get in-range  " (:wat::edn::write (:wat::vector::get (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 0))))
+     _07 (:wat::kernel::println (:wat::string::concat "get oob       " (:wat::edn::write (:wat::vector::get (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 9))))
+     _08 (:wat::kernel::println (:wat::string::concat "conj          " (:wat::edn::write (:wat::vector::length (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/i64]) 1)))))
+     _09 (:wat::kernel::println (:wat::string::concat "concat        " (:wat::edn::write (:wat::vector::length (:wat::vector::concat (wat.type/PersistentVector :- [wat.type/i64] 1) (wat.type/PersistentVector :- [wat.type/i64] 2))))))
 
      ;; error path — type mismatch, direct call, real span (bypasses eval-ast! entirely).
      _10 (:wat::kernel::println (:wat::string::concat "length type-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::length 5))))))

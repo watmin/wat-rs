@@ -18,7 +18,7 @@
 
 (:wat::core::defn :fso::fire [] -> wat.type/i64
   (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :fso) (:wat::core::PersistentVector (:fso::q)))
+    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :fso) (wat.type/PersistentVector :- [:wat::rete::Query] (:fso::q)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
           [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
             (:wat::kernel::assertion-failed! :message "compile: may not terminate")])

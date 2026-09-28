@@ -40,12 +40,12 @@
 ;; build-rules — the single join: Out(k) :- F(k) AND G(k). Two equal F(k) × one G(k) fire
 ;; two activations, so Out carries multiplicity if the query does not collapse it.
 (:wat::core::defn :rm::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::rete::Rule :name "out"
-      :lhs (:wat::core::PersistentVector
+      :lhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quote (:rm::F (?k :- :k)))
         (:wat::core::quote (:rm::G (?k :- :k))))
-      :rhs (:wat::core::PersistentVector
+      :rhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quote (:rm::Out ?k))))))
 
 ;; seed session items — F(i)+G(i) once each for i in [0, items), then ONE extra F(0).
@@ -60,7 +60,7 @@
           (:wat::vector::conj
             (:wat::vector::conj acc (:rm::F i))
             (:rm::G i)))
-        (:wat::core::PersistentVector)
+        (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::range 0 items))
       (:rm::F 0))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
@@ -69,7 +69,7 @@
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]).
 (:wat::core::defn :rm::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived Out fact's key, SORTED, NOT DEDUPED. Two Out(1) stay
 ;; two 1s. A missing/extra/collapsed key shows up in the byte-for-byte compare.
@@ -87,7 +87,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:rm::build-rules)
-                    seeded  (:rm::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:rm::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    seeded  (:rm::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:rm::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; fire; retract F(0) ONCE; the retracted session is what both engines re-fire.
                     ;; Variable MUST be named `staged` so GRID_SKIP_ORACLE / axes_live rewrite
                     ;; `fire-rules$oracle staged` (the re-fire) and not a first-fire leftover.
@@ -104,4 +104,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "retract-multiplicity" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:rm::derived-vector ofired) :oracle-ns (:rm::ns-between o0 o1)))))
+      (:grid::Result :axis "retract-multiplicity" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:rm::derived-vector ofired) :oracle-ns (:rm::ns-between o0 o1)))))

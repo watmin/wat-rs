@@ -8,4 +8,4 @@
 
 (:wat::core::def :user::main
   (:wat::core::fn [] -> wat.type/nil
-    (:user::takes-vec (:wat::core::PersistentVector))))
+    (:user::takes-vec (wat.type/PersistentVector :- [wat.type/i64]))))

@@ -41,7 +41,7 @@
               (:wat::vector::conj pv staged-fact))]
            [:wat::core::Option.None {}
             (:wat::map::assoc alpha-mem alpha-id
-              (:wat::vector::conj (:wat::core::PersistentVector) staged-fact))]))]
+              (:wat::vector::conj (wat.type/PersistentVector :- [:wat::rete::Element]) staged-fact))]))]
       [:wat::core::Option.None {} alpha-mem])))
 
 ;; activate-alpha — fold step: run all staged facts through a single AlphaNode.
@@ -84,7 +84,7 @@
   -> :wat::rete::Token
   (:wat::rete::Token
     :matches (:wat::core::PersistentVector
-      (:wat::core::Tuple (:wat::rete::Element/fact el) alpha-id))
+      (wat.type/Tuple :- [wat.type/Record wat.type/i64] (:wat::rete::Element/fact el) alpha-id))
     :bindings (:wat::rete::Element/bindings el)))
 
 ;; append-token — append a Token to beta-memory at root-join-id; create the PV if absent.
@@ -101,7 +101,7 @@
        (:wat::vector::conj pv tok))]
     [:wat::core::Option.None {}
      (:wat::map::assoc beta-mem root-join-id
-       (:wat::vector::conj (:wat::core::PersistentVector) tok))]))
+       (:wat::vector::conj (wat.type/PersistentVector :- [:wat::rete::Token]) tok))]))
 
 ;; seed-root-join-children — for one AlphaNode that has Elements, follow its children;
 ;; for each child that is a RootJoinNode, seed one Token per Element into beta-memory.
@@ -247,7 +247,7 @@
     [:wat::core::Option.Some {:value id}
      (:wat::core::match (:wat::map::get alpha-mem id)
        [:wat::core::Option.Some {:value pv} (:wat::core::Option.Some {:value pv})]
-       [:wat::core::Option.None {} (:wat::core::Option.Some {:value (:wat::core::PersistentVector)})])]
+       [:wat::core::Option.None {} (:wat::core::Option.Some {:value (wat.type/PersistentVector :- [:wat::rete::Element])})])]
     [:wat::core::Option.None {} :wat::core::Option.None]))
 
 ;; token-exists-under — mid-chain :exists / :not. Fact inner → seeded rematch
@@ -401,7 +401,7 @@
                            child-id)
           (:wat::vector::conj acc node-id)
           acc)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/i64])
     (:wat::rete::topological-node-ids network)))
 
 ;; tokens-from-parents — concat beta-memory tokens from every parent.
@@ -425,7 +425,7 @@
            acc
            tokens)]
         [:wat::core::Option.None {} acc]))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [:wat::rete::Token])
     parent-ids))
 
 ;; rule-by-name — linear find: given a rule name String, return the matching Rule from rules PV.
@@ -492,7 +492,7 @@
                       (:wat::vector::conj pv derived))]
                    [:wat::core::Option.None {}
                     (:wat::map::assoc pm2 prod-id
-                      (:wat::vector::conj (:wat::core::PersistentVector) derived))])))
+                      (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/Record]) derived))])))
              pm
              rhs))
          pm0
@@ -525,9 +525,9 @@
                (:wat::vector::concat
                  out
                  (:wat::rete::binding-extensions kid facts ext network alpha-mem)))
-             (:wat::core::PersistentVector)
+             (wat.type/PersistentVector :- [wat.type/PersistentMap])
              exts))
-         (:wat::vector::conj (:wat::core::PersistentVector) bindings)
+         (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/PersistentMap]) bindings)
          (:wat::rete::cond-children cond)))
       ((:wat::core::= head-nm ":wat::rete::or")
        (:wat::core::foldl
@@ -537,20 +537,20 @@
            (:wat::vector::concat
              out
              (:wat::rete::binding-extensions kid facts bindings network alpha-mem)))
-         (:wat::core::PersistentVector)
+         (wat.type/PersistentVector :- [wat.type/PersistentMap])
          (:wat::rete::cond-children cond)))
       ((:wat::core::= head-nm ":wat::rete::where")
        (:wat::core::if (:wat::rete::eval-test
                          (:wat::core::second (:wat::core::ast->children cond))
                          bindings)
-         (:wat::vector::conj (:wat::core::PersistentVector) bindings)
-         (:wat::core::PersistentVector)))
+         (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/PersistentMap]) bindings)
+         (wat.type/PersistentVector :- [wat.type/PersistentMap])))
       ((:wat::core::= head-nm ":wat::rete::not")
        (:wat::core::if (:wat::rete::exists-cond-under
                          (:wat::core::second (:wat::core::ast->children cond))
                          facts bindings network alpha-mem)
-         (:wat::core::PersistentVector)
-         (:wat::vector::conj (:wat::core::PersistentVector) bindings)))
+         (wat.type/PersistentVector :- [wat.type/PersistentMap])
+         (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/PersistentMap]) bindings)))
       (:else
        (:wat::core::match (:wat::rete::alpha-els-for-cond network alpha-mem cond)
          [:wat::core::Option.Some {:value els}
@@ -563,7 +563,7 @@
                 [:wat::core::Option.Some {:value b}
                  (:wat::vector::conj acc b)]
                 [:wat::core::Option.None {} acc]))
-            (:wat::core::PersistentVector)
+            (wat.type/PersistentVector :- [wat.type/PersistentMap])
             els)]
          [:wat::core::Option.None {}
           (:wat::core::foldl
@@ -574,7 +574,7 @@
                 [:wat::core::Option.Some {:value b}
                  (:wat::vector::conj acc b)]
                 [:wat::core::Option.None {} acc]))
-            (:wat::core::PersistentVector)
+            (wat.type/PersistentVector :- [wat.type/PersistentMap])
             facts)])))))
 
 ;; exists-cond-under — does the inner :not/:exists condition hold under bindings?
@@ -633,7 +633,7 @@
       (:wat::core::if (:wat::vector::contains? acc m)
         acc
         (:wat::vector::conj acc m)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/PersistentMap])
     maps))
 
 ;; tokens-or-empty-seed — parent tokens, or one empty-binding token when the
@@ -646,7 +646,7 @@
   (:wat::core::let [pids (:wat::rete::node-parents node-id network)]
     (:wat::core::if (:wat::core::= (:wat::core::length pids) 0)
       (:wat::vector::conj
-        (:wat::core::PersistentVector)
+        (wat.type/PersistentVector :- [:wat::rete::Token])
         (:wat::rete::Token
           :matches (:wat::core::PersistentVector)
           :bindings (:wat::core::PersistentMap)))
@@ -730,7 +730,7 @@
                          els          (:wat::core::match
                                          (:wat::map::get alpha-mem neg-alpha-id)
                                          [:wat::core::Option.Some {:value pv} pv]
-                                         [:wat::core::Option.None {} (:wat::core::PersistentVector)])]
+                                         [:wat::core::Option.None {} (wat.type/PersistentVector :- [:wat::rete::Element])])]
          (:wat::core::foldl
            (:wat::core::fn [bm  <- wat.type/PersistentMap
                             tok <- :wat::rete::Token]
@@ -756,7 +756,7 @@
                          els         (:wat::core::match
                                         (:wat::map::get alpha-mem ex-alpha-id)
                                         [:wat::core::Option.Some {:value pv} pv]
-                                        [:wat::core::Option.None {} (:wat::core::PersistentVector)])]
+                                        [:wat::core::Option.None {} (wat.type/PersistentVector :- [:wat::rete::Element])])]
          (:wat::core::if (:wat::core::= (:wat::core::length pids) 0)
            (:wat::core::foldl
              (:wat::core::fn [bm  <- wat.type/PersistentMap
@@ -775,7 +775,7 @@
                      -> (wat.type/PersistentVector :- [wat.type/PersistentMap])
                      (:wat::vector::conj acc
                        (:wat::rete::Element/bindings el)))
-                   (:wat::core::PersistentVector)
+                   (wat.type/PersistentVector :- [wat.type/PersistentMap])
                    els)
                  (:wat::rete::binding-extensions
                    cond facts (:wat::core::PersistentMap)

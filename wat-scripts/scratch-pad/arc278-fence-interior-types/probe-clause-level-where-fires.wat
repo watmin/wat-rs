@@ -40,10 +40,10 @@
   (:wat::core::match (:wat::rete::fire-rules
     (:wat::core::match (:wat::rete::insert-all
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :clw)
-        (:wat::core::PersistentVector (:clw::q-seen) (:clw::q-seen-control)))
+        (wat.type/PersistentVector :- [:wat::rete::Query] (:clw::q-seen) (:clw::q-seen-control)))
         [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
         [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-      (:wat::core::PersistentVector (:clw::N :k 1)))
+      (wat.type/PersistentVector :- [:clw::N] (:clw::N :k 1)))
       [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
       [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
     )

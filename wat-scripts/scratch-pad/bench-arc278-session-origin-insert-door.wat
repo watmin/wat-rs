@@ -23,7 +23,7 @@
 (:wat::rete::defrule :bd::noop :when [(:bd::Edge (?a :- :a))] :then [])
 
 (:wat::core::defn :bd::compile [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :bd) (:wat::core::PersistentVector))
+  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :bd) (wat.type/PersistentVector :- [:wat::rete::Query]))
     [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
       (:wat::kernel::assertion-failed! :message "bench: the rule set may not terminate")]))

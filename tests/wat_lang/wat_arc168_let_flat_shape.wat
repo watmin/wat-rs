@@ -24,7 +24,7 @@
 
 ; test 6: destructure binding [[a b] (Tuple ...)]
 (:wat::core::defn :t::test6-destructure [] -> wat.type/i64
-  (:wat::core::let [[a b] (:wat::core::Tuple 3 4)]
+  (:wat::core::let [[a b] (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 3 4)]
     (:wat::i64::+ a b)))
 
 ; test 10: multi-form let body — non-finals for side effect

@@ -73,9 +73,9 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [anchor (:wat::rete::stratify (:wat::core::PersistentVector (:l23::ok) (:l23::neg)))
-     bag    (:wat::rete::stratify (:wat::core::PersistentVector (:l23::ok) (:l23::tally)))
-     nested (:wat::rete::stratify (:wat::core::PersistentVector (:l24::mkc) (:l24::nested)))]
+    [anchor (:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::neg)))
+     bag    (:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::tally)))
+     nested (:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:l24::mkc) (:l24::nested)))]
     (:wat::core::do
       (:wat::kernel::println "ANCHOR  not-over-derived  (expect a raised stratum):")
       (:wat::kernel::println anchor)

@@ -59,8 +59,8 @@
       (:wat::eval-ast! bad)]
     (:wat::core::match r 
       [:wat::core::Result.Ok {:value _}
-        (:wat::core::Tuple "unreachable" "unreachable")]
+        (wat.type/Tuple :- [wat.type/String wat.type/String] "unreachable" "unreachable")]
       [:wat::core::Result.Err {:error e}
-        (:wat::core::Tuple
+        (wat.type/Tuple :- [wat.type/String wat.type/String]
           (:wat::core::EvalError/kind e)
           (:wat::core::EvalError/message e))])))

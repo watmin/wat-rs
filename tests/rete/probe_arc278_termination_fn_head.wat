@@ -36,8 +36,8 @@
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to
   ;; pin the verdict's `rule` and `fact-type`, and a message string throws both away.
-  (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:fm::grow))
-                (:wat::core::PersistentVector (:fm::q)))
+  (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] (:fm::grow))
+                (wat.type/PersistentVector :- [:wat::rete::Query] (:fm::q)))
     [:wat::rete::CompileOutcome.Compiled {:session __session}
       ;; No println before compile-all: an earlier version of this fixture announced "compiled" FIRST,
   ;; which prints whether or not the compile then fails, and cost real time reading a verdict that

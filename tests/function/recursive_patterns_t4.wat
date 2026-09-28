@@ -2,7 +2,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [row
-                (:wat::core::Option.Some {:value (:wat::core::Tuple 100 99 98)})
+                (:wat::core::Option.Some {:value (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 100 99 98)})
                mid
                 (:wat::core::match row 
                   [:wat::core::Option.Some {:value (_ x _)} x]

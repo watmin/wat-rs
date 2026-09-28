@@ -60,15 +60,15 @@
                                     (:wat::i64::* (:wat::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
                     ins     (:wat::core::quasiquote (:nsp::Out ?k))]
     (:wat::rete::Rule :name (:wat::i64::to-string i)
-      :lhs (:wat::core::PersistentVector a-c b-c where-c)
-      :rhs (:wat::core::PersistentVector ins))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
 (:wat::core::defn :nsp::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:nsp::build-rule i n)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::range 0 n)))
 
 ;; count-kinds — fold the network map into kind-label -> count. `node-kind-label` (wat/rete.wat:290)

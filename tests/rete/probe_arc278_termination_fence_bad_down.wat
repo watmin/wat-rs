@@ -15,7 +15,7 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match
-    (:wat::rete::compile-all (:wat::rete::collect-rules :b8) (:wat::core::PersistentVector (:b8::q)))
+    (:wat::rete::compile-all (:wat::rete::collect-rules :b8) (wat.type/PersistentVector :- [:wat::rete::Query] (:b8::q)))
     [:wat::rete::CompileOutcome.Compiled {:session __s} (:wat::kernel::println "ADMITTED")]
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
       ;; Same vocabulary as every other converted fixture in this suite — the arm NAME first, then

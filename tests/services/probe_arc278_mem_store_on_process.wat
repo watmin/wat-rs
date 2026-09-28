@@ -15,7 +15,7 @@
 (:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [h          (:wat::query::mem-store/start :locus (:wat::spawn::process)
-                  :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+                  :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      store      (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      empty-ik   (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey])
      ik-a       (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey]

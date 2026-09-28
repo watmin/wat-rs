@@ -16,8 +16,8 @@
 
 (:wat::core::defn :ia::compiled [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all
-      (:wat::core::PersistentVector (:ia::cool))
-      (:wat::core::PersistentVector (:ia::q-Hit)))
+      (wat.type/PersistentVector :- [:wat::rete::Rule] (:ia::cool))
+      (wat.type/PersistentVector :- [:wat::rete::Query] (:ia::q-Hit)))
     [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
       (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))

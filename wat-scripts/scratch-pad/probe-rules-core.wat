@@ -45,7 +45,7 @@
                  (:wat::core::Option/expect
                    (:wat::map::get p "?fact")
                    "q-Hot: ?fact")))
-             (:wat::core::PersistentVector)
+             (wat.type/PersistentVector :- [wat.type/Value])
              hots)]
     (:wat::core::foldl
       (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Value])  p <- wat.type/PersistentMap]
@@ -59,8 +59,8 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [rules    (:wat::core::PersistentVector (:usr::hot-rule) (:usr::warn-rule))
-     template (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+    [rules    (wat.type/PersistentVector :- [:wat::rete::Rule] (:usr::hot-rule) (:usr::warn-rule))
+     template (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      hot      (:usr::deduce-one template (:usr::Temp :c 60))   ;; expect 2 deductions (Hot + Warn)
      cold     (:usr::deduce-one template (:usr::Temp :c 10))   ;; expect 0 (below threshold)
      total    (:wat::core::+ (:wat::core::length hot) (:wat::core::length cold))]

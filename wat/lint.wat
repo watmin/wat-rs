@@ -359,9 +359,9 @@
         (:wat::core::let [lits (:wat::core::first acc)
                           vals (:wat::core::second acc)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
-            (:wat::core::Tuple (:wat::i64::+ lits 1) vals)
-            (:wat::core::Tuple lits (:wat::i64::+ vals 1)))))
-      (:wat::core::Tuple 0 0)
+            (wat.type/Tuple :- [wat.type/i64 wat.type/i64] (:wat::i64::+ lits 1) vals)
+            (wat.type/Tuple :- [wat.type/i64 wat.type/i64] lits (:wat::i64::+ vals 1)))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 0 0)
       args)))
 
 ;; concat-abuse? — true when the concat call mixes string literals with non-literals.
@@ -681,7 +681,7 @@
                                                    new-text  (:wat::lint::FixEdit/new-text fe)]
                                    (:wat::core::concat acc
                                      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                                       (:wat::core::Tuple off old-text new-text))))]))
+                                       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text))))]))
                             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
                             findings)
                     rev-edits (:wat::core::reverse edits)]

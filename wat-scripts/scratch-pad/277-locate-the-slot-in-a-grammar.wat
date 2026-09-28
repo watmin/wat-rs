@@ -28,7 +28,7 @@
                 (:wat::core::map-indexed
                   (:wat::core::fn [i <- wat.type/i64  k <- wat.type/AST]
                     -> (wat.type/Tuple :- [wat.type/i64 wat.type/AST])
-                    (:wat::core::Tuple i k))
+                    (wat.type/Tuple :- [wat.type/i64 wat.type/AST] i k))
                   kids))]
         (:wat::core::do
           (:wat::kernel::println (:wat::string::concat "GRAMMAR OF " name))

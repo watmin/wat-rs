@@ -40,8 +40,8 @@
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to
   ;; pin the verdict's `rule` and `fact-type`, and a message string throws both away.
-  (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:gc::count-up))
-                (:wat::core::PersistentVector (:gc::q)))
+  (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] (:gc::count-up))
+                (wat.type/PersistentVector :- [:wat::rete::Query] (:gc::q)))
     [:wat::rete::CompileOutcome.Compiled {:session __session}
       (:wat::kernel::println
     (:wat::i64::to-string

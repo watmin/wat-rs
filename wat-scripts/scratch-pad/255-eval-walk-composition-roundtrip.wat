@@ -47,7 +47,7 @@
            after-src (:wat::core::ast->source (:wat::core::first pair))
            acc (:wat::core::second pair)]
           (:wat::kernel::println
-            (:wat::core::Tuple acc before-src after-src (:wat::core::= after-src "(\"k\" \"v\")"))))]
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String wat.type/bool] acc before-src after-src (:wat::core::= after-src "(\"k\" \"v\")"))))]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println e)])))
 

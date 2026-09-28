@@ -30,7 +30,7 @@
   :when [(:j2::Guess (?name :- :name))])
 
 (:wat::core::defn :j2::catalog [] -> (wat.type/PersistentVector :- [:j2::Catalog])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:j2::Catalog]
     (:j2::Catalog :name "identity"    :obs (:j2::table-of (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b)))
     (:j2::Catalog :name "not"         :obs (:j2::table-of (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true))))
     (:j2::Catalog :name "const-true"  :obs (:j2::table-of (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true)))
@@ -42,8 +42,8 @@
   -> wat.type/String
   (:wat::core::let
     [s0    (:wat::core::match (:wat::rete::compile-all
-             (:wat::core::PersistentVector (:j2::classify))
-             (:wat::core::PersistentVector (:j2::q-Guess))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+             (wat.type/PersistentVector :- [:wat::rete::Rule] (:j2::classify))
+             (wat.type/PersistentVector :- [:wat::rete::Query] (:j2::q-Guess))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      s1    (:wat::core::match (:wat::rete::insert-all s0 (:j2::catalog)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      s2    (:wat::core::match (:wat::rete::insert s1 (:j2::Observation :obs (:j2::table-of mystery))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (fire s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])
@@ -57,8 +57,8 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
-    (:wat::kernel::println (:wat::core::PersistentMap :identity (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))))
-    (:wat::kernel::println (:wat::core::PersistentMap :not (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true)))))
-    (:wat::kernel::println (:wat::core::PersistentMap :const-true (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true))))
-    (:wat::kernel::println (:wat::core::PersistentMap :const-false (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool false))))
-    (:wat::kernel::println (:wat::core::PersistentMap :native-id (:j2::run :wat::rete::fire-rules (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))))))
+    (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :identity (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))))
+    (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :not (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true)))))
+    (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :const-true (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true))))
+    (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :const-false (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool false))))
+    (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/String] :native-id (:j2::run :wat::rete::fire-rules (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))))))

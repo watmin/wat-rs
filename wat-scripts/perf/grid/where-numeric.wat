@@ -207,7 +207,7 @@
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure (mirrors where-shapes.wat).
 (:wat::core::defn :wnm::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wnm::quot-neg))
       ((:wat::core::= row 2)  (:wnm::rem-neg))
@@ -239,7 +239,7 @@
                           y (:wat::f64::* (:wat::i64::to-f64 i) 0.1)]
           (:wat::vector::conj acc
             (:wnm::Num :k i :a a :z z :x x :y y))))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending.
@@ -282,7 +282,7 @@
 (:wat::core::defn :wnm::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let [rules   (:wnm::build-rules row)
                     rule    (:wat::core::first rules)
-                    staged  (:wnm::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnm::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wnm::items))
+                    staged  (:wnm::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wnm::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wnm::items))
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     derived (:wnm::derived-ints fired)
                     n       (:wat::vec::length derived)]

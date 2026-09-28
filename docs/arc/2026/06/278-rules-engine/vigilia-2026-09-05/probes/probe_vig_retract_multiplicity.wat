@@ -16,7 +16,7 @@
 
 (:wat::core::defn :vrm::base [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :vrm)
-    (:wat::core::PersistentVector (:vrm::q-seen)))
+    (wat.type/PersistentVector :- [:wat::rete::Query] (:vrm::q-seen)))
     [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
       (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
@@ -47,7 +47,7 @@
      f1   (:vrm::fire r1)]
     (:wat::core::mapv
       (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/i64]
         (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts f0)))
         (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts r1)))
         (:wat::core::length (:wat::rete::query f1 (:vrm::q-seen)))

@@ -43,7 +43,7 @@
 
 (:wat::core::defn :d7p::rows
   [n <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/Record])
     (:wat::core::into (wat.type/Vector :- [wat.type/Record])
       (:wat::core::map
         (:wat::core::fn [i <- wat.type/i64] -> wat.type/Record
@@ -53,8 +53,8 @@
 (:wat::core::defn :d7p::staged [n <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
       (:wat::core::match (:wat::rete::compile-all
-          (:wat::core::PersistentVector (:d7p::r))
-          (:wat::core::PersistentVector (:d7p::q)))
+          (wat.type/PersistentVector :- [:wat::rete::Rule] (:d7p::r))
+          (wat.type/PersistentVector :- [:wat::rete::Query] (:d7p::q)))
         [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
         [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
           (:wat::kernel::assertion-failed! :message "compile")])
@@ -88,4 +88,4 @@
                (:wat::core::map
                  (:wat::core::fn [__i <- wat.type/i64] -> wat.type/i64 (:d7p::fire-ns s))
                  (:wat::core::range 0 9)))]
-    (:wat::kernel::println (:wat::core::into (:wat::core::PersistentVector) samples))))
+    (:wat::kernel::println (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) samples))))

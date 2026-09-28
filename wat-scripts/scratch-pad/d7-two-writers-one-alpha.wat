@@ -57,7 +57,7 @@
 (:wat::core::defn :d7::as-record [r <- wat.type/Record] -> wat.type/Record r)
 
 (:wat::core::defn :d7::facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/Record]
     (:d7::as-record (:d7::Box :k 0 :v 100))
     (:d7::as-record (:d7::Box :k 1 :v "not-an-i64"))
     (:d7::as-record (:d7::Box :k 2 :v 200))))
@@ -65,8 +65,8 @@
 (:wat::core::defn :d7::run [] -> wat.type/String
   (:wat::core::let
     [session (:wat::core::match (:wat::rete::compile-all
-               (:wat::core::PersistentVector (:d7::r))
-               (:wat::core::PersistentVector (:d7::q)))
+               (wat.type/PersistentVector :- [:wat::rete::Rule] (:d7::r))
+               (wat.type/PersistentVector :- [:wat::rete::Query] (:d7::q)))
                [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
                [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
                  (:wat::kernel::assertion-failed! :message "compile")])

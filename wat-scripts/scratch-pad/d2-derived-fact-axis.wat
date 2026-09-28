@@ -97,12 +97,12 @@
   (:d2p::wave2 (:d2p::wave1 s n) n))
 
 (:wat::core::defn :d2p::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:d2p::derive-a) (:d2p::derive-b) (:d2p::derive-c) (:d2p::derive-d)
     (:d2p::chain) (:d2p::chain2)))
 
 (:wat::core::defn :d2p::queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
-  (:wat::core::PersistentVector (:d2p::q-hit) (:d2p::q-hit2) (:d2p::q-chain)))
+  (wat.type/PersistentVector :- [:wat::rete::Query] (:d2p::q-hit) (:d2p::q-hit2) (:d2p::q-chain)))
 
 (:wat::core::defn :d2p::fresh [n <- wat.type/i64] -> :wat::rete::Session
   (:d2p::seed

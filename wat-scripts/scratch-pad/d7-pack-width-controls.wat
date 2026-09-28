@@ -38,7 +38,7 @@
   (:d7w::as-record (:d7w::Wide :a k :b 1 :c 2 :d 3 :e 4 :f 5 :g 6 :h 7 :i 8)))
 
 (:wat::core::defn :d7w::facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/Record]
     (:d7w::wide 0) (:d7w::wide 1) (:d7w::wide 2)
     (:d7w::as-record (:d7w::Narrow :k 0))
     (:d7w::as-record (:d7w::Narrow :k 1))
@@ -53,8 +53,8 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all
-           (:wat::core::PersistentVector (:d7w::rw) (:d7w::rn))
-           (:wat::core::PersistentVector (:d7w::qw) (:d7w::qn)))
+           (wat.type/PersistentVector :- [:wat::rete::Rule] (:d7w::rw) (:d7w::rn))
+           (wat.type/PersistentVector :- [:wat::rete::Query] (:d7w::qw) (:d7w::qn)))
            [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
            [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
              (:wat::kernel::assertion-failed! :message "compile")])

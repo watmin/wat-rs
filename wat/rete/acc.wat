@@ -118,7 +118,7 @@
         (:wat::core::if (:wat::vector::contains? acc v)
           acc
           (:wat::vector::conj acc v))))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/i64])
     els))
 
 ;; acc::all — PV of each element's fact. empty → [] → bare PV, never Option.
@@ -130,7 +130,7 @@
                      e   <- :wat::rete::Element]
       -> (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::vector::conj acc (:wat::rete::Element/fact e)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/Record])
     els))
 
 ;; acc::group-by — map bindings[var] → (PV :- [fact]) via foldl into a PersistentMap.
@@ -151,7 +151,7 @@
                         pv   (:wat::core::match (:wat::map::get acc k)
                                
                                [:wat::core::Option.Some {:value existing} existing]
-                               [:wat::core::Option.None {} (:wat::core::PersistentVector)])]
+                               [:wat::core::Option.None {} (wat.type/PersistentVector :- [wat.type/Record])])]
         (:wat::map::assoc acc k (:wat::vector::conj pv fact))))
     (:wat::core::PersistentMap)
     els))

@@ -52,7 +52,7 @@
 
 ;; ── L3 — every digit is inside its own base ─────────────────────────────────
 (:wat::core::defn :wat-tests::gen::bases [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector 2 3 4 5))
+  (wat.type/PersistentVector :- [wat.type/i64] 2 3 4 5))
 
 (:wat::core::defn :wat-tests::gen::law-digits [c <- (wat.type/PersistentVector :- [wat.type/i64])]
   -> wat.type/bool
@@ -99,7 +99,7 @@
 
 ;; ── L6 — gen-elements: card is the length, `at` is indexing ─────────────────
 (:wat::core::defn :wat-tests::gen::pool [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector 11 22 33 44))
+  (wat.type/PersistentVector :- [wat.type/i64] 11 22 33 44))
 
 (:wat::core::defn :wat-tests::gen::law-elements [c <- (wat.type/PersistentVector :- [wat.type/i64])]
   -> wat.type/bool
@@ -175,8 +175,8 @@
                     g (:wat::gen::record :wat-tests::gen::Pair (:wat::gen::ints 0 3) (:wat::gen::ints 10 12))
                     p ((:wat::gen::Gen/at g) i)
                     ;; card 6: a = i mod 3, b = 10 + i/3 — as a TABLE, not as arithmetic
-                    ea (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 2 0 1 2) i)
-                    eb (:wat-tests::gen::at0 (:wat::core::PersistentVector 10 10 10 11 11 11) i)]
+                    ea (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 0 1 2 0 1 2) i)
+                    eb (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 10 10 10 11 11 11) i)]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
                        (:wat::core::and (:wat::core::= (:wat-tests::gen::Pair/a p) ea)
@@ -245,9 +245,9 @@
                     t ((:wat::gen::Gen/at g) i)
                     ;; card 12, enumerated — the second digit (eb) is the one L11 exists
                     ;; for, so it above all must NOT be re-derived from `shift`+`digit`
-                    ea (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 0 1 0 1 0 1 0 1 0 1) i)
-                    eb (:wat-tests::gen::at0 (:wat::core::PersistentVector 10 10 11 11 12 12 10 10 11 11 12 12) i)
-                    ec (:wat-tests::gen::at0 (:wat::core::PersistentVector 100 100 100 100 100 100 101 101 101 101 101 101) i)]
+                    ea (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 0 1 0 1 0 1 0 1 0 1 0 1) i)
+                    eb (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 10 10 11 11 12 12 10 10 11 11 12 12) i)
+                    ec (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 100 100 100 100 100 100 101 101 101 101 101 101) i)]
     (:wat::core::if
       (:wat::core::and
         (:wat::core::= (:wat::gen::Gen/card g) 12)
@@ -267,7 +267,7 @@
 (:wat::core::defrecord :wat-tests::gen::Mix [n <- wat.type/i64  s <- wat.type/String])
 
 (:wat::core::defn :wat-tests::gen::pool3 [] -> (wat.type/PersistentVector :- [wat.type/String])
-  (:wat::core::PersistentVector "a" "b" "c"))
+  (wat.type/PersistentVector :- [wat.type/String] "a" "b" "c"))
 
 (:wat::core::defn :wat-tests::gen::evenp [x <- wat.type/i64] -> wat.type/bool
   (:wat::core::= x (:wat::i64::* 2 (:wat::i64::/ x 2))))
@@ -298,8 +298,8 @@
                     m ((:wat::gen::Gen/at g) i)
                     ;; card 6, enumerated — the String column is a literal too, so a
                     ;; wrong `shift` cannot pick the "expected" string as well
-                    en (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 0 1 0 1) i)
-                    es (:wat::gen::nth (:wat::core::PersistentVector "a" "a" "b" "b" "c" "c") i)]
+                    en (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 0 1 0 1 0 1) i)
+                    es (:wat::gen::nth (wat.type/PersistentVector :- [wat.type/String] "a" "a" "b" "b" "c" "c") i)]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
         (:wat::core::and (:wat::core::= (:wat-tests::gen::Mix/n m) en)
@@ -387,7 +387,7 @@
                    (:wat::core::>= (:wat::gen::nth c 2) 2)))
 
 (:wat::core::defn :wat-tests::gen::law-shrink [] -> wat.type/i64
-  (:wat::core::let [big  (:wat::core::PersistentVector 3 4 5 6)
+  (:wat::core::let [big  (wat.type/PersistentVector :- [wat.type/i64] 3 4 5 6)
                     small (:wat::gen::shrink big :wat-tests::gen::sfails?)]
     (:wat::core::if
       (:wat::core::and (:wat-tests::gen::sfails? small)
@@ -449,9 +449,9 @@
         (:wat::core::and (:wat::core::= (:wat::core::length v) 2)
           (:wat::core::and
             (:wat::core::= (:wat::gen::nth v 0)
-              (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 2 0 1 2 0 1 2) k))
+              (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 0 1 2 0 1 2 0 1 2) k))
             (:wat::core::= (:wat::gen::nth v 1)
-              (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 0 0 1 1 1 2 2 2) k)))))
+              (:wat-tests::gen::at0 (wat.type/PersistentVector :- [wat.type/i64] 0 0 0 1 1 1 2 2 2) k)))))
       true false)))
 
 ;; ── L21 — vector-upto: VARIABLE length, card = SUM over lengths ─────────────
@@ -495,7 +495,7 @@
 
 (:wat::core::defn :wat-tests::gen::law-witness [] -> wat.type/i64
   (:wat::core::match
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 6))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 6))
                       :wat-tests::gen::holds-below-3)
     [:wat::gen::CheckOutcome.Checked {:points pts :violations bad :first-failure first}
       (:wat::core::match first
@@ -549,87 +549,87 @@
 
 (:wat::test::deftest :wat-tests::gen::test-ints
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 7))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 7))
                       :wat-tests::gen::law-ints)))
 
 (:wat::test::deftest :wat-tests::gen::test-fmap
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 7))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 7))
                       :wat-tests::gen::law-fmap)))
 
 (:wat::test::deftest :wat-tests::gen::test-digits
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 120))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 120))
                       :wat-tests::gen::law-digits)))
 
 (:wat::test::deftest :wat-tests::gen::test-bijection
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 120))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 120))
                       :wat-tests::gen::law-bijection)))
 
 (:wat::test::deftest :wat-tests::gen::test-elements
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 4))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 4))
                       :wat-tests::gen::law-elements)))
 
 (:wat::test::deftest :wat-tests::gen::test-such-that
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 5))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 5))
                       :wat-tests::gen::law-such-that)))
 
 (:wat::test::deftest :wat-tests::gen::test-one-of
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 8))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 8))
                       :wat-tests::gen::law-one-of)))
 
 (:wat::test::deftest :wat-tests::gen::test-record
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 6))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 6))
                       :wat-tests::gen::law-record)))
 
 (:wat::test::deftest :wat-tests::gen::test-lift2
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 8))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 8))
                       :wat-tests::gen::law-lift2)))
 
 (:wat::test::deftest :wat-tests::gen::test-lift3
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 12))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 12))
                       :wat-tests::gen::law-lift3)))
 
 (:wat::test::deftest :wat-tests::gen::test-mixed-types
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 6))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 6))
                       :wat-tests::gen::law-mixed-types)))
 
 (:wat::test::deftest :wat-tests::gen::test-oneof-over-filter
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 7))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 7))
                       :wat-tests::gen::law-oneof-over-filter)))
 
 (:wat::test::deftest :wat-tests::gen::test-fmap-after-filter
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 5))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 5))
                       :wat-tests::gen::law-fmap-after-filter)))
 
 (:wat::test::deftest :wat-tests::gen::test-oneof-empty-branch
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 2))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 2))
                       :wat-tests::gen::law-oneof-empty-branch)))
 
 (:wat::test::deftest :wat-tests::gen::test-bind
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 6))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 6))
                       :wat-tests::gen::law-bind)))
 
 (:wat::test::deftest :wat-tests::gen::test-vector-of
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 9))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 9))
                       :wat-tests::gen::law-vector-of)))
 
 (:wat::test::deftest :wat-tests::gen::test-vector-upto
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 7))
+    (:wat::gen::check (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 7))
                       :wat-tests::gen::law-vector-upto)))
 
 (:wat::test::deftest :wat-tests::gen::test-card
@@ -679,7 +679,7 @@
      b (:wat-tests::gen::neg? (:wat::gen::Gen/card
          (:wat::gen::take -3 (:wat::gen::ints 0 10))))
      c (:wat-tests::gen::neg? (:wat::gen::Gen/card
-         (:wat::gen::coords (:wat::core::PersistentVector 3 -2))))
+         (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] 3 -2))))
      d (:wat-tests::gen::neg? (:wat::gen::Gen/card
          (:wat::gen::vector-of (:wat::gen::ints 0 3) -2)))
      ;; and every one of these PROPAGATES a poisoned card if one can exist
@@ -788,7 +788,7 @@
 
 (:wat::core::defn :wat-tests::gen::law-check-not-vacuous [] -> wat.type/i64
   (:wat::core::let
-    [g (:wat::gen::elements (:wat::core::PersistentVector 10 20 30 40))
+    [g (:wat::gen::elements (wat.type/PersistentVector :- [wat.type/i64] 10 20 30 40))
      a (:wat-tests::gen::outcome-is (:wat::gen::check g :wat-tests::gen::not-10?) 4 1 0)
      b (:wat-tests::gen::outcome-is (:wat::gen::check g :wat-tests::gen::not-40?) 4 1 3)]
     (:wat::i64::+ a b)))

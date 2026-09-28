@@ -51,7 +51,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :cnb)
-          (:wat::core::PersistentVector (:cnb::q-plain) (:cnb::q-extra)))
+          (wat.type/PersistentVector :- [:wat::rete::Query] (:cnb::q-plain) (:cnb::q-extra)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
           [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile")])
      s1 (:wat::core::match (:wat::rete::insert s0 (:cnb::Station :location "A")) [:wat::rete::InsertOutcome.Inserted {:session __x} __x]

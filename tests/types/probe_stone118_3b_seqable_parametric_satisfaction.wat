@@ -35,7 +35,7 @@
   (:t118b::count-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
 (:wat::core::defn :t::param-persistent-vector [] -> wat.type/i64
-  (:t118b::count-of (:wat::core::PersistentVector 1 2 3 4)))
+  (:t118b::count-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
 
 (:wat::core::defn :t::param-list [] -> wat.type/i64
   (:t118b::count-of (:wat::core::List 1 2 3 4 5)))
@@ -51,7 +51,7 @@
   (:t118b::sum-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
 (:wat::core::defn :t::sum-persistent-vector [] -> wat.type/i64
-  (:t118b::sum-of (:wat::core::PersistentVector 1 2 3 4)))
+  (:t118b::sum-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
 
 (:wat::core::defn :t::sum-list [] -> wat.type/i64
   (:t118b::sum-of (:wat::core::List 1 2 3 4 5)))

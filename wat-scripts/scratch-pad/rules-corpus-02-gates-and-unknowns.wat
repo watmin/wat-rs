@@ -172,7 +172,7 @@
 ;;   Vector/  4 members                            <- consistent; NOT ruled    => NoRuling
 (:wat::core::defn :m::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all s
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [:m::Member]
       (:m::Member :id 1 :prefix "String" :base "concat"    :style "slash")
       (:m::Member :id 2 :prefix "string" :base "length"    :style "colons")
       (:m::Member :id 3 :prefix "i64"    :base "to-string" :style "colons")
@@ -184,7 +184,7 @@
 ;; engine distinguishes them.
 (:wat::core::defn :m::seed-rulings [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all s
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [:m::Ruling]
       (:m::Ruling :concept "i64" :target "wat.core.i64"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :m::show [label <- wat.type/String n <- wat.type/i64] -> wat.type/nil
@@ -192,11 +192,11 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [rules (:wat::core::PersistentVector
+    [rules (wat.type/PersistentVector :- [:wat::rete::Rule]
              (:m::concept-of) (:m::style-seen) (:m::inconsistent)
              (:m::settled) (:m::target) (:m::target-ns) (:m::no-ruling))
      fired (:wat::core::match (:wat::rete::fire-rules
-             (:m::seed-rulings (:m::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:m::q-Concept) (:m::q-StyleSeen) (:m::q-Settled) (:m::q-TargetNS) (:m::q-Target) (:m::q-Inconsistent) (:m::q-NoRuling))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+             (:m::seed-rulings (:m::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:m::q-Concept) (:m::q-StyleSeen) (:m::q-Settled) (:m::q-TargetNS) (:m::q-Target) (:m::q-Inconsistent) (:m::q-NoRuling))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::do
       ;; non-vacuity: 0 concepts ⇒ the seed never landed and every row below is meaningless
       (:m::show "Concept      (want 5; 0 => seed dead, all below vacuous): "

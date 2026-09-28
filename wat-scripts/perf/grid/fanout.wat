@@ -73,7 +73,7 @@
       (:wat::vector::conj
         (:wat::vector::conj acc (:fan::Left :key k :lid f))
         (:fan::Right :key k :rid f)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/Record])
     (:wat::core::range 0 fanout)))
 
 ;; all-facts keys fanout — every key's F Lefts + F Rights. Construct only.
@@ -82,7 +82,7 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  k <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::vector::concat acc (:fan::facts-key k fanout)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/Record])
     (:wat::core::range 0 keys)))
 
 ;; seed s keys fanout — every key's F Lefts + F Rights, staged in ONE `insert-all` (which
@@ -101,7 +101,7 @@
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :fan::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived Pair fact, canonically encoded, sorted ascending.
 (:wat::core::defn :fan::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
@@ -124,8 +124,8 @@
                     c1      (:wat::core::quote (:fan::Left  (?k :- :key) (?l :- :lid)))
                     c2      (:wat::core::quote (:fan::Right (?k :- :key) (?r :- :rid)))
                     rhs     (:wat::core::quote (:fan::Pair ?k ?l ?r))
-                    rule    (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
-                    session (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    rule    (:wat::rete::Rule :name "fan" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs))
+                    session (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] rule) (wat.type/PersistentVector :- [:wat::rete::Query] (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     facts   (:fan::all-facts keys fanout)
                     p0      (:wat::time::now)
                     staged  (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
@@ -165,4 +165,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "fanout" :size (:wat::core::PersistentVector items) :derived derived :native-ns fir-ns :oracle-derived (:fan::derived-vector ofired) :oracle-ns (:fan::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))
+      (:grid::Result :axis "fanout" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns fir-ns :oracle-derived (:fan::derived-vector ofired) :oracle-ns (:fan::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

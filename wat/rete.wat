@@ -424,7 +424,7 @@
                          session  (:wat::rete::Explained/session ex)
                          ;; Arc 118.2a — `map` flipped LAZY; `DerivationNode`'s 3rd field is
                          ;; `(PersistentVector :- [DerivationStep])`, so materialize via `into`.
-                         via      (:wat::core::into (:wat::core::PersistentVector)
+                         via      (:wat::core::into (wat.type/PersistentVector :- [:wat::rete::DerivationStep])
                                     (:wat::core::map
                                       (:wat::core::fn [m <- (wat.type/Tuple :- [wat.type/Record wat.type/i64])]
                                         -> :wat::rete::DerivationStep
@@ -436,7 +436,7 @@
          (:wat::rete::DerivationNode :fact fact :rule (:wat::core::Option.Some {:value rule}) :via via))]
       [:wat::core::Option.None {}
        ;; base/asserted fact — leaf node, rule=None, via is empty.
-       (:wat::rete::DerivationNode :fact fact :rule :wat::core::Option.None :via (:wat::core::PersistentVector))])))
+       (:wat::rete::DerivationNode :fact fact :rule :wat::core::Option.None :via (wat.type/PersistentVector :- [:wat::rete::DerivationStep]))])))
 
 ;; ─── render-dag ─────────────────────────────────────────────────────────────
 
@@ -480,7 +480,7 @@
        (:wat::rete::ExistsNode/children node))
       ((:wat::core::= kind "AccumulateNode")
        (:wat::rete::AccumulateNode/children node))
-      (:else (:wat::core::PersistentVector)))))
+      (:else (wat.type/PersistentVector :- [wat.type/i64])))))
 
 ;; children-ids-text — format a (PersistentVector :- [i64]) as "[id id ...]" for render-dag.
 ;; WHY: foldl builds space-separated ids so render-dag can emit the edge list inline.

@@ -8,7 +8,7 @@
   (:wat::core::let
     [hm0 (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
      hm1 (:wat::hashmap::assoc hm0 :a 1)
-     pm0 (:wat::core::PersistentMap :b 2)
+     pm0 (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :b 2)
      pm1 (:wat::map::assoc pm0 :a 1)]
     (:wat::core::do
       (:wat::test::assert-eq (:wat::hashmap::length hm1) 1)

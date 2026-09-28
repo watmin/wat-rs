@@ -50,14 +50,14 @@
   (:wat::core::match (:wat::rete::insert-all
     (:wat::core::match (:wat::rete::insert-all
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :sqr)
-        (:wat::core::PersistentVector (:sqr::q-scan) (:sqr::q-join) (:sqr::q-exists))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-      (:wat::core::PersistentVector (:sqr::Item :k 1 :name "a") (:sqr::Item :k 2 :name "b")
+        (wat.type/PersistentVector :- [:wat::rete::Query] (:sqr::q-scan) (:sqr::q-join) (:sqr::q-exists))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+      (wat.type/PersistentVector :- [:sqr::Item] (:sqr::Item :k 1 :name "a") (:sqr::Item :k 2 :name "b")
                                     (:sqr::Item :k 3 :name "c"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
     ;; two Winds sharing one loc => ONE distinct inner binding
-    (:wat::core::PersistentVector (:sqr::Wind :loc "MCI") (:sqr::Wind :loc "MCI"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    (wat.type/PersistentVector :- [:sqr::Wind] (:sqr::Wind :loc "MCI") (:sqr::Wind :loc "MCI"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :sqr::counts [s <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/i64]
     (:wat::core::length (:wat::rete::query s (:sqr::q-scan)))
     (:wat::core::length (:wat::rete::query s (:sqr::q-join)))
     (:wat::core::length (:wat::rete::query s (:sqr::q-exists)))))

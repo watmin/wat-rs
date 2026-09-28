@@ -47,17 +47,17 @@
 
 (:wat::core::defn :a2::readback [s <- :wat::rete::Session]
   -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/i64]
     (:wat::core::length (:wat::rete::query s (:a2::q-Bad)))
     (:wat::core::length (:wat::rete::query s (:a2::q-Rate)))
     (:wat::core::length (:wat::rete::query s (:a2::q-Out)))))
 
 (:wat::core::defn :a2::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::PersistentVector))
+  (wat.type/PersistentVector :- [wat.type/Record]))
 
 (:wat::core::defn :a2::staged [] -> :wat::rete::Session
-  (:wat::core::let [rules (:wat::core::PersistentVector (:a2::bad) (:a2::via) (:a2::out))
-                    qs    (:wat::core::PersistentVector (:a2::q-Rate) (:a2::q-Out) (:a2::q-Bad))
+  (:wat::core::let [rules (wat.type/PersistentVector :- [:wat::rete::Rule] (:a2::bad) (:a2::via) (:a2::out))
+                    qs    (wat.type/PersistentVector :- [:wat::rete::Query] (:a2::q-Rate) (:a2::q-Out) (:a2::q-Bad))
                     session (:wat::core::match (:wat::rete::compile-all rules qs)
                               [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
                               [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
@@ -98,7 +98,7 @@
 ;; `:a2::mk-rate` is admitted is that this program REACHES the output below: the genuine
 ;; CompileOutcome match above assertion-fails on MayNotTerminate, so completion is the proof.
     (:wat::kernel::println "ORACLE STRATA:")
-    (:wat::kernel::println (:wat::rete::stratify (:wat::core::PersistentVector (:a2::bad) (:a2::via) (:a2::out))))
+    (:wat::kernel::println (:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:a2::bad) (:a2::via) (:a2::out))))
     (:wat::kernel::println "ORACLE rule-produces via:")
     (:wat::kernel::println (:wat::rete::rule-produces (:a2::via)))
     (:wat::kernel::println "NATIVE facts [Bad Rate Out]:")

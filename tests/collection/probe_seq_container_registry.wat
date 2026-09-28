@@ -7,13 +7,13 @@
   (:wat::core::first (wat.type/Vector :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::first-persistent-vector [] -> wat.type/i64
-  (:wat::core::first (:wat::core::PersistentVector 10 20 30)))
+  (:wat::core::first (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::first-list [] -> wat.type/i64
   (:wat::core::first (:wat::core::List 10 20 30)))
 
 (:wat::core::defn :p::first-tuple [] -> wat.type/i64
-  (:wat::core::first (:wat::core::Tuple 10 20)))
+  (:wat::core::first (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 10 20)))
 
 (:wat::core::defn :p::first-watast [] -> wat.type/AST
   (:wat::core::first (:wat::core::quote (a b c))))
@@ -29,13 +29,13 @@
 ;; ── seq-1b: measurable (length/empty?) ──
 
 (:wat::core::defn :p::tuple-length [] -> wat.type/i64
-  (:wat::core::length (:wat::core::Tuple 10 20 30)))
+  (:wat::core::length (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::tuple-empty-false [] -> wat.type/bool
-  (:wat::core::empty? (:wat::core::Tuple 10 20 30)))
+  (:wat::core::empty? (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::tuple-empty-single [] -> wat.type/bool
-  (:wat::core::empty? (:wat::core::Tuple 42)))
+  (:wat::core::empty? (wat.type/Tuple :- [wat.type/i64] 42)))
 
 (:wat::core::defn :p::watastlist-length [] -> wat.type/i64
   (:wat::core::length (:wat::core::quote (a b c))))
@@ -52,10 +52,10 @@
   (:wat::core::contains? (:wat::core::List 10 20 30) 99))
 
 (:wat::core::defn :p::tuple-contains-found [] -> wat.type/bool
-  (:wat::core::contains? (:wat::core::Tuple 10 20 30) 20))
+  (:wat::core::contains? (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 10 20 30) 20))
 
 (:wat::core::defn :p::tuple-contains-not-found [] -> wat.type/bool
-  (:wat::core::contains? (:wat::core::Tuple 10 20 30) 99))
+  (:wat::core::contains? (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 10 20 30) 99))
 
 (:wat::core::defn :p::watastlist-contains-found [] -> wat.type/bool
   (:wat::core::contains?

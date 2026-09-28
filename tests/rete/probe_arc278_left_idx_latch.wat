@@ -70,7 +70,7 @@
 (:wat::core::defn :vlx::staged [] -> :wat::rete::Session
   (:vlx::ins (:vlx::ins (:vlx::ins (:vlx::ins (:vlx::ins
     (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :vlx)
-      (:wat::core::PersistentVector (:vlx::q-w) (:vlx::q-p) (:vlx::q-c) (:vlx::q-n)))
+      (wat.type/PersistentVector :- [:wat::rete::Query] (:vlx::q-w) (:vlx::q-p) (:vlx::q-c) (:vlx::q-n)))
       [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
       [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
         (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -80,7 +80,7 @@
   (:vlx::ins (:vlx::staged) (:vlx::A3 :k 1)))
 
 (:wat::core::defn :vlx::counts [s <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/i64]
     (:wat::core::length (:wat::rete::query s (:vlx::q-w)))
     (:wat::core::length (:wat::rete::query s (:vlx::q-p)))
     (:wat::core::length (:wat::rete::query s (:vlx::q-c)))

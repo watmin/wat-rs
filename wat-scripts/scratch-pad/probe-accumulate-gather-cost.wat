@@ -163,7 +163,7 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  x <- wat.type/i64]
       -> (wat.type/PersistentVector :- [wat.type/i64])
       (:wat::vector::conj acc x))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/i64])
     v))
 
 (:wat::core::defn :acp::seed-readings [session <- :wat::rete::Session  g <- wat.type/i64  W <- wat.type/i64] -> :wat::rete::Session
@@ -224,7 +224,7 @@
                     t0      (:wat::time::now)
                     rules   (:wat::rete::collect-rules :acp)
                     t1      (:wat::time::now)
-                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acp::q-CountF) (:acp::q-SumF) (:acp::q-MinF) (:acp::q-MaxF) (:acp::q-ExistsF))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:acp::q-CountF) (:acp::q-SumF) (:acp::q-MinF) (:acp::q-MaxF) (:acp::q-ExistsF))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     t2      (:wat::time::now)
                     staged  (:acp::seed session groups reads)
                     t3      (:wat::time::now)

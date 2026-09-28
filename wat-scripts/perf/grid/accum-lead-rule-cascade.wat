@@ -57,16 +57,16 @@
                     c (:wat::core::quasiquote (:alrc::Link (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:alrc::Link (:wat::core::unquote k)))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
-      :lhs (:wat::core::PersistentVector c)
-      :rhs (:wat::core::PersistentVector t))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] c)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] t))))
 
 ;; ★ leading accumulate, then a join. The accumulate has no parent condition.
 (:wat::core::defn :alrc::busy-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "busy"
-    :lhs (:wat::core::PersistentVector
+    :lhs (wat.type/PersistentVector :- [wat.type/AST]
       (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:alrc::Reading)))
       (:wat::core::quote (:alrc::Anchor (?k :- :k))))
-    :rhs (:wat::core::PersistentVector
+    :rhs (wat.type/PersistentVector :- [wat.type/AST]
       (:wat::core::quote (:alrc::Busy ?k ?n)))))
 
 (:wat::core::defn :alrc::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
@@ -74,11 +74,11 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:alrc::build-link k)))
-    (:wat::core::PersistentVector (:alrc::busy-rule))
+    (wat.type/PersistentVector :- [:wat::rete::Rule] (:alrc::busy-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
 
 (:wat::core::defn :alrc::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::PersistentVector))
+  (wat.type/PersistentVector :- [wat.type/Record]))
 
 (:wat::core::defn :alrc::seed-facts [items <- wat.type/i64  anchors <- wat.type/i64]
   -> (wat.type/PersistentVector :- [wat.type/Record])
@@ -115,7 +115,7 @@
   (:wat::i64::+ (:wat::i64::* k 1000000000000000) n))
 
 (:wat::core::defn :alrc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; Busy only. Link is derived and unqueried — if it leaked in, the count would move with depth.
 (:wat::core::defn :alrc::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
@@ -136,7 +136,7 @@
                     anchors (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [items anchors depth]")
                     depth   (:wat::core::Option/expect (:wat::core::get params 2) "stdin: [items anchors depth]")
                     rules   (:alrc::build-rules depth)
-                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alrc::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:alrc::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     ;; Variable MUST be named `staged` so GRID_SKIP_ORACLE / axes_live rewrite
                     ;; `fire-rules$oracle staged`.
                     staged  (:alrc::seed session items anchors)
@@ -149,4 +149,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "accum-lead-rule-cascade" :size (:wat::core::PersistentVector items anchors depth) :derived derived :native-ns nat-ns :oracle-derived (:alrc::derived-vector ofired) :oracle-ns (:alrc::ns-between o0 o1)))))
+      (:grid::Result :axis "accum-lead-rule-cascade" :size (wat.type/PersistentVector :- [wat.type/i64] items anchors depth) :derived derived :native-ns nat-ns :oracle-derived (:alrc::derived-vector ofired) :oracle-ns (:alrc::ns-between o0 o1)))))

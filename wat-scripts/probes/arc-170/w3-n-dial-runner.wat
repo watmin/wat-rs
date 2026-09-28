@@ -52,7 +52,7 @@
         [:wat::bracket::PoolMsg.Work {:pair pair}
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")
-             out (:wat::core::Tuple (:wat::core::first pair)
+             out (wat.type/Tuple :- [wat.type/i64 wat.type/String] (:wat::core::first pair)
                    (work-fn (:wat::core::first c) (:wat::core::second c) (:wat::core::second pair)))
              ;; arc 278 #73 — discard-only send; the recv' at the top of the next iteration
              ;; faces a stop as its own outcome.

@@ -5,7 +5,7 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
-    (:wat::core::PersistentMap
+    (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool]
       ;; row 1/4 — polymorphic <, > with NaN on the right
       :row1-lt-1-nan   (:wat::core::< 1 (:wat::f64::/ 0.0 0.0))
       :row4-gt-1-nan   (:wat::core::> 1 (:wat::f64::/ 0.0 0.0))

@@ -25,7 +25,7 @@
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-persistentvector
   (:wat::core::let [out (:wat::core::into [] (:wat::core::Seqable/seq
-                          (:wat::core::PersistentVector 1 2 3 4)))]
+                          (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))]
     (:wat::test::assert-eq (:wat::string::join "," out) "1,2,3,4")))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-list
@@ -56,7 +56,7 @@
     (:wat::test::assert-eq
       (:wat-tests::core::core-seqable::count-via-seq (wat.type/Vector :- [wat.type/i64] 1 2 3)) 3)
     (:wat::test::assert-eq
-      (:wat-tests::core::core-seqable::count-via-seq (:wat::core::PersistentVector 1 2 3 4)) 4)
+      (:wat-tests::core::core-seqable::count-via-seq (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)) 4)
     (:wat::test::assert-eq
       (:wat-tests::core::core-seqable::count-via-seq (:wat::core::List 1 2 3 4 5)) 5)
     (:wat::test::assert-eq

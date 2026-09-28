@@ -37,7 +37,7 @@
 (:wat::core::defn :bench::native-concat
   [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
   (:wat::core::length
-    (:wat::core::into (:wat::core::PersistentVector) v)))
+    (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v)))
 
 ;; DRAIN-ONLY path — `Seqable/seq` yields a (Stream :- [T]) over the SAME vector with NO user closure
 ;; anywhere. This is the control that separates `map`'s per-element interpreted closure call from

@@ -46,17 +46,17 @@
 ;; without touching C — two different un-derivation paths from one program.
 (:wat::core::defn :wat-tests::rete::tms::rules []
   -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::rete::Rule :name "r1"
-      :lhs (:wat::core::PersistentVector
+      :lhs (wat.type/PersistentVector :- [wat.type/AST]
              (:wat::core::quasiquote (:wat-tests::rete::tms::A (?k :- :k))))
-      :rhs (:wat::core::PersistentVector
+      :rhs (wat.type/PersistentVector :- [wat.type/AST]
              (:wat::core::quasiquote (:wat-tests::rete::tms::C ?k))))
     (:wat::rete::Rule :name "r2"
-      :lhs (:wat::core::PersistentVector
+      :lhs (wat.type/PersistentVector :- [wat.type/AST]
              (:wat::core::quasiquote (:wat-tests::rete::tms::C (?k :- :k)))
              (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::tms::B))))
-      :rhs (:wat::core::PersistentVector
+      :rhs (wat.type/PersistentVector :- [wat.type/AST]
              (:wat::core::quasiquote (:wat-tests::rete::tms::D ?k))))))
 
 ;; ── the operation alphabet ───────────────────────────────────────────────────
@@ -139,7 +139,7 @@
 
 (:wat::core::defn :wat-tests::rete::tms::seed [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:wat-tests::rete::tms::rules)
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [:wat::rete::Query]
       (:wat-tests::rete::tms::q-C) (:wat-tests::rete::tms::q-D)
       (:wat-tests::rete::tms::q-notC) (:wat-tests::rete::tms::q-acc))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 

@@ -23,7 +23,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [built (:uq::build-where 42)]
     (:wat::kernel::println
-      (:wat::core::PersistentMap
+      (wat.type/PersistentMap :- [wat.type/keyword wat.type/AST]
         ;; THE MEASUREMENT: the rendered form the fence would receive. If `unquote` survived
         ;; evaluation it would appear here as a head; if it is template syntax, `42` appears in
         ;; its place and the head is gone.

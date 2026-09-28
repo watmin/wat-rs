@@ -181,9 +181,9 @@
                                   (:wat::rete::i64::* (:wat::rete::i64::/ ?k 2 :undefined -1) 2 :undefined -1))))
                     ins     (:strat::insert-form lvl)
                     conds   (:wat::core::if (:wat::core::= lvl 0)
-                              (:wat::core::PersistentVector item-c where-c)
-                              (:wat::core::PersistentVector item-c (:strat::not-pattern (:wat::i64::- lvl 1))))]
-    (:wat::rete::Rule :name (:wat::i64::to-string lvl) :lhs conds :rhs (:wat::core::PersistentVector ins))))
+                              (wat.type/PersistentVector :- [wat.type/AST] item-c where-c)
+                              (wat.type/PersistentVector :- [wat.type/AST] item-c (:strat::not-pattern (:wat::i64::- lvl 1))))]
+    (:wat::rete::Rule :name (:wat::i64::to-string lvl) :lhs conds :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
 ;; build-rules strata — the rule set [rule0 .. rule(strata-1)], folding build-rule over
 ;; (range 1 strata) atop a seeded rule0 (mirrors deep-cascade.wat's build-rules exactly).
@@ -192,7 +192,7 @@
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  lvl <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:strat::build-rule lvl)))
-    (:wat::core::PersistentVector (:strat::build-rule 0))
+    (wat.type/PersistentVector :- [:wat::rete::Rule] (:strat::build-rule 0))
     (:wat::core::range 1 strata)))
 
 ;; seed-items session items — stage Item(i) for i in [0, items), threading the staging session.
@@ -204,7 +204,7 @@
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj acc (:strat::Item i)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; codes-for-level fired lvl — every derived fact of stratum lvl's type, canonically encoded.
@@ -264,7 +264,7 @@
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :strat::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired strata — every derived fact across all `strata` levels, canonically
 ;; encoded and sorted ascending. This IS the accuracy witness: the full set, not a count — a
@@ -289,7 +289,7 @@
                     strata  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [strata items]")
                     items   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [strata items]")
                     rules   (:strat::build-rules strata)
-                    staged  (:strat::seed-items (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    staged  (:strat::seed-items (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -302,4 +302,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "strat-neg" :size (:wat::core::PersistentVector strata items) :derived derived :native-ns nat-ns :oracle-derived (:strat::derived-vector ofired strata) :oracle-ns (:strat::ns-between o0 o1)))))
+      (:grid::Result :axis "strat-neg" :size (wat.type/PersistentVector :- [wat.type/i64] strata items) :derived derived :native-ns nat-ns :oracle-derived (:strat::derived-vector ofired strata) :oracle-ns (:strat::ns-between o0 o1)))))

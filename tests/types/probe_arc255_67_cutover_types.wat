@@ -95,10 +95,10 @@
   (:wat::core::= (wat.type/List 1 2 3) (:wat::core::List 1 2 3)))
 
 (:wat::core::defn :user::tuple-value [] -> wat.type/bool
-  (:wat::core::= (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2) (:wat::core::Tuple 1 2)))
+  (:wat::core::= (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2) (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)))
 
 (:wat::core::defn :user::persistentvector-value [] -> wat.type/bool
-  (:wat::core::= (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (:wat::core::PersistentVector 1 2 3)))
+  (:wat::core::= (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))
 
 (:wat::core::defn :user::persistentmap-value [] -> wat.type/bool
   (:wat::core::=

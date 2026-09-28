@@ -1,6 +1,6 @@
 ;; Baseline — non-generic user define inside a deftest's prelude.
 
-(:wat::core::defn :test::make-pair [a <- wat.type/i64 b <- wat.type/bool] -> (wat.type/Tuple :- [wat.type/i64 wat.type/bool]) (:wat::core::Tuple a b))
+(:wat::core::defn :test::make-pair [a <- wat.type/i64 b <- wat.type/bool] -> (wat.type/Tuple :- [wat.type/i64 wat.type/bool]) (wat.type/Tuple :- [wat.type/i64 wat.type/bool] a b))
 
 (:wat::test::deftest :wat-tests::core::generic-tuple-nongeneric-baseline
   

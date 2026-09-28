@@ -27,7 +27,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :xr)
-     qs    (:wat::core::PersistentVector (:xr::q))]
+     qs    (wat.type/PersistentVector :- [:wat::rete::Query] (:xr::q))]
     (:wat::core::do
       (:wat::kernel::println "DIRECT (no wire):")
       (:wat::kernel::println

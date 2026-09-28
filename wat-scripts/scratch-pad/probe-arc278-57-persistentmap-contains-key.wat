@@ -38,11 +38,11 @@
 ;; ── 1 + 3: resolution, and a HIT and a MISS on one map ────────────────────────────────────
 (def :probe-pm-contains-hit
   (:wat::rete::map::contains-key?
-    (:wat::core::PersistentMap :alpha 1 :beta 2) :alpha))
+    (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :alpha 1 :beta 2) :alpha))
 
 (def :probe-pm-contains-miss
   (:wat::rete::map::contains-key?
-    (:wat::core::PersistentMap :alpha 1 :beta 2) :gamma))
+    (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :alpha 1 :beta 2) :gamma))
 
 ;; ── 2: PARAMETRICITY — K and V are independent ────────────────────────────────────────────
 ;; Above: K = keyword, V = i64. K ≠ V, so a shape that reused ONE type variable for both
@@ -51,17 +51,17 @@
 ;; `["K", "V"]` type params satisfy both.
 (def :probe-pm-contains-str-hit
   (:wat::rete::map::contains-key?
-    (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "k1"))
+    (wat.type/PersistentMap :- [wat.type/String wat.type/String] "k1" "v1" "k2" "v2") "k1"))
 
 (def :probe-pm-contains-str-miss
   (:wat::rete::map::contains-key?
-    (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "nope"))
+    (wat.type/PersistentMap :- [wat.type/String wat.type/String] "k1" "v1" "k2" "v2") "nope"))
 
 ;; ── The sibling, for the differential the audit rests on ──────────────────────────────────
 ;; Kept in this file deliberately: the totality ruling above is an argument FROM this verb, so
 ;; the two spellings live side by side and regress together.
 (def :probe-pv-contains-sibling
-  (:wat::rete::vector::contains? (:wat::core::PersistentVector 1 2 3) 2))
+  (:wat::rete::vector::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 2))
 
 ;; ⚠ THE CALLS ARE INLINE HERE, DELIBERATELY. The first draft of this main printed the `def`
 ;; names above (`:hit :probe-pm-contains-hit …`) and the output came back as the KEYWORDS
@@ -71,18 +71,18 @@
 ;; the row, at run time, or they are not there at all.
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
-    (:wat::core::PersistentMap
+    (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool]
       :hit
       (:wat::rete::map::contains-key?
-        (:wat::core::PersistentMap :alpha 1 :beta 2) :alpha)
+        (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :alpha 1 :beta 2) :alpha)
       :miss
       (:wat::rete::map::contains-key?
-        (:wat::core::PersistentMap :alpha 1 :beta 2) :gamma)
+        (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :alpha 1 :beta 2) :gamma)
       :str-hit
       (:wat::rete::map::contains-key?
-        (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "k1")
+        (wat.type/PersistentMap :- [wat.type/String wat.type/String] "k1" "v1" "k2" "v2") "k1")
       :str-miss
       (:wat::rete::map::contains-key?
-        (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "nope")
+        (wat.type/PersistentMap :- [wat.type/String wat.type/String] "k1" "v1" "k2" "v2") "nope")
       :pv-sibling
-      (:wat::rete::vector::contains? (:wat::core::PersistentVector 1 2 3) 2))))
+      (:wat::rete::vector::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 2))))

@@ -81,7 +81,7 @@
                           ;; head — no separate check, and no colon-strip fallback.
                           type-nm   (:wat::runtime::return-type-of head-fn)]
           (:wat::vector::conj acc type-nm)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/String])
       rhs)))
 
 ;; type-name-of — colon-stripped fact-type head, or None for engine forms / ?var.
@@ -126,13 +126,13 @@
               (:wat::vector::conj a t))
             acc
             (:wat::rete::negated-types-under kid)))
-        (:wat::core::PersistentVector)
+        (wat.type/PersistentVector :- [wat.type/String])
         (:wat::core::rest ch))
       (:wat::core::if (:wat::core::= hd ":wat::rete::not")
         (:wat::rete::negated-types-under (:wat::core::second ch))
         (:wat::core::match (:wat::rete::type-name-of form)
-          [:wat::core::Option.Some {:value n} (:wat::core::PersistentVector n)]
-          [:wat::core::Option.None {} (:wat::core::PersistentVector)])))))
+          [:wat::core::Option.Some {:value n} (wat.type/PersistentVector :- [wat.type/String] n)]
+          [:wat::core::Option.None {} (wat.type/PersistentVector :- [wat.type/String])])))))
 
 ;; rule-negates-in — walk one LHS form looking for a :not, RECURSING through :and/:or at
 ;; every depth (not only once already inside a :not). Mirrors native `negate_types(form, out,
@@ -163,11 +163,11 @@
               (:wat::vector::conj a t))
             acc
             (:wat::rete::rule-negates-in kid)))
-        (:wat::core::PersistentVector)
+        (wat.type/PersistentVector :- [wat.type/String])
         (:wat::core::rest ch))
       (:wat::core::if (:wat::core::= hd ":wat::rete::not")
         (:wat::rete::negated-types-under (:wat::core::second ch))
-        (:wat::core::PersistentVector)))))
+        (wat.type/PersistentVector :- [wat.type/String])))))
 
 ;; rule-negates — :not of a fact AND :not of :and/:or, reachable from ANY position in the LHS
 ;; list — not only a top-level form whose OWN head is :not. Delegates to `rule-negates-in`
@@ -188,7 +188,7 @@
             (:wat::vector::conj a t))
           acc
           (:wat::rete::rule-negates-in form)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/String])
       lhs)))
 
 ;; stratify-sweep — one pass over all rules updating type-strata.
@@ -256,7 +256,7 @@
                 (:wat::core::match (:wat::rete::type-name-of form)
                   [:wat::core::Option.Some {:value t} (:wat::vector::conj acc t)]
                   [:wat::core::Option.None {} acc]))))))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/String])
       lhs)))
 
 (:wat::core::defn :wat::rete::stratify-sweep

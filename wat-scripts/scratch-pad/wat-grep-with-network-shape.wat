@@ -50,8 +50,8 @@
      c2   (:wat::core::quote (:g::Wind (?loc :- :location)))
      rhs  (:wat::core::quote (:g::Match ?loc))
      rule (:wat::rete::Rule :name "temp-and-wind"
-            :lhs (:wat::core::PersistentVector c1 c2)
-            :rhs (:wat::core::PersistentVector rhs))]
+            :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2)
+            :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs))]
     (wat.type/PersistentVector :- [:wat::rete::Rule] rule)))
 
 (:wat::core::defn :user::the-queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])

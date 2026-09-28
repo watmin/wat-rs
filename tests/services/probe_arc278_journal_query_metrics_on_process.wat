@@ -6,7 +6,7 @@
 (:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [sh    (:wat::query::mem-store/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      saddr (:wat::query::mem-store::Handle/addr sh)
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process::post-spawn

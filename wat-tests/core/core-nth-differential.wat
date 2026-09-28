@@ -32,7 +32,7 @@
       (:wat::test::assert-eq (:wat::core::nth v 4) (:wat::core::nth-spec v 4)))))
 
 (:wat::test::deftest :wat-tests::core::core-nth-differential::agree-on-persistentvector
-  (:wat::core::let [v (:wat::core::PersistentVector 10 20 30 40 50)]
+  (:wat::core::let [v (wat.type/PersistentVector :- [wat.type/i64] 10 20 30 40 50)]
     (:wat::core::do
       (:wat::test::assert-eq (:wat::core::nth v 0) (:wat::core::nth-spec v 0))
       (:wat::test::assert-eq (:wat::core::nth v 2) (:wat::core::nth-spec v 2))

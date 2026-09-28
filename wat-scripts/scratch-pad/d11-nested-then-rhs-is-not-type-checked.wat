@@ -52,7 +52,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :d11r)
-                             (:wat::core::PersistentVector (:d11r::qo)))
+                             (wat.type/PersistentVector :- [:wat::rete::Query] (:d11r::qo)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
           [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "mnt")])
      s1 (:wat::core::match (:wat::rete::insert s0 (:d11r::Box :k 7 :s "nested-string"))

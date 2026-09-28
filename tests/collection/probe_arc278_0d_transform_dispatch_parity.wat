@@ -23,13 +23,13 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ acc x))
     0
-    (:wat::core::PersistentVector 1 2 3)))
+    (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))
 
 (:wat::core::defn :user::p-fold-reverse [] -> wat.type/i64
   (:wat::core::reduce
     (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ acc x))
     0
-    (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))
+    (:wat::core::reverse (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))
 
 (:wat::core::defn :user::p-map [] -> wat.type/i64
   (:wat::core::reduce
@@ -37,7 +37,7 @@
     0
     (:wat::core::map
       (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
-      (:wat::core::PersistentVector 1 2 3))))
+      (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))
 
 (:wat::core::defn :user::p-filter [] -> wat.type/i64
   (:wat::core::reduce
@@ -45,31 +45,31 @@
     0
     (:wat::core::filter
       (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::i64::> x 1))
-      (:wat::core::PersistentVector 1 2 3))))
+      (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))
 
 (:wat::core::defn :user::p-rev [] -> wat.type/i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ acc x))
     0
-    (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))
+    (:wat::core::reverse (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))
 
 (:wat::core::defn :user::p-take [] -> wat.type/i64
   (:wat::core::reduce
     (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ acc x))
     0
-    (:wat::core::take (:wat::core::PersistentVector 1 2 3) 2)))
+    (:wat::core::take (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 2)))
 
 (:wat::core::defn :user::p-drop [] -> wat.type/i64
   (:wat::core::reduce
     (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ acc x))
     0
-    (:wat::core::drop (:wat::core::PersistentVector 1 2 3) 1)))
+    (:wat::core::drop (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 1)))
 
 (:wat::core::defn :user::p-concat [] -> wat.type/i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ acc x))
     0
-    (:wat::core::concat (:wat::core::PersistentVector 1 2 3) (:wat::core::PersistentVector 1 2 3))))
+    (:wat::core::concat (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))
 
 (:wat::core::defn :user::fold-bare-pv [xs <- wat.type/PersistentVector] -> wat.type/i64
   (:wat::core::foldl

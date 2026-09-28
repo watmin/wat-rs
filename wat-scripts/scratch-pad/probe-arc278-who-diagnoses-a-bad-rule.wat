@@ -46,11 +46,11 @@
      _r  (:wat::kernel::println
            (:wat::string::concat "fn-forms OVER A RULE FN: closure forms="
              (:wat::i64::to-string (:wat::core::length rule-forms))))
-     ctl (:wat::core::PersistentVector (:usr::ok-rule))
+     ctl (wat.type/PersistentVector :- [:wat::rete::Rule] (:usr::ok-rule))
      _a  (:wat::kernel::println "CONTROL rule built")
      cs  (:wat::core::match (:wat::rete::compile ctl) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      _b  (:wat::kernel::println "CONTROL compiled OK — the well-formed rule passes its own gate")
-     bad (:wat::core::PersistentVector (:usr::bad-rule))
+     bad (wat.type/PersistentVector :- [:wat::rete::Rule] (:usr::bad-rule))
      _c  (:wat::kernel::println "BROKEN rule built — now compiling it")
      bs  (:wat::core::match (:wat::rete::compile bad) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:wat::kernel::println

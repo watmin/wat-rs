@@ -56,7 +56,7 @@
       (:wat::core::match (:wat::rete::fire-rules
         (:wat::core::match (:wat::rete::insert
           (:wat::core::match (:wat::rete::compile-all rules
-            (:wat::core::PersistentVector (:walc::q-lead) (:walc::q-W))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+            (wat.type/PersistentVector :- [:wat::rete::Query] (:walc::q-lead) (:walc::q-W))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
           (:walc::W :k 7) (:walc::W :k 7) (:walc::S1 :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
       q)))
 
@@ -65,9 +65,9 @@
 ;; cannot read as agreement.
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [none (:wat::core::PersistentVector)
-     d1   (:wat::core::PersistentVector (:walc::r1))
-     d2   (:wat::core::PersistentVector (:walc::r1) (:walc::r2))]
+    [none (wat.type/PersistentVector :- [:wat::rete::Rule])
+     d1   (wat.type/PersistentVector :- [:wat::rete::Rule] (:walc::r1))
+     d2   (wat.type/PersistentVector :- [:wat::rete::Rule] (:walc::r1) (:walc::r2))]
     (:walc::line 1 "no-cascade"  (:walc::run none (:walc::q-lead)))
     (:walc::line 2 "cascade-d1"  (:walc::run d1   (:walc::q-lead)))
     (:walc::line 3 "cascade-d2"  (:walc::run d2   (:walc::q-lead)))

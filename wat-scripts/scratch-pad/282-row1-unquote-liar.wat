@@ -46,6 +46,6 @@
       (:wat::kernel::println "ROW 1 — attempting fix-text-apply with a liar's claim…")
       (:wat::fix::fix-text-apply src
         (wat.type/Vector :- [:wat::fix::Edit]
-          (:wat::core::Tuple off ":wat::core::unquote" "REPLACED")))
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off ":wat::core::unquote" "REPLACED")))
       (:wat::kernel::println "ROW 1 FAILED TO RAISE — the stone did not hold.")
       nil)))

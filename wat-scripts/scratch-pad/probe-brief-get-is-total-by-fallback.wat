@@ -44,10 +44,10 @@
 
 (:wat::core::defn :g278get::row7 [] -> wat.type/nil
   (:wat::core::let
-    [s0    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :g278get) (:wat::core::PersistentVector (:g278get::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s1    (:wat::core::match (:wat::rete::insert s0 (:g278get::PV (:wat::core::PersistentVector 7 8 9))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     s2    (:wat::core::match (:wat::rete::insert s1 (:g278get::PV (:wat::core::PersistentVector 1 2 3))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     s3    (:wat::core::match (:wat::rete::insert s2 (:g278get::PV (:wat::core::PersistentVector))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    [s0    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :g278get) (wat.type/PersistentVector :- [:wat::rete::Query] (:g278get::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+     s1    (:wat::core::match (:wat::rete::insert s0 (:g278get::PV (wat.type/PersistentVector :- [wat.type/i64] 7 8 9))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2    (:wat::core::match (:wat::rete::insert s1 (:g278get::PV (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s3    (:wat::core::match (:wat::rete::insert s2 (:g278get::PV (wat.type/PersistentVector :- [wat.type/i64]))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (:wat::rete::fire-rules$oracle s3) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::kernel::println
       (:wat::string::concat "row7 seam-composes Hit-count (expect 1) = "
@@ -55,8 +55,8 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [pv       (:wat::core::PersistentVector 7 8 9)
-     empty-pv (:wat::core::PersistentVector)
+    [pv       (wat.type/PersistentVector :- [wat.type/i64] 7 8 9)
+     empty-pv (wat.type/PersistentVector :- [wat.type/i64])
      vec      (wat.type/Vector :- [wat.type/i64] 7 8 9)
      lst      (:wat::core::List 7 8 9)
      h        (:wat::holon::to-holon "some-atom")

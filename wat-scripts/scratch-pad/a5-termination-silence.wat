@@ -11,13 +11,13 @@
 
 (:wat::core::defn :a5::ast-less-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "ast-less"
-    :lhs (:wat::core::PersistentVector)
-    :rhs (:wat::core::PersistentVector)))
+    :lhs (wat.type/PersistentVector :- [wat.type/AST])
+    :rhs (wat.type/PersistentVector :- [wat.type/AST])))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules   (wat.type/PersistentVector :- [:wat::rete::Rule] (:a5::ast-less-rule))
-     verdict (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector))
+     verdict (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query]))
                [:wat::rete::CompileOutcome.Compiled {:session __s} "Compiled"]
                [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} "MayNotTerminate"])]
     (:wat::kernel::println verdict)))

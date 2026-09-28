@@ -282,10 +282,10 @@
 
 (:wat::core::defn :wat::grep::empty-acc [] -> :wat::grep::Acc
   (:wat::grep::Acc :next-id 1
-            :nodes   (:wat::core::PersistentVector)
-            :named   (:wat::core::PersistentVector)
-            :spans   (:wat::core::PersistentVector)
-            :written (:wat::core::PersistentVector)))
+            :nodes   (wat.type/PersistentVector :- [:wat::grep::Node])
+            :named   (wat.type/PersistentVector :- [:wat::grep::Named])
+            :spans   (wat.type/PersistentVector :- [:wat::grep::Span])
+            :written (wat.type/PersistentVector :- [:wat::grep::Written])))
 
 ;; the pair `facts-of` pulls out of the ONE match on `read-string` — a Forms/Malformed match
 ;; must decide `acc` AND `unreadable` together, or the parse runs twice.

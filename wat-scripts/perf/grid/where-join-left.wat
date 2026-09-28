@@ -48,8 +48,8 @@
 
 (:wat::core::defn :wjl::run [rule <- :wat::rete::Rule] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all
-    (:wat::core::PersistentVector rule)
-    (:wat::core::PersistentVector (:wjl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+    (wat.type/PersistentVector :- [:wat::rete::Rule] rule)
+    (wat.type/PersistentVector :- [:wat::rete::Query] (:wjl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [inline (:wjl::run (:wjl::wind-above-temp-inline))

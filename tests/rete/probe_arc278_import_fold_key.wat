@@ -30,10 +30,10 @@
 (:wat::rete::defquery :ifk::q-Sum :params [] :when [(?f :- :ifk::SumF)])
 
 (:wat::core::defn :ifk::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector (:ifk::sum-rule)))
+  (wat.type/PersistentVector :- [:wat::rete::Rule] (:ifk::sum-rule)))
 
 (:wat::core::defn :ifk::queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
-  (:wat::core::PersistentVector (:ifk::q-Sum)))
+  (wat.type/PersistentVector :- [:wat::rete::Query] (:ifk::q-Sum)))
 
 (:wat::core::defn :ifk::compile [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:ifk::rules) (:ifk::queries))
@@ -101,10 +101,10 @@
 (:wat::rete::defquery :ifk::q-TagSum :params [] :when [(?f :- :ifk::TagSum)])
 
 (:wat::core::defn :ifk::tag-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector (:ifk::tag-sum-rule)))
+  (wat.type/PersistentVector :- [:wat::rete::Rule] (:ifk::tag-sum-rule)))
 
 (:wat::core::defn :ifk::tag-queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
-  (:wat::core::PersistentVector (:ifk::q-TagSum)))
+  (wat.type/PersistentVector :- [:wat::rete::Query] (:ifk::q-TagSum)))
 
 (:wat::core::defn :ifk::tag-compile [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:ifk::tag-rules) (:ifk::tag-queries))
@@ -172,10 +172,10 @@
 (:wat::rete::defquery :ifk::q-SlotSum :params [] :when [(?f :- :ifk::SlotSum)])
 
 (:wat::core::defn :ifk::slot-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector (:ifk::slot-sum-rule)))
+  (wat.type/PersistentVector :- [:wat::rete::Rule] (:ifk::slot-sum-rule)))
 
 (:wat::core::defn :ifk::slot-queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
-  (:wat::core::PersistentVector (:ifk::q-SlotSum)))
+  (wat.type/PersistentVector :- [:wat::rete::Query] (:ifk::q-SlotSum)))
 
 (:wat::core::defn :ifk::slot-compile [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:ifk::slot-rules) (:ifk::slot-queries))

@@ -14,7 +14,7 @@
       (:wat::core::match m
         [:probe::PoolMsg.Work {:pair pair}
           (:wat::core::let
-            [out (:wat::core::Tuple (:wat::core::first pair) (:wat::core::* (:wat::core::second pair) 2))
+            [out (wat.type/Tuple :- [wat.type/i64 wat.type/i64] (:wat::core::first pair) (:wat::core::* (:wat::core::second pair) 2))
              ;; arc 278 #73 — discard-only send; the recv' at the top of the next iteration
              ;; faces a stop as its own outcome.
              _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]

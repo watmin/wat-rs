@@ -113,7 +113,7 @@
 
 (:wat::core::defn :fixr::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all s
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [:fixr::Node]
       (:fixr::Node :id 1 :parent 0 :index 0 :kind "symbol")
       (:fixr::Node :id 2 :parent 0 :index 1 :kind "symbol")
       (:fixr::Node :id 3 :parent 0 :index 2 :kind "keyword")
@@ -122,7 +122,7 @@
 
 (:wat::core::defn :fixr::seed-names [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all s
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [:fixr::Named]
       (:fixr::Named :id 1 :name "body")
       (:fixr::Named :id 2 :name "<-")
       (:fixr::Named :id 3 :name ":wat::WatAST")
@@ -134,8 +134,8 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [rules    (:wat::core::PersistentVector (:fixr::arrow) (:fixr::head-kw) (:fixr::type-pos))
-     template (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fixr::q-IsArrow) (:fixr::q-IsHeadKw) (:fixr::q-IsTypePos))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+    [rules    (wat.type/PersistentVector :- [:wat::rete::Rule] (:fixr::arrow) (:fixr::head-kw) (:fixr::type-pos))
+     template (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:fixr::q-IsArrow) (:fixr::q-IsHeadKw) (:fixr::q-IsTypePos))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      fired    (:wat::core::match (:wat::rete::fire-rules (:fixr::seed-names (:fixr::seed template))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::do
       ;; ⚠ `query` reads accumulated PRODUCTION memory, so it can only see DERIVED facts —

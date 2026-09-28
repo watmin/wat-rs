@@ -117,8 +117,8 @@
   [facts <- (wat.type/PersistentVector :- [wat.type/Record])] -> wat.type/String
   (:wat::core::let
     [session (:wat::core::match (:wat::rete::compile-all
-               (:wat::core::PersistentVector (:d7g::r-box) (:d7g::r-plain) (:d7g::r-pair))
-               (:wat::core::PersistentVector (:d7g::q-hit) (:d7g::q-plain) (:d7g::q-pair)))
+               (wat.type/PersistentVector :- [:wat::rete::Rule] (:d7g::r-box) (:d7g::r-plain) (:d7g::r-pair))
+               (wat.type/PersistentVector :- [:wat::rete::Query] (:d7g::q-hit) (:d7g::q-plain) (:d7g::q-pair)))
                [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
                [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
                  (:wat::kernel::assertion-failed! :message "compile")])
@@ -159,7 +159,7 @@
 ;; 1 — the D7 shape: a packable instance FIRST, then the erased one.
 (:wat::core::defn :user::mixed-i64-first [] -> wat.type/String
   (:d7g::report
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/Record]
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
       (:d7g::as-record (:d7g::Box :k 1 :v "not-an-i64"))
       (:d7g::as-record (:d7g::Box :k 2 :v 200)))))
@@ -169,7 +169,7 @@
 ;; either, and a cure that only handled one order would pass 1 and fail here.
 (:wat::core::defn :user::mixed-erased-first [] -> wat.type/String
   (:d7g::report
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/Record]
       (:d7g::as-record (:d7g::Box :k 0 :v "not-an-i64"))
       (:d7g::as-record (:d7g::Box :k 1 :v 100))
       (:d7g::as-record (:d7g::Box :k 2 :v 200)))))
@@ -177,7 +177,7 @@
 ;; 3 — alternating, four facts: two packable, two erased.
 (:wat::core::defn :user::mixed-alternating [] -> wat.type/String
   (:d7g::report
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/Record]
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
       (:d7g::as-record (:d7g::Box :k 1 :v "a"))
       (:d7g::as-record (:d7g::Box :k 2 :v 200))
@@ -187,7 +187,7 @@
 ;; the gate is about "one class, mixed packability" and not about one type pair.
 (:wat::core::defn :user::mixed-record-filler [] -> wat.type/String
   (:d7g::report
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/Record]
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
       (:d7g::as-record (:d7g::Box :k 1 :v (:d7g::Tag :n 7)))
       (:d7g::as-record (:d7g::Box :k 2 :v 200)))))
@@ -196,7 +196,7 @@
 ;; the occupancy batch. This is the arm a batching-narrowing cure must not break.
 (:wat::core::defn :user::uniform-packable [] -> wat.type/String
   (:d7g::report
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/Record]
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
       (:d7g::as-record (:d7g::Box :k 1 :v 150))
       (:d7g::as-record (:d7g::Box :k 2 :v 200)))))
@@ -206,7 +206,7 @@
 ;; cure; it is here so a regression on the all-activate path names itself.
 (:wat::core::defn :user::uniform-unpackable [] -> wat.type/String
   (:d7g::report
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/Record]
       (:d7g::as-record (:d7g::Box :k 0 :v "a"))
       (:d7g::as-record (:d7g::Box :k 1 :v "b"))
       (:d7g::as-record (:d7g::Box :k 2 :v "c")))))
@@ -217,7 +217,7 @@
 ;; used to discard.
 (:wat::core::defn :user::mixed-beside-uniform [] -> wat.type/String
   (:d7g::report
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [wat.type/Record]
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
       (:d7g::as-record (:d7g::Box :k 1 :v "not-an-i64"))
       (:d7g::as-record (:d7g::Box :k 2 :v 200))

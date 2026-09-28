@@ -9,36 +9,36 @@
 
 ;; 1. ctor + length
 (:wat::core::defn :t::p1-ctor-length [] -> wat.type/i64
-  (:wat::map::length (:wat::core::PersistentMap :a 1 :b 2)))
+  (:wat::map::length (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1 :b 2)))
 
 ;; 2. contains-key? hit
 (:wat::core::defn :t::p2-contains-hit [] -> wat.type/bool
-  (:wat::map::contains-key? (:wat::core::PersistentMap :a 1) :a))
+  (:wat::map::contains-key? (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :a))
 
 ;; 2. contains-key? miss
 (:wat::core::defn :t::p3-contains-miss [] -> wat.type/bool
-  (:wat::map::contains-key? (:wat::core::PersistentMap :a 1) :z))
+  (:wat::map::contains-key? (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :z))
 
 ;; 3. IMMUTABILITY / structural sharing — assoc does not mutate the original.
 (:wat::core::defn :t::p4-assoc-immutable-original [] -> wat.type/i64
-  (:wat::core::let [pm  (:wat::core::PersistentMap :a 1)
+  (:wat::core::let [pm  (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1)
                      _pm2 (:wat::map::assoc pm :b 2)]
     (:wat::map::length pm)))
 
 ;; 3. assoc returns the extended map
 (:wat::core::defn :t::p5-assoc-extended [] -> wat.type/i64
   (:wat::map::length
-    (:wat::map::assoc (:wat::core::PersistentMap :a 1) :b 2)))
+    (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :b 2)))
 
 ;; 4. dissoc removes the key
 (:wat::core::defn :t::p6-dissoc-removes [] -> wat.type/bool
   (:wat::map::contains-key?
-    (:wat::map::dissoc (:wat::core::PersistentMap :a 1) :a) :a))
+    (:wat::map::dissoc (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :a) :a))
 
 ;; 5. LAYER-1 polymorphism — generic contains? dispatches on PersistentMap.
 (:wat::core::defn :t::p7-generic-contains [] -> wat.type/bool
-  (:wat::core::contains? (:wat::core::PersistentMap :a 1) :a))
+  (:wat::core::contains? (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :a))
 
 ;; 5. LAYER-1 polymorphism — generic assoc dispatches on PersistentMap.
 (:wat::core::defn :t::p8-generic-assoc [] -> wat.type/i64
-  (:wat::map::length (:wat::core::assoc (:wat::core::PersistentMap :a 1) :b 2)))
+  (:wat::map::length (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :b 2)))

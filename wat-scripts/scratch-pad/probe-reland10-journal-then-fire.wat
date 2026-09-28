@@ -18,12 +18,12 @@
     [fired (:wat::core::match (:wat::rete::fire-rules
              (:wat::core::match (:wat::rete::insert session (:wat::edn::read encoded)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::concat
-      (:wat::core::into (:wat::core::PersistentVector)
+      (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
         (:wat::core::map
           (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
             (:wat::core::Option/expect (:wat::map::get p "?fact") "sift-rules: ?fact"))
           (:wat::rete::query fired (:user::hot-q))))
-      (:wat::core::into (:wat::core::PersistentVector)
+      (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
         (:wat::core::map
           (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
             (:wat::core::Option/expect (:wat::map::get p "?fact") "sift-rules: ?fact"))
@@ -31,17 +31,17 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [rules (:wat::core::PersistentVector
+    [rules (wat.type/PersistentVector :- [:wat::rete::Rule]
              (:wat::rete::make-rule "usr::hot-rule"
                (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
                (:wat::core::quote [(:usr::Hot :c ?c)]))
              (:wat::rete::make-rule "usr::warn-rule"
                (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
                (:wat::core::quote [(:usr::Warn :c ?c)])))
-     queries (:wat::core::PersistentVector (:user::hot-q) (:user::warn-q))
+     queries (wat.type/PersistentVector :- [:wat::rete::Query] (:user::hot-q) (:user::warn-q))
      session (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
@@ -83,7 +83,7 @@
                            -> (wat.type/PersistentVector :- [wat.type/Value])
                            (:wat::core::concat acc
                              (:user::run-one session (:wat::telemetry::Log/message log))))
-                         (:wat::core::PersistentVector)
+                         (wat.type/PersistentVector :- [wat.type/Value])
                          got)]
                 (:wat::core::do
                   (:wat::kernel::println "AFTER-FIRE")

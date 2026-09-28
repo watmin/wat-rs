@@ -60,15 +60,15 @@
 ;; probe_arc278_P6_delta_asymmetric_join.rs exactly (conditions as (:type (?k <- :k)) patterns;
 ;; a two-pattern LHS on r2 is the join, both binding ?k -> equi-join on k).
 (:wat::core::defn :asym::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::rete::Rule :name "r1"
-      :lhs (:wat::core::PersistentVector (:wat::core::quote (:asym::A (?k :- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quote (:asym::B ?k))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quote (:asym::A (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quote (:asym::B ?k))))
     (:wat::rete::Rule :name "r2"
-      :lhs (:wat::core::PersistentVector
+      :lhs (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quote (:asym::B (?k :- :k)))
         (:wat::core::quote (:asym::A (?k :- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quote (:asym::C ?k))))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quote (:asym::C ?k))))))
 
 ;; seed-items session items — stage A(i) for i in [0, items), threading the staging session.
 ;; Every A arrives (round 0) before ANY B/C is derived — the asymmetric-arrival condition.
@@ -82,7 +82,7 @@
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj acc (:asym::A i)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; b-codes / c-codes — every derived fact of each type, canonically encoded.
@@ -100,7 +100,7 @@
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :asym::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived fact (B then C), canonically encoded and sorted ascending.
 ;; THE accuracy witness: the full set, not a count.
@@ -117,7 +117,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:asym::build-rules)
-                    staged  (:asym::seed-items (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:asym::q-B) (:asym::q-C))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    staged  (:asym::seed-items (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:asym::q-B) (:asym::q-C))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -130,4 +130,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "asym-join" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:asym::derived-vector ofired) :oracle-ns (:asym::ns-between o0 o1)))))
+      (:grid::Result :axis "asym-join" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:asym::derived-vector ofired) :oracle-ns (:asym::ns-between o0 o1)))))

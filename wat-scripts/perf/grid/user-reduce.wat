@@ -104,14 +104,14 @@
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  loc <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
         (:ur::loc-facts acc loc reads))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 locs))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :ur::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived Agg fact, canonically encoded and sorted ascending. THE
 ;; accuracy witness: the full per-location aggregate set (a wrong Σx² anywhere shows up).
@@ -133,7 +133,7 @@
                     locs    (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [locs reads]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [locs reads]")
                     rules   (:wat::rete::collect-rules :ur)
-                    staged  (:ur::seed-all (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:ur::q-Agg))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) locs reads)
+                    staged  (:ur::seed-all (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:ur::q-Agg))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) locs reads)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -146,4 +146,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "user-reduce" :size (:wat::core::PersistentVector locs reads) :derived derived :native-ns nat-ns :oracle-derived (:ur::derived-vector ofired) :oracle-ns (:ur::ns-between o0 o1)))))
+      (:grid::Result :axis "user-reduce" :size (wat.type/PersistentVector :- [wat.type/i64] locs reads) :derived derived :native-ns nat-ns :oracle-derived (:ur::derived-vector ofired) :oracle-ns (:ur::ns-between o0 o1)))))

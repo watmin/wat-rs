@@ -61,7 +61,7 @@
      ;; whole buffer. If the quadratic is the Vec copy (and not the stream machinery), C is
      ;; linear and the O(n) drain already exists — no new Rust required.
      c0   (:wat::time::now)
-     vc   (:wat::core::into (:wat::core::PersistentVector)
+     vc   (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
             (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x) src))
      c1   (:wat::time::now)]
 

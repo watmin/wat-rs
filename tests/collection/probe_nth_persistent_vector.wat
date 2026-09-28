@@ -4,7 +4,7 @@
 ;; Two defns: one on PersistentVector (the disconfirm), one on std Vector (regression guard).
 (:wat::core::defn :test::pv-nth [] -> wat.type/i64
   (:wat::core::nth
-    (:wat::vector::conj (:wat::core::PersistentVector) 7)
+    (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/i64]) 7)
     0))
 
 (:wat::core::defn :test::vec-nth [] -> wat.type/i64

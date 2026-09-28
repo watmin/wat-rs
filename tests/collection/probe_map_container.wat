@@ -31,13 +31,13 @@
 
 (:wat::core::defn :p::persistentmap-assoc-length-grows [] -> wat.type/i64
   (:wat::core::let
-    [pm  (:wat::core::PersistentMap :a 1)
+    [pm  (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1)
      pm2 (:wat::core::assoc pm :b 2)]
     (:wat::map::length pm2)))
 
 (:wat::core::defn :p::persistentmap-assoc-immutable [] -> wat.type/i64
   (:wat::core::let
-    [pm  (:wat::core::PersistentMap :a 1)
+    [pm  (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1)
      _   (:wat::core::assoc pm :b 2)]
     (:wat::map::length pm)))
 

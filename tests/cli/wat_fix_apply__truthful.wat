@@ -5,5 +5,5 @@
   (:wat::core::let
     [src   "hello world"
      edits (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-             (:wat::core::Tuple 6 "world" "there"))]
+             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] 6 "world" "there"))]
     (:wat::kernel::println (:wat::fix::fix-text-apply src edits))))

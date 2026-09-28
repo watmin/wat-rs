@@ -65,8 +65,8 @@
      c1      (:wat::core::quote (:dd::Left  (?k :- :key) (?l :- :lid)))
      c2      (:wat::core::quote (:dd::Right (?k :- :key) (?r :- :rid)))
      rhs     (:wat::core::quote (:dd::Pair ?k ?l ?r))
-     rule    (:wat::rete::Rule :name "dd" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
-     staged  (:dd::seed (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:dd::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) keys fanout)
+     rule    (:wat::rete::Rule :name "dd" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs))
+     staged  (:dd::seed (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] rule) (wat.type/PersistentVector :- [:wat::rete::Query] (:dd::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) keys fanout)
 
      f0      (:wat::time::now)
      fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -92,7 +92,7 @@
      s1      (:wat::time::now)
 
      p0      (:wat::time::now)
-     pv      (:wat::core::into (:wat::core::PersistentVector) sorted)
+     pv      (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) sorted)
      p1      (:wat::time::now)]
 
     (:wat::kernel::println

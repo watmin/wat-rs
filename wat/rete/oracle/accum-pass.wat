@@ -160,7 +160,7 @@
                 (:wat::vector::conj acc nm)
                 acc))
             acc)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/String])
       (:wat::core::range 1 n))))
 
 ;; keys-minus — `from` without any name in `drop`.
@@ -175,7 +175,7 @@
       (:wat::core::if (:wat::vector::contains? drop k)
         acc
         (:wat::vector::conj acc k)))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/String])
     from))
 
 ;; project-group-keys — element's bindings restricted to `keys` (the group key).
@@ -227,7 +227,7 @@
                                          (:wat::map::get alpha-mem from-alpha-id)
                                          
                                        [:wat::core::Option.Some {:value pv} pv]
-                                       [:wat::core::Option.None {} (:wat::core::PersistentVector)])
+                                       [:wat::core::Option.None {} (wat.type/PersistentVector :- [:wat::rete::Element])])
                         from-alpha    (:wat::core::Option/expect
                                          (:wat::map::get network from-alpha-id)
                                          "accumulate-pass: from alpha missing")
@@ -250,14 +250,14 @@
                                               [:wat::core::Option.Some {:value _}
                                                (:wat::vector::conj acc el)]
                                               [:wat::core::Option.None {} acc]))
-                                          (:wat::core::PersistentVector)
+                                          (wat.type/PersistentVector :- [:wat::rete::Element])
                                           from-els)
                               tok-keys (:wat::core::foldl
                                           (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
                                                            k   <- wat.type/String]
                                             -> (wat.type/PersistentVector :- [wat.type/String])
                                             (:wat::vector::conj acc k))
-                                          (:wat::core::PersistentVector)
+                                          (wat.type/PersistentVector :- [wat.type/String])
                                           (:wat::map::keys
                                             (:wat::rete::Token/bindings tok)))
                               group-keys (:wat::rete::keys-minus
@@ -277,7 +277,7 @@
                                           (:wat::vector::conj
                                             acc
                                             (:wat::rete::project-group-keys el group-keys)))
-                                        (:wat::core::PersistentVector)
+                                        (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                         gathered))]
                     (:wat::core::foldl
                       (:wat::core::fn [bm2 <- wat.type/PersistentMap
@@ -291,11 +291,11 @@
                                               (:wat::core::if
                                                 (:wat::vector::contains?
                                                   (:wat::vector::conj
-                                                    (:wat::core::PersistentVector) km)
+                                                    (wat.type/PersistentVector :- [wat.type/PersistentMap]) km)
                                                   (:wat::rete::project-group-keys el group-keys))
                                                 (:wat::vector::conj acc el)
                                                 acc))
-                                            (:wat::core::PersistentVector)
+                                            (wat.type/PersistentVector :- [:wat::rete::Element])
                                             gathered)
                                           km-keys (:wat::map::keys km)
                                           ext-binds

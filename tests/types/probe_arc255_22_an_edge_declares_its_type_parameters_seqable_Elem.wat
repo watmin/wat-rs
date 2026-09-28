@@ -44,14 +44,14 @@
     (:wat::string::join ","
       (wat.type/Vector :- [wat.type/String]
         (:wat::core::str (:t22::count-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
-        (:wat::core::str (:t22::count-of (:wat::core::PersistentVector 1 2 3 4)))
+        (:wat::core::str (:t22::count-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
         (:wat::core::str (:t22::count-of (:wat::core::List 1 2 3 4 5)))
         (:wat::core::str (:t22::count-of (:wat::stream::cons 1
                                            (:wat::stream::lazy
                                              (:wat::stream::cons 2
                                                (:wat::stream::lazy (:wat::stream::empty)))))))
         (:wat::core::str (:t22::sum-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
-        (:wat::core::str (:t22::sum-of (:wat::core::PersistentVector 1 2 3 4)))
+        (:wat::core::str (:t22::sum-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
         (:wat::core::str (:t22::sum-of (:wat::core::List 1 2 3 4 5)))
         (:wat::core::str (:t22::sum-of (:wat::stream::cons 10
                                          (:wat::stream::lazy

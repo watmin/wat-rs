@@ -27,11 +27,11 @@
 ;; an empty session — one rule so `compile` has something to chew, never fired here.
 (:wat::core::defn :seedp::fresh [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile
-    (:wat::core::PersistentVector
+    (wat.type/PersistentVector :- [:wat::rete::Rule]
       (:wat::rete::Rule
         :name "noop"
-        :lhs (:wat::core::PersistentVector (:wat::core::quote (:seedp::Left (?k :- :key))))
-        :rhs (:wat::core::PersistentVector)))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+        :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quote (:seedp::Left (?k :- :key))))
+        :rhs (wat.type/PersistentVector :- [wat.type/AST])))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 ;; PATH A — the grid's current shape: N calls to the per-fact verb, threaded through a foldl.
 (:wat::core::defn :seedp::seed-per-fact [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
@@ -49,7 +49,7 @@
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj acc (:seedp::Left :key i :lid i)))
-      (:wat::core::PersistentVector)
+      (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 n))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :user::main [] -> wat.type/nil

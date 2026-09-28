@@ -79,22 +79,22 @@
 ;; The inert cascade — five rules carrying S1 to S6, forcing six fixpoint rounds.
 ;; Nothing here mentions Wind; that is the point.
 (:wat::core::defn :lx::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [:wat::rete::Rule]
     (:wat::rete::Rule :name "r2"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S1 (?k :- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S2 ?k))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S1 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S2 ?k))))
     (:wat::rete::Rule :name "r3"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S2 (?k :- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S3 ?k))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S2 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S3 ?k))))
     (:wat::rete::Rule :name "r4"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S3 (?k :- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S4 ?k))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S3 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S4 ?k))))
     (:wat::rete::Rule :name "r5"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S4 (?k :- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S5 ?k))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S4 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S5 ?k))))
     (:wat::rete::Rule :name "r6"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S5 (?k :- :k))))
-      :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S6 ?k))))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S5 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S6 ?k))))))
 
 ;; Seed: Wind(i) TWICE for each i in [0, items) — the duplicate is what makes the
 ;; distinct-inner-binding rule load-bearing — plus one S1 to start the cascade.
@@ -108,12 +108,12 @@
           (:wat::vector::conj
             (:wat::vector::conj acc (:lx::Wind i))
             (:lx::Wind i)))
-        (:wat::core::PersistentVector)
+        (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::range 0 items))
       (:lx::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :lx::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (:wat::core::PersistentVector) v))
+  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; THE ACCURACY WITNESS. Sorted distinct ?loc from the leading-:exists query.
 ;; Under the defect this vector was `rounds` times too long — length fails first.
@@ -132,7 +132,7 @@
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:lx::build-rules)
-                    staged  (:lx::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:lx::q-exists))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    staged  (:lx::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:lx::q-exists))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     n1      (:wat::time::now)
@@ -142,4 +142,4 @@
                     ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "leading-exists" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:lx::derived-vector ofired) :oracle-ns (:lx::ns-between o0 o1)))))
+      (:grid::Result :axis "leading-exists" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:lx::derived-vector ofired) :oracle-ns (:lx::ns-between o0 o1)))))

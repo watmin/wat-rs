@@ -43,7 +43,7 @@
       (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 l))))
 
 (:wat::test::deftest :wat-tests::core::core-foldl-spec::agree-on-persistentvector
-  (:wat::core::let [pv (:wat::core::PersistentVector 1 2 3 4 5)]
+  (:wat::core::let [pv (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4 5)]
     (:wat::test::assert-eq
       (:wat::core::foldl      :wat-tests::core::core-foldl-spec::shift-add 0 pv)
       (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 pv))))

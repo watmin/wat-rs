@@ -60,7 +60,7 @@
 (:wat::core::defn :user::ptuple [] -> wat.type/bool
   (:wat::core::=
     (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)
-    (:wat::core::Tuple 1 2)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)))
 
 (:wat::core::defn :user::pmap [] -> wat.type/bool
   (:wat::core::let [a (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1)

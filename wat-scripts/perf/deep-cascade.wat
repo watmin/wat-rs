@@ -41,15 +41,15 @@
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
-      :lhs (:wat::core::PersistentVector c1 c2)
-      :rhs (:wat::core::PersistentVector t1 t2))))
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2)
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] t1 t2))))
 
 ;; build-rules depth — the rule set [rule1 .. rule depth], built by folding build-rule over (range 1 depth+1).
 (:wat::core::defn :perf::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:perf::build-rule k)))
-    (:wat::core::PersistentVector (:perf::build-rule 1))
+    (wat.type/PersistentVector :- [:wat::rete::Rule] (:perf::build-rule 1))
     (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
 ;; seed-level-0 session width — stage Node(0,i)+Tag(0,i) for i in 0..width, threading the staging session.
@@ -76,7 +76,7 @@
                     depth   (:wat::core::Option/expect   (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect   (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:perf::build-rules depth)
-                    staged  (:perf::seed-level-0 (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) width)
+                    staged  (:perf::seed-level-0 (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:cascade::q-Node))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) width)
                     ;; time the wat SPEC engine fire-rules-spec (re-run-from-scratch reference)
                     w0      (:wat::time::now)
                     fired-w (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])

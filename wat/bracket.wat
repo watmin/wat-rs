@@ -80,7 +80,7 @@
       (:wat::core::match m  
         [:wat::bracket::PoolMsg.Work {:pair pair}
           (:wat::core::let
-            [out (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
+            [out (wat.type/Tuple :- [wat.type/i64 :O] (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
             ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
             ;; via the next recv', so every arm proceeds to recurse.
             (:wat::core::match (:wat::kernel::send self out)
@@ -139,7 +139,7 @@
         [:wat::bracket::PoolMsg.Work {:pair pair}
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "bracket process-dial-runner: Work before Setup")
-             out (:wat::core::Tuple (:wat::core::first pair) (work-fn c (:wat::core::second pair)))]
+             out (wat.type/Tuple :- [wat.type/i64 :O] (:wat::core::first pair) (work-fn c (:wat::core::second pair)))]
             ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
             ;; via the next recv', so every arm proceeds to recurse.
             (:wat::core::match (:wat::kernel::send self out)
@@ -209,7 +209,7 @@
           [:wat::bracket::PoolMsg.Work {:pair pair}
             (:wat::core::let
               [k   (:wat::core::Option/expect ctx "bracket thread-kwargs-runner: Work before Setup")
-               out (:wat::core::Tuple (:wat::core::first pair)
+               out (wat.type/Tuple :- [wat.type/i64 :O] (:wat::core::first pair)
                      (:wat::core::apply impl-kw (:wat::core::second pair)
                        (wat.type/Vector :- [:K] k)))]
               (:wat::core::match (:wat::kernel::send self out)

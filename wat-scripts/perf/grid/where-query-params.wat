@@ -37,8 +37,8 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [rules   (:wat::core::PersistentVector (:wqp::mark))
-                    queries (:wat::core::PersistentVector
+  (:wat::core::let [rules   (wat.type/PersistentVector :- [:wat::rete::Rule] (:wqp::mark))
+                    queries (wat.type/PersistentVector :- [:wat::rete::Query]
                               (:wqp::temps-at) (:wqp::all-wind) (:wqp::hits))
                     world (:wat::core::match (:wat::rete::fire-rules
                             (:wat::core::match (:wat::rete::insert

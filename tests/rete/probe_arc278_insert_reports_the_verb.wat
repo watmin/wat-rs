@@ -4,7 +4,7 @@
 (:wat::core::defrecord :l22::F [n <- wat.type/i64])
 
 (:wat::core::defn :user::empty-session [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector))
+  (:wat::core::match (:wat::rete::compile (wat.type/PersistentVector :- [:wat::rete::Rule]))
     [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
      (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
@@ -21,4 +21,4 @@
   (:wat::core::apply
     :wat::rete::insert-all
     (:user::empty-session)
-    [(:wat::core::PersistentVector (:wat::i64::+ 1 1))]))
+    [(wat.type/PersistentVector :- [wat.type/i64] (:wat::i64::+ 1 1))]))

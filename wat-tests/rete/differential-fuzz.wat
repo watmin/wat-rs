@@ -38,7 +38,7 @@
 (:wat::core::defrecord :wat-tests::rete::fuzz::S4 [k <- wat.type/i64])
 
 (:wat::core::defn :wat-tests::rete::fuzz::no-conds [] -> (wat.type/PersistentVector :- [wat.type/AST])
-  (:wat::core::PersistentVector))
+  (wat.type/PersistentVector :- [wat.type/AST]))
 
 ;; ── the chain pool: depth D = first D links, driving D+1 fixpoint rounds ──────
 ;; Round depth is the highest-yield dimension we have: every pre-existing leading
@@ -46,18 +46,18 @@
 ;; the same number, which is precisely why the defect hid.
 (:wat::core::defn :wat-tests::rete::fuzz::chain [d <- wat.type/i64]
   -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::take
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [:wat::rete::Rule]
         (:wat::rete::Rule :name "r1"
-          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S1 (?k :- :k))))
-          :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S2 ?k))))
+          :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:wat-tests::rete::fuzz::S1 (?k :- :k))))
+          :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:wat-tests::rete::fuzz::S2 ?k))))
         (:wat::rete::Rule :name "r2"
-          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S2 (?k :- :k))))
-          :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S3 ?k))))
+          :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:wat-tests::rete::fuzz::S2 (?k :- :k))))
+          :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:wat-tests::rete::fuzz::S3 ?k))))
         (:wat::rete::Rule :name "r3"
-          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S3 (?k :- :k))))
-          :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S4 ?k)))))
+          :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:wat-tests::rete::fuzz::S3 (?k :- :k))))
+          :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:wat-tests::rete::fuzz::S4 ?k)))))
       d)))
 
 ;; ── condition pool ───────────────────────────────────────────────────────────
@@ -66,8 +66,8 @@
   (:wat::core::if (:wat::core::= n 0)
     (:wat-tests::rete::fuzz::no-conds)
     (:wat::core::if (:wat::core::= n 1)
-      (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::P1 (?a :- :k))))
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:wat-tests::rete::fuzz::P1 (?a :- :k))))
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:wat-tests::rete::fuzz::P1 (?a :- :k)))
         (:wat::core::quasiquote (:wat-tests::rete::fuzz::P2 (?b :- :k)))))))
 
@@ -119,13 +119,13 @@
                     ;; spelling that separates `max`'s None arm from `count`'s zero.
                     thr  (:wat::i64::rem fp 3)]
     (:wat::core::if (:wat::core::= kind 0)
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (?n :- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W)))
         ;; PARAMETERIZED: the threshold is generated, not hardcoded, so the
         ;; gate genuinely changes its mind across the space.
         (:wat::core::quasiquote
           (:wat::rete::where (:wat::rete::i64::>= ?n (:wat::core::unquote thr)))))
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote
           (?n :- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v :- :k))))
         (:wat::core::quasiquote
@@ -136,36 +136,36 @@
   (:wat::core::cond
     ((:wat::core::= f 0) (:wat-tests::rete::fuzz::no-conds))
     ((:wat::core::= f 1)
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:wat::rete::exists (:wat-tests::rete::fuzz::W (?w :- :k))))))
     ((:wat::core::= f 2)
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::fuzz::G (?g :- :k))))))
     ((:wat::core::= f 3) (:wat-tests::rete::fuzz::acc-cond fp))
     ;; 4 — intra-condition `:or`, the SECOND of rete's three `or` engines.
     ((:wat::core::= f 4)
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote
           (:wat-tests::rete::fuzz::W (?w :- :k)
             (:wat::rete::or (:wat::rete::i64::> ?w (:wat::core::unquote fp))
                             (:wat::rete::i64::< ?w 3))))))
     ;; 5 — intra-condition `:not` of a CONSTRAINT (not of a condition).
     ((:wat::core::= f 5)
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote
           (:wat-tests::rete::fuzz::W (?w :- :k)
             (:wat::rete::not (:wat::rete::i64::> ?w 100))))))
     ;; 6 — top-level `:or` ACROSS conditions: network branches, the first of rete's three `or`
     ;; engines, and the only one that binds a DIFFERENT variable per branch.
     ((:wat::core::= f 6)
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote
           (:wat::rete::or (:wat-tests::rete::fuzz::P1 (?a :- :k))
                           (:wat-tests::rete::fuzz::W (?w :- :k))))))
     ;; 7 — `:not` over a DERIVED class. STRATIFICATION: S2 exists only because the chain derives
     ;; it, so the answer must depend on the depth dimension. This is where family C lived.
     (:else
-      (:wat::core::PersistentVector
+      (wat.type/PersistentVector :- [wat.type/AST]
         (:wat::core::quasiquote
           (:wat::rete::not (:wat-tests::rete::fuzz::S2)))))))
 
@@ -174,7 +174,7 @@
 ;; one, and is deliberately NOT generated — a case that fails to compile would
 ;; take the whole batch with it. That gap is real and stated, not hidden.
 (:wat::core::defn :wat-tests::rete::fuzz::where-cond [] -> (wat.type/PersistentVector :- [wat.type/AST])
-  (:wat::core::PersistentVector
+  (wat.type/PersistentVector :- [wat.type/AST]
     (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::> 1 0)))))
 
 ;; 0 none · 1 first · 2 last
@@ -250,9 +250,9 @@
                     fp     (:wat-tests::rete::fuzz::Case/fparam c)
                     d      (:wat-tests::rete::fuzz::Case/depth c)
                     retr   (:wat-tests::rete::fuzz::Case/retr c)
-                    q  (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector)
+                    q  (:wat::rete::Query :name "q" :params (wat.type/PersistentVector :- [wat.type/String])
                          :lhs (:wat-tests::rete::fuzz::build-lhs prefix f fp wpos))
-                    s0 (:wat::core::match (:wat::rete::compile-all (:wat-tests::rete::fuzz::chain d) (:wat::core::PersistentVector q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    s0 (:wat::core::match (:wat::rete::compile-all (:wat-tests::rete::fuzz::chain d) (wat.type/PersistentVector :- [:wat::rete::Query] q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     ;; W_i = (W i), DISTINCT — not `dups` copies of one value. Until 2026-08-27
                     ;; every W was `(W 7)`, and that quietly made two dimensions vacuous: an
                     ;; accumulate's `max`/`min` cannot vary when every value is equal, and family
@@ -260,14 +260,14 @@
                     ;; always 7 — so its `:or` never once took the second arm. A gate that cannot
                     ;; change its mind measures nothing; this makes count, sum, max and the inline
                     ;; `:or` all vary with `dups`.
-                    ws (:wat::core::into (:wat::core::PersistentVector)
+                    ws (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::fuzz::W])
                          (:wat::core::mapv
                            (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::fuzz::W (:wat-tests::rete::fuzz::W i))
                            (:wat::core::range 0 dups)))
                     s1 (:wat::core::match (:wat::rete::insert-all s0 ws) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    s2 (:wat::core::match (:wat::rete::insert-all s1 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    s3 (:wat::core::match (:wat::rete::insert-all s2 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P2 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    st (:wat::core::match (:wat::rete::insert-all s3 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    s2 (:wat::core::match (:wat::rete::insert-all s1 (wat.type/PersistentVector :- [:wat-tests::rete::fuzz::P1] (:wat-tests::rete::fuzz::P1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    s3 (:wat::core::match (:wat::rete::insert-all s2 (wat.type/PersistentVector :- [:wat-tests::rete::fuzz::P2] (:wat-tests::rete::fuzz::P2 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    st (:wat::core::match (:wat::rete::insert-all s3 (wat.type/PersistentVector :- [:wat-tests::rete::fuzz::S1] (:wat-tests::rete::fuzz::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     nf (:wat::core::if (:wat::core::= retr 0)
                          (:wat::core::match (:wat::rete::fire-rules st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                          (:wat-tests::rete::fuzz::refire-native d st))
@@ -461,8 +461,8 @@
   [emptied <- wat.type/bool  q <- :wat::rete::Query] -> wat.type/i64
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::insert
                          (:wat::core::match (:wat::rete::compile-all
-                           (:wat::core::PersistentVector)
-                           (:wat::core::PersistentVector
+                           (wat.type/PersistentVector :- [:wat::rete::Rule])
+                           (wat.type/PersistentVector :- [:wat::rete::Query]
                              (:wat-tests::rete::fuzz::nv-count-1) (:wat-tests::rete::fuzz::nv-count-0)
                              (:wat-tests::rete::fuzz::nv-max-1)   (:wat-tests::rete::fuzz::nv-max-0))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                          (:wat-tests::rete::fuzz::W 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])

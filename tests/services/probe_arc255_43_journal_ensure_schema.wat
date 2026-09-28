@@ -36,7 +36,7 @@
 (:wat::core::defn :user::compute [] -> :wat::telemetry::journal::Handle
   (:wat::core::let
     [sh (:probe::badstore/start :locus (:wat::spawn::thread)
-          :record (:probe::badstore::Record :rows (:wat::core::PersistentVector)))]
+          :record (:probe::badstore::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))]
     (:wat::core::let
       [jh (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
             :record (:wat::telemetry::journal::Record)

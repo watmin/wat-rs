@@ -19,18 +19,18 @@
 
 
 (:wat::core::defn :usr::template [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector
+  (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule]
       (:wat::rete::make-rule "usr::hot-rule"
         (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
         (:wat::core::quote [(:usr::Hot :c ?c)]))
       (:wat::rete::make-rule "usr::warn-rule"
         (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
-        (:wat::core::quote [(:usr::Warn :c ?c)]))) (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+        (:wat::core::quote [(:usr::Warn :c ?c)]))) (wat.type/PersistentVector :- [:wat::rete::Query] (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
@@ -79,21 +79,21 @@
                         [fired (:wat::core::match (:wat::rete::fire-rules
                                  (:wat::core::match (:wat::rete::insert tmpl (:wat::edn::read (:wat::telemetry::Log/message log))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
                         (:wat::core::concat
-                          (:wat::core::into (:wat::core::PersistentVector)
+                          (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
                             (:wat::core::map
                               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
                                 (:wat::core::Option/expect
                                   (:wat::map::get p "?fact")
                                   "q-Hot: ?fact"))
                               (:wat::rete::query fired (:usr::q-Hot))))
-                          (:wat::core::into (:wat::core::PersistentVector)
+                          (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
                             (:wat::core::map
                               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
                                 (:wat::core::Option/expect
                                   (:wat::map::get p "?fact")
                                   "q-Warn: ?fact"))
                               (:wat::rete::query fired (:usr::q-Warn))))))))
-                  (:wat::core::PersistentVector)
+                  (wat.type/PersistentVector :- [wat.type/Value])
                   qlogs)
            _p2 (:wat::kernel::println (:wat::string::concat "deds=" (:wat::core::str (:wat::core::length deds))))]
           nil)]

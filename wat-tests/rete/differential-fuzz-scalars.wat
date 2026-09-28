@@ -172,12 +172,12 @@
     (:else                (:wat::core::quasiquote (:wat-tests::rete::scalars::Re2 (?v :- :v))))))
 
 (:wat::core::defn :wat-tests::rete::scalars::facts-i64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Ri])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Ri])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Ri (:wat-tests::rete::scalars::Ri i))
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::facts-f64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rf])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rf])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rf
                         (:wat-tests::rete::scalars::Rf (:wat::core::cond ((:wat::core::= i 0) 0.0)
                                                    ((:wat::core::= i 1) 1.0)
@@ -185,7 +185,7 @@
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::facts-str [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rs])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rs])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rs
                         (:wat-tests::rete::scalars::Rs (:wat::core::cond ((:wat::core::= i 0) "a")
                                                    ((:wat::core::= i 1) "b")
@@ -193,13 +193,13 @@
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::facts-bool [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rb])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rb])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rb
                         (:wat-tests::rete::scalars::Rb (:wat::core::= (:wat::i64::rem i 2) 0)))
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::facts-enum [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Re])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Re])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Re
                         ;; A variant declared WITHOUT a payload bracket is used BARE, not called
                         ;; — `wat/gen.wat`'s `:wat::gen::CheckOutcome::EmptySpace` is the same
@@ -219,12 +219,12 @@
 ;; than one function with a five-deep dispatch inside it. The value expressions are the same as
 ;; their primaries by construction, which is what makes the join key MATCH.
 (:wat::core::defn :wat-tests::rete::scalars::pfacts-i64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Ri2])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Ri2])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Ri2 (:wat-tests::rete::scalars::Ri2 i))
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::pfacts-f64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rf2])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rf2])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rf2
                         (:wat-tests::rete::scalars::Rf2 (:wat::core::cond ((:wat::core::= i 0) 0.0)
                                                     ((:wat::core::= i 1) 1.0)
@@ -232,7 +232,7 @@
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::pfacts-str [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rs2])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rs2])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rs2
                         (:wat-tests::rete::scalars::Rs2 (:wat::core::cond ((:wat::core::= i 0) "a")
                                                     ((:wat::core::= i 1) "b")
@@ -240,13 +240,13 @@
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::pfacts-bool [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rb2])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rb2])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rb2
                         (:wat-tests::rete::scalars::Rb2 (:wat::core::= (:wat::i64::rem i 2) 0)))
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::pfacts-enum [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Re2])
-  (:wat::core::into (:wat::core::PersistentVector)
+  (:wat::core::into (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Re2])
     (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Re2
                         (:wat-tests::rete::scalars::Re2 (:wat::core::cond ((:wat::core::= i 0) :wat-tests::rete::scalars::E.A)
                                                     ((:wat::core::= i 1) :wat-tests::rete::scalars::E.B)
@@ -280,8 +280,8 @@
   [ty <- wat.type/i64  dups <- wat.type/i64  shape <- wat.type/i64  q <- :wat::rete::Query]
   -> :wat::rete::Session
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
-                         (:wat::core::PersistentVector)
-                         (:wat::core::PersistentVector q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                         (wat.type/PersistentVector :- [:wat::rete::Rule])
+                         (wat.type/PersistentVector :- [:wat::rete::Query] q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1 (:wat::core::cond
                          ((:wat::core::= ty 0) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-i64 dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
                          ((:wat::core::= ty 1) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-f64 dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -319,12 +319,12 @@
                     ;; `:not`-bind wall admits (`src/rete/validate/mod.rs`) — so this dimension also
                     ;; keeps that wall honest against every per-type comparator.
                     lhs   (:wat::core::cond
-                            ((:wat::core::= shape 0) (:wat::core::PersistentVector fc))
-                            ((:wat::core::= shape 1) (:wat::core::PersistentVector
+                            ((:wat::core::= shape 0) (wat.type/PersistentVector :- [wat.type/AST] fc))
+                            ((:wat::core::= shape 1) (wat.type/PersistentVector :- [wat.type/AST]
                                                        (:wat::core::quasiquote
                                                          (:wat::rete::not (:wat::core::unquote fc)))))
-                            (:else (:wat::core::PersistentVector fc (:wat-tests::rete::scalars::partner-cond ty))))
-                    q     (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector) :lhs lhs)
+                            (:else (wat.type/PersistentVector :- [wat.type/AST] fc (:wat-tests::rete::scalars::partner-cond ty))))
+                    q     (:wat::rete::Query :name "q" :params (wat.type/PersistentVector :- [wat.type/String]) :lhs lhs)
                     st    (:wat-tests::rete::scalars::seed ty dups shape q)
                     nf    (:wat::core::if (:wat::core::= retr 0)
                             (:wat::core::match (:wat::rete::fire-rules st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])

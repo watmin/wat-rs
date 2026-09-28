@@ -130,7 +130,7 @@
   [acc <- (wat.type/Vector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (wat.type/Vector :- [T])
   (:wat::vec::extend
     acc
-    (:wat::core::stream->pvec-spec (:wat::core::PersistentVector) s)))
+    (:wat::core::stream->pvec-spec (wat.type/PersistentVector :- [:T]) s)))
 
 ;; mapv / filterv — the eager forms: force `map`/`filter`'s lazy Stream result to a Vector in
 ;; one step via `(into [] ...)` (clojure's own materializer idiom — no new name). Two clauses —

@@ -36,8 +36,8 @@
 
 (:wat::core::defn :wnc::n [w <- wat.type/i64  q <- :wat::rete::Query] -> wat.type/i64
   (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector)
-          (:wat::core::PersistentVector (:wnc::q5) (:wnc::q6) (:wnc::q7))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+    [s0 (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule])
+          (wat.type/PersistentVector :- [:wat::rete::Query] (:wnc::q5) (:wnc::q6) (:wnc::q7))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      s1 (:wat::core::if (:wnc::has w 1) (:wat::core::match (:wat::rete::insert s0 (:wnc::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s0)
      s2 (:wat::core::if (:wnc::has w 2) (:wat::core::match (:wat::rete::insert s1 (:wnc::B :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s1)
      s3 (:wat::core::if (:wnc::has w 4) (:wat::core::match (:wat::rete::insert s2 (:wnc::C :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s2)]
