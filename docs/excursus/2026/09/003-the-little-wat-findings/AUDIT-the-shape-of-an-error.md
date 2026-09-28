@@ -253,3 +253,17 @@ re-checks (~217ms) the whole fixed stdlib, 5834 freezes per floor, nothing cache
 land S3 now (~+45ms, known and measured; any test crossing its limit is surfaced with its history,
 then widened under the timing ruling), finish strike B while the shape work is hot, and THEN open a
 separate excursus — the stdlib frozen once — with the MEASURE doc as its baseline.
+
+## Strike B1 landed (`7b0b3acb1`, `6f8f1ca8f`) — and what it found
+
+The floor is `{message location}`; 0 `:causes` in goldens, stdlib records, or Rust; aggregates hold
+`errors`; the four wrapper sites carry the typed diagnostic; `NoMatchingClauseAtCallSite` is tagged
+(`:wat::check::AttemptedClause`) and declared. Floor 6339/6339.
+
+| from | finding | the cure owed |
+|---|---|---|
+| B1 | **strict decode does not check a field's VALUE against its declared type.** An untagged `Map` decodes as a generic `HashMap` wherever it sits (`edn_to_value_caps`), so the sweep's G-strict gates (S1–S3) prove every TAG is registered — not that every field's shape matches its declaration. B1's own GB4 had to assert on the writer directly for this reason | typed decode checks each field against its declared type (a record-typed field refuses an untagged map); then re-run the sweep's gates as real shape proofs |
+| B1 | `HashError`'s S2 records carry no floor, so they cannot satisfy `:wat::core::Error`; `EvalVerificationFailed.cause` holds an interim `Fault` | B2: give `HashError` the floor (it is an error) — then `cause` holds it |
+| B1 | `MacroExpansionFailed.cause` holds an interim `Fault`: a typed `cause` needs a `TypeEnv` that `RuntimeError::to_record` does not have on the peer-death paths | thread the type registry to `to_record`, or build the cause from the already-typed `MacroError` record |
+| B1 | `read-json` / `read-foreign` failures are `.to_string()`'d upstream (`eval_edn_read_json`/`_foreign`) before reaching `tagged_read_outcome_malformed`, whose tag (`JsonReadError`/`ForeignReadError`) is never a declared type — structure lost at the source | declare JSON/foreign read errors and carry them structured |
+| B1 | `fault_value(message, None)` still synthesizes a `<runtime>` file at line 0 (`src/runtime.rs:~11963`; 1 caller passes `None`) — the fabricated-location class B1 removed from the wrapper sites | the caller supplies a real span (the Rust raise site via `rust_caller_span!` at worst) and the `Option` goes |
