@@ -826,3 +826,92 @@ tests are green (the full 6212/6213 pass count reflects that — the ONE failure
 **Gate note:** clippy, census-diff, and delta above are unaffected by this STOP (none re-runs the
 floor; none depends on the failing test) and are reported as run, verbatim, per the amendment's step
 5. The floor itself was run exactly once and is not re-run per STOP-1.
+
+## AMEND-3 cure — orchestrator's ruling on the new STOP-1: option (a), keep the rename
+
+Orchestrator's ruling: the rename stands (it follows directly from X-G — a golden is not an
+ordinary corpus program), and `probe_arc170_edn_bridge_unspellable.rs` gets repointed at a genuine
+ordinary program instead. No new builder ruling needed; this is the amendment's own consequence,
+not a fresh design question.
+
+### 1. Chosen replacement file and why
+
+`tests/program/probe_arc170_edn_bridge_unspellable.rs:99-103` (`c02_control_ordinary_forms_stay_plain_edn`)
+repointed from the renamed golden to **`tests/collection/probe_arc257_native_map_set.wat`**. Only
+the path string changed; no comment named the old file by name (checked: the only occurrence of
+`fix_source_head_rule` or `contract-01-bare-call-head-inverted` anywhere in this test file was that
+one path literal).
+
+Why this file still exercises the property: it is a genuine ordinary corpus PROGRAM, not a golden
+and not a `.wat.bad` — confirmed by `tests/collection/probe_arc257_native_map_set.rs` loading and
+RUNNING it via `call_beside_value(file!(), ":t::probeN-...")` (the co-located-fixture convention;
+`file!()` resolves to this exact `.wat` by Rust module-path convention), and its own three tests are
+green in the same floor below. Content (749 bytes):
+
+```
+(:wat::core::defn :t::probe1-map-single [] -> wat.type/i64
+  (:wat::core::let
+    [m {:a 42}]
+    (:wat::core::length m)))
+
+(:wat::core::defn :t::probe2-map-multi [] -> wat.type/i64
+  (:wat::core::let
+    [m {:x 10 :y 20}]
+    (:wat::core::length m)))
+
+(:wat::core::defn :t::probe3-set-contains [] -> wat.type/bool
+  (:wat::core::let
+    [s #{1 2 3}]
+    (:wat::core::contains? s 2)))
+```
+
+It has everything the orchestrator asked the replacement to carry: `defn` (×3), calls
+(`:wat::core::length`, `:wat::core::contains?`), `let`, and native collection literals (a `{}` map ×2,
+a `#{}` set) — richer than the one-form golden it replaces, and still small enough to keep the
+control fast. It still discriminates C02's actual property (an ordinary program, including its map
+literals, crosses `program_to_edn` → parses back as PLAIN EDN with no tag beyond the two declared
+span-carriage tags) because nothing in it is a wat-unspellable lexeme (C01's job) or the fixture's
+OWN job is being a golden (this stone's whole point) — it is simply representative corpus content.
+
+### 2. Search for other non-`include_str!` readers of the 37 renamed / 6 deleted names
+
+Searched every `tests/**/*.rs` and `src/**/*.rs` (not just `include_str!` sites) for each of the 37
+renamed and 6 deleted basenames, individually. Result:
+
+- **37 renamed names**: every hit outside the one already-fixed `probe_arc170_edn_bridge_unspellable.rs`
+  call is an `include_str!` site — i.e. the renamed golden's own test, already repointed to
+  `.wat.golden` in the prior commit. No other `.rs` file under `tests/` or `src/` names any of them.
+- **One non-`.rs` hit, inert, not repointed**: `tests/types/probe_arc255_54_class_hits.txt` (a
+  checked-in data snapshot, 3 lines naming `probe_arc251_fix_source_local_rules__contract-06a-less-than.wat`,
+  `-06b-less-equal.wat`, `-07-greater-than.wat`) is referenced by exactly one `.rs` line
+  (`probe_arc255_54_classes.rs:107`), inside `collect_compared_types`, a `#[ignore]`d "one-shot
+  collector… not part of the floor" that only ever WRITES this file fresh from a live
+  `git ls-files '*.wat' '*.wat.bad'` sweep — it never reads the checked-in `.txt` to compare against
+  anything, and being `#[ignore]`d it never runs in `scripts/floor.sh`. The stale snapshot itself is
+  not consumed by any test; next time someone runs it with `--ignored` it will naturally stop naming
+  the renamed files (they no longer match `git ls-files '*.wat'`). Left untouched — not a live
+  consumer, nothing to repoint.
+- **6 deleted dead-fixture names**: zero hits anywhere in `tests/**/*.rs` or `src/**/*.rs` (confirmed
+  again with this broader, non-`include_str!`-scoped search) — the 255.67-amendment deletion stands
+  unchanged.
+
+### 3. Gates, after the repoint
+
+**`scripts/floor.sh`**:
+```
+     Summary [ 377.850s] 6213 tests run: 6213 passed (19 slow), 24 skipped
+```
+`.floor/2026-09-28T07-22-37Z`, exit=0. **All green** — including
+`probe_arc170_edn_bridge_unspellable::c02_control_ordinary_forms_stay_plain_edn` and all three
+`probe_arc257_native_map_set` tests. No red anywhere in the 6213-test suite. Not re-run (this is the
+one and only run after the repoint).
+
+**`cargo clippy --release --all-targets -- -D warnings`**: clean, rc 0.
+```
+   Compiling wat v0.1.0 (/home/john/work/holon/wat-rs)
+    Checking with-loader-example v0.1.0 (/home/john/work/holon/wat-rs/examples/with-loader)
+    Checking console-demo v0.1.0 (/home/john/work/holon/wat-rs/examples/console-demo)
+    Finished `release` profile [optimized] target(s) in 12.06s
+```
+
+The stone lands green.

@@ -98,7 +98,7 @@ fn c01_every_unspellable_lexeme_crosses_intact() {
 fn c02_control_ordinary_forms_stay_plain_edn() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/resolve/probe_arc251_fix_source_head_rule__contract-01-bare-call-head-inverted.wat"
+        "/tests/collection/probe_arc257_native_map_set.wat"
     );
     let src = std::fs::read_to_string(path).expect("an ordinary corpus file must be readable");
     let forms = wat::parse_all_with_file(&src, path).expect("parse");
