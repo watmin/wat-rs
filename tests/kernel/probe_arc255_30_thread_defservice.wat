@@ -2,13 +2,13 @@
 ;; a Shared address, which 255.29 made data.
 (:wat::core::defsurface :p30::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :p30::Echo::EchoRequest [msg <- :wat::core::String])
+  [(:wat::core::defrecord :p30::Echo::EchoRequest [msg <- wat.type/String])
    (:wat::core::defenum :p30::Echo::EchoResponse :wat::enum::Pure
-     :Ok [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got <- :wat::core::String])]
+     :Ok [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got <- wat.type/String])]
   :features
   [(echo [self <- :p30::Echo req <- :p30::Echo::EchoRequest] -> :p30::Echo::EchoResponse
      :max-request-bytes 524288)])
@@ -23,7 +23,7 @@
        :reply (:p30::Echo::EchoResponse.Ok
          {:reply (:wat::string::concat "echo:" (:p30::Echo::EchoRequest/msg req))})}))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h (:p30::echo/start :locus (:wat::spawn::thread) :record (:p30::echo::Record))
      a (:p30::echo::Handle/addr h)

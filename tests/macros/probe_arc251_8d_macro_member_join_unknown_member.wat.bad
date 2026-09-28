@@ -2,8 +2,8 @@
 ;; The parent IS a type and the declaration IS faithful-spelled, so the other-join
 ;; consult fires — and still finds nothing, because no macro named `of'`/`nope` exists.
 ;; Widening the SPELLING must not widen the POPULATION.
-(:wat::core::defrecord :user::Box [n <- :wat::core::i64])
+(:wat::core::defrecord :user::Box [n <- wat.type/i64])
 (wat.core/defmacro user.Box/of [n :- wat/WatAST] :- wat/WatAST
   `(:user::Box :n ~n))
-(:wat::core::defn :user::entry [] -> :wat::core::i64
+(:wat::core::defn :user::entry [] -> wat.type/i64
   (:user::Box/n (:user::Box/nope 7)))

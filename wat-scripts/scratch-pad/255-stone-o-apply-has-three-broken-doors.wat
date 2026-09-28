@@ -26,16 +26,16 @@
 ;; ONE DEFECT THREE TIMES: a second dispatch path reimplementing the first from a private
 ;; picture, and each time what it cannot express is "I hold Values, not ASTs."
 
-(:wat::core::defn :probe::o [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
-  -> :wat::core::String
+(:wat::core::defn :probe::o [r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
+  -> wat.type/String
   (:wat::core::match r
     [:wat::core::Result.Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
     [:wat::core::Result.Err {:error e} (:wat::string::concat "ERR")]))
 
-(:wat::core::defn :probe::p [n <- :wat::core::String f <- :wat::WatAST] -> :wat::core::nil
+(:wat::core::defn :probe::p [n <- wat.type/String f <- wat.type/AST] -> wat.type/nil
   (:wat::kernel::println (:wat::string::concat n " => " (:probe::o (:wat::eval-ast! f)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; ── The builder's four. `:wat::core::+` is Clojure-compliant. Nothing to fix here.
      _01 (:probe::p "(+)                        " (:wat::core::quote (:wat::core::+)))
@@ -48,23 +48,23 @@
 
      ;; ── DOOR 1 — the defclause. THE HEADLINE. Every one of these is ERR today.
      _08 (:probe::p "DOOR1 (apply + [1 2 3])    "
-           (:wat::core::quote (:wat::core::apply :wat::core::+ (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))
+           (:wat::core::quote (:wat::core::apply :wat::core::+ (wat.type/Vector :- [wat.type/i64] 1 2 3))))
      _09 (:probe::p "DOOR1 (apply * [2 3])      "
-           (:wat::core::quote (:wat::core::apply :wat::core::* (:wat::core::Vector :- [:wat::core::i64] 2 3))))
+           (:wat::core::quote (:wat::core::apply :wat::core::* (wat.type/Vector :- [wat.type/i64] 2 3))))
      _10 (:probe::p "DOOR1 (apply sort [v])     "
-           (:wat::core::quote (:wat::core::apply :wat::core::sort (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::core::i64])] (:wat::core::Vector :- [:wat::core::i64] 3 1 2)))))
+           (:wat::core::quote (:wat::core::apply :wat::core::sort (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 3 1 2)))))
 
      ;; ── DOOR 2 — registered, works directly, invisible to apply.
      _11 (:probe::p "DOOR2 direct  max-of       " (:wat::core::quote (:wat::f64::max-of 3.0 9.0 41.0)))
      _12 (:probe::p "DOOR2 (apply max-of [...]) "
-           (:wat::core::quote (:wat::core::apply :wat::f64::max-of (:wat::core::Vector :- [:wat::core::f64] 3.0 9.0 41.0))))
+           (:wat::core::quote (:wat::core::apply :wat::f64::max-of (wat.type/Vector :- [wat.type/f64] 3.0 9.0 41.0))))
 
      ;; ── DOOR 3 — registered WITH a value door: reachable, and unguarded.
      ;;    The wrong-arity case PANICS; it lives in its own probe so this one can finish.
      _13 (:probe::p "DOOR3 (apply i64::+ [20 22])"
-           (:wat::core::quote (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::i64] 20 22))))
+           (:wat::core::quote (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/i64] 20 22))))
 
      ;; ── DOOR 4 — a plain registered fn. The one door that is simply correct.
      _14 (:probe::p "DOOR4 (apply count [v])    "
-           (:wat::core::quote (:wat::core::apply :wat::core::count (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::core::i64])] (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))))]
+           (:wat::core::quote (:wat::core::apply :wat::core::count (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 1 2 3)))))]
     nil))

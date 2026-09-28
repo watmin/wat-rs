@@ -13,7 +13,7 @@
 ;; ROW 6 — every other Fallback family, unregressed by this strike: i64::/, f64::/,
 ;;   PersistentVector/get, PersistentVector/first, holon::cosine (degenerate).
 
-(:wat::core::defn :probe::run [] -> :wat::core::nil
+(:wat::core::defn :probe::run [] -> wat.type/nil
   (:wat::core::let
     [h     (:wat::holon::to-holon "some-atom")
      other (:wat::holon::to-holon "an-entirely-different-atom")
@@ -47,5 +47,5 @@
       (:wat::kernel::println (:wat::core::PersistentMap :row6-pv-first row6-pv-first))
       (:wat::kernel::println (:wat::core::PersistentMap :row6-cosine row6-cosine)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:probe::run))

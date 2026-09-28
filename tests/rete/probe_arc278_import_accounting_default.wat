@@ -6,8 +6,8 @@
 ;; before any work — satisfies every assertion its twin makes. The derived answer is here rather
 ;; than a bare "it did not die" because a session that imports and then cannot fire would still
 ;; print a happy word.
-(:wat::core::defrecord :ia::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :ia::Hit [c <- :wat::core::i64])
+(:wat::core::defrecord :ia::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :ia::Hit [c <- wat.type/i64])
 
 (:wat::rete::defquery :ia::q-Hit :params [] :when [(?fact :- :ia::Hit)])
 
@@ -30,7 +30,7 @@
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
       (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [e  (:wat::rete::export (:ia::compiled))
                     s1 (:wat::rete::import e)
                     s2 (:wat::core::match (:wat::rete::fire-rules (:ia::seed s1))

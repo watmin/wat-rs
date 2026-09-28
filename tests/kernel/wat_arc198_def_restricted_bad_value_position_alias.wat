@@ -6,8 +6,8 @@
 ;; position: this must be refused exactly as a direct call would be.
 (:wat::core::defn :my::kernel::restricted-fn
   {:restricted-to [:my::kernel::]}
-  [x <- :wat::core::i64] -> :wat::core::i64 x)
+  [x <- wat.type/i64] -> wat.type/i64 x)
 
-(:wat::core::defn :user::sneaky [] -> :wat::core::i64
+(:wat::core::defn :user::sneaky [] -> wat.type/i64
   (:wat::core::let [f :my::kernel::restricted-fn]
     (f 7)))

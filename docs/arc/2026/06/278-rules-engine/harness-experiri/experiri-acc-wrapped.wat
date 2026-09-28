@@ -1,16 +1,16 @@
-(:wat::core::defrecord :probe::In  [v <- :wat::core::i64])
-(:wat::core::defrecord :probe::Out [n <- :wat::core::i64])
+(:wat::core::defrecord :probe::In  [v <- wat.type/i64])
+(:wat::core::defrecord :probe::Out [n <- wat.type/i64])
 
 ;; The ONLY RETE_OPS row whose declared signature is exactly (PersistentVector<T>) -> i64,
 ;; used DIRECTLY as the accumulator's acc-form head.
-(:wat::rete::core::defn :probe::len [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64
+(:wat::rete::core::defn :probe::len [xs <- (wat.type/PersistentVector :- [wat.type/i64])] -> wat.type/i64
   (:wat::rete::vector::length xs))
 
 (:wat::rete::defrule :probe::acc
   :when  [(?n :- (:probe::len ?v) :from (:probe::In (?v :- :v)))]
   :then  [(:probe::Out :n ?n)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector))

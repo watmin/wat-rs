@@ -24,17 +24,17 @@
 ;; is the real reason the W7 HOF family is hard.
 ;; Not a permanent fixture — delete when the ruling ships.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println
       (:wat::rete::pure? (:wat::core::quote
-        (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
+        (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
           (:wat::core::< a b)))))
     (:wat::kernel::println
       (:wat::rete::pure? (:wat::core::quote
-        (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
+        (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
           (:wat::core::< (keyfn a) (keyfn b))))))
     (:wat::kernel::println
       (:wat::rete::pure? (:wat::core::quote
-        (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
+        (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
           (:wat::core::do (:wat::kernel::println "x") (:wat::core::< a b))))))))

@@ -14,8 +14,8 @@
 ;; well formed and fully supplied, and the OUTER field's own value is a nested constructor —
 ;; `ComputedNotDerivableHere`, correctly passed by D10's top-level check. So the nested
 ;; `RhsFieldTypeMismatch` stands alone, and the `.edn` golden asserts that.
-(:wat::core::defrecord :d11b::Box   [k <- :wat::core::i64  s <- :wat::core::String])
-(:wat::core::defrecord :d11b::Inner [n <- :wat::core::i64])
+(:wat::core::defrecord :d11b::Box   [k <- wat.type/i64  s <- wat.type/String])
+(:wat::core::defrecord :d11b::Inner [n <- wat.type/i64])
 (:wat::core::defrecord :d11b::Outer [i <- :d11b::Inner])
 
 (:wat::rete::defrule :d11b::bad
@@ -27,5 +27,5 @@
 ;; (`#wat.macro/MainSignatureError`, UselessMain), so `assert!(!ok)` over such a fixture cannot go
 ;; red under the mutation it exists to detect. A main that DOES something makes the rete refusal
 ;; the only reason this file can fail.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

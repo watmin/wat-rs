@@ -3,10 +3,10 @@
 ;; Composed walk: extract-classifier + Bind/right + Bundle/children to get field-Bind list.
 ;; Coerce to holon-form via :wat::holon::to-holon first (Stone 234.6 migration).
 (:wat::holon::defrecord :myapp::Point
-  [x <- :wat::core::i64
-   y <- :wat::core::i64])
+  [x <- wat.type/i64
+   y <- wat.type/i64])
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
       [p          (:myapp::Point :x 3 :y 4)
        h          (:wat::holon::to-holon p)

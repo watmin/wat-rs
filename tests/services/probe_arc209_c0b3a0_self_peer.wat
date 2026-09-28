@@ -1,9 +1,9 @@
 ;; Parent spawns a process echo service; the child gets its self-peer and echoes owner→child + 100.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [svc (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
-             (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::defn :user::main [] -> wat.type/nil
                (:wat::core::let
                  [self (:wat::program::self-peer :wat::core::i64 :wat::core::i64)
                   x    (:wat::core::match (:wat::kernel::recv self)

@@ -6,5 +6,5 @@
 ;; `main` never runs and nothing reaches stdout. That is the exact inversion of what this probe's
 ;; parent fixture used to assert, and asserting only the dot half would leave the flip unproven:
 ;; a test that says "the new spelling works" passes just as well in a world where BOTH spellings do.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:wat::core::Option::Some {:value 7})))

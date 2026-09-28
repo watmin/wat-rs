@@ -6,11 +6,11 @@
 ;; grant-before-dial (the post-spawn hook grants journal's child pid to the store's gate before
 ;; :init dials), the predicate evals in the child. Same ops → same result on both loci.
 
-(:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+(:wat::core::defrecord :probe::Note [text <- wat.type/String])
 
 ;; a mixed page of 3 Logs (Info/Error/Warn); a PURE predicate (level = :error) must return ONLY
 ;; the survivor (count 1) — the other 2 are filtered server-side.
-(:wat::core::defn :user::sift-pure-survivors [] -> :wat::core::i64
+(:wat::core::defn :user::sift-pure-survivors [] -> wat.type/i64
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -18,7 +18,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
@@ -29,9 +29,9 @@
              :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))
+             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1 l2 l3)))
      sieve (:wat::query::sieve-pred
-             (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+             (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                (:wat::rete::core::enum::= (:wat::telemetry::Log/level log) :wat::telemetry::Level.Error)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
@@ -42,7 +42,7 @@
 
 ;; an IMPURE predicate (fn body does IO) must be REJECTED — ::Fatal, never a silent pass
 ;; (no-hidden-failures floor). Returns true iff the response is ::Fatal.
-(:wat::core::defn :user::sift-impure-rejected [] -> :wat::core::bool
+(:wat::core::defn :user::sift-impure-rejected [] -> wat.type/bool
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -50,14 +50,14 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1)))
+             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1)))
      sieve (:wat::query::sieve-pred
-             (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+             (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                (:wat::core::do (:wat::kernel::println "impure predicate side effect") true)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
@@ -71,19 +71,19 @@
 ;; grant-before-dial. The Sieve's ::-source String crosses to the journal' child; the opaque Log
 ;; messages cross; the predicate is read-string'd + eval-ast!'d + applied IN THE CHILD. Same ops →
 ;; same result: a pure `level = :error` predicate returns ONLY the survivor (count 1). ──
-(:wat::core::defn :user::sift-pure-survivors-process [] -> :wat::core::i64
+(:wat::core::defn :user::sift-pure-survivors-process [] -> wat.type/i64
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                         (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
@@ -94,9 +94,9 @@
              :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))
+             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1 l2 l3)))
      sieve (:wat::query::sieve-pred
-             (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+             (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                (:wat::rete::core::enum::= (:wat::telemetry::Log/level log) :wat::telemetry::Level.Error)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
@@ -107,26 +107,26 @@
 
 ;; the impure-reject, across a FORK — the no-hidden-failures floor holds loci-agnostically: an
 ;; impure predicate is REJECTED (::Fatal) in the child too, never a silent pass.
-(:wat::core::defn :user::sift-impure-rejected-process [] -> :wat::core::bool
+(:wat::core::defn :user::sift-impure-rejected-process [] -> wat.type/bool
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                         (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1)))
+             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1)))
      sieve (:wat::query::sieve-pred
-             (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+             (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                (:wat::core::do (:wat::kernel::println "impure predicate side effect") true)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"

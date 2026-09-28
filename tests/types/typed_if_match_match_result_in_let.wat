@@ -1,5 +1,5 @@
 ;; typed_if_match_match_result_in_let.wat — typed match result flows into enclosing let.
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [s
       (:wat::core::match (:wat::core::Option.Some {:value 1}) 

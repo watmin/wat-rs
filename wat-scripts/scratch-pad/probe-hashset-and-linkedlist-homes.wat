@@ -6,17 +6,17 @@
 ;;
 ;; Usage: ./target/release/wat wat-scripts/scratch-pad/probe-hashset-and-linkedlist-homes.wat
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; ── HashSet ──────────────────────────────────────────────────────────
-    (:wat::test::assert-eq (:wat::hashset::length (:wat::core::HashSet :- [:wat::core::i64])) 0)
-    (:wat::test::assert-eq (:wat::hashset::length (:wat::core::HashSet :- [:wat::core::i64] 1 2 3)) 3)
-    (:wat::test::assert-eq (:wat::hashset::empty? (:wat::core::HashSet :- [:wat::core::i64])) true)
-    (:wat::test::assert-eq (:wat::hashset::empty? (:wat::core::HashSet :- [:wat::core::i64] 1)) false)
-    (:wat::test::assert-eq (:wat::hashset::contains? (:wat::core::HashSet :- [:wat::core::i64] 1 2 3) 2) true)
-    (:wat::test::assert-eq (:wat::hashset::contains? (:wat::core::HashSet :- [:wat::core::i64] 1 2 3) 9) false)
-    (:wat::test::assert-eq (:wat::hashset::length (:wat::hashset::conj (:wat::core::HashSet :- [:wat::core::i64]) 1)) 1)
-    (:wat::test::assert-eq (:wat::hashset::contains? (:wat::hashset::conj (:wat::core::HashSet :- [:wat::core::i64]) 7) 7) true)
+    (:wat::test::assert-eq (:wat::hashset::length (wat.type/HashSet :- [wat.type/i64])) 0)
+    (:wat::test::assert-eq (:wat::hashset::length (wat.type/HashSet :- [wat.type/i64] 1 2 3)) 3)
+    (:wat::test::assert-eq (:wat::hashset::empty? (wat.type/HashSet :- [wat.type/i64])) true)
+    (:wat::test::assert-eq (:wat::hashset::empty? (wat.type/HashSet :- [wat.type/i64] 1)) false)
+    (:wat::test::assert-eq (:wat::hashset::contains? (wat.type/HashSet :- [wat.type/i64] 1 2 3) 2) true)
+    (:wat::test::assert-eq (:wat::hashset::contains? (wat.type/HashSet :- [wat.type/i64] 1 2 3) 9) false)
+    (:wat::test::assert-eq (:wat::hashset::length (:wat::hashset::conj (wat.type/HashSet :- [wat.type/i64]) 1)) 1)
+    (:wat::test::assert-eq (:wat::hashset::contains? (:wat::hashset::conj (wat.type/HashSet :- [wat.type/i64]) 7) 7) true)
 
     ;; ── List (LinkedList) ────────────────────────────────────────────────
     (:wat::test::assert-eq (:wat::linkedlist::length (:wat::core::List)) 0)

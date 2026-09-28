@@ -50,8 +50,8 @@
 ;;
 ;; Usage:  ./target/release/wat wat-scripts/scratch-pad/probe-overlay-refire-cost.wat
 
-(:wat::core::defrecord :ovl::Req [k <- :wat::core::i64])
-(:wat::core::defrecord :ovl::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :ovl::Req [k <- wat.type/i64])
+(:wat::core::defrecord :ovl::Hit [k <- wat.type/i64])
 
 (:wat::rete::defquery :ovl::q-Hit
   :params []
@@ -61,7 +61,7 @@
 ;; The rule is deliberately MINIMAL — one alpha condition, one production, no join. Cost is then
 ;; ~proportional to the facts the engine actually processes, so a "redo" shows up as time tracking N
 ;; instead of being buried under join work. Hit(k) :- Req(?k) AND k mod 10 == 3.
-(:wat::core::defn :ovl::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :ovl::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::let [conds   (:wat::core::quasiquote (:ovl::Req (?k :- :k)))
                       where-c (:wat::core::quasiquote
@@ -76,34 +76,34 @@
 
 ;; stage session lo hi — insert Req(i) for i in [lo, hi) in ONE rebuild.
 (:wat::core::defn :ovl::stage
-  [session <- :wat::rete::Session  lo <- :wat::core::i64  hi <- :wat::core::i64]
+  [session <- :wat::rete::Session  lo <- wat.type/i64  hi <- wat.type/i64]
   -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj acc (:ovl::Req :k i)))
       (:wat::core::PersistentVector)
       (:wat::core::range lo hi))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :ovl::derived-count [fired <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :ovl::derived-count [fired <- :wat::rete::Session] -> wat.type/i64
   (:wat::vec::length
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:ovl::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:ovl::Hit/k f)))
         (:wat::rete::query fired (:ovl::q-Hit))))))
 
-(:wat::core::defn :ovl::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :ovl::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; TEMP-BASE — the overlay's facts start here, far past any base rung, so they cannot collide with
 ;; base keys. All 10 are ≡ 3 (mod 10), so every one of them MUST derive a Hit.
-(:wat::core::defn :ovl::temp-lo [] -> :wat::core::i64 1000003)
-(:wat::core::defn :ovl::temp-n  [] -> :wat::core::i64 10)
+(:wat::core::defn :ovl::temp-lo [] -> wat.type/i64 1000003)
+(:wat::core::defn :ovl::temp-n  [] -> wat.type/i64 10)
 
 ;; rung n — the three timings at one base size, plus the non-vacuity assertion.
-(:wat::core::defn :ovl::rung [n <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :ovl::rung [n <- wat.type/i64] -> wat.type/String
   (:wat::core::let
     [staged    (:ovl::stage (:wat::core::match (:wat::rete::compile-all (:ovl::rules) (:wat::core::PersistentVector (:ovl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) 0 n)
 
@@ -148,10 +148,10 @@
           (:wat::string::concat " ovl-ns=" (:wat::i64::to-string (:ovl::ns-between o0 o1)))
           (:wat::string::concat " base-derived=" (:wat::i64::to-string base-d)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil  n <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [acc <- wat.type/nil  n <- wat.type/i64] -> wat.type/nil
       (:wat::kernel::println (:ovl::rung n)))
     nil
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::PersistentVector 1000 2000 4000 8000))))

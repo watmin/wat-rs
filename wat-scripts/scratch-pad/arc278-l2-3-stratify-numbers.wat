@@ -22,11 +22,11 @@
 ;; Run: cargo install --path . --force   (wat/ is include_str!'d — a stale binary answers
 ;;      from an older stdlib with no error) then:  wat wat-scripts/scratch-pad/arc278-l2-3-stratify-numbers.wat
 
-(:wat::core::defrecord :l23::A    [k <- :wat::core::i64])
-(:wat::core::defrecord :l23::Ok   [k <- :wat::core::i64])
-(:wat::core::defrecord :l23::Ok2  [k <- :wat::core::i64])
-(:wat::core::defrecord :l23::Seed [id <- :wat::core::i64])
-(:wat::core::defrecord :l23::Tally [n <- :wat::core::i64])
+(:wat::core::defrecord :l23::A    [k <- wat.type/i64])
+(:wat::core::defrecord :l23::Ok   [k <- wat.type/i64])
+(:wat::core::defrecord :l23::Ok2  [k <- wat.type/i64])
+(:wat::core::defrecord :l23::Seed [id <- wat.type/i64])
+(:wat::core::defrecord :l23::Tally [n <- wat.type/i64])
 
 ;; Ok is DERIVED — this is what makes the bag below "a type THIS SET derives".
 (:wat::rete::defrule :l23::ok
@@ -52,11 +52,11 @@
 ;; (a query has no `:then`). Whether a query's own stratum is computed or read at all is
 ;; NOT established by that file. This is the same LHS shape on a `defrule`, with C DERIVED
 ;; (produced by `mkc`), which IS what `rule-produces`/`rule-negates` are computed over.
-(:wat::core::defrecord :l24::A    [k <- :wat::core::i64])
-(:wat::core::defrecord :l24::B    [k <- :wat::core::i64])
-(:wat::core::defrecord :l24::C    [k <- :wat::core::i64])
-(:wat::core::defrecord :l24::Seed [k <- :wat::core::i64])
-(:wat::core::defrecord :l24::Out  [k <- :wat::core::i64])
+(:wat::core::defrecord :l24::A    [k <- wat.type/i64])
+(:wat::core::defrecord :l24::B    [k <- wat.type/i64])
+(:wat::core::defrecord :l24::C    [k <- wat.type/i64])
+(:wat::core::defrecord :l24::Seed [k <- wat.type/i64])
+(:wat::core::defrecord :l24::Out  [k <- wat.type/i64])
 
 ;; C is DERIVED — this is what makes the nested :not below a negation over a produced type.
 (:wat::rete::defrule :l24::mkc
@@ -71,7 +71,7 @@
   :when [(:wat::rete::or (:l24::A) (:wat::rete::and (:l24::B) (:wat::rete::not (:l24::C))))]
   :then [(:l24::Out :k 1)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [anchor (:wat::rete::stratify (:wat::core::PersistentVector (:l23::ok) (:l23::neg)))
      bag    (:wat::rete::stratify (:wat::core::PersistentVector (:l23::ok) (:l23::tally)))

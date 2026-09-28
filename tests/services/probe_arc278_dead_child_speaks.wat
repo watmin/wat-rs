@@ -18,7 +18,7 @@
 ;; open-surface-field level, where it belongs.)
 
 ;; the parent-only payload record — NOT baked into the forked child's registry.
-(:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+(:wat::core::defrecord :probe::Note [text <- wat.type/String])
 (:wat::core::extend-type :probe::Note :wat::query::Reason)
 
 ;; EXACT DATA: :user::compute returns a STRUCTURED :probe::Outcome — the RecvOutcome variant that
@@ -28,7 +28,7 @@
 ;; "wat stdio is edn — assert the structure exactly" (builder; R55 REVOLVTIONE, NVLLA LARVA).
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                                ;; matched ::Message (.rs asserts NEVER)
-  :Lost    [reason-names-decode-failure? <- :wat::core::bool] ;; matched ::Lost — true iff the cause names the decode failure (the LAW: the reason is carried)
+  :Lost    [reason-names-decode-failure? <- wat.type/bool] ;; matched ::Lost — true iff the cause names the decode failure (the LAW: the reason is carried)
   :Closed  []                                                ;; matched ::Closed (the mute we killed — .rs asserts NEVER)
   ;; arc 278 #73 — a stop is NOT a close, so it does not borrow ::Closed's label. The golden is
   ;; `#probe/Outcome.Lost {:reason-names-decode-failure? true}`, so adding a variant costs the passing path nothing; what it buys
@@ -45,8 +45,8 @@
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [payload <- :wat::query::Reason])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
      :Ok              []
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 

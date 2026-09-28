@@ -1,9 +1,9 @@
 ;; tests/rete/probe_arc278_northstar_cold_and_windy.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). The north-star defrule: cold-and-windy end-to-end DSL spec.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
 
 (:wat::rete::defrule :weather::cold-and-windy
   :when
@@ -25,7 +25,7 @@
 
 ;; The lifecycle, value-threaded: collect → compile → insert → insert → fire → query, then COUNT the
 ;; derived facts (wrapped in `length` so the Rust driver just-evals to a scalar).
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
       [rules    (:wat::rete::collect-rules :weather)

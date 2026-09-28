@@ -1,5 +1,5 @@
 ;; tests/function/recursive_patterns_t10.wat — candlestream_next_shape_destructures_in_one_step
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [row
                 (:wat::core::Option.Some {:value (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)})

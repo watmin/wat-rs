@@ -13,12 +13,12 @@
 ;; EXPECTED: wide=3 (all three 9-field facts derive), narrow=3.
 
 (:wat::core::defrecord :d7w::Wide
-  [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64
-   d <- :wat::core::i64  e <- :wat::core::i64  f <- :wat::core::i64
-   g <- :wat::core::i64  h <- :wat::core::i64  i <- :wat::core::i64])
-(:wat::core::defrecord :d7w::Narrow [k <- :wat::core::i64])
-(:wat::core::defrecord :d7w::WideHit   [k <- :wat::core::i64])
-(:wat::core::defrecord :d7w::NarrowHit [k <- :wat::core::i64])
+  [a <- wat.type/i64  b <- wat.type/i64  c <- wat.type/i64
+   d <- wat.type/i64  e <- wat.type/i64  f <- wat.type/i64
+   g <- wat.type/i64  h <- wat.type/i64  i <- wat.type/i64])
+(:wat::core::defrecord :d7w::Narrow [k <- wat.type/i64])
+(:wat::core::defrecord :d7w::WideHit   [k <- wat.type/i64])
+(:wat::core::defrecord :d7w::NarrowHit [k <- wat.type/i64])
 
 (:wat::rete::defrule :d7w::rw
   :when [(:d7w::Wide (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e)
@@ -32,12 +32,12 @@
 (:wat::rete::defquery :d7w::qw :params [] :when [(?fact :- :d7w::WideHit)])
 (:wat::rete::defquery :d7w::qn :params [] :when [(?fact :- :d7w::NarrowHit)])
 
-(:wat::core::defn :d7w::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
+(:wat::core::defn :d7w::as-record [r <- wat.type/Record] -> wat.type/Record r)
 
-(:wat::core::defn :d7w::wide [k <- :wat::core::i64] -> :wat::core::Record
+(:wat::core::defn :d7w::wide [k <- wat.type/i64] -> wat.type/Record
   (:d7w::as-record (:d7w::Wide :a k :b 1 :c 2 :d 3 :e 4 :f 5 :g 6 :h 7 :i 8)))
 
-(:wat::core::defn :d7w::facts [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :d7w::facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::PersistentVector
     (:d7w::wide 0) (:d7w::wide 1) (:d7w::wide 2)
     (:d7w::as-record (:d7w::Narrow :k 0))
@@ -45,12 +45,12 @@
     (:d7w::as-record (:d7w::Narrow :k 2))))
 
 (:wat::core::defn :d7w::count
-  [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::i64
+  [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/i64
   (:wat::vec::length
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::PersistentMap])
+    (:wat::core::into (wat.type/Vector :- [wat.type/PersistentMap])
       (:wat::rete::query s q))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all
            (:wat::core::PersistentVector (:d7w::rw) (:d7w::rn))

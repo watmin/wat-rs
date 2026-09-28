@@ -1,6 +1,6 @@
 ;; Which spelling actually produces each classifier? A guessed literal is a ledger cell that
 ;; passes for the wrong reason.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "Set  <- #holon #{1 2}:")   (:wat::kernel::println (:wat::holon::is-Set? #holon #{1 2}))
     (:wat::kernel::println "Map  <- #holon {:a 1}:")   (:wat::kernel::println (:wat::holon::is-Map? #holon {:a 1}))

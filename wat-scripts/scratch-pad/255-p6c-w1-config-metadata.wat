@@ -8,7 +8,7 @@
 ;; helper's typed param would force the FQDN keyword to resolve to its function
 ;; type before it got there (mirrors `255-stone-p2-intrinsic-untouched.wat`).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::config::dim-count)
       [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "dim-count :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]

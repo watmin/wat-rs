@@ -1,10 +1,10 @@
 ;; tests/rete/probe_arc278_P12_explain_walk.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Two-level weather cascade + two defrules for explain-walk tests.
 
-(:wat::core::defrecord :weather::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [celsius <- :wat::core::i64  kph      <- :wat::core::i64])
-(:wat::core::defrecord :weather::WeatherAlert [celsius <- :wat::core::i64  kph      <- :wat::core::i64])
+(:wat::core::defrecord :weather::Temperature  [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph     <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [celsius <- wat.type/i64  kph      <- wat.type/i64])
+(:wat::core::defrecord :weather::WeatherAlert [celsius <- wat.type/i64  kph      <- wat.type/i64])
 
 (:wat::rete::defrule :weather::cold-and-windy
   :when
@@ -22,7 +22,7 @@
 ;; LEVEL 1 — explain a directly-derived fact reaches its two input facts. `ColdAndWindy` is derived by
 ;; `cold-and-windy` from `Temperature` ⋈ `WindSpeed`; its why-tree's `:via` has exactly those two supporting
 ;; facts → length 2.
-(:wat::core::defn :user::explain-coldandwindy-via-length [] -> :wat::core::i64
+(:wat::core::defn :user::explain-coldandwindy-via-length [] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::DerivationNode/via
       (:wat::core::let
@@ -35,7 +35,7 @@
 
 ;; LEVEL 2 — explain a CASCADE-derived fact: `WeatherAlert` is derived by `alert` from the derived
 ;; `ColdAndWindy`. Its `:via` has exactly one supporting fact (the ColdAndWindy).
-(:wat::core::defn :user::explain-weatheralert-via-length [] -> :wat::core::i64
+(:wat::core::defn :user::explain-weatheralert-via-length [] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::DerivationNode/via
       (:wat::core::let

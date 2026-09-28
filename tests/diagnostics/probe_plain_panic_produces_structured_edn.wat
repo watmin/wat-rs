@@ -39,7 +39,7 @@
 ;; The child runs in a SEPARATE process with its own runtime, so `set-dim-count!` /
 ;; `set-capacity-mode!` are private to the child — the hermetic property the retired
 ;; run-hermetic provided is preserved by spawn-program' :process.
-(:wat::core::defn :probe::plain-panic [] -> :wat::core::String
+(:wat::core::defn :probe::plain-panic [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
@@ -49,16 +49,16 @@
            ;; from inside :user::main's body — that surfaces UnknownFunction).
            (:wat::config::set-dim-count! 100)
            (:wat::config::set-capacity-mode! :panic)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              ;; A RUNTIME-BUILT (not literal) 12-atom vector exceeds floor(sqrt(100))=10 budget
              ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
              ;; See this file's header for why the length must be runtime-derived, not a literal.
              (:wat::core::let
                [n     12
                 atoms (:wat::core::foldl
-                        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::holon::HolonAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::holon::HolonAST])
+                        (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::holon::HolonAST]) i <- wat.type/i64] -> (wat.type/Vector :- [:wat::holon::HolonAST])
                           (:wat::core::conj acc (:wat::holon::to-holon i)))
-                        (:wat::core::Vector :- [:wat::holon::HolonAST])
+                        (wat.type/Vector :- [:wat::holon::HolonAST])
                         (:wat::core::range 0 n))
                 _bundle (:wat::holon::Bundle atoms)]
                nil))))]

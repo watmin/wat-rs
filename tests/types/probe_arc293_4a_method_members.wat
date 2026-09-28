@@ -13,18 +13,18 @@
 ;; The surface mixes a FIELD member (color) and a METHOD member (area).
 (:wat::core::defsurface :t::Shape
   :nature :wat::core::Struct
-  :features [color <- :wat::core::String
-   (area [self <- :t::Shape] -> :wat::core::f64)])
+  :features [color <- wat.type/String
+   (area [self <- :t::Shape] -> wat.type/f64)])
 
 ;; Sq backs `color` with a FIELD and `area` with a METHOD (a defn) — the satisfier's
 ;; private choice; the surface sees only accessors.
-(:wat::core::defrecord :t::Sq [color <- :wat::core::String  side <- :wat::core::f64])
-(:wat::core::defn :t::Sq/area [self <- :t::Sq] -> :wat::core::f64
+(:wat::core::defrecord :t::Sq [color <- wat.type/String  side <- wat.type/f64])
+(:wat::core::defn :t::Sq/area [self <- :t::Sq] -> wat.type/f64
   (:wat::f64::* (:t::Sq/side self) (:t::Sq/side self)))
 
 ;; A consumer that REQUIRES the surface in a param position. Passing a Sq makes the
 ;; checker run `struct_satisfies_surface` (color field + area method) — structural,
 ;; no declaration at Sq.
-(:wat::core::defn :t::accept [s <- :t::Shape] -> :wat::core::bool true)
+(:wat::core::defn :t::accept [s <- :t::Shape] -> wat.type/bool true)
 
 (:t::accept (:t::Sq :color "red" :side 3.0))

@@ -2,12 +2,12 @@
 ;; Acceptance row 1: all 5 `:wat::keyword::*` verbs RUN (not merely check) under the new
 ;; spelling — a scratch-pad probe asserting a result for each.
 
-(:wat::core::defn :probe::check [ok <- :wat::core::bool msg <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :probe::check [ok <- wat.type/bool msg <- wat.type/String] -> wat.type/nil
   (:wat::core::if ok
     nil
     (:wat::kernel::assertion-failed! :message msg)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:probe::check (:wat::core::= (:wat::keyword::to-string :foo) "foo") "to-string")
     (:probe::check (:wat::core::= (:wat::keyword::from-string "foo") :foo) "from-string")

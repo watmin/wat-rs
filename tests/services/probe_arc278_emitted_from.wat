@@ -19,11 +19,11 @@
 ;; Log construction mirrors tests/services/probe_arc278_journal_logs_on_process.wat's l1/l2
 ;; (full Scope fields + own fields, kwargs ctor).
 
-(:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+(:wat::core::defrecord :probe::Note [text <- wat.type/String])
 
 (:wat::test::deftest :user::emitted-from-round-trips 
   (:wat::core::let
-    [tags   (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+    [tags   (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      log    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
               :time-ns 1000000000 :emitted-from (:wat::kernel::call-site)
               :level :wat::telemetry::Level.Info

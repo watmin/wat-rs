@@ -8,8 +8,8 @@
 ;; The operand `?missing` sits at line 16, cols 24..32. Those numbers are asserted:
 ;; if you edit above this line, fix the .rs.
 
-(:wat::core::defrecord :ubs::Item [k <- :wat::core::i64])
-(:wat::core::defrecord :ubs::Out  [k <- :wat::core::i64])
+(:wat::core::defrecord :ubs::Item [k <- wat.type/i64])
+(:wat::core::defrecord :ubs::Out  [k <- wat.type/i64])
 
 (:wat::rete::defrule :ubs::r
   :when [(:ubs::Item (?k :- :k))]
@@ -17,7 +17,7 @@
 
 (:wat::rete::defquery :ubs::q :params [] :when [(?fact :- :ubs::Out)])
 
-(:wat::core::defn :user::fire-unbound [] -> :wat::core::i64
+(:wat::core::defn :user::fire-unbound [] -> wat.type/i64
   (:wat::core::let [rules (:wat::rete::collect-rules :ubs)
                     s0    (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:ubs::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1    (:wat::core::match (:wat::rete::insert-all s0 (:wat::core::PersistentVector (:ubs::Item :k 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])

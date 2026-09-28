@@ -10,7 +10,7 @@
 ;; `first`/`rest` no longer accept a Stream; `:wat::stream::next` is the one door now. Rewritten
 ;; onto it below, preserving exactly what the test measures — the traversal order (1 then 2) and
 ;; that each step is a genuine force (laziness) — not how it used to spell the walk.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [s (:wat::stream::cons 1
                            (:wat::stream::lazy
                              (:wat::stream::cons 2

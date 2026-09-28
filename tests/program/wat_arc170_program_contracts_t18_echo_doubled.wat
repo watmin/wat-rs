@@ -22,11 +22,11 @@
 
 ;; Spawn a process peer whose :user::main readln's an i64 and println's it doubled;
 ;; send' 21 to feed the child's readln; drain the doubled outputs -> [42].
-(:wat::core::defn :my::test::echo-doubled [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :my::test::echo-doubled [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                 _ (:wat::kernel::println (:wat::i64::* n 2))]

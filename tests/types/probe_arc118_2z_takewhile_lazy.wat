@@ -10,11 +10,11 @@
 ;; GREEN after strike A (lazy): `into []` forces the take-while stream → [1 2]; boom(99) untouched.
 ;; (If take-while were EAGER, it would drain the whole map stream first → boom(99) → DivisionByZero.)
 
-(:wat::core::defn :my::boom [x <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :my::boom [x <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::= x 99) (:wat::core::/ 1 0) x))
 
-(:wat::core::defn :my::compute [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :my::compute [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::into []
     (:wat::core::take-while
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 3))
+      (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::core::< x 3))
       (:wat::core::map :my::boom [1 2 5 99]))))

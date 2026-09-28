@@ -7,11 +7,11 @@
 ;; UNCHANGED from the old form; only the DRIVER flipped to the peer wire (spawn-process API →
 ;; spawn-program' / send' / recv'). Returns the recv'd i64 directly (== 42) so the test measures
 ;; the value that genuinely crossed the wire. Closest model: t18_echo_doubled.wat (SAME family).
-(:wat::core::defn :my::launch [] -> :wat::core::i64
+(:wat::core::defn :my::launch [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [n    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                 _out (:wat::kernel::println (:wat::i64::* n 2))]

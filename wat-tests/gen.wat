@@ -20,25 +20,25 @@
 ;; many points; `EmptySpace` means the law was driven over ZERO points, which for
 ;; a law is itself a failure — it was never tested.
 
-(:wat::core::defn :wat-tests::gen::at0 [v <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]
-  -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::at0 [v <- (wat.type/PersistentVector :- [wat.type/i64])  i <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::Option/expect (:wat::core::get v i) "digit"))
 
 
 ;; ── L1 — gen-ints: card is the width, and `at` is the shifted identity ───────
-(:wat::core::defn :wat-tests::gen::law-ints [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-ints [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     g  (:wat::gen::ints 5 12)
                     at (:wat::gen::Gen/at g)]
     (:wat::core::if (:wat::core::= (at i) (:wat::i64::+ 5 i)) true false)))
 
 ;; ── L2 — gen-fmap: cardinality preserved, and the mapped value is f(inner) ───
-(:wat::core::defn :wat-tests::gen::dbl [x <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::dbl [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* 2 x))
 
-(:wat::core::defn :wat-tests::gen::law-fmap [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-fmap [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i     (:wat-tests::gen::at0 c 0)
                     base  (:wat::gen::ints 5 12)
                     m     (:wat::gen::fmap :wat-tests::gen::dbl base)
@@ -51,11 +51,11 @@
       true false)))
 
 ;; ── L3 — every digit is inside its own base ─────────────────────────────────
-(:wat::core::defn :wat-tests::gen::bases [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::gen::bases [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector 2 3 4 5))
 
-(:wat::core::defn :wat-tests::gen::law-digits [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-digits [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     g  (:wat::gen::coords (:wat-tests::gen::bases))
                     d  ((:wat::gen::Gen/at g) i)
@@ -70,18 +70,18 @@
 ;; and require it back. Injective + total on 0..card means enumeration visits
 ;; every tuple EXACTLY once, which is the claim the whole design rests on.
 (:wat::core::defstruct :wat-tests::gen::Recon
-  [idx   <- :wat::core::i64
-   place <- :wat::core::i64
-   n     <- :wat::core::i64])
+  [idx   <- wat.type/i64
+   place <- wat.type/i64
+   n     <- wat.type/i64])
 
-(:wat::core::defn :wat-tests::gen::law-bijection [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-bijection [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     bs (:wat-tests::gen::bases)
                     g  (:wat::gen::coords bs)
                     d  ((:wat::gen::Gen/at g) i)
                     r  (:wat::core::foldl
-                         (:wat::core::fn [acc <- :wat-tests::gen::Recon  b <- :wat::core::i64] -> :wat-tests::gen::Recon
+                         (:wat::core::fn [acc <- :wat-tests::gen::Recon  b <- wat.type/i64] -> :wat-tests::gen::Recon
                            (:wat-tests::gen::Recon
                              :idx (:wat::i64::+ (:wat-tests::gen::Recon/idx acc)
                                     (:wat::i64::* (:wat-tests::gen::at0 d (:wat-tests::gen::Recon/n acc))
@@ -93,16 +93,16 @@
     (:wat::core::if (:wat::core::= (:wat-tests::gen::Recon/idx r) i) true false)))
 
 ;; ── L5 — card is the product of the bases ───────────────────────────────────
-(:wat::core::defn :wat-tests::gen::law-card [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-card [] -> wat.type/i64
   (:wat::core::if (:wat::core::= (:wat::gen::Gen/card (:wat::gen::coords (:wat-tests::gen::bases))) 120) 0 1))
 
 
 ;; ── L6 — gen-elements: card is the length, `at` is indexing ─────────────────
-(:wat::core::defn :wat-tests::gen::pool [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::gen::pool [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector 11 22 33 44))
 
-(:wat::core::defn :wat-tests::gen::law-elements [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-elements [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::elements (:wat-tests::gen::pool))]
     (:wat::core::if
@@ -114,11 +114,11 @@
 ;; The law that would catch a filter which merely re-indexed without filtering.
 ;; In `test.check` this is where a retry budget can silently give up; here the
 ;; survivors are exact, so the law is total over the filtered space.
-(:wat::core::defn :wat-tests::gen::even? [x <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::even? [x <- wat.type/i64] -> wat.type/bool
   (:wat::core::= x (:wat::i64::* 2 (:wat::i64::/ x 2))))
 
-(:wat::core::defn :wat-tests::gen::law-such-that [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-such-that [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::such-that :wat-tests::gen::even? (:wat::gen::ints 0 10))]
     (:wat::core::if
@@ -127,8 +127,8 @@
       true false)))
 
 ;; ── L8 — gen-one-of: card is the SUM, and branches occupy contiguous blocks ──
-(:wat::core::defn :wat-tests::gen::law-one-of [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-one-of [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     a  (:wat::gen::ints 0 3)
                     b  (:wat::gen::ints 100 105)
@@ -167,10 +167,10 @@
 ;; the mutated arithmetic. Its table is here on PRINCIPLE — an oracle that shares
 ;; the implementation is unsound whether or not today's mutation separates it — and
 ;; that distinction is recorded rather than rounded up to "all four".
-(:wat::core::defrecord :wat-tests::gen::Pair [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :wat-tests::gen::Pair [a <- wat.type/i64  b <- wat.type/i64])
 
-(:wat::core::defn :wat-tests::gen::law-record [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-record [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::record :wat-tests::gen::Pair (:wat::gen::ints 0 3) (:wat::gen::ints 10 12))
                     p ((:wat::gen::Gen/at g) i)
@@ -204,8 +204,8 @@
 ;; rather than re-encoding the radix, so this law is redundancy rather than a
 ;; tripwire — kept, and widened, so that re-introducing a second encoding goes red
 ;; here instead of shipping.
-(:wat::core::defn :wat-tests::gen::law-lift2 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-lift2 [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::lift2 :wat-tests::gen::Pair' (:wat::gen::ints 0 3) (:wat::gen::ints 10 12))
                     p ((:wat::gen::Gen/at g) i)
@@ -235,10 +235,10 @@
 ;; the radix wiring to be wrong" and then writing that wiring out as its oracle.
 ;; The tables are enumerations of the real space, recorded 2026-08-26.
 (:wat::core::defrecord :wat-tests::gen::Tri
-  [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])
+  [a <- wat.type/i64  b <- wat.type/i64  c <- wat.type/i64])
 
-(:wat::core::defn :wat-tests::gen::law-lift3 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-lift3 [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::lift3 :wat-tests::gen::Tri'
                         (:wat::gen::ints 0 2) (:wat::gen::ints 10 13) (:wat::gen::ints 100 102))
@@ -264,18 +264,18 @@
 ;; says nothing about whether they can be trusted in a real program. These four
 ;; laws are that missing half: verbs used TOGETHER, and off i64.
 
-(:wat::core::defrecord :wat-tests::gen::Mix [n <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :wat-tests::gen::Mix [n <- wat.type/i64  s <- wat.type/String])
 
-(:wat::core::defn :wat-tests::gen::pool3 [] -> (:wat::core::PersistentVector :- [:wat::core::String])
+(:wat::core::defn :wat-tests::gen::pool3 [] -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::PersistentVector "a" "b" "c"))
 
-(:wat::core::defn :wat-tests::gen::evenp [x <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::evenp [x <- wat.type/i64] -> wat.type/bool
   (:wat::core::= x (:wat::i64::* 2 (:wat::i64::/ x 2))))
 
-(:wat::core::defn :wat-tests::gen::dbl2 [x <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::dbl2 [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* 2 x))
 
-(:wat::core::defn :wat-tests::gen::nevr [x <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::nevr [x <- wat.type/i64] -> wat.type/bool
   (:wat::core::< x 0))
 
 ;; ── L12 — lift over a NON-i64 generator. The library must work off i64 at all;
@@ -290,8 +290,8 @@
 ;; L11's own comment convicted it, calling the second digit "the easiest place for
 ;; the radix wiring to be wrong" and then writing that wiring out as its oracle.
 ;; The tables are enumerations of the real space, recorded 2026-08-26.
-(:wat::core::defn :wat-tests::gen::law-mixed-types [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-mixed-types [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::lift2 :wat-tests::gen::Mix' (:wat::gen::ints 0 2)
                         (:wat::gen::elements (:wat-tests::gen::pool3)))
@@ -308,8 +308,8 @@
 
 ;; ── L13 — one-of over a FILTERED generator. Cardinalities compose (5 + 2), the
 ;; first branch still satisfies its predicate, and the second is untouched.
-(:wat::core::defn :wat-tests::gen::law-oneof-over-filter [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-oneof-over-filter [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     ev (:wat::gen::such-that :wat-tests::gen::evenp (:wat::gen::ints 0 10))
                     g  (:wat::gen::one-of (:wat::core::PersistentVector ev (:wat::gen::ints 100 102)))
@@ -321,8 +321,8 @@
 
 ;; ── L14 — fmap AFTER such-that. Order of composition must hold: the mapped value
 ;; is f applied to the SURVIVING element, not to the pre-filter index.
-(:wat::core::defn :wat-tests::gen::law-fmap-after-filter [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-fmap-after-filter [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     ev (:wat::gen::such-that :wat-tests::gen::evenp (:wat::gen::ints 0 10))
                     g  (:wat::gen::fmap :wat-tests::gen::dbl2 ev)]
@@ -336,8 +336,8 @@
 ;; skipped by the range dispatch rather than swallowing indices. The empty
 ;; generator itself is never enumerated — `gen-check` refuses that — but it is a
 ;; legitimate BRANCH, and the dispatch has to survive a card of 0.
-(:wat::core::defn :wat-tests::gen::law-oneof-empty-branch [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-oneof-empty-branch [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [i     (:wat-tests::gen::at0 c 0)
                     empty (:wat::gen::such-that :wat-tests::gen::nevr (:wat::gen::ints 0 10))
                     g     (:wat::gen::one-of (:wat::core::PersistentVector empty (:wat::gen::ints 7 9)))]
@@ -350,13 +350,13 @@
 
 ;; ══ SAMPLING + SHRINKING LAWS ═══════════════════════════════════════════════
 
-(:wat::core::defn :wat-tests::gen::sbases [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::gen::sbases [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector 3 3 3 3 4))
 
 ;; ── L16 — gen-take CLAMPS. A prefix longer than the space must not invent
 ;; points; asking for 9999 of 324 yields 324, not 9999 with 9675 out-of-range
 ;; lookups that would panic deep inside a property.
-(:wat::core::defn :wat-tests::gen::law-take [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-take [] -> wat.type/i64
   (:wat::core::let [g (:wat::gen::coords (:wat-tests::gen::sbases))]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card (:wat::gen::take 16 g)) 16)
@@ -367,26 +367,26 @@
 ;; reason. If the scattered ORDER is not a permutation of 0..card, sampling
 ;; silently revisits points and misses others while reporting a clean count —
 ;; and a prefix of a non-permutation is not a sample of anything.
-(:wat::core::defn :wat-tests::gen::law-scatter-bijection [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-scatter-bijection [] -> wat.type/i64
   (:wat::core::let [bs   (:wat-tests::gen::sbases)
                     card (:wat::gen::card-of bs)
                     seen (:wat::core::foldl
-                           (:wat::core::fn [acc <- (:wat::core::HashSet :- [:wat::core::i64])  k <- :wat::core::i64]
-                                           -> (:wat::core::HashSet :- [:wat::core::i64])
+                           (:wat::core::fn [acc <- (wat.type/HashSet :- [wat.type/i64])  k <- wat.type/i64]
+                                           -> (wat.type/HashSet :- [wat.type/i64])
                              (:wat::hashset::conj acc (:wat::gen::reverse-index bs k)))
-                           (:wat::core::HashSet :- [:wat::core::i64])
+                           (wat.type/HashSet :- [wat.type/i64])
                            (:wat::core::range 0 card))]
     (:wat::core::if (:wat::core::= (:wat::core::length seen) card) 0 1)))
 
 ;; ── L18 — gen-shrink reaches the MINIMUM, and the result still fails. Both
 ;; halves matter: a shrinker that returns something minimal-but-passing has
 ;; produced a confident wrong answer, which is worse than not shrinking.
-(:wat::core::defn :wat-tests::gen::sfails? [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::sfails? [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::and (:wat::core::>= (:wat::gen::nth c 0) 1)
                    (:wat::core::>= (:wat::gen::nth c 2) 2)))
 
-(:wat::core::defn :wat-tests::gen::law-shrink [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-shrink [] -> wat.type/i64
   (:wat::core::let [big  (:wat::core::PersistentVector 3 4 5 6)
                     small (:wat::gen::shrink big :wat-tests::gen::sfails?)]
     (:wat::core::if
@@ -407,11 +407,11 @@
 ;; implementation's own algorithm proves only that the algorithm is deterministic
 ;; — which is the trap `differential_exists_no_multiplicity` fell into, one layer
 ;; down. Cumulative starts are 0, 1, 3; the value is k minus its branch's start.
-(:wat::core::defn :wat-tests::gen::upto [n <- :wat::core::i64] -> (:wat::gen::Gen :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::gen::upto [n <- wat.type/i64] -> (:wat::gen::Gen :- [wat.type/i64])
   (:wat::gen::ints 0 n))
 
-(:wat::core::defn :wat-tests::gen::law-bind [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-bind [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [k (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::bind (:wat::gen::ints 1 4) :wat-tests::gen::upto)
                     v ((:wat::gen::Gen/at g) k)
@@ -439,8 +439,8 @@
 ;; L11's own comment convicted it, calling the second digit "the easiest place for
 ;; the radix wiring to be wrong" and then writing that wiring out as its oracle.
 ;; The tables are enumerations of the real space, recorded 2026-08-26.
-(:wat::core::defn :wat-tests::gen::law-vector-of [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-vector-of [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [k (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::vector-of (:wat::gen::ints 0 3) 2)
                     v ((:wat::gen::Gen/at g) k)]
@@ -458,8 +458,8 @@
 ;; The one that actually needs `bind`. Lengths must ASCEND with the index — short
 ;; vectors before long ones — or a failing index no longer names a length, and
 ;; shrinking toward "smaller" stops meaning anything.
-(:wat::core::defn :wat-tests::gen::law-vector-upto [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::law-vector-upto [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::let [k (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::vector-upto (:wat::gen::ints 0 2) 0 2)
                     v ((:wat::gen::Gen/at g) k)
@@ -474,7 +474,7 @@
 
 ;; Assert a law held — and treat an EMPTY space as a failure, because a law driven
 ;; over zero points has not passed, it has not run.
-(:wat::core::defn :wat-tests::gen::held [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
+(:wat::core::defn :wat-tests::gen::held [o <- :wat::gen::CheckOutcome] -> wat.type/nil
   (:wat::core::match o
     [:wat::gen::CheckOutcome.Checked {:points pts :violations v :first-failure _first}
       (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> pts 0))]
@@ -489,11 +489,11 @@
 ;; is what makes a failure actionable, so it is a law rather than a convenience.
 ;; TRUE = the property HELD. Named for what it asserts, not for where it breaks:
 ;; under `prop <- [T :-> bool]` a name like `fails-at-3` would read backwards.
-(:wat::core::defn :wat-tests::gen::holds-below-3 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::holds-below-3 [c <- (wat.type/PersistentVector :- [wat.type/i64])]
+  -> wat.type/bool
   (:wat::core::< (:wat::gen::nth c 0) 3))
 
-(:wat::core::defn :wat-tests::gen::law-witness [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-witness [] -> wat.type/i64
   (:wat::core::match
     (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 6))
                       :wat-tests::gen::holds-below-3)
@@ -510,7 +510,7 @@
 ;; cannot touch at all — and finds the smallest index that still fails.
 ;; `bind (ints 1 4) upto` enumerates 0 | 0 1 | 0 1 2; the values >= 2 start at
 ;; index 5, so shrinking index 5 must stay at 5, and nothing below it may qualify.
-(:wat::core::defn :wat-tests::gen::big? [v <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::big? [v <- wat.type/i64] -> wat.type/bool
   (:wat::core::>= v 2))
 
 ;; ⚠ THIS LAW WAS PASSED BY AN IDENTITY IMPLEMENTATION UNTIL 2026-08-26, and that
@@ -533,10 +533,10 @@
 ;;
 ;; The negative half is KEPT, as clauses c and d, because "must not lower when
 ;; nothing below fails" is also a real property — it just cannot be the only one.
-(:wat::core::defn :wat-tests::gen::nonzero? [v <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::nonzero? [v <- wat.type/i64] -> wat.type/bool
   (:wat::core::>= v 1))
 
-(:wat::core::defn :wat-tests::gen::law-shrink-index [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-shrink-index [] -> wat.type/i64
   (:wat::core::let
     [g (:wat::gen::bind (:wat::gen::ints 1 4) :wat-tests::gen::upto)
      ;; a, b — IT SEARCHES. An identity returns k (5, then 4); the answer is 2.
@@ -669,10 +669,10 @@
 ;; with -3 and checked it came back 0 would prove the floor works and say nothing
 ;; about whether the twelve construction sites route through it — which is the
 ;; entire defect. Every entry below therefore goes through a PUBLIC verb.
-(:wat::core::defn :wat-tests::gen::neg? [c <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::neg? [c <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::< c 0) 1 0))
 
-(:wat::core::defn :wat-tests::gen::law-no-negative-card [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-no-negative-card [] -> wat.type/i64
   (:wat::core::let
     ;; every one of these arguments produced a negative card before the floor
     [a (:wat-tests::gen::neg? (:wat::gen::Gen/card (:wat::gen::ints 5 2)))
@@ -684,20 +684,20 @@
          (:wat::gen::vector-of (:wat::gen::ints 0 3) -2)))
      ;; and every one of these PROPAGATES a poisoned card if one can exist
      e (:wat-tests::gen::neg? (:wat::gen::Gen/card
-         (:wat::gen::fmap (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+         (:wat::gen::fmap (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
                           (:wat::gen::ints 5 2))))
      f (:wat-tests::gen::neg? (:wat::gen::Gen/card
-         (:wat::gen::lift2 (:wat::core::fn [x <- :wat::core::i64  y <- :wat::core::i64]
-                             -> :wat::core::i64 (:wat::i64::+ x y))
+         (:wat::gen::lift2 (:wat::core::fn [x <- wat.type/i64  y <- wat.type/i64]
+                             -> wat.type/i64 (:wat::i64::+ x y))
                            (:wat::gen::ints 5 2)
                            (:wat::gen::ints 0 3))))
      g (:wat-tests::gen::neg? (:wat::gen::Gen/card
          (:wat::gen::bind (:wat::gen::ints 5 2)
-                          (:wat::core::fn [x <- :wat::core::i64]
-                            -> (:wat::gen::Gen :- [:wat::core::i64])
+                          (:wat::core::fn [x <- wat.type/i64]
+                            -> (:wat::gen::Gen :- [wat.type/i64])
                             (:wat::gen::ints 0 2)))))
      h (:wat-tests::gen::neg? (:wat::gen::Gen/card
-         (:wat::gen::such-that (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool false)
+         (:wat::gen::such-that (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool false)
                                (:wat::gen::ints 0 5))))
 
      ;; FINDING B, REPRODUCED EXACTLY. A card -2 branch beside a card 3 branch
@@ -722,7 +722,7 @@
      j (:wat::core::match
          (:wat::gen::check (:wat::gen::ints 5 2)
                            ;; a property that FAILS at every point it is given
-                           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool false))
+                           (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool false))
          [:wat::gen::CheckOutcome.Checked {:points _pts :violations _v :first-failure _first} 1]
          [:wat::gen::CheckOutcome.EmptySpace {} 0])]
     (:wat::i64::+ a
@@ -762,17 +762,17 @@
 ;;     `(range 0 (- card 1))` drops it and fails here.
 ;; TRUE = the property HELD, so these are "x is not 10" / "x is not 40" — each
 ;; fails at exactly ONE point of the four, which is what pins the witness index.
-(:wat::core::defn :wat-tests::gen::not-10? [x <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::not-10? [x <- wat.type/i64] -> wat.type/bool
   (:wat::core::not (:wat::core::= x 10)))
 
-(:wat::core::defn :wat-tests::gen::not-40? [x <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::gen::not-40? [x <- wat.type/i64] -> wat.type/bool
   (:wat::core::not (:wat::core::= x 40)))
 
 (:wat::core::defn :wat-tests::gen::outcome-is
   [o   <- :wat::gen::CheckOutcome
-   pts <- :wat::core::i64
-   vio <- :wat::core::i64
-   wit <- :wat::core::i64] -> :wat::core::i64
+   pts <- wat.type/i64
+   vio <- wat.type/i64
+   wit <- wat.type/i64] -> wat.type/i64
   (:wat::core::match o
     [:wat::gen::CheckOutcome.Checked {:points p :violations v :first-failure f}
       (:wat::core::if
@@ -786,7 +786,7 @@
     ;; an EmptySpace here is a failure: the space has four points by construction
     [:wat::gen::CheckOutcome.EmptySpace {} 1]))
 
-(:wat::core::defn :wat-tests::gen::law-check-not-vacuous [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-check-not-vacuous [] -> wat.type/i64
   (:wat::core::let
     [g (:wat::gen::elements (:wat::core::PersistentVector 10 20 30 40))
      a (:wat-tests::gen::outcome-is (:wat::gen::check g :wat-tests::gen::not-10?) 4 1 0)
@@ -833,22 +833,22 @@
 ;; seen all four after 16. In the rete fuzzer that dimension is CHAIN DEPTH — the
 ;; dial that exposed the leading-filter defect class — so "sample the first K
 ;; sequentially" would have tested depth 0 and nothing else.
-(:wat::core::defn :wat-tests::gen::sbases [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::gen::sbases [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector 3 3 3 3 4))
 
-(:wat::core::defn :wat-tests::gen::distinct-images [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::distinct-images [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::foldl
-      (:wat::core::fn [s <- (:wat::core::HashSet :- [:wat::core::i64])  k <- :wat::core::i64]
-                      -> (:wat::core::HashSet :- [:wat::core::i64])
+      (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/i64])  k <- wat.type/i64]
+                      -> (wat.type/HashSet :- [wat.type/i64])
         (:wat::hashset::conj s (:wat::gen::reverse-index (:wat-tests::gen::sbases) k)))
-      (:wat::core::HashSet :- [:wat::core::i64])
+      (wat.type/HashSet :- [wat.type/i64])
       (:wat::core::range 0 (:wat::gen::card-of (:wat-tests::gen::sbases))))))
 
 ;; distinct values of dimension `dim` seen in the first `k-count` points
 (:wat::core::defn :wat-tests::gen::cover
-  [dim <- :wat::core::i64  k-count <- :wat::core::i64  scattered <- :wat::core::i64]
-  -> :wat::core::i64
+  [dim <- wat.type/i64  k-count <- wat.type/i64  scattered <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::let
     [g  (:wat::core::if (:wat::core::= scattered 1)
           (:wat::gen::coords-scattered (:wat-tests::gen::sbases))
@@ -856,13 +856,13 @@
      at (:wat::gen::Gen/at g)]
     (:wat::core::length
       (:wat::core::foldl
-        (:wat::core::fn [s <- (:wat::core::HashSet :- [:wat::core::i64])  k <- :wat::core::i64]
-                        -> (:wat::core::HashSet :- [:wat::core::i64])
+        (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/i64])  k <- wat.type/i64]
+                        -> (wat.type/HashSet :- [wat.type/i64])
           (:wat::hashset::conj s (:wat::gen::nth (at k) dim)))
-        (:wat::core::HashSet :- [:wat::core::i64])
+        (wat.type/HashSet :- [wat.type/i64])
         (:wat::core::range 0 k-count)))))
 
-(:wat::core::defn :wat-tests::gen::law-sampling-order [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-sampling-order [] -> wat.type/i64
   (:wat::core::let
     ;; A — bijection: 324 indices in, 324 DISTINCT indices out
     [a (:wat::core::if (:wat::core::= (:wat-tests::gen::distinct-images)
@@ -887,7 +887,7 @@
 ;; not assert "some booleans were seen", it pins the whole space. card 2, at(0)
 ;; false, at(1) true — and the two are distinct, which is what makes `check` over
 ;; it exhaustive rather than merely non-empty.
-(:wat::core::defn :wat-tests::gen::law-bools [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::gen::law-bools [] -> wat.type/i64
   (:wat::core::let
     [g  (:wat::gen::bools)
      at (:wat::gen::Gen/at g)
@@ -897,8 +897,8 @@
      ;; and it composes: lifted with an i64 dimension the product is 2 * 3
      d  (:wat::core::if (:wat::core::= (:wat::gen::Gen/card
                                          (:wat::gen::lift2
-                                           (:wat::core::fn [x <- :wat::core::bool  y <- :wat::core::i64]
-                                             -> :wat::core::i64
+                                           (:wat::core::fn [x <- wat.type/bool  y <- wat.type/i64]
+                                             -> wat.type/i64
                                              (:wat::core::if x y 0))
                                            (:wat::gen::bools)
                                            (:wat::gen::ints 0 3)))

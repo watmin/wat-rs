@@ -2,9 +2,9 @@
 (:wat::core::defstruct :my::Secret
   {:restricted-to  [:my::internal::]
    :field-metadata {:data {:restricted-to [:my::internal::]}}}
-  [data <- :wat::core::i64])
+  [data <- wat.type/i64])
 (:wat::core::defn :my::internal::make [] -> :my::Secret
   (:my::Secret :data 0))
 (:wat::core::defn :my::internal::get-data
-  [s <- :my::Secret] -> :wat::core::i64
+  [s <- :my::Secret] -> wat.type/i64
   (:my::Secret/data s))

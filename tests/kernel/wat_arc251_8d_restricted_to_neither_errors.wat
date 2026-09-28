@@ -4,7 +4,7 @@
 
 (:wat::core::defn :my::kernel::restricted-fn
   {:restricted-to [42]}
-  [x <- :wat::core::i64] -> :wat::core::i64 x)
+  [x <- wat.type/i64] -> wat.type/i64 x)
 
-(:wat::core::defn :my::kernel::caller [] -> :wat::core::i64
+(:wat::core::defn :my::kernel::caller [] -> wat.type/i64
   (:my::kernel::restricted-fn 7))

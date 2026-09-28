@@ -112,10 +112,10 @@
 ;;   second half of the probe (a `tests/` unit test); this half is the wat-observable seam and
 ;;   it is the half that decides slice one's SHAPE.
 
-(:wat::core::defn :seam::row [label <- :wat::core::String  v <- :wat::core::bool] -> :wat::core::String
+(:wat::core::defn :seam::row [label <- wat.type/String  v <- wat.type/bool] -> wat.type/String
   (:wat::string::concat label (:wat::core::if v " TRUE" " FALSE")))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     ;; ── ROW A — CLAIM 1: does a kwargs surface lower to a positional prime? ───────────────
     ;; `readln` is the documented instance (a defmacro over `readln'`). Print its expansion and

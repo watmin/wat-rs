@@ -9,9 +9,9 @@
 ;; its attribution cannot depend on order, so a disagreement there would be a driver defect,
 ;; not this finding.
 
-(:wat::core::defrecord :vex::In   [k <- :wat::core::i64])
-(:wat::core::defrecord :vex::Out  [k <- :wat::core::i64])
-(:wat::core::defrecord :vex::Solo [k <- :wat::core::i64])
+(:wat::core::defrecord :vex::In   [k <- wat.type/i64])
+(:wat::core::defrecord :vex::Out  [k <- wat.type/i64])
+(:wat::core::defrecord :vex::Solo [k <- wat.type/i64])
 
 (:wat::rete::defrule :vex::aaa  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
 (:wat::rete::defrule :vex::bbb  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
@@ -50,15 +50,15 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
       (:wat::kernel::assertion-failed! :message "roundcap")]))
 
-(:wat::core::defn :vex::rule-of [ex <- :wat::rete::Explained  f <- :wat::core::Record] -> :wat::core::String
+(:wat::core::defn :vex::rule-of [ex <- :wat::rete::Explained  f <- wat.type/Record] -> wat.type/String
   (:wat::core::Option/expect
     (:wat::rete::DerivationNode/rule (:wat::rete::explain ex f))
     "no producing rule recorded for this fact"))
 
 ;; [native Out-rule, oracle Out-rule, native Solo-rule (control), oracle Solo-rule (control)]
-(:wat::core::defn :user::attribution [] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::attribution [] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::mapv
-    (:wat::core::fn [s <- :wat::core::String] -> :wat::core::String s)
+    (:wat::core::fn [s <- wat.type/String] -> wat.type/String s)
     (:wat::core::PersistentVector
       (:vex::rule-of (:vex::nat) (:vex::Out :k 1))
       (:vex::rule-of (:vex::ora) (:vex::Out :k 1))
@@ -68,15 +68,15 @@
 ;; Inner first-wins: an `:or` ProductionNode has N parents. All arms derive
 ;; the same Out. F1 itself was blind at two producers; this fixture has
 ;; eight arms, the size that made the original probe discriminate.
-(:wat::core::defrecord :orx::A1 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::A2 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::A3 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::A4 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::A5 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::A6 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::A7 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::A8 [k <- :wat::core::i64])
-(:wat::core::defrecord :orx::Out [k <- :wat::core::i64])
+(:wat::core::defrecord :orx::A1 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::A2 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::A3 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::A4 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::A5 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::A6 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::A7 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::A8 [k <- wat.type/i64])
+(:wat::core::defrecord :orx::Out [k <- wat.type/i64])
 
 (:wat::rete::defrule :orx::either
   :when [(:wat::rete::or
@@ -90,7 +90,7 @@
            (:orx::A8 (?k :- :k)))]
   :then [(:orx::Out :k ?k)])
 
-(:wat::core::defn :orx::via-type [ex <- :wat::rete::Explained] -> :wat::core::String
+(:wat::core::defn :orx::via-type [ex <- :wat::rete::Explained] -> wat.type/String
   (:wat::core::type
     (:wat::rete::DerivationNode/fact
       (:wat::rete::DerivationStep/supporting
@@ -125,7 +125,7 @@
 (:wat::core::defn :orx::explain-all [] -> :wat::rete::Explained
   (:wat::core::match
     (:wat::rete::insert-all (:orx::compiled)
-      (:wat::core::PersistentVector :- [:wat::core::Record]
+      (wat.type/PersistentVector :- [wat.type/Record]
         (:orx::A1 :k 1) (:orx::A2 :k 1) (:orx::A3 :k 1) (:orx::A4 :k 1)
         (:orx::A5 :k 1) (:orx::A6 :k 1) (:orx::A7 :k 1) (:orx::A8 :k 1)))
     [:wat::rete::InsertOutcome.Inserted {:session staged} (:orx::fire-native staged)]
@@ -135,7 +135,7 @@
 (:wat::core::defn :orx::explain-all-oracle [] -> :wat::rete::Explained
   (:wat::core::match
     (:wat::rete::insert-all (:orx::compiled)
-      (:wat::core::PersistentVector :- [:wat::core::Record]
+      (wat.type/PersistentVector :- [wat.type/Record]
         (:orx::A1 :k 1) (:orx::A2 :k 1) (:orx::A3 :k 1) (:orx::A4 :k 1)
         (:orx::A5 :k 1) (:orx::A6 :k 1) (:orx::A7 :k 1) (:orx::A8 :k 1)))
     [:wat::rete::InsertOutcome.Inserted {:session staged} (:orx::fire-oracle staged)]
@@ -157,9 +157,9 @@
       (:wat::kernel::assertion-failed! :message "insert: ceiling")]))
 
 ;; [native 8-arm via[0] type, oracle same, native A1-only, oracle A1-only]
-(:wat::core::defn :user::or-attribution [] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::or-attribution [] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::mapv
-    (:wat::core::fn [s <- :wat::core::String] -> :wat::core::String s)
+    (:wat::core::fn [s <- wat.type/String] -> wat.type/String s)
     (:wat::core::PersistentVector
       (:orx::via-type (:orx::explain-all))
       (:orx::via-type (:orx::explain-all-oracle))

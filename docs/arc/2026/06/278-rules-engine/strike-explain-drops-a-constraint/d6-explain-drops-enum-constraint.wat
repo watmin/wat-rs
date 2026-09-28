@@ -18,8 +18,8 @@
 
 (:wat::core::defenum :d6::Grade :wat::enum::Pure :Hi :Lo)
 
-(:wat::core::defrecord :d6::Reading [n <- :wat::core::i64  grade <- :d6::Grade])
-(:wat::core::defrecord :d6::Hit     [n <- :wat::core::i64])
+(:wat::core::defrecord :d6::Reading [n <- wat.type/i64  grade <- :d6::Grade])
+(:wat::core::defrecord :d6::Hit     [n <- wat.type/i64])
 
 (:wat::rete::defrule :d6::hit
   :when
@@ -29,7 +29,7 @@
   :then
   [(:d6::Hit :n ?n)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :d6)
      session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "may not terminate")])

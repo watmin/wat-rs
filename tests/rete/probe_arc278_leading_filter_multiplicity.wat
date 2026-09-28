@@ -29,10 +29,10 @@
 
 ;; ── :lf2 — a 2-link chain (2 rounds) ─────────────────────────────────────────
 
-(:wat::core::defrecord :lf2::Wind [loc <- :wat::core::String])
-(:wat::core::defrecord :lf2::Ghost [k <- :wat::core::i64])
-(:wat::core::defrecord :lf2::S1 [k <- :wat::core::i64])
-(:wat::core::defrecord :lf2::S2 [k <- :wat::core::i64])
+(:wat::core::defrecord :lf2::Wind [loc <- wat.type/String])
+(:wat::core::defrecord :lf2::Ghost [k <- wat.type/i64])
+(:wat::core::defrecord :lf2::S1 [k <- wat.type/i64])
+(:wat::core::defrecord :lf2::S2 [k <- wat.type/i64])
 
 (:wat::rete::defrule :lf2::r2 :when [(:lf2::S1 (?k :- :k))] :then [(:lf2::S2 :k ?k)])
 
@@ -45,14 +45,14 @@
 
 ;; ── :lf6 — a 6-link chain (6 rounds), otherwise identical ────────────────────
 
-(:wat::core::defrecord :lf6::Wind [loc <- :wat::core::String])
-(:wat::core::defrecord :lf6::Ghost [k <- :wat::core::i64])
-(:wat::core::defrecord :lf6::S1 [k <- :wat::core::i64])
-(:wat::core::defrecord :lf6::S2 [k <- :wat::core::i64])
-(:wat::core::defrecord :lf6::S3 [k <- :wat::core::i64])
-(:wat::core::defrecord :lf6::S4 [k <- :wat::core::i64])
-(:wat::core::defrecord :lf6::S5 [k <- :wat::core::i64])
-(:wat::core::defrecord :lf6::S6 [k <- :wat::core::i64])
+(:wat::core::defrecord :lf6::Wind [loc <- wat.type/String])
+(:wat::core::defrecord :lf6::Ghost [k <- wat.type/i64])
+(:wat::core::defrecord :lf6::S1 [k <- wat.type/i64])
+(:wat::core::defrecord :lf6::S2 [k <- wat.type/i64])
+(:wat::core::defrecord :lf6::S3 [k <- wat.type/i64])
+(:wat::core::defrecord :lf6::S4 [k <- wat.type/i64])
+(:wat::core::defrecord :lf6::S5 [k <- wat.type/i64])
+(:wat::core::defrecord :lf6::S6 [k <- wat.type/i64])
 
 (:wat::rete::defrule :lf6::r2 :when [(:lf6::S1 (?k :- :k))] :then [(:lf6::S2 :k ?k)])
 (:wat::rete::defrule :lf6::r3 :when [(:lf6::S2 (?k :- :k))] :then [(:lf6::S3 :k ?k)])
@@ -67,7 +67,7 @@
 
 ;; ── the witnesses ────────────────────────────────────────────────────────────
 
-(:wat::core::defn :lf2::rows [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :lf2::rows [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :lf2)
                     s0    (:wat::core::match (:wat::rete::compile-all rules
                             (:wat::core::PersistentVector (:lf2::q-exists) (:lf2::q-not))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -77,12 +77,12 @@
                             (:wat::core::PersistentVector (:lf2::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::mapv
-      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+      (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
       (:wat::core::PersistentVector
         (:wat::core::length (:wat::rete::query fired (:lf2::q-exists)))
         (:wat::core::length (:wat::rete::query fired (:lf2::q-not)))))))
 
-(:wat::core::defn :lf6::rows [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :lf6::rows [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :lf6)
                     s0    (:wat::core::match (:wat::rete::compile-all rules
                             (:wat::core::PersistentVector (:lf6::q-exists) (:lf6::q-not))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -92,11 +92,11 @@
                             (:wat::core::PersistentVector (:lf6::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::mapv
-      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+      (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
       (:wat::core::PersistentVector
         (:wat::core::length (:wat::rete::query fired (:lf6::q-exists)))
         (:wat::core::length (:wat::rete::query fired (:lf6::q-not)))))))
 
 ;; [exists@2rounds, not@2rounds, exists@6rounds, not@6rounds] — all must be 1.
-(:wat::core::defn :user::leading-rows [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :user::leading-rows [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::into (:lf2::rows) (:lf6::rows)))

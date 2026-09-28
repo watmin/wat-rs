@@ -5,11 +5,11 @@
 
 ;; Rust reads wat's `now` — the entropy source itself must come FROM wat (the claim being
 ;; measured), not be constructed on the Rust side.
-(:wat::core::defn :probe::now-nanos [] -> :wat::core::i64
+(:wat::core::defn :probe::now-nanos [] -> wat.type/i64
   (:wat::time::epoch-nanos (:wat::time::now)))
 
 (:wat::core::defn :probe::measure
-    [t <- :wat::time::Instant  lo <- :wat::core::i64  hi <- :wat::core::i64] -> :wat::core::bool
+    [t <- :wat::time::Instant  lo <- wat.type/i64  hi <- wat.type/i64] -> wat.type/bool
   (:wat::core::let [ns (:wat::time::epoch-nanos t)]
     (:wat::core::and (:wat::i64::> ns 0)
       (:wat::core::and (:wat::i64::>= ns lo)

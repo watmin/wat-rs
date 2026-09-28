@@ -16,8 +16,8 @@
 ;; PATTERN is still being skipped rather than typed.
 (:wat::core::defenum :d11m::E :wat::enum::Pure :A :B)
 
-(:wat::core::defrecord :d11m::Box   [s <- :wat::core::String  v <- :d11m::E])
-(:wat::core::defrecord :d11m::Inner [n <- :wat::core::i64])
+(:wat::core::defrecord :d11m::Box   [s <- wat.type/String  v <- :d11m::E])
+(:wat::core::defrecord :d11m::Inner [n <- wat.type/i64])
 (:wat::core::defrecord :d11m::Outer [i <- :d11m::Inner])
 
 (:wat::rete::defrule :d11m::bad
@@ -27,5 +27,5 @@
                             (:d11m::E::B (:d11m::Inner :n ?s))))])
 
 ;; ⛔ A REAL `main` (arc 278 C18) — see `..._bound_var.wat.bad`'s note.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

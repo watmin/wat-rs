@@ -12,11 +12,11 @@
 ;; with cause = LociDiedError::RuntimeError (NOT Panic; a runtime error is not a Rust
 ;; panic — same mapping wat_run_sandboxed's missing-main case grounds). The runtime
 ;; error text rides RuntimeError.message; we return it as a plain String for the driver.
-(:wat::core::defn :probe::runtime-err [] -> :wat::core::String
+(:wat::core::defn :probe::runtime-err [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              ;; Division by zero → RuntimeError::DivisionByZero.
              (:wat::core::let [_ (:wat::i64::/ 1 0)] nil))))]
     (:wat::core::match (:wat::kernel::recv p)

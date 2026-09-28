@@ -3,7 +3,7 @@
 ;; `witness_thread_last_empty_step_desugars_to_call_on_acc`. Dumps the expanded form of both
 ;; `(-> 5 ())` and `(->> 5 ())` — the empty-list-step witnesses — via
 ;; `:wat::core::macroexpand` + `write-forms`, pure introspection, never executed.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "=== (:wat::core::-> 5 ()) expansion ===")
     (:wat::kernel::println (:wat::core::write-forms

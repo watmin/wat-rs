@@ -37,13 +37,13 @@
 ;; no declared type — structuring it would fabricate information).
 (:wat::core::defsurface :wat-tests::MalBag :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::MalBag::PutRequest [items <- (:wat::core::Vector :- [:wat::core::String])])
+  [(:wat::core::defrecord :wat-tests::MalBag::PutRequest [items <- (wat.type/Vector :- [wat.type/String])])
    (:wat::core::defenum :wat-tests::MalBag::PutResponse :wat::enum::Pure
-     :Ok               [n <- :wat::core::i64]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got      <- :wat::core::String])]
+     :Ok               [n <- wat.type/i64]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path     <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got      <- wat.type/String])]
   :features
   [(put [self <- :wat-tests::MalBag  req <- :wat-tests::MalBag::PutRequest]
      -> :wat-tests::MalBag::PutResponse :max-request-bytes 4096)])
@@ -53,7 +53,7 @@
 ;; against the declaration and must not have to defend itself. The wall is upstream of it.
 (:wat::service::defservice :wat-tests::mal-bag
   :satisfies :wat-tests::MalBag
-  :durable   [n <- :wat::core::i64]
+  :durable   [n <- wat.type/i64]
   :ephemeral []
   ;; NOTHING IS OPTED INTO HERE. Arc 278 Stone 1 shipped the wall behind a clause and defaulted
   ;; it off; Stone 2 annihilated the clause. This service declares a surface, a state, and a
@@ -71,7 +71,7 @@
 ;; the caller CANNOT ignore (arc 109 — no wildcard arm), so a refusal can never be silent.
 (:wat::core::defn :wat-tests::mal/try
   [c <- (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
-   req <- :wat-tests::MalBag::PutRequest] -> :wat::core::String
+   req <- :wat-tests::MalBag::PutRequest] -> wat.type/String
   (:wat::core::match (:wat-tests::MalBag/put c req)
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
@@ -104,10 +104,10 @@
 ;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.
 ;; The victim's `connect'` happens AFTER the malformed frame — that dial is the assertion.
 (:wat::core::defn :wat-tests::mal/run :- [T]
-  [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::String
+  [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
   (:wat::core::let
     [h    (:wat-tests::mal-bag/start :locus locus :record (:wat-tests::mal-bag::Record :n 0))
-     good (:wat-tests::MalBag::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
+     good (:wat-tests::MalBag::PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
      ;; the attacker's frame: correct TAG, wrong-typed BODY
      bad  (:wat::edn::read "#wat-tests.MalBag/PutRequest {:items [1 2 3]}")
      a    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))

@@ -10,25 +10,25 @@
   :messages
   [(:wat::core::defrecord :probe::Counter::GetRequest [])
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
-     :Ok [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got <- :wat::core::String])
-   (:wat::core::defrecord :probe::Counter::IncrementRequest [n <- :wat::core::i64])
+     :Ok [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got <- wat.type/String])
+   (:wat::core::defrecord :probe::Counter::IncrementRequest [n <- wat.type/i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
-     :Ok [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got <- :wat::core::String])]
+     :Ok [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got <- wat.type/String])]
   :features
   [(get [self <- :probe::Counter req <- :probe::Counter::GetRequest] -> :probe::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :probe::Counter req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::counter
   :satisfies :probe::Counter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]
@@ -44,9 +44,9 @@
          :reply (:probe::Counter::IncrementResponse.Ok {:value c})})))])
 
 (:wat::core::defn :probe::inc
-  [item <- :wat::core::i64
+  [item <- wat.type/i64
    & [counter <- (:wat::kernel::Peer :- [:probe::Counter::Op :probe::Counter::Reply])]]
-  -> :wat::core::i64
+  -> wat.type/i64
   (:wat::core::match (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1))
     [:wat::kernel::RecvOutcome.Message {:msg recvd}
       (:wat::core::match recvd
@@ -63,7 +63,7 @@
       (:wat::kernel::assertion-failed! :message "inc: closed")]))
 
 (:wat::core::defn :probe::read
-  [h <- :probe::counter::Handle] -> :wat::core::i64
+  [h <- :probe::counter::Handle] -> wat.type/i64
   (:wat::core::let
     [c (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h))
           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
@@ -85,7 +85,7 @@
       [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "read: closed")])))
 
-(:wat::core::defn :probe::run-mapv [] -> :wat::core::i64
+(:wat::core::defn :probe::run-mapv [] -> wat.type/i64
   (:wat::core::let
     [h (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      c (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h))
@@ -94,19 +94,19 @@
           [:wat::kernel::ConnectOutcome.Undialable {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))]
           [:wat::kernel::ConnectOutcome.Failed {:cause e} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message e))])
      _ (:wat::core::mapv
-          (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+          (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64
             (:wat::core::match (:probe::Counter/increment c (:probe::Counter::IncrementRequest :n 1))
               [:wat::kernel::RecvOutcome.Message {:msg r} i]
               [:wat::kernel::RecvOutcome.Lost {:cause e} i]
               [:wat::kernel::RecvOutcome.Stopped {} i]
               [:wat::kernel::RecvOutcome.Closed {} i]))
-          (:wat::core::Vector :- [:wat::core::i64] 0))]
+          (wat.type/Vector :- [wat.type/i64] 0))]
     (:probe::read h)))
 
-(:wat::core::defn :probe::run-thread-kwargs [] -> :wat::core::i64
+(:wat::core::defn :probe::run-thread-kwargs [] -> wat.type/i64
   (:wat::core::let
     [h (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      _ (:wat::bracket::map (:wat::spawn::thread::runner-count 1)
-          (:wat::core::Vector :- [:wat::core::i64] 0 1 2 3)
+          (wat.type/Vector :- [wat.type/i64] 0 1 2 3)
           :probe::inc :counter h)]
     (:probe::read h)))

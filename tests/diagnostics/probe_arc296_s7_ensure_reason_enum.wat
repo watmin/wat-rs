@@ -6,7 +6,7 @@
 ;; #wat.kernel/ArgTypeMismatch {:arg-type "…" :clause-return-type "…"} instead of a String.
 ;; startup MUST fail (check error).
 (:wat::core::defclause :my::bad
-  ([x <- :wat::core::i64] -> :wat::core::i64
-    :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
+  ([x <- wat.type/i64] -> wat.type/i64
+    :ensure (:wat::core::fn [result <- wat.type/String] -> wat.type/bool
               (:wat::i64::> 1 0))
     x))

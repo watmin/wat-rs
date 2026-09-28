@@ -3,9 +3,9 @@
 ;;   [Temp ?a] [Wind ?b] [:not [:test (= ?a ?b)]]
 ;; Same loc → 0. Different loc → 1.
 
-(:wat::core::defrecord :wnw::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnw::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnw::Hit  [a <- :wat::core::String b <- :wat::core::String])
+(:wat::core::defrecord :wnw::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnw::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnw::Hit  [a <- wat.type/String b <- wat.type/String])
 
 (:wat::rete::defrule :wnw::not-same-loc
   :when [(:wnw::Temp (?a :- :loc))
@@ -19,10 +19,10 @@
   :when [(?fact :- :wnw::Hit)])
 
 
-(:wat::core::defn :wnw::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wnw::n-hit [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wnw::q-Hit))))
 
-(:wat::core::defn :wnw::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wnw::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -30,7 +30,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [rules (:wat::core::PersistentVector (:wnw::not-same-loc))]
     (:wnw::line 1 "same-loc"
       (:wnw::n-hit

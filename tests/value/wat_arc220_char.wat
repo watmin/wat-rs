@@ -6,7 +6,7 @@
 
 ;; ─── Test 1: Lexer accepts \a single-char literal ────────────────────────────
 
-(:wat::core::defn :t::test1-char-literal-single-letter [] -> :wat::core::bool
+(:wat::core::defn :t::test1-char-literal-single-letter [] -> wat.type/bool
   (:wat::core::let
     [c        \a
      expected (:wat::core::char "a")]
@@ -14,7 +14,7 @@
 
 ;; ─── Test 2: Lexer accepts named chars ───────────────────────────────────────
 
-(:wat::core::defn :t::test2-char-literal-named-chars [] -> :wat::core::bool
+(:wat::core::defn :t::test2-char-literal-named-chars [] -> wat.type/bool
   (:wat::core::let
     [nl      \newline
      sp      \space
@@ -34,7 +34,7 @@
 
 ;; ─── Test 3: Lexer accepts A Unicode BMP escape (= 'A') ───────────────
 
-(:wat::core::defn :t::test3-char-literal-unicode-escape [] -> :wat::core::bool
+(:wat::core::defn :t::test3-char-literal-unicode-escape [] -> wat.type/bool
   (:wat::core::let
     [c        \u0041
      expected (:wat::core::char "A")]
@@ -42,7 +42,7 @@
 
 ;; ─── Test 5: char/of valid single char ───────────────────────────────────────
 
-(:wat::core::defn :t::test5-char-of-valid-single-char [] -> :wat::core::bool
+(:wat::core::defn :t::test5-char-of-valid-single-char [] -> wat.type/bool
   (:wat::core::let
     [c1  (:wat::core::char "x")
      c2  (:wat::core::char "x")]
@@ -50,28 +50,28 @@
 
 ;; ─── Test 6: char/of "" errors with length diagnostic ────────────────────────
 
-(:wat::core::defn :t::test6-char-of-empty [] -> :wat::core::nil
+(:wat::core::defn :t::test6-char-of-empty [] -> wat.type/nil
   (:wat::core::let
     [_c (:wat::core::char "")]
     nil))
 
 ;; ─── Test 7: char/of "ab" errors with length diagnostic ──────────────────────
 
-(:wat::core::defn :t::test7-char-of-multi [] -> :wat::core::nil
+(:wat::core::defn :t::test7-char-of-multi [] -> wat.type/nil
   (:wat::core::let
     [_c (:wat::core::char "ab")]
     nil))
 
 ;; ─── Test 8: char/of with supplementary-plane char rejected ──────────────────
 
-(:wat::core::defn :t::test8-char-of-supplementary [] -> :wat::core::nil
+(:wat::core::defn :t::test8-char-of-supplementary [] -> wat.type/nil
   (:wat::core::let
     [_c (:wat::core::char "😀")]
     nil))
 
 ;; ─── Test 9: Round-trip: char/of → EDN write → edn read → identical ─────────
 
-(:wat::core::defn :t::test9-char-edn-round-trip [] -> :wat::core::bool
+(:wat::core::defn :t::test9-char-edn-round-trip [] -> wat.type/bool
   (:wat::core::let
     [orig  (:wat::core::char "x")
      edn   (:wat::edn::write orig)
@@ -81,7 +81,7 @@
 
 ;; ─── Test 10: Equality ───────────────────────────────────────────────────────
 
-(:wat::core::defn :t::test10-char-equality [] -> :wat::core::bool
+(:wat::core::defn :t::test10-char-equality [] -> wat.type/bool
   (:wat::core::let
     [a1  \a
      a2  \a

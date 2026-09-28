@@ -1,5 +1,5 @@
 ;; tests/function/recursive_patterns_t9.wat — wildcard_fallback_compiles_and_runs
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [row
                 (:wat::core::Option.Some {:value (:wat::core::Tuple 1 99)})

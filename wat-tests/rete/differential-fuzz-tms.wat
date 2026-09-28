@@ -36,16 +36,16 @@
 ;; two facts and `q-acc`'s `?n >= 2` can still see them. The alphabet's two distinct A's (`:57`)
 ;; predate the cure — they exist because an all-or-nothing retraction could not discriminate.
 
-(:wat::core::defrecord :wat-tests::rete::tms::A [k <- :wat::core::i64])
-(:wat::core::defrecord :wat-tests::rete::tms::B [k <- :wat::core::i64])
-(:wat::core::defrecord :wat-tests::rete::tms::C [k <- :wat::core::i64])
-(:wat::core::defrecord :wat-tests::rete::tms::D [k <- :wat::core::i64])
+(:wat::core::defrecord :wat-tests::rete::tms::A [k <- wat.type/i64])
+(:wat::core::defrecord :wat-tests::rete::tms::B [k <- wat.type/i64])
+(:wat::core::defrecord :wat-tests::rete::tms::C [k <- wat.type/i64])
+(:wat::core::defrecord :wat-tests::rete::tms::D [k <- wat.type/i64])
 
 ;; C is DERIVED from A; D consumes the derived C and is gated by a negation over an inserted B.
 ;; So a retraction of A must un-derive C transitively into D, and an insertion of B must kill D
 ;; without touching C — two different un-derivation paths from one program.
 (:wat::core::defn :wat-tests::rete::tms::rules []
-  -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+  -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r1"
       :lhs (:wat::core::PersistentVector
@@ -63,8 +63,8 @@
 ;; 0 insert A0 · 1 insert A1 · 2 insert B0 · 3 retract A0 · 4 retract A1 · 5 retract B0 · 6 FIRE
 ;; Two A's so a retraction can leave the class non-empty (an all-or-nothing retraction cannot tell
 ;; "removed one" from "removed the class"), and one B so the negation can be switched on and off.
-(:wat::core::defn :wat-tests::rete::tms::n-ops [] -> :wat::core::i64 7)
-(:wat::core::defn :wat-tests::rete::tms::prog-len [] -> :wat::core::i64 3)
+(:wat::core::defn :wat-tests::rete::tms::n-ops [] -> wat.type/i64 7)
+(:wat::core::defn :wat-tests::rete::tms::prog-len [] -> wat.type/i64 3)
 
 ;; ── one step ─────────────────────────────────────────────────────────────────
 ;; `fires?` is what makes the one-shot run possible WITHOUT a separate fact model: replaying the
@@ -73,8 +73,8 @@
 ;; would have to re-implement insert's append and retract's remove-all-equal, and would then be a
 ;; second thing that can be wrong.
 (:wat::core::defn :wat-tests::rete::tms::step
-  [oracle? <- :wat::core::bool  fires? <- :wat::core::bool
-   s <- :wat::rete::Session  op <- :wat::core::i64] -> :wat::rete::Session
+  [oracle? <- wat.type/bool  fires? <- wat.type/bool
+   s <- :wat::rete::Session  op <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::cond
     ((:wat::core::= op 0) (:wat::core::match (:wat::rete::insert s (:wat-tests::rete::tms::A 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     ((:wat::core::= op 1) (:wat::core::match (:wat::rete::insert s (:wat-tests::rete::tms::A 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -90,15 +90,15 @@
 ;; Decoding by repeated quot/rem rather than a power avoids needing `pow` and keeps each step's
 ;; digit derivation local — the program IS its coordinate, base `n-ops`.
 (:wat::core::defrecord :wat-tests::rete::tms::Run
-  [s <- :wat::rete::Session  rest <- :wat::core::i64])
+  [s <- :wat::rete::Session  rest <- wat.type/i64])
 
 (:wat::core::defn :wat-tests::rete::tms::run-prog
-  [oracle? <- :wat::core::bool  fires? <- :wat::core::bool  prog <- :wat::core::i64
+  [oracle? <- wat.type/bool  fires? <- wat.type/bool  prog <- wat.type/i64
    s0 <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::let
     [m   (:wat-tests::rete::tms::n-ops)
      end (:wat::core::foldl
-           (:wat::core::fn [acc <- :wat-tests::rete::tms::Run  _i <- :wat::core::i64]
+           (:wat::core::fn [acc <- :wat-tests::rete::tms::Run  _i <- wat.type/i64]
              -> :wat-tests::rete::tms::Run
              (:wat::core::let [r  (:wat-tests::rete::tms::Run/rest acc)
                                op (:wat::i64::rem r m)]
@@ -130,7 +130,7 @@
   :when [(?n :- (:wat::rete::acc::count) :from (:wat-tests::rete::tms::A))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
 
-(:wat::core::defn :wat-tests::rete::tms::query-of [i <- :wat::core::i64] -> :wat::rete::Query
+(:wat::core::defn :wat-tests::rete::tms::query-of [i <- wat.type/i64] -> :wat::rete::Query
   (:wat::core::cond
     ((:wat::core::= i 0) (:wat-tests::rete::tms::q-C))
     ((:wat::core::= i 1) (:wat-tests::rete::tms::q-D))
@@ -145,20 +145,20 @@
 
 ;; ── the case, and the four numbers ───────────────────────────────────────────
 (:wat::core::defrecord :wat-tests::rete::tms::Case
-  [prog <- :wat::core::i64   ;; base-`n-ops` digits, one per step — the program IS its coordinate
-   q    <- :wat::core::i64])
+  [prog <- wat.type/i64   ;; base-`n-ops` digits, one per step — the program IS its coordinate
+   q    <- wat.type/i64])
 
 (:wat::core::defrecord :wat-tests::rete::tms::Four
-  [ni <- :wat::core::i64   ;; native, interleaved
-   oi <- :wat::core::i64   ;; oracle, interleaved
-   n1 <- :wat::core::i64   ;; native, one-shot over the same final multiset
-   o1 <- :wat::core::i64]) ;; oracle, one-shot
+  [ni <- wat.type/i64   ;; native, interleaved
+   oi <- wat.type/i64   ;; oracle, interleaved
+   n1 <- wat.type/i64   ;; native, one-shot over the same final multiset
+   o1 <- wat.type/i64]) ;; oracle, one-shot
 
 (:wat::core::defn :wat-tests::rete::tms::four [c <- :wat-tests::rete::tms::Case]
   -> :wat-tests::rete::tms::Four
   (:wat::core::let [prog (:wat-tests::rete::tms::Case/prog c)
                     q    (:wat-tests::rete::tms::query-of (:wat-tests::rete::tms::Case/q c))
-                    rows (:wat::core::fn [s <- :wat::rete::Session] -> :wat::core::i64
+                    rows (:wat::core::fn [s <- :wat::rete::Session] -> wat.type/i64
                            (:wat::core::length (:wat::rete::query s q)))]
     (:wat-tests::rete::tms::Four
       :ni (rows (:wat-tests::rete::tms::run-prog false true  prog (:wat-tests::rete::tms::seed)))
@@ -170,7 +170,7 @@
 ;;   ni != oi   → the engines disagree (the siblings' property, now under an op program)
 ;;   ni != n1   → NATIVE IS PATH-DEPENDENT: state survived a fire that should not have
 ;;   oi != o1   → the ORACLE is path-dependent, which would make the reference wrong
-(:wat::core::defn :wat-tests::rete::tms::prop [c <- :wat-tests::rete::tms::Case] -> :wat::core::bool
+(:wat::core::defn :wat-tests::rete::tms::prop [c <- :wat-tests::rete::tms::Case] -> wat.type/bool
   (:wat::core::let [f  (:wat-tests::rete::tms::four c)
                     ni (:wat-tests::rete::tms::Four/ni f)]
     (:wat::core::and
@@ -184,9 +184,9 @@
 ;; is right here — unlike its siblings there is no per-shape parameter set, because every op is
 ;; legal at every position. That is the point of an operation space: the illegal orderings are
 ;; exactly the ones worth generating (retract before insert, fire before anything, retract twice).
-(:wat::core::defn :wat-tests::rete::tms::pow-ops [] -> :wat::core::i64
+(:wat::core::defn :wat-tests::rete::tms::pow-ops [] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  _i <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64  _i <- wat.type/i64] -> wat.type/i64
       (:wat::i64::* acc (:wat-tests::rete::tms::n-ops)))
     1
     (:wat::core::range 0 (:wat-tests::rete::tms::prog-len))))
@@ -220,12 +220,12 @@
 ;; world (every op a no-op, or the queries insensitive to them), all four numbers would be equal
 ;; for the most boring possible reason.
 (:wat::core::defrecord :wat-tests::rete::tms::Tally
-  [zero <- :wat::core::i64  nonzero <- :wat::core::i64])
+  [zero <- wat.type/i64  nonzero <- wat.type/i64])
 
 ;; Only the NATIVE INTERLEAVED number is needed here, not all four — running `four` would cost
 ;; exactly what the property above costs, doubling the file for a certificate that needs one
 ;; column of it.
-(:wat::core::defn :wat-tests::rete::tms::rows-ni [c <- :wat-tests::rete::tms::Case] -> :wat::core::i64
+(:wat::core::defn :wat-tests::rete::tms::rows-ni [c <- :wat-tests::rete::tms::Case] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat-tests::rete::tms::run-prog false true
@@ -237,7 +237,7 @@
                     card (:wat::gen::Gen/card g)
                     at   (:wat::gen::Gen/at g)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat-tests::rete::tms::Tally  i <- :wat::core::i64]
+      (:wat::core::fn [acc <- :wat-tests::rete::tms::Tally  i <- wat.type/i64]
         -> :wat-tests::rete::tms::Tally
         (:wat::core::if
           (:wat::core::= (:wat-tests::rete::tms::rows-ni (at i)) 0)

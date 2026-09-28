@@ -7,7 +7,7 @@
 ;; through a user fn) — `metadata-of` takes the FQDN keyword literal
 ;; in-position, same as `probe_arc255_ivb1_structured_doc.wat`.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── :wat::string::contains? ──")
     (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::string::contains?))

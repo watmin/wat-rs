@@ -17,26 +17,26 @@
 ;;
 ;; Shape discipline: fixed n, BOTH block orderings, non-vacuity proving all arms agree.
 
-(:wat::core::defn :bench::add [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :bench::add [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ acc x))
 
-(:wat::core::defn :bench::via-reduce [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+(:wat::core::defn :bench::via-reduce [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
   (:wat::core::reduce :bench::add 0 v))
 
-(:wat::core::defn :bench::via-foldl [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+(:wat::core::defn :bench::via-foldl [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
   (:wat::core::foldl :bench::add 0 v))
 
 ;; the wat oracle, as the SLOW reference — reduce must track foldl, not this.
-(:wat::core::defn :bench::via-spec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+(:wat::core::defn :bench::via-spec [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
   (:wat::core::foldl-spec :bench::add 0 v))
 
-(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [n  200000
-     v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 n))
+     v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 n))
      a0 (:wat::time::now) ra (:bench::via-reduce v) a1 (:wat::time::now)
      b0 (:wat::time::now) rb (:bench::via-foldl v)  b1 (:wat::time::now)
      c0 (:wat::time::now) rc (:bench::via-spec v)   c1 (:wat::time::now)

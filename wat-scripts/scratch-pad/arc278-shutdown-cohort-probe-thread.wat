@@ -5,10 +5,10 @@
 ;; `RecvOutcome::Lost[LociDiedError::Stopped]`, Shape A does not hold for the thread tier and
 ;; the memory file needs Shape B instead.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            ;; The child parks forever on its OWN recv (parent never sends) — it must
            ;; never return, or its send-half closing would give the parent Closed
            ;; instead of the Stopped outcome under test.

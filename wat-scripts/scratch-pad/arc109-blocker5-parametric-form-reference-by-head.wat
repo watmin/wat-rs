@@ -27,17 +27,17 @@
 ;; A green here is only evidence while that control still goes red.
 
 (:wat::core::defn :user::head-builtin
-  [x <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64 0)
+  [x <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64 0)
 
 (:wat::core::defn :user::head-typealias
-  [x <- (:wat::cache::Lru :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64 0)
+  [x <- (:wat::cache::Lru :- [wat.type/i64 wat.type/i64])] -> wat.type/i64 0)
 
 (:wat::core::defn :user::head-defenum
-  [x <- (:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])] -> :wat::core::i64 0)
+  [x <- (:wat::spawn::ServiceEvent :- [wat.type/i64 wat.type/i64 wat.type/i64])] -> wat.type/i64 0)
 
 ;; ★ the two that FAILED on 2026-08-21
 (:wat::core::defn :user::head-defrecord
-  [x <- (:wat::cache::Entry :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64 0)
+  [x <- (:wat::cache::Entry :- [wat.type/i64 wat.type/i64])] -> wat.type/i64 0)
 
 (:wat::core::defn :user::head-defstruct
-  [x <- (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64])] -> :wat::core::i64 0)
+  [x <- (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64])] -> wat.type/i64 0)

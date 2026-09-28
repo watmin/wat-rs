@@ -2,4 +2,4 @@
 ;; Slot 0 of defclause arg triple is :kw (keyword). startup MUST fail.
 
 (:wat::core::defclause :user::bad
-  ([:kw <- :wat::core::i64] -> :wat::core::i64 42))
+  ([:kw <- wat.type/i64] -> wat.type/i64 42))

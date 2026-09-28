@@ -13,17 +13,17 @@
 ;; A raise anywhere = the probe FAILS LOUD. A clean run printing Node==Span is the answer.
 
 (:wat::core::defrecord :probe::Acc
-  [nodes <- :wat::core::i64
-   spans <- :wat::core::i64])
+  [nodes <- wat.type/i64
+   spans <- wat.type/i64])
 
-(:wat::core::defn :probe::structural? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :probe::structural? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
     (:wat::hashset::contains?
-      (:wat::core::HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
+      (wat.type/HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
 ;; walk — call ast-span AND ast-end-span on EVERY node. Both are unguarded on purpose: this probe
 ;; exists to find the node that raises, not to survive it.
-(:wat::core::defn :probe::walk [acc <- :probe::Acc  node <- :wat::WatAST] -> :probe::Acc
+(:wat::core::defn :probe::walk [acc <- :probe::Acc  node <- wat.type/AST] -> :probe::Acc
   (:wat::core::let
     [s    (:wat::core::ast-span node)
      e    (:wat::core::ast-end-span node)
@@ -33,18 +33,18 @@
                        :spans (:wat::i64::+ (:probe::Acc/spans acc) 1))]
     (:wat::core::if (:probe::structural? node)
       (:wat::core::foldl
-        (:wat::core::fn [a <- :probe::Acc  child <- :wat::WatAST] -> :probe::Acc
+        (:wat::core::fn [a <- :probe::Acc  child <- wat.type/AST] -> :probe::Acc
           (:probe::walk a child))
         acc'
         (:wat::core::ast->children node))
       acc')))
 
-(:wat::core::defn :probe::run [label <- :wat::core::String  src <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :probe::run [label <- wat.type/String  src <- wat.type/String] -> wat.type/nil
   (:wat::core::match (:wat::core::read-string src)
     [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::let
         [acc (:wat::core::foldl
-               (:wat::core::fn [a <- :probe::Acc  form <- :wat::WatAST] -> :probe::Acc
+               (:wat::core::fn [a <- :probe::Acc  form <- wat.type/AST] -> :probe::Acc
                  (:probe::walk a form))
                (:probe::Acc :nodes 0 :spans 0)
                (:wat::core::ast->children forms))]
@@ -55,7 +55,7 @@
     [:wat::core::ReadOutcome.Malformed {:cause cause}
       (:wat::kernel::println (:wat::string::concat label (:wat::string::concat "  MALFORMED " (:wat::core::str cause))))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; 1 — every reader sigil, inline. THE mechanism under test.
     (:probe::run "sigils-inline" "(a 'b `c ~d ~@e #{1 2} {:k 1} [1 2])")

@@ -1,10 +1,10 @@
 ;; newtype_as_struct_field_roundtrip.wat
 (:wat::core::newtype :my::trading::Price :wat::core::f64)
 (:wat::core::defstruct :my::Order
-  [label <- :wat::core::String
+  [label <- wat.type/String
    price <- :my::trading::Price
-   qty   <- :wat::core::i64])
-(:wat::core::defn :my::compute [] -> :wat::core::String
+   qty   <- wat.type/i64])
+(:wat::core::defn :my::compute [] -> wat.type/String
   (:wat::core::let
     [p         (:my::trading::Price 99.5)
      o         (:my::Order :label "BTC" :price p :qty 7)

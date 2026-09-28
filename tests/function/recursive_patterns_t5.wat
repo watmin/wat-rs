@@ -1,5 +1,5 @@
 ;; tests/function/recursive_patterns_t5.wat — literal_at_depth_picks_arm
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [resp (:wat::core::Result.Ok {:value 200})
                label

@@ -30,11 +30,11 @@
 ;; construction site instead of by caller-side convention.
 
 (:wat::core::defn :my::test::count-visit
-  [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult]
-  -> (:wat::eval::WalkStep :- [:wat::core::i64])
+  [acc <- wat.type/i64 form <- wat.type/AST step <- :wat::eval::StepResult]
+  -> (:wat::eval::WalkStep :- [wat.type/i64])
   (:wat::eval::WalkStep.Continue {:acc (:wat::i64::+ acc 1)}))
 
-(:wat::core::defn :my::main-roundtrip [] -> :wat::core::nil
+(:wat::core::defn :my::main-roundtrip [] -> wat.type/nil
   (:wat::core::let
     [source (:wat::core::quote
               ((:wat::holon::leaf "k")
@@ -51,5 +51,5 @@
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println e)])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:my::main-roundtrip))

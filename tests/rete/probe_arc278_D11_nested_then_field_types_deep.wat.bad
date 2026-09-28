@@ -8,8 +8,8 @@
 ;;
 ;; TWO wrongly-typed values at TWO depths, so the golden also proves the walk does not stop at the
 ;; first finding — batching every finding is this validator's contract.
-(:wat::core::defrecord :d11d::Box   [k <- :wat::core::i64  s <- :wat::core::String])
-(:wat::core::defrecord :d11d::Inner [n <- :wat::core::i64  t <- :wat::core::String])
+(:wat::core::defrecord :d11d::Box   [k <- wat.type/i64  s <- wat.type/String])
+(:wat::core::defrecord :d11d::Inner [n <- wat.type/i64  t <- wat.type/String])
 (:wat::core::defrecord :d11d::Mid   [i <- :d11d::Inner])
 (:wat::core::defrecord :d11d::Outer [m <- :d11d::Mid])
 
@@ -18,5 +18,5 @@
   :then [(:d11d::Outer :m (:d11d::Mid :i (:d11d::Inner :n ?s :t ?k)))])
 
 ;; ⛔ A REAL `main` (arc 278 C18) — see `..._bound_var.wat.bad`'s note.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

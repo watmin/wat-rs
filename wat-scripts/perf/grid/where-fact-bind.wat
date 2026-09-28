@@ -3,8 +3,8 @@
 ;; type keyword has `::`. Accumulate stays `(?n <- (acc) :from …)`.
 ;; You cannot get a record without asking for it.
 
-(:wat::core::defrecord :wfb::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wfb::Hit [c <- :wat::core::i64])
+(:wat::core::defrecord :wfb::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wfb::Hit [c <- wat.type/i64])
 
 (:wat::rete::defrule :wfb::cool
   :when [(?t :- :wfb::Temp)
@@ -34,9 +34,9 @@
   :when [(?n :- (:wat::rete::acc::count) :from (:wfb::Temp (?loc :- :loc)))])
 
 (:wat::core::defn :wfb::has-key
-  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
-   k       <- :wat::core::String]
-  -> :wat::core::String
+  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])
+   k       <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     "empty"
     (:wat::core::match
@@ -45,14 +45,14 @@
       [:wat::core::Option.None {} "none"])))
 
 (:wat::core::defn :wfb::line
-  [row <- :wat::core::i64 name <- :wat::core::String body <- :wat::core::String]
-  -> :wat::core::nil
+  [row <- wat.type/i64 name <- wat.type/String body <- wat.type/String]
+  -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
       (:wat::string::concat (:wat::string::concat " " name) body))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [rules   (:wat::core::PersistentVector (:wfb::cool))
                     queries (:wat::core::PersistentVector
                               (:wfb::q-bound) (:wfb::q-plain) (:wfb::q-both)

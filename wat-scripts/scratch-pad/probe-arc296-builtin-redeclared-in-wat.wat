@@ -16,6 +16,6 @@
 ;; wat's own reader would not.
 
 (:wat::core::defrecord :wat::kernel::Location
-  [file <- :wat::core::String
-   line <- :wat::core::i64
-   col  <- :wat::core::i64])
+  [file <- wat.type/String
+   line <- wat.type/i64
+   col  <- wat.type/i64])

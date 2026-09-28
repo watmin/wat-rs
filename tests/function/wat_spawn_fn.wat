@@ -7,7 +7,7 @@
 ;; the peer reaps on scope-exit (RAII) — no explicit tx/rx or drain-and-join.
 
 ;; T1: named-define body — :app::increment worker + compute that spawns it by name.
-(:wat::core::defn :app::increment [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+(:wat::core::defn :app::increment [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
   (:wat::core::let
               [value
                 (:wat::core::match (:wat::kernel::recv self)
@@ -27,7 +27,7 @@
                 [:wat::kernel::SendOutcome.Stopped {} nil]
                 [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])))
 
-(:wat::core::defn :my::compute_t1 [] -> :wat::core::i64
+(:wat::core::defn :my::compute_t1 [] -> wat.type/i64
   (:wat::core::let
               [peer
                 (:wat::test::spawn-peer (:wat::spawn::thread) :app::increment)
@@ -53,13 +53,13 @@
               result))
 
 ;; T2: inline fn literal body.
-(:wat::core::defn :my::compute_t2 [] -> :wat::core::i64
+(:wat::core::defn :my::compute_t2 [] -> wat.type/i64
   (:wat::core::let
               [peer
                 (:wat::test::spawn-peer (:wat::spawn::thread)
                   (:wat::core::fn
-                    [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]
-                     -> :wat::core::nil
+                    [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]
+                     -> wat.type/nil
                     (:wat::core::let
                       [value
                         (:wat::core::match (:wat::kernel::recv self)
@@ -101,13 +101,13 @@
               result))
 
 ;; T3: closure capture — body captures `delta` from enclosing let.
-(:wat::core::defn :my::compute_t3 [] -> :wat::core::i64
+(:wat::core::defn :my::compute_t3 [] -> wat.type/i64
   (:wat::core::let
               [delta 100
                body
                 (:wat::core::fn
-                  [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]
-                   -> :wat::core::nil
+                  [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]
+                   -> wat.type/nil
                   (:wat::core::let
                     [n
                       (:wat::core::match (:wat::kernel::recv self)

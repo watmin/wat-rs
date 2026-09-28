@@ -25,16 +25,16 @@
 (:wat::core::defstruct :probe::Sh [])
 (:wat::core::defstruct :probe::Wi [])
 (:wat::core::defsurface :probe::Loc :- [T] :nature :wat::core::Struct
-  :features [(tag [self <- (:probe::Loc :- [T])] -> :wat::core::i64)])
-(:wat::core::defrecord :probe::Th [x <- :wat::core::i64])
+  :features [(tag [self <- (:probe::Loc :- [T])] -> wat.type/i64)])
+(:wat::core::defrecord :probe::Th [x <- wat.type/i64])
 (:wat::core::extend-type :probe::Th (:probe::Loc :- [:probe::Sh]) (tag [self] 1))
-(:wat::core::defrecord :probe::Pr [y <- :wat::core::i64])
+(:wat::core::defrecord :probe::Pr [y <- wat.type/i64])
 (:wat::core::extend-type :probe::Pr (:probe::Loc :- [:probe::Wi]) (tag [self] 2))
 (:wat::core::defclause :probe::count
-  ([l <- :probe::Th] -> :wat::core::i64 (:probe::Th/x l))
-  ([l <- :probe::Pr] -> :wat::core::i64 (:probe::Pr/y l)))
+  ([l <- :probe::Th] -> wat.type/i64 (:probe::Th/x l))
+  ([l <- :probe::Pr] -> wat.type/i64 (:probe::Pr/y l)))
 ;; bare surface (the family top), narrows through the defclause
-(:wat::core::defn :probe::bare [l <- :probe::Loc] -> :wat::core::i64
+(:wat::core::defn :probe::bare [l <- :probe::Loc] -> wat.type/i64
   (:probe::count l))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:wat::core::str (:probe::bare (:probe::Pr :y 9)))))

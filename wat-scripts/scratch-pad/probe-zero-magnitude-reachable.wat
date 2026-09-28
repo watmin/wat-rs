@@ -28,7 +28,7 @@
 ;; only proves the DEGENERATE hole is faced, which was the reachable,
 ;; grounded hazard the wall exists to close.
 
-(:wat::core::defn :probe::run [] -> :wat::core::nil
+(:wat::core::defn :probe::run [] -> wat.type/nil
   (:wat::core::let
     [v (:wat::holon::encode (:wat::holon::to-holon "some-atom"))
 
@@ -77,5 +77,5 @@
           (:wat::core::PersistentMap :unexpected-dimension-mismatch
             (:wat::core::PersistentMap :expected e :got g)))])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:probe::run))

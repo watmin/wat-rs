@@ -23,7 +23,7 @@
 ;; the migration is drawn. Counting it here would silently merge two populations, which is the
 ;; exact defect that made four censuses wrong in one day this session.
 
-(:wat::core::defrecord :bv::Head [id <- :wat::core::i64  name <- :wat::core::String])
+(:wat::core::defrecord :bv::Head [id <- wat.type/i64  name <- wat.type/String])
 
 (:wat::rete::defrule :bv::head
   :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind) (?i :- :index))
@@ -65,5 +65,5 @@
                        (:wat::grep::Capture :name "bare"      :value ?n)
                        (:wat::grep::Capture :name "qualified" :value "wat.core.Result/Err")))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :bv))

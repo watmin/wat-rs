@@ -14,14 +14,14 @@
 ;; Parametric<:Parametric arm unifies them).
 
 (:wat::core::defn :probe::takes-thread-self-peer
-  [p <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
+  [p <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/i64
   1)
 
 ;; ★ THE SUBJECT — a `Peer'` handed to a `ThreadSelfPeer'` parameter. Before the derive edge
 ;; this is a located TypeMismatch; after it, it type-checks by the derive graph.
 (:wat::core::defn :probe::peer-satisfies-thread-self-peer
-  [p <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
+  [p <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/i64
   (:probe::takes-thread-self-peer p))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "peer-satisfies-thread-self-peer: checked"))

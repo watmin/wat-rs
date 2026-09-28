@@ -7,16 +7,16 @@
 ;; An empty-AST Rule value is that shape, and it is writable here. If compile-all answers
 ;; `Compiled` for it, the verdict "terminates" and the verdict "was never looked at" are the same
 ;; value to every caller.
-(:wat::core::defrecord :a5::In  [v <- :wat::core::i64])
+(:wat::core::defrecord :a5::In  [v <- wat.type/i64])
 
 (:wat::core::defn :a5::ast-less-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "ast-less"
     :lhs (:wat::core::PersistentVector)
     :rhs (:wat::core::PersistentVector)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [rules   (:wat::core::PersistentVector :- [:wat::rete::Rule] (:a5::ast-less-rule))
+    [rules   (wat.type/PersistentVector :- [:wat::rete::Rule] (:a5::ast-less-rule))
      verdict (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector))
                [:wat::rete::CompileOutcome.Compiled {:session __s} "Compiled"]
                [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} "MayNotTerminate"])]

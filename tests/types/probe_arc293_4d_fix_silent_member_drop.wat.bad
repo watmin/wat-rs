@@ -8,6 +8,6 @@
 ;; inside it, which USED to be silently dropped and after 293.4d-fix is a hard error.
 
 (:wat::core::defsurface :t::Bad :nature :wat::core::Struct
-  :features [color <- :wat::core::String]
-  (area  [self] -> :wat::core::f64)
-  (label [self] -> :wat::core::String))
+  :features [color <- wat.type/String]
+  (area  [self] -> wat.type/f64)
+  (label [self] -> wat.type/String))

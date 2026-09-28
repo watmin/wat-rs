@@ -9,16 +9,16 @@
 ;; core RECORD is rejected by a `:nature :Struct` surface and a HOLON by a `:nature :Record` surface.
 ;; GREEN after K1a: `agg_nature.rank() >= req.rank()` (Struct -1 < Record 0 < HolonRecord +1).
 
-(:wat::core::defsurface :lad::Named   :nature :wat::core::Struct  :features [name <- :wat::core::String])
-(:wat::core::defsurface :lad::Stamped :nature :wat::core::Record  :features [at   <- :wat::core::i64])
+(:wat::core::defsurface :lad::Named   :nature :wat::core::Struct  :features [name <- wat.type/String])
+(:wat::core::defsurface :lad::Stamped :nature :wat::core::Record  :features [at   <- wat.type/i64])
 
-(:wat::core::defrecord  :lad::Person [name <- :wat::core::String])   ; core record
-(:wat::holon::defrecord :lad::Event  [at   <- :wat::core::i64])      ; holon record
+(:wat::core::defrecord  :lad::Person [name <- wat.type/String])   ; core record
+(:wat::holon::defrecord :lad::Event  [at   <- wat.type/i64])      ; holon record
 
-(:wat::core::defn :lad::greet [x <- :lad::Named]   -> :wat::core::String (:lad::Named/name x))
-(:wat::core::defn :lad::when  [x <- :lad::Stamped] -> :wat::core::i64    (:lad::Stamped/at x))
+(:wat::core::defn :lad::greet [x <- :lad::Named]   -> wat.type/String (:lad::Named/name x))
+(:wat::core::defn :lad::when  [x <- :lad::Stamped] -> wat.type/i64    (:lad::Stamped/at x))
 
-(:wat::core::defn :lad::demo [] -> :wat::core::String
+(:wat::core::defn :lad::demo [] -> wat.type/String
   (:wat::string::concat
     (:lad::greet (:lad::Person :name "alice"))                  ; record → :nature :Struct  (ladder accepts down)
     " @ "

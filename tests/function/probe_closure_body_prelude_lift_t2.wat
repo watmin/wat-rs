@@ -4,14 +4,14 @@
 ;; declaration under test (`:h::LocalPoint` at the child program's top level) is unchanged.
 ;; The child now sums both fields and `println`s the result, so the assertion proves the
 ;; struct was registered AND constructible AND its accessors resolve — stronger than exit-0.
-(:wat::core::defn :my::launch [] -> :wat::core::i64
+(:wat::core::defn :my::launch [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :h::LocalPoint
-             [x <- :wat::core::i64
-              y <- :wat::core::i64])
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+             [x <- wat.type/i64
+              y <- wat.type/i64])
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [pt   (:h::LocalPoint :x 3 :y 4)
                 n    (:wat::i64::+ (:h::LocalPoint/x pt) (:h::LocalPoint/y pt))

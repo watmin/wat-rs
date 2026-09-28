@@ -10,9 +10,9 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -24,7 +24,7 @@
 
 ;; a typed helper: the param pins the reconstructed addr's S,R (unify ? = Echo::Op/Reply).
 (:wat::core::defn :probe::dial-and-echo
-  [a <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])] -> :wat::core::String
+  [a <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])] -> wat.type/String
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect a) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "roundtrip"))]
@@ -35,7 +35,7 @@
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh    (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea    (:probe::echo::Handle/addr eh)

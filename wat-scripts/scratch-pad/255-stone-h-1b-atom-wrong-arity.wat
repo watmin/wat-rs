@@ -7,7 +7,7 @@
 ;; hand-rolled checks are untouched by this stone. Mirrors
 ;; 255-stone-h-1a-holon-wrong-arity.wat's shape.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── :wat::holon::from-holon (wrong-arity, 0 of 1) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::from-holon)))

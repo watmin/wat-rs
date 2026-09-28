@@ -1,7 +1,7 @@
 ;; tests/types/probe_arc293_holder_substitution_c4.wat.bad — case 4: core record REJECTED where :wat::holon::Record wanted
 
-(:wat::core::defrecord :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :geo::Pt [x <- wat.type/i64  y <- wat.type/i64])
 (:wat::core::defn :u::wants-holon [r <- :wat::holon::Record] -> :wat::holon::Record r)
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:u::wants-holon (:geo::Pt :x 1 :y 2))
   nil)

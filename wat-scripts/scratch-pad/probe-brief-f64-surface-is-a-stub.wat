@@ -28,7 +28,7 @@
 ;;     (arc 255 stone ④: its containment premise was the `:wat::*` blanket, so it had to leave
 ;;      the `every_wat_scripts_file_loads` gate before the blanket dies)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; ── row 2 — a float rule is now expressible ──────────────────────────────────
     (:wat::kernel::println (:wat::rete::f64::> 0.9 0.8))    ;; expect true

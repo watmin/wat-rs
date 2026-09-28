@@ -6,5 +6,5 @@
   (:wat::core::+ n 1))
 (:wat::core::defn :user::hold [t :- wat.time/Instant] -> wat.time/Instant
   t)
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "ok"))

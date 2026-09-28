@@ -11,12 +11,12 @@
 
 (:wat::core::defn :probe::apply-it
   [& [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
-      n <- :wat::core::i64]]
-  -> :wat::core::i64
+      n <- wat.type/i64]]
+  -> wat.type/i64
   (:wat::core::apply  f n []))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::i64::to-string
-      (:probe::apply-it :f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
+      (:probe::apply-it :f (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
                         :n 21))))  ;; expect 42

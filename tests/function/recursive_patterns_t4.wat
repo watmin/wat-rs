@@ -1,5 +1,5 @@
 ;; tests/function/recursive_patterns_t4.wat — wildcard_at_depth
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [row
                 (:wat::core::Option.Some {:value (:wat::core::Tuple 100 99 98)})

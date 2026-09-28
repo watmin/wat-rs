@@ -7,7 +7,7 @@
 ;; same ambient d here, so DimensionMismatch is unreachable in these
 ;; fixtures, but the match must still face it exhaustively (no `_` arm).
 
-(:wat::core::defn :valg::bind-roundtrip [] -> :wat::core::String
+(:wat::core::defn :valg::bind-roundtrip [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "a"))
      vb (:wat::holon::encode (:wat::holon::to-holon "b"))]
@@ -19,11 +19,11 @@
           [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])]
       [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :valg::bundle-singleton [] -> :wat::core::String
+(:wat::core::defn :valg::bundle-singleton [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))]
     (:wat::core::match
-      (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] va))
+      (:wat::holon::vector-bundle (wat.type/Vector :- [:wat::holon::Vector] va))
       [:wat::holon::CombineOutcome.Combined {:vector bundled}
         (:wat::core::match (:wat::holon::cosine va bundled)
           [:wat::holon::CosineOutcome.Similarity {:similarity s}
@@ -32,7 +32,7 @@
           [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])]
       [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :valg::blend-weighted [] -> :wat::core::String
+(:wat::core::defn :valg::blend-weighted [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      vb (:wat::holon::encode (:wat::holon::to-holon "y"))]
@@ -45,7 +45,7 @@
           [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])]
       [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :valg::permute-changes [] -> :wat::core::String
+(:wat::core::defn :valg::permute-changes [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      shifted (:wat::holon::vector-permute va 5)]

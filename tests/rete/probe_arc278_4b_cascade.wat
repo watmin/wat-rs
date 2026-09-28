@@ -1,10 +1,10 @@
 ;; tests/rete/probe_arc278_4b_cascade.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines the weather records for cascade-to-fixpoint tests.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
-(:wat::core::defrecord :weather::WeatherAlert [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
+(:wat::core::defrecord :weather::WeatherAlert [location <- wat.type/String])
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
@@ -45,25 +45,25 @@
 (:wat::core::defn :test::cascade-fired-bergen [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-ab))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :test::query-count [s <- :wat::rete::Session q <- :wat::rete::Query] -> :wat::core::i64
+(:wat::core::defn :test::query-count [s <- :wat::rete::Session q <- :wat::rete::Query] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s q)))
 
-(:wat::core::defn :user::compile-ab-fires-nothing [] -> :wat::core::i64
+(:wat::core::defn :user::compile-ab-fires-nothing [] -> wat.type/i64
   (:test::query-count (:wat::core::match (:wat::rete::fire-rules (:test::compile-ab)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:weather::q-ColdAndWindy)))
 
-(:wat::core::defn :user::weatheralert-count-oslo [] -> :wat::core::i64
+(:wat::core::defn :user::weatheralert-count-oslo [] -> wat.type/i64
   (:test::query-count (:test::cascade-fired-session) (:weather::q-WeatherAlert)))
 
-(:wat::core::defn :user::coldandwindy-count-oslo [] -> :wat::core::i64
+(:wat::core::defn :user::coldandwindy-count-oslo [] -> wat.type/i64
   (:test::query-count (:test::cascade-fired-session) (:weather::q-ColdAndWindy)))
 
-(:wat::core::defn :user::derived-length-oslo [] -> :wat::core::i64
+(:wat::core::defn :user::derived-length-oslo [] -> wat.type/i64
   (:wat::core::let [fired (:test::cascade-fired-session)]
     (:wat::i64::+
       (:test::query-count fired (:weather::q-ColdAndWindy))
       (:test::query-count fired (:weather::q-WeatherAlert)))))
 
-(:wat::core::defn :user::derived-length-bergen [] -> :wat::core::i64
+(:wat::core::defn :user::derived-length-bergen [] -> wat.type/i64
   (:wat::core::let [fired (:test::cascade-fired-bergen)]
     (:wat::i64::+
       (:test::query-count fired (:weather::q-ColdAndWindy))

@@ -12,22 +12,22 @@
 
 ;; a Scope-shaped surface: attributes only (namespace, uuid, time-ns).
 (:wat::core::defsurface :probe::Scope :nature :wat::core::Record
-  :features [namespace <- :wat::core::String
-             uuid      <- :wat::core::String
-             time-ns   <- :wat::core::i64])
+  :features [namespace <- wat.type/String
+             uuid      <- wat.type/String
+             time-ns   <- wat.type/i64])
 
 ;; a second surface, to prove MULTIPLE splices merge (a record satisfying both).
 (:wat::core::defsurface :probe::Named :nature :wat::core::Record
-  :features [name <- :wat::core::String])
+  :features [name <- wat.type/String])
 
 ;; a record that splices BOTH surfaces' attributes, then adds its own field.
 ;; merged field order (first-occurrence): namespace, uuid, time-ns, name, value.
 (:wat::core::defrecord :probe::Metric
   [~@:probe::Scope
    ~@:probe::Named
-   value <- :wat::core::i64])
+   value <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; Arc 294 item 9a — the bare name is now the kwargs companion (order-free
   ;; `:field value` pairs); raw positional construction over the merged
   ;; (spliced + own) field list goes through the PRIME, minted at type-

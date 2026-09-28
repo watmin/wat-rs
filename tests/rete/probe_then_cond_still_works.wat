@@ -1,6 +1,6 @@
 ;; POSITIVE — cond with a terminal :else in a :then still works. C refuses match, not cond.
 (:wat::core::defenum :cd::K :wat::enum::Pure :Aa [] :Bb [])
-(:wat::core::defrecord :cd::Box [label <- :wat::core::String])
+(:wat::core::defrecord :cd::Box [label <- wat.type/String])
 (:wat::core::defrecord :cd::Src [k <- :cd::K])
 
 (:wat::rete::defrule :cd::go
@@ -13,7 +13,7 @@
   :params []
   :when [(:cd::Box (?label :- :label))])
 
-(:wat::core::defn :user::run [] -> :wat::core::String
+(:wat::core::defn :user::run [] -> wat.type/String
   (:wat::core::let
     [rules (:wat::rete::collect-rules :cd)
      s0    (:wat::core::match (:wat::rete::insert

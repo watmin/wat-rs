@@ -15,16 +15,16 @@
 
 ;; The shared select' message — a client "item" OR the internal flush tick (ONE homogeneous O):
 (:wat::core::defenum :probe::SinkSig :wat::enum::Pure
-  :Item      [v <- :wat::core::i64]
+  :Item      [v <- wat.type/i64]
   :FlushTick [])
 
 ;; the loop: threads the live timer-peer set + the buffer + whether a flush is already armed.
 ;; returns the flushed batch on the tick (proving items buffered BEFORE the tick survive to it).
 (:wat::core::defn :probe::sink-loop
-  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :probe::SinkSig])])
-   buf   <- (:wat::core::Vector :- [:wat::core::i64])
-   armed <- :wat::core::bool]
-  -> (:wat::core::Vector :- [:wat::core::i64])
+  [peers <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil :probe::SinkSig])])
+   buf   <- (wat.type/Vector :- [wat.type/i64])
+   armed <- wat.type/bool]
+  -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::match (:wat::kernel::select peers) 
     [:wat::spawn::ServiceEvent.Message {:idx idx :msg sig}
       (:wat::core::match sig 
@@ -51,12 +51,12 @@
     [:wat::spawn::ServiceEvent.Connection {:peer _p} buf]
     [:wat::spawn::ServiceEvent.Admin {:msg _m} buf]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; seed 3 staggered item-timers (1/2/3 ms) — simulate 3 client pushes before the flush:
-     items (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :probe::SinkSig])]
+     items (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil :probe::SinkSig])]
              (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 1) (:probe::SinkSig.Item {:v 10}))
              (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 2) (:probe::SinkSig.Item {:v 20}))
              (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 3) (:probe::SinkSig.Item {:v 30})))
-     flushed (:probe::sink-loop items (:wat::core::Vector :- [:wat::core::i64]) false)]
+     flushed (:probe::sink-loop items (wat.type/Vector :- [wat.type/i64]) false)]
     (:wat::kernel::println flushed)))     ;; EXPECT: [10 20 30] — all 3 buffered, flushed on the tick

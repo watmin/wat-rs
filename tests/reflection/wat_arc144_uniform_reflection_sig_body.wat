@@ -1,9 +1,9 @@
 ;; tests/reflection/wat_arc144_uniform_reflection_sig_body.wat
 ;; Co-located fixture for test user_function_signature_and_body_return_some.
 ;; Probe: both signature-of-defn and body-of :user::add return Some.
-(:wat::core::defn :user::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
+(:wat::core::defn :user::add [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64 (:wat::core::+ x y))
 
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+(:wat::core::defn :user::compute [] -> wat.type/bool
   (:wat::core::let
               [sig-opt
                 (:wat::runtime::signature-of-defn :user::add)

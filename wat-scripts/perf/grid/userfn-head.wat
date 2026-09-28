@@ -33,21 +33,21 @@
 ;; Usage (stdin = an i64 vector [items]; stdout = one #grid/Result EDN line):
 ;;   echo '[5]' | cargo run --release --bin wat -- ./wat-scripts/perf/grid/userfn-head.wat
 
-(:wat::core::defrecord :ufh::Src  [k <- :wat::core::i64])
-(:wat::core::defrecord :ufh::Bad  [k <- :wat::core::i64])
-(:wat::core::defrecord :ufh::Rate [count <- :wat::core::i64])
-(:wat::core::defrecord :ufh::Out  [n <- :wat::core::i64])
+(:wat::core::defrecord :ufh::Src  [k <- wat.type/i64])
+(:wat::core::defrecord :ufh::Bad  [k <- wat.type/i64])
+(:wat::core::defrecord :ufh::Rate [count <- wat.type/i64])
+(:wat::core::defrecord :ufh::Out  [n <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::core::defn :ufh::mk-rate
-  [k <- :wat::core::i64]
+  [k <- wat.type/i64]
   -> :ufh::Rate
   (:ufh::Rate :count k))
 
@@ -75,21 +75,21 @@
   :when [(?fact :- :ufh::Out)])
 
 
-(:wat::core::defn :ufh::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :ufh::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:ufh::bad) (:ufh::via) (:ufh::out)))
 
-(:wat::core::defn :ufh::empty-records [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :ufh::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::PersistentVector))
 
-(:wat::core::defn :ufh::seed-facts [items <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :ufh::seed-facts [items <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  k <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  k <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::vector::conj acc (:ufh::Src :k k)))
     (:ufh::empty-records)
     (:wat::core::range 0 items)))
 
-(:wat::core::defn :ufh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :ufh::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all session (:ufh::seed-facts items))
     [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
@@ -103,34 +103,34 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
      (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :ufh::enc [kind <- :wat::core::i64  id <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :ufh::enc [kind <- wat.type/i64  id <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ (:wat::i64::* kind 1000000000000000) id))
 
-(:wat::core::defn :ufh::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :ufh::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector — sorted, NOT deduped. Every Rate AND every Out.
 ;; Pre-cure oracle is Rate-only (Out dropped). Post-cure both. Empty is a third failure.
-(:wat::core::defn :ufh::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :ufh::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
           (:wat::core::map
-            (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
               (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                 (:ufh::enc 0 (:ufh::Rate/count f))))
             (:wat::rete::query fired (:ufh::q-Rate))))
      c1 (:wat::core::into c0
           (:wat::core::map
-            (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
               (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                 (:ufh::enc 1 (:ufh::Out/n f))))
             (:wat::rete::query fired (:ufh::q-Out))))]
     (:ufh::vec->pvec (:wat::core::sort c1))))
 
-(:wat::core::defn :ufh::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :ufh::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:ufh::build-rules)

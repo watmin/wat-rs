@@ -5,11 +5,11 @@
   :messages
   [(:wat::core::defrecord :p32::Boom::BoomRequest [])
    (:wat::core::defenum :p32::Boom::BoomResponse :wat::enum::Pure
-     :Ok [ok <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got <- :wat::core::String])]
+     :Ok [ok <- wat.type/bool]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got <- wat.type/String])]
   :features
   [(boom [self <- :p32::Boom req <- :p32::Boom::BoomRequest] -> :p32::Boom::BoomResponse
      :max-request-bytes 524288)])
@@ -35,9 +35,9 @@
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 (:wat::core::defn :p32::show :- [O]
-  [label <- :wat::core::String
+  [label <- wat.type/String
    o <- (:wat::kernel::RecvOutcome :- [:O])]
-  -> :wat::core::nil
+  -> wat.type/nil
   (:wat::core::match o
     [:wat::kernel::RecvOutcome.Message {:msg _m}
       (:wat::kernel::println (:wat::string::concat label " Message"))]
@@ -48,7 +48,7 @@
     [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::println (:wat::string::concat label " Closed"))]))
 
-(:wat::core::defn :p32::observe [tag <- :wat::core::String h <- :p32::boom::Handle] -> :wat::core::nil
+(:wat::core::defn :p32::observe [tag <- wat.type/String h <- :p32::boom::Handle] -> wat.type/nil
   (:wat::core::let
     [a  (:p32::connect (:p32::boom::Handle/addr h))
      b  (:p32::connect (:p32::boom::Handle/addr h))
@@ -57,7 +57,7 @@
      _b (:p32::show (:wat::string::concat tag " client-b") (:wat::kernel::recv b))]
     (:p32::show (:wat::string::concat tag " owner") (:wat::kernel::recv (:p32::boom::Handle/handle h)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_t (:p32::observe "thread"
           (:p32::boom/start :locus (:wat::spawn::thread) :record (:p32::boom::Record)))

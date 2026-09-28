@@ -45,34 +45,34 @@
 
 ;; COST PROBE — what does ONE surface dispatch cost vs a direct call?
 (:wat::core::defsurface :bench::Shaped :nature :wat::core::Struct
-  :features [(val [self <- :bench::Shaped] -> :wat::core::i64)])
+  :features [(val [self <- :bench::Shaped] -> wat.type/i64)])
 
-(:wat::core::extend-type :wat::core::Vector :bench::Shaped
-  (val [self] -> :wat::core::i64 (:wat::core::length self)))
+(:wat::core::extend-type wat.type/Vector :bench::Shaped
+  (val [self] -> wat.type/i64 (:wat::core::length self)))
 
-(:wat::core::defn :bench::direct [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+(:wat::core::defn :bench::direct [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
   (:wat::core::length v))
 
-(:wat::core::defn :bench::dispatched [s <- :bench::Shaped] -> :wat::core::i64
+(:wat::core::defn :bench::dispatched [s <- :bench::Shaped] -> wat.type/i64
   (:bench::Shaped/val s))
 
-(:wat::core::defn :bench::loop-direct [n <- :wat::core::i64 v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
-  (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 _i <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :bench::loop-direct [n <- wat.type/i64 v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
+  (:wat::core::foldl (:wat::core::fn [acc <- wat.type/i64 _i <- wat.type/i64] -> wat.type/i64
                        (:wat::i64::+ acc (:bench::direct v)))
                      0 (:wat::core::range 0 n)))
 
-(:wat::core::defn :bench::loop-disp [n <- :wat::core::i64 v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
-  (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 _i <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :bench::loop-disp [n <- wat.type/i64 v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
+  (:wat::core::foldl (:wat::core::fn [acc <- wat.type/i64 _i <- wat.type/i64] -> wat.type/i64
                        (:wat::i64::+ acc (:bench::dispatched v)))
                      0 (:wat::core::range 0 n)))
 
-(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [n  200000
-     v  (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+     v  (wat.type/Vector :- [wat.type/i64] 1 2 3)
      ;; ── ORDER A: dispatched first, then direct ──
      a0 (:wat::time::now) ra (:bench::loop-disp n v)   a1 (:wat::time::now)
      b0 (:wat::time::now) rb (:bench::loop-direct n v) b1 (:wat::time::now)

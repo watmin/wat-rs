@@ -14,19 +14,19 @@
 ;; attempt walled on)? Must freeze clean.
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
-  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg <- :wat::core::String])
+  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg <- wat.type/String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-               :Ok              [reply <- :wat::core::String]
-               :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+               :Ok              [reply <- wat.type/String]
+               :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+               :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo :satisfies :probe::Echo :durable [] :ephemeral []
   :impls [(echo [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 (:wat::core::defsurface :probe::TypedCapability :- [S R] :nature :wat::core::Struct
   :features
   [(coord  [self <- (:probe::TypedCapability :- [S R])] -> (:wat::kernel::Address :- [S R]))
-   (grant  [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
-   (revoke [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)])
+   (grant  [self <- (:probe::TypedCapability :- [S R])  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)
+   (revoke [self <- (:probe::TypedCapability :- [S R])  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)])
 
 ;; *** BODILESS extend-type — edge only, no method bodies ***
 (:wat::core::extend-type :probe::echo::Handle (:probe::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply]))
@@ -36,11 +36,11 @@
   [h <- (:probe::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply])]
   -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
   (:wat::core::let
-    [_ (:probe::TypedCapability/grant h (:wat::core::Vector :- [:wat::core::i64] 42))]
+    [_ (:probe::TypedCapability/grant h (wat.type/Vector :- [wat.type/i64] 42))]
     (:probe::TypedCapability/coord h)))
 
 ;; a raw echo'::Handle must be assignable to the combined-surface param.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      _  (:probe::use-both eh)]

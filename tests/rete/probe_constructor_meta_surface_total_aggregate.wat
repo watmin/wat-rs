@@ -17,8 +17,8 @@
 ;; FIRES, through both the oracle and the native kernel — the fixture that used to prove a
 ;; measured gap now proves the fix. `constructor_meta`'s aggregate site is `total: true`.
 
-(:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
-(:wat::core::defrecord :cg::Inner  [x <- :wat::core::i64])
+(:wat::core::defrecord :cg::Anchor [x <- wat.type/i64])
+(:wat::core::defrecord :cg::Inner  [x <- wat.type/i64])
 (:wat::core::defrecord :cg::Outer  [inner <- :cg::Inner])
 
 (:wat::rete::defrule :cg::gather
@@ -31,7 +31,7 @@
 
 
 ;; Fires via the WAT ORACLE.
-(:wat::core::defn :user::run-oracle [] -> :wat::core::i64
+(:wat::core::defn :user::run-oracle [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Outer))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -46,7 +46,7 @@
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path
 ;; (`insert`/`fire-rules`) instead of the interpreted oracle.
-(:wat::core::defn :user::run-native [] -> :wat::core::i64
+(:wat::core::defn :user::run-native [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Outer))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

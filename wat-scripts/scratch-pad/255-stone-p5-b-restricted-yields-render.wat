@@ -32,6 +32,6 @@
 (:wat::core::def :user::thread-doc (:wat::core::render-doc :wat::kernel::spawn-thread))
 (:wat::core::def :user::process-doc (:wat::core::render-doc :wat::kernel::spawn-process))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println :user::thread-doc)
   (:wat::kernel::println :user::process-doc))

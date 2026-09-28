@@ -30,14 +30,14 @@
 ;; ── the surface: parametric, messages BARE (the whole point) ────────────────────────────────
 (:wat::core::defsurface :wat-tests::BareBox :- [T] :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::BareBox::PutRequest [item <- :wat::core::i64])
+  [(:wat::core::defrecord :wat-tests::BareBox::PutRequest [item <- wat.type/i64])
    (:wat::core::defenum :wat-tests::BareBox::PutResponse :wat::enum::Pure
      ;; `echo` carries the handler's answer back so the round-trip asserts a VALUE, not just
      ;; "no crash": item + 1 when the generic durable holds something, item + 0 when empty.
-     :Ok              [echo <- :wat::core::i64]
+     :Ok              [echo <- wat.type/i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
   [(put [self <- (:wat-tests::BareBox :- [T])  req <- :wat-tests::BareBox::PutRequest]
@@ -65,7 +65,7 @@
 ;; ── the gate: stand it up, dial it, round-trip one call ──────────────────────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)`.
 ;; Expected: item 7 + 1 (durable is `Some`) = 8.
-(:wat::core::defn :wat-tests::barebox/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64
+(:wat::core::defn :wat-tests::barebox/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/i64
   (:wat::core::let
     [h (:wat-tests::barebox-svc/start :locus locus
          :record (:wat-tests::barebox-svc::Record :held (:wat::core::Option.Some {:value 42})))

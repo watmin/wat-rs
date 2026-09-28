@@ -4,9 +4,9 @@
 ;; to it splices a literal macro-error call into ordinary program code, where — before
 ;; this stone — it would only raise at RUNTIME. Must now be REFUSED at expand time, same
 ;; MacroErrorKind::ExpandOnlyOutsideMacro as case B.
-(:wat::core::defmacro :probe::emit-boom [] -> :wat::WatAST
+(:wat::core::defmacro :probe::emit-boom [] -> wat.type/AST
   `(:wat::core::macro-error "boom — quoted-template: emitted into expanded program code"))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:probe::emit-boom)
     (:wat::kernel::println "unreachable")))

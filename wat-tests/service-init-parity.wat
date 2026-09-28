@@ -18,9 +18,9 @@
   :messages
   [(:wat::core::defrecord :wat-tests::SeededCounter::GetRequest  [])
    (:wat::core::defenum :wat-tests::SeededCounter::GetResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get [self <- :wat-tests::SeededCounter  req <- :wat-tests::SeededCounter::GetRequest] -> :wat-tests::SeededCounter::GetResponse :max-request-bytes 524288)])
 
@@ -28,7 +28,7 @@
 ;; :init defaults — pure-data service, ephemeral empty → default init = (fn [d <- ::Record] -> ::State (::State d))
 (:wat::service::defservice :wat-tests::seeded-counter
   :satisfies :wat-tests::SeededCounter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]

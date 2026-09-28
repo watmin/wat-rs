@@ -4,12 +4,12 @@
 ;; declaration under test (`:wat::core::def :h::local-answer` at the child program's top
 ;; level) is unchanged. The child now `println`s the value it read back from the def, so the
 ;; assertion proves the def registered AND resolved — stronger than exit-0.
-(:wat::core::defn :my::launch [] -> :wat::core::i64
+(:wat::core::defn :my::launch [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::def :h::local-answer 42)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [v    :h::local-answer
                 _out (:wat::kernel::println v)]

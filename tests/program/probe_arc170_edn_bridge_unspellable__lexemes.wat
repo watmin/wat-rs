@@ -7,19 +7,19 @@
 ;; or evaluated. The subject under test is the crossing, not the semantics.
 
 ;; 1. Type/method accessor — `Vector/length` puts a second `/` in the keyword.
-(:wat::core::defn :u::acc [] -> :wat::core::i64 (:wat::vec::length xs))
+(:wat::core::defn :u::acc [] -> wat.type/i64 (:wat::vec::length xs))
 
 ;; 2. generic type — `<` `>` in a keyword body.
-(:wat::core::defn :u::gen [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64 1)
+(:wat::core::defn :u::gen [xs <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64 1)
 
 ;; 3. tuple type — the keyword body OPENS with `(`.
-(:wat::core::defn :u::tup [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]) (:wat::core::Tuple 1 "a"))
+(:wat::core::defn :u::tup [] -> (wat.type/Tuple :- [wat.type/i64 wat.type/String]) (:wat::core::Tuple 1 "a"))
 
 ;; 4. function type — parens AND `->` inside one keyword token.
-(:wat::core::defn :u::fnty [g <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> :wat::core::i64 (g 1))
+(:wat::core::defn :u::fnty [g <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64 (g 1))
 
 ;; 5. namespace-prefix marker — a TRAILING `::`, so the EDN name is empty.
-(:wat::core::defn :my::kernel::pfx {:restricted-to [:my::kernel::]} [] -> :wat::core::i64 1)
+(:wat::core::defn :my::kernel::pfx {:restricted-to [:my::kernel::]} [] -> wat.type/i64 1)
 
 ;; 6. generic method head — arc 109 stone "the last comma lives in a symbol"
 ;; retired the comma-carrying `mk<S,R>` spelling (a comma can never enter a
@@ -30,4 +30,4 @@
 ;; population, not a single-purpose fixture.
 (:wat::core::defsurface :u::S :nature :wat::kernel::Peer
   :messages []
-  :features [(mk :- [S R] [self <- :u::S] -> :wat::core::i64)])
+  :features [(mk :- [S R] [self <- :u::S] -> wat.type/i64)])

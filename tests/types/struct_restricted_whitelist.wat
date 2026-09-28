@@ -2,13 +2,13 @@
 (:wat::core::defstruct :my::Token
   {:restricted-to  [:my::issuer::]
    :field-metadata {:secret {:restricted-to [:my::issuer::]}}}
-  [secret <- :wat::core::i64
-   id     <- :wat::core::i64])
+  [secret <- wat.type/i64
+   id     <- wat.type/i64])
 (:wat::core::defn :my::issuer::mint [] -> :my::Token
   (:my::Token :secret 42 :id 99))
 (:wat::core::defn :my::issuer::get-secret
-  [tok <- :my::Token] -> :wat::core::i64
+  [tok <- :my::Token] -> wat.type/i64
   (:my::Token/secret tok))
 (:wat::core::defn :any::caller::read-id
-  [tok <- :my::Token] -> :wat::core::i64
+  [tok <- :my::Token] -> wat.type/i64
   (:my::Token/id tok))

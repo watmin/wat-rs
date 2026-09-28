@@ -20,8 +20,8 @@
 ;; stdout: one #iac/Cost EDN line
 ;;   echo '[40000]' | ./target/release/wat wat-scripts/scratch-pad/probe-insert-all-cost.wat
 
-(:wat::core::defrecord :iac::Reading [g <- :wat::core::i64  v <- :wat::core::i64])
-(:wat::core::defrecord :iac::Out     [g <- :wat::core::i64])
+(:wat::core::defrecord :iac::Reading [g <- wat.type/i64  v <- wat.type/i64])
+(:wat::core::defrecord :iac::Out     [g <- wat.type/i64])
 
 ;; One rule, so the Session under test has a real compiled network rather than an empty one.
 ;; `insert`/`insert-all` perform ZERO activation (wat/rete.wat:828-830 — the WM stays open until
@@ -33,35 +33,35 @@
   [(:iac::Out ?g)])
 
 (:wat::core::defrecord :iac::Cost
-  [n              <- :wat::core::i64
-   chained-ns     <- :wat::core::i64   ;; n × construct + foldl + insert (2-ary, N rebuilds)
-   batch-ns       <- :wat::core::i64   ;; n × construct + conj, then ONE insert-all (1 rebuild)
-   drop-ns        <- :wat::core::i64   ;; chained-ns - batch-ns (the win)
-   chained-len    <- :wat::core::i64   ;; witness: must equal n
-   batch-len      <- :wat::core::i64]) ;; witness: must equal n
+  [n              <- wat.type/i64
+   chained-ns     <- wat.type/i64   ;; n × construct + foldl + insert (2-ary, N rebuilds)
+   batch-ns       <- wat.type/i64   ;; n × construct + conj, then ONE insert-all (1 rebuild)
+   drop-ns        <- wat.type/i64   ;; chained-ns - batch-ns (the win)
+   chained-len    <- wat.type/i64   ;; witness: must equal n
+   batch-len      <- wat.type/i64]) ;; witness: must equal n
 
-(:wat::core::defn :iac::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :iac::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ── arm 1 — the existing hot path: construct + 2-ary insert, one fact at a time ──────────────
-(:wat::core::defn :iac::seed-chained [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :iac::seed-chained [session <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert s (:iac::Reading :g 0 :v i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
     (:wat::core::range 0 n)))
 
 ;; ── arm 2 — construct + conj into a vector, then ONE insert-all call ─────────────────────────
-(:wat::core::defn :iac::seed-batch [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :iac::seed-batch [session <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::let [facts (:wat::core::foldl
-                             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:iac::Reading])  i <- :wat::core::i64]
-                               -> (:wat::core::PersistentVector :- [:iac::Reading])
+                             (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:iac::Reading])  i <- wat.type/i64]
+                               -> (wat.type/PersistentVector :- [:iac::Reading])
                                (:wat::vector::conj acc (:iac::Reading :g 0 :v i)))
                              (:wat::core::PersistentVector)
                              (:wat::core::range 0 n))]
     (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln )
                              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                              [:wat::kernel::ReadlnOutcome.Eof {}

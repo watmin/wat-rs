@@ -2,7 +2,7 @@
 ;; `~` is 1 source char; the reader synthesizes a form whose head names the
 ;; 19-char `:wat::core::unquote`. fix-text-apply refuses to splice when the
 ;; rule takes old-text from that NAME. Recorded per the scratch-pad convention.
-(:wat::core::defn :user::show [src <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::show [src <- wat.type/String] -> wat.type/nil
   (:wat::core::let
     [tree (:wat::core::match (:wat::core::read-string src)
             [:wat::core::ReadOutcome.Forms {:forms __f} __f]
@@ -17,7 +17,7 @@
           " | head-name=" (:wat::core::ast-name h))))
       (:wat::kernel::println (:wat::string::concat "src=" src " | top-kind=" kind)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:user::show "~x")
     (:user::show "(a ~b)")

@@ -5,9 +5,9 @@
 ;; Empty world with a group key does not emit bag-wide 0.
 ;; Acc-first + Wind at ?loc: Clara defers the accum; Wind MCI and no temps → {?c 0, ?loc MCI}.
 
-(:wat::core::defrecord :wag::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wag::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wag::Busy [loc <- :wat::core::String n <- :wat::core::i64])
+(:wat::core::defrecord :wag::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wag::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wag::Busy [loc <- wat.type/String n <- wat.type/i64])
 
 (:wat::rete::defrule :wag::count-by-loc
   :when [(?n :- (:wat::rete::acc::count) :from (:wag::Temp (?loc :- :loc)))]
@@ -24,10 +24,10 @@
   :when [(?fact :- :wag::Busy)])
 
 
-(:wat::core::defn :wag::n-busy [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wag::n-busy [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wag::q-Busy))))
 
-(:wat::core::defn :wag::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wag::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -35,7 +35,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [by  (:wat::core::PersistentVector (:wag::count-by-loc))
                     af  (:wat::core::PersistentVector (:wag::acc-first-wind))]
     (:wag::line 1 "two-locs"

@@ -10,15 +10,15 @@
 
 (:wat::core::defmacro :my::ping
   []
-  -> :wat::WatAST
+  -> wat.type/AST
   `(:my::pong))
 
 (:wat::core::defmacro :my::pong
   []
-  -> :wat::WatAST
+  -> wat.type/AST
   `(:my::ping))
 
-(:wat::core::defn :probe::run-macroexpand [] -> :wat::WatAST
+(:wat::core::defn :probe::run-macroexpand [] -> wat.type/AST
   (:wat::core::macroexpand
     (:wat::core::quote (:my::ping))))
 

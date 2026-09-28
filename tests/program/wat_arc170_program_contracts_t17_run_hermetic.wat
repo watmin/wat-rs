@@ -9,11 +9,11 @@
 ;; This defn returns the received i64 directly so the test measures the value that genuinely
 ;; crossed the wire (== 4). The peer's death (were it to die) is surfaced via the Lost arm,
 ;; NEVER swallowed.
-(:wat::core::defn :my::test::two-plus-two [] -> :wat::core::i64
+(:wat::core::defn :my::test::two-plus-two [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println (:wat::i64::+ 2 2)))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg m} m]

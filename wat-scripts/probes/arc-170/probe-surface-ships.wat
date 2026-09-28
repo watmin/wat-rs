@@ -6,21 +6,21 @@
 
 (:wat::core::defsurface :probe::Foo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Foo::FRequest  [x <- :wat::core::i64])
-   (:wat::core::defenum :probe::Foo::FResponse :wat::enum::Pure :Ok [y <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  [(:wat::core::defrecord :probe::Foo::FRequest  [x <- wat.type/i64])
+   (:wat::core::defenum :probe::Foo::FResponse :wat::enum::Pure :Ok [y <- wat.type/i64] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(f [self <- :probe::Foo  req <- :probe::Foo::FRequest] -> :probe::Foo::FResponse :max-request-bytes 524288)])
 
-(:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :probe::double [n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* n 2))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [nums (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+    [nums (wat.type/Vector :- [wat.type/i64] 1 2 3)
      pr   (:wat::bracket::map (:wat::spawn::process) nums :probe::double)
      _    (:wat::kernel::println (:wat::edn::write pr))
-     expected (:wat::core::Vector :- [:wat::core::i64] 2 4 6)
+     expected (wat.type/Vector :- [wat.type/i64] 2 4 6)
      _    (:wat::core::if (:wat::core::= pr expected)
              nil
             (:wat::kernel::assertion-failed! :message "surface-ships result mismatch"))]

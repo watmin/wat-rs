@@ -5,7 +5,7 @@
 ;;
 ;; Three assertions; #3 is load-bearing (a bad line must not end the caller).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; 1 — decodes: a well-formed JSON object → ::Value.
     (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")

@@ -12,11 +12,11 @@
 ;; The Err arm surfaces the LociDiedError (never swallowed) exactly as t18 does —
 ;; the death, were the peer to die mid-drain, rides in the Result's Err.
 
-(:wat::core::defn :my::test::echo-multi [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :my::test::echo-multi [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [n  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                 _  (:wat::kernel::println n)

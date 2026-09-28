@@ -19,7 +19,7 @@
 ;;
 ;; Run with `./target/release/wat <this file> <case>`, case in {span-a, span-b}.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv (:wat::runtime::argv)
      case (:wat::core::Option/expect (:wat::core::get argv 2) "usage: <this file> <case>")]

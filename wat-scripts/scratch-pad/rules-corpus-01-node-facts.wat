@@ -31,19 +31,19 @@
 ;; annotated-if?) reads kind, name, and position and nothing else.
 
 (:wat::core::defrecord :fixr::Node
-  [id     <- :wat::core::i64
-   parent <- :wat::core::i64
-   index  <- :wat::core::i64
-   kind   <- :wat::core::String])
+  [id     <- wat.type/i64
+   parent <- wat.type/i64
+   index  <- wat.type/i64
+   kind   <- wat.type/String])
 
 (:wat::core::defrecord :fixr::Named
-  [id   <- :wat::core::i64
-   name <- :wat::core::String])
+  [id   <- wat.type/i64
+   name <- wat.type/String])
 
 ;; ─── the classification VERDICTS (derived facts, one per decision) ───────────
-(:wat::core::defrecord :fixr::IsArrow    [id <- :wat::core::i64])
-(:wat::core::defrecord :fixr::IsHeadKw   [id <- :wat::core::i64])
-(:wat::core::defrecord :fixr::IsTypePos  [id <- :wat::core::i64])
+(:wat::core::defrecord :fixr::IsArrow    [id <- wat.type/i64])
+(:wat::core::defrecord :fixr::IsHeadKw   [id <- wat.type/i64])
+(:wat::core::defrecord :fixr::IsTypePos  [id <- wat.type/i64])
 
 ;; ─── LAW A (#57): a `where` admits ONLY `:wat::rete::` primitives ────────────
 ;; Not `:wat::core::=`, even though it is pure AND deterministic AND total. The rete query
@@ -129,10 +129,10 @@
       ;; id 4 deliberately ABSENT — the unnameable head. This is the whole point.
       (:fixr::Named :id 5 :name ":wat::core::foo"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :fixr::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :fixr::show [label <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:fixr::arrow) (:fixr::head-kw) (:fixr::type-pos))
      template (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fixr::q-IsArrow) (:fixr::q-IsHeadKw) (:fixr::q-IsTypePos))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

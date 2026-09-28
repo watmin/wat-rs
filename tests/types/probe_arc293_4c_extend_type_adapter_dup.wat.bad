@@ -6,12 +6,12 @@
 
 (:wat::core::defsurface :t::DupTagged
   :nature :wat::core::Struct
-  :features [(tag [self <- :t::DupTagged] -> :wat::core::i64)])
+  :features [(tag [self <- :t::DupTagged] -> wat.type/i64)])
 
 ;; First registration — should succeed.
-(:wat::core::extend-type :wat::core::String :t::DupTagged
-  (tag [self] -> :wat::core::i64 1))
+(:wat::core::extend-type wat.type/String :t::DupTagged
+  (tag [self] -> wat.type/i64 1))
 
 ;; Second registration for the SAME :<T>/<method> — must fail with DuplicateDefine.
-(:wat::core::extend-type :wat::core::String :t::DupTagged
-  (tag [self] -> :wat::core::i64 2))
+(:wat::core::extend-type wat.type/String :t::DupTagged
+  (tag [self] -> wat.type/i64 2))

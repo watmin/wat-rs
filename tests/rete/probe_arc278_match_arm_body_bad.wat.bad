@@ -12,9 +12,9 @@
 
 (:wat::core::defenum :macb::E :wat::enum::Pure :A :B)
 
-(:wat::core::defrecord :macb::Inner [n <- :wat::core::i64])
-(:wat::core::defrecord :macb::In    [k <- :wat::core::i64  v <- :macb::E])
-(:wat::core::defrecord :macb::Out   [k <- :wat::core::i64  inner <- :macb::Inner])
+(:wat::core::defrecord :macb::Inner [n <- wat.type/i64])
+(:wat::core::defrecord :macb::In    [k <- wat.type/i64  v <- :macb::E])
+(:wat::core::defrecord :macb::Out   [k <- wat.type/i64  inner <- :macb::Inner])
 
 (:wat::rete::defrule :macb::r
   :when [(:macb::In (?k :- :k) (?v :- :v))]
@@ -23,5 +23,5 @@
                     (:macb::E::A (:macb::Inner :n 10 :nope 1))
                     (:macb::E::B (:macb::Inner :n 20))))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "loaded"))

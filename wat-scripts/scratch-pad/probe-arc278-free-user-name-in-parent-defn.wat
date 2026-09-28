@@ -27,20 +27,20 @@
 ;; So the entry takes the rendezvous value as a PARAMETER. The free name then appears only
 ;; in the shipped one-liner — data in the parent, and type-checked in the CHILD, where it IS
 ;; defined. Exactly bracket's shape: its main passes `:user::bracket::work-fn` INTO the runner.
-(:wat::core::defn :probe::uses-free [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :probe::uses-free [n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ n 1))
 
 (:wat::core::defn :user::run-arm
-  [label <- :wat::core::String  with-def? <- :wat::core::bool]
-  -> :wat::core::nil
+  [label <- wat.type/String  with-def? <- wat.type/bool]
+  -> wat.type/nil
   (:wat::core::let
     [closure  (:wat::kernel::fn-forms :probe::uses-free :user::entry)
      ;; The launcher's job, done by hand: prepend the rendezvous def the child resolves.
-     rendez   (:wat::core::Vector :- [:wat::WatAST]
+     rendez   (wat.type/Vector :- [wat.type/AST]
                 `(:wat::core::def :user::rendezvous::N 41))
-     prefix   (:wat::core::if with-def? rendez (:wat::core::Vector :- [:wat::WatAST]))
-     main     (:wat::core::Vector :- [:wat::WatAST]
-                `(:wat::core::defn :user::main [] -> :wat::core::nil
+     prefix   (:wat::core::if with-def? rendez (wat.type/Vector :- [wat.type/AST]))
+     main     (wat.type/Vector :- [wat.type/AST]
+                `(:wat::core::defn :user::main [] -> wat.type/nil
                    (:wat::kernel::println (:user::entry :user::rendezvous::N))))
      forms    (:wat::core::concat (:wat::core::concat prefix closure) main)
      p        (:wat::test::spawn-peer (:wat::spawn::process) forms)]
@@ -55,7 +55,7 @@
       [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER"))])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_a (:user::run-arm "WITH-DEF   " true)]
     (:user::run-arm "CONTROL(no)" false)))

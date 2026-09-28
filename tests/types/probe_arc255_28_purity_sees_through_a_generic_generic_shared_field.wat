@@ -4,6 +4,6 @@
 ;; was impure. Pre-255.29 this file was `.wat.bad`. 255.29: that address is data,
 ;; so the instantiated field is pure.
 (:wat::core::defenum :probe::E :- [T] :wat::enum::Pure
-  :Started [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 T])])
+  :Started [addr <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 T])])
 (:wat::core::defrecord :probe::HoldsGeneric
   [status <- (:probe::E :- [:wat::kernel::Transport.Shared])])

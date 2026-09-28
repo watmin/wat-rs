@@ -37,13 +37,13 @@
 ;; complete wat form (multiple bare symbols / an unterminated `<`), where `(:wat::string::capitalize
 ;; "object")` does. See the rider's report for the transcript.
 
-(:wat::core::defn :probe::check [name <- :wat::core::String got <- :wat::core::String want <- :wat::core::String]
-  -> :wat::core::nil
+(:wat::core::defn :probe::check [name <- wat.type/String got <- wat.type/String want <- wat.type/String]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::= got want)
     (:wat::kernel::println (:wat::string::concat "PASS " name))
     (:wat::kernel::println (:wat::string::concat "FAIL " name " got=" got " want=" want))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── capitalize still works ──")
     (:probe::check "capitalize object" (:wat::string::capitalize "object") "Object")

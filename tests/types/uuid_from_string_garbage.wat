@@ -1,5 +1,5 @@
 ;; uuid_from_string_garbage.wat — garbage string → None.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [result (:wat::uuid::from-string "not-a-uuid")]
     (:wat::core::match result 

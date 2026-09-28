@@ -15,7 +15,7 @@
   (:wat::core::let
     [program
       (:wat::core::quote
-        (:wat::core::defstruct :evil::T [x <- :wat::core::i64]))]
+        (:wat::core::defstruct :evil::T [x <- wat.type/i64]))]
     (:wat::eval-ast! program)))
 
 ;; ─── Test 3: eval-edn! parse failure surfaces as Err ─────────────────────────
@@ -36,25 +36,25 @@
 
 ;; ─── Test 6: try propagates eval err through helper ──────────────────────────
 
-(:wat::core::defn :t::test6-run-dynamic [program <- :wat::WatAST] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::test6-run-dynamic [program <- wat.type/AST] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
   (:wat::core::Result.Ok {:value (:wat::core::Result/try (:wat::eval-ast! program))}))
 
-(:wat::core::defn :t::test6 [] -> :wat::core::String
+(:wat::core::defn :t::test6 [] -> wat.type/String
   (:wat::core::let
     [bad
       (:wat::core::quote
-        (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))]
+        (:wat::core::defstruct :injected::T [x <- wat.type/i64]))]
     (:wat::core::match (:t::test6-run-dynamic bad) 
       [:wat::core::Result.Ok {:value _} "should-not-reach"]
       [:wat::core::Result.Err {:error e} (:wat::core::EvalError/kind e)])))
 
 ;; ─── Test 7: eval-err exposes both kind and message ─────────────────────────
 
-(:wat::core::defn :t::test7 [] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
+(:wat::core::defn :t::test7 [] -> (wat.type/Tuple :- [wat.type/String wat.type/String])
   (:wat::core::let
     [bad
       (:wat::core::quote
-        (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))
+        (:wat::core::defstruct :injected::T [x <- wat.type/i64]))
      r
       (:wat::eval-ast! bad)]
     (:wat::core::match r 

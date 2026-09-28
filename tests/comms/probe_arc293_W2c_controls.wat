@@ -11,7 +11,7 @@
 ;;   2. record over a PROCESS peer — portable (records are wire-serializable).
 ;;      The gate must NOT fire for portable payload types.
 
-(:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
+(:wat::core::defrecord :w2c_ctrl::R [val <- wat.type/i64])
 
 ;; 255.30 — the struct-on-thread arm moved. A struct on a thread peer is refused
 ;; (tests/kernel/probe_arc255_30_struct_on_thread_peer.wat.bad). This file keeps the
@@ -19,12 +19,12 @@
 
 ;; Record control: parent sends a portable record to a PROCESS child.
 ;; Records are wire-serializable; the gate must not fire.
-(:wat::core::defn :w2c_ctrl::probe-send-record-to-process [] -> :wat::core::nil
+(:wat::core::defn :w2c_ctrl::probe-send-record-to-process [] -> wat.type/nil
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
-           (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]
+           (:wat::core::defrecord :w2c_ctrl::R [val <- wat.type/i64])
+           (:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "spawned child"))))]
     (:wat::core::match (:wat::kernel::send p (:w2c_ctrl::R :val 42))
       [:wat::kernel::SendOutcome.Sent {} nil]
       [:wat::kernel::SendOutcome.HandleClosed {} nil]

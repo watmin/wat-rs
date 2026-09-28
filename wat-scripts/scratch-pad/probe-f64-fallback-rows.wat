@@ -6,7 +6,7 @@
 ;; itself (see `tests/rete` for the durable gate) — a loadable, type-checked
 ;; reference proving the scorecard's numbered claims by RUN.
 ;;
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; row 2 — ordinary arithmetic untouched.
      r2 (:wat::rete::f64::+ 1.5 2.0 :undefined 0.0)

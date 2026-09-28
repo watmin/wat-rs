@@ -13,12 +13,12 @@
 ;;   Post-stone it is GREEN: `cause` is a `LociDiedError`, `Panic` matches, the message is read.
 ;;   Structural round-trip: the death report is a registered record, EDN all the way down.
 
-(:wat::core::defn :my::died-cause-panic-message [] -> (:wat::core::Option :- [:wat::core::String])
+(:wat::core::defn :my::died-cause-panic-message [] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::let
     [p
       (:wat::test::spawn-peer (:wat::spawn::process)
         (:wat::core::forms
-          (:wat::core::defn :user::main [] -> :wat::core::nil
+          (:wat::core::defn :user::main [] -> wat.type/nil
             (:wat::kernel::raise! (:wat::core::Fault/of "loci-died-panic-data")))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]

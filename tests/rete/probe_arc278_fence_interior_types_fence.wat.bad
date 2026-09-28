@@ -11,7 +11,7 @@
 ;; `?k` and `?j` come from different conditions, so this fence is LEGITIMATE in
 ;; placement and wrong ONLY in type — which is exactly the hole under test.
 
-(:wat::core::defrecord :tgb::N [k <- :wat::core::i64])
+(:wat::core::defrecord :tgb::N [k <- wat.type/i64])
 
 (:wat::rete::defrule :tgb::fence-is-not-typed
   :when [(:tgb::N (?k :- :k))

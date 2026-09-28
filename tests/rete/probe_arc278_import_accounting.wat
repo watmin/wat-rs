@@ -4,8 +4,8 @@
 ;; (`MAX_IMPORT_NODES`), which is checked on the DECLARED length before any node is unpacked. The
 ;; program itself is deliberately the smallest one that produces a real Export.
 
-(:wat::core::defrecord :ia::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :ia::Hit [c <- :wat::core::i64])
+(:wat::core::defrecord :ia::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :ia::Hit [c <- wat.type/i64])
 
 (:wat::rete::defquery :ia::q-Hit :params [] :when [(?fact :- :ia::Hit)])
 

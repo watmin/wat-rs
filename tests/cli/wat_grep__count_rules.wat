@@ -27,5 +27,5 @@
   :then [(:wat::grep::Match :file ?f :line ?id :col 0 :end-line ?id :end-col 0
            :rule "cnt::written" :captures (:wat::rete::core::PersistentVector))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :cnt))

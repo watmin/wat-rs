@@ -10,7 +10,7 @@
 ;; Its twin `probe_arc278_fixpoint_round_cap_deep.wat` is deep (502 rounds) and CYCLIC and must
 ;; still be accepted — because its head is COPIED from a body binding rather than computed. The
 ;; pair is the test: refuse unbounded derivation without refusing depth.
-(:wat::core::defrecord :cap::N [k <- :wat::core::i64])
+(:wat::core::defrecord :cap::N [k <- wat.type/i64])
 
 (:wat::rete::defrule :cap::grow
   :when [(:cap::N (?k :- :k))]
@@ -18,7 +18,7 @@
 
 (:wat::rete::defquery :cap::q :params [] :when [(?fact :- :cap::N)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to

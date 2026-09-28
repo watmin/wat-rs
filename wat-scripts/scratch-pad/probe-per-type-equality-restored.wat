@@ -5,9 +5,9 @@
 ;;
 ;; Prints each result so the run's stdout is the proof, not a read of the source.
 
-(:wat::core::defrecord :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :my::Pt [x <- wat.type/i64  y <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "i64::= 1 1        -> " (:wat::core::bool::to-string (:wat::i64::= 1 1))))
     (:wat::kernel::println (:wat::string::concat "i64::not= 1 2     -> " (:wat::core::bool::to-string (:wat::i64::not= 1 2))))

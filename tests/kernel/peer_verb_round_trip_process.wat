@@ -1,11 +1,11 @@
 ;; Co-located fixture for peer_verb_round_trip_process.rs — slurped via startup_beside(file!()).
 ;; #[ignore] process-tier probe (arc 214 Stone 4.6a-ii).
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [peer (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::core::let
                   [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                    _ (:wat::kernel::println (:wat::i64::+ n 1))]

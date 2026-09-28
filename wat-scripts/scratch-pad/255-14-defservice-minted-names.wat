@@ -7,21 +7,21 @@
 ;; READ rather than argued.
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Kv::GetRequest [k <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Kv::GetRequest [k <- wat.type/String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
-     :Ok              [v <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String]) expected <- :wat::core::String got <- :wat::core::String])
-   (:wat::core::defrecord :probe::Kv::PutRequest [k <- :wat::core::String v <- :wat::core::String])
+     :Ok              [v <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String]) expected <- wat.type/String got <- wat.type/String])
+   (:wat::core::defrecord :probe::Kv::PutRequest [k <- wat.type/String v <- wat.type/String])
    (:wat::core::defenum :probe::Kv::PutResponse :wat::enum::Pure
-     :Ok              [ok <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String]) expected <- :wat::core::String got <- :wat::core::String])]
+     :Ok              [ok <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String]) expected <- wat.type/String got <- wat.type/String])]
   :features
   [(get [self <- :probe::Kv req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)
    (put [self <- :probe::Kv req <- :probe::Kv::PutRequest] -> :probe::Kv::PutResponse :max-request-bytes 524288)])
 
-(:wat::core::defn :probe::show [] -> :wat::core::nil
+(:wat::core::defn :probe::show [] -> wat.type/nil
   (:wat::core::let
     [exp (:wat::core::macroexpand
            (:wat::core::quote
@@ -31,7 +31,7 @@
                        (put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Kv::PutResponse.Ok {:ok 1})}))])))]
     (:wat::kernel::println
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::String f <- :wat::WatAST] -> :wat::core::String
+        (:wat::core::fn [acc <- wat.type/String f <- wat.type/AST] -> wat.type/String
           (:wat::core::let [ch (:wat::core::ast->children f)]
             (:wat::core::if (:wat::core::< (:wat::core::count ch) 1)
               (:wat::string::concat acc "<atom>  |  " (:wat::core::write-forms f) "\n")
@@ -44,4 +44,4 @@
                 "\n"))))
         ""
         (:wat::core::ast->children exp)))))
-(:wat::core::defn :user::main [] -> :wat::core::nil (:probe::show))
+(:wat::core::defn :user::main [] -> wat.type/nil (:probe::show))

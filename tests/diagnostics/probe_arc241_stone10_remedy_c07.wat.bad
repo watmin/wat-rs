@@ -1,1 +1,1 @@
-(:wat::core::struct-restricted :my::Token [:my::] () (x <- :wat::core::i64))
+(:wat::core::struct-restricted :my::Token [:my::] () (x <- wat.type/i64))

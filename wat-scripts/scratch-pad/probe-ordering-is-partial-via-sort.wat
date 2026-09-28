@@ -20,11 +20,11 @@
 ;; `probe-eq-generic-instantiation.wat` carries for `=`. It is not run: `sort` on this vector
 ;; raises, which is the point.
 
-(:wat::core::typealias :user::IntFn [:wat::core::i64 :-> :wat::core::i64])
+(:wat::core::typealias :user::IntFn [:wat::core::i64 :-> wat.type/i64])
 
 (:wat::core::defn :user::sort-fns
-  [v <- (:wat::core::Vector :- [:user::IntFn])] -> (:wat::core::Vector :- [:user::IntFn])
+  [v <- (wat.type/Vector :- [:user::IntFn])] -> (wat.type/Vector :- [:user::IntFn])
   (:wat::core::sort v))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "probe-ordering-is-partial-via-sort: loaded"))

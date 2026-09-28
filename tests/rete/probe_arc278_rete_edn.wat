@@ -1,14 +1,14 @@
 ;; The compiled program lives on disk as datamancer.rete.edn.
 ;; Types stay in the world (ABI + facts + the ask). No defrule. No compile-all.
 
-(:wat::core::defrecord :dm::Beat      [t <- :wat::core::i64  kind <- :wat::core::String])
-(:wat::core::defrecord :dm::Artifact  [kind <- :wat::core::String  name <- :wat::core::String])
-(:wat::core::defrecord :dm::Gap       [t <- :wat::core::i64])
-(:wat::core::defrecord :dm::ReadAfter [t <- :wat::core::i64])
-(:wat::core::defrecord :dm::Hollow    [t <- :wat::core::i64])
-(:wat::core::defrecord :dm::Primer    [name <- :wat::core::String])
-(:wat::core::defrecord :dm::Four      [n <- :wat::core::i64])
-(:wat::core::defrecord :dm::Datamancer [n <- :wat::core::i64  sigil <- :wat::core::String])
+(:wat::core::defrecord :dm::Beat      [t <- wat.type/i64  kind <- wat.type/String])
+(:wat::core::defrecord :dm::Artifact  [kind <- wat.type/String  name <- wat.type/String])
+(:wat::core::defrecord :dm::Gap       [t <- wat.type/i64])
+(:wat::core::defrecord :dm::ReadAfter [t <- wat.type/i64])
+(:wat::core::defrecord :dm::Hollow    [t <- wat.type/i64])
+(:wat::core::defrecord :dm::Primer    [name <- wat.type/String])
+(:wat::core::defrecord :dm::Four      [n <- wat.type/i64])
+(:wat::core::defrecord :dm::Datamancer [n <- wat.type/i64  sigil <- wat.type/String])
 
 (:wat::rete::defquery :dm::q-who    :params [] :when [(?who    :- :dm::Datamancer)])
 (:wat::rete::defquery :dm::q-hollow :params [] :when [(?hollow :- :dm::Hollow)])
@@ -35,9 +35,9 @@
     (:dm::Beat :t 4 :kind "tend-record")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :dm::counts
-  [txt  <- :wat::core::String
+  [txt  <- wat.type/String
    seed <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [exp   (:wat::edn::read txt)
                     s0    (:wat::rete::import exp)
                     fired (:wat::core::match (:wat::rete::fire-rules (seed s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
@@ -45,20 +45,20 @@
       (:wat::core::length (:wat::rete::query fired (:dm::q-who)))
       (:wat::core::length (:wat::rete::query fired (:dm::q-hollow))))))
 
-(:wat::core::defn :user::practice [txt <- :wat::core::String]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::practice [txt <- wat.type/String]
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:dm::counts txt :dm::seed-practice))
 
-(:wat::core::defn :user::impostor [txt <- :wat::core::String]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::impostor [txt <- wat.type/String]
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:dm::counts txt :dm::seed-impostor))
 
-(:wat::core::defn :user::disk-reexport-identical [txt <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::disk-reexport-identical [txt <- wat.type/String] -> wat.type/bool
   (:wat::core::let [e1 (:wat::edn::read txt)
                     e2 (:wat::rete::export (:wat::rete::import e1))]
     (:wat::core::= (:wat::edn::write e1) (:wat::edn::write e2))))
 
-(:wat::core::defn :user::sigil [txt <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::sigil [txt <- wat.type/String] -> wat.type/String
   (:wat::core::let [exp   (:wat::edn::read txt)
                     s0    (:wat::rete::import exp)
                     fired (:wat::core::match (:wat::rete::fire-rules (:dm::seed-practice s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])

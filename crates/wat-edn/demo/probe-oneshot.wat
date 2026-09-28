@@ -10,7 +10,7 @@
 ;;   eval!              : constrained eval of the AST against the frozen world
 ;;   println            : EDN-encode the result value to stdout
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::eval-ast!
       (:wat::core::first

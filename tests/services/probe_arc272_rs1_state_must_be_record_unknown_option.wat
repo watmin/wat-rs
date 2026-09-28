@@ -6,15 +6,15 @@
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest  [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get [self <- :my::Counter  req <- :my::Counter::GetRequest] -> :my::Counter::GetResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::counter
   :satisfies :my::Counter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]

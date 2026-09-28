@@ -30,7 +30,7 @@
 ;; premise died. The refusal is asserted by the probe beside this file.
 (:wat::core::defrecord :probe::Box :- [T] [v <- :T])
 (:wat::core::defenum :probe::Holder :- [T] :wat::enum::Pure
-  :Many [items <- (:wat::core::Vector :- [(:probe::Box :- [:T])])]
+  :Many [items <- (wat.type/Vector :- [(:probe::Box :- [:T])])]
   :One  [item <- :T])
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:probe::Holder.Many {:items [(:probe::Box :NOPE 1)]})))

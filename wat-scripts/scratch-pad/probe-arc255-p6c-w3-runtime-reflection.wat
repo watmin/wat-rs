@@ -2,7 +2,7 @@
 ;; each of the ten homed `:wat::runtime::` verbs, so before/after homing can be diffed
 ;; byte-for-byte (acceptance rows 3/4).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::core::show (:wat::runtime::metadata-of :wat::runtime::lookup-define)))
     (:wat::kernel::println (:wat::core::show (:wat::runtime::metadata-of :wat::runtime::signature-of-defn)))

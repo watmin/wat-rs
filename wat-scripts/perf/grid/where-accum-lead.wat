@@ -4,8 +4,8 @@
 ;; Empty world: count = 0 and it fires. Three facts: count = 3.
 ;; Leading max on empty: no token (None). Mid-chain accum stays where-accum-where.
 
-(:wat::core::defrecord :wal::Reading [v <- :wat::core::i64])
-(:wat::core::defrecord :wal::Busy    [n <- :wat::core::i64])
+(:wat::core::defrecord :wal::Reading [v <- wat.type/i64])
+(:wat::core::defrecord :wal::Busy    [n <- wat.type/i64])
 
 (:wat::rete::defrule :wal::count-zero
   :when [(?n :- (:wat::rete::acc::count) :from (:wal::Reading))
@@ -27,10 +27,10 @@
   :when [(?fact :- :wal::Busy)])
 
 
-(:wat::core::defn :wal::n-busy [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wal::n-busy [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wal::q-Busy))))
 
-(:wat::core::defn :wal::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wal::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -38,7 +38,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [z (:wat::core::PersistentVector (:wal::count-zero))
                     t (:wat::core::PersistentVector (:wal::count-three))
                     m (:wat::core::PersistentVector (:wal::max-hi))]

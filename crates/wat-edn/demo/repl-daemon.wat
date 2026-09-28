@@ -21,7 +21,7 @@
 ;;
 ;;   run:  target/release/wat crates/wat-edn/demo/repl-daemon.wat   (stdin/stdout are the wire)
 
-(:wat::core::defn :repl::serve [] -> :wat::core::nil
+(:wat::core::defn :repl::serve [] -> wat.type/nil
   (:wat::core::match (:wat::kernel::readln )
 
     ;; a datum arrived — evaluate it, print the reply, listen again
@@ -42,4 +42,4 @@
     ;; a stop was requested — the same clean end, distinctly named
     [:wat::kernel::ReadlnOutcome.Stopped {} nil]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil (:repl::serve))
+(:wat::core::defn :user::main [] -> wat.type/nil (:repl::serve))

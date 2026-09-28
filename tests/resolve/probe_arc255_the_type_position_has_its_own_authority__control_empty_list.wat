@@ -6,5 +6,5 @@
 ;;
 ;; Clean main answers with a NAMED diagnostic instead — `BareLegacyUnitValue` (arc 179) —
 ;; and that is what must survive: a crash is not a diagnostic.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println ()))

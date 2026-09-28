@@ -27,13 +27,13 @@
 ;; rebuilt binary registers them and can answer `Some hm`). See the rider's report for what this
 ;; binary actually printed.
 
-(:wat::core::defn :user::roundtrip-option [o <- (:wat::core::Option :- [:wat::core::i64])] -> (:wat::core::Option :- [:wat::core::i64])
+(:wat::core::defn :user::roundtrip-option [o <- (:wat::core::Option :- [wat.type/i64])] -> (:wat::core::Option :- [wat.type/i64])
   (:wat::core::Option.Some {:value (:wat::core::Option/try o)}))
 
-(:wat::core::defn :user::roundtrip-result [r <- (:wat::core::Result :- [:wat::core::i64 :wat::core::String])] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
+(:wat::core::defn :user::roundtrip-result [r <- (:wat::core::Result :- [wat.type/i64 wat.type/String])] -> (:wat::core::Result :- [wat.type/i64 wat.type/String])
   (:wat::core::Result.Ok {:value (:wat::core::Result/try r)}))
 
-(:wat::core::defn :user::totality-of [name <- :wat::core::keyword] -> :wat::core::String
+(:wat::core::defn :user::totality-of [name <- wat.type/keyword] -> wat.type/String
   (:wat::core::match (:wat::runtime::metadata-of name)
     [:wat::core::Option.Some {:value hm}
      (:wat::core::match (:wat::hashmap::get hm :totality)
@@ -41,7 +41,7 @@
        [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
     [:wat::core::Option.None {} "None (not registered in this binary)"]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── section 1 — behavior unchanged ──")
     (:wat::kernel::println (:wat::string::concat "Option/try (Some 3)  => " (:wat::edn::write (:user::roundtrip-option (:wat::core::Option.Some {:value 3})))))

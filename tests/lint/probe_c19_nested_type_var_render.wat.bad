@@ -37,5 +37,5 @@
 ;; `[INNERVAR3764]` and `INNERVAR3765` — two different variables — and post-fix both read `_`, so
 ;; a reader cannot tell them apart from one variable used twice. The cost is not an argument in a
 ;; comment; it is a line of output this repo runs on every floor.
-(:wat::core::defn :user::main [] -> :wat::core::bool
+(:wat::core::defn :user::main [] -> wat.type/bool
   (:wat::core::Tuple [] (:wat::core::List)))

@@ -5,13 +5,13 @@
 ;; the eval boundary produces is inspected raw, exactly as it would be for a bare
 ;; top-level expression (a fn-call boundary would collapse it back to a bare Value).
 
-(:wat::core::defn :user::add [] -> :wat::core::i64
+(:wat::core::defn :user::add [] -> wat.type/i64
   (:wat::core::+ 2 3))
 
 ;; keyword/from-string is a producer (Stone 233.2.b) — wraps its return with
 ;; RuntimeBuilt provenance naming the producer.
-(:wat::core::defn :user::kw-from-string [] -> :wat::core::keyword
+(:wat::core::defn :user::kw-from-string [] -> wat.type/keyword
   (:wat::keyword::from-string "wat::core::nil"))
 
-(:wat::core::defn :user::hello [] -> :wat::core::String
+(:wat::core::defn :user::hello [] -> wat.type/String
   "hello")

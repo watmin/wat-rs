@@ -5,9 +5,9 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -18,7 +18,7 @@
               :reply (:probe::Echo::EchoResponse.Ok {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 ;; PARENT-side PoolMsg alias: bare-D Setup so we can send the erased address.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea   (:probe::echo::Handle/addr eh)
@@ -27,31 +27,31 @@
               (:wat::core::forms
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages
-                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 ;; the user's 2-param work-fn [(Peer' :- [Op Reply]) String :-> String]
                 (:wat::core::defn :user::bracket::work-fn
-                  [c <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])  s <- :wat::core::String]
-                  -> :wat::core::String
+                  [c <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])  s <- wat.type/String]
+                  -> wat.type/String
                   (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
   [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
-                (:wat::core::defn :user::main [] -> :wat::core::nil
+                (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::bracket::process-dial-runner
                     (:wat::program::self-peer
-                      (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
-                      (:wat::bracket::PoolMsg :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) :wat::core::String]))
+                      (wat.type/Tuple :- [wat.type/i64 wat.type/String])
+                      (:wat::bracket::PoolMsg :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) wat.type/String]))
                     :user::bracket::work-fn
                     :wat::core::Option.None))))
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             [:wat::core::Option.Some {:value p}
               (:wat::core::let
-                [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))
+                [_  (:probe::echo/grant eh (wat.type/Vector :- [wat.type/i64] p))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg.Setup {:deps eab})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg.Work {:pair (:wat::core::Tuple 0 "a")})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                  r1 (:wat::core::ann-form
@@ -63,7 +63,7 @@
                           (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                         [:wat::kernel::RecvOutcome.Closed {}
                           (:wat::kernel::assertion-failed! :message "recv': worker closed unexpectedly")])
-                      (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))
+                      (wat.type/Tuple :- [wat.type/i64 wat.type/String]))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg.Work {:pair (:wat::core::Tuple 1 "b")})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                  r2 (:wat::core::ann-form
                       (:wat::core::match (:wat::kernel::recv worker)
@@ -74,7 +74,7 @@
                           (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
                         [:wat::kernel::RecvOutcome.Closed {}
                           (:wat::kernel::assertion-failed! :message "recv': worker closed unexpectedly")])
-                      (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))]
+                      (wat.type/Tuple :- [wat.type/i64 wat.type/String]))]
                 (:wat::string::concat (:wat::core::second r1)
                   (:wat::string::concat " | " (:wat::core::second r2))))]
             [:wat::core::Option.None {}

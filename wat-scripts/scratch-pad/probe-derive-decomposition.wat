@@ -16,44 +16,44 @@
 ;; stdin  = [items]   (same shape as fanout.wat: keys = items / fanout^2, fanout = 20)
 ;; stdout = one #probe/DeriveSplit EDN line. It asserts nothing; the disk decides.
 
-(:wat::core::defrecord :dd::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])
-(:wat::core::defrecord :dd::Right [key <- :wat::core::i64  rid <- :wat::core::i64])
-(:wat::core::defrecord :dd::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])
+(:wat::core::defrecord :dd::Left  [key <- wat.type/i64  lid <- wat.type/i64])
+(:wat::core::defrecord :dd::Right [key <- wat.type/i64  rid <- wat.type/i64])
+(:wat::core::defrecord :dd::Pair  [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64])
 
 (:wat::core::defrecord :probe::DeriveSplit
-  [derived-count <- :wat::core::i64
-   fire-ns       <- :wat::core::i64
-   query-ns      <- :wat::core::i64
-   map-ns        <- :wat::core::i64
-   sort-ns       <- :wat::core::i64
-   pvec-ns       <- :wat::core::i64])
+  [derived-count <- wat.type/i64
+   fire-ns       <- wat.type/i64
+   query-ns      <- wat.type/i64
+   map-ns        <- wat.type/i64
+   sort-ns       <- wat.type/i64
+   pvec-ns       <- wat.type/i64])
 
 (:wat::rete::defquery :dd::q-Pair
   :params []
   :when [(?fact :- :dd::Pair)])
 
 
-(:wat::core::defn :dd::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :dd::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :dd::enc [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :dd::enc [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ (:wat::i64::+ (:wat::i64::* key 1000000) (:wat::i64::* lid 1000)) rid))
 
-(:wat::core::defn :dd::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :dd::seed-key [s <- :wat::rete::Session  k <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:dd::Left :key k :lid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:dd::Right :key k :rid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     s
     (:wat::core::range 0 fanout)))
 
-(:wat::core::defn :dd::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :dd::seed [s <- :wat::rete::Session  keys <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
       (:dd::seed-key acc k fanout))
     s
     (:wat::core::range 0 keys)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [params (:wat::core::match (:wat::kernel::readln )
               [:wat::kernel::ReadlnOutcome.Datum {:v __d} __d]
@@ -81,9 +81,9 @@
      q1      (:wat::time::now)
 
      m0      (:wat::time::now)
-     codes   (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+     codes   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                (:wat::core::map
-                 (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
+                 (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
                  pairs))
      m1      (:wat::time::now)
 

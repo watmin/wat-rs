@@ -6,15 +6,15 @@
   :messages
   [(:wat::core::defrecord :my::HCounter::IsHolonRecordRequest  [])
    (:wat::core::defenum :my::HCounter::IsHolonRecordResponse :wat::enum::Pure
-     :Ok              [yes <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [yes <- wat.type/bool]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(is-holon-record [self <- :my::HCounter  req <- :my::HCounter::IsHolonRecordRequest] -> :my::HCounter::IsHolonRecordResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::hcounter
   :satisfies :my::HCounter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(is-holon-record [s ctx req]
@@ -22,7 +22,7 @@
                                         {:yes (:wat::core::record? (:my::hcounter::State/durable s))})}))]
   :durable-parent :wat::holon::Record)
 
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+(:wat::core::defn :user::compute [] -> wat.type/bool
   (:wat::core::let
     [h (:my::hcounter/start :locus (:wat::spawn::thread) :record (:my::hcounter::Record :count 0))
      c (:wat::core::match (:wat::kernel::connect (:my::hcounter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

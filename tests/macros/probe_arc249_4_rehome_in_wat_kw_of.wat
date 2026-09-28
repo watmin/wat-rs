@@ -3,7 +3,7 @@
   -> (:AST :- [:wat::holon::HolonAST])
   (:wat::core::let [head-text (:wat::keyword::to-string head)
                     arg-texts (:wat::core::map
-                                (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String
+                                (:wat::core::fn [a <- :wat::holon::HolonAST] -> wat.type/String
                                    (:wat::keyword::to-string a))
                                 args)
                     joined (:wat::string::join "," arg-texts)
@@ -11,5 +11,5 @@
                            (:wat::string::concat "<"
                              (:wat::string::concat joined ">")))]
     `~(:wat::keyword::from-string full)))
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::keyword::to-string (:test::kw-of :foo :bar :baz)))

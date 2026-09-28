@@ -40,7 +40,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println "hello"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg m}
@@ -63,7 +63,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println 42))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg m}
@@ -93,7 +93,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::eprintln "err"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
@@ -119,14 +119,14 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::do
                (:wat::kernel::println "first")
                (:wat::kernel::println "second")
                nil))))]
     (:wat::core::match (:wat::kernel::recv-all p)
       [:wat::core::Result.Ok {:value outputs}
-        (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "first" "second"))]
+        (:wat::test::assert-eq outputs (wat.type/Vector :- [wat.type/String] "first" "second"))]
       [:wat::core::Result.Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))
 
@@ -144,7 +144,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [echoed (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
                (:wat::kernel::println echoed)))))
@@ -155,6 +155,6 @@
          [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
     (:wat::core::match (:wat::kernel::recv-all p)
       [:wat::core::Result.Ok {:value outputs}
-        (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "echo me"))]
+        (:wat::test::assert-eq outputs (wat.type/Vector :- [wat.type/String] "echo me"))]
       [:wat::core::Result.Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))

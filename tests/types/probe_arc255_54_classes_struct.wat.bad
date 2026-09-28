@@ -1,4 +1,4 @@
-(:wat::core::defstruct :u::St [n <- :wat::core::i64])
-(:wat::core::defn :u::take-eq [x <- :wat::core::Equatable] -> :wat::core::i64 1)
-(:wat::core::defn :user::eq [] -> :wat::core::i64
+(:wat::core::defstruct :u::St [n <- wat.type/i64])
+(:wat::core::defn :u::take-eq [x <- :wat::core::Equatable] -> wat.type/i64 1)
+(:wat::core::defn :user::eq [] -> wat.type/i64
   (:u::take-eq (:u::St :n 1)))

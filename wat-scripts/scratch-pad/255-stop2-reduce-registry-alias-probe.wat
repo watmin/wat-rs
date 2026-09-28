@@ -5,26 +5,26 @@
 ;; `:wat::core::reduce` still RESOLVES and still ANSWERS `foldl`'s answer, not just that it
 ;; type-checks.
 
-(:wat::core::defn :probe::sum-via-reduce [] -> :wat::core::i64
+(:wat::core::defn :probe::sum-via-reduce [] -> wat.type/i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
       (:wat::i64::+ acc x))
     0
-    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)))
+    (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)))
 
-(:wat::core::defn :probe::sum-via-foldl [] -> :wat::core::i64
+(:wat::core::defn :probe::sum-via-foldl [] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
       (:wat::i64::+ acc x))
     0
-    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)))
+    (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)))
 
-(:wat::core::defn :probe::both-agree? [] -> :wat::core::bool
+(:wat::core::defn :probe::both-agree? [] -> wat.type/bool
   (:wat::core::= (:probe::sum-via-reduce) (:probe::sum-via-foldl)))
 
 ;; STOP-2's proof, both halves in one raise-or-succeed body: `reduce` must both RESOLVE (a bare
 ;; call, not just a type-check) and ANSWER `foldl`'s answer (15, not just "some i64").
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::if (:wat::core::and (:probe::both-agree?) (:wat::core::= (:probe::sum-via-reduce) 15))
     nil
     (:wat::kernel::assertion-failed! :message "STOP-2 FAILED: :wat::core::reduce did not answer foldl's answer")))

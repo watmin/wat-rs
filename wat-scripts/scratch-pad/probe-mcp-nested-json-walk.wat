@@ -16,7 +16,7 @@
 ;;
 ;; Either answer is fine; guessing between them is not. Run it and read what the checker says.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match
       (:wat::edn::read-json
         "{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"eval\",\"arguments\":{\"edn\":\"(:wat::core::+ 2 2)\"}}}")

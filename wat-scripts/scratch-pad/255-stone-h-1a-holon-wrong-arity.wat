@@ -4,7 +4,7 @@
 ;; and print kind+message so before/after can be diffed byte-for-byte. Scratch, per
 ;; holon/CLAUDE.md's .wat scratch convention.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── :wat::holon::OnlineSubspace/new (wrong-arity, 1 of 2) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::OnlineSubspace/new 1)))

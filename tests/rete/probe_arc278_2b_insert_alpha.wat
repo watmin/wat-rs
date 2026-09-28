@@ -1,7 +1,7 @@
 ;; tests/rete/probe_arc278_2b_insert_alpha.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines the :user::Temp record used by the insert/fire tests.
 
-(:wat::core::defrecord :user::Temp [value <- :wat::core::i64])
+(:wat::core::defrecord :user::Temp [value <- wat.type/i64])
 
 ;; Shared lifecycle: one rule `(:user::Temp (?t <- :value) (> ?t 20))`; stage a matching fact (25) and
 ;; a non-matching one (15), fire-once, and inspect alpha-memory (the three probe assertions below).
@@ -29,18 +29,18 @@
 (:wat::core::defn :test::fired-temp-alpha [] -> :wat::rete::Session
   (:test::fire-once (:test::seed-temps (:test::compile-temp-rule))))
 
-(:wat::core::defn :user::compile-then-fire-empty-alpha [] -> :wat::core::i64
+(:wat::core::defn :user::compile-then-fire-empty-alpha [] -> wat.type/i64
   (:wat::core::let
     [fired (:test::fire-once (:test::compile-temp-rule))
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::map::keys amem))))
 
-(:wat::core::defn :user::seed-temps-fact-count [] -> :wat::core::i64
+(:wat::core::defn :user::seed-temps-fact-count [] -> wat.type/i64
   (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts (:test::seed-temps (:test::compile-temp-rule))))))
 
 ;; (1) exactly one AlphaNode populated (one condition; one of two staged facts matches).
-(:wat::core::defn :user::alpha-populated-count [] -> :wat::core::i64
+(:wat::core::defn :user::alpha-populated-count [] -> wat.type/i64
   (:wat::core::let
     [fired (:test::fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
@@ -48,7 +48,7 @@
     (:wat::core::length (:wat::map::keys amem))))
 
 ;; (2) the populated alpha holds ONE Element — 15 was rejected by (> ?t 20).
-(:wat::core::defn :user::alpha-matching-element-count [] -> :wat::core::i64
+(:wat::core::defn :user::alpha-matching-element-count [] -> wat.type/i64
   (:wat::core::let
     [fired (:test::fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
@@ -58,7 +58,7 @@
     (:wat::core::length elems)))
 
 ;; (3) the stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
-(:wat::core::defn :user::alpha-element-t-binding [] -> (:wat::core::Option :- [:wat::core::i64])
+(:wat::core::defn :user::alpha-element-t-binding [] -> (:wat::core::Option :- [wat.type/i64])
   (:wat::core::let
     [fired (:test::fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout

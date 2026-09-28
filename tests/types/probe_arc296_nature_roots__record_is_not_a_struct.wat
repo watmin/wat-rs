@@ -8,6 +8,6 @@
 ;;
 ;; If this file ever FREEZES CLEAN again, the spurious edge is back.
 
-(:wat::core::defrecord :t::Pt [x <- :wat::core::i64])
-(:wat::core::defn :t::takes-struct [s <- :wat::core::Struct] -> :wat::core::i64 1)
-(:wat::core::defn :t::main [] -> :wat::core::i64 (:t::takes-struct (:t::Pt :x 1)))
+(:wat::core::defrecord :t::Pt [x <- wat.type/i64])
+(:wat::core::defn :t::takes-struct [s <- wat.type/Struct] -> wat.type/i64 1)
+(:wat::core::defn :t::main [] -> wat.type/i64 (:t::takes-struct (:t::Pt :x 1)))

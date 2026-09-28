@@ -3,7 +3,7 @@
 ;; vector of absolute paths on stdin. Each file is one wat form, rewritten
 ;; in place. The mapping is the codemod's; this script does not add rules.
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -13,7 +13,7 @@
         (:wat::kernel::println (:wat::string::concat "[doc-fragment] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln )
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

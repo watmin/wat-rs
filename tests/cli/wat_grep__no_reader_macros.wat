@@ -3,7 +3,7 @@
 ;; nameable node here is a Symbol or Keyword, so the predicate's only-validated case (see the
 ;; report: symbol/keyword are exact, string is NOT) applies cleanly.
 (:wat::core::defn :user::add
-  [x <- :wat::core::i64
-   y <- :wat::core::i64]
-  -> :wat::core::i64
+  [x <- wat.type/i64
+   y <- wat.type/i64]
+  -> wat.type/i64
   (:wat::i64::+ x y))

@@ -3,8 +3,8 @@
 ;; at the §7 wall. Pre-255.29 this file was `.wat.bad`. 255.29: the address is
 ;; data, so the payload is pure.
 (:wat::core::defenum :probe::E :- [T] :wat::enum::Pure
-  :Started [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 T])])
-(:wat::core::defn :probe::generic-peer [] -> :wat::core::nil
+  :Started [addr <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 T])])
+(:wat::core::defn :probe::generic-peer [] -> wat.type/nil
   (:wat::core::let
     [_self (:wat::program::self-peer (:probe::E :- [:wat::kernel::Transport.Shared]) :wat::core::i64)]
     nil))

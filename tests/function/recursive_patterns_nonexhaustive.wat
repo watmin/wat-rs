@@ -1,6 +1,6 @@
 ;; tests/function/recursive_patterns_nonexhaustive.wat — NEGATIVE: non-exhaustive partial pattern.
 ;; startup MUST fail with "non-exhaustive" error.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [row
                 (:wat::core::Option.Some {:value (:wat::core::Tuple 1 2)})

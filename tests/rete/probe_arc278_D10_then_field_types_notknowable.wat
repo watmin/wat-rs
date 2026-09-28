@@ -19,11 +19,11 @@
 ;;        RIGHT — included because the temptation is to treat "came from a derived fact" as
 ;;        unknowable and skip it, which would make the wall miss the case D10 was found in.
 
-(:wat::core::defrecord :dnk::In   [k <- :wat::core::i64  s <- :wat::core::String])
-(:wat::core::defrecord :dnk::Pair [a <- :wat::core::String  b <- :wat::core::String])
+(:wat::core::defrecord :dnk::In   [k <- wat.type/i64  s <- wat.type/String])
+(:wat::core::defrecord :dnk::Pair [a <- wat.type/String  b <- wat.type/String])
 
 ;; nk1 — `cond` in value position, filling an i64 field.
-(:wat::core::defrecord :dnk::Nk1 [n <- :wat::core::i64])
+(:wat::core::defrecord :dnk::Nk1 [n <- wat.type/i64])
 (:wat::rete::defrule :dnk::nk1
   :when [(:dnk::In (?s :- :s))]
   :then [(:dnk::Nk1 :n (:wat::rete::core::cond
@@ -44,8 +44,8 @@
   :then [(:dnk::Nk3 :p (:dnk::Pair :a ?s :b "nested"))])
 
 ;; nk4 — a two-stage derivation: nk4b's `?m` is bound from the fact nk4a derived.
-(:wat::core::defrecord :dnk::Nk4a [m <- :wat::core::i64])
-(:wat::core::defrecord :dnk::Nk4b [m <- :wat::core::i64])
+(:wat::core::defrecord :dnk::Nk4a [m <- wat.type/i64])
+(:wat::core::defrecord :dnk::Nk4b [m <- wat.type/i64])
 (:wat::rete::defrule :dnk::nk4a
   :when [(:dnk::In (?k :- :k))]
   :then [(:dnk::Nk4a :m ?k)])
@@ -75,11 +75,11 @@
       [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
       [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "fire: round cap")])))
 
-(:wat::core::defn :dnk::one [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::PersistentMap
+(:wat::core::defn :dnk::one [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/PersistentMap
   (:wat::core::first (:wat::rete::query s q)))
 
 ;; VALUES, one line per not-knowable arm: "11", "held", "seed", "7".
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s  (:dnk::fired)
      f1 (:wat::core::Option/expect (:wat::map::get (:dnk::one s (:dnk::q1)) "?f") "nk1")

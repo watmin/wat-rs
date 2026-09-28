@@ -44,8 +44,8 @@
 ;; A STATE-CARRYING producer — the harder half of the family (`keep-indexed`, `map-indexed`,
 ;; `dedupe`, `distinct` all thread an accumulator across the walk). Same crux, plus a threaded arg.
 (:wat::core::defn :probe::index-one :- [T]
-  [idx  <- :wat::core::i64
-   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [:wat::core::i64])
+  [idx  <- wat.type/i64
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       [:wat::stream::NextOutcome.Item {:value value :rest rest}
@@ -54,13 +54,13 @@
 
 ;; An unbounded source — proves the migrated shape stays LAZY (termination is the assertion).
 (:wat::core::defn :probe::nat
-  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
+  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:probe::nat (:wat::core::+ i 1)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [keep-even (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
+    [keep-even (:wat::core::fn [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
                  (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2))
                    (:wat::core::Option.Some {:value x})
                    :wat::core::Option.None))]
@@ -68,9 +68,9 @@
       ;; ONE definition, FOUR container kinds at the call site — the payoff. Expect 2,4 / 2,4 / 2,4 / 2,4
       (:wat::kernel::println
         (:wat::string::join " | "
-          (:wat::core::Vector :- [:wat::core::String]
+          (wat.type/Vector :- [wat.type/String]
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5))))
+              (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5))))
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::PersistentVector 1 2 3 4 5))))
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
@@ -83,8 +83,8 @@
             ;; fine. Changed to the concrete form so this probe measures B1a and not #95 —
             ;; the #95 instance is recorded in MEASURED-118.B1a, not silently dropped.
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
-                (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5))))))))
+              (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
+                (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5))))))))
       ;; state-carrying, over a List. Expect 0,1,2,3,4
       (:wat::kernel::println
         (:wat::string::join ","

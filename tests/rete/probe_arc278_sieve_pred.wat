@@ -7,10 +7,10 @@
 
 ;; verbatim ::-source: the captured pred string must contain "::" (organic UX — a real captured
 ;; fn-form, never hand-typed EDN).
-(:wat::core::defn :user::sieve-pred-contains-double-colon [] -> :wat::core::bool
+(:wat::core::defn :user::sieve-pred-contains-double-colon [] -> wat.type/bool
   (:wat::core::let
     [sieve (:wat::query::sieve-pred
-             (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+             (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level.Error)))
      pred-src (:wat::core::match sieve 
                 [:wat::query::Sieve.Predicate {:pred pred} pred])]
@@ -18,13 +18,13 @@
 
 ;; round-trip: read-string(pred) reproduces the SAME fn-form the user wrote (compared against an
 ;; independently-quoted copy of the identical form, per the ast-to-source probe's pattern).
-(:wat::core::defn :user::sieve-pred-round-trips [] -> :wat::core::bool
+(:wat::core::defn :user::sieve-pred-round-trips [] -> wat.type/bool
   (:wat::core::let
     [fn-form (:wat::core::quote
-               (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+               (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                  (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level.Error)))
      sieve   (:wat::query::sieve-pred
-               (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+               (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                  (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level.Error)))
      pred-src (:wat::core::match sieve 
                 [:wat::query::Sieve.Predicate {:pred pred} pred])

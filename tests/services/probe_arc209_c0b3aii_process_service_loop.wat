@@ -1,4 +1,4 @@
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [svc (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
@@ -6,10 +6,10 @@
              ;; (owner link → :Shutdown), the socket listener (new connections), and the
              ;; connected socket client peers (requests) over ONE process::Select ring. ──
              (:wat::core::defn :user::serve
-               [self    <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64])
-                l       <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
-                clients <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])]
-               -> :wat::core::nil
+               [self    <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) wat.type/i64])
+                l       <- (:wat::kernel::Listener :- [wat.type/i64 wat.type/i64])
+                clients <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])])]
+               -> wat.type/nil
                (:wat::core::match (:wat::kernel::poll self l clients) 
                  ;; SHUTDOWN — owner dropped the handle; RAII drain EOF'd the self-peer.
                  ;; Return nil → the loop exits, clients drop, the child ends, join completes.
@@ -33,14 +33,14 @@
              ;; the child entry: autobind (no name — unguessable capability), hand the minted
              ;; address to the parent over the self-peer (arc 272 capability handoff), then serve.
              ;; The self-peer carries (Address' :- [i64 i64]) up to the parent (S), i64 down from parent (R).
-             (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::defn :user::main [] -> wat.type/nil
                (:wat::core::let
                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
                   self (:wat::program::self-peer
-                          (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64)
+                          (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) :wat::core::i64)
                   _    (:wat::core::match (:wat::kernel::send self (:wat::spawn::Bound/address b)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                  (:user::serve self (:wat::spawn::Bound/listener b)
-                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))))
+                   (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]))))))
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
      addr (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]

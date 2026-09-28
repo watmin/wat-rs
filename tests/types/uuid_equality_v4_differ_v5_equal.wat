@@ -1,5 +1,5 @@
 ;; uuid_equality_v4_differ_v5_equal.wat — v4 differs; v5 same args equals.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [a  (:wat::uuid::v4)
      b  (:wat::uuid::v4)

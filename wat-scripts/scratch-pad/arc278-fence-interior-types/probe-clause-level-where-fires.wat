@@ -19,9 +19,9 @@
 ;; admitting, since it is trivially true). Both counts print on one line so the artifact proves
 ;; the claim on its own, without re-deriving the surrounding harness by hand.
 
-(:wat::core::defrecord :clw::N [k <- :wat::core::i64])
-(:wat::core::defrecord :clw::Seen [k <- :wat::core::i64])
-(:wat::core::defrecord :clw::SeenControl [k <- :wat::core::i64])
+(:wat::core::defrecord :clw::N [k <- wat.type/i64])
+(:wat::core::defrecord :clw::Seen [k <- wat.type/i64])
+(:wat::core::defrecord :clw::SeenControl [k <- wat.type/i64])
 
 (:wat::rete::defrule :clw::r
   :when [(:clw::N (?k :- :k) (:wat::rete::where (:wat::rete::core::bool::= true true)))]
@@ -51,7 +51,7 @@
     [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "fire: round cap")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s        (:clw::fired)
      where-n  (:wat::vector::length (:wat::rete::query s (:clw::q-seen)))

@@ -47,32 +47,32 @@
 ;; stream, so a multi-var predicate's count is not an artifact of two fields secretly tracking each
 ;; other.
 
-(:wat::core::defn :wmv::items [] -> :wat::core::i64 200)
+(:wat::core::defn :wmv::items [] -> wat.type/i64 200)
 
-(:wat::core::defn :wmv::row-count [] -> :wat::core::i64 12)
+(:wat::core::defn :wmv::row-count [] -> wat.type/i64 12)
 
 (:wat::core::defrecord :wmv::Req
-  [k <- :wat::core::i64
-   a <- :wat::core::i64
-   b <- :wat::core::i64
-   c <- :wat::core::i64
-   d <- :wat::core::i64
-   e <- :wat::core::i64
-   s <- :wat::core::String])
+  [k <- wat.type/i64
+   a <- wat.type/i64
+   b <- wat.type/i64
+   c <- wat.type/i64
+   d <- wat.type/i64
+   e <- wat.type/i64
+   s <- wat.type/String])
 
-(:wat::core::defrecord :wmv::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :wmv::Hit [k <- wat.type/i64])
 
 ;; ── NAMED PURE FNS, called with several bound vars at once (rows 8 and 11) ───────────────────
 ;;
 ;; combo?(a,b,c,d) := (a*c) > (b*d).  A CALL, not an inline expression — the shape a compiled
 ;; executor must hand back to the interpreter, now taking FOUR bound vars instead of row 5's one.
-(:wat::rete::core::defn :wmv::combo? [a <- :wat::core::i64  b <- :wat::core::i64
-                                 c <- :wat::core::i64  d <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :wmv::combo? [a <- wat.type/i64  b <- wat.type/i64
+                                 c <- wat.type/i64  d <- wat.type/i64] -> wat.type/bool
   (:wat::rete::i64::> (:wat::rete::i64::* a c :undefined 0) (:wat::rete::i64::* b d :undefined 1000000)))
 
 ;; pent?(a,b,c,d,e) := (a+b+c) mod (d+e+1) == 0.  FIVE bound vars into one pure fn call.
-(:wat::rete::core::defn :wmv::pent? [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64
-                                d <- :wat::core::i64  e <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :wmv::pent? [a <- wat.type/i64  b <- wat.type/i64  c <- wat.type/i64
+                                d <- wat.type/i64  e <- wat.type/i64] -> wat.type/bool
   (:wat::rete::i64::=
     (:wat::rete::i64::mod (:wat::rete::i64::+ a (:wat::rete::i64::+ b c :undefined 0) :undefined 0)
                           (:wat::rete::i64::+ d (:wat::rete::i64::+ e 1 :undefined 1) :undefined 1)
@@ -209,7 +209,7 @@
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wmv::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :wmv::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wmv::three-var))
@@ -237,12 +237,12 @@
 ;;   d(i) = i mod 5
 ;;   e(i) = i mod 3
 ;;   s(i) = to-string(i)
-(:wat::core::defn :wmv::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :wmv::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::let
           [a (:wat::i64::mod i 11)
            b (:wat::i64::mod i 13)
@@ -257,18 +257,18 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wmv::derived-ints
-  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
+  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wmv::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wmv::Hit/k f)))
         (:wat::rete::query fired (:wmv::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's note; both sides must be BYTE-IDENTICAL for `diff` to be the whole verdict.
-(:wat::core::defn :wmv::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+(:wat::core::defn :wmv::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
@@ -285,13 +285,13 @@
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
 (:wat::core::defn :wmv::rule-display-name
-  [full <- :wat::core::String] -> :wat::core::String
+  [full <- wat.type/String] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
     full
     (:wat::string::split full "::")))
 
-(:wat::core::defn :wmv::run-row [row <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wmv::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let
     [rules   (:wmv::build-rules row)
      rule    (:wat::core::first rules)
@@ -307,9 +307,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))
         (:wat::string::concat " ->" (:wmv::render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
       (:wat::kernel::println (:wmv::run-row row)))
     nil
     (:wat::core::range 1 (:wat::i64::+ (:wmv::row-count) 1))))

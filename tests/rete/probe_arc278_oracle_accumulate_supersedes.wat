@@ -15,9 +15,9 @@
 ;; would answer [0 0] on `empty` while looking perfect on `one` and `two`.
 
 ;; ─── shape EMPTY: nothing ever derives Out, so the count is 0 forever ────────────────
-(:wat::core::defrecord :oas0::Seed  [y <- :wat::core::i64])
-(:wat::core::defrecord :oas0::Out   [y <- :wat::core::i64])
-(:wat::core::defrecord :oas0::Tally [n <- :wat::core::i64])
+(:wat::core::defrecord :oas0::Seed  [y <- wat.type/i64])
+(:wat::core::defrecord :oas0::Out   [y <- wat.type/i64])
+(:wat::core::defrecord :oas0::Tally [n <- wat.type/i64])
 
 (:wat::rete::defrule :oas0::tally
   :when [(:oas0::Seed (?s :- :y))
@@ -27,12 +27,12 @@
 (:wat::rete::defquery :oas0::q :params [] :when [(?f :- :oas0::Tally)])
 
 (:wat::core::defn :oas0::readback [s <- :wat::rete::Session]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rows (:wat::rete::query s (:oas0::q))]
     (:wat::core::PersistentVector
       (:wat::core::length rows)
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::i64  r <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
           (:wat::i64::+ acc
             (:oas0::Tally/n
               (:wat::core::Option/expect (:wat::map::get r "?f") "?f"))))
@@ -52,9 +52,9 @@
       (:wat::kernel::assertion-failed! :message "oas0: session memory ceiling exceeded while staging")]))
 
 ;; ─── shape ONE: Seed → Out, so the count goes 0 → 1 ──────────────────────────────────
-(:wat::core::defrecord :oas1::Seed  [y <- :wat::core::i64])
-(:wat::core::defrecord :oas1::Out   [y <- :wat::core::i64])
-(:wat::core::defrecord :oas1::Tally [n <- :wat::core::i64])
+(:wat::core::defrecord :oas1::Seed  [y <- wat.type/i64])
+(:wat::core::defrecord :oas1::Out   [y <- wat.type/i64])
+(:wat::core::defrecord :oas1::Tally [n <- wat.type/i64])
 
 (:wat::rete::defrule :oas1::a
   :when [(:oas1::Seed (?y :- :y))]
@@ -68,12 +68,12 @@
 (:wat::rete::defquery :oas1::q :params [] :when [(?f :- :oas1::Tally)])
 
 (:wat::core::defn :oas1::readback [s <- :wat::rete::Session]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rows (:wat::rete::query s (:oas1::q))]
     (:wat::core::PersistentVector
       (:wat::core::length rows)
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::i64  r <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
           (:wat::i64::+ acc
             (:oas1::Tally/n
               (:wat::core::Option/expect (:wat::map::get r "?f") "?f"))))
@@ -93,10 +93,10 @@
       (:wat::kernel::assertion-failed! :message "oas1: session memory ceiling exceeded while staging")]))
 
 ;; ─── shape TWO: Seed → Out(1) → D(2) → Out(2), so the count goes 0 → 1 → 2 ───────────
-(:wat::core::defrecord :oas2::Seed  [y <- :wat::core::i64])
-(:wat::core::defrecord :oas2::Out   [y <- :wat::core::i64])
-(:wat::core::defrecord :oas2::D     [y <- :wat::core::i64])
-(:wat::core::defrecord :oas2::Tally [n <- :wat::core::i64])
+(:wat::core::defrecord :oas2::Seed  [y <- wat.type/i64])
+(:wat::core::defrecord :oas2::Out   [y <- wat.type/i64])
+(:wat::core::defrecord :oas2::D     [y <- wat.type/i64])
+(:wat::core::defrecord :oas2::Tally [n <- wat.type/i64])
 
 (:wat::rete::defrule :oas2::a
   :when [(:oas2::Seed (?y :- :y))]
@@ -119,12 +119,12 @@
 (:wat::rete::defquery :oas2::q :params [] :when [(?f :- :oas2::Tally)])
 
 (:wat::core::defn :oas2::readback [s <- :wat::rete::Session]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rows (:wat::rete::query s (:oas2::q))]
     (:wat::core::PersistentVector
       (:wat::core::length rows)
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::i64  r <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
           (:wat::i64::+ acc
             (:oas2::Tally/n
               (:wat::core::Option/expect (:wat::map::get r "?f") "?f"))))
@@ -146,9 +146,9 @@
 ;; ─── the witness ─────────────────────────────────────────────────────────────────────
 ;; [empty-rows empty-sum one-rows one-sum two-rows two-sum] under NATIVE,
 ;; then the same six under $ORACLE. Expect [1 0 1 1 1 2] twice.
-(:wat::core::defn :user::native-and-oracle [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::mapv
-    (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+    (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
     (:wat::vector::concat
       (:wat::vector::concat
         (:wat::vector::concat

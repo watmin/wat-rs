@@ -1,12 +1,12 @@
 ;; ROOT Gap A — fn-forms directly on the kwargs $impl vs a hand-written same-shape fn.
-(:wat::core::defstruct :probe::Bag [n <- :wat::core::String])
+(:wat::core::defstruct :probe::Bag [n <- wat.type/String])
 (:wat::core::defn :probe::hand
-  [item <- :wat::core::String  bag <- :probe::Bag] -> :wat::core::String
+  [item <- wat.type/String  bag <- :probe::Bag] -> wat.type/String
   (:wat::core::let [x (:probe::Bag/n bag)] (:wat::string::concat x item)))
 (:wat::core::defn :probe::work
-  [item <- :wat::core::String  & [n <- :wat::core::String]] -> :wat::core::String
+  [item <- wat.type/String  & [n <- wat.type/String]] -> wat.type/String
   (:wat::string::concat n item))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_  (:wat::kernel::println "--- fn-forms HAND-WRITTEN ---")
      hf (:wat::kernel::fn-forms :probe::hand :test::hand)

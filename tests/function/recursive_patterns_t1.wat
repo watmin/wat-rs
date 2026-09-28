@@ -1,5 +1,5 @@
 ;; tests/function/recursive_patterns_t1.wat — option_tuple_single_level_works
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [row
                 (:wat::core::Option.Some {:value (:wat::core::Tuple 1 2 3)})

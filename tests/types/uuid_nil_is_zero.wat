@@ -1,5 +1,5 @@
 ;; uuid_nil_is_zero.wat — Uuid/nil returns the all-zeros UUID.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [u (:wat::uuid::nil)
      s (:wat::uuid::to-string u)]

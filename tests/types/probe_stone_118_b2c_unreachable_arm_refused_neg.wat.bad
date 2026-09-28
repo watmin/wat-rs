@@ -13,5 +13,5 @@
 ;; never fire is a definition with no effect.
 
 (:wat::core::defclause :my::pick
-  ([x <- :wat::core::i64] -> :wat::core::String "FIRST")
-  ([x <- :wat::core::i64] -> :wat::core::String "SECOND"))
+  ([x <- wat.type/i64] -> wat.type/String "FIRST")
+  ([x <- wat.type/i64] -> wat.type/String "SECOND"))

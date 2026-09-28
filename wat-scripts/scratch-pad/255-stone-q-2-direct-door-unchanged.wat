@@ -16,11 +16,11 @@
 ;; transcript. Re-run it as the acceptance instrument; do not rewrite it.
 
 (:wat::core::defn :probe::show
-  [tag <- :wat::core::String r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
-  -> :wat::core::nil
+  [tag <- wat.type/String r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
+  -> wat.type/nil
   (:wat::kernel::println (:wat::string::concat tag ": " (:wat::edn::write r))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_1 (:probe::show "i64-type"
           (:wat::eval-ast! (:wat::core::quote (:wat::i64::+ 1 "x"))))

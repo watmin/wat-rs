@@ -4,23 +4,23 @@
 ;; Negative (startup-fail) cases are in sibling *.wat.bad files.
 
 ;; TIER A — empty? (∀T -> bool)
-(:wat::core::defn :user::empty-q-vector [] -> :wat::core::bool
-  (:wat::core::empty? (:wat::core::Vector :- [:wat::core::i64])))
+(:wat::core::defn :user::empty-q-vector [] -> wat.type/bool
+  (:wat::core::empty? (wat.type/Vector :- [wat.type/i64])))
 
-(:wat::core::defn :user::empty-q-hashset-false [] -> :wat::core::bool
-  (:wat::core::empty? (:wat::core::HashSet :- [:wat::core::i64] 1 2)))
+(:wat::core::defn :user::empty-q-hashset-false [] -> wat.type/bool
+  (:wat::core::empty? (wat.type/HashSet :- [wat.type/i64] 1 2)))
 
 ;; TIER A — contains? ((coll, elem) -> bool)
-(:wat::core::defn :user::contains-q-vector-hit [] -> :wat::core::bool
-  (:wat::core::contains? (:wat::core::Vector :- [:wat::core::i64] 1 2 3) 2))
+(:wat::core::defn :user::contains-q-vector-hit [] -> wat.type/bool
+  (:wat::core::contains? (wat.type/Vector :- [wat.type/i64] 1 2 3) 2))
 
 ;; TIER B — get ((coll, key) -> (Option :- [element]))
-(:wat::core::defn :user::get-vector-precise [] -> :wat::core::i64
-  (:wat::core::match (:wat::core::get (:wat::core::Vector :- [:wat::core::i64] 10 20 30) 1)
+(:wat::core::defn :user::get-vector-precise [] -> wat.type/i64
+  (:wat::core::match (:wat::core::get (wat.type/Vector :- [wat.type/i64] 10 20 30) 1)
                      
                      [:wat::core::Option.Some {:value x} (:wat::i64::+ x 5)]
                      [:wat::core::Option.None {} -1]))
 
 ;; TIER B — conj ((coll, elem) -> coll)
-(:wat::core::defn :user::conj-vector-preserves [] -> :wat::core::i64
-  (:wat::core::length (:wat::core::conj (:wat::core::Vector :- [:wat::core::i64] 1 2) 3)))
+(:wat::core::defn :user::conj-vector-preserves [] -> wat.type/i64
+  (:wat::core::length (:wat::core::conj (wat.type/Vector :- [wat.type/i64] 1 2) 3)))

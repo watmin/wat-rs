@@ -140,9 +140,9 @@
 ;; lives at the binding site (arc 148 slice 5).
 
 (:wat::core::defn :wat-tests::core::core-arithmetic::lt-f64
-  [a <- :wat::core::f64
-   b <- :wat::core::f64]
-  -> :wat::core::bool
+  [a <- wat.type/f64
+   b <- wat.type/f64]
+  -> wat.type/bool
   (:wat::core::< a b))
 
 (:wat::test::deftest :wat-tests::core::core-arithmetic::typed-f64-lt-homogeneous-works
@@ -224,7 +224,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            ;; Body must return nil; do discards the i64 result, then returns nil.
            ;; Division panics before nil is reached, which is the whole point — the
            ;; crash reaches the parent's recv' as Lost BEFORE the completion send'.
@@ -264,7 +264,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_cross_type_add_rejected)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let [x (:wat::core::+ 1 2.0)] x))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
@@ -287,7 +287,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_string_add_rejected)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let [x (:wat::core::+ "a" "b")] x))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
@@ -313,7 +313,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_cross_type_lt_rejected)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let [b (:wat::core::< 1 2.5)] b))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
@@ -336,7 +336,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_sub_zero_ary_rejected)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let [x (:wat::core::-)] x))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
@@ -354,7 +354,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_div_zero_ary_rejected)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let [x (:wat::core::/)] x))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}

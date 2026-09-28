@@ -18,7 +18,7 @@
 
 ;; ─── an infinite source, for the laziness rows ─────────────────────────────────────────────────
 (:wat::core::defn :wat-tests::core::core-seq-walkers::nat
-  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
+  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:wat-tests::core::core-seq-walkers::nat (:wat::core::+ i 1)))))
 
@@ -36,30 +36,30 @@
 ;; minted the surface; nothing had yet fed a surface-method RESULT into a concrete consumer).
 
 (:wat::core::defn :wat-tests::core::core-seq-walkers::identity
-  [x <- :wat::core::i64] -> :wat::core::i64 x)
+  [x <- wat.type/i64] -> wat.type/i64 x)
 
-(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-six [] -> (:wat::stream::Stream :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-six [] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
-    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6)))
+    (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5 6)))
 
-(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-1234-12 [] -> (:wat::stream::Stream :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-1234-12 [] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
-    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2)))
+    (wat.type/Vector :- [wat.type/i64] 1 2 3 4 1 2)))
 
-(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-four [] -> (:wat::stream::Stream :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-four [] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
-    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))
+    (wat.type/Vector :- [wat.type/i64] 1 2 3 4)))
 
 ;; ─── remove — all four containers, plus the bare PersistentVector the old 5th arm served ───────
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::remove-over-every-container
   (:wat::core::let
-    [pred (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
+    [pred (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool
             (:wat::core::= 0 (:wat::core::mod x 2)))]
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::remove pred (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6))))
+          (:wat::core::into [] (:wat::core::remove pred (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5 6))))
         "1,3,5")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -83,7 +83,7 @@
       (:wat::core::into []
         (:wat::core::take
           (:wat::core::remove
-            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
+            (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool
               (:wat::core::= 0 (:wat::core::mod x 2)))
             (:wat-tests::core::core-seq-walkers::nat 0))
           4)))
@@ -93,11 +93,11 @@
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::take-while-over-every-container
   (:wat::core::let
-    [pred (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 4))]
+    [pred (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::core::< x 4))]
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::take-while pred (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2))))
+          (:wat::core::into [] (:wat::core::take-while pred (wat.type/Vector :- [wat.type/i64] 1 2 3 4 1 2))))
         "1,2,3")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -121,7 +121,7 @@
     (:wat::string::join ","
       (:wat::core::into []
         (:wat::core::take-while
-          (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 3))
+          (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::core::< x 3))
           (:wat-tests::core::core-seq-walkers::nat 0))))
     "0,1,2"))
 
@@ -131,11 +131,11 @@
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::drop-while-over-every-container
   (:wat::core::let
-    [pred (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 4))]
+    [pred (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::core::< x 4))]
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 1 2))))
+          (:wat::core::into [] (:wat::core::drop-while pred (wat.type/Vector :- [wat.type/i64] 1 2 3 4 1 2))))
         "4,1,2")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -157,7 +157,7 @@
   (:wat::core::do
     (:wat::test::assert-eq
       (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5 6))))
+        (:wat::core::into [] (:wat::core::take-nth 2 (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5 6))))
       "1,3,5")
     (:wat::test::assert-eq
       (:wat::string::join ","
@@ -175,7 +175,7 @@
     ;; n = 1 is every element — the control that separates "take-nth works" from "n=0 is special".
     (:wat::test::assert-eq
       (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::take-nth 1 (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))
+        (:wat::core::into [] (:wat::core::take-nth 1 (wat.type/Vector :- [wat.type/i64] 1 2 3))))
       "1,2,3")))
 
 ;; ★★ THE TRAP, PINNED. `(take-nth 0 coll)` is an INFINITE repeat of the head — clojure's own
@@ -187,7 +187,7 @@
   (:wat::test::assert-eq
     (:wat::string::join ","
       (:wat::core::into []
-        (:wat::core::take (:wat::core::take-nth 0 (:wat::core::Vector :- [:wat::core::i64] 1 2 3)) 5)))
+        (:wat::core::take (:wat::core::take-nth 0 (wat.type/Vector :- [wat.type/i64] 1 2 3)) 5)))
     "1,1,1,1,1"))
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::take-nth-stays-lazy-over-an-infinite-source
@@ -201,12 +201,12 @@
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::reductions-3arity-over-every-container
   (:wat::core::let
-    [f (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
+    [f (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/i64
          (:wat::core::+ a b))]
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4))))
+          (:wat::core::into [] (:wat::core::reductions f 0 (wat.type/Vector :- [wat.type/i64] 1 2 3 4))))
         "0,1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -224,12 +224,12 @@
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::reductions-2arity-over-every-container
   (:wat::core::let
-    [f (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
+    [f (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/i64
          (:wat::core::+ a b))]
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::reductions f (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4))))
+          (:wat::core::into [] (:wat::core::reductions f (wat.type/Vector :- [wat.type/i64] 1 2 3 4))))
         "1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -253,7 +253,7 @@
       (:wat::core::into []
         (:wat::core::take
           (:wat::core::reductions
-            (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
+            (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/i64
               (:wat::core::+ a b))
             0
             (:wat-tests::core::core-seq-walkers::nat 1))
@@ -282,14 +282,14 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println
                (:wat::core::length
                  (:wat::core::into []
                    (:wat::core::reductions
-                     (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
+                     (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/i64
                        (:wat::core::+ a b))
-                     (:wat::core::Vector :- [:wat::core::i64]))))))))
+                     (wat.type/Vector :- [wat.type/i64]))))))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome.Message {:msg _m}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
@@ -308,12 +308,12 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println
                (:wat::core::length
                  (:wat::core::into []
                    (:wat::core::reductions
-                     (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
+                     (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/i64
                        (:wat::core::+ a b))
                      (:wat::stream::empty))))))))
      msg (:wat::core::match (:wat::kernel::recv p)

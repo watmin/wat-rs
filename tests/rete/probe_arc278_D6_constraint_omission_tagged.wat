@@ -15,10 +15,10 @@
 
 (:wat::core::defenum :d6t::Grade :wat::enum::Pure
   :Rejected []
-  :Scored   [points <- :wat::core::i64])
+  :Scored   [points <- wat.type/i64])
 
-(:wat::core::defrecord :d6t::Reading [n <- :wat::core::i64  grade <- :d6t::Grade])
-(:wat::core::defrecord :d6t::Hit     [n <- :wat::core::i64])
+(:wat::core::defrecord :d6t::Reading [n <- wat.type/i64  grade <- :d6t::Grade])
+(:wat::core::defrecord :d6t::Hit     [n <- wat.type/i64])
 
 (:wat::rete::defrule :d6t::hit
   :when
@@ -28,7 +28,7 @@
   :then
   [(:d6t::Hit :n ?n)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :d6t)
      session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "may not terminate")])

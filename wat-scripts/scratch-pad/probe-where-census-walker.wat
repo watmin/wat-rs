@@ -15,28 +15,28 @@
 ;;   WHERE <path> #<n> @L<line>             — a where form was found (marks its existence + locus)
 ;;   HEAD <path> #<n> @L<line> <head>       — one call-head occurrence inside that where's expr
 
-(:wat::core::defn :user::structural? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::structural? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
+    (:wat::core::contains? (wat.type/HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
-(:wat::core::defn :user::kw-name [n <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::ast-name n) ""))
 
-(:wat::core::defn :user::head-name [node <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::head-name [node <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch) "" (:user::kw-name (:wat::core::first ch))))
     ""))
 
-(:wat::core::defn :user::match-head? [h <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::match-head? [h <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= h ":wat::core::match") true
     (:wat::core::= h ":wat::rete::core::match")))
 
 ;; walk-match-arms — items are (pattern body...) lists (or malformed leftovers); skip position 0
 ;; (the pattern/discriminator), walk-collect over positions 1+ (the body).
 (:wat::core::defn :user::walk-match-arms
-  [arms <- (:wat::core::Vector :- [:wat::WatAST]) tag <- :wat::core::String] -> :wat::core::nil
+  [arms <- (wat.type/Vector :- [wat.type/AST]) tag <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? arms)
     nil
     (:wat::core::let [arm (:wat::core::first arms)]
@@ -50,7 +50,7 @@
 ;; recurses: match gets the special arm-skipping treatment above; everything else (if/let/do/fn/
 ;; cond/quasiquote/unquote/plain calls/vectors/maps/sets) recurses into ALL children, because every
 ;; sub-position there is a genuine expression, not a discriminator.
-(:wat::core::defn :user::walk-collect [node <- :wat::WatAST tag <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::walk-collect [node <- wat.type/AST tag <- wat.type/String] -> wat.type/nil
   (:wat::core::do
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
       (:wat::core::let [ch (:wat::core::ast->children node)]
@@ -76,7 +76,7 @@
         nil))))
 
 (:wat::core::defn :user::walk-collect-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST]) tag <- :wat::core::String] -> :wat::core::nil
+  [items <- (wat.type/Vector :- [wat.type/AST]) tag <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? items)
     nil
     (:wat::core::do
@@ -89,7 +89,7 @@
 ;; recursing into the found node's children too (honest census: a nested where, however unlikely,
 ;; would still be caught).
 (:wat::core::defn :user::find-wheres
-  [node <- :wat::WatAST path <- :wat::core::String ctr <- :wat::core::i64] -> :wat::core::i64
+  [node <- wat.type/AST path <- wat.type/String ctr <- wat.type/i64] -> wat.type/i64
   (:wat::core::let [h (:user::head-name node)
                     is-where (:wat::core::= h ":wat::rete::where")
                     ctr2 (:wat::core::if is-where
@@ -113,13 +113,13 @@
       ctr2)))
 
 (:wat::core::defn :user::find-wheres-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String ctr <- :wat::core::i64] -> :wat::core::i64
+  [items <- (wat.type/Vector :- [wat.type/AST]) path <- wat.type/String ctr <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::empty? items)
     ctr
     (:wat::core::let [ctr2 (:user::find-wheres (:wat::core::first items) path ctr)]
       (:user::find-wheres-seq (:wat::core::into [] (:wat::core::rest items)) path ctr2))))
 
-(:wat::core::defn :user::process-file [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::process-file [path <- wat.type/String] -> wat.type/nil
   (:wat::core::let [src (:wat::io::read-file path)]
     (:wat::core::match (:wat::core::read-string src)
       [:wat::core::ReadOutcome.Forms {:forms __f}
@@ -129,16 +129,16 @@
           (:wat::kernel::println (:wat::string::concat "PARSE-FAIL " path))
           nil)])))
 
-(:wat::core::defn :user::process-seq [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::process-seq [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do
       (:user::process-file (:wat::core::first paths))
       (:user::process-seq (:wat::core::into [] (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::process-seq
-    (:wat::core::Vector :- [:wat::core::String]
+    (wat.type/Vector :- [wat.type/String]
       "wat-scripts/perf/grid/where-boolean.wat"
       "wat-scripts/perf/grid/where-collection.wat"
       "wat-scripts/perf/grid/where-control.wat"

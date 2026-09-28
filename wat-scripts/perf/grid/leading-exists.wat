@@ -55,21 +55,21 @@
 ;;   echo '[200]' | cargo wat ./wat-scripts/perf/grid/leading-exists.wat
 ;;   => #grid/Result {:axis "leading-exists" :size [200] :derived [0 1 2 ...] :native-ns N}
 
-(:wat::core::defrecord :lx::Wind [loc <- :wat::core::i64])
-(:wat::core::defrecord :lx::S1 [k <- :wat::core::i64])
-(:wat::core::defrecord :lx::S2 [k <- :wat::core::i64])
-(:wat::core::defrecord :lx::S3 [k <- :wat::core::i64])
-(:wat::core::defrecord :lx::S4 [k <- :wat::core::i64])
-(:wat::core::defrecord :lx::S5 [k <- :wat::core::i64])
-(:wat::core::defrecord :lx::S6 [k <- :wat::core::i64])
+(:wat::core::defrecord :lx::Wind [loc <- wat.type/i64])
+(:wat::core::defrecord :lx::S1 [k <- wat.type/i64])
+(:wat::core::defrecord :lx::S2 [k <- wat.type/i64])
+(:wat::core::defrecord :lx::S3 [k <- wat.type/i64])
+(:wat::core::defrecord :lx::S4 [k <- wat.type/i64])
+(:wat::core::defrecord :lx::S5 [k <- wat.type/i64])
+(:wat::core::defrecord :lx::S6 [k <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 ;; THE WITNESS: a LEADING :exists, no parent condition, binding ?loc outward.
 (:wat::rete::defquery :lx::q-exists
@@ -78,7 +78,7 @@
 
 ;; The inert cascade — five rules carrying S1 to S6, forcing six fixpoint rounds.
 ;; Nothing here mentions Wind; that is the point.
-(:wat::core::defn :lx::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :lx::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r2"
       :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S1 (?k :- :k))))
@@ -98,13 +98,13 @@
 
 ;; Seed: Wind(i) TWICE for each i in [0, items) — the duplicate is what makes the
 ;; distinct-inner-binding rule load-bearing — plus one S1 to start the cascade.
-(:wat::core::defn :lx::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :lx::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::vector::conj
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                        -> (:wat::core::PersistentVector :- [:wat::core::Record])
+        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                        -> (wat.type/PersistentVector :- [wat.type/Record])
           (:wat::vector::conj
             (:wat::vector::conj acc (:lx::Wind i))
             (:lx::Wind i)))
@@ -112,23 +112,23 @@
         (:wat::core::range 0 items))
       (:lx::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :lx::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :lx::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; THE ACCURACY WITNESS. Sorted distinct ?loc from the leading-:exists query.
 ;; Under the defect this vector was `rounds` times too long — length fails first.
-(:wat::core::defn :lx::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [locs (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :lx::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+  (:wat::core::let [locs (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                            (:wat::core::map
-                             (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+                             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
                                (:wat::core::Option/expect (:wat::map::get p "?loc") "query: ?loc"))
                              (:wat::rete::query fired (:lx::q-exists))))]
     (:lx::vec->pvec (:wat::core::sort locs))))
 
-(:wat::core::defn :lx::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :lx::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:lx::build-rules)

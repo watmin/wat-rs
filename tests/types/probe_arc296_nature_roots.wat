@@ -9,5 +9,5 @@
 ;; umbrella and NOBODY GAVE IT TO THE SIBLING. That asymmetry is the whole finding: one
 ;; special case, two identical umbrellas.
 
-(:wat::core::defrecord :t::holds-core  [r <- :wat::core::Record])
+(:wat::core::defrecord :t::holds-core  [r <- wat.type/Record])
 (:wat::core::defrecord :t::holds-holon [r <- :wat::holon::Record])

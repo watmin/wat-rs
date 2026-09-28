@@ -1,9 +1,9 @@
 ;; tests/rete/probe_arc278_P2_native_fire_once.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines weather records for the native fire-once differential.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
 
 ;; fire-once does not re-enter derived ColdAndWindy, so a QueryNode on that type stays empty.
 ;; The join that the single pass DID populate is the public query mouth.
@@ -44,10 +44,10 @@
       (:weather::WindSpeed :kph 45 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
     (:weather::WindSpeed :kph 50 :location "Bergen")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::cw-count [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :test::cw-count [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:weather::q-ColdAndWindy))))
 
-(:wat::core::defn :test::cw-loc [s <- :wat::rete::Session] -> :wat::core::String
+(:wat::core::defn :test::cw-loc [s <- :wat::rete::Session] -> wat.type/String
   (:wat::core::Option/expect
     (:wat::map::get
       (:wat::core::Option/expect
@@ -60,31 +60,31 @@
 (:wat::core::defn :test::cw-fact [s <- :wat::rete::Session] -> :weather::ColdAndWindy
   (:wat::core::first (:wat::rete::collect-derived (:wat::rete::Session/production-memory s))))
 
-(:wat::core::defn :user::compile-cw-fires-once-nothing [] -> :wat::core::i64
+(:wat::core::defn :user::compile-cw-fires-once-nothing [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::compile-cw)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))
 
-(:wat::core::defn :user::count-native-oslo [] -> :wat::core::i64
+(:wat::core::defn :user::count-native-oslo [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::staged-oslo)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))
 
-(:wat::core::defn :user::count-wat-oslo [] -> :wat::core::i64
+(:wat::core::defn :user::count-wat-oslo [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-once$oracle (:test::staged-oslo)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))
 
-(:wat::core::defn :user::count-native-bergen [] -> :wat::core::i64
+(:wat::core::defn :user::count-native-bergen [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::staged-bergen)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))
 
-(:wat::core::defn :user::count-wat-bergen [] -> :wat::core::i64
+(:wat::core::defn :user::count-wat-bergen [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-once$oracle (:test::staged-bergen)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))
 
 ;; native_derives_the_right_fact — the native-derived fact is a ColdAndWindy at "Oslo" (content, not just count).
-(:wat::core::defn :user::native-fact-type [] -> :wat::core::String
+(:wat::core::defn :user::native-fact-type [] -> wat.type/String
   (:wat::core::type (:test::cw-fact (:wat::core::match (:wat::rete::fire-once (:test::staged-oslo)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")]))))
 
-(:wat::core::defn :user::native-fact-location [] -> :wat::core::String
+(:wat::core::defn :user::native-fact-location [] -> wat.type/String
   (:test::cw-loc (:wat::core::match (:wat::rete::fire-once (:test::staged-oslo)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))
 
 ;; native_no_cross_loc_leakage — 2×2: 2 Temps × 2 Winds / 2 locs → exactly the 2 same-loc joins → 2 derived.
-(:wat::core::defn :user::count-native-2x2 [] -> :wat::core::i64
+(:wat::core::defn :user::count-native-2x2 [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-once (:test::staged-2x2)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))
 
-(:wat::core::defn :user::count-wat-2x2 [] -> :wat::core::i64
+(:wat::core::defn :user::count-wat-2x2 [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-once$oracle (:test::staged-2x2)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])))

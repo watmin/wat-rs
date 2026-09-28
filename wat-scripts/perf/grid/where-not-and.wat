@@ -4,11 +4,11 @@
 ;; Empty world matches. Wind+Temp together does not.
 ;; Rows 5–8: same :and after a Station prefix (join-filter, ?loc seeded).
 
-(:wat::core::defrecord :wna::Temp    [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wna::Wind    [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wna::Station [loc <- :wat::core::String])
-(:wat::core::defrecord :wna::Hit     [k <- :wat::core::i64])
-(:wat::core::defrecord :wna::At      [loc <- :wat::core::String])
+(:wat::core::defrecord :wna::Temp    [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wna::Wind    [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wna::Station [loc <- wat.type/String])
+(:wat::core::defrecord :wna::Hit     [k <- wat.type/i64])
+(:wat::core::defrecord :wna::At      [loc <- wat.type/String])
 
 (:wat::rete::defrule :wna::not-cold-and-windy
   :when [(:wat::rete::not
@@ -39,13 +39,13 @@
   :when [(?fact :- :wna::At)])
 
 
-(:wat::core::defn :wna::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wna::n-hit [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wna::q-Hit))))
 
-(:wat::core::defn :wna::n-at [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wna::n-at [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wna::q-At))))
 
-(:wat::core::defn :wna::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wna::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -53,7 +53,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [lead (:wat::core::PersistentVector (:wna::not-cold-and-windy))
                     pref (:wat::core::PersistentVector (:wna::station-not-both))]
     (:wna::line 1 "empty"

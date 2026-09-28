@@ -1,4 +1,4 @@
-(:wat::core::defn :user::dump [label <- :wat::core::String n <- :wat::WatAST] -> :wat::core::nil
+(:wat::core::defn :user::dump [label <- wat.type/String n <- wat.type/AST] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat label
       (:wat::string::concat " kind="
@@ -8,7 +8,7 @@
               (:wat::string::concat " nch="
                 (:wat::string::interpolate "{n}" :n (:wat::core::length (:wat::core::ast->children n)))))))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [src (:wat::io::read-file "wat-scripts/scratch-pad/probe-qq-arm-shape-src.wat")
      tree (:wat::core::match (:wat::core::read-string src)

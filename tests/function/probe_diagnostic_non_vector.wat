@@ -2,7 +2,7 @@
 ;; apply with i64 (42) as the trailing spread arg must reject. Startup SUCCEEDS — the spread-arg
 ;; check is dynamic, so the error arrives at EVAL (probe 8 starts the world up, then invokes).
 
-(:wat::core::defn :user::bad [] -> :wat::core::i64
+(:wat::core::defn :user::bad [] -> wat.type/i64
   (:wat::core::apply 
     (:wat::keyword::from-string "wat::core::i64::+")
     42))

@@ -15,12 +15,12 @@
 ;; Test 2: defmacro in fn body do-prefix lifts to prologue.
 ;; The child now INVOKES the macro — `(:h::id-macro 5)` expands to `5` — so the asserted value
 ;; proves the defmacro registered AND expanded, not merely that the child survived.
-(:wat::core::defn :my::launch-defmacro [] -> :wat::core::i64
+(:wat::core::defn :my::launch-defmacro [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defmacro :h::id-macro [x <- :wat::WatAST] -> :wat::WatAST `~x)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defmacro :h::id-macro [x <- wat.type/AST] -> wat.type/AST `~x)
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println (:h::id-macro 5)))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -34,12 +34,12 @@
 ;; Test 4: newtype in fn body do-prefix lifts to prologue.
 ;; The child constructs the newtype and reads it back through the synthesized `/0` accessor,
 ;; so the asserted 100 proves the newtype registered AND constructs AND its accessor resolves.
-(:wat::core::defn :my::launch-newtype [] -> :wat::core::i64
+(:wat::core::defn :my::launch-newtype [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::newtype :h::LocalAmount :wat::core::i64)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [a    (:h::LocalAmount 100)
                 _out (:wat::kernel::println (:h::LocalAmount/0 a))]
@@ -56,13 +56,13 @@
 ;; Test 5: typealias in fn body do-prefix lifts to prologue.
 ;; A typealias is transparent, so the child can println the aliased-return value directly —
 ;; the asserted 7 proves both the typealias and the fn declared against it registered.
-(:wat::core::defn :my::launch-typealias [] -> :wat::core::i64
+(:wat::core::defn :my::launch-typealias [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::typealias :h::LocalCount :wat::core::i64)
+           (:wat::core::typealias :h::LocalCount wat.type/i64)
            (:wat::core::defn :h::get-count [] -> :h::LocalCount 7)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [c    (:h::get-count)
                 _out (:wat::kernel::println c)]
@@ -80,22 +80,22 @@
 ;; The child exercises every declaration and folds them into ONE value: 1+2 from the struct's
 ;; accessors, 10 from the enum match, 7 through the typealias-returning fn, and the macro's
 ;; expansion — so a single asserted number proves all of them registered, in order.
-(:wat::core::defn :my::launch-mixed [] -> :wat::core::i64
+(:wat::core::defn :my::launch-mixed [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :h::MixPoint
-             [x <- :wat::core::i64
-              y <- :wat::core::i64])
+             [x <- wat.type/i64
+              y <- wat.type/i64])
            (:wat::core::defenum :h::MixDir :wat::enum::Pure
              :Up
              :Down)
            (:wat::core::newtype :h::MixAmount :wat::core::i64)
-           (:wat::core::typealias :h::MixCount :wat::core::i64)
-           (:wat::core::defn :h::mix-i64 [v <- :wat::core::i64] -> :h::MixCount
+           (:wat::core::typealias :h::MixCount wat.type/i64)
+           (:wat::core::defn :h::mix-i64 [v <- wat.type/i64] -> :h::MixCount
              v)
-           (:wat::core::defmacro :h::mix-id [z <- :wat::WatAST] -> :wat::WatAST `~z)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defmacro :h::mix-id [z <- wat.type/AST] -> wat.type/AST `~z)
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [pt   (:h::MixPoint :x 1 :y 2)
                 d    :h::MixDir.Up
@@ -127,13 +127,13 @@
 ;; both sides through `:wat::kernel::fn-forms`, which reifies a closure through
 ;; `extract_closure` → `split_body_prelude`, the code path the predicate actually feeds.
 (:wat::core::def :my::body-that-lifts
-  (:wat::core::fn [] -> :wat::core::i64
+  (:wat::core::fn [] -> wat.type/i64
     (:wat::core::do
       (:wat::core::defenum :my::NoLiftColour :wat::enum::Pure :Red)
       5)))
 
 (:wat::core::def :my::body-that-does-not-lift
-  (:wat::core::fn [] -> :wat::core::i64
+  (:wat::core::fn [] -> wat.type/i64
     (:wat::core::do
       ;; ⛔ THE FIRST FORM MUST BE A CALL, NOT A LITERAL. A literal has no keyword head, so
       ;; `split_body_prelude`'s scan stops before the predicate is ever consulted — measured:
@@ -144,10 +144,10 @@
 
 ;; 2 — the leading declaration is lifted into the prologue, leaving the residual body.
 (:wat::core::def :my::launch-lift-count
-  (:wat::core::fn [] -> :wat::core::i64
+  (:wat::core::fn [] -> wat.type/i64
     (:wat::core::length (:wat::kernel::fn-forms :my::body-that-lifts :probe-lift))))
 
 ;; 1 — the scan stops at the first non-declaration child, so the body stays whole.
 (:wat::core::def :my::launch-no-lift
-  (:wat::core::fn [] -> :wat::core::i64
+  (:wat::core::fn [] -> wat.type/i64
     (:wat::core::length (:wat::kernel::fn-forms :my::body-that-does-not-lift :probe-no-lift))))

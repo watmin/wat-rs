@@ -4,7 +4,7 @@
 ;; total construction ban.
 (:wat::core::defstruct :my::Token
   {:restricted-to [:my::issuer::]}
-  [id <- :wat::core::i64])
+  [id <- wat.type/i64])
 (:wat::core::defn :my::issuer::mint-kwargs [] -> :my::Token
   (:my::Token :id 7))
 (:wat::core::defn :my::issuer::mint-prime [] -> :my::Token

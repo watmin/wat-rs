@@ -22,8 +22,8 @@
 ;; `:user::main`, printing one line per assertion so the transcript is the proof.
 
 ;; ── row 7's fixture: a real rule using the brief's exact nested expression ─────────
-(:wat::core::defrecord :g278get::PV [v <- (:wat::core::PersistentVector :- [:wat::core::i64])])
-(:wat::core::defrecord :g278get::Hit [n <- :wat::core::i64])
+(:wat::core::defrecord :g278get::PV [v <- (wat.type/PersistentVector :- [wat.type/i64])])
+(:wat::core::defrecord :g278get::Hit [n <- wat.type/i64])
 
 ;; Hit(1) :- PV(v) AND (PersistentVector/get v 0 :undefined -1) > 5.
 ;; Facts below: [7 8 9] (get 0 = 7, hits), [1 2 3] (get 0 = 1, no hit), []
@@ -42,7 +42,7 @@
   :when [(?fact :- :g278get::Hit)])
 
 
-(:wat::core::defn :g278get::row7 [] -> :wat::core::nil
+(:wat::core::defn :g278get::row7 [] -> wat.type/nil
   (:wat::core::let
     [s0    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :g278get) (:wat::core::PersistentVector (:g278get::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      s1    (:wat::core::match (:wat::rete::insert s0 (:g278get::PV (:wat::core::PersistentVector 7 8 9))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
@@ -53,11 +53,11 @@
       (:wat::string::concat "row7 seam-composes Hit-count (expect 1) = "
         (:wat::core::str (:wat::core::length (:wat::rete::query fired (:g278get::q-Hit))))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [pv       (:wat::core::PersistentVector 7 8 9)
      empty-pv (:wat::core::PersistentVector)
-     vec      (:wat::core::Vector :- [:wat::core::i64] 7 8 9)
+     vec      (wat.type/Vector :- [wat.type/i64] 7 8 9)
      lst      (:wat::core::List 7 8 9)
      h        (:wat::holon::to-holon "some-atom")
      other    (:wat::holon::to-holon "an-entirely-different-atom")

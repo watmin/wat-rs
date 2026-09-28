@@ -33,7 +33,7 @@
     (:wat::core::let
       [child (:wat::test::spawn-peer (:wat::spawn::process)
                (:wat::core::forms
-                 (:wat::core::defn :user::main [] -> :wat::core::nil
+                 (:wat::core::defn :user::main [] -> wat.type/nil
                    (:wat::core::do
                      ;; Speak first, so the parent can prove we are alive.
                      (:wat::kernel::println "alive")

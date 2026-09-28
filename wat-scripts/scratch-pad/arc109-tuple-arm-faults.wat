@@ -23,12 +23,12 @@
 ;; every `::`-keyword to EDN-dotted form and would hide the very thing under test).
 
 (:wat::core::defn :user::show
-  [label <- :wat::core::String kw <- :wat::core::String] -> :wat::core::nil
+  [label <- wat.type/String kw <- wat.type/String] -> wat.type/nil
   (:wat::core::let [node (:wat::keyword::to-type-form-colon (:wat::core::keyword-node kw))]
     (:wat::kernel::println
       (:wat::string::interpolate "{l} : {v}" :l label :v (:wat::core::ast->source node)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:user::show "1 nil bare      " ":wat::core::nil")
     (:user::show "2 nil nested    " ":wat::core::Result<wat::core::nil,wat::core::String>")

@@ -1,7 +1,7 @@
 ;; wat_grep__g7_rule.wat — the `:user::grep` program for G7. Fires on the `<-` binder symbol —
 ;; the exact shape `wat-scripts/scratch-pad/rules-corpus-03-source-to-facts.wat`'s
 ;; `:fx::match-arrow` proved (and `probe-grep-driver.wat`/`probe-grep-cli.wat` reuse).
-(:wat::core::defrecord :g7::IsArrow [id <- :wat::core::i64])
+(:wat::core::defrecord :g7::IsArrow [id <- wat.type/i64])
 
 (:wat::rete::defrule :g7::arrow
   :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
@@ -25,5 +25,5 @@
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "kind" :value "symbol")))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector :- [:wat::rete::Rule] (:g7::arrow) (:g7::match-arrow)))
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
+  (wat.type/PersistentVector :- [:wat::rete::Rule] (:g7::arrow) (:g7::match-arrow)))

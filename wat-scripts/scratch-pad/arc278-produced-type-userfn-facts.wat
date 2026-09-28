@@ -17,13 +17,13 @@
 ;;
 ;; Run: cargo run --release --bin wat -- wat-scripts/scratch-pad/arc278-produced-type-userfn-facts.wat
 
-(:wat::core::defrecord :a2::Src  [k <- :wat::core::i64])
-(:wat::core::defrecord :a2::Bad  [k <- :wat::core::i64])
-(:wat::core::defrecord :a2::Rate [count <- :wat::core::i64])
-(:wat::core::defrecord :a2::Out  [n <- :wat::core::i64])
+(:wat::core::defrecord :a2::Src  [k <- wat.type/i64])
+(:wat::core::defrecord :a2::Bad  [k <- wat.type/i64])
+(:wat::core::defrecord :a2::Rate [count <- wat.type/i64])
+(:wat::core::defrecord :a2::Out  [n <- wat.type/i64])
 
 (:wat::rete::core::defn :a2::mk-rate
-  [k <- :wat::core::i64]
+  [k <- wat.type/i64]
   -> :a2::Rate
   (:a2::Rate :count k))
 
@@ -46,13 +46,13 @@
 (:wat::rete::defquery :a2::q-Bad  :params [] :when [(?f :- :a2::Bad)])
 
 (:wat::core::defn :a2::readback [s <- :wat::rete::Session]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector
     (:wat::core::length (:wat::rete::query s (:a2::q-Bad)))
     (:wat::core::length (:wat::rete::query s (:a2::q-Rate)))
     (:wat::core::length (:wat::rete::query s (:a2::q-Out)))))
 
-(:wat::core::defn :a2::empty-records [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :a2::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::PersistentVector))
 
 (:wat::core::defn :a2::staged [] -> :wat::rete::Session
@@ -71,7 +71,7 @@
       [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
         (:wat::kernel::assertion-failed! :message "insert: ceiling")])))
 
-(:wat::core::defn :user::native-facts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::native-facts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:a2::readback
     (:wat::core::match (:wat::rete::fire-rules (:a2::staged))
       [:wat::rete::FireOutcome.Fired {:value __f} __f]
@@ -80,7 +80,7 @@
       [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
         (:wat::kernel::assertion-failed! :message "native fire: round cap")])))
 
-(:wat::core::defn :user::oracle-facts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::oracle-facts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:a2::readback
     (:wat::core::match (:wat::rete::fire-rules$oracle (:a2::staged))
       [:wat::rete::FireOutcome.Fired {:value __f} __f]
@@ -89,7 +89,7 @@
       [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
         (:wat::kernel::assertion-failed! :message "oracle fire: round cap")])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
 ;; ⛔ THERE IS NO "COMPILE: Compiled" PRINT, DELIBERATELY. One stood here and was struck
 ;; 2026-09-07: it was a LITERAL, printed unconditionally BEFORE anything compiled, so a

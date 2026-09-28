@@ -15,23 +15,23 @@
 ;; stack into its payload and the panic hook prints it, so: fail an assertion from inside a
 ;; kwargs fn and READ the frames.
 
-(:wat::core::defn :probe::kw [& [tag <- :wat::core::String]] -> :wat::core::i64
+(:wat::core::defn :probe::kw [& [tag <- wat.type/String]] -> wat.type/i64
   (:wat::core::let
     [_boom (:wat::kernel::assertion-failed! :message "deliberate — dumping the stack shape")]
     0))
 
 ;; NON-tail: bind the call's result, then return something else.
-(:wat::core::defn :probe::middle [] -> :wat::core::i64
+(:wat::core::defn :probe::middle [] -> wat.type/i64
   (:wat::core::let
     [r (:probe::kw :tag "x")]
     (:wat::i64::+ r 1)))
 
-(:wat::core::defn :probe::outer [] -> :wat::core::i64
+(:wat::core::defn :probe::outer [] -> wat.type/i64
   (:wat::core::let
     [r (:probe::middle)]
     (:wat::i64::+ r 1)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [r (:probe::outer)]
     (:wat::kernel::println r)))

@@ -4,4 +4,4 @@
 ;; FunctionBody snapshots taken at register_defines, before that rewrite.
 ;; Acceptance: check::tests::stone_251_8c_slash_and_colon_heads_share_the_call_path
 
-(:wat::core::defn :user::f [n <- :wat::core::i64] -> :wat::core::i64 n)
+(:wat::core::defn :user::f [n <- wat.type/i64] -> wat.type/i64 n)

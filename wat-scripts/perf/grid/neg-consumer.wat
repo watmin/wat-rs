@@ -42,28 +42,28 @@
 ;; Fixed in ff581b6f (positive dependencies now propagate). It must now read :accuracy :match
 ;; on ALL THREE columns; any MISMATCH is that regression returning.
 
-(:wat::core::defrecord :nc::Item  [k <- :wat::core::i64])
-(:wat::core::defrecord :nc::Bad   [k <- :wat::core::i64])
-(:wat::core::defrecord :nc::Tag   [k <- :wat::core::i64])
-(:wat::core::defrecord :nc::Ok    [k <- :wat::core::i64])
-(:wat::core::defrecord :nc::Final [k <- :wat::core::i64])
+(:wat::core::defrecord :nc::Item  [k <- wat.type/i64])
+(:wat::core::defrecord :nc::Bad   [k <- wat.type/i64])
+(:wat::core::defrecord :nc::Tag   [k <- wat.type/i64])
+(:wat::core::defrecord :nc::Ok    [k <- wat.type/i64])
+(:wat::core::defrecord :nc::Final [k <- wat.type/i64])
 
 ;; :derived / :native-ns keep the existing runner contract byte-for-byte; the two oracle
 ;; fields are ADDITIVE, so every other axis and the 2-way path are untouched.
 (:wat::core::defrecord :grid::Result
-  [axis           <- :wat::core::String
-   size           <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived        <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+  [axis           <- wat.type/String
+   size           <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived        <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defquery :nc::q-Final
   :params []
   :when [(?fact :- :nc::Final)])
 
 
-(:wat::core::defn :nc::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :nc::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     ;; THE GATE — negates a base fact, so the stratifier lifts it correctly.
     (:wat::rete::Rule :name "ok"
@@ -80,12 +80,12 @@
       :rhs (:wat::core::PersistentVector
         (:wat::core::quasiquote (:nc::Final ?k))))))
 
-(:wat::core::defn :nc::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :nc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::let [a2 (:wat::vector::conj acc (:nc::Item i))
                           a3 (:wat::vector::conj a2 (:nc::Tag i))]
           (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
@@ -94,20 +94,20 @@
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :nc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :nc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
-(:wat::core::defn :nc::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :nc::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+  (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:nc::Final/k f)))
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:nc::Final/k f)))
                               (:wat::rete::query fired (:nc::q-Final))))]
     (:nc::vec->pvec (:wat::core::sort codes))))
 
-(:wat::core::defn :nc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :nc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:nc::build-rules)

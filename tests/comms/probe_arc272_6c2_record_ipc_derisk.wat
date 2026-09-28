@@ -3,17 +3,17 @@
 ;; defns only. The inner :user::main inside the forms block is the CHILD's entrypoint, not a
 ;; placeholder; it is kept.
 
-(:wat::core::defrecord :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :user::Pt [x <- wat.type/i64  y <- wat.type/i64])
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [svc (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
               ;; The forked child runs a FRESH startup (stdlib prelude + these forms only) — it does
               ;; NOT inherit the parent's top-level defs. So the record must be defined HERE too (D1's
               ;; SocketAddressWire avoids this by living in spawn.wat/stdlib, loaded in every universe).
-              (:wat::core::defrecord :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defrecord :user::Pt [x <- wat.type/i64  y <- wat.type/i64])
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::core::let
                   ;; the child mints a plain base record and hands it to the parent over the self-peer.
                   [self (:wat::program::self-peer :user::Pt :wat::core::i64)

@@ -6,7 +6,7 @@
 ;; handler). One wrong-arity call per verb: `metadata-of`, `field-names-of`,
 ;; `field-types-of` — all declared arity 1, called here with 2 args.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::runtime::metadata-of :wat::core::if :wat::core::if)))
       [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "metadata-of UNEXPECTED ok: " (:wat::edn::write v)))]

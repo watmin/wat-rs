@@ -26,7 +26,7 @@
 
 ;; Does this form, or anything beneath it, CALL first/rest/empty? — head-position only.
 (:wat::core::defn :census::walks?
-  [form <- :wat::WatAST] -> :wat::core::bool
+  [form <- wat.type/AST] -> wat.type/bool
   (:wat::core::let
     [ch (:wat::core::ast->children form)
      h  (:wat::core::if (:wat::core::empty? ch)
@@ -39,7 +39,7 @@
         (:wat::core::= h ":wat::core::empty?"))
       true
       (:wat::core::reduce
-        (:wat::core::fn [acc <- :wat::core::bool f <- :wat::WatAST] -> :wat::core::bool
+        (:wat::core::fn [acc <- wat.type/bool f <- wat.type/AST] -> wat.type/bool
           (:wat::core::or acc (:census::walks? f)))
         false
         ch))))
@@ -48,27 +48,27 @@
 ;; and the shape of ONE `defclause` arm. Judging units, not forms, is what makes multi-arm
 ;; defclauses visible.
 (:wat::core::defn :census::unit-hit?
-  [unit <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
+  [unit <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
   (:wat::core::if (:wat::core::empty? unit)
     false
     (:wat::core::and
       (:wat::string::contains? (:wat::core::ast->source (:wat::core::first unit))
                                      "stream::Stream<")
       (:wat::core::reduce
-        (:wat::core::fn [acc <- :wat::core::bool f <- :wat::WatAST] -> :wat::core::bool
+        (:wat::core::fn [acc <- wat.type/bool f <- wat.type/AST] -> wat.type/bool
           (:wat::core::or acc (:census::walks? f)))
         false
         (:wat::core::into [] (:wat::core::rest unit))))))
 
 (:wat::core::defn :census::report-unit
-  [label <- :wat::core::String unit <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::nil
+  [label <- wat.type/String unit <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/nil
   (:wat::core::if (:census::unit-hit? unit)
     (:wat::kernel::println (:wat::string::concat "  THREE-CALL  " label))
     nil))
 
 ;; One top-level form → zero or more units.
 (:wat::core::defn :census::form
-  [form <- :wat::WatAST] -> :wat::core::nil
+  [form <- wat.type/AST] -> wat.type/nil
   (:wat::core::let
     [ch   (:wat::core::into [] (:wat::core::ast->children form))
      head (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast->source (:wat::core::first ch)))
@@ -78,7 +78,7 @@
     (:wat::core::if (:wat::core::= head ":wat::core::defclause")
       ;; each remaining child is an ARM — judge every one.
       (:wat::core::run!
-        (:wat::core::fn [arm <- :wat::WatAST] -> :wat::core::nil
+        (:wat::core::fn [arm <- wat.type/AST] -> wat.type/nil
           (:census::report-unit name (:wat::core::into [] (:wat::core::ast->children arm))))
         tail)
       (:wat::core::if (:wat::core::= head ":wat::core::defn")
@@ -86,11 +86,11 @@
         nil))))
 
 (:wat::core::defn :census::file
-  [path <- :wat::core::String] -> :wat::core::nil
+  [path <- wat.type/String] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "== " path))
     (:wat::core::run!
-      (:wat::core::fn [f <- :wat::WatAST] -> :wat::core::nil (:census::form f))
+      (:wat::core::fn [f <- wat.type/AST] -> wat.type/nil (:census::form f))
       (:wat::core::into []
         (:wat::core::ast->children
           (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
@@ -98,9 +98,9 @@
             [:wat::core::ReadOutcome.Malformed {:cause __cause}
               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::run!
-    (:wat::core::fn [p <- :wat::core::String] -> :wat::core::nil (:census::file p))
+    (:wat::core::fn [p <- wat.type/String] -> wat.type/nil (:census::file p))
     (:wat::core::match (:wat::kernel::readln )
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
       [:wat::kernel::ReadlnOutcome.Eof {}

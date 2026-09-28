@@ -9,13 +9,13 @@
 ;; one; `probe_arc278_enum_variant_typo.rs` covers the other. A mutation to either must not redden
 ;; the other's probe, which is what makes them two producers rather than one.
 
-(:wat::core::defrecord :nwa::Src   [k <- :wat::core::i64])
-(:wat::core::defrecord :nwa::Inner [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :nwa::Outer [k <- :wat::core::i64  inner <- :nwa::Inner])
+(:wat::core::defrecord :nwa::Src   [k <- wat.type/i64])
+(:wat::core::defrecord :nwa::Inner [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :nwa::Outer [k <- wat.type/i64  inner <- :nwa::Inner])
 
 (:wat::rete::defrule :nwa::r
   :when [(:nwa::Src (?k :- :k))]
   :then [(:nwa::Outer :k ?k :inner (:nwa::Inner ?k))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "the wall refuses before main runs"))

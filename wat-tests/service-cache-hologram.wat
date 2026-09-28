@@ -62,7 +62,7 @@
 ;; literal expected Vector (structural, position-sensitive), never a per-element helper here.
 (:wat::core::defn :wat-tests::hologram-svc/get-results
   [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [:wat::holon::HolonAST])])]
-  -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
+  -> (wat.type/Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
   (:wat::core::match r
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
@@ -82,7 +82,7 @@
 ;; honest assertion is that the batch was accepted at all.
 (:wat::core::defn :wat-tests::hologram-svc/assert-put-ok
   [r <- (:wat::kernel::RecvOutcome :- [:wat::cache::Cache::PutResponse])]
-  -> :wat::core::nil
+  -> wat.type/nil
   (:wat::core::match r
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
@@ -99,7 +99,7 @@
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SEVEN behaviours in one round trip ────────────────
-(:wat::core::defn :wat-tests::hologram-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::nil
+(:wat::core::defn :wat-tests::hologram-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/nil
   (:wat::core::let
     [h (:wat::cache::hologram-svc/start :locus locus
          :record (:wat::cache::hologram-svc::Record :capacity 2
@@ -122,7 +122,7 @@
      _put-batch (:wat-tests::hologram-svc/assert-put-ok
                   (:wat::cache::hologram-svc/put a
                     (:wat::cache::Cache::PutRequest
-                      :entries (:wat::core::Vector :- [(:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
+                      :entries (wat.type/Vector :- [(:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
                                  (:wat::cache::Entry :key k1 :value v1)
                                  (:wat::cache::Entry :key k2 :value v2)))))
      ;; ★ INDEX ALIGNMENT — ONE `get` round trip, THREE probes, DELIBERATELY JUMBLED: a similarity
@@ -135,8 +135,8 @@
               (:wat-tests::hologram-svc/get-results
                 (:wat::cache::hologram-svc/get b
                   (:wat::cache::Cache::GetRequest
-                    :probes (:wat::core::Vector :- [:wat::holon::HolonAST] probe-near-k1 probe-far k2))))
-              (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
+                    :probes (wat.type/Vector :- [:wat::holon::HolonAST] probe-near-k1 probe-far k2))))
+              (wat.type/Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
                 (:wat::cache::Cache::GetResult.Hit {:value v1})
                 (:wat::cache::Cache::GetResult.Miss {})
                 (:wat::cache::Cache::GetResult.Hit {:value v2})))
@@ -145,21 +145,21 @@
      _put-k3 (:wat-tests::hologram-svc/assert-put-ok
                (:wat::cache::hologram-svc/put a
                  (:wat::cache::Cache::PutRequest
-                   :entries (:wat::core::Vector :- [(:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
+                   :entries (wat.type/Vector :- [(:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
                               (:wat::cache::Entry :key k3 :value v3)))))
      ;; BATCH-OF-ONE get + EVICTION IS VISIBLE THROUGH THE SERVICE — k1 was evicted.
      _evicted (:wat::test::assert-eq
                 (:wat-tests::hologram-svc/get-results
                   (:wat::cache::hologram-svc/get b
-                    (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::holon::HolonAST] k1))))
-                (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
+                    (:wat::cache::Cache::GetRequest :probes (wat.type/Vector :- [:wat::holon::HolonAST] k1))))
+                (wat.type/Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
                   (:wat::cache::Cache::GetResult.Miss {})))
      ;; EMPTY PROBE VECTOR — `Ok` with an empty results Vector, not an error.
      _empty (:wat::test::assert-eq
               (:wat-tests::hologram-svc/get-results
                 (:wat::cache::hologram-svc/get b
-                  (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::holon::HolonAST]))))
-              (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]))
+                  (:wat::cache::Cache::GetRequest :probes (wat.type/Vector :- [:wat::holon::HolonAST]))))
+              (wat.type/Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]))
      _ (:wat::cache::hologram-svc/stop h)]
     nil))
 

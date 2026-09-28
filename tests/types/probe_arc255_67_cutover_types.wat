@@ -22,7 +22,7 @@
 ;; not satisfy a `wat.type/Fn` parameter — a real, pre-existing type-system distinction, not
 ;; this stone's concern), so the annotation is exercised bare, on an inline lambda that never
 ;; calls its `Fn`-typed parameter.
-(:wat::core::defn :user::fn-annotation-resolves [] -> :wat::core::bool
+(:wat::core::defn :user::fn-annotation-resolves [] -> wat.type/bool
   (:wat::core::let [_probe (:wat::core::fn [g <- wat.type/Fn] -> wat.type/Fn g)]
     true))
 
@@ -44,7 +44,7 @@
 (:wat::core::defn :user::id-record [x <- wat.type/Record] -> wat.type/Record x)
 (:wat::core::defn :user::id-struct [x <- wat.type/Struct] -> wat.type/Struct x)
 
-(:wat::core::defn :user::scalars-round-trip [] -> :wat::core::bool
+(:wat::core::defn :user::scalars-round-trip [] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:user::id-i64 7) 7)
     (:wat::core::if (:wat::core::= (:user::id-f64 1.5) 1.5)
       (:wat::core::if (:wat::core::= (:user::id-u8 (:wat::core::u8 9)) (:wat::core::u8 9))
@@ -66,47 +66,47 @@
 ;; `wat.type/Value` is the dynamic/untyped top type — not `Equatable` (a real, pre-existing
 ;; type-system fact, not this stone's concern), so it is exercised as a bare annotation only
 ;; (the call proves the type-check accepts it; there is no typed equality to compare against).
-(:wat::core::defn :user::value-round-trips [] -> :wat::core::bool
+(:wat::core::defn :user::value-round-trips [] -> wat.type/bool
   (:wat::core::let [_v (:user::id-value 5)] true))
 
 ;; `Bytes` is a `typealias` for `(Vector :- [u8])` (`wat/core.wat`), not its own constructor —
 ;; a Bytes VALUE is a Vector of u8 elements.
-(:wat::core::defn :user::bytes-round-trips [] -> :wat::core::bool
+(:wat::core::defn :user::bytes-round-trips [] -> wat.type/bool
   (:wat::core::let [b (wat.type/Vector :- [wat.type/u8] (:wat::core::u8 1) (:wat::core::u8 2))]
     (:wat::core::= (:user::id-bytes b) b)))
 
-(:wat::core::defn :user::ast-round-trips [] -> :wat::core::bool
+(:wat::core::defn :user::ast-round-trips [] -> wat.type/bool
   (:wat::core::let [a (:wat::core::keyword-node ":foo")]
     (:wat::core::= (:wat::core::ast-name (:user::id-ast a)) ":foo")))
 
 ;; ── containers: the constructor in VALUE position, new spelling ──────────────────────────────
-(:wat::core::defn :user::vector-value [] -> :wat::core::bool
+(:wat::core::defn :user::vector-value [] -> wat.type/bool
   (:wat::core::= [1 2 3] (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
-(:wat::core::defn :user::hashmap-value [] -> :wat::core::bool
+(:wat::core::defn :user::hashmap-value [] -> wat.type/bool
   (:wat::core::=
     (:wat::hashmap::get (wat.type/HashMap :- [wat.type/keyword wat.type/i64] :a 1) :a)
     (:wat::core::Option.Some {:value 1})))
 
-(:wat::core::defn :user::hashset-value [] -> :wat::core::bool
+(:wat::core::defn :user::hashset-value [] -> wat.type/bool
   (:wat::core::contains? (wat.type/HashSet :- [wat.type/i64] 1 2 3) 2))
 
-(:wat::core::defn :user::list-value [] -> :wat::core::bool
+(:wat::core::defn :user::list-value [] -> wat.type/bool
   (:wat::core::= (wat.type/List 1 2 3) (:wat::core::List 1 2 3)))
 
-(:wat::core::defn :user::tuple-value [] -> :wat::core::bool
+(:wat::core::defn :user::tuple-value [] -> wat.type/bool
   (:wat::core::= (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2) (:wat::core::Tuple 1 2)))
 
-(:wat::core::defn :user::persistentvector-value [] -> :wat::core::bool
+(:wat::core::defn :user::persistentvector-value [] -> wat.type/bool
   (:wat::core::= (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (:wat::core::PersistentVector 1 2 3)))
 
-(:wat::core::defn :user::persistentmap-value [] -> :wat::core::bool
+(:wat::core::defn :user::persistentmap-value [] -> wat.type/bool
   (:wat::core::=
     (:wat::map::get (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :a)
     (:wat::core::Option.Some {:value 1})))
 
-(:wat::core::defn :user::record-value [] -> :wat::core::bool
+(:wat::core::defn :user::record-value [] -> wat.type/bool
   (:wat::core::= (:user::ARecord/f (:user::ARecord :f 7)) 7))
 
-(:wat::core::defn :user::struct-value [] -> :wat::core::bool
+(:wat::core::defn :user::struct-value [] -> wat.type/bool
   (:wat::core::= (:user::AStruct/f (:user::AStruct :f 7)) 7))

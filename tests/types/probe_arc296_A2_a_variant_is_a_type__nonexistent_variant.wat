@@ -2,6 +2,6 @@
 (:wat::core::defenum :usr::Box :- [T] :wat::enum::Pure
   :Full  [inside <- :T]
   :Empty [])
-(:wat::core::defn :user::f [b <- (:usr::Box::Nope :- [:wat::core::i64])] -> :wat::core::nil
+(:wat::core::defn :user::f [b <- (:usr::Box::Nope :- [wat.type/i64])] -> wat.type/nil
   (:wat::kernel::println "ok"))
-(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "ok"))
+(:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "ok"))

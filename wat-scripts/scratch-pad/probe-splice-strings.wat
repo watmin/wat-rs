@@ -4,12 +4,12 @@
 ;; `~src` (a plain runtime String unquoted directly) but for SPLICE of a String Vector.
 
 (:wat::core::defmacro :probe::mk-vec
-  [] -> :wat::WatAST
+  [] -> wat.type/AST
   (:wat::core::let
-    [strs (:wat::core::Vector :- [:wat::core::String] "usr::Temp" "usr::Hot")]
-    `(:wat::core::Vector :- [:wat::core::String] ~@strs)))
+    [strs (wat.type/Vector :- [wat.type/String] "usr::Temp" "usr::Hot")]
+    `(wat.type/Vector :- [wat.type/String] ~@strs)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [v    (:probe::mk-vec)
      ok   (:wat::vec::contains? v "usr::Hot")

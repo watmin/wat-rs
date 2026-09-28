@@ -10,16 +10,16 @@
 ;; GREEN target: prints "42".
 
 (:wat::core::defsurface :probe::Runner :nature :wat::core::Struct
-  :features [(run [self <- :probe::Runner  n <- :wat::core::i64] -> :wat::core::i64)])
+  :features [(run [self <- :probe::Runner  n <- wat.type/i64] -> wat.type/i64)])
 
 (:wat::core::defstruct :probe::Doubler [])
 (:wat::core::extend-type :probe::Doubler :probe::Runner
   (run [self n] (:wat::i64::* n 2)))
 
 ;; hold at the ABSTRACT surface type; dispatch on the concrete satisfier at runtime
-(:wat::core::defn :probe::drive [r <- :probe::Runner  n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :probe::drive [r <- :probe::Runner  n <- wat.type/i64] -> wat.type/i64
   (:probe::Runner/run r n))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::i64::to-string (:probe::drive (:probe::Doubler) 21))))  ;; expect 42

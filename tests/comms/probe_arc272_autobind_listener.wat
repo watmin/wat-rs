@@ -3,7 +3,7 @@
 
 ;; Process-tier autobind: no name arg — the listener MINTS its own kernel-unique address.
 ;; Same signature shape as the thread tier: (listener' host :S :R) -> (Bound :- [S R]).
-(:wat::core::defn :user::go [] -> :wat::core::bool
+(:wat::core::defn :user::go [] -> wat.type/bool
   (:wat::core::let
     [b (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
      l (:wat::spawn::Bound/listener b)

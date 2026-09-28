@@ -12,25 +12,25 @@
 ;;   Builtin / Builtin / Builtin / Marker / :probe::Rec
 ;;     (Vector, i64, HashMap-from-string, Marker children)
 
-(:wat::core::defrecord :probe::Rec [alpha <- :wat::core::i64])
+(:wat::core::defrecord :probe::Rec [alpha <- wat.type/i64])
 (:wat::core::derive :probe::Rec :probe::Marker)
 
 (:wat::core::defenum :probe::Box :wat::enum::Pure
-  :Full [payload <- :wat::core::i64]
-  :Pair [left <- :wat::core::i64  right <- :wat::core::String]
+  :Full [payload <- wat.type/i64]
+  :Pair [left <- wat.type/i64  right <- wat.type/String]
   :Empty [])
 
 (:wat::core::newtype :probe::Count :wat::core::i64)
 
-(:wat::core::typealias :probe::Alias :wat::core::i64)
+(:wat::core::typealias :probe::Alias wat.type/i64)
 
 (:wat::core::typeunion :probe::Num [:wat::core::i64 :wat::core::f64])
 
 (:wat::core::defsurface :probe::Surf
   :nature :wat::core::Record
-  :features [message <- :wat::core::String])
+  :features [message <- wat.type/String])
 
-(:wat::core::defn :user::print-kind [info <- :wat::runtime::TypeInfo] -> :wat::core::nil
+(:wat::core::defn :user::print-kind [info <- :wat::runtime::TypeInfo] -> wat.type/nil
   (:wat::core::match (:wat::runtime::TypeInfo/kind info)
     [:wat::runtime::TypeKind.Aggregate {} (:wat::kernel::println "Aggregate")]
     [:wat::runtime::TypeKind.Enum {} (:wat::kernel::println "Enum")]
@@ -41,7 +41,7 @@
     [:wat::runtime::TypeKind.Builtin {} (:wat::kernel::println "Builtin")]
     [:wat::runtime::TypeKind.Marker {} (:wat::kernel::println "Marker")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::print-kind (:wat::runtime::type-of :probe::Rec))
   (:user::print-kind (:wat::runtime::type-of :probe::Box))
   (:user::print-kind (:wat::runtime::type-of :probe::Count))

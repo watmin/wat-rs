@@ -53,8 +53,8 @@
 ;; stdout: one #ins/Split EDN line
 ;;   echo '[20000]' | ./target/release/wat wat-scripts/scratch-pad/probe-insert-cost-split.wat
 
-(:wat::core::defrecord :ins::Reading [g <- :wat::core::i64  v <- :wat::core::i64])
-(:wat::core::defrecord :ins::Out     [g <- :wat::core::i64])
+(:wat::core::defrecord :ins::Reading [g <- wat.type/i64  v <- wat.type/i64])
+(:wat::core::defrecord :ins::Out     [g <- wat.type/i64])
 
 ;; One rule, so the Session under test has a real compiled network rather than an empty one.
 ;; `insert` performs ZERO activation (wat/rete.wat:828-830 — the WM stays open until fire-rules),
@@ -67,56 +67,56 @@
   [(:ins::Out ?g)])
 
 (:wat::core::defrecord :ins::Split
-  [n                <- :wat::core::i64
-   baseline-ns      <- :wat::core::i64   ;; fold + construct + read a field
-   conj-ns          <- :wat::core::i64   ;; fold + construct + PersistentVector/conj
-   insert-prime-ns  <- :wat::core::i64   ;; fold + construct + :wat::rete::insert' (native prime)
-   insert-ns        <- :wat::core::i64   ;; fold + construct + :wat::rete::insert (public defclause)
-   baseline-sum     <- :wat::core::i64   ;; witness: must equal expected-sum
-   expected-sum     <- :wat::core::i64
-   conj-len         <- :wat::core::i64   ;; witness: must equal n
-   insert-prime-len <- :wat::core::i64   ;; witness: must equal n
-   insert-len       <- :wat::core::i64]) ;; witness: must equal n
+  [n                <- wat.type/i64
+   baseline-ns      <- wat.type/i64   ;; fold + construct + read a field
+   conj-ns          <- wat.type/i64   ;; fold + construct + PersistentVector/conj
+   insert-prime-ns  <- wat.type/i64   ;; fold + construct + :wat::rete::insert' (native prime)
+   insert-ns        <- wat.type/i64   ;; fold + construct + :wat::rete::insert (public defclause)
+   baseline-sum     <- wat.type/i64   ;; witness: must equal expected-sum
+   expected-sum     <- wat.type/i64
+   conj-len         <- wat.type/i64   ;; witness: must equal n
+   insert-prime-len <- wat.type/i64   ;; witness: must equal n
+   insert-len       <- wat.type/i64]) ;; witness: must equal n
 
-(:wat::core::defn :ins::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :ins::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ── arm 1 — the interpreted harness floor ────────────────────────────────────
 ;; Constructs the record and READS A FIELD back, so the construction cannot be elided and the
 ;; measurement is of real work. Returns the running sum as its own witness.
-(:wat::core::defn :ins::baseline [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :ins::baseline [n <- wat.type/i64] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64  i <- wat.type/i64] -> wat.type/i64
       (:wat::i64::+ acc (:ins::Reading/v (:ins::Reading :g 0 :v i))))
     0
     (:wat::core::range 0 n)))
 
 ;; ── arm 2 — floor + the persistent container ─────────────────────────────────
-(:wat::core::defn :ins::conj-only [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:ins::Reading])
+(:wat::core::defn :ins::conj-only [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:ins::Reading])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:ins::Reading])  i <- :wat::core::i64]
-      -> (:wat::core::PersistentVector :- [:ins::Reading])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:ins::Reading])  i <- wat.type/i64]
+      -> (wat.type/PersistentVector :- [:ins::Reading])
       (:wat::vector::conj acc (:ins::Reading :g 0 :v i)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 
 ;; ── arm 3 — floor + the native prime `insert'` ───────────────────────────────
-(:wat::core::defn :ins::insert-prime [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :ins::insert-prime [session <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert s (:ins::Reading :g 0 :v i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
     (:wat::core::range 0 n)))
 
 ;; ── arm 4 — floor + the public `insert` (defclause → insert') ────────────────
-(:wat::core::defn :ins::insert-all [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :ins::insert-all [session <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert s (:ins::Reading :g 0 :v i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
     (:wat::core::range 0 n)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln )
                              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                              [:wat::kernel::ReadlnOutcome.Eof {}

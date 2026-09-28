@@ -1,5 +1,5 @@
 ;; uuid_string_not_equal_typed.wat — typed Uuid == typed Uuid (same content).
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [u   (:wat::uuid::v4)
      s   (:wat::uuid::to-string u)

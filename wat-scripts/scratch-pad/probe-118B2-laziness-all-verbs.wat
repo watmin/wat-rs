@@ -4,11 +4,11 @@
 ;; five: interpose, keep-indexed, map-indexed, dedupe, distinct. Scratch, per CLAUDE.md.
 
 (:wat::core::defn :probe::nat
-  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
+  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:probe::nat (:wat::core::+ i 1)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; interpose over an infinite source — must not try to find "the last element".
     (:wat::kernel::println
@@ -19,7 +19,7 @@
       (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take
           (:wat::core::keep-indexed
-            (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
+            (:wat::core::fn [i <- wat.type/i64 x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
               (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Option.Some {:value x}) :wat::core::Option.None))
             (:probe::nat 0))
           3))))
@@ -28,7 +28,7 @@
       (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take
           (:wat::core::map-indexed
-            (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ i x))
+            (:wat::core::fn [i <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::core::+ i x))
             (:probe::nat 100))
           4))))
     ;; dedupe over an infinite source (already non-repeating, so it's just `nat` under `take`).

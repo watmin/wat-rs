@@ -14,13 +14,13 @@
 ;; AFTER Stone O-i: row 3 must PRINT and its outcome must be an ArityMismatch error,
 ;; identical in kind to row 1's (the AST-door control, same verb, same wrong arity).
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
-  -> :wat::core::String
+(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
+  -> wat.type/String
   (:wat::core::match r
     [:wat::core::Result.Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
     [:wat::core::Result.Err {:error e} (:wat::string::concat "err:" (:wat::core::EvalError/message e))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; row 1 — THE CONTROL. The AST door, wrong arity (1 instead of 2): a clean ArityMismatch.
      _01 (:wat::kernel::println
@@ -41,6 +41,6 @@
            (:wat::string::concat "value-door wrong arity: "
              (:probe::outcome (:wat::eval-ast! (:wat::core::quote
                (:wat::core::apply :wat::vector::concat
-                 (:wat::core::Vector :- [(:wat::core::PersistentVector :- [:wat::core::i64])]
+                 (wat.type/Vector :- [(wat.type/PersistentVector :- [wat.type/i64])]
                    (:wat::core::PersistentVector 1 2 3))))))))]
     nil))

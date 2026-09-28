@@ -30,8 +30,8 @@
 (:wat::test::deftest :wat-tests::test::test-assert-eq-on-vec
   
   (:wat::core::let
-    [a (:wat::core::Vector :- [:wat::core::String] "x" "y")
-     b (:wat::core::Vector :- [:wat::core::String] "x" "y")]
+    [a (wat.type/Vector :- [wat.type/String] "x" "y")
+     b (wat.type/Vector :- [wat.type/String] "x" "y")]
     (:wat::test::assert-eq a b)))
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
@@ -72,7 +72,7 @@
   ;; so the downstream match on `fail` is unchanged.
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            (:wat::core::do
              (:wat::test::assert-contains "hello" "xyz")
              (:wat::core::match (:wat::kernel::send self 0)
@@ -129,7 +129,7 @@
   ;; explanation in `actual`), so the downstream match on `fail` is unchanged.
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            (:wat::core::do
              (:wat::test::assert-coincident
                (:wat::holon::to-holon "alice")
@@ -180,7 +180,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::do
                (:wat::kernel::println "alpha")
                (:wat::kernel::println "beta")
@@ -237,7 +237,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::eprintln "error: code 42"))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome.Message {:msg _m}
@@ -291,7 +291,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println "from-string"))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -318,7 +318,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println "from-ast"))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome.Message {:msg m} m]

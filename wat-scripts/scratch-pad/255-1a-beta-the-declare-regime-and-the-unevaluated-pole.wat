@@ -11,7 +11,7 @@
 ;;   3. `show-source` renders the DECLARE role       (the third regime, naming the
 ;;                                                    freeze-time fn that processes it)
 (:wat::core::def :user::main
-  (:wat::core::fn [] -> :wat::core::nil
+  (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println (:wat::rete::pure? '(:wat::core::defsurface)))
     (:wat::kernel::println (:wat::rete::pure? '(:wat::core::if true 1 2)))
     (:wat::kernel::println (:wat::core::show-source :wat::core::defsurface))))

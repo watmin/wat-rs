@@ -4,9 +4,9 @@
 
 ;; ─── Probe 1 — rename-callable-name accepts Keyword first child ──────────────
 
-(:wat::core::defn :t::probe-1-fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+(:wat::core::defn :t::probe-1-fn [x <- wat.type/i64] -> wat.type/i64 x)
 
-(:wat::core::defn :t::probe-1 [] -> :wat::core::String
+(:wat::core::defn :t::probe-1 [] -> wat.type/String
   (:wat::core::let
     [sig
       (:wat::core::Option/expect
@@ -25,9 +25,9 @@
 ;; This function intentionally errors at runtime (wrong from-name).
 ;; The Rust test uses eval_in_frozen expecting Err.
 
-(:wat::core::defn :t::probe-2-my-fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+(:wat::core::defn :t::probe-2-my-fn [x <- wat.type/i64] -> wat.type/i64 x)
 
-(:wat::core::defn :t::probe-2 [] -> :wat::core::nil
+(:wat::core::defn :t::probe-2 [] -> wat.type/nil
   (:wat::core::let
     [sig
       (:wat::core::Option/expect
@@ -44,9 +44,9 @@
 
 (:wat::core::defalias :t::my-length :wat::core::length)
 
-(:wat::core::defn :t::probe-3 [] -> :wat::core::String
+(:wat::core::defn :t::probe-3 [] -> wat.type/String
   (:wat::core::let
-    [v   (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+    [v   (wat.type/Vector :- [wat.type/i64] 1 2 3)
      r1  (:wat::core::length v)
      r2  (:t::my-length v)]
     (:wat::string::concat

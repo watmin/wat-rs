@@ -13,8 +13,8 @@
 ;; The args are SWAPPED, so BOTH fields are wrong and the golden carries TWO findings. That is
 ;; deliberate: batching every finding is this validator's contract (`validate_rete_rules` returns
 ;; them all, not the first), and a golden with one entry would not notice the loop stopping early.
-(:wat::core::defrecord :dps::Box [k <- :wat::core::i64  s <- :wat::core::String])
-(:wat::core::defrecord :dps::Bad [n <- :wat::core::i64  t <- :wat::core::String])
+(:wat::core::defrecord :dps::Box [k <- wat.type/i64  s <- wat.type/String])
+(:wat::core::defrecord :dps::Bad [n <- wat.type/i64  t <- wat.type/String])
 
 (:wat::rete::defrule :dps::bad
   :when [(:dps::Box (?k :- :k) (?s :- :s))]
@@ -28,5 +28,5 @@
 ;; supposed: the mutation run of 2026-09-03 produced exactly that face. A main that DOES something
 ;; makes the rete refusal the ONLY reason this file can fail, which is what makes the probe's
 ;; failure assertion mean something on its own, before the `.edn` golden is even consulted.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

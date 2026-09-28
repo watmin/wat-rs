@@ -63,26 +63,26 @@
 ;; Usage (stdin = an i64 vector [items]; stdout = one #grid/Result EDN line):
 ;;   echo '[20]' | cargo wat ./wat-scripts/perf/grid/leading-neg-consumer.wat
 
-(:wat::core::defrecord :lnc::Wind   [loc <- :wat::core::i64])
-(:wat::core::defrecord :lnc::Bad    [loc <- :wat::core::i64])
-(:wat::core::defrecord :lnc::Tag    [loc <- :wat::core::i64])
-(:wat::core::defrecord :lnc::Signal [loc <- :wat::core::i64])
-(:wat::core::defrecord :lnc::Ok     [loc <- :wat::core::i64])
-(:wat::core::defrecord :lnc::Final  [loc <- :wat::core::i64])
-(:wat::core::defrecord :lnc::S1 [k <- :wat::core::i64])
-(:wat::core::defrecord :lnc::S2 [k <- :wat::core::i64])
-(:wat::core::defrecord :lnc::S3 [k <- :wat::core::i64])
-(:wat::core::defrecord :lnc::S4 [k <- :wat::core::i64])
-(:wat::core::defrecord :lnc::S5 [k <- :wat::core::i64])
-(:wat::core::defrecord :lnc::S6 [k <- :wat::core::i64])
+(:wat::core::defrecord :lnc::Wind   [loc <- wat.type/i64])
+(:wat::core::defrecord :lnc::Bad    [loc <- wat.type/i64])
+(:wat::core::defrecord :lnc::Tag    [loc <- wat.type/i64])
+(:wat::core::defrecord :lnc::Signal [loc <- wat.type/i64])
+(:wat::core::defrecord :lnc::Ok     [loc <- wat.type/i64])
+(:wat::core::defrecord :lnc::Final  [loc <- wat.type/i64])
+(:wat::core::defrecord :lnc::S1 [k <- wat.type/i64])
+(:wat::core::defrecord :lnc::S2 [k <- wat.type/i64])
+(:wat::core::defrecord :lnc::S3 [k <- wat.type/i64])
+(:wat::core::defrecord :lnc::S4 [k <- wat.type/i64])
+(:wat::core::defrecord :lnc::S5 [k <- wat.type/i64])
+(:wat::core::defrecord :lnc::S6 [k <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defquery :lnc::q-Final
   :params []
@@ -93,7 +93,7 @@
 ;; (NOT Bad, Bad never fires), consumed positively again by Final (joined with Tag).
 ;; The inert S1..S6 cascade forces six fixpoint rounds, exactly leading-exists's own —
 ;; nothing here mentions Wind/Signal/Ok/Final, that is the point.
-(:wat::core::defn :lnc::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :lnc::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "signal"
       :lhs (:wat::core::PersistentVector
@@ -130,13 +130,13 @@
 
 ;; Seed: Wind(i) TWICE for each i in [0,items), Tag(i) once for each i, plus one S1 to
 ;; start the cascade. Bad is NEVER seeded.
-(:wat::core::defn :lnc::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :lnc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::vector::conj
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                        -> (:wat::core::PersistentVector :- [:wat::core::Record])
+        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                        -> (wat.type/PersistentVector :- [wat.type/Record])
           (:wat::core::let [a2 (:wat::vector::conj acc (:lnc::Wind i))
                             a3 (:wat::vector::conj a2 (:lnc::Wind i))]
             (:wat::vector::conj a3 (:lnc::Tag i))))
@@ -152,24 +152,24 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
      (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :lnc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :lnc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; THE ACCURACY WITNESS. Sorted Final locs, NOT deduped. Under a leading re-emission leak
 ;; this vector is `rounds` times too long; under a stratum-propagation failure it is empty.
-(:wat::core::defn :lnc::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :lnc::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+  (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
                                 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                                   (:lnc::Final/loc f)))
                               (:wat::rete::query fired (:lnc::q-Final))))]
     (:lnc::vec->pvec (:wat::core::sort codes))))
 
-(:wat::core::defn :lnc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :lnc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:lnc::build-rules)

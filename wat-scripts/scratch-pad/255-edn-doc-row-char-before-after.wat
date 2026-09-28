@@ -5,7 +5,7 @@
 ;; `///` doc block from the `@name value` text grammar to a ```edn `#wat.doc/Row {...}` fence.
 ;; Run this script, save the output, convert the row, rebuild, run again, diff. Any difference
 ;; at all is STOP-3.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "== metadata-of :wat::core::char ==")
     (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::core::char))

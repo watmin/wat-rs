@@ -17,24 +17,24 @@
 ;; being usable as a LET BINDER is tested here too (a naming-cast input).
 
 (:wat::core::defmacro :probe::lift-a-where
-  [name <- :wat::WatAST]
-  -> :wat::WatAST
+  [name <- wat.type/AST]
+  -> wat.type/AST
   (:wat::core::let
     [raw         (:wat::core::ast-name name)
      lifted-str  (:wat::string::concat raw "$where0")
      lifted-node (:wat::core::keyword-node lifted-str)]
     `(:wat::core::do
        ;; the LIFTED body — ordinary top-level code, computed name
-       (:wat::core::defn ~lifted-node [?c :- :wat::core::i64] -> :wat::core::bool
+       (:wat::core::defn ~lifted-node [?c :- wat.type/i64] -> wat.type/bool
          (:wat::i64::> ?c 100))
        ;; the consumer — mentions the lifted fn, then calls it
-       (:wat::core::defn ~name [] -> :wat::core::bool
+       (:wat::core::defn ~name [] -> wat.type/bool
          (:wat::core::let [~(:wat::core::symbol-node "$where0") ~lifted-node]
            (~lifted-node 150))))))
 
 (:probe::lift-a-where :probe::r1)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat "STOP-3 macro-minted top-level lifted defn = "
       (:wat::core::if (:probe::r1) "true" "false"))))

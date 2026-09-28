@@ -15,13 +15,13 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet.
 
-(:wat::core::defrecord :p7::R [x <- :wat::core::i64])
+(:wat::core::defrecord :p7::R [x <- wat.type/i64])
 
-(:wat::core::defn :p7::show [label <- :wat::core::String  v <- :wat::core::bool] -> :wat::core::nil
+(:wat::core::defn :p7::show [label <- wat.type/String  v <- wat.type/bool] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat label " = " (:wat::core::bool::to-string v))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; ── a rete-namespaced structural guard ──
     (:p7::show "A rete-cond   KEYWORD" (:wat::rete::primitive? (:wat::core::quote (:wat::rete::core::cond (true 1) (:else 2)))))

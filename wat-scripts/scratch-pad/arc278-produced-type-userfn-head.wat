@@ -21,11 +21,11 @@
 ;; Run (NOT the installed binary — wat/ is include_str!'d):
 ;;   cargo run --release --bin wat -- wat-scripts/scratch-pad/arc278-produced-type-userfn-head.wat
 
-(:wat::core::defrecord :pt::Anchor [x <- :wat::core::i64])
-(:wat::core::defrecord :pt::Rate   [count <- :wat::core::i64])
+(:wat::core::defrecord :pt::Anchor [x <- wat.type/i64])
+(:wat::core::defrecord :pt::Rate   [count <- wat.type/i64])
 
 (:wat::rete::core::defn :pt::first-rate
-  [rs <- (:wat::core::PersistentVector :- [:pt::Rate])]
+  [rs <- (wat.type/PersistentVector :- [:pt::Rate])]
   -> :pt::Rate
   (:wat::rete::core::PersistentVector/first rs :undefined (:pt::Rate :count 0)))
 
@@ -40,7 +40,7 @@
   :when [(:pt::Anchor (?x :- :x))]
   :then [(:pt::Rate :count ?x)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "ANCHOR  plain fact-type head — oracle rule-produces:")
     (:wat::kernel::println (:wat::rete::rule-produces (:pt::plain)))

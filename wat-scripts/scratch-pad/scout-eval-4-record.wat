@@ -1,14 +1,14 @@
 ;; scout-eval-4: realistic (fn [log] -> :bool ...) over a real record, per-record apply.
 ;; Plus: impure predicate must be REJECTED by the pure? gate.
 (:wat::core::defrecord :user::Log
-  [level   <- :wat::core::keyword
-   message <- :wat::core::String])
+  [level   <- wat.type/keyword
+   message <- wat.type/String])
 
 (:wat::core::defn :user::unwrap-form
-  [src <- :wat::core::String] -> :wat::WatAST
+  [src <- wat.type/String] -> wat.type/AST
   (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; a pure predicate over a Log record
      pred-src "(:wat::core::fn [log <- :user::Log] -> :wat::core::bool (:wat::core::= (:user::Log/level log) :error))"

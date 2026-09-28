@@ -9,7 +9,7 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet — same standing rule as `255-registry-census.wat`.
 
-(:wat::core::defn :tot::render [r <- :wat::intrinsic::Row] -> :wat::core::String
+(:wat::core::defn :tot::render [r <- :wat::intrinsic::Row] -> wat.type/String
   (:wat::string::concat
     (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "|")
     (:wat::core::match (:wat::intrinsic::Row/totality r)
@@ -18,11 +18,11 @@
       [:wat::runtime::Totality.Partial {}    "Partial"]
       [:wat::runtime::Totality.Unreviewed {} "Unreviewed"])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [rows (:wat::core::into [] (:wat::intrinsic::rows))]
     (:wat::core::do
       (:wat::core::mapv
-        (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
+        (:wat::core::fn [r <- :wat::intrinsic::Row] -> wat.type/nil
           (:wat::kernel::println (:tot::render r)))
         rows)
       (:wat::kernel::println ""))))

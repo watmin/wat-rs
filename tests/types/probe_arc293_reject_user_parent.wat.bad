@@ -4,5 +4,5 @@
 ;;
 ;; RED at HEAD: register_with_span (types.rs:457) registers :my::Child <: :my::Base for ANY existing
 ;; parent → startup SUCCEEDS. GREEN once the nature-root guard rejects the non-nature-root parent.
-(:wat::core::defrecord :my::Base [x <- :wat::core::i64])
-(:wat::core::recordtype :my::Child :my::Base [y <- :wat::core::i64])
+(:wat::core::defrecord :my::Base [x <- wat.type/i64])
+(:wat::core::recordtype :my::Child :my::Base [y <- wat.type/i64])

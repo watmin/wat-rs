@@ -1,15 +1,15 @@
 ;; Ground truth — what does fn-forms render a PLAIN (non-kwargs) fn's own literal
 ;; param type annotations as? Mirrors spawn-runner's arity-6 c-nm derivation exactly.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
-  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                                :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 (:wat::core::defn :probe::dial-work
   [peer <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])
-   item <- :wat::core::String]
-  -> :wat::core::String
+   item <- wat.type/String]
+  -> wat.type/String
   (:wat::core::match (:probe::Echo/echo peer (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
   [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
   [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
@@ -17,7 +17,7 @@
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [work-name (:wat::keyword::from-string "user::bracket::work-fn")
      forms     (:wat::kernel::fn-forms :probe::dial-work work-name)

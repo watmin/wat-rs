@@ -25,9 +25,9 @@
 ;; ─── Domain enum — what the trader emits as structured events ──
 
 (:wat::core::defenum :demo::Event :wat::enum::Pure
-  :Buy          [price <- :wat::core::f64  qty <- :wat::core::i64]
-  :Sell         [price <- :wat::core::f64  qty <- :wat::core::i64  reason <- :wat::core::String]
-  :CircuitBreak [reason <- :wat::core::String])
+  :Buy          [price <- wat.type/f64  qty <- wat.type/i64]
+  :Sell         [price <- wat.type/f64  qty <- wat.type/i64  reason <- wat.type/String]
+  :CircuitBreak [reason <- wat.type/String])
 
 
 ;; ─── Wiring — five events, every one through ambient `println`.
@@ -51,7 +51,7 @@
 ;; call, so every emission round-trips through `:wat::edn::read`.
 ;; `:user::main` returns bare `nil` (arc 170 slice 1e entry shape).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
       [_a (:wat::kernel::println (:demo::Event.Buy {:price 100.5 :qty 7}))
        _b (:wat::kernel::println (:demo::Event.Sell {:price 102.25 :qty 3 :reason "stop-loss"}))

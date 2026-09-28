@@ -30,11 +30,11 @@
              (:wat::core::forms
                ;; double "x" 8× → 2^8 = 256-char String; println'd it is a
                ;; COMPLETE ('\n'-terminated) frame of ~258 bytes on the wire.
-               (:wat::core::defn :my::rep [s <- :wat::core::String n <- :wat::core::i64] -> :wat::core::String
+               (:wat::core::defn :my::rep [s <- wat.type/String n <- wat.type/i64] -> wat.type/String
                  (:wat::core::if (:wat::core::= n 0)
                      s
                      (:my::rep (:wat::string::concat s s) (:wat::i64::- n 1))))
-               (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:wat::core::defn :user::main [] -> wat.type/nil
                  (:wat::kernel::println (:my::rep "x" 8)))))]
     ;; The 64-byte budget must reject the 258-byte complete message as ::Lost with
     ;; the frame-cap reason. ::Message = the budget was ignored (delivered); ::Closed

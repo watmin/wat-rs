@@ -4,4 +4,4 @@
 (:wat::core::defstruct :probe::Box :- [T]
   [v <- :T])
 (:wat::core::defrecord :probe::HoldsBox
-  [box <- (:probe::Box :- [:wat::core::i64])])
+  [box <- (:probe::Box :- [wat.type/i64])])

@@ -34,9 +34,9 @@
 
 ;; ─── site 4 — defclause runtime dispatch ────────────────────────────────
 (:wat::core::defclause :p255_12::pick-type
-  ([x <- :wat::type::i64] -> :wat::core::i64 x))
+  ([x <- :wat::type::i64] -> wat.type/i64 x))
 
-(:wat::core::defn :p255_12::dispatch-type-ok [] -> :wat::core::i64
+(:wat::core::defn :p255_12::dispatch-type-ok [] -> wat.type/i64
   (:p255_12::pick-type 42))
 
 ;; NON-VACUITY — the cure must not turn the matcher into a WILDCARD. Two clauses
@@ -44,11 +44,11 @@
 ;; different types: each call must still select ITS OWN clause. A denotation that
 ;; over-collapsed would make the first clause swallow both.
 (:wat::core::defclause :p255_12::discriminate
-  ([x <- :wat::type::i64]     -> :wat::core::String "i64-clause")
-  ([s <- :wat::core::String]  -> :wat::core::String "string-clause"))
+  ([x <- :wat::type::i64]     -> wat.type/String "i64-clause")
+  ([s <- wat.type/String]  -> wat.type/String "string-clause"))
 
-(:wat::core::defn :p255_12::dispatch-picks-i64 [] -> :wat::core::String
+(:wat::core::defn :p255_12::dispatch-picks-i64 [] -> wat.type/String
   (:p255_12::discriminate 42))
 
-(:wat::core::defn :p255_12::dispatch-picks-string [] -> :wat::core::String
+(:wat::core::defn :p255_12::dispatch-picks-string [] -> wat.type/String
   (:p255_12::discriminate "x"))

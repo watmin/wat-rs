@@ -1,5 +1,5 @@
 (:wat::core::defenum :fix::Ev :wat::enum::Pure
   :Shutdown
-  :Admin [msg <- :wat::core::String]
-  :Pair [idx <- :wat::core::i64  name <- :wat::core::String]
+  :Admin [msg <- wat.type/String]
+  :Pair [idx <- wat.type/i64  name <- wat.type/String]
   :Nil [])

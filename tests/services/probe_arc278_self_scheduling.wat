@@ -18,13 +18,13 @@
   [(:wat::core::defrecord :probe::Ticker::StartRequest [])
    (:wat::core::defenum :probe::Ticker::StartResponse :wat::enum::Pure
      :Ok              []
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
    (:wat::core::defrecord :probe::Ticker::PollRequest [])
    (:wat::core::defenum :probe::Ticker::PollResponse :wat::enum::Pure
-     :Count           [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Count           [n <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(start [self <- :probe::Ticker  req <- :probe::Ticker::StartRequest] -> :probe::Ticker::StartResponse
      :max-request-bytes 524288)
@@ -34,7 +34,7 @@
 ;; ── the SELF-SCHEDULING service ──────────────────────────────────────────────────────────────────
 (:wat::service::defservice :probe::ticker
   :satisfies :probe::Ticker
-  :durable   [count <- :wat::core::i64  target <- :wat::core::i64]
+  :durable   [count <- wat.type/i64  target <- wat.type/i64]
   :ephemeral []
   :init (:wat::core::fn [record <- :probe::ticker::Record] -> :probe::ticker::State
           (:probe::ticker::State :durable record))
@@ -63,10 +63,10 @@
          (:wat::service::Outcome.NoReply {:state s'}))))])
 
 ;; ── nap — mora-honest wait (select' on a one-shot after; the driver runs on a thread) ─────────────
-(:wat::core::defn :probe::nap [ms <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :probe::nap [ms <- wat.type/i64] -> wat.type/nil
   (:wat::core::match
     (:wat::kernel::select
-      (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
+      (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])]
         (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond ms) :done)))
     
     [:wat::spawn::ServiceEvent.Message {:idx _i :msg _m} nil]
@@ -82,7 +82,7 @@
 ;; elapsed time; polls DURING ticking (exercising "the reactor serves between ticks"), bounded by
 ;; a generous `attempts` failsafe with a small non-correctness-bearing `nap 5` backoff between polls.
 (:wat::core::defn :probe::poll-until
-  [c <- (:wat::kernel::Peer :- [:probe::Ticker::Op :probe::Ticker::Reply])  target <- :wat::core::i64  attempts <- :wat::core::i64] -> :wat::core::i64
+  [c <- (:wat::kernel::Peer :- [:probe::Ticker::Op :probe::Ticker::Reply])  target <- wat.type/i64  attempts <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::i64::<= attempts 0)
     -2                                              ;; bound exhausted without reaching target
     (:wat::core::match (:probe::Ticker/poll c (:probe::Ticker::PollRequest))
@@ -104,7 +104,7 @@
 ;; death now speaks), then poll-until the observed count reaches `target` — wire-synced, not a sleep-guess.
 ;; (a) the self-tick fired + re-armed to `target`; (b) poll still replied → the reactor kept serving.
 (:wat::core::defn :probe::drive-ticker
-  [h <- :probe::ticker::Handle] -> :wat::core::i64
+  [h <- :probe::ticker::Handle] -> wat.type/i64
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::ticker::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))]
@@ -120,13 +120,13 @@
       [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
 ;; entrypoint (thread locus): expect the count == target (3).
-(:wat::core::defn :user::self-tick-rearms-thread [] -> :wat::core::i64
+(:wat::core::defn :user::self-tick-rearms-thread [] -> wat.type/i64
   (:probe::drive-ticker
     (:probe::ticker/start :locus (:wat::spawn::thread)
       :record (:probe::ticker::Record :count 0 :target 3))))
 
 ;; entrypoint (process locus — env-grab arms the -tick at the process tier): expect count == target (3).
-(:wat::core::defn :user::self-tick-rearms-process [] -> :wat::core::i64
+(:wat::core::defn :user::self-tick-rearms-process [] -> wat.type/i64
   (:probe::drive-ticker
     (:probe::ticker/start :locus (:wat::spawn::process)
       :record (:probe::ticker::Record :count 0 :target 3))))

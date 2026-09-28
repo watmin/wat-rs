@@ -5,10 +5,10 @@
 
 ;; Probe 2: def at expression position — startup succeeds; calling :my::bad
 ;; emits DeclarationInExpressionPosition at runtime.
-(:wat::core::defn :my::bad [] -> :wat::core::nil (:wat::core::def :x 1))
+(:wat::core::defn :my::bad [] -> wat.type/nil (:wat::core::def :x 1))
 
 ;; Probe 3: def at top-level still works.
 (:wat::core::def :my::my-answer 42)
-(:wat::core::defn :my::compute [] -> :wat::core::i64 :my::my-answer)
+(:wat::core::defn :my::compute [] -> wat.type/i64 :my::my-answer)
 
 ;; Required for startup (child processes still need :user::main below them).

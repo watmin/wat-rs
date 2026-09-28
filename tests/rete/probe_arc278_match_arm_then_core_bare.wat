@@ -21,8 +21,8 @@
 
 (:wat::core::defenum :mac::E :wat::enum::Pure :A :B)
 
-(:wat::core::defrecord :mac::In  [k <- :wat::core::i64  v <- :mac::E])
-(:wat::core::defrecord :mac::Out [k <- :wat::core::i64  ok <- :wat::core::bool])
+(:wat::core::defrecord :mac::In  [k <- wat.type/i64  v <- :mac::E])
+(:wat::core::defrecord :mac::Out [k <- wat.type/i64  ok <- wat.type/bool])
 
 (:wat::rete::defrule :mac::r
   :when [(:mac::In (?k :- :k) (?v :- :v))]
@@ -54,7 +54,7 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
       (:wat::kernel::assertion-failed! :message "fire: round cap")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [w (:mac::world)]
     (:wat::kernel::println
       (:wat::string::concat

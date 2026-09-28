@@ -23,7 +23,7 @@
     (:wat::core::let
       [p (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
-             (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::defn :user::main [] -> wat.type/nil
                (:wat::kernel::pprintln {:alpha 1 :beta 2 :gamma 3 :delta 4 :epsilon 5}))))]
       (:wat::core::match (:wat::kernel::recv p)
         [:wat::kernel::RecvOutcome.Message {:msg m} m]

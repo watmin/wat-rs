@@ -1,5 +1,5 @@
 ;; Negative fixture: base-defined record must be REJECTED at :wat::holon::Record param (Liskov).
-(:wat::core::defrecord :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::holon::defrecord :my::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defn :my::wh [v <- :wat::holon::Record] -> :wat::core::bool true)
-(:wat::core::defn :my::gb [p <- :my::Pt] -> :wat::core::bool (:my::wh p))
+(:wat::core::defrecord :my::Pt [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::holon::defrecord :my::HPt [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defn :my::wh [v <- :wat::holon::Record] -> wat.type/bool true)
+(:wat::core::defn :my::gb [p <- :my::Pt] -> wat.type/bool (:my::wh p))

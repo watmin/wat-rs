@@ -28,9 +28,9 @@
   :messages
   [(:wat::core::defrecord :probe::FFX::PingRequest [])
    (:wat::core::defenum :probe::FFX::PingResponse :wat::enum::Pure
-     :Ok               [ok <- :wat::core::bool]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [ok <- wat.type/bool]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(ping [self <- :probe::FFX  req <- :probe::FFX::PingRequest] -> :probe::FFX::PingResponse :max-request-bytes 524288)])
 
@@ -59,7 +59,7 @@
 ;; Shapes seen in a prologue: (defn :n …) · (def :n …) · (defenum :n …) · (recordtype :n …) ·
 ;; (structtype :n …) · (defmacro :n …) — name at child 1. A retained type source form arrives
 ;; `do`-wrapped — (do (recordtype :n …) (defmacro :n …)) — so recurse into its first child.
-(:wat::core::defn :user::decl-name [form <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::decl-name [form <- wat.type/AST] -> wat.type/String
   (:wat::core::let
     [ch   (:wat::core::ast->children form)
      head (:wat::core::ast-name (:wat::core::first ch))]
@@ -69,10 +69,10 @@
 
 ;; ── the declared names of a forms vector, in order ───────────────────────────────────────
 (:wat::core::defn :user::decl-names
-  [forms <- (:wat::core::Vector :- [:wat::WatAST])
-   i     <- :wat::core::i64
-   acc   <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [forms <- (wat.type/Vector :- [wat.type/AST])
+   i     <- wat.type/i64
+   acc   <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     acc
     (:user::decl-names forms (:wat::i64::+ i 1)
@@ -91,7 +91,7 @@
 ;; in this very world as `[Macro, Type]` — one CONCEPT, two FACETS, registered in different
 ;; registries at different phases (EXPAND vs CHECK). A name maps to a SET, so a set keyed by
 ;; name collapses facets that were never duplicates. Key on (head, name).
-(:wat::core::defn :user::decl-key [form <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::decl-key [form <- wat.type/AST] -> wat.type/String
   (:wat::core::let
     [ch   (:wat::core::ast->children form)
      head (:wat::core::ast-name (:wat::core::first ch))]
@@ -109,11 +109,11 @@
 ;; Whether this dedup belongs to the extractor or the caller is a DESIGN question this probe
 ;; surfaces rather than settles; doing it here keeps the measurement about completeness.
 (:wat::core::defn :user::dedup-forms
-  [forms <- (:wat::core::Vector :- [:wat::WatAST])
-   i     <- :wat::core::i64
-   seen  <- (:wat::core::Vector :- [:wat::core::String])
-   out   <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Vector :- [:wat::WatAST])
+  [forms <- (wat.type/Vector :- [wat.type/AST])
+   i     <- wat.type/i64
+   seen  <- (wat.type/Vector :- [wat.type/String])
+   out   <- (wat.type/Vector :- [wat.type/AST])]
+  -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     out
     (:wat::core::let
@@ -139,8 +139,8 @@
 ;; recursion, not a dropped form.) A caller composing a union must therefore call the
 ;; name it ASKED FOR, not the name it started from. MEASURED: calling `:probe::ffx::init`
 ;; here left exactly one unresolved reference in both arms.
-(:wat::core::defn :user::child-main-form [] -> :wat::WatAST
-  `(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::child-main-form [] -> wat.type/AST
+  `(:wat::core::defn :user::main [] -> wat.type/nil
      (:wat::core::let
        [st (:user::root-init (:probe::ffx::Record :tag (:probe::FFXTag.Alpha {})))
         t  (:probe::ffx::Record/tag (:probe::ffx::State/durable st))
@@ -154,10 +154,10 @@
 ;; of differing shape ⇒ the dedup's first-wins is unsound. One bare `recordtype` (no
 ;; `do`-wrapped ctor macro beside it) ⇒ the extractor never emitted the constructor.
 (:wat::core::defn :user::dump-named
-  [forms  <- (:wat::core::Vector :- [:wat::WatAST])
-   i      <- :wat::core::i64
-   target <- :wat::core::String]
-  -> :wat::core::nil
+  [forms  <- (wat.type/Vector :- [wat.type/AST])
+   i      <- wat.type/i64
+   target <- wat.type/String]
+  -> wat.type/nil
   (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     nil
     (:wat::core::if (:wat::core::= (:user::decl-name (:wat::core::nth forms i)) target)
@@ -174,24 +174,24 @@
 ;; `with-init?` false is the NEGATIVE CONTROL: omit init's closure and the child must die
 ;; naming it. Everything else is identical, so the control differs in exactly one form-set.
 ;; RAW: the plain concat, BEFORE dedup — the honest input to the dedup question.
-(:wat::core::defn :user::raw-union [with-init? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::raw-union [with-init? <- wat.type/bool]
+  -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::let
     [serve-forms (:wat::kernel::fn-forms :probe::ffx::serve :user::root-serve)
      init-forms  (:wat::core::if with-init?
                    (:wat::kernel::fn-forms :probe::ffx::init :user::root-init)
-                   (:wat::core::Vector :- [:wat::WatAST]))
+                   (wat.type/Vector :- [wat.type/AST]))
      joined      (:wat::core::concat serve-forms init-forms)]
     (:wat::core::conj joined (:user::child-main-form))))
 
-(:wat::core::defn :user::union-forms [with-init? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::union-forms [with-init? <- wat.type/bool]
+  -> (wat.type/Vector :- [wat.type/AST])
   (:user::dedup-forms (:user::raw-union with-init?) 0
-    (:wat::core::Vector :- [:wat::core::String])
-    (:wat::core::Vector :- [:wat::WatAST])))
+    (wat.type/Vector :- [wat.type/String])
+    (wat.type/Vector :- [wat.type/AST])))
 
 ;; THE SETTLING MEASUREMENT — every `:probe::ffx::Record` form, pre-dedup then post-dedup.
-(:wat::core::defn :user::settle-record-ctor [] -> :wat::core::nil
+(:wat::core::defn :user::settle-record-ctor [] -> wat.type/nil
   (:wat::core::let
     [raw   (:user::raw-union true)
      dedup (:user::union-forms true)
@@ -208,8 +208,8 @@
 
 ;; ── run one arm: ship the forms to a real forked child, report what came back ────────────
 (:wat::core::defn :user::run-arm
-  [label <- :wat::core::String  with-init? <- :wat::core::bool]
-  -> :wat::core::bool
+  [label <- wat.type/String  with-init? <- wat.type/bool]
+  -> wat.type/bool
   (:wat::core::let
     [forms (:user::union-forms with-init?)
      _n    (:wat::kernel::println
@@ -218,7 +218,7 @@
      ;; What did the union actually DECLARE? The child's "unresolved reference" names a
      ;; symbol; this names what was shipped. Without both, the gap is a guess.
      _dl   (:wat::kernel::println (:wat::string::concat label " declares:"))
-     _d    (:wat::kernel::println (:user::decl-names forms 0 (:wat::core::Vector :- [:wat::core::String])))
+     _d    (:wat::kernel::println (:user::decl-names forms 0 (wat.type/Vector :- [wat.type/String])))
      p     (:wat::test::spawn-peer (:wat::spawn::process) forms)]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}
@@ -233,7 +233,7 @@
       [:wat::kernel::RecvOutcome.Closed {}
         (:wat::core::do (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER")) false)])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_settle (:user::settle-record-ctor)
      full    (:user::run-arm "FULL   " true)

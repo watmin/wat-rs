@@ -1,7 +1,7 @@
 ;; The same arm, inside a rete `where`. Subject is a bound HolonAST-free record field.
-(:wat::core::defrecord :md::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :md::In  [k <- :wat::core::String  p <- :md::Point])
-(:wat::core::defrecord :md::Out [k <- :wat::core::String])
+(:wat::core::defrecord :md::Point [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :md::In  [k <- wat.type/String  p <- :md::Point])
+(:wat::core::defrecord :md::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :md::rule
   :when
@@ -16,7 +16,7 @@
 
 (:wat::rete::defquery :md::q :params [] :when [(?fact :- :md::Out)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::core::length
       (:wat::core::let

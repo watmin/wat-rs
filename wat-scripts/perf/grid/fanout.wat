@@ -34,29 +34,29 @@
 ;;   echo '[10000]' | cargo wat ./wat-scripts/perf/grid/fanout.wat
 ;;   => #grid/Result {:axis "fanout" :size [10000] :derived [...] :native-ns N}
 
-(:wat::core::defrecord :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])
-(:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])
-(:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])
+(:wat::core::defrecord :fan::Left  [key <- wat.type/i64  lid <- wat.type/i64])
+(:wat::core::defrecord :fan::Right [key <- wat.type/i64  rid <- wat.type/i64])
+(:wat::core::defrecord :fan::Pair  [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64])
 
 (:wat::core::defrecord :fan::QuerySplit
-  [read-ns   <- :wat::core::i64
-   encode-ns <- :wat::core::i64
-   sort-ns   <- :wat::core::i64
-   into-ns   <- :wat::core::i64])
+  [read-ns   <- wat.type/i64
+   encode-ns <- wat.type/i64
+   sort-ns   <- wat.type/i64
+   into-ns   <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64
-   insert-ns      <- :wat::core::i64
-   fire-ns        <- :wat::core::i64
-   query-ns       <- :wat::core::i64
-   protocol-ns    <- :wat::core::i64])
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64
+   insert-ns      <- wat.type/i64
+   fire-ns        <- wat.type/i64
+   query-ns       <- wat.type/i64
+   protocol-ns    <- wat.type/i64])
 
 (:wat::rete::defquery :fan::q-Pair
   :params []
@@ -66,10 +66,10 @@
 ;; facts-key k fanout — the Left(k,f)+Right(k,f) facts for f in [0,fanout), as a FACT VECTOR.
 ;; It no longer threads a Session: staging is now one BATCH call at the end (below), so the
 ;; helper's job is to produce facts, not to insert them. Named for what it returns.
-(:wat::core::defn :fan::facts-key [k <- :wat::core::i64  fanout <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :fan::facts-key [k <- wat.type/i64  fanout <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  f <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  f <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::vector::conj
         (:wat::vector::conj acc (:fan::Left :key k :lid f))
         (:fan::Right :key k :rid f)))
@@ -77,10 +77,10 @@
     (:wat::core::range 0 fanout)))
 
 ;; all-facts keys fanout — every key's F Lefts + F Rights. Construct only.
-(:wat::core::defn :fan::all-facts [keys <- :wat::core::i64  fanout <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :fan::all-facts [keys <- wat.type/i64  fanout <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  k <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  k <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::vector::concat acc (:fan::facts-key k fanout)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 keys)))
@@ -88,11 +88,11 @@
 ;; seed s keys fanout — every key's F Lefts + F Rights, staged in ONE `insert-all` (which
 ;; delegates to the native `insert-all'`: one rebuild, not N). Order is preserved exactly —
 ;; ascending k, and within a key ascending f, Left before Right — so `:derived` is unchanged.
-(:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all s (:fan::all-facts keys fanout)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; enc key lid rid — canonical single-i64 witness for one derived Pair fact.
-(:wat::core::defn :fan::enc [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :fan::enc [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+
     (:wat::i64::+ (:wat::i64::* key 1000000) (:wat::i64::* lid 1000))
     rid))
@@ -100,23 +100,23 @@
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :fan::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :fan::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Pair fact, canonically encoded, sorted ascending.
-(:wat::core::defn :fan::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :fan::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:fan::vec->pvec
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+      (:wat::core::into (wat.type/Vector :- [wat.type/i64])
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
           (:wat::rete::query fired (:fan::q-Pair)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors accum.wat's ns-between).
-(:wat::core::defn :fan::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :fan::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     fanout  20
@@ -137,7 +137,7 @@
                     qr1     (:wat::time::now)
                     enc0    (:wat::time::now)
                     encoded (:wat::core::mapv
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
                                 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                                   (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
                               raw)

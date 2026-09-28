@@ -14,18 +14,18 @@
 
 (:wat::core::defsurface :my::aws::Waf :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :my::aws::Waf::CreateWebACLRequest  [n     <- :wat::core::i64])
+  [(:wat::core::defrecord :my::aws::Waf::CreateWebACLRequest  [n     <- wat.type/i64])
    (:wat::core::defenum :my::aws::Waf::CreateWebACLResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(create-web-acl [self <- :my::aws::Waf  req <- :my::aws::Waf::CreateWebACLRequest]
                    -> :my::aws::Waf::CreateWebACLResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::waf
   :satisfies :my::aws::Waf
-  :durable   [count <- :wat::core::i64]
+  :durable   [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(create-web-acl [s ctx req]
@@ -35,7 +35,7 @@
 ;; Prove the surface synthesized `:my::aws::Waf::Op::CreateWebACL` (acronym-cased). Constructing
 ;; and matching that EXACT variant type-checks + evals ONLY if S1 threaded the `ACL` acronym; with
 ;; the pre-fix `&[]` it would be `::Op::CreateWebAcl` and this name would not resolve.
-(:wat::core::defn :user::req-n [] -> :wat::core::i64
+(:wat::core::defn :user::req-n [] -> wat.type/i64
   (:wat::core::match (:my::aws::Waf::Op.CreateWebACL {:req (:my::aws::Waf::CreateWebACLRequest :n 7)})
     
     [:my::aws::Waf::Op.CreateWebACL {:req req} (:my::aws::Waf::CreateWebACLRequest/n req)]))

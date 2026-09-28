@@ -14,10 +14,10 @@
   :nature :wat::core::Struct
   :features [(make :- [T] [self <- :t::Maker  x <- :T] -> :T)])
 
-(:wat::core::defrecord :t::Id [tag <- :wat::core::i64])
+(:wat::core::defrecord :t::Id [tag <- wat.type/i64])
 
 ;; extend-type impl: bare name (no `:- [T]`), bare args — exactly the Locus extend-impl shape.
 (:wat::core::extend-type :t::Id :t::Maker
   (make [self x] x))
 
-(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::Maker/make (:t::Id :tag 1) 42))
+(:wat::core::defn :t::probe [] -> wat.type/i64 (:t::Maker/make (:t::Id :tag 1) 42))

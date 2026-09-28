@@ -19,37 +19,37 @@
 ;; Union with the existing 382-pair census (dot-flip-phase1-pairs.txt), sort, dedupe.
 
 (:wat::core::defn :user::variant-leaf-names
-  [ch <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [ch <- (wat.type/Vector :- [wat.type/AST])]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::core::empty? ch)
-    (:wat::core::Vector :- [:wat::core::String])
+    (wat.type/Vector :- [wat.type/String])
     (:wat::core::let [h (:wat::core::first ch) tl (:wat::core::rest ch)]
       (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
         (:wat::core::if (:wat::core::if (:wat::core::not (:wat::core::empty? tl))
                             (:wat::core::= (:wat::core::ast-kind (:wat::core::first tl)) "vector")
                             false)
           (:wat::core::concat
-            (:wat::core::Vector :- [:wat::core::String] (:wat::core::ast-name h))
+            (wat.type/Vector :- [wat.type/String] (:wat::core::ast-name h))
             (:user::variant-leaf-names (:wat::core::rest tl)))
           (:wat::core::concat
-            (:wat::core::Vector :- [:wat::core::String] (:wat::core::ast-name h))
+            (wat.type/Vector :- [wat.type/String] (:wat::core::ast-name h))
             (:user::variant-leaf-names tl)))
         (:user::variant-leaf-names tl)))))
 
 (:wat::core::defn :user::pair-line
-  [parent <- :wat::core::String leaf <- :wat::core::String]
-  -> :wat::core::String
+  [parent <- wat.type/String leaf <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let [bare (:wat::string::subs leaf 1 (:wat::string::length leaf))]
     (:wat::string::concat parent "::" (:wat::string::concat bare (:wat::string::concat " " (:wat::string::concat parent (:wat::string::concat "." bare)))))))
 
 (:wat::core::defn :user::pairs-for-leaves
-  [parent <- :wat::core::String
-   leaves <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [parent <- wat.type/String
+   leaves <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::core::empty? leaves)
-    (:wat::core::Vector :- [:wat::core::String])
+    (wat.type/Vector :- [wat.type/String])
     (:wat::core::concat
-      (:wat::core::Vector :- [:wat::core::String] (:user::pair-line parent (:wat::core::first leaves)))
+      (wat.type/Vector :- [wat.type/String] (:user::pair-line parent (:wat::core::first leaves)))
       (:user::pairs-for-leaves parent (:wat::core::rest leaves)))))
 
 ;; A defenum's NAME slot (ch[1]) is a literal keyword for a real declaration but can be an
@@ -59,8 +59,8 @@
 ;; source — skip it here (print a marker) rather than crash on `ast-name`; it is phase C's ask
 ;; to resolve, not phase A's parse.
 (:wat::core::defn :user::pairs-from-defenum
-  [node <- :wat::WatAST]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [node <- wat.type/AST]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::let
     [ch       (:wat::core::ast->children node)
      name-node (:wat::core::Option/expect (:wat::core::get ch 1) "defenum parent")]
@@ -73,29 +73,29 @@
         (:user::pairs-for-leaves parent leaves))
       (:wat::core::do
         (:wat::kernel::println "SKIP-MACRO-TEMPLATE defenum name is not a literal keyword")
-        (:wat::core::Vector :- [:wat::core::String])))))
+        (wat.type/Vector :- [wat.type/String])))))
 
 (:wat::core::defn :user::walk-list
-  [items <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [items <- (wat.type/Vector :- [wat.type/AST])]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [:wat::core::String])
+    (wat.type/Vector :- [wat.type/String])
     (:wat::core::concat
       (:user::walk-node (:wat::core::first items))
       (:user::walk-list (:wat::core::rest items)))))
 
 (:wat::core::defn :user::walk-node
-  [node <- :wat::WatAST]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [node <- wat.type/AST]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::fix::calls-to? node ":wat::core::defenum")
     (:user::pairs-from-defenum node)
     (:wat::core::if (:wat::fix::structural? node)
       (:user::walk-list (:wat::core::ast->children node))
-      (:wat::core::Vector :- [:wat::core::String]))))
+      (wat.type/Vector :- [wat.type/String]))))
 
 (:wat::core::defn :user::pairs-for-file
-  [path <- :wat::core::String]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [path <- wat.type/String]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::let
     [src   (:wat::io::read-file path)
      outcome (:wat::core::read-string src)]
@@ -106,11 +106,11 @@
         (:wat::core::do
           (:wat::kernel::println
             (:wat::string::concat "MALFORMED " (:wat::string::concat path (:wat::string::concat ": " (:wat::core::Error/message __cause)))))
-          (:wat::core::Vector :- [:wat::core::String]))])))
+          (wat.type/Vector :- [wat.type/String]))])))
 
 (:wat::core::defn :user::print-each
-  [lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::nil
+  [lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? lines)
     nil
     (:wat::core::do
@@ -118,15 +118,15 @@
       (:user::print-each (:wat::core::rest lines)))))
 
 (:wat::core::defn :user::process-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do
       (:user::print-each (:user::pairs-for-file (:wat::core::first paths)))
       (:user::process-each (:wat::core::rest paths)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match (:wat::kernel::readln)
     [:wat::kernel::ReadlnOutcome.Datum {:v paths} (:user::process-each paths)]
     [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]

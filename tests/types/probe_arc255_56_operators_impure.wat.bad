@@ -1,3 +1,3 @@
 (:wat::core::defenum :u::Imp :wat::enum::Impure :A :B)
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+(:wat::core::defn :user::compute [] -> wat.type/bool
   (:wat::core::= :u::Imp.A :u::Imp.A))

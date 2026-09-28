@@ -3,8 +3,8 @@
 
 (:wat::core::defn :my::kernel::restricted-fn
   {:restricted-to [:my::kernel::specific-caller]}
-  [x <- :wat::core::i64] -> :wat::core::i64 x)
+  [x <- wat.type/i64] -> wat.type/i64 x)
 
-(:wat::core::defn :my::kernel::other-caller [] -> :wat::core::i64
+(:wat::core::defn :my::kernel::other-caller [] -> wat.type/i64
   (:my::kernel::restricted-fn 7))
 

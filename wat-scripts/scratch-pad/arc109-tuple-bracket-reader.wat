@@ -15,21 +15,21 @@
 ;; 1-ary bracketed tuple — the rung the keyword surface can only spell with a trailing comma
 ;; (`:(wat::core::i64,)`; bare `:(A)` is Rust GROUPING and collapses to `A`). The form surface has
 ;; no such ambiguity. Measured distinct from a scalar: passing a bare 7 here is a TypeMismatch.
-(:wat::core::defn :user::one-ary [p <- (wat.type/Tuple :- [wat.type/i64])] -> :wat::core::i64
+(:wat::core::defn :user::one-ary [p <- (wat.type/Tuple :- [wat.type/i64])] -> wat.type/i64
   0)
 
 ;; 2-ary bracketed tuple as a PARAM type
-(:wat::core::defn :user::takes-pair [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::i64
+(:wat::core::defn :user::takes-pair [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> wat.type/i64
   1)
 
 ;; bracketed tuple as a RETURN type, with a nested parametric inside it
 (:wat::core::defn :user::nested [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
-  (:wat::core::Tuple (:wat::core::Vector :- [:wat::core::i64] 1 2) "s"))
+  (:wat::core::Tuple (wat.type/Vector :- [wat.type/i64] 1 2) "s"))
 
 ;; 255.57 — an empty `(wat.type/Tuple :- [])` is not a type. Nil is the path.
 
 ;; the FLAT form still reads (the c09 contract) — the reader accepts both; only the WRITER changes
-(:wat::core::defn :user::flat-still-reads [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::i64
+(:wat::core::defn :user::flat-still-reads [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> wat.type/i64
   2)
 
 ;; Arc 109 Stone ②-i-b — the `:-`-marked spelling of the same rungs above. `:-` declares "the
@@ -38,20 +38,20 @@
 ;; arm, src/types.rs). Same rungs, `:-` this time — dual-read alongside the unmarked forms above.
 
 ;; 1-ary bracketed tuple, `:-`-marked
-(:wat::core::defn :user::one-ary-colon [p <- (wat.type/Tuple :- [wat.type/i64])] -> :wat::core::i64
+(:wat::core::defn :user::one-ary-colon [p <- (wat.type/Tuple :- [wat.type/i64])] -> wat.type/i64
   0)
 
 ;; 2-ary bracketed tuple as a PARAM type, `:-`-marked
-(:wat::core::defn :user::takes-pair-colon [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::i64
+(:wat::core::defn :user::takes-pair-colon [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> wat.type/i64
   1)
 
 ;; bracketed tuple as a RETURN type, with a nested `:-`-marked parametric inside it
 (:wat::core::defn :user::nested-colon [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
-  (:wat::core::Tuple (:wat::core::Vector :- [:wat::core::i64] 1 2) "s"))
+  (:wat::core::Tuple (wat.type/Vector :- [wat.type/i64] 1 2) "s"))
 
 ;; 255.57 — `(wat.type/Tuple :- [])` is refused. A tuple type needs at least one slot.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:wat::string::interpolate "pair={a} flat={b}"
     :a (:user::takes-pair (:wat::core::Tuple 1 "x"))
     :b (:user::flat-still-reads (:wat::core::Tuple 2 "y")))))

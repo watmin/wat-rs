@@ -4,5 +4,5 @@
 ;; This row is what makes the positive `…_18_…_generic_reads_its_count.wat` non-vacuous: a call to
 ;; an UNDECLARED `:wat::spawn::Locus/<name>` type-checks with a free result (measured: on the
 ;; pre-stone binary, where the surface had no `runner-count`, this file is accepted, rc=0).
-(:wat::core::defn :probe::count :- [T] [l <- (:wat::spawn::Locus :- [T])] -> :wat::core::String
+(:wat::core::defn :probe::count :- [T] [l <- (:wat::spawn::Locus :- [T])] -> wat.type/String
   (:wat::spawn::Locus/runner-count l))

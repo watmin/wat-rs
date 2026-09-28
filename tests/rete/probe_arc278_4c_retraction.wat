@@ -1,10 +1,10 @@
 ;; tests/rete/probe_arc278_4c_retraction.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines the weather records for truth-maintenance tests.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
-(:wat::core::defrecord :weather::WeatherAlert [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
+(:wat::core::defrecord :weather::WeatherAlert [location <- wat.type/String])
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
@@ -43,41 +43,41 @@
 (:wat::core::defn :test::fire [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :test::count-derived [s <- :wat::rete::Session q <- :wat::rete::Query] -> :wat::core::i64
+(:wat::core::defn :test::count-derived [s <- :wat::rete::Session q <- :wat::rete::Query] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s q)))
 
-(:wat::core::defn :user::compile-ab-rules-fires-nothing [] -> :wat::core::i64
+(:wat::core::defn :user::compile-ab-rules-fires-nothing [] -> wat.type/i64
   (:test::count-derived (:test::fire (:test::compile-ab-rules)) (:weather::q-ColdAndWindy)))
 
-(:wat::core::defn :user::seed-oslo-then-fire-cw [] -> :wat::core::i64
+(:wat::core::defn :user::seed-oslo-then-fire-cw [] -> wat.type/i64
   (:test::count-derived (:test::fire (:test::seed-oslo (:test::compile-ab-rules))) (:weather::q-ColdAndWindy)))
 
-(:wat::core::defn :user::seed-bergen-then-fire-cw [] -> :wat::core::i64
+(:wat::core::defn :user::seed-bergen-then-fire-cw [] -> wat.type/i64
   (:test::count-derived (:test::fire (:test::seed-bergen (:test::compile-ab-rules))) (:weather::q-ColdAndWindy)))
 
 ;; ── Part A — the fact-model fix: fire keeps INPUT distinct from DERIVED ─────────────
 ;; Assert Temp+Wind at Oslo, fire. Session.facts must hold the 2 INPUT facts and NO derived ColdAndWindy.
 
-(:wat::core::defn :user::part-a-temperature-in-facts [] -> :wat::core::i64
+(:wat::core::defn :user::part-a-temperature-in-facts [] -> wat.type/i64
   ;; rune:vocare(vantage-bypass-test) — input-vs-derived layout: Temperature must remain in Session/facts after fire
   (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
     (:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter
-      (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) "weather::Temperature"))
+      (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool (:wat::core::= (:wat::core::type f) "weather::Temperature"))
       (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
 
-(:wat::core::defn :user::part-a-coldandwindy-in-facts [] -> :wat::core::i64
+(:wat::core::defn :user::part-a-coldandwindy-in-facts [] -> wat.type/i64
   ;; rune:vocare(vantage-bypass-test) — input-vs-derived layout: derived ColdAndWindy must NOT leak into Session/facts
   (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
     (:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter
-      (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) "weather::ColdAndWindy"))
+      (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool (:wat::core::= (:wat::core::type f) "weather::ColdAndWindy"))
       (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
 
-(:wat::core::defn :user::part-a-coldandwindy-derived [] -> :wat::core::i64
+(:wat::core::defn :user::part-a-coldandwindy-derived [] -> wat.type/i64
   (:test::count-derived (:test::fire (:test::seed-oslo (:test::compile-ab-rules))) (:weather::q-ColdAndWindy)))
 
 ;; ── Part B — retraction drops the derived consequence ───────────────────────────
 
-(:wat::core::defn :user::part-b-coldandwindy-derived-after-retract [] -> :wat::core::i64
+(:wat::core::defn :user::part-b-coldandwindy-derived-after-retract [] -> wat.type/i64
   (:wat::core::let
     [f0    (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))
      s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -86,7 +86,7 @@
 
 ;; ── Part C — retraction cascades transitively (CW supported WA) ──────────────────
 
-(:wat::core::defn :user::part-c-weatheralert-derived-after-retract [] -> :wat::core::i64
+(:wat::core::defn :user::part-c-weatheralert-derived-after-retract [] -> wat.type/i64
   (:wat::core::let
     [f0    (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))
      s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
@@ -95,7 +95,7 @@
 
 ;; ── Part D — retraction is precise: independent derivations survive ──────────────
 
-(:wat::core::defn :user::part-d-coldandwindy-derived-after-retract-oslo [] -> :wat::core::i64
+(:wat::core::defn :user::part-d-coldandwindy-derived-after-retract-oslo [] -> wat.type/i64
   (:wat::core::let
     [f0    (:test::fire (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules))))
      s5    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))

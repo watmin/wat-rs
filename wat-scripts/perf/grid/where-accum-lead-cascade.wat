@@ -24,10 +24,10 @@
 ;;     clojure -Sdeps '{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}' \
 ;;             -M wat-scripts/perf/grid/where-accum-lead-cascade.clj
 
-(:wat::core::defrecord :walc::W  [k <- :wat::core::i64])
-(:wat::core::defrecord :walc::S1 [k <- :wat::core::i64])
-(:wat::core::defrecord :walc::S2 [k <- :wat::core::i64])
-(:wat::core::defrecord :walc::S3 [k <- :wat::core::i64])
+(:wat::core::defrecord :walc::W  [k <- wat.type/i64])
+(:wat::core::defrecord :walc::S1 [k <- wat.type/i64])
+(:wat::core::defrecord :walc::S2 [k <- wat.type/i64])
+(:wat::core::defrecord :walc::S3 [k <- wat.type/i64])
 
 ;; The inert chain. Neither rule reads or writes W.
 (:wat::rete::defrule :walc::r1 :when [(:walc::S1 (?k :- :k))] :then [(:walc::S2 :k ?k)])
@@ -39,7 +39,7 @@
 
 (:wat::rete::defquery :walc::q-W :params [] :when [(?fact :- :walc::W)])
 
-(:wat::core::defn :walc::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :walc::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -48,9 +48,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
 (:wat::core::defn :walc::run
-  [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+  [rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])
    q     <- :wat::rete::Query]
-  -> :wat::core::i64
+  -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat::core::match (:wat::rete::fire-rules
@@ -63,7 +63,7 @@
 ;; Two W facts, so the count is 2 and the `>= 2` predicate holds in every row. Rows 1-3 must all
 ;; print n=1; row 4 proves the accumulate still had its facts, so a "fix" that empties the world
 ;; cannot read as agreement.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [none (:wat::core::PersistentVector)
      d1   (:wat::core::PersistentVector (:walc::r1))

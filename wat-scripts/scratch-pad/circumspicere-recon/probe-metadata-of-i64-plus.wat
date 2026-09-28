@@ -3,7 +3,7 @@
 ;; (tests/reflection/probe_arc255_reflection_parity.rs / .wat). Its ignore
 ;; reason claims "arc-255 metadata-of reflection (builtin-registry) not yet
 ;; built" — checking whether that premise still holds.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [m (:wat::runtime::metadata-of :wat::i64::+)]
     (:wat::core::match m

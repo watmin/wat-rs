@@ -8,27 +8,27 @@
 
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 
-(:wat::core::defrecord :probe::SqliteReason [code  <- :wat::core::i64  sql <- :wat::core::String])
-(:wat::core::defrecord :probe::RedisReason  [errno <- :wat::core::i64  cmd <- :wat::core::String])
-(:wat::core::defrecord :probe::MongoReason  [nsp   <- :wat::core::String])   ; NO specific clause -> must hit fallback
+(:wat::core::defrecord :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
+(:wat::core::defrecord :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])
+(:wat::core::defrecord :probe::MongoReason  [nsp   <- wat.type/String])   ; NO specific clause -> must hit fallback
 (:wat::core::extend-type :probe::SqliteReason :probe::Reason)
 (:wat::core::extend-type :probe::RedisReason :probe::Reason)
 (:wat::core::extend-type :probe::MongoReason :probe::Reason)
 
 ;; the multi-backend client — concrete clauses + the OPEN-surface fallback
 (:wat::core::defclause :probe::describe
-  ([r <- :probe::SqliteReason] -> :wat::core::String
+  ([r <- :probe::SqliteReason] -> wat.type/String
     (:wat::string::concat "sqlite " (:wat::i64::to-string (:probe::SqliteReason/code r))))
-  ([r <- :probe::RedisReason]  -> :wat::core::String
+  ([r <- :probe::RedisReason]  -> wat.type/String
     (:wat::string::concat "redis "  (:wat::i64::to-string (:probe::RedisReason/errno r))))
-  ([r <- :probe::Reason]       -> :wat::core::String
+  ([r <- :probe::Reason]       -> wat.type/String
     "unknown backend"))
 
 ;; UP: concrete records flow into a Reason-typed slot (the extend-type above)
 (:wat::core::defn :probe::as-reason-s [r <- :probe::SqliteReason] -> :probe::Reason r)
 (:wat::core::defn :probe::as-reason-m [r <- :probe::MongoReason]  -> :probe::Reason r)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [known   (:probe::as-reason-s (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))  ; : Reason, concrete = Sqlite
      unknown (:probe::as-reason-m (:probe::MongoReason "app.users"))                     ; : Reason, concrete = Mongo

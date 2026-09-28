@@ -1,9 +1,9 @@
 ;; tests/rete/probe_arc278_4a_production_fire.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines the weather records for production-fire tests.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
@@ -49,7 +49,7 @@
 (:wat::core::defn :test::fired-2x2 [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules (:test::seed-2x2 (:test::compile-cw))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :test::cw-count [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :test::cw-count [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :test::cw-fact [s <- :wat::rete::Session] -> :weather::ColdAndWindy
@@ -61,22 +61,22 @@
       "?fact")
     "fact"))
 
-(:wat::core::defn :user::compile-cw-fires-nothing [] -> :wat::core::i64
+(:wat::core::defn :user::compile-cw-fires-nothing [] -> wat.type/i64
   (:test::cw-count (:wat::core::match (:wat::rete::fire-rules (:test::compile-cw)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
 
-(:wat::core::defn :user::pfacts-length-oslo [] -> :wat::core::i64
+(:wat::core::defn :user::pfacts-length-oslo [] -> wat.type/i64
   (:test::cw-count (:test::fired-oslo)))
 
-(:wat::core::defn :user::fact-type-oslo [] -> :wat::core::String
+(:wat::core::defn :user::fact-type-oslo [] -> wat.type/String
   (:wat::core::type (:test::cw-fact (:test::fired-oslo))))
 
-(:wat::core::defn :user::fact-location-oslo [] -> :wat::core::String
+(:wat::core::defn :user::fact-location-oslo [] -> wat.type/String
   (:weather::ColdAndWindy/location (:test::cw-fact (:test::fired-oslo))))
 
-(:wat::core::defn :user::pfacts-length-bergen [] -> :wat::core::i64
+(:wat::core::defn :user::pfacts-length-bergen [] -> wat.type/i64
   (:test::cw-count (:test::fired-bergen)))
 
 ;; HAZARD — one fact per activation, no cross-product. 2 Temps × 2 Winds / 2 locs → exactly the 2 same-loc
 ;; joins → exactly 2 derived facts (NOT 4 from a blind cross, NOT 1 from a clobbered accumulator).
-(:wat::core::defn :user::pfacts-length-2x2 [] -> :wat::core::i64
+(:wat::core::defn :user::pfacts-length-2x2 [] -> wat.type/i64
   (:test::cw-count (:test::fired-2x2)))

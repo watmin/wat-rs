@@ -20,21 +20,21 @@
 ;; (c) edn::write → edn::read round-trips the record without error
 
 (:wat::core::defrecord :probe::BadInput
-  [message  <- :wat::core::String
+  [message  <- wat.type/String
    location <- :wat::kernel::Location
-   causes   <- (:wat::core::Vector :- [:wat::core::Error])
-   field    <- :wat::core::String])
+   causes   <- (wat.type/Vector :- [:wat::core::Error])
+   field    <- wat.type/String])
 
 ;; Surface-typed param: the checker verifies :probe::BadInput satisfies
 ;; :wat::core::Error structurally (it has message, location, causes).
 ;; Body: arc 293.4d field accessor — :S/field-name on a surface-typed receiver.
-(:wat::core::defn :probe::describe [e <- :wat::core::Error] -> :wat::core::String
+(:wat::core::defn :probe::describe [e <- :wat::core::Error] -> wat.type/String
   (:wat::core::Error/message e))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [e    (:probe::BadInput :message "port must be > 0" :location (:wat::kernel::here)
-             :causes (:wat::core::Vector :- [:wat::core::Error]) :field "port")
+             :causes (wat.type/Vector :- [:wat::core::Error]) :field "port")
      msg  (:probe::describe e)
      s    (:wat::edn::write e)
      back (:wat::edn::read s)]

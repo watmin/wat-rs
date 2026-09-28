@@ -19,18 +19,18 @@
 ;; service ships them across a process fork.
 (:wat::core::defsurface :wat-tests::AdminCounter :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::AdminCounter::IncrementRequest  [n <- :wat::core::i64])
+  [(:wat::core::defrecord :wat-tests::AdminCounter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :wat-tests::AdminCounter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(increment [self <- :wat-tests::AdminCounter  req <- :wat-tests::AdminCounter::IncrementRequest] -> :wat-tests::AdminCounter::IncrementResponse :max-request-bytes 524288)])
 
 ;; ── the service: a counter; Increment is a client (data-plane) op; stop is admin (control-plane) ──
 (:wat::service::defservice :wat-tests::admin-counter
   :satisfies :wat-tests::AdminCounter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(increment [s ctx req]

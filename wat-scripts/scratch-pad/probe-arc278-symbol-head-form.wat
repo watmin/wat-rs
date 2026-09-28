@@ -50,10 +50,10 @@
 ;; the CLOJURE SPELLING — the one a Clojure programmer writes by reflex. It is exactly the form
 ;; the wire refuses.
 
-(:wat::core::defn :probe::eval-symbol-head [] -> :wat::core::i64
+(:wat::core::defn :probe::eval-symbol-head [] -> wat.type/i64
   (wat.core/+ 2 2))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; (1) does it evaluate? if normalize rewrites the head, this is 4.
     (:wat::kernel::println

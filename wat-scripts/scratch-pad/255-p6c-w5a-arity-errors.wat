@@ -6,7 +6,7 @@
 ;; confirms the same op/expected/got shape survives the move to `#[wat_intrinsic]`, now raised by
 ;; the shim rather than the deleted hand-rolled `args.len() != N` guard.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::pure? 1 2)))
       [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "pure? UNEXPECTED ok: " (:wat::edn::write v)))]

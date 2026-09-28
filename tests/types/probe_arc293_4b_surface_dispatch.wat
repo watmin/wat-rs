@@ -13,18 +13,18 @@
 
 (:wat::core::defsurface :t::Shape
   :nature :wat::core::Struct
-  :features [(area [self <- :t::Shape] -> :wat::core::f64)])
+  :features [(area [self <- :t::Shape] -> wat.type/f64)])
 
-(:wat::core::defrecord :t::Circle [radius <- :wat::core::f64])
-(:wat::core::defn :t::Circle/area [self <- :t::Circle] -> :wat::core::f64
+(:wat::core::defrecord :t::Circle [radius <- wat.type/f64])
+(:wat::core::defn :t::Circle/area [self <- :t::Circle] -> wat.type/f64
   (:wat::f64::* 3.14159 (:wat::f64::* (:t::Circle/radius self) (:t::Circle/radius self))))
 
-(:wat::core::defrecord :t::Square [side <- :wat::core::f64])
-(:wat::core::defn :t::Square/area [self <- :t::Square] -> :wat::core::f64
+(:wat::core::defrecord :t::Square [side <- wat.type/f64])
+(:wat::core::defn :t::Square/area [self <- :t::Square] -> wat.type/f64
   (:wat::f64::* (:t::Square/side self) (:t::Square/side self)))
 
 ;; THE DISPATCHER under test — one consumer, accepts ANY Shape, routes :Shape/area by type.
-(:wat::core::defn :t::describe [s <- :t::Shape] -> :wat::core::f64 (:t::Shape/area s))
+(:wat::core::defn :t::describe [s <- :t::Shape] -> wat.type/f64 (:t::Shape/area s))
 
-(:wat::core::defn :t::circle-area [] -> :wat::core::f64 (:t::describe (:t::Circle :radius 2.0)))
-(:wat::core::defn :t::square-area [] -> :wat::core::f64 (:t::describe (:t::Square :side 3.0)))
+(:wat::core::defn :t::circle-area [] -> wat.type/f64 (:t::describe (:t::Circle :radius 2.0)))
+(:wat::core::defn :t::square-area [] -> wat.type/f64 (:t::describe (:t::Square :side 3.0)))

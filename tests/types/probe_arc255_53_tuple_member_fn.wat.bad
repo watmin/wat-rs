@@ -1,1 +1,1 @@
-(:wat::core::defn :u::f :- [Ts :..] [x <- :Ts] -> :wat::core::i64 1)
+(:wat::core::defn :u::f :- [Ts :..] [x <- :Ts] -> wat.type/i64 1)

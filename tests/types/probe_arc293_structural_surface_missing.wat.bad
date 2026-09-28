@@ -4,13 +4,13 @@
 
 (:wat::core::defsurface :geo::Shape
   :nature :wat::core::Struct
-  :features [color <- :wat::core::String])
+  :features [color <- wat.type/String])
 
 (:wat::core::defstruct :geo::Bare
-  [other <- :wat::core::i64])
+  [other <- wat.type/i64])
 
-(:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> :wat::core::bool
+(:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> wat.type/bool
   true)
 
-(:wat::core::defn :user::main [] -> :wat::core::bool
+(:wat::core::defn :user::main [] -> wat.type/bool
   (:geo::accepts-shape (:geo::Bare 42)))

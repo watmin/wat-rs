@@ -7,16 +7,16 @@
 ;; VALUE (`(Vector :- [wat::WatAST])`), so the factory shape is preserved unchanged. Only the DRIVER
 ;; flipped to the peer wire: `send' 7` feeds the child's `readln`, and `(n + offset)`'s `println`
 ;; crosses back as a `recv'` `RecvOutcome::Message`. Returns the recv'd i64 directly (== offset+7).
-(:wat::core::defn :my::launch [offset <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :my::launch [offset <- wat.type/i64] -> wat.type/i64
   (:wat::core::let
-    [main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
+    [main-form `(:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
                     [n    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                      _out (:wat::kernel::println
                             (:wat::i64::+ n ~offset))]
                     nil))
      p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::Vector :- [:wat::WatAST] main-form))
+         (wat.type/Vector :- [wat.type/AST] main-form))
      _ (:wat::core::match (:wat::kernel::send p 7)
          [:wat::kernel::SendOutcome.Sent {} nil]
          [:wat::kernel::SendOutcome.HandleClosed {} nil]

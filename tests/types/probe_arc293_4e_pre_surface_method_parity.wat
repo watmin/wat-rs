@@ -11,13 +11,13 @@
 
 (:wat::core::defsurface :t::Maker
   :nature :wat::core::Struct
-  :features [(make [self <- :t::Maker  x <- :wat::core::i64] -> :wat::core::i64)])
+  :features [(make [self <- :t::Maker  x <- wat.type/i64] -> wat.type/i64)])
 
-(:wat::core::defrecord :t::Id [tag <- :wat::core::i64])
+(:wat::core::defrecord :t::Id [tag <- wat.type/i64])
 
 (:wat::core::extend-type :t::Id :t::Maker
   (make [self x] x))
 
-(:wat::core::defn :t::use [m <- :t::Maker] -> :wat::core::i64 (:t::Maker/make m 42))
+(:wat::core::defn :t::use [m <- :t::Maker] -> wat.type/i64 (:t::Maker/make m 42))
 
-(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::use (:t::Id :tag 1)))
+(:wat::core::defn :t::probe [] -> wat.type/i64 (:t::use (:t::Id :tag 1)))

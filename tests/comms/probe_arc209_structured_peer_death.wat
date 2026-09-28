@@ -14,10 +14,10 @@
 ;; strings). The death is a Panic (assertion-failed! → AssertionPayload); every OTHER LociDiedError
 ;; variant is named EXPLICITLY (no `_` lump; verbosity is the shield) and returns a distinct sentinel.
 
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            (:wat::kernel::assertion-failed! :message "structured-death-marker" :actual (:wat::core::Option.Some {:value "ACTUAL-42173"}) :expected (:wat::core::Option.Some {:value "EXPECTED-99731"}))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]

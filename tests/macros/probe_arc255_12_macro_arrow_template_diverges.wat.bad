@@ -15,7 +15,7 @@
 ;; Two templates that emit different surface forms would become one macro. That
 ;; is a grammar-migration question (8d-ii converts the baked sources too), not an
 ;; identity question, and it is the builder's call.
-(:wat::core::defmacro :p255_12::MA [x <- :wat::WatAST] -> :wat::WatAST
-  `(:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ y ~x)))
+(:wat::core::defmacro :p255_12::MA [x <- wat.type/AST] -> wat.type/AST
+  `(:wat::core::fn [y <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ y ~x)))
 (:wat::core::defmacro :p255_12::MA [x <- wat/WatAST] :- wat/WatAST
   `(wat.core/fn [y :- wat.core/i64] :- wat.core/i64 (wat.i64/+ y ~x)))

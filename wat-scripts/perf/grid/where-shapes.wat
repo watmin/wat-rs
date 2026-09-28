@@ -59,27 +59,27 @@
 ;; USER IS ALLOWED TO WRITE (arithmetic, accessor, nested accessor, string, collection, map, user-fn,
 ;; multi-variable, boolean) rather than what our corpus happened to write.
 
-(:wat::core::defn :wsh::items [] -> :wat::core::i64 200)   ;; the stream size, both sides
+(:wat::core::defn :wsh::items [] -> wat.type/i64 200)   ;; the stream size, both sides
 
 ;; row-count — the corpus size. Bumped by hand when a shape lands; `main` folds 1..row-count, so a
 ;; row that exists but is not counted never runs, and a counted row that does not exist is a located
 ;; failure from build-rules' :else. Neither can pass silently.
-(:wat::core::defn :wsh::row-count [] -> :wat::core::i64 6)
+(:wat::core::defn :wsh::row-count [] -> wat.type/i64 6)
 
-(:wat::core::defrecord :wsh::Client [rep <- :wat::core::i64])   ;; row 2's nested accessor target
+(:wat::core::defrecord :wsh::Client [rep <- wat.type/i64])   ;; row 2's nested accessor target
 
 (:wat::core::defrecord :wsh::Req
-  [k      <- :wat::core::i64
+  [k      <- wat.type/i64
    client <- :wsh::Client
-   name   <- :wat::core::String
-   tags   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   limit  <- :wat::core::i64])                                 ;; the shared fact stream
+   name   <- wat.type/String
+   tags   <- (wat.type/PersistentVector :- [wat.type/i64])
+   limit  <- wat.type/i64])                                 ;; the shared fact stream
 
-(:wat::core::defrecord :wsh::Hit [k <- :wat::core::i64])   ;; the single production type
+(:wat::core::defrecord :wsh::Hit [k <- wat.type/i64])   ;; the single production type
 
 ;; row 5's user-defined pure fn — the shape a compiled executor CANNOT model and must hand back to
 ;; the interpreter. big?(k) := k mod 7 > 3 (k mod 7 in {4,5,6}), so it discriminates a proper subset.
-(:wat::rete::core::defn :wsh::big? [k <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :wsh::big? [k <- wat.type/i64] -> wat.type/bool
   (:wat::rete::i64::>
     (:wat::rete::i64::- k (:wat::rete::i64::* (:wat::rete::i64::/ k 7 :undefined 0) 7 :undefined 0) :undefined 0)
     3))
@@ -160,7 +160,7 @@
 ;;
 ;; An unknown row is a located failure, never a silent fallback to row 1 — a default arm would let a
 ;; mis-set row-count report a green corpus for a shape nobody ran.
-(:wat::core::defn :wsh::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :wsh::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1) (:wsh::arith))
@@ -180,12 +180,12 @@
 ;;   name(i)  = "ad"+i if i mod 3 == 0 else "zz"+i — row 3
 ;;   tags(i)  = a vector of length (i mod 4)       — row 4
 ;;   limit(i) = (i mod 7) * 20                     — row 6's per-fact threshold
-(:wat::core::defn :wsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :wsh::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::let [rep      (:wat::i64::- (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 5) 5)) 2)
                           is-ad    (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
                           nm       (:wat::core::if is-ad
@@ -193,7 +193,7 @@
                                       (:wat::string::concat "zz" (:wat::i64::to-string i)))
                           tags-len (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 4) 4))
                           tags     (:wat::core::into (:wat::core::PersistentVector)
-                                     (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 tags-len)))
+                                     (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 tags-len)))
                           lim      (:wat::i64::* (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 7) 7)) 20)]
           (:wat::vector::conj acc
             (:wsh::Req :k i :client (:wsh::Client :rep rep) :name nm :tags tags :limit lim))))
@@ -202,11 +202,11 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wsh::derived-ints
-  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
+  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wsh::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wsh::Hit/k f)))
         (:wat::rete::query fired (:wsh::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer, because the two
@@ -214,9 +214,9 @@
 ;; PersistentVector as `#wat.core/PersistentVector [...]` (a real round-trip-identity decision) while
 ;; Clojure's `pr-str` emits a bare vector; rendering the ints ourselves sidesteps that entirely
 ;; instead of stripping the tag afterwards.
-(:wat::core::defn :wsh::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+(:wat::core::defn :wsh::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
@@ -237,13 +237,13 @@
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
 (:wat::core::defn :wsh::rule-display-name
-  [full <- :wat::core::String] -> :wat::core::String
+  [full <- wat.type/String] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
     full
     (:wat::string::split full "::")))
 
-(:wat::core::defn :wsh::run-row [row <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wsh::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let [rules   (:wsh::build-rules row)
                     rule    (:wat::core::first rules)
                     staged  (:wsh::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsh::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wsh::items))
@@ -258,9 +258,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))
         (:wat::string::concat " ->" (:wsh::render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
       (:wat::kernel::println (:wsh::run-row row)))
     nil
     (:wat::core::range 1 (:wat::i64::+ (:wsh::row-count) 1))))

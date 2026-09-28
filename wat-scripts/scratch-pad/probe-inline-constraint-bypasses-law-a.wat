@@ -25,8 +25,8 @@
 ;;
 ;; Run: target/release/wat wat-scripts/scratch-pad/probe-inline-constraint-bypasses-law-a.wat
 
-(:wat::core::defrecord :probe::Reading [location <- :wat::core::String  value <- :wat::core::i64])
-(:wat::core::defrecord :probe::Flagged [location <- :wat::core::String])
+(:wat::core::defrecord :probe::Reading [location <- wat.type/String  value <- wat.type/i64])
+(:wat::core::defrecord :probe::Flagged [location <- wat.type/String])
 
 ;; CONTROL — the same predicate through the FENCED surface. Rete-spelled, law-A clean.
 (:wat::rete::defrule :probe::via-where
@@ -49,7 +49,7 @@
   :when [(?fact :- :probe::Flagged)])
 
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Flagged))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

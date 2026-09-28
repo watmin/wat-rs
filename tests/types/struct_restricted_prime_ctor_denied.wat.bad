@@ -4,6 +4,6 @@
 ;; route — this exercises the prime. Must FAIL.
 (:wat::core::defstruct :my::Token
   {:restricted-to [:my::issuer::]}
-  [id <- :wat::core::i64])
+  [id <- wat.type/i64])
 (:wat::core::defn :user::bad-mint-via-prime [] -> :my::Token
   (:my::Token' 7))

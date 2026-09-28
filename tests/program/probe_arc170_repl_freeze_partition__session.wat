@@ -11,8 +11,8 @@
 ;; If the freeze partitions all four the same way, it is the single authority the
 ;; eval-time errors are not.
 
-(:wat::core::defn :usr::f [] -> :wat::core::i64 7)
-(:wat::core::defrecord :usr::R [a <- :wat::core::i64])
+(:wat::core::defn :usr::f [] -> wat.type/i64 7)
+(:wat::core::defrecord :usr::R [a <- wat.type/i64])
 (:wat::core::defenum :usr::E :wat::enum::Pure :A [])
 (:wat::core::def :usr::x 1)
 (:wat::core::+ 1 2)

@@ -3,4 +3,4 @@
     :Red
     :Green
     :Blue)
-  (:wat::core::defn :diag::something [] -> :wat::core::i64 42))
+  (:wat::core::defn :diag::something [] -> wat.type/i64 42))

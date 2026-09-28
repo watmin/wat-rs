@@ -27,15 +27,15 @@
 ;; If SUBJECT == BASELINE, the user fn was NOT collected → the false negative is real.
 ;; If SUBJECT == BASELINE + 1, it WAS collected → the documented cost is wrong.
 
-(:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
 
 ;; the ONE helper, shared by the positive control and the subject
-(:wat::rete::core::defn :usr::big? [n <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :usr::big? [n <- wat.type/i64] -> wat.type/bool
   (:wat::rete::i64::> n 100))
 
 ;; ── POSITIVE CONTROL — ordinary call position. Collection here MUST work.
-(:wat::core::defn :usr::calls-helper-plainly [] -> :wat::core::bool
+(:wat::core::defn :usr::calls-helper-plainly [] -> wat.type/bool
   (:usr::big? 150))
 
 ;; ── BASELINE — a where body with NO user dep (rete-core only)
@@ -50,7 +50,7 @@
          (:wat::rete::where (:usr::big? ?c))]
   :then [(:usr::Hot :c ?c)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [pc  (:wat::kernel::fn-forms :usr::calls-helper-plainly
            (:wat::keyword::from-string "user::root-pc"))

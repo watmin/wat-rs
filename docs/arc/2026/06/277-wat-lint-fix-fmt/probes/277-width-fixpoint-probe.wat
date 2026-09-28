@@ -28,9 +28,9 @@
 ;;   printf '["wat/io.wat"]\n' | ./target/release/wat --grep ./wat-scripts/scratch-pad/277-width-fixpoint-probe.wat
 
 (:wat::core::defrecord :w::Width
-  [id     <- :wat::core::i64
-   parent <- :wat::core::i64
-   w      <- :wat::core::i64])
+  [id     <- wat.type/i64
+   parent <- wat.type/i64
+   w      <- wat.type/i64])
 
 ;; BASE CASE — zero children, and its own span does not straddle a line.
 (:wat::rete::defrule :w::leaf
@@ -70,5 +70,5 @@
                                                                      (:wat::rete::i64::- ?ec ?c :undefined 0)))
                        (:wat::grep::Capture :name "endline" :value (:wat::rete::i64::to-string ?el))))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :w))

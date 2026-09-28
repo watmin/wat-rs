@@ -7,11 +7,11 @@
 
 (:wat::core::defsurface :probe::Big :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Big::PutRequest  [payload <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Big::PutRequest  [payload <- wat.type/String])
    (:wat::core::defenum :probe::Big::PutResponse :wat::enum::Pure
-     :Ok              [ok <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [ok <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(put [self <- :probe::Big  req <- :probe::Big::PutRequest] -> :probe::Big::PutResponse :max-request-bytes 1048576)])
 
@@ -34,15 +34,15 @@
   [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Big::PutResponse.Ok {:ok 7})}))])
 
 ;; Build a String of exactly n*32 bytes.
-(:wat::core::defn :probe::payload-of [n <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :probe::payload-of [n <- wat.type/i64] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  _i <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
 
 ;; ── (a) large FOO ACCEPTS ~600 KiB: succeeds (returns 7). At HEAD (512 KiB default) it MUTES.
-(:wat::core::defn :user::large-foo-accepts [] -> :wat::core::i64
+(:wat::core::defn :user::large-foo-accepts [] -> wat.type/i64
   (:wat::core::let
     [big  (:probe::payload-of 19200)   ;; 19200*32 = 614400 bytes ≈ 600 KiB (> 512 KiB, < 1 MiB)
      h    (:probe::bigfoo/start :locus (:wat::spawn::process) :record (:probe::bigfoo::Record))
@@ -64,7 +64,7 @@
 ;; reason IS the LAW proven — the over-FOO reason reaches the caller. Mirrors probe_arc278_recv_outcome_wall.
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                          ;; matched ::Message (.rs asserts NEVER)
-  :Lost    [names-frame-cap? <- :wat::core::bool]       ;; matched ::Lost — true iff the reason names the frame cap (the LAW: reason carried)
+  :Lost    [names-frame-cap? <- wat.type/bool]       ;; matched ::Lost — true iff the reason names the frame cap (the LAW: reason carried)
   ;; arc 278 #73 — matched ::Stopped (.rs asserts NEVER: this probe never asks the substrate to
   ;; stop, only over-FOO rejects). A structural twin of ::Closed, not folded into it.
   :Stopped []
@@ -90,7 +90,7 @@
 ;; this fn does not raise on c1); then a FRESH connection c2 issues an in-budget request. If the
 ;; service SURVIVED the over-FOO, c2's put returns 7. If the over-FOO crashed the whole service
 ;; child, c2's put fails. (Determinism note: c1's frame is fired before c2's request is issued.)
-(:wat::core::defn :user::small-foo-survives [] -> :wat::core::i64
+(:wat::core::defn :user::small-foo-survives [] -> wat.type/i64
   (:wat::core::let
     [big  (:probe::payload-of 400)     ;; > 4096 → over-FOO
      h    (:probe::smallfoo/start :locus (:wat::spawn::process) :record (:probe::smallfoo::Record))

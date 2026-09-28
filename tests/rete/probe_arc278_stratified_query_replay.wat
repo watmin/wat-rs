@@ -26,10 +26,10 @@
 ;;            single-stratum probe reddens; this one guards that the STRATIFIED reading
 ;;            of the same rule stays right too.
 
-(:wat::core::defrecord :sqr::Item [k <- :wat::core::i64  name <- :wat::core::String])
-(:wat::core::defrecord :sqr::Wind [loc <- :wat::core::String])
-(:wat::core::defrecord :sqr::Bad  [k <- :wat::core::i64])
-(:wat::core::defrecord :sqr::Ok   [k <- :wat::core::i64])
+(:wat::core::defrecord :sqr::Item [k <- wat.type/i64  name <- wat.type/String])
+(:wat::core::defrecord :sqr::Wind [loc <- wat.type/String])
+(:wat::core::defrecord :sqr::Bad  [k <- wat.type/i64])
+(:wat::core::defrecord :sqr::Ok   [k <- wat.type/i64])
 
 (:wat::rete::defrule :sqr::mark-bad
   :when [(:sqr::Item (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
@@ -56,16 +56,16 @@
     ;; two Winds sharing one loc => ONE distinct inner binding
     (:wat::core::PersistentVector (:sqr::Wind :loc "MCI") (:sqr::Wind :loc "MCI"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :sqr::counts [s <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :sqr::counts [s <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector
     (:wat::core::length (:wat::rete::query s (:sqr::q-scan)))
     (:wat::core::length (:wat::rete::query s (:sqr::q-join)))
     (:wat::core::length (:wat::rete::query s (:sqr::q-exists)))))
 
 ;; [scan, join, exists] native, then the same under $oracle. Expect 2 2 1 twice.
-(:wat::core::defn :user::native-and-oracle [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::mapv
-    (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+    (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
     (:wat::vector::concat
       (:sqr::counts (:wat::core::match (:wat::rete::fire-rules (:sqr::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
       (:sqr::counts (:wat::core::match (:wat::rete::fire-rules$oracle (:sqr::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

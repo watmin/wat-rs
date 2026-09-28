@@ -2,9 +2,9 @@
 ;; Two defn forms with the same :user::f name. startup MUST fail with DefRedefForbidden.
 
 (:wat::core::defn :user::f
-  [x <- :wat::core::i64] -> :wat::core::i64
+  [x <- wat.type/i64] -> wat.type/i64
   x)
 
 (:wat::core::defn :user::f
-  [x <- :wat::core::i64] -> :wat::core::i64
+  [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ x 1))

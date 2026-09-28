@@ -3,36 +3,36 @@
 ;; beside MISMATCH so a vacuous 0/0 cannot hide.
 
 (:wat::core::defrecord :user::WC
-  [checked  <- :wat::core::i64
-   mismatch <- :wat::core::i64])
+  [checked  <- wat.type/i64
+   mismatch <- wat.type/i64])
 
 (:wat::core::defn :user::ids-of
-  [named <- (:wat::core::PersistentVector :- [:wat::grep::Named])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  [named <- (wat.type/PersistentVector :- [:wat::grep::Named])]
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
                      n <- :wat::grep::Named]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::hashmap::assoc m (:wat::grep::Named/id n) true))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     named))
 
 (:wat::core::defn :user::written-ids
-  [ws <- (:wat::core::PersistentVector :- [:wat::grep::Written])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  [ws <- (wat.type/PersistentVector :- [:wat::grep::Written])]
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
                      w <- :wat::grep::Written]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::hashmap::assoc m (:wat::grep::Written/id w) true))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     ws))
 
 (:wat::core::defn :user::synthesized?
-  [id     <- :wat::core::i64
-   named  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   written <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
-  -> :wat::core::bool
+  [id     <- wat.type/i64
+   named  <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   written <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])]
+  -> wat.type/bool
   (:wat::core::match (:wat::core::get named id)
     [:wat::core::Option.None {} false]
     [:wat::core::Option.Some {:value _}
@@ -41,21 +41,21 @@
         [:wat::core::Option.None {} true])]))
 
 (:wat::core::defn :user::parents-of
-  [nodes <- (:wat::core::PersistentVector :- [:wat::grep::Node])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+  [nodes <- (wat.type/PersistentVector :- [:wat::grep::Node])]
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
                      n <- :wat::grep::Node]
-      -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+      -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
       (:wat::hashmap::assoc m (:wat::grep::Node/id n) (:wat::grep::Node/parent n)))
-    (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
+    (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     nodes))
 
 (:wat::core::defn :user::mark-up
-  [tainted <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   parents <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   id      <- :wat::core::i64]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  [tainted <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   parents <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   id      <- wat.type/i64]
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::if (:wat::i64::<= id 0)
     tainted
     (:wat::core::match (:wat::core::get tainted id)
@@ -68,27 +68,27 @@
           (:user::mark-up t2 parents p))])))
 
 (:wat::core::defn :user::taint-from
-  [nodes   <- (:wat::core::PersistentVector :- [:wat::grep::Node])
-   named   <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   written <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
-  -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+  [nodes   <- (wat.type/PersistentVector :- [:wat::grep::Node])
+   named   <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   written <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])]
+  -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
   (:wat::core::let [parents (:user::parents-of nodes)]
     (:wat::core::foldl
-      (:wat::core::fn [t <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      (:wat::core::fn [t <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
                        n <- :wat::grep::Node]
-        -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+        -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
         (:wat::core::if (:user::synthesized? (:wat::grep::Node/id n) named written)
           (:user::mark-up t parents (:wat::grep::Node/id n))
           t))
-      (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
+      (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       nodes)))
 
 (:wat::core::defn :user::check-span
   [acc     <- :user::WC
    sp      <- :wat::grep::Span
-   tainted <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])
-   widths  <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
-   path    <- :wat::core::String]
+   tainted <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
+   widths  <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
+   path    <- wat.type/String]
   -> :user::WC
   (:wat::core::if (:wat::core::not (:wat::core::= (:wat::grep::Span/line sp) (:wat::grep::Span/end-line sp)))
     acc
@@ -125,7 +125,7 @@
                 (:user::WC :checked (:wat::i64::+ (:user::WC/checked acc) 1)
                             :mismatch (:wat::i64::+ (:user::WC/mismatch acc) 1))))]))])))
 
-(:wat::core::defn :user::report [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::report [path <- wat.type/String] -> wat.type/nil
   (:wat::core::let
     [src   (:wat::io::read-file path)
      facts (:wat::grep::facts-of path src)]
@@ -150,7 +150,7 @@
       [:wat::core::ReadOutcome.Malformed {:cause c}
         (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [argv (:wat::runtime::argv)]
     (:wat::core::match (:wat::core::get argv 2)
       [:wat::core::Option.Some {:value path} (:user::report path)]

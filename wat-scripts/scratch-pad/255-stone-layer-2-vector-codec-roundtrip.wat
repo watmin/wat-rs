@@ -14,7 +14,7 @@
 ;;   3. failure path 2 — LengthMismatch: a well-formed dim=8 header (needs 2
 ;;      data bytes) followed by only 1.
 
-(:wat::core::defn :probe::run [] -> :wat::core::nil
+(:wat::core::defn :probe::run [] -> wat.type/nil
   (:wat::core::let
     [v (:wat::holon::encode (:wat::holon::to-holon "layer-2-roundtrip-atom"))
      bs (:wat::holon::vector-bytes v)
@@ -41,7 +41,7 @@
       (:wat::core::let
         [outcome1
           (:wat::holon::bytes-vector
-            (:wat::core::Vector :- [:wat::core::u8] (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3)))]
+            (wat.type/Vector :- [wat.type/u8] (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3)))]
         (:wat::core::match outcome1
           [:wat::holon::VectorDecodeOutcome.TruncatedHeader {:got got}
             (:wat::core::do
@@ -56,7 +56,7 @@
       (:wat::core::let
         [outcome2
           (:wat::holon::bytes-vector
-            (:wat::core::Vector :- [:wat::core::u8]
+            (wat.type/Vector :- [wat.type/u8]
               (:wat::core::u8 8) (:wat::core::u8 0) (:wat::core::u8 0) (:wat::core::u8 0)
               (:wat::core::u8 0)))]
         (:wat::core::match outcome2
@@ -71,5 +71,5 @@
               (:wat::kernel::println "UNEXPECTED:")
               (:wat::kernel::println outcome2))])))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:probe::run))

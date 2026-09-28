@@ -41,5 +41,5 @@
                        (:wat::grep::Capture :name "width" :value (:wat::rete::i64::to-string
                                                                   (:wat::rete::i64::- ?ec ?c :undefined 0)))))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :spn))

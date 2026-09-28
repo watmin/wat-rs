@@ -67,19 +67,19 @@
      ;; ONE type-param field and ONE concrete field, deliberately side by side: the request-shape
      ;; wall's reach is exactly the difference between them, and probes (2) and (3) below MEASURE
      ;; that difference instead of asserting it.
-     [probes <- (:wat::core::Vector :- [K])
-      limit  <- :wat::core::i64])
+     [probes <- (wat.type/Vector :- [K])
+      limit  <- wat.type/i64])
    (:wat::core::defenum :wat-tests::PCache::GetResponse :- [K V] :wat::enum::Pure
      ;; `echo` returns the K-typed probes, `results` the V-typed durable, `limit` the concrete
      ;; field. All three are read APART by the assertion, so a wire that dropped any one of
      ;; them — or that shifted K and V — is caught, not silently tolerated.
-     :Ok              [echo    <- (:wat::core::Vector :- [K])
-                       results <- (:wat::core::Vector :- [V])
-                       limit   <- :wat::core::i64]
+     :Ok              [echo    <- (wat.type/Vector :- [K])
+                       results <- (wat.type/Vector :- [V])
+                       limit   <- wat.type/i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
      ;; arc 278 Stone 2 — and the request-SHAPE refusal, unconditionally generated.
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
   [(get [self <- (:wat-tests::PCache :- [K V])  req <- (:wat-tests::PCache::GetRequest :- [K])]
@@ -90,7 +90,7 @@
 ;; V-typed durable vector. It never constructs a K or a V — it cannot, and does not need to.
 (:wat::service::defservice :wat-tests::pcache-svc :- [K V]
   :satisfies (:wat-tests::PCache :- [K V])
-  :durable   [fills <- (:wat::core::Vector :- [V])]
+  :durable   [fills <- (wat.type/Vector :- [V])]
   :ephemeral []
   :impls
   [(get [s ctx req]
@@ -113,8 +113,8 @@
 ;; honest fix AND a second assertion in its own right: the whole parametric protocol has to be
 ;; spellable by hand, at concrete args, for a caller to hold one.
 (:wat::core::defn :wat-tests::pcache/dial
-  [a <- (:wat::kernel::Address :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])]
-  -> (:wat::kernel::Peer :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])
+  [a <- (:wat::kernel::Address :- [(:wat-tests::PCache::Op :- [wat.type/String wat.type/i64]) (:wat-tests::PCache::Reply :- [wat.type/String wat.type/i64])])]
+  -> (:wat::kernel::Peer :- [(:wat-tests::PCache::Op :- [wat.type/String wat.type/i64]) (:wat-tests::PCache::Reply :- [wat.type/String wat.type/i64])])
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
     [:wat::kernel::ConnectOutcome.Closed {:cause cz}
@@ -126,8 +126,8 @@
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))
 
 (:wat::core::defn :wat-tests::pcache/label
-  [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::String
+  [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [wat.type/String wat.type/i64])])]
+  -> wat.type/String
   (:wat::core::match r
     [:wat::kernel::RecvOutcome.Message {:msg __recv}
       (:wat::core::match __recv
@@ -160,18 +160,18 @@
     [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :wat-tests::pcache/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::String
+(:wat::core::defn :wat-tests::pcache/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
   (:wat::core::let
     [h (:wat-tests::pcache-svc/start :locus locus
          :record (:wat-tests::pcache-svc::Record
-                   :fills (:wat::core::Vector :- [:wat::core::i64] 11 22)))
+                   :fills (wat.type/Vector :- [wat.type/i64] 11 22)))
      c (:wat-tests::pcache/dial (:wat-tests::pcache-svc::Handle/addr h))
      ;; (1) THE ROUND TRIP — a well-formed parametric request, real K-typed Strings out,
      ;;     real V-typed i64s back.
      good (:wat-tests::pcache/label
             (:wat-tests::pcache-svc/get c
               (:wat-tests::PCache::GetRequest
-                :probes (:wat::core::Vector :- [:wat::core::String] "alpha" "beta")
+                :probes (wat.type/Vector :- [wat.type/String] "alpha" "beta")
                 :limit  7)))
      ;; (2) THE CONCRETE FIELD IS STILL ENFORCED — a wrong-typed `limit` under the correct tag
      ;;     is REFUSED by the request-shape wall, on both tiers. This is what stops the

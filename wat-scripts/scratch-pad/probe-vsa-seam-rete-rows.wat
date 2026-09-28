@@ -27,7 +27,7 @@
 ;; ROW 7 — `presence?`/`coincident?` are 2-arity, no `:undefined` marker.
 ;; ROW 9 — the i64/f64 Fallback quartets are unregressed by this strike.
 
-(:wat::core::defn :probe::run [] -> :wat::core::nil
+(:wat::core::defn :probe::run [] -> wat.type/nil
   (:wat::core::let
     [h     (:wat::holon::to-holon "some-atom")
      other (:wat::holon::to-holon "an-entirely-different-atom")
@@ -76,5 +76,5 @@
       (:wat::kernel::println (:wat::core::PersistentMap :row9-i64-div row9-i64-div))
       (:wat::kernel::println (:wat::core::PersistentMap :row9-f64-div row9-f64-div)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:probe::run))

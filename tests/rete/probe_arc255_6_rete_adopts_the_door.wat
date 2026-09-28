@@ -1,9 +1,9 @@
 ;; 255.6 — rete clause heads and fact-bind types accept both spellings.
 ;; Special forms stay rust-scheme (this is a parser stone, not 8d-ii).
 ;; :when clauses are the converted dialect: (Type/Name …) and (?fact :- ns/Type).
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64 location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed [kph <- :wat::core::i64 location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64 location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed [kph <- wat.type/i64 location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
 
 (:wat::rete::defrule :weather::cold-and-windy
   :when
@@ -22,5 +22,5 @@
   :params []
   :when [(?fact :- weather/ColdAndWindy)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "ok"))

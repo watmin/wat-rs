@@ -14,9 +14,9 @@
 ;; Corpus 01's three verdicts, now over a file from disk instead of five hand-written facts.
 ;; Nothing about the rules changed to accept real input — that is the point. The rules never
 ;; knew the facts were hand-made, and they do not know now that they are not.
-(:wat::core::defrecord :fx::IsArrow   [id <- :wat::core::i64])
-(:wat::core::defrecord :fx::IsHeadKw  [id <- :wat::core::i64])
-(:wat::core::defrecord :fx::IsTypePos [id <- :wat::core::i64])
+(:wat::core::defrecord :fx::IsArrow   [id <- wat.type/i64])
+(:wat::core::defrecord :fx::IsHeadKw  [id <- wat.type/i64])
+(:wat::core::defrecord :fx::IsTypePos [id <- wat.type/i64])
 
 (:wat::rete::defrule :fx::arrow
   :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
@@ -44,7 +44,7 @@
 ;; ★ THE SPAN JOIN — proves the coordinate is reachable from a condition. A three-way join,
 ;; Node × Named × Span, all sharing ?id: the arrow-symbol condition from `:fx::arrow`, plus
 ;; `:wat::grep::Span` re-joined on the SAME ?id, binding ?l to the line the arrow starts on.
-(:wat::core::defrecord :fx::ArrowLine [id <- :wat::core::i64  line <- :wat::core::i64])
+(:wat::core::defrecord :fx::ArrowLine [id <- wat.type/i64  line <- wat.type/i64])
 
 (:wat::rete::defrule :fx::arrow-line
   :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
@@ -97,7 +97,7 @@
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "kind" :value (:wat::rete::core::variant-name ?k))))])
 
-(:wat::core::defn :fx::report [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :fx::report [path <- wat.type/String] -> wat.type/nil
   (:wat::core::let [facts (:wat::grep::facts-of path (:wat::io::read-file path))
                     n   (:wat::core::length (:wat::grep::Facts/nodes facts))
                     m   (:wat::core::length (:wat::grep::Facts/named facts))
@@ -109,7 +109,7 @@
             (:wat::string::concat "  Span=" (:wat::core::str sp))))))))
 
 
-(:wat::core::defn :fx::classify [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :fx::classify [path <- wat.type/String] -> wat.type/nil
   (:wat::core::let
     [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos) (:fx::arrow-line))
@@ -137,7 +137,7 @@
                     "none"))))))))))
 
 ;; ─── ★ THE MATCH — proves the stdlib fact base can feed a user-declared Match rule ──
-(:wat::core::defn :fx::match [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :fx::match [path <- wat.type/String] -> wat.type/nil
   (:wat::core::let
     [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::match-arrow))
@@ -154,7 +154,7 @@
                "q-match: ?fact")]
     (:wat::kernel::println (:wat::core::str m))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; Real files, deliberately spanning shapes: the codemod itself, a rules file, and a probe
     ;; whose macro forms carry the reader-macro sigils that CORRUPTED the text-edit engine.

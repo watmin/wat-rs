@@ -19,14 +19,14 @@
   :messages
   [(:wat::core::defrecord :wat-tests::Counter::GetRequest       [])
    (:wat::core::defenum :wat-tests::Counter::GetResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :wat-tests::Counter::IncrementRequest  [n <- :wat::core::i64])
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (:wat::core::defrecord :wat-tests::Counter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :wat-tests::Counter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get       [self <- :wat-tests::Counter  req <- :wat-tests::Counter::GetRequest]       -> :wat-tests::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :wat-tests::Counter  req <- :wat-tests::Counter::IncrementRequest] -> :wat-tests::Counter::IncrementResponse :max-request-bytes 524288)])
@@ -34,7 +34,7 @@
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::counter
   :satisfies :wat-tests::Counter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]

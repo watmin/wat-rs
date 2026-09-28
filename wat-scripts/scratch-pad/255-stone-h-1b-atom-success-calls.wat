@@ -9,7 +9,7 @@
 ;; design, identically before and after this stone — confirmed, not a regression).
 ;; Mirrors 255-stone-h-1a-holon-success-calls.wat's shape.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── :wat::holon::from-holon ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::from-holon (:wat::holon::leaf "role"))))
@@ -54,37 +54,37 @@
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::to-record ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- :wat::core::i64]) (:wat::core::defsurface :probe::Planar :nature :wat::core::Struct :features [x <- :wat::core::i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- wat.type/i64]) (:wat::core::defsurface :probe::Planar :nature :wat::core::Struct :features [x <- wat.type/i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::Map ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Map (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::Set ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Set (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Set (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::Vector ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Vector (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::List ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::List (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::List (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::Tuple ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Tuple (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Tuple (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
@@ -96,7 +96,7 @@
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::Bundle ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Bundle (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
@@ -120,7 +120,7 @@
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::extract-classifier ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::extract-classifier (:wat::holon::Vector (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
@@ -138,19 +138,19 @@
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::Bundle/children ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result.Ok {:value h} (:wat::holon::Bundle/children h)] [_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))])))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::match (:wat::holon::Bundle (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result.Ok {:value h} (:wat::holon::Bundle/children h)] [_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))])))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::Bundle/first ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result.Ok {:value h} (:wat::holon::Bundle/first h)] [_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))])))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::match (:wat::holon::Bundle (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result.Ok {:value h} (:wat::holon::Bundle/first h)] [_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))])))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::is-Map? ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::is-Map? (:wat::holon::Map (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
@@ -312,7 +312,7 @@
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::vector-bundle ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::vector-bundle (wat.type/Vector :- [:wat::holon::Vector] (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)

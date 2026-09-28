@@ -8,12 +8,12 @@
 ;; marker — it reads stdout until READY, THEN sends SIGTERM; no sleep, the
 ;; wire IS the synchronization), then polls (:wat::kernel::stopped?) and
 ;; returns cleanly once the signal cascade sets it.
-(:wat::core::defn :demo::loop [] -> :wat::core::nil
+(:wat::core::defn :demo::loop [] -> wat.type/nil
   (:wat::core::if (:wat::kernel::stopped?)
     nil                                      ; observed stop → return clean
     (:demo::loop)))                          ; tight poll loop
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "READY")
     (:demo::loop)))

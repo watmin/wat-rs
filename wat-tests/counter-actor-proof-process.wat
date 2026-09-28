@@ -47,14 +47,14 @@
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
    (:wat::core::defenum :counter::Request :wat::enum::Pure
      :Get
-     :Increment [n <- :wat::core::i64]
+     :Increment [n <- wat.type/i64]
      :Reset
      :Shutdown)
 
    (:wat::core::defenum :counter::Response :wat::enum::Pure
-     :Value [v <- :wat::core::i64]
-     :Ok    [v <- :wat::core::i64]
-     :Final [v <- :wat::core::i64])
+     :Value [v <- wat.type/i64]
+     :Ok    [v <- wat.type/i64]
+     :Final [v <- wat.type/i64])
 
    ;; ─── Client-side wrappers (Peer' tier) ───────────────────────────────
    ;;
@@ -71,7 +71,7 @@
 
    (:wat::core::defn :counter-proc::get
      [peer! <- (:wat::spawn::Spawned :- [:counter::Request :counter::Response])]
-     -> :wat::core::i64
+     -> wat.type/i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request.Get)
        [:wat::kernel::SendOutcome.Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
@@ -95,8 +95,8 @@
 
    (:wat::core::defn :counter-proc::increment
      [peer! <- (:wat::spawn::Spawned :- [:counter::Request :counter::Response])
-      n     <- :wat::core::i64]
-     -> :wat::core::i64
+      n     <- wat.type/i64]
+     -> wat.type/i64
      (:wat::core::match (:wat::kernel::send peer! (:counter::Request.Increment {:n n}))
        [:wat::kernel::SendOutcome.Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
@@ -120,7 +120,7 @@
 
    (:wat::core::defn :counter-proc::reset
      [peer! <- (:wat::spawn::Spawned :- [:counter::Request :counter::Response])]
-     -> :wat::core::i64
+     -> wat.type/i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request.Reset)
        [:wat::kernel::SendOutcome.Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
@@ -144,7 +144,7 @@
 
    (:wat::core::defn :counter-proc::shutdown
      [peer! <- (:wat::spawn::Spawned :- [:counter::Request :counter::Response])]
-     -> :wat::core::i64
+     -> wat.type/i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request.Shutdown)
        [:wat::kernel::SendOutcome.Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
@@ -189,20 +189,20 @@
            ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
            (:wat::core::defenum :counter::Request :wat::enum::Pure
              :Get
-             :Increment [n <- :wat::core::i64]
+             :Increment [n <- wat.type/i64]
              :Reset
              :Shutdown)
            (:wat::core::defenum :counter::Response :wat::enum::Pure
-             :Value [v <- :wat::core::i64]
-             :Ok    [v <- :wat::core::i64]
-             :Final [v <- :wat::core::i64])
+             :Value [v <- wat.type/i64]
+             :Ok    [v <- wat.type/i64]
+             :Final [v <- wat.type/i64])
            ;; Server-side dispatch — uses ambient readln/println (tier-honest).
            ;; Reads one counter::Request from stdin, dispatches, sends
            ;; counter::Response to stdout. Recurs on all non-terminal arms.
            ;; Shutdown arm sends Final and returns nil → process exits.
            (:wat::core::defn :counter::dispatch
-             [state <- :wat::core::i64]
-             -> :wat::core::nil
+             [state <- wat.type/i64]
+             -> wat.type/nil
              (:wat::core::match (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                 
                ;; Read — no state change; reply current value; recur
@@ -226,7 +226,7 @@
            ;; Entry point — the substrate calls :user::main when the subprocess
            ;; starts. Per user 2026-05-16: "processes must always define
            ;; :user::main ... there is no :user::main-process".
-           (:wat::core::defn :user::main [] -> :wat::core::nil (:counter::dispatch 10))))
+           (:wat::core::defn :user::main [] -> wat.type/nil (:counter::dispatch 10))))
      ;; spawn-program' (process) returns the peer directly (arc 278 IPC de-prime) —
      ;; no Receiver/from-pipe + Sender/from-pipe + ProcessPeer/new construction needed.
      ;; Same operations + assertions as thread tier (BRIEF § "same body shape").

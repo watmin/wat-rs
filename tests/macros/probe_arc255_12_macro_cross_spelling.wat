@@ -7,7 +7,7 @@
 ;; dialect — every head and every annotation re-spelled — and it registers as a
 ;; NO-OP on the pre-255.12 binary already. `canonical_identity` was doing its job.
 ;; The Ngram failure is the `.wat.bad` sibling, and it is not an identity question.
-(:wat::core::defmacro :p255_12::M [x <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :p255_12::M [x <- wat.type/AST] -> wat.type/AST
   `(:wat::i64::+ ~x 1))
 (:wat::core::defmacro :p255_12::M [x <- wat/WatAST] :- wat/WatAST
   `(wat.i64/+ ~x 1))

@@ -6,8 +6,8 @@
 ;; the offending head AND axis — the identical `then-item-fence` mechanism as the GREEN worlds,
 ;; on a fn whose body does not bottom out in admitted ops.
 
-(:wat::core::defrecord :tf::In   [n <- :wat::core::i64])
-(:wat::core::defrecord :tf::Rate [count <- :wat::core::i64])
+(:wat::core::defrecord :tf::In   [n <- wat.type/i64])
+(:wat::core::defrecord :tf::Rate [count <- wat.type/i64])
 
 (:wat::core::defn :tf::make-rate-bad
   [r <- :tf::Rate]
@@ -20,7 +20,7 @@
 
 ;; Compiling ALONE must panic (Option/expect -> panic_any) before ever inserting/firing anything —
 ;; this is the freeze-time-only claim (BRIEF-then-user-forms.md's "Freeze-time, never fire-time").
-(:wat::core::defn :user::run-compile [] -> :wat::core::i64
+(:wat::core::defn :user::run-compile [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :tf)
      session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]

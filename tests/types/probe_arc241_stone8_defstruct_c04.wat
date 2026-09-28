@@ -5,4 +5,4 @@
                     :client-id {:restricted-to [:my::]}}}
   [server-id <- :wat::core::Uuid
    client-id <- :wat::core::Uuid
-   public-data <- :wat::core::i64])
+   public-data <- wat.type/i64])

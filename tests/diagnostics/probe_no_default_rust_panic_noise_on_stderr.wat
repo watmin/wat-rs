@@ -17,11 +17,11 @@
 ;;
 ;; Body: assert-eq with mismatched values → AssertionPayload panic → recv' → Lost[Panic];
 ;; the assertion message rides Panic.message. We return it as a plain String.
-(:wat::core::defn :probe::hook-test [] -> :wat::core::String
+(:wat::core::defn :probe::hook-test [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::test::assert-eq "expected-value" "actual-value"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]

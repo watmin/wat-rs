@@ -4,11 +4,11 @@
 ;; combination the corpus never used. Expect 3.
 (:wat::core::defn :dm109c::hold :- [T]
   [seed <- :T
-   & [times <- :wat::core::i64]]
-  -> :wat::core::i64
+   & [times <- wat.type/i64]]
+  -> wat.type/i64
   times)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::interpolate "C={c}"
       :c (:wat::i64::to-string (:dm109c::hold 1 :times 3)))))

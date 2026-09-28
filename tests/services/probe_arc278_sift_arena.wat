@@ -22,16 +22,16 @@
 ;; forced Op/Reply shape) plus the flood op pair. ──
 (:wat::core::defsurface :prod::Producer :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :prod::Alert [severity <- :wat::core::String  code  <- :wat::core::i64])
-   (:wat::core::defrecord :prod::Flow  [proto    <- :wat::core::String  bytes <- :wat::core::i64])
-   (:wat::core::defrecord :prod::Query [rows     <- :wat::core::i64])
+  [(:wat::core::defrecord :prod::Alert [severity <- wat.type/String  code  <- wat.type/i64])
+   (:wat::core::defrecord :prod::Flow  [proto    <- wat.type/String  bytes <- wat.type/i64])
+   (:wat::core::defrecord :prod::Query [rows     <- wat.type/i64])
    (:wat::core::defrecord :prod::Producer::FloodRequest
-     [count     <- :wat::core::i64
-      namespace <- :wat::core::String])
+     [count     <- wat.type/i64
+      namespace <- wat.type/String])
    (:wat::core::defenum :prod::Producer::FloodResponse :wat::enum::Pure
-     :Done            [written <- :wat::core::i64]
-     :RequestTooLarge [bytes   <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Done            [written <- wat.type/i64]
+     :RequestTooLarge [bytes   <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(flood [self <- :prod::Producer  req <- :prod::Producer::FloodRequest] -> :prod::Producer::FloodResponse :max-request-bytes 524288)])
 
@@ -53,11 +53,11 @@
      (:wat::core::let
        [count    (:prod::Producer::FloodRequest/count req)
         ns       (:prod::Producer::FloodRequest/namespace req)
-        tags     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+        tags     (wat.type/HashMap :- [wat.type/keyword wat.type/String])
         idxs     (:wat::core::range 0 count)
-        logs     (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
+        logs     (:wat::core::into (wat.type/Vector :- [:wat::telemetry::Log])
                    (:wat::core::map
-                     (:wat::core::fn [i <- :wat::core::i64] -> :wat::telemetry::Log
+                     (:wat::core::fn [i <- wat.type/i64] -> :wat::telemetry::Log
                        (:wat::core::let
                          [shp (:wat::core::mod i 4)
                           msg (:wat::core::if (:wat::i64::= shp 0)
@@ -93,23 +93,23 @@
 ;; arena floods.
 (:wat::core::defsurface :cons::Consumer :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :cons::Consumer::SiftRequest [namespace <- :wat::core::String])
+  [(:wat::core::defrecord :cons::Consumer::SiftRequest [namespace <- wat.type/String])
    (:wat::core::defenum :cons::Consumer::SiftResponse :wat::enum::Pure
-     :Count           [n <- :wat::core::i64]
+     :Count           [n <- wat.type/i64]
      ;; arc 255 Stone 1c-g — the class-guarded predicate below compares an opaque foreign
      ;; `Value` (`ForeignRecord/get`'s `severity`) to a string literal via `=`; `=` is
      ;; `@Totality Partial` and NOT registered for `Value`, so sift's fence refuses this
      ;; predicate at the FIRST page and every page raises `::Fatal`/`Fault` identically. This
      ;; is the fence being correct, not a bug — `:Refused` carries that Fault's message back
      ;; to the caller instead of the (now unreachable) survivor count.
-     :Refused         [message <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :Refused         [message <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
    (:wat::core::defrecord :cons::Consumer::PageState
-     [done  <- :wat::core::bool
-      cur   <- (:wat::core::Option :- [:wat::core::String])
-      acc   <- :wat::core::i64
-      fault <- (:wat::core::Option :- [:wat::core::String])])]
+     [done  <- wat.type/bool
+      cur   <- (:wat::core::Option :- [wat.type/String])
+      acc   <- wat.type/i64
+      fault <- (:wat::core::Option :- [wat.type/String])])]
   :features
   [(sift [self <- :cons::Consumer  req <- :cons::Consumer::SiftRequest] -> :cons::Consumer::SiftResponse :max-request-bytes 524288)])
 
@@ -150,13 +150,13 @@
         ;; `:wat::rete::string::=` (a real `String`, `ForeignRecord/class`'s return type) to show
         ;; the contrast: a typed comparison still sifts fine, only the `Value` one is refused.
         final      (:wat::core::foldl
-                     (:wat::core::fn [state <- :cons::Consumer::PageState  _i <- :wat::core::i64]
+                     (:wat::core::fn [state <- :cons::Consumer::PageState  _i <- wat.type/i64]
                        -> :cons::Consumer::PageState
                        (:wat::core::if (:cons::Consumer::PageState/done state)
                          state
                          (:wat::core::let
                            [sieve (:wat::query::sieve-pred
-                                    (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+                                    (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
                                       (:wat::core::match
                                         (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
                                         [:wat::edn::ReadForeignOutcome.Value {:value fr}
@@ -204,29 +204,29 @@
 ;; `Partial` and unregistered for it, so sift's fence refuses the consumer's predicate outright
 ;; and `Consumer::SiftResponse::Count` is now UNREACHABLE for this scenario; a survivor count
 ;; would mean the fence stopped enforcing. ──
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      maddr (:wat::query::mem-store::Handle/addr msh)
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                         (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      ph    (:prod::producer/start
              :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                         (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:prod::producer::Record) :journal-addr jaddr)
      ch    (:cons::consumer/start
              :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                         (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:cons::consumer::Record) :journal-addr jaddr)
      producer (:wat::core::match (:wat::kernel::connect (:prod::producer::Handle/addr ph)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      consumer (:wat::core::match (:wat::kernel::connect (:cons::consumer::Handle/addr ch)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

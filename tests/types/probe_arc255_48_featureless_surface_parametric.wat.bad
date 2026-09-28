@@ -5,9 +5,9 @@
 (:wat::core::extend-type :- [S R]
   (:probe::Holder :- [S R])
   (:probe::Tag :- [S R]))
-(:wat::core::defrecord :probe::Box [x <- :wat::core::i64])
+(:wat::core::defrecord :probe::Box [x <- wat.type/i64])
 (:wat::core::defn :probe::take
-  [b <- (:probe::Tag :- [:wat::core::i64 :wat::core::i64])]
-  -> :wat::core::i64
+  [b <- (:probe::Tag :- [wat.type/i64 wat.type/i64])]
+  -> wat.type/i64
   1)
-(:wat::core::defn :user::go [] -> :wat::core::i64 (:probe::take (:probe::Box :x 1)))
+(:wat::core::defn :user::go [] -> wat.type/i64 (:probe::take (:probe::Box :x 1)))

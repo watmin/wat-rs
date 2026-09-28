@@ -2,7 +2,7 @@
 ;; Builder's question, 2026-09-05. Answered by ROUND-TRIPPING, not by reading the printer.
 ;; Each row prints  ORIGINAL -> (ast->source (read-string ORIGINAL)).  Identical = nothing lost.
 
-(:wat::core::defn :rt::show [src <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :rt::show [src <- wat.type/String] -> wat.type/nil
   (:wat::core::match (:wat::core::read-string src)
     [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::let [out (:wat::core::ast->source forms)]
@@ -12,7 +12,7 @@
     [:wat::core::ReadOutcome.Malformed {:cause c}
       (:wat::kernel::println (:wat::string::concat "UNREADABLE  " src))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:rt::show "(a b)")
     (:rt::show "3.0")

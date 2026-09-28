@@ -10,7 +10,7 @@
 ;; call; the prime accepts raw positional args; bare positional is a LOCATED error (see
 ;; probe_arc294_9a_kwargs_ctor_bad.wat.bad for the negative fixture).
 
-(:wat::core::defrecord :probe294a::Pair [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :probe294a::Pair [a <- wat.type/i64  b <- wat.type/i64])
 
 ;; bare kwargs, declared field order (:a then :b)
 (:wat::core::defn :probe294a::mk-ab [] -> :probe294a::Pair

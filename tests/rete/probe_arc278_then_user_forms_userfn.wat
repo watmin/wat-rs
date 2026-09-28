@@ -25,11 +25,11 @@
 ;; What actually guards a minting body: `rete_fn_body_mints`, pinned by
 ;; `probe_arc278_termination_fn_head.wat`.
 
-(:wat::core::defrecord :tf::Anchor [x <- :wat::core::i64])
-(:wat::core::defrecord :tf::Rate   [count <- :wat::core::i64])
+(:wat::core::defrecord :tf::Anchor [x <- wat.type/i64])
+(:wat::core::defrecord :tf::Rate   [count <- wat.type/i64])
 
 (:wat::rete::core::defn :tf::first-rate
-  [rs <- (:wat::core::PersistentVector :- [:tf::Rate])]
+  [rs <- (wat.type/PersistentVector :- [:tf::Rate])]
   -> :tf::Rate
   (:wat::rete::core::PersistentVector/first rs :undefined (:tf::Rate :count 0)))
 
@@ -53,7 +53,7 @@
     (:wat::core::match (:wat::rete::insert s (:tf::Anchor :x 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
     (:tf::Rate :count 5)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::Option/expect
     (:wat::map::get
       (:wat::core::first (:wat::rete::query s (:tf::q-Rate)))
@@ -62,7 +62,7 @@
 
 (:wat::core::defn :test::run
   [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> :wat::core::i64
+  -> wat.type/i64
   (:test::count-rate (:wat::core::match (fire (:test::seed-anchor-rate (:test::compile-tf))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])))
 
 ;; Fires via the WAT ORACLE. NOT an unconfounded witness for "a NEW fact was derived" — the
@@ -73,8 +73,8 @@
 ;; (impossible for `:then` before this stone), `sym.functions` resolution + `apply_function`
 ;; execute it, and the result type-checks as a fact at `build_insert_fact_call`'s runtime guard —
 ;; all without raising. See `probe_arc278_then_user_forms.rs` for what's actually asserted.
-(:wat::core::defn :user::run-first-count [] -> :wat::core::i64
+(:wat::core::defn :user::run-first-count [] -> wat.type/i64
   (:test::run :wat::rete::fire-rules$oracle))
 
-(:wat::core::defn :user::run-first-count-native [] -> :wat::core::i64
+(:wat::core::defn :user::run-first-count-native [] -> wat.type/i64
   (:test::run :wat::rete::fire-rules))

@@ -1,9 +1,9 @@
 ;; tests/rete/probe_arc278_5a_defrule_query_with_rule.wat — records + defrule fixture for the
 ;; probe_arc278_5a_defrule_query probe; loaded via startup_from_file for the defrule tests.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
 (:wat::rete::defrule :weather::cold-and-windy
   :when
   [(:weather::Temperature (?loc :- :location) (?c :- :celsius) (:wat::rete::i64::< ?c 20))
@@ -17,17 +17,17 @@
 
 
 ;; Calling the generated zero-arg fn yields a Rule with the expected name + lhs/rhs arity.
-(:wat::core::defn :user::rule-name [] -> :wat::core::String
+(:wat::core::defn :user::rule-name [] -> wat.type/String
   (:wat::rete::Rule/name (:weather::cold-and-windy)))
 
-(:wat::core::defn :user::rule-lhs-length [] -> :wat::core::i64
+(:wat::core::defn :user::rule-lhs-length [] -> wat.type/i64
   (:wat::core::length (:wat::rete::Rule/lhs (:weather::cold-and-windy))))
 
-(:wat::core::defn :user::rule-rhs-length [] -> :wat::core::i64
+(:wat::core::defn :user::rule-rhs-length [] -> wat.type/i64
   (:wat::core::length (:wat::rete::Rule/rhs (:weather::cold-and-windy))))
 
 ;; Collect the one rule MANUALLY (call its fn), compile, insert, fire, query → one ColdAndWindy.
-(:wat::core::defn :user::defrule-fires-end-to-end [] -> :wat::core::i64
+(:wat::core::defn :user::defrule-fires-end-to-end [] -> wat.type/i64
   (:wat::core::let
     [rules (:wat::core::PersistentVector (:weather::cold-and-windy))
      sess0 (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

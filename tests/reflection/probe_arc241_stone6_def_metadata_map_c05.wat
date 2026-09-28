@@ -2,5 +2,5 @@
 ;; Fixture for contract_05_defn_without_metadata_unchanged.
 ;; Regression: defn without metadata must still work.
 (:wat::core::defn :my::g
-  [x <- :wat::core::i64] -> :wat::core::i64
+  [x <- wat.type/i64] -> wat.type/i64
   x)

@@ -5,9 +5,9 @@
 ;; Both probed together, then wired into a deduce-one that flat-maps ALL derived types into one
 ;; (PersistentVector :- [Value]) — the exact shape sift-rules' op needs per Log/seed.
 
-(:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Warn [c <- wat.type/i64])
 
 ;; take-rules — builds (1) the compiled-rules Vector-of-Rule-VALUES call AND (2) a flat-map
 ;; query expression over the UNIQUE derived types found across all rules' :then forms. Returns
@@ -15,12 +15,12 @@
 ;; instead expand STRAIGHT to the full deduce-one defn (mirrors what sift-rules-defsvc's :init +
 ;; op body will do, minus the service wrapper).
 (:wat::core::defmacro :probe::mk-deduce
-  [rules-vec <- :wat::WatAST] -> :wat::WatAST
+  [rules-vec <- wat.type/AST] -> wat.type/AST
   (:wat::core::let
     [rules-children (:wat::core::ast->children rules-vec)
      rule-lits (:wat::core::foldl
-                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) rf <- :wat::WatAST]
-                   -> (:wat::core::Vector :- [:wat::WatAST])
+                 (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) rf <- wat.type/AST]
+                   -> (wat.type/Vector :- [wat.type/AST])
                    (:wat::core::let
                      [rch       (:wat::core::ast->children rf)
                       rname     (:wat::core::Option/expect (:wat::core::get rch 1) "mk-deduce: rule missing name")
@@ -32,21 +32,21 @@
                       then-vec  (:wat::core::Option/expect (:wat::core::get rch 5) "mk-deduce: rule missing :then")
                       rule-lit  `(:wat::rete::make-rule ~name-str (:wat::core::quote ~when-vec) (:wat::core::quote ~then-vec))]
                      (:wat::core::conj acc rule-lit)))
-                 (:wat::core::Vector :- [:wat::WatAST])
+                 (wat.type/Vector :- [wat.type/AST])
                  rules-children)
      ;; derived-type-strs: unique type names across every rule's :then fact-forms (arc 278 Stone
      ;; A: bare facts, no more `(:wat::rete::insert (:Type …))` wrapper).
      derived-type-strs
                (:wat::core::foldl
-                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) rf <- :wat::WatAST]
-                   -> (:wat::core::Vector :- [:wat::core::String])
+                 (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) rf <- wat.type/AST]
+                   -> (wat.type/Vector :- [wat.type/String])
                    (:wat::core::let
                      [rch (:wat::core::ast->children rf)
                       then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "mk-deduce: rule missing :then")
                       then-forms (:wat::core::ast->children then-vec)]
                      (:wat::core::foldl
-                       (:wat::core::fn [acc2 <- (:wat::core::Vector :- [:wat::core::String]) tf <- :wat::WatAST]
-                         -> (:wat::core::Vector :- [:wat::core::String])
+                       (:wat::core::fn [acc2 <- (wat.type/Vector :- [wat.type/String]) tf <- wat.type/AST]
+                         -> (wat.type/Vector :- [wat.type/String])
                          (:wat::core::let
                            [cch  (:wat::core::ast->children tf)
                             tkw  (:wat::core::Option/expect (:wat::core::get cch 0) "mk-deduce: :then fact-form missing a type")
@@ -57,13 +57,13 @@
                            (:wat::core::if (:wat::vec::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                        acc
                        then-forms)))
-                 (:wat::core::Vector :- [:wat::core::String])
+                 (wat.type/Vector :- [wat.type/String])
                  rules-children)
      fired-sym  (:wat::core::symbol-node "fired")
      query-lits
                (:wat::core::foldl
-                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) tstr <- :wat::core::String]
-                   -> (:wat::core::Vector :- [:wat::WatAST])
+                 (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) tstr <- wat.type/String]
+                   -> (wat.type/Vector :- [wat.type/AST])
                    (:wat::core::let
                      [tkw  (:wat::core::keyword-node (:wat::string::concat ":" tstr))
                       cond `(~tkw)]
@@ -71,14 +71,14 @@
                        `(:wat::rete::make-query ~tstr
                           (:wat::core::quote [])
                           (:wat::core::quote [~cond])))))
-                 (:wat::core::Vector :- [:wat::WatAST])
+                 (wat.type/Vector :- [wat.type/AST])
                  derived-type-strs)
      query-calls
                (:wat::core::foldl
-                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) lit <- :wat::WatAST]
-                   -> (:wat::core::Vector :- [:wat::WatAST])
+                 (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) lit <- wat.type/AST]
+                   -> (wat.type/Vector :- [wat.type/AST])
                    (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~lit)))
-                 (:wat::core::Vector :- [:wat::WatAST])
+                 (wat.type/Vector :- [wat.type/AST])
                  query-lits)]
     `(:wat::core::do
        (:wat::core::defn :usr::rules-template [] -> :wat::rete::Session
@@ -87,7 +87,7 @@
            (:wat::core::PersistentVector ~@query-lits)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
        (:wat::core::defn :usr::deduce-one
          [template <- :wat::rete::Session  seed <- :usr::Temp]
-         -> (:wat::core::PersistentVector :- [:wat::core::Value])
+         -> (wat.type/PersistentVector :- [wat.type/Value])
          (:wat::core::let
            [~fired-sym (:wat::core::match (:wat::rete::fire-rules (:wat::core::match (:wat::rete::insert template seed) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
            (:wat::core::concat ~@query-calls))))))
@@ -100,7 +100,7 @@
      :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
      :then [(:usr::Warn :c ?c)])])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [template (:usr::rules-template)
      hot   (:usr::deduce-one template (:usr::Temp :c 60))

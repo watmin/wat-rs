@@ -1,13 +1,13 @@
 ;; scout-eval-5: isolate WHICH form trips default-deny purity on a record predicate.
 (:wat::core::defrecord :user::Log
-  [level   <- :wat::core::keyword
-   message <- :wat::core::String])
+  [level   <- wat.type/keyword
+   message <- wat.type/String])
 
 (:wat::core::defn :user::uf
-  [src <- :wat::core::String] -> :wat::WatAST
+  [src <- wat.type/String] -> wat.type/AST
   (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; A) pure intrinsic only, ignores log
      a  (:user::uf "(:wat::core::fn [log <- :user::Log] -> :wat::core::bool (:wat::core::= 1 1))")

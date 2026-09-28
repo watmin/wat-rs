@@ -7,9 +7,9 @@
 ;; returned `None` instead of `Some(Err(...))` would fall through to `eval_apply`'s
 ;; "unknown function" path for a verb that plainly exists, trading one lie for another.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match (:wat::eval-ast! (:wat::core::quote
-                        (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::i64] 20))))
+                        (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/i64] 20))))
     [:wat::core::Result.Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
     [:wat::core::Result.Err {:error e}
       (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)

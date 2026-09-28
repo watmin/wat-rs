@@ -11,13 +11,13 @@
 ;; construction" — describes the INTERPRETER path, not the one rete fire takes. The refusal below
 ;; is this wall enforcing the doctrine the fire path does not. Reported, not fixed here.
 
-(:wat::core::defrecord :nwp::Src   [k <- :wat::core::i64])
-(:wat::core::defrecord :nwp::Inner [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :nwp::Outer [k <- :wat::core::i64  inner <- :nwp::Inner])
+(:wat::core::defrecord :nwp::Src   [k <- wat.type/i64])
+(:wat::core::defrecord :nwp::Inner [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :nwp::Outer [k <- wat.type/i64  inner <- :nwp::Inner])
 
 (:wat::rete::defrule :nwp::r
   :when [(:nwp::Src (?k :- :k))]
   :then [(:nwp::Outer :k ?k :inner (:nwp::Inner ?k ?k))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "the wall refuses before main runs"))

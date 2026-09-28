@@ -19,8 +19,8 @@
    (query-metrics [s ctx req]
      (:wat::service::Outcome.Reply {:state s
        :reply (:wat::telemetry::Journal::QueryMetricsResponse.Success
-         {:metrics (:wat::core::Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::Option.None})}))
+         {:metrics (wat.type/Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::Option.None})}))
    (query-logs [s ctx req]
      (:wat::service::Outcome.Reply {:state s
        :reply (:wat::telemetry::Journal::QueryLogsResponse.Success
-         {:logs (:wat::core::Vector :- [:wat::telemetry::Log]) :cursor :wat::core::Option.None})}))])
+         {:logs (wat.type/Vector :- [:wat::telemetry::Log]) :cursor :wat::core::Option.None})}))])

@@ -32,8 +32,8 @@
 ;;
 ;; See also `d7-pack-width-controls.wat` for the angles that do NOT collide.
 
-(:wat::core::defrecord :d7::Box :- [T] [k <- :wat::core::i64  v <- :T])
-(:wat::core::defrecord :d7::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :d7::Box :- [T] [k <- wat.type/i64  v <- :T])
+(:wat::core::defrecord :d7::Hit [k <- wat.type/i64])
 
 (:wat::rete::defrule :d7::r
   :when  [(:d7::Box (?k :- :k) (?v :- :v))]
@@ -41,11 +41,11 @@
 
 (:wat::rete::defquery :d7::q :params [] :when [(?fact :- :d7::Hit)])
 
-(:wat::core::defn :d7::hits [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :d7::hits [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::vec::length
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
           (:d7::Hit/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7::q))))))
 
@@ -54,15 +54,15 @@
 ;; element type is INVARIANT and inferred from its first element, so the two Box
 ;; INSTANTIATIONS (`Box[i64]`, `Box[String]`) must each be UPCAST to `Record`
 ;; first — that upcast is the only thing `:d7::as-record` does.
-(:wat::core::defn :d7::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
+(:wat::core::defn :d7::as-record [r <- wat.type/Record] -> wat.type/Record r)
 
-(:wat::core::defn :d7::facts [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :d7::facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::PersistentVector
     (:d7::as-record (:d7::Box :k 0 :v 100))
     (:d7::as-record (:d7::Box :k 1 :v "not-an-i64"))
     (:d7::as-record (:d7::Box :k 2 :v 200))))
 
-(:wat::core::defn :d7::run [] -> :wat::core::String
+(:wat::core::defn :d7::run [] -> wat.type/String
   (:wat::core::let
     [session (:wat::core::match (:wat::rete::compile-all
                (:wat::core::PersistentVector (:d7::r))
@@ -90,5 +90,5 @@
       (:wat::string::concat "native=" (:wat::i64::to-string (:d7::hits native)))
       (:wat::string::concat " oracle=" (:wat::i64::to-string (:d7::hits oracle))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:d7::run)))

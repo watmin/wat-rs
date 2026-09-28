@@ -6,7 +6,7 @@
 ;;
 ;; `keyword::from-string` refuses a leading colon; the answer carries one.
 
-(:wat::core::defn :user::ask [bare <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::ask [bare <- wat.type/String] -> wat.type/String
   (:wat::core::match
     (:wat::runtime::variant-parent-of (:wat::keyword::from-string bare))
     [:wat::core::Option.Some {:value parent}
@@ -14,7 +14,7 @@
     [:wat::core::Option.None {}
       (:wat::string::concat ":" bare "  -- not a variant")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:user::ask "wat::core::Option::Some"))
     (:wat::kernel::println (:user::ask "wat::program::PeerKind::thread"))

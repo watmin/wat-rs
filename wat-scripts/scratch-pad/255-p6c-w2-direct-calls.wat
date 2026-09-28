@@ -7,7 +7,7 @@
 ;; `started-at`/`process-id`/`os-thread-id` are host/run-specific by design and
 ;; would never be byte-identical across two invocations regardless of homing.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "stream-empty->vec= "
       (:wat::edn::write (:wat::core::stream->vec [] (:wat::stream::empty)))))

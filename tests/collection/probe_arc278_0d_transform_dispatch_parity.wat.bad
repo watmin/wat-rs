@@ -2,9 +2,9 @@
 ;; Loaded via startup_from_file, asserting startup (type-check) FAILS.
 ;;
 ;; A String reducer folded over an i64 PersistentVector must be rejected (element type mismatch).
-(:wat::core::defn :user::bad [] -> :wat::core::String
+(:wat::core::defn :user::bad [] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String x <- :wat::core::String] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String x <- wat.type/String] -> wat.type/String
       (:wat::string::concat acc x))
     ""
     (:wat::core::PersistentVector 1 2 3)))

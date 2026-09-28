@@ -1,5 +1,5 @@
 ;; uuid_v5_with_typed_namespace.wat — Uuid/v5 with typed namespace is deterministic.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [ns (:wat::uuid::nil)
      u1 (:wat::uuid::v5 ns "hello")

@@ -80,12 +80,12 @@
 ;; arc, and it is why these rows exist HERE, against Clara, rather than only as a Rust probe.
 ;; Clara is the only party to this comparison that did not inherit our mistake.
 
-(:wat::core::defn :wic::items [] -> :wat::core::i64 210)
+(:wat::core::defn :wic::items [] -> wat.type/i64 210)
 
-(:wat::core::defn :wic::row-count [] -> :wat::core::i64 14)
+(:wat::core::defn :wic::row-count [] -> wat.type/i64 14)
 
-(:wat::core::defrecord :wic::Req [k <- :wat::core::i64])
-(:wat::core::defrecord :wic::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :wic::Req [k <- wat.type/i64])
+(:wat::core::defrecord :wic::Hit [k <- wat.type/i64])
 
 ;; ROW 1 — INLINE, computed operand. The position and shape that were silently broken.
 (:wat::rete::defrule :wic::inline-gt
@@ -181,7 +181,7 @@
 
 (:wat::rete::defquery :wic::q-Hit :params [] :when [(?fact :- :wic::Hit)])
 
-(:wat::core::defn :wic::rule-for [row <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wic::rule-for [row <- wat.type/i64] -> wat.type/String
   (:wat::core::cond
     ((:wat::core::= row 1) "inline-gt")
     ((:wat::core::= row 2) "fence-gt")
@@ -198,8 +198,8 @@
     ((:wat::core::= row 13) "inline-match")
     (:else "fence-match")))
 
-(:wat::core::defn :wic::rules-for [row <- :wat::core::i64]
-  -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :wic::rules-for [row <- wat.type/i64]
+  -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1) (:wic::inline-gt))
@@ -217,36 +217,36 @@
       ((:wat::core::= row 13) (:wic::inline-match))
       (:else (:wic::fence-match)))))
 
-(:wat::core::defn :wic::seed [session <- :wat::rete::Session  items <- :wat::core::i64]
+(:wat::core::defn :wic::seed [session <- :wat::rete::Session  items <- wat.type/i64]
   -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj acc (:wic::Req :k i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :wic::derived-ints [fired <- :wat::rete::Session]
-  -> (:wat::core::Vector :- [:wat::core::i64])
+  -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
           (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
             (:wic::Hit/k f)))
         (:wat::rete::query fired (:wic::q-Hit))))))
 
-(:wat::core::defn :wic::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+(:wat::core::defn :wic::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
-(:wat::core::defn :wic::run-row [row <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wic::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let [rules   (:wic::rules-for row)
                     staged  (:wic::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wic::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wic::items))
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -260,9 +260,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))
         (:wat::string::concat " ->" (:wic::render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
       (:wat::kernel::println (:wic::run-row row)))
     nil
     (:wat::core::range 1 (:wat::i64::+ (:wic::row-count) 1))))

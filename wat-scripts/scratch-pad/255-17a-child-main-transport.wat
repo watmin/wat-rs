@@ -4,22 +4,22 @@
 ;; service (`:probe::kv`) and one parametric (`:wat::cache::lru-svc :- [K V]`, the stdlib shape).
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Kv::GetRequest [k <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Kv::GetRequest [k <- wat.type/String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
-     :Ok              [v <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String]) expected <- :wat::core::String got <- :wat::core::String])]
+     :Ok              [v <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String]) expected <- wat.type/String got <- wat.type/String])]
   :features
   [(get [self <- :probe::Kv req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 
-(:wat::core::defn :probe::child-main-of [exp <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :probe::child-main-of [exp <- wat.type/AST] -> wat.type/String
   (:wat::core::let [s (:wat::core::write-forms exp)
                     parts (:wat::string::split s "(:wat.core/defn :user/main")]
     (:wat::core::if (:wat::core::< (:wat::core::count parts) 2)
       "<no child main found>"
       (:wat::string::concat "(:wat.core/defn :user/main" (:wat::core::nth parts 1)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [mono (:wat::core::macroexpand
             (:wat::core::quote
@@ -30,7 +30,7 @@
             (:wat::core::quote
               (:wat::service::defservice :wat::cache::lru-svc :- [K V]
                 :satisfies (:wat::cache::Cache :- [K V])
-                :durable   [capacity <- :wat::core::i64]
+                :durable   [capacity <- wat.type/i64]
                 :ephemeral [cache <- (:wat::cache::Lru :- [K V])]
                 :init (:wat::core::fn [record <- (:wat::cache::lru-svc::Record :- [K V])]
                         -> (:wat::cache::lru-svc::State :- [K V])

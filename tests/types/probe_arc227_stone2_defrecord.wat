@@ -5,143 +5,143 @@
 
 ;; ─── Type definitions ────────────────────────────────────────────────────────
 
-(:wat::core::defrecord :test::Voltage [value <- :wat::core::f64])
-(:wat::core::defrecord :test::Current [value <- :wat::core::f64])
-(:wat::core::defrecord :test::Celsius [value <- :wat::core::f64])
-(:wat::core::defrecord :test::Kelvin [value <- :wat::core::f64])
-(:wat::core::defrecord :test::MyMap [value <- :wat::core::String])
-(:wat::core::defrecord :test::Other [value <- :wat::core::String])
-(:wat::core::defrecord :test::BasisPoint [value <- :wat::core::i64])
-(:wat::core::defrecord :test::Count [value <- :wat::core::i64])
-(:wat::core::defrecord :test::Label [text <- :wat::core::String])
-(:wat::core::defrecord :appA::Voltage [value <- :wat::core::i64])
-(:wat::core::defrecord :appB::Voltage [value <- :wat::core::i64])
-(:wat::core::defrecord :awesome::lib::Sensor [value <- :wat::core::i64])
+(:wat::core::defrecord :test::Voltage [value <- wat.type/f64])
+(:wat::core::defrecord :test::Current [value <- wat.type/f64])
+(:wat::core::defrecord :test::Celsius [value <- wat.type/f64])
+(:wat::core::defrecord :test::Kelvin [value <- wat.type/f64])
+(:wat::core::defrecord :test::MyMap [value <- wat.type/String])
+(:wat::core::defrecord :test::Other [value <- wat.type/String])
+(:wat::core::defrecord :test::BasisPoint [value <- wat.type/i64])
+(:wat::core::defrecord :test::Count [value <- wat.type/i64])
+(:wat::core::defrecord :test::Label [text <- wat.type/String])
+(:wat::core::defrecord :appA::Voltage [value <- wat.type/i64])
+(:wat::core::defrecord :appB::Voltage [value <- wat.type/i64])
+(:wat::core::defrecord :awesome::lib::Sensor [value <- wat.type/i64])
 (:wat::core::defrecord :ns::Tag [])
 (:wat::core::defrecord :ns::Done [])
 (:wat::core::defrecord :ns::Pending [])
 (:wat::core::defrecord :nsA::Tag [])
 (:wat::core::defrecord :nsB::Tag [])
-(:wat::core::defrecord :my::deep::ns::Reading [value <- :wat::core::f64])
-(:wat::core::defrecord :ns::W [v <- :wat::core::i64])
-(:wat::core::defrecord :ns::P [a <- :wat::core::i64  b <- :wat::core::String])
-(:wat::core::defrecord :ns::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
+(:wat::core::defrecord :my::deep::ns::Reading [value <- wat.type/f64])
+(:wat::core::defrecord :ns::W [v <- wat.type/i64])
+(:wat::core::defrecord :ns::P [a <- wat.type/i64  b <- wat.type/String])
+(:wat::core::defrecord :ns::T [a <- wat.type/i64  b <- wat.type/String  c <- wat.type/bool])
 (:wat::core::defrecord :multi::Tag [])
-(:wat::core::defrecord :multi::W [v <- :wat::core::i64])
-(:wat::core::defrecord :multi::P [a <- :wat::core::i64  b <- :wat::core::String])
-(:wat::core::defrecord :multi::Q [a <- :wat::core::i64  b <- :wat::core::String])
-(:wat::core::defrecord :multi::T [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
-(:wat::core::defrecord :appA::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :appB::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :multi::W [v <- wat.type/i64])
+(:wat::core::defrecord :multi::P [a <- wat.type/i64  b <- wat.type/String])
+(:wat::core::defrecord :multi::Q [a <- wat.type/i64  b <- wat.type/String])
+(:wat::core::defrecord :multi::T [a <- wat.type/i64  b <- wat.type/String  c <- wat.type/bool])
+(:wat::core::defrecord :appA::Point [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :appB::Point [x <- wat.type/i64  y <- wat.type/i64])
 
 ;; ─── t01: single FQDN positive ───────────────────────────────────────────────
-(:wat::core::defn :user::t01 [] -> :wat::core::bool
+(:wat::core::defn :user::t01 [] -> wat.type/bool
   (:wat::core::let [instance (:test::Voltage :value 5.0)] (:test::is-Voltage? instance)))
 
 ;; ─── t02: single FQDN negative (different class) ─────────────────────────────
-(:wat::core::defn :user::t02 [] -> :wat::core::bool (:test::is-Voltage? (:test::Current :value 1.0)))
+(:wat::core::defn :user::t02 [] -> wat.type/bool (:test::is-Voltage? (:test::Current :value 1.0)))
 
 ;; ─── t03: cross-namespace appA positive ─────────────────────────────────────
-(:wat::core::defn :user::t03 [] -> :wat::core::bool
+(:wat::core::defn :user::t03 [] -> wat.type/bool
   (:wat::core::let [a-instance (:appA::Voltage :value 42)] (:appA::is-Voltage? a-instance)))
 
 ;; ─── t04: cross-namespace discrimination ────────────────────────────────────
-(:wat::core::defn :user::t04 [] -> :wat::core::bool
+(:wat::core::defn :user::t04 [] -> wat.type/bool
   (:wat::core::let [b-instance (:appB::Voltage :value 42)] (:appA::is-Voltage? b-instance)))
 
 ;; ─── t05: same-namespace celsius positive ────────────────────────────────────
-(:wat::core::defn :user::t05 [] -> :wat::core::bool
+(:wat::core::defn :user::t05 [] -> wat.type/bool
   (:wat::core::let [c (:test::Celsius :value 100.0)] (:test::is-Celsius? c)))
 
 ;; ─── t06: same-namespace cross-discrimination ────────────────────────────────
-(:wat::core::defn :user::t06 [] -> :wat::core::bool
+(:wat::core::defn :user::t06 [] -> wat.type/bool
   (:wat::core::let [c (:test::Celsius :value 100.0)] (:test::is-Kelvin? c)))
 
 ;; ─── t07: user type vs builtin positive ─────────────────────────────────────
-(:wat::core::defn :user::t07 [] -> :wat::core::bool
+(:wat::core::defn :user::t07 [] -> wat.type/bool
   (:wat::core::let [instance (:test::MyMap :value "data")] (:test::is-MyMap? instance)))
 
 ;; ─── t08: user type vs other user type (cross-pred) ─────────────────────────
-(:wat::core::defn :user::t08 [] -> :wat::core::bool
+(:wat::core::defn :user::t08 [] -> wat.type/bool
   (:wat::core::let [instance (:test::MyMap :value "data")] (:test::is-Other? instance)))
 
 ;; ─── t09: polymorphic is? positive ──────────────────────────────────────────
-(:wat::core::defn :user::t09 [] -> :wat::core::bool
+(:wat::core::defn :user::t09 [] -> wat.type/bool
   (:wat::core::let [instance (:test::Voltage :value 5.0)] (:test::is-Voltage? instance)))
 
 ;; ─── t10: polymorphic is? cross-class negative ──────────────────────────────
-(:wat::core::defn :user::t10 [] -> :wat::core::bool
+(:wat::core::defn :user::t10 [] -> wat.type/bool
   (:wat::core::let [instance (:test::Current :value 2.0)] (:test::is-Voltage? instance)))
 
 ;; ─── t11: multi-segment namespace positive ───────────────────────────────────
-(:wat::core::defn :user::t11 [] -> :wat::core::bool
+(:wat::core::defn :user::t11 [] -> wat.type/bool
   (:wat::core::let [instance (:awesome::lib::Sensor :value 42)] (:awesome::lib::is-Sensor? instance)))
 
 ;; ─── t12: multi-segment polymorphic is? ─────────────────────────────────────
-(:wat::core::defn :user::t12 [] -> :wat::core::bool
+(:wat::core::defn :user::t12 [] -> wat.type/bool
   (:wat::core::let [instance (:awesome::lib::Sensor :value 42)] (:awesome::lib::is-Sensor? instance)))
 
 ;; ─── t13: predicate name shape ───────────────────────────────────────────────
-(:wat::core::defn :user::t13 [] -> :wat::core::bool
+(:wat::core::defn :user::t13 [] -> wat.type/bool
   (:wat::core::let [instance (:test::BasisPoint :value 25)] (:test::is-BasisPoint? instance)))
 
 ;; ─── t14: i64 payload ────────────────────────────────────────────────────────
-(:wat::core::defn :user::t14 [] -> :wat::core::bool
+(:wat::core::defn :user::t14 [] -> wat.type/bool
   (:wat::core::let [instance (:test::Count :value 99)] (:test::is-Count? instance)))
 
 ;; ─── t15: cross-type discrimination kelvin positive ─────────────────────────
-(:wat::core::defn :user::t15 [] -> :wat::core::bool
+(:wat::core::defn :user::t15 [] -> wat.type/bool
   (:wat::core::let [k (:test::Kelvin :value 373.15)] (:test::is-Kelvin? k)))
 
 ;; ─── t16: no user-namespace insertion ────────────────────────────────────────
-(:wat::core::defn :user::t16 [] -> :wat::core::bool
+(:wat::core::defn :user::t16 [] -> wat.type/bool
   (:wat::core::let [c (:test::Celsius :value 273.15)] (:test::is-Celsius? c)))
 
 ;; ─── t17: appB cross-namespace predicate ─────────────────────────────────────
-(:wat::core::defn :user::t17 [] -> :wat::core::bool
+(:wat::core::defn :user::t17 [] -> wat.type/bool
   (:wat::core::let [b-instance (:appB::Voltage :value 99)] (:appB::is-Voltage? b-instance)))
 
 ;; ─── t18: empty field-list zero-arg constructor ──────────────────────────────
-(:wat::core::defn :user::t18 [] -> :wat::core::bool
+(:wat::core::defn :user::t18 [] -> wat.type/bool
   (:wat::core::let [instance (:ns::Tag)] (:ns::is-Tag? instance)))
 
 ;; ─── t19: tagged unit predicate true ─────────────────────────────────────────
-(:wat::core::defn :user::t19 [] -> :wat::core::bool (:ns::is-Done? (:ns::Done)))
+(:wat::core::defn :user::t19 [] -> wat.type/bool (:ns::is-Done? (:ns::Done)))
 
 ;; ─── t20: tagged unit predicate false for non-instance ───────────────────────
-(:wat::core::defn :user::t20 [] -> :wat::core::bool (:ns::is-Done? (:ns::Pending)))
+(:wat::core::defn :user::t20 [] -> wat.type/bool (:ns::is-Done? (:ns::Pending)))
 
 ;; ─── t21: single-field String constructor ────────────────────────────────────
-(:wat::core::defn :user::t21 [] -> :wat::core::bool
+(:wat::core::defn :user::t21 [] -> wat.type/bool
   (:wat::core::let [instance (:test::Label :text "hello")] (:test::is-Label? instance)))
 
 ;; ─── t22: cross-namespace tags distinct ─────────────────────────────────────
-(:wat::core::defn :user::t22 [] -> :wat::core::bool
+(:wat::core::defn :user::t22 [] -> wat.type/bool
   (:wat::core::let [a-tag (:nsA::Tag)] (:nsA::is-Tag? a-tag)))
 
 ;; ─── t23: multi-segment namespace with field ─────────────────────────────────
-(:wat::core::defn :user::t23 [] -> :wat::core::bool
+(:wat::core::defn :user::t23 [] -> wat.type/bool
   (:wat::core::let [instance (:my::deep::ns::Reading :value 3.14)] (:my::deep::ns::is-Reading? instance)))
 
 ;; ─── t25: zero-field instance uses empty Bundle (v3) ────────────────────────
 ;; part-a: predicate works
-(:wat::core::defn :user::t25a [] -> :wat::core::bool (:ns::is-Tag? (:ns::Tag)))
+(:wat::core::defn :user::t25a [] -> wat.type/bool (:ns::is-Tag? (:ns::Tag)))
 ;; part-b: separately-constructed empty Bundle has statement-length 0
-(:wat::core::defn :user::t25b [] -> :wat::core::i64
+(:wat::core::defn :user::t25b [] -> wat.type/i64
   (:wat::holon::statement-length
     (:wat::core::Result/expect
       (:wat::holon::Bundle [])
       "empty bundle should not overflow")))
 
 ;; ─── t26: N=2 constructor ────────────────────────────────────────────────────
-(:wat::core::defn :user::t26 [] -> :wat::core::bool
+(:wat::core::defn :user::t26 [] -> wat.type/bool
   (:wat::core::let [instance (:ns::P :a 5 :b "hi")] (:ns::is-P? instance)))
 
 ;; ─── t27: N=1 instance uses Bundle(Bind) ────────────────────────────────────
 ;; part-a: predicate works
-(:wat::core::defn :user::t27a [] -> :wat::core::bool (:ns::is-W? (:ns::W :v 42)))
+(:wat::core::defn :user::t27a [] -> wat.type/bool (:ns::is-W? (:ns::W :v 42)))
 ;; part-b: Bundle([one-item]) has statement-length 1
-(:wat::core::defn :user::t27b [] -> :wat::core::i64
+(:wat::core::defn :user::t27b [] -> wat.type/i64
   (:wat::core::let
     [field-bind (:wat::holon::Bind
                   (:wat::holon::Atom (:wat::holon::to-holon "v"))
@@ -153,9 +153,9 @@
 
 ;; ─── t28: N=2 inner Bundle has 2 children ───────────────────────────────────
 ;; part-a: predicate works
-(:wat::core::defn :user::t28a [] -> :wat::core::bool (:ns::is-P? (:ns::P :a 99 :b "test")))
+(:wat::core::defn :user::t28a [] -> wat.type/bool (:ns::is-P? (:ns::P :a 99 :b "test")))
 ;; part-b: Bundle([fa, fb]) has statement-length 2
-(:wat::core::defn :user::t28b [] -> :wat::core::i64
+(:wat::core::defn :user::t28b [] -> wat.type/i64
   (:wat::core::let
     [fa (:wat::holon::Bind
           (:wat::holon::Atom (:wat::holon::to-holon "a"))
@@ -169,14 +169,14 @@
         "two-item bundle should not overflow"))))
 
 ;; ─── t29: N=3 constructor ────────────────────────────────────────────────────
-(:wat::core::defn :user::t29 [] -> :wat::core::bool
+(:wat::core::defn :user::t29 [] -> wat.type/bool
   (:wat::core::let [instance (:ns::T :a 7 :b "world" :c true)] (:ns::is-T? instance)))
 
 ;; ─── t30: N=3 inner Bundle has 3 children ───────────────────────────────────
 ;; part-a: predicate works
-(:wat::core::defn :user::t30a [] -> :wat::core::bool (:ns::is-T? (:ns::T :a 1 :b "x" :c false)))
+(:wat::core::defn :user::t30a [] -> wat.type/bool (:ns::is-T? (:ns::T :a 1 :b "x" :c false)))
 ;; part-b: Bundle([fa, fb, fc]) has statement-length 3
-(:wat::core::defn :user::t30b [] -> :wat::core::i64
+(:wat::core::defn :user::t30b [] -> wat.type/i64
   (:wat::core::let
     [fa (:wat::holon::Bind
           (:wat::holon::Atom (:wat::holon::to-holon "a"))
@@ -193,12 +193,12 @@
         "three-item bundle should not overflow"))))
 
 ;; ─── t31: predicate works for N=0,1,2,3 ─────────────────────────────────────
-(:wat::core::defn :user::t31-n0 [] -> :wat::core::bool (:multi::is-Tag? (:multi::Tag)))
-(:wat::core::defn :user::t31-n1 [] -> :wat::core::bool (:multi::is-W? (:multi::W :v 42)))
-(:wat::core::defn :user::t31-n2 [] -> :wat::core::bool (:multi::is-P? (:multi::P :a 5 :b "hi")))
-(:wat::core::defn :user::t31-n3 [] -> :wat::core::bool (:multi::is-T? (:multi::T :a 1 :b "x" :c false)))
-(:wat::core::defn :user::t31-neg [] -> :wat::core::bool (:multi::is-P? (:multi::Q :a 1 :b "y")))
+(:wat::core::defn :user::t31-n0 [] -> wat.type/bool (:multi::is-Tag? (:multi::Tag)))
+(:wat::core::defn :user::t31-n1 [] -> wat.type/bool (:multi::is-W? (:multi::W :v 42)))
+(:wat::core::defn :user::t31-n2 [] -> wat.type/bool (:multi::is-P? (:multi::P :a 5 :b "hi")))
+(:wat::core::defn :user::t31-n3 [] -> wat.type/bool (:multi::is-T? (:multi::T :a 1 :b "x" :c false)))
+(:wat::core::defn :user::t31-neg [] -> wat.type/bool (:multi::is-P? (:multi::Q :a 1 :b "y")))
 
 ;; ─── t32: cross-namespace distinct classifiers N=2 ──────────────────────────
-(:wat::core::defn :user::t32a [] -> :wat::core::bool (:appA::is-Point? (:appA::Point :x 1 :y 2)))
-(:wat::core::defn :user::t32neg [] -> :wat::core::bool (:appA::is-Point? (:appB::Point :x 1 :y 2)))
+(:wat::core::defn :user::t32a [] -> wat.type/bool (:appA::is-Point? (:appA::Point :x 1 :y 2)))
+(:wat::core::defn :user::t32neg [] -> wat.type/bool (:appA::is-Point? (:appB::Point :x 1 :y 2)))

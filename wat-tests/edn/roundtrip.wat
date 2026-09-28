@@ -12,13 +12,13 @@
 ;; Test enum + struct used across the deftests below.
 ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
 (:wat::core::defenum :test::Event :wat::enum::Pure
-  :Buy  [price <- :wat::core::f64
-         qty   <- :wat::core::i64]
-  :Sell [price  <- :wat::core::f64
-         qty    <- :wat::core::i64
-         reason <- :wat::core::String])
+  :Buy  [price <- wat.type/f64
+         qty   <- wat.type/i64]
+  :Sell [price  <- wat.type/f64
+         qty    <- wat.type/i64
+         reason <- wat.type/String])
 (:wat::core::defrecord :test::Wrapper :- [E]
-  [label <- :wat::core::String
+  [label <- wat.type/String
    value <- :E])
 
 
@@ -49,7 +49,7 @@
 
 (:wat::test::deftest :wat-tests::edn::roundtrip-vec
   (:wat::core::let
-    [v (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+    [v (wat.type/Vector :- [wat.type/i64] 1 2 3)
      s (:wat::edn::write v)
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back v)))

@@ -6,7 +6,7 @@
 ;; of which of the three verbs is asked about — including `metadata-of` asked about
 ;; itself. After homing all three report `Some` with `:arity 1`.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::metadata-of)
       [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "metadata-of :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]

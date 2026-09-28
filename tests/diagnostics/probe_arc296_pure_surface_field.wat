@@ -10,9 +10,9 @@
 
 (:wat::core::defsurface :probe::E
   :nature :wat::core::Record
-  :features [message <- :wat::core::String
-             causes  <- (:wat::core::Vector :- [:probe::E])])
+  :features [message <- wat.type/String
+             causes  <- (wat.type/Vector :- [:probe::E])])
 
 (:wat::core::defrecord :probe::Boom
-  [message <- :wat::core::String
-   causes  <- (:wat::core::Vector :- [:probe::E])])
+  [message <- wat.type/String
+   causes  <- (wat.type/Vector :- [:probe::E])])

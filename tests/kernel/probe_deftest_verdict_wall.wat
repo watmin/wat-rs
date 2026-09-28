@@ -22,5 +22,5 @@
 (:wat::test::deftest :user::verdict-wall-fails
   (:wat::test::assert-eq (:wat::i64::+ 2 2) 4242))
 
-(:wat::core::defn :user::plain-value [] -> :wat::core::i64
+(:wat::core::defn :user::plain-value [] -> wat.type/i64
   (:wat::i64::+ 2 5))

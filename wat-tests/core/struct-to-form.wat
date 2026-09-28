@@ -11,15 +11,15 @@
 ;; in from the surrounding environment at evaluation time.
 
 (:wat::core::defstruct :my::Pair
-  [a <- :wat::core::i64
-   b <- :wat::core::i64])
+  [a <- wat.type/i64
+   b <- wat.type/i64])
 
 
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            (:wat::core::do
              (:wat::core::do
                (:wat::core::let

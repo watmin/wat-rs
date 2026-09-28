@@ -17,15 +17,15 @@
 ;;   echo '(:perf::Params 20 3)' | cargo wat ./wat-scripts/perf/deep-cascade.wat
 ;;   => {:depth 20 :width 3 :derived 120 :deepest 3 :wat-ns N :native-ns M}
 
-(:wat::core::defrecord :cascade::Node [level <- :wat::core::i64  id <- :wat::core::i64])
-(:wat::core::defrecord :cascade::Tag  [level <- :wat::core::i64  id <- :wat::core::i64])
+(:wat::core::defrecord :cascade::Node [level <- wat.type/i64  id <- wat.type/i64])
+(:wat::core::defrecord :cascade::Tag  [level <- wat.type/i64  id <- wat.type/i64])
 (:wat::core::defrecord :perf::Result
-  [depth     <- :wat::core::i64
-   width     <- :wat::core::i64
-   derived   <- :wat::core::i64
-   deepest   <- :wat::core::i64
-   wat-ns    <- :wat::core::i64
-   native-ns <- :wat::core::i64])
+  [depth     <- wat.type/i64
+   width     <- wat.type/i64
+   derived   <- wat.type/i64
+   deepest   <- wat.type/i64
+   wat-ns    <- wat.type/i64
+   native-ns <- wat.type/i64])
 
 (:wat::rete::defquery :cascade::q-Node
   :params []
@@ -34,7 +34,7 @@
 
 ;; build-rule k — the k-th cascade level: join Node⋈Tag at level (k-1) on ?id, derive Node,Tag at level k.
 ;; The level literals (k-1 in the conditions, k in the inserts) are spliced via quasiquote/unquote.
-(:wat::core::defn :perf::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :perf::build-rule [k <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
                     c1 (:wat::core::quasiquote (:cascade::Node (?id :- :id) (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id :- :id) (?m :- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))
@@ -45,33 +45,33 @@
       :rhs (:wat::core::PersistentVector t1 t2))))
 
 ;; build-rules depth — the rule set [rule1 .. rule depth], built by folding build-rule over (range 1 depth+1).
-(:wat::core::defn :perf::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :perf::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:perf::build-rule k)))
     (:wat::core::PersistentVector (:perf::build-rule 1))
     (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
 ;; seed-level-0 session width — stage Node(0,i)+Tag(0,i) for i in 0..width, threading the staging session.
-(:wat::core::defn :perf::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :perf::seed-level-0 [session <- :wat::rete::Session  width <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:cascade::Node :level 0 :id i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:cascade::Tag :level 0 :id i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
     (:wat::core::range 0 width)))
 
 ;; count-at-level fired lvl — how many Node facts were derived at exactly `lvl` (the deepest = width iff full closure).
-(:wat::core::defn :perf::count-at-level [fired <- :wat::rete::Session  lvl <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :perf::count-at-level [fired <- :wat::rete::Session  lvl <- wat.type/i64] -> wat.type/i64
   (:wat::core::length
     (:wat::core::filter
-      (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [n (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::core::= (:cascade::Node/level n) lvl)))
+      (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool (:wat::core::let [n (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::core::= (:cascade::Node/level n) lvl)))
       (:wat::rete::query fired (:cascade::q-Node)))))
 
 ;; elapsed-ns thunk-result-start-end — nanoseconds between two Instants.
-(:wat::core::defn :perf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :perf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     depth   (:wat::core::Option/expect   (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect   (:wat::core::get params 1) "stdin: [depth width]")

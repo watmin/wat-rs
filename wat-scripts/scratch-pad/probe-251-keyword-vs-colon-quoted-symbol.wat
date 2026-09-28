@@ -59,18 +59,18 @@
 ;; so printing it back as a keyword — rather than resolving it — proves the `/` form does not
 ;; reach the symbol table at all.
 
-(:wat::core::defn :probe::keyword-plain [] -> :wat::core::keyword
+(:wat::core::defn :probe::keyword-plain [] -> wat.type/keyword
   :foo)
 
-(:wat::core::defn :probe::keyword-namespaced [] -> :wat::core::keyword
+(:wat::core::defn :probe::keyword-namespaced [] -> wat.type/keyword
   :my.app/status)
 
 ;; ★ the load-bearing row — spelled to collide with the real `:wat::core::+` definition.
 ;; A keyword; must NOT resolve.
-(:wat::core::defn :probe::keyword-shaped-like-a-ref [] -> :wat::core::keyword
+(:wat::core::defn :probe::keyword-shaped-like-a-ref [] -> wat.type/keyword
   :wat.core/+)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:probe::keyword-plain))
     (:wat::kernel::println (:probe::keyword-namespaced))

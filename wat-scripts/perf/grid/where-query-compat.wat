@@ -8,9 +8,9 @@
 ;; Rows print sorted scalar bindings. A bound record prints as presence
 ;; (`has=?t`), never as EDN (Clara and wat write records differently).
 
-(:wat::core::defrecord :wqc::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wqc::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wqc::Hit  [loc <- :wat::core::String])
+(:wat::core::defrecord :wqc::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wqc::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wqc::Hit  [loc <- wat.type/String])
 
 (:wat::rete::defrule :wqc::mark
   :when [(:wqc::Wind (?loc :- :loc) (?w :- :kph)
@@ -67,9 +67,9 @@
   :when [(:wqc::Hit (?loc :- :loc))])
 
 (:wat::core::defn :wqc::has-key
-  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
-   k       <- :wat::core::String]
-  -> :wat::core::String
+  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])
+   k       <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     "empty"
     (:wat::core::match
@@ -78,44 +78,44 @@
       [:wat::core::Option.None {} "none"])))
 
 (:wat::core::defn :wqc::i64-of
-  [p <- :wat::core::PersistentMap k <- :wat::core::String] -> :wat::core::i64
+  [p <- wat.type/PersistentMap k <- wat.type/String] -> wat.type/i64
   (:wat::core::Option/expect (:wat::map::get p k)
     (:wat::string::concat "query-compat missing " k)))
 
 (:wat::core::defn :wqc::str-of
-  [p <- :wat::core::PersistentMap k <- :wat::core::String] -> :wat::core::String
+  [p <- wat.type/PersistentMap k <- wat.type/String] -> wat.type/String
   (:wat::core::Option/expect (:wat::map::get p k)
     (:wat::string::concat "query-compat missing " k)))
 
 (:wat::core::defn :wqc::render-strs
-  [v <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
+  [v <- (wat.type/Vector :- [wat.type/String])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String s <- :wat::core::String] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String s <- wat.type/String] -> wat.type/String
       (:wat::string::concat acc (:wat::string::concat " " s)))
     ""
     v))
 
 (:wat::core::defn :wqc::pairs-c-loc
-  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
-  -> :wat::core::String
+  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])]
+  -> wat.type/String
   (:wqc::render-strs
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::into (wat.type/Vector :- [wat.type/String])
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/String
             (:wat::string::concat
               (:wat::i64::to-string (:wqc::i64-of p "?c"))
               (:wat::string::concat "," (:wqc::str-of p "?loc"))))
           answers)))))
 
 (:wat::core::defn :wqc::pairs-join
-  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
-  -> :wat::core::String
+  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])]
+  -> wat.type/String
   (:wqc::render-strs
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::into (wat.type/Vector :- [wat.type/String])
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/String
             (:wat::string::concat
               (:wat::i64::to-string (:wqc::i64-of p "?c"))
               (:wat::string::concat ","
@@ -125,42 +125,42 @@
           answers)))))
 
 (:wat::core::defn :wqc::vals-c
-  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
-  -> :wat::core::String
+  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])]
+  -> wat.type/String
   (:wqc::render-strs
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
+    (:wat::core::into (wat.type/Vector :- [wat.type/String])
       (:wat::core::map
-        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::String
+        (:wat::core::fn [x <- wat.type/i64] -> wat.type/String
           (:wat::i64::to-string x))
         (:wat::core::sort
-          (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+          (:wat::core::into (wat.type/Vector :- [wat.type/i64])
             (:wat::core::map
-              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
                 (:wqc::i64-of p "?c"))
               answers)))))))
 
 (:wat::core::defn :wqc::vals-loc
-  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
-  -> :wat::core::String
+  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])]
+  -> wat.type/String
   (:wqc::render-strs
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::into (wat.type/Vector :- [wat.type/String])
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/String
             (:wqc::str-of p "?loc"))
           answers)))))
 
 (:wat::core::defn :wqc::one-n
-  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
-  -> :wat::core::String
+  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])]
+  -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     ""
     (:wat::string::concat " "
       (:wat::i64::to-string (:wqc::i64-of (:wat::core::first answers) "?n")))))
 
 (:wat::core::defn :wqc::line
-  [row <- :wat::core::i64 name <- :wat::core::String body <- :wat::core::String]
-  -> :wat::core::nil
+  [row <- wat.type/i64 name <- wat.type/String body <- wat.type/String]
+  -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -176,7 +176,7 @@
     (:wqc::Wind :kph 5  :loc "SFO")
     (:wqc::Wind :kph 20 :loc "LAX")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [qs (:wat::core::PersistentVector
           (:wqc::q-fields) (:wqc::q-plain) (:wqc::q-bound) (:wqc::q-at)

@@ -42,13 +42,13 @@
 ;; which means adding a command later breaks the BUILD rather than falling through
 ;; at runtime to a peer who sent something you forgot to handle.
 (:wat::core::defenum :repl::Cmd :wat::enum::Pure
-  :Bump [by <- :wat::core::i64]
+  :Bump [by <- wat.type/i64]
   :Show []
   :Quit [])
 
 (:wat::core::defenum :repl::Reply :wat::enum::Pure
-  :Value [n <- :wat::core::i64]
-  :Bye   [final <- :wat::core::i64])
+  :Value [n <- wat.type/i64]
+  :Bye   [final <- wat.type/i64])
 
 ;; ── The serve loop ────────────────────────────────────────────────────────────
 ;;
@@ -59,8 +59,8 @@
 ;; Every non-terminal arm ends in a tail call carrying the next state. The terminal
 ;; arm returns `nil`, which ends the conversation and the process with it.
 (:wat::core::defn :repl::serve
-  [count <- :wat::core::i64]
-  -> :wat::core::nil
+  [count <- wat.type/i64]
+  -> wat.type/nil
   (:wat::core::match (:wat::kernel::readln)
 
     ;; A frame arrived — decode it to `:repl::Cmd` and dispatch. This inner match
@@ -98,5 +98,5 @@
 ;;
 ;; Everything `main` does is hand control to the loop with the initial state. The
 ;; program's entire behaviour is the frame processor.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:repl::serve 0))

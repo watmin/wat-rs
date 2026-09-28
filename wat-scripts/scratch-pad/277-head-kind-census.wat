@@ -36,5 +36,5 @@
                        (:wat::grep::Capture :name "kind" :value (:wat::rete::core::variant-name ?k))
                        (:wat::grep::Capture :name "pkind" :value (:wat::rete::core::variant-name ?pk))))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :hk))

@@ -21,11 +21,11 @@
   :messages
   [(:wat::core::defrecord :probe::opq::Ctr::GetRequest [])
    (:wat::core::defenum :probe::opq::Ctr::GetResponse :wat::enum::Pure
-     :Ok               [value <- :wat::core::i64]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got <- :wat::core::String])]
+     :Ok               [value <- wat.type/i64]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got <- wat.type/String])]
   :features
   [(get [self <- :probe::opq::Ctr  req <- :probe::opq::Ctr::GetRequest]
      -> :probe::opq::Ctr::GetResponse :max-request-bytes 524288)])
@@ -33,7 +33,7 @@
 ;; The same service, with the one offending field replaced by plain EDN.
 (:wat::service::defservice :probe::opq::ctr
   :satisfies :probe::opq::Ctr
-  :durable   [capacity <- :wat::core::i64]
+  :durable   [capacity <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]

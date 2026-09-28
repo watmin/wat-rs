@@ -2,7 +2,7 @@
 ;; assoc (HashMap :- [String i64]) with i64 key must reject at check time.
 ;; startup MUST fail.
 
-(:wat::core::defn :user::bad [] -> :wat::core::i64
+(:wat::core::defn :user::bad [] -> wat.type/i64
   (:wat::core::length
     (:wat::hashmap::keys
-      (:wat::core::assoc (:wat::core::HashMap :- [:wat::core::String :wat::core::i64]) 42 1))))
+      (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) 42 1))))

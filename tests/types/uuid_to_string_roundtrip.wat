@@ -1,5 +1,5 @@
 ;; uuid_to_string_roundtrip.wat — Uuid/to-string round-trip.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [u        (:wat::uuid::v4)
      s        (:wat::uuid::to-string u)

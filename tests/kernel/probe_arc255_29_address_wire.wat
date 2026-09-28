@@ -1,6 +1,6 @@
 ;; Stone 255.29 — address-wire? stays false for a thread address.
 ;; The process twin stays true: portable-for-a-process is the socket tier.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [tb (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      ta (:wat::spawn::Bound/address tb)

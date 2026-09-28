@@ -28,18 +28,18 @@
 
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 
-(:wat::core::defrecord :probe::SqliteReason [code  <- :wat::core::i64  sql <- :wat::core::String])
-(:wat::core::defrecord :probe::RedisReason  [errno <- :wat::core::i64  cmd <- :wat::core::String])
-(:wat::core::defrecord :probe::MongoReason  [nsp   <- :wat::core::String])   ;; no clause knows this class
+(:wat::core::defrecord :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
+(:wat::core::defrecord :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])
+(:wat::core::defrecord :probe::MongoReason  [nsp   <- wat.type/String])   ;; no clause knows this class
 (:wat::core::extend-type :probe::SqliteReason :probe::Reason)
 (:wat::core::extend-type :probe::RedisReason :probe::Reason)
 (:wat::core::extend-type :probe::MongoReason :probe::Reason)
 
 ;; Two concrete-satisfier clauses, SAME return type — the sound narrowing shape.
 (:wat::core::defclause :probe::describe
-  ([r <- :probe::SqliteReason] -> :wat::core::String
+  ([r <- :probe::SqliteReason] -> wat.type/String
     (:wat::string::concat "sqlite " (:wat::i64::to-string (:probe::SqliteReason/code r))))
-  ([r <- :probe::RedisReason]  -> :wat::core::String
+  ([r <- :probe::RedisReason]  -> wat.type/String
     (:wat::string::concat "redis "  (:wat::i64::to-string (:probe::RedisReason/errno r)))))
 
 ;; UP: concrete records flow into a Reason-typed slot (the extend-type above) —
@@ -66,5 +66,5 @@
 ;; agree on :wat::core::String), but the runtime dispatcher raises
 ;; NoMatchingClause. Left as a plain defn (not a deftest') so the Rust probe
 ;; can call it directly and assert on the RuntimeError shape.
-(:wat::core::defn :user::describe-unknown [] -> :wat::core::String
+(:wat::core::defn :user::describe-unknown [] -> wat.type/String
   (:probe::describe (:probe::as-reason-m (:probe::MongoReason :nsp "app.users"))))

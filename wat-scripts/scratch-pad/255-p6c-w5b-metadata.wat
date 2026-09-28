@@ -9,7 +9,7 @@
 ;; old binary (no `git stash` permitted). Direct FQDN-keyword call sites, mirrors
 ;; `255-p6c-w5a-metadata.wat`.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::arm-session)
       [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::arm-session :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]

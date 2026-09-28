@@ -1,9 +1,9 @@
 ;; Co-located fixture for probe_arc259_s2cii_b_defclause.rs — s2cii_b_two_arg_host_dispatch.
 ;; 2-arg (spawn-program' (thread) <self-peer-prog>) dispatches on ThreadOpts; echoes 42.
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                              (:wat::core::match (:wat::kernel::recv self)
                                [:wat::kernel::RecvOutcome.Message {:msg m}
                                  (:wat::core::match (:wat::kernel::send self m)

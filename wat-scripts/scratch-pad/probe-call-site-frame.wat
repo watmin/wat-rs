@@ -20,7 +20,7 @@
 (:wat::core::defn :probe::other-caller [] -> :wat::kernel::Frame
   (:probe::spawner))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:probe::spawner))
     (:wat::kernel::println (:probe::other-caller))))

@@ -9,7 +9,7 @@
 ;; is expected to fail to load, per the repo's own `.wat.bad` convention (see e.g.
 ;; tests/resolve/probe_arc251_implicit_generics_bare.wat.bad).
 
-(:wat::core::defrecord :caz::Rate [count <- :wat::core::i64 window <- :wat::core::i64])
+(:wat::core::defrecord :caz::Rate [count <- wat.type/i64 window <- wat.type/i64])
 
 (:wat::core::defn :user::bad [] -> :caz::Rate
   (:wat::core::aggregate-new :caz::Rate 1))

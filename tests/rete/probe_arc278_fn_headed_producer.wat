@@ -1,11 +1,11 @@
 ;; fn-headed :then produces Hit; another rule exists that derived Hit.
 ;; rule_produces must list Hit, not the fn name, so exists raises.
 
-(:wat::core::defrecord :fhp::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :fhp::Hit  [c <- :wat::core::i64])
-(:wat::core::defrecord :fhp::Seen [c <- :wat::core::i64])
+(:wat::core::defrecord :fhp::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :fhp::Hit  [c <- wat.type/i64])
+(:wat::core::defrecord :fhp::Seen [c <- wat.type/i64])
 
-(:wat::rete::core::defn :fhp::as-hit [c <- :wat::core::i64] -> :fhp::Hit
+(:wat::rete::core::defn :fhp::as-hit [c <- wat.type/i64] -> :fhp::Hit
   (:fhp::Hit :c c))
 
 (:wat::rete::defrule :fhp::cool
@@ -21,7 +21,7 @@
 (:wat::rete::defquery :fhp::q-Hit  :params [] :when [(?f :- :fhp::Hit)])
 (:wat::rete::defquery :fhp::q-Seen :params [] :when [(?f :- :fhp::Seen)])
 
-(:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::source-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:fhp::cool) (:fhp::seen))
                          (:wat::core::PersistentVector (:fhp::q-Hit) (:fhp::q-Seen))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

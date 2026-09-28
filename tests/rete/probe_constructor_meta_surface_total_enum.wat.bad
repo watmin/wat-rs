@@ -20,16 +20,16 @@
 ;; `constructor_meta`'s enum-variant site is `total: true`.
 
 (:wat::core::defenum :cg::Status :wat::enum::Pure
-  :Active [level <- :wat::core::i64])
+  :Active [level <- wat.type/i64])
 
-(:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
+(:wat::core::defrecord :cg::Anchor [x <- wat.type/i64])
 (:wat::core::defrecord :cg::Wrap   [s <- :cg::Status])
 
 (:wat::rete::defrule :cg::gather
   :when [(:cg::Anchor (?x :- :x))]
   :then [(:cg::Wrap :s (:cg::Status.Active 1 2 3))])
 
-(:wat::core::defn :user::run [] -> :wat::core::i64
+(:wat::core::defn :user::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::rete::compile rules)

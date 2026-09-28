@@ -30,19 +30,19 @@
 ;;   echo '[1000]' | cargo wat ./wat-scripts/perf/grid/negation.wat
 ;;   => #grid/Result {:axis "negation" :size [1000] :derived [1 3 5 ...] :native-ns N}
 
-(:wat::core::defrecord :neg::Item [k <- :wat::core::i64])
-(:wat::core::defrecord :neg::Bad  [k <- :wat::core::i64])
-(:wat::core::defrecord :neg::Ok   [k <- :wat::core::i64])
+(:wat::core::defrecord :neg::Item [k <- wat.type/i64])
+(:wat::core::defrecord :neg::Bad  [k <- wat.type/i64])
+(:wat::core::defrecord :neg::Ok   [k <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defquery :neg::q-Ok
   :params []
@@ -51,7 +51,7 @@
 
 ;; build-rules — the single-rule set: Ok(k) :- Item(k) AND NOT Bad(k).
 ;; Two LHS conditions: bind ?k off Item, then negate Bad on the same ?k. One RHS insert.
-(:wat::core::defn :neg::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :neg::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "ok"
       :lhs (:wat::core::PersistentVector
@@ -65,12 +65,12 @@
 ;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x N.
 ;; The conditional Bad(i) stays exactly where it was; only the accumulator changed from a Session
 ;; to the fact vector, so the staging ORDER (Item then Bad, ascending i) is preserved.
-(:wat::core::defn :neg::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :neg::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::let [a2 (:wat::vector::conj acc (:neg::Item i))]
           (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
             (:wat::vector::conj a2 (:neg::Bad i))
@@ -81,23 +81,23 @@
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :neg::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :neg::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Ok fact's key, sorted ascending. This IS the accuracy
 ;; witness: a missing/extra Ok anywhere shows up in the byte-for-byte compare.
-(:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+  (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
                               (:wat::rete::query fired (:neg::q-Ok))))]
     (:neg::vec->pvec (:wat::core::sort codes))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
-(:wat::core::defn :neg::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :neg::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:neg::build-rules)

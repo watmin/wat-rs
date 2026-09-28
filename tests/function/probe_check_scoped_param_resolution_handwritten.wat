@@ -4,5 +4,5 @@
 ;; mismatch must always be caught by the check pass.
 
 (:wat::core::defclause :test::bad-ret-direct
-  ([x <- :wat::core::i64] -> :wat::core::bool x))
+  ([x <- wat.type/i64] -> wat.type/bool x))
 

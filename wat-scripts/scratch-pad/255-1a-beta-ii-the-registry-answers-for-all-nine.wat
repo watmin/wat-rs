@@ -8,11 +8,11 @@
 ;; back out of the LIVE registry instead: every one of the eight names the predicate held
 ;; must render a `;; role: declare` block, and a control that never had one must not.
 (:wat::core::def :scratch::declares?
-  (:wat::core::fn [n <- :wat::core::keyword] -> :wat::core::bool
+  (:wat::core::fn [n <- wat.type/keyword] -> wat.type/bool
     (:wat::string::contains? (:wat::core::show-source n) "role: declare")))
 
 (:wat::core::def :user::main
-  (:wat::core::fn [] -> :wat::core::nil
+  (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println (:scratch::declares? :wat::core::def))
     (:wat::kernel::println (:scratch::declares? :wat::core::defalias))
     (:wat::kernel::println (:scratch::declares? :wat::core::defmacro))

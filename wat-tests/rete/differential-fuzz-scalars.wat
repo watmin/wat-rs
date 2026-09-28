@@ -38,10 +38,10 @@
 ;;   - arithmetic (`f64::+`, `i64::*`) — this file fuzzes COMPARISON, which is what a rete
 ;;     constraint position admits.
 
-(:wat::core::defrecord :wat-tests::rete::scalars::Ri [v <- :wat::core::i64])
-(:wat::core::defrecord :wat-tests::rete::scalars::Rf [v <- :wat::core::f64])
-(:wat::core::defrecord :wat-tests::rete::scalars::Rs [v <- :wat::core::String])
-(:wat::core::defrecord :wat-tests::rete::scalars::Rb [v <- :wat::core::bool])
+(:wat::core::defrecord :wat-tests::rete::scalars::Ri [v <- wat.type/i64])
+(:wat::core::defrecord :wat-tests::rete::scalars::Rf [v <- wat.type/f64])
+(:wat::core::defrecord :wat-tests::rete::scalars::Rs [v <- wat.type/String])
+(:wat::core::defrecord :wat-tests::rete::scalars::Rb [v <- wat.type/bool])
 
 ;; The sixth module. A USER enum, deliberately: the `RETE_OPS` equality rows are a CLOSED table
 ;; and a user `defenum` is none of them and never can be, so `enum::=` is a `Form`-class row gated
@@ -59,27 +59,27 @@
 ;; the hash/equality of whatever the key VALUE is. Until now every join key ever exercised, in the
 ;; grid and in both fuzzers, was an `i64`. Joining on a String, an f64, a bool or an enum variant
 ;; is a different key type through the same index, and nothing had ever asked whether it agrees.
-(:wat::core::defrecord :wat-tests::rete::scalars::Ri2 [v <- :wat::core::i64])
-(:wat::core::defrecord :wat-tests::rete::scalars::Rf2 [v <- :wat::core::f64])
-(:wat::core::defrecord :wat-tests::rete::scalars::Rs2 [v <- :wat::core::String])
-(:wat::core::defrecord :wat-tests::rete::scalars::Rb2 [v <- :wat::core::bool])
+(:wat::core::defrecord :wat-tests::rete::scalars::Ri2 [v <- wat.type/i64])
+(:wat::core::defrecord :wat-tests::rete::scalars::Rf2 [v <- wat.type/f64])
+(:wat::core::defrecord :wat-tests::rete::scalars::Rs2 [v <- wat.type/String])
+(:wat::core::defrecord :wat-tests::rete::scalars::Rb2 [v <- wat.type/bool])
 (:wat::core::defrecord :wat-tests::rete::scalars::Re2 [v <- :wat-tests::rete::scalars::E])
 
 ;; ── the two comparator CLASSES ───────────────────────────────────────────────
 ;; ORDERED (i64, f64): > >= < <= = not=  — six rows each in RETE_OPS.
 ;; EQUALITY-ONLY (string, bool): = not=  — the module has no ordering, and there is no
 ;; `record::=` either; the closed set is the point, not a gap.
-(:wat::core::defn :wat-tests::rete::scalars::n-ops [ty <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :wat-tests::rete::scalars::n-ops [ty <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::< ty 2) 6 2))
 
 ;; ty: 0 i64 · 1 f64 · 2 string · 3 bool · 4 enum
 
 ;; Literals per type. Three for the ordered types so a threshold can sit below, inside and above
 ;; the inserted values; two for bool because that IS its domain.
-(:wat::core::defn :wat-tests::rete::scalars::n-lits [ty <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :wat-tests::rete::scalars::n-lits [ty <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::= ty 3) 2 3))
 
-(:wat::core::defn :wat-tests::rete::scalars::oplit-card [ty <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :wat-tests::rete::scalars::oplit-card [ty <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* (:wat-tests::rete::scalars::n-ops ty) (:wat-tests::rete::scalars::n-lits ty)))
 
 ;; ── the constraint, per type ────────────────────────────────────────────────
@@ -88,24 +88,24 @@
 ;; different RETE_OPS rows with different lowering. The op is enumerated (six forms, or two) and
 ;; the literal is a parameter, so each type costs one small fn instead of `ops x lits` forms.
 
-(:wat::core::defn :wat-tests::rete::scalars::lit-i64 [i <- :wat::core::i64] -> :wat::core::i64 i)
+(:wat::core::defn :wat-tests::rete::scalars::lit-i64 [i <- wat.type/i64] -> wat.type/i64 i)
 
-(:wat::core::defn :wat-tests::rete::scalars::lit-f64 [i <- :wat::core::i64] -> :wat::core::f64
+(:wat::core::defn :wat-tests::rete::scalars::lit-f64 [i <- wat.type/i64] -> wat.type/f64
   (:wat::core::cond
     ((:wat::core::= i 0) 0.5)
     ((:wat::core::= i 1) 1.5)
     (:else 2.5)))
 
-(:wat::core::defn :wat-tests::rete::scalars::lit-str [i <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wat-tests::rete::scalars::lit-str [i <- wat.type/i64] -> wat.type/String
   (:wat::core::cond
     ((:wat::core::= i 0) "a")
     ((:wat::core::= i 1) "b")
     (:else "zzz")))
 
-(:wat::core::defn :wat-tests::rete::scalars::lit-bool [i <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wat-tests::rete::scalars::lit-bool [i <- wat.type/i64] -> wat.type/bool
   (:wat::core::= i 0))
 
-(:wat::core::defn :wat-tests::rete::scalars::c-i64 [op <- :wat::core::i64  lit <- :wat::core::i64] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::scalars::c-i64 [op <- wat.type/i64  lit <- wat.type/i64] -> wat.type/AST
   (:wat::core::cond
     ((:wat::core::= op 0) (:wat::core::quasiquote (:wat::rete::i64::>  ?v (:wat::core::unquote lit))))
     ((:wat::core::= op 1) (:wat::core::quasiquote (:wat::rete::i64::>= ?v (:wat::core::unquote lit))))
@@ -114,7 +114,7 @@
     ((:wat::core::= op 4) (:wat::core::quasiquote (:wat::rete::i64::=  ?v (:wat::core::unquote lit))))
     (:else                (:wat::core::quasiquote (:wat::rete::i64::not= ?v (:wat::core::unquote lit))))))
 
-(:wat::core::defn :wat-tests::rete::scalars::c-f64 [op <- :wat::core::i64  lit <- :wat::core::f64] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::scalars::c-f64 [op <- wat.type/i64  lit <- wat.type/f64] -> wat.type/AST
   (:wat::core::cond
     ((:wat::core::= op 0) (:wat::core::quasiquote (:wat::rete::f64::>  ?v (:wat::core::unquote lit))))
     ((:wat::core::= op 1) (:wat::core::quasiquote (:wat::rete::f64::>= ?v (:wat::core::unquote lit))))
@@ -123,14 +123,14 @@
     ((:wat::core::= op 4) (:wat::core::quasiquote (:wat::rete::f64::=  ?v (:wat::core::unquote lit))))
     (:else                (:wat::core::quasiquote (:wat::rete::f64::not= ?v (:wat::core::unquote lit))))))
 
-(:wat::core::defn :wat-tests::rete::scalars::c-str [op <- :wat::core::i64  lit <- :wat::core::String] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::scalars::c-str [op <- wat.type/i64  lit <- wat.type/String] -> wat.type/AST
   (:wat::core::if (:wat::core::= op 0)
     (:wat::core::quasiquote (:wat::rete::string::= ?v (:wat::core::unquote lit)))
     (:wat::core::quasiquote (:wat::rete::string::not= ?v (:wat::core::unquote lit)))))
 
 ;; The enum arm enumerates op x variant outright (2 x 3), because a variant is written as a
 ;; KEYWORD in the constraint (`:wat-tests::rete::scalars::E::A`), not unquoted as a value.
-(:wat::core::defn :wat-tests::rete::scalars::c-enum [op <- :wat::core::i64  li <- :wat::core::i64] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::scalars::c-enum [op <- wat.type/i64  li <- wat.type/i64] -> wat.type/AST
   (:wat::core::let [eq (:wat::core::= op 0)]
     (:wat::core::cond
       ((:wat::core::and eq (:wat::core::= li 0)) (:wat::core::quasiquote (:wat::rete::core::enum::= ?v :wat-tests::rete::scalars::E.A)))
@@ -140,13 +140,13 @@
       ((:wat::core::= li 1) (:wat::core::quasiquote (:wat::rete::core::enum::not= ?v :wat-tests::rete::scalars::E.B)))
       (:else                (:wat::core::quasiquote (:wat::rete::core::enum::not= ?v :wat-tests::rete::scalars::E.C))))))
 
-(:wat::core::defn :wat-tests::rete::scalars::c-bool [op <- :wat::core::i64  lit <- :wat::core::bool] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::scalars::c-bool [op <- wat.type/i64  lit <- wat.type/bool] -> wat.type/AST
   (:wat::core::if (:wat::core::= op 0)
     (:wat::core::quasiquote (:wat::rete::core::bool::= ?v (:wat::core::unquote lit)))
     (:wat::core::quasiquote (:wat::rete::core::bool::not= ?v (:wat::core::unquote lit)))))
 
 ;; The whole fact condition: `(:wat-tests::rete::scalars::R? (?v <- :v) <constraint>)`.
-(:wat::core::defn :wat-tests::rete::scalars::fact-cond [ty <- :wat::core::i64  oplit <- :wat::core::i64] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::scalars::fact-cond [ty <- wat.type/i64  oplit <- wat.type/i64] -> wat.type/AST
   (:wat::core::let [nl  (:wat-tests::rete::scalars::n-lits ty)
                     op  (:wat::i64::quot oplit nl)
                     li  (:wat::i64::rem oplit nl)]
@@ -163,7 +163,7 @@
 ;; The literals above straddle these: for the ordered types a threshold sits below, inside and
 ;; above the inserted range, so `>` and `<` cannot both be trivially true.
 ;; The join partner condition — binds the SAME `?v`, so the engine must join on it.
-(:wat::core::defn :wat-tests::rete::scalars::partner-cond [ty <- :wat::core::i64] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::scalars::partner-cond [ty <- wat.type/i64] -> wat.type/AST
   (:wat::core::cond
     ((:wat::core::= ty 0) (:wat::core::quasiquote (:wat-tests::rete::scalars::Ri2 (?v :- :v))))
     ((:wat::core::= ty 1) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rf2 (?v :- :v))))
@@ -171,36 +171,36 @@
     ((:wat::core::= ty 3) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rb2 (?v :- :v))))
     (:else                (:wat::core::quasiquote (:wat-tests::rete::scalars::Re2 (?v :- :v))))))
 
-(:wat::core::defn :wat-tests::rete::scalars::facts-i64 [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Ri])
+(:wat::core::defn :wat-tests::rete::scalars::facts-i64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Ri])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Ri (:wat-tests::rete::scalars::Ri i))
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Ri (:wat-tests::rete::scalars::Ri i))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::facts-f64 [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Rf])
+(:wat::core::defn :wat-tests::rete::scalars::facts-f64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rf])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Rf
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rf
                         (:wat-tests::rete::scalars::Rf (:wat::core::cond ((:wat::core::= i 0) 0.0)
                                                    ((:wat::core::= i 1) 1.0)
                                                    (:else 2.0))))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::facts-str [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Rs])
+(:wat::core::defn :wat-tests::rete::scalars::facts-str [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rs])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Rs
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rs
                         (:wat-tests::rete::scalars::Rs (:wat::core::cond ((:wat::core::= i 0) "a")
                                                    ((:wat::core::= i 1) "b")
                                                    (:else "c"))))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::facts-bool [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Rb])
+(:wat::core::defn :wat-tests::rete::scalars::facts-bool [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rb])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Rb
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rb
                         (:wat-tests::rete::scalars::Rb (:wat::core::= (:wat::i64::rem i 2) 0)))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::facts-enum [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Re])
+(:wat::core::defn :wat-tests::rete::scalars::facts-enum [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Re])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Re
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Re
                         ;; A variant declared WITHOUT a payload bracket is used BARE, not called
                         ;; — `wat/gen.wat`'s `:wat::gen::CheckOutcome::EmptySpace` is the same
                         ;; shape. (`(:wat::sqlite::Param::Nil)` is called because it is declared
@@ -218,43 +218,43 @@
 ;; One small builder per type, mirroring the primary side above, then a single `cond` — rather
 ;; than one function with a five-deep dispatch inside it. The value expressions are the same as
 ;; their primaries by construction, which is what makes the join key MATCH.
-(:wat::core::defn :wat-tests::rete::scalars::pfacts-i64 [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Ri2])
+(:wat::core::defn :wat-tests::rete::scalars::pfacts-i64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Ri2])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Ri2 (:wat-tests::rete::scalars::Ri2 i))
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Ri2 (:wat-tests::rete::scalars::Ri2 i))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::pfacts-f64 [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Rf2])
+(:wat::core::defn :wat-tests::rete::scalars::pfacts-f64 [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rf2])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Rf2
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rf2
                         (:wat-tests::rete::scalars::Rf2 (:wat::core::cond ((:wat::core::= i 0) 0.0)
                                                     ((:wat::core::= i 1) 1.0)
                                                     (:else 2.0))))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::pfacts-str [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Rs2])
+(:wat::core::defn :wat-tests::rete::scalars::pfacts-str [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rs2])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Rs2
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rs2
                         (:wat-tests::rete::scalars::Rs2 (:wat::core::cond ((:wat::core::= i 0) "a")
                                                     ((:wat::core::= i 1) "b")
                                                     (:else "c"))))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::pfacts-bool [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Rb2])
+(:wat::core::defn :wat-tests::rete::scalars::pfacts-bool [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Rb2])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Rb2
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Rb2
                         (:wat-tests::rete::scalars::Rb2 (:wat::core::= (:wat::i64::rem i 2) 0)))
                       (:wat::core::range 0 n))))
 
-(:wat::core::defn :wat-tests::rete::scalars::pfacts-enum [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Re2])
+(:wat::core::defn :wat-tests::rete::scalars::pfacts-enum [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat-tests::rete::scalars::Re2])
   (:wat::core::into (:wat::core::PersistentVector)
-    (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::scalars::Re2
+    (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::scalars::Re2
                         (:wat-tests::rete::scalars::Re2 (:wat::core::cond ((:wat::core::= i 0) :wat-tests::rete::scalars::E.A)
                                                     ((:wat::core::= i 1) :wat-tests::rete::scalars::E.B)
                                                     (:else :wat-tests::rete::scalars::E.C))))
                       (:wat::core::range 0 n))))
 
 (:wat::core::defn :wat-tests::rete::scalars::partner-facts
-  [ty <- :wat::core::i64  n <- :wat::core::i64  s <- :wat::rete::Session] -> :wat::rete::Session
+  [ty <- wat.type/i64  n <- wat.type/i64  s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::let [m (:wat::core::if (:wat::core::> n 1) (:wat::i64::- n 1) 1)]
     (:wat::core::cond
       ((:wat::core::= ty 0) (:wat::core::match (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-i64 m)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -268,7 +268,7 @@
 ;; type's value-equality on the removal path, which is a different code path from the constraint
 ;; comparator and from the join key.
 (:wat::core::defn :wat-tests::rete::scalars::retract-one
-  [ty <- :wat::core::i64  s <- :wat::rete::Session] -> :wat::rete::Session
+  [ty <- wat.type/i64  s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::cond
     ((:wat::core::= ty 0) (:wat::rete::retract s (:wat-tests::rete::scalars::Ri 0)))
     ((:wat::core::= ty 1) (:wat::rete::retract s (:wat-tests::rete::scalars::Rf 0.0)))
@@ -277,7 +277,7 @@
     (:else                (:wat::rete::retract s (:wat-tests::rete::scalars::Re :wat-tests::rete::scalars::E.A)))))
 
 (:wat::core::defn :wat-tests::rete::scalars::seed
-  [ty <- :wat::core::i64  dups <- :wat::core::i64  shape <- :wat::core::i64  q <- :wat::rete::Query]
+  [ty <- wat.type/i64  dups <- wat.type/i64  shape <- wat.type/i64  q <- :wat::rete::Query]
   -> :wat::rete::Session
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
                          (:wat::core::PersistentVector)
@@ -294,15 +294,15 @@
 ;; A RECORD, not a bare tuple — same reason as the sibling file: a dimension cannot be silently
 ;; transposed by a reader, and adding one is a field rather than an index everyone must re-count.
 (:wat::core::defrecord :wat-tests::rete::scalars::Case
-  [ty    <- :wat::core::i64
-   oplit <- :wat::core::i64
-   dups  <- :wat::core::i64
+  [ty    <- wat.type/i64
+   oplit <- wat.type/i64
+   dups  <- wat.type/i64
    ;; 0 plain · 1 under `:not` · 2 JOINED against the same-typed partner record
-   shape <- :wat::core::i64
+   shape <- wat.type/i64
    ;; 0 fire once · 1 fire, retract the first fact of this type, fire again
-   retr  <- :wat::core::i64])
+   retr  <- wat.type/i64])
 
-(:wat::core::defrecord :wat-tests::rete::scalars::Rows [n <- :wat::core::i64  o <- :wat::core::i64])
+(:wat::core::defrecord :wat-tests::rete::scalars::Rows [n <- wat.type/i64  o <- wat.type/i64])
 
 ;; ONE run, TWO readers: the differential property asks whether the two engines agree, and the
 ;; non-vacuity gate below asks whether the space discriminates at all. Sharing the body means the
@@ -337,7 +337,7 @@
     (:wat-tests::rete::scalars::Rows :n (:wat::core::length (:wat::rete::query nf q))
                :o (:wat::core::length (:wat::rete::query of q)))))
 
-(:wat::core::defn :wat-tests::rete::scalars::prop [c <- :wat-tests::rete::scalars::Case] -> :wat::core::bool
+(:wat::core::defn :wat-tests::rete::scalars::prop [c <- :wat-tests::rete::scalars::Case] -> wat.type/bool
   (:wat::core::let [r (:wat-tests::rete::scalars::run c)]
     (:wat::core::= (:wat-tests::rete::scalars::Rows/n r) (:wat-tests::rete::scalars::Rows/o r))))
 
@@ -346,7 +346,7 @@
 ;; bool) two. A fixed product would have to pad every type to the widest, generating shapes that
 ;; do not exist — `bind` lets each type carry exactly its own surface, and `Gen/card` stays the
 ;; honest case count.
-(:wat::core::defn :wat-tests::rete::scalars::for-type [ty <- :wat::core::i64] -> (:wat::gen::Gen :- [:wat-tests::rete::scalars::Case])
+(:wat::core::defn :wat-tests::rete::scalars::for-type [ty <- wat.type/i64] -> (:wat::gen::Gen :- [:wat-tests::rete::scalars::Case])
   (:wat::gen::record :wat-tests::rete::scalars::Case
     (:wat::gen::ints ty (:wat::i64::+ ty 1))
     (:wat::gen::ints 0 (:wat-tests::rete::scalars::oplit-card ty))
@@ -380,14 +380,14 @@
 ;; Both must be non-empty: zero-only would mean nothing ever matched, and nonzero-only would mean
 ;; no constraint ever excluded anything. It reads `run` — the same body the property reads — so
 ;; the certificate cannot drift from the thing certified.
-(:wat::core::defrecord :wat-tests::rete::scalars::Tally [zero <- :wat::core::i64  nonzero <- :wat::core::i64])
+(:wat::core::defrecord :wat-tests::rete::scalars::Tally [zero <- wat.type/i64  nonzero <- wat.type/i64])
 
 (:wat::core::defn :wat-tests::rete::scalars::tally [] -> :wat-tests::rete::scalars::Tally
   (:wat::core::let [g    (:wat-tests::rete::scalars::space)
                     card (:wat::gen::Gen/card g)
                     at   (:wat::gen::Gen/at g)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat-tests::rete::scalars::Tally  i <- :wat::core::i64] -> :wat-tests::rete::scalars::Tally
+      (:wat::core::fn [acc <- :wat-tests::rete::scalars::Tally  i <- wat.type/i64] -> :wat-tests::rete::scalars::Tally
         (:wat::core::if (:wat::core::= (:wat-tests::rete::scalars::Rows/n (:wat-tests::rete::scalars::run (at i))) 0)
           (:wat-tests::rete::scalars::Tally :zero (:wat::i64::+ (:wat-tests::rete::scalars::Tally/zero acc) 1)
                       :nonzero (:wat-tests::rete::scalars::Tally/nonzero acc))

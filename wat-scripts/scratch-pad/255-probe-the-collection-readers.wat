@@ -54,35 +54,35 @@
 ;; binary actually printed.
 
 (:wat::core::defn :wat-tests::255::collection-readers::nat
-  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
+  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:wat-tests::255::collection-readers::nat (:wat::core::+ i 1)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── section 1 — behaviour unchanged ──")
     (:wat::kernel::println
       (:wat::string::concat "assoc on HashMap             => "
         (:wat::edn::write (:wat::hashmap::get
-          (:wat::core::assoc (:wat::core::HashMap :- [:wat::core::String :wat::core::i64]) "a" 1) "a"))))
+          (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1) "a"))))
     (:wat::kernel::println
       (:wat::string::concat "conj on Vector                => "
-        (:wat::edn::write (:wat::core::conj (:wat::core::Vector :- [:wat::core::i64] 1 2) 3))))
+        (:wat::edn::write (:wat::core::conj (wat.type/Vector :- [wat.type/i64] 1 2) 3))))
     (:wat::kernel::println
       (:wat::string::concat "take 2 on Vector [1 2 3]      => "
-        (:wat::edn::write (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
-          (:wat::core::take (:wat::core::Vector :- [:wat::core::i64] 1 2 3) 2)))))
+        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
+          (:wat::core::take (wat.type/Vector :- [wat.type/i64] 1 2 3) 2)))))
     (:wat::kernel::println
       (:wat::string::concat "drop 1 on Vector [1 2 3]      => "
-        (:wat::edn::write (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
-          (:wat::core::drop (:wat::core::Vector :- [:wat::core::i64] 1 2 3) 1)))))
+        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
+          (:wat::core::drop (wat.type/Vector :- [wat.type/i64] 1 2 3) 1)))))
     (:wat::kernel::println
       (:wat::string::concat "take 3 on an INFINITE Stream  => "
-        (:wat::edn::write (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
+        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
           (:wat::core::take (:wat-tests::255::collection-readers::nat 0) 3)))))
     (:wat::kernel::println
       (:wat::string::concat "take 2 (drop 3 INFINITE Stream) => "
-        (:wat::edn::write (:wat::core::stream->vec (:wat::core::Vector :- [:wat::core::i64])
+        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
           (:wat::core::take (:wat::core::drop (:wat-tests::255::collection-readers::nat 0) 3) 2)))))
     (:wat::kernel::println "── section 2 — metadata-of :totality (assoc/conj Partial vs. drop/take Total) ──")
     (:wat::kernel::println

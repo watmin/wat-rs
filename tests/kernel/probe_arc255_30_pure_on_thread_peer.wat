@@ -1,9 +1,9 @@
 ;; Stone 255.30 — a pure payload on a thread peer loads and runs.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]
-             -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]
+             -> wat.type/nil
            (:wat::core::match (:wat::kernel::send self
                                 (:wat::core::match (:wat::kernel::recv self)
                                   [:wat::kernel::RecvOutcome.Message {:msg m} m]

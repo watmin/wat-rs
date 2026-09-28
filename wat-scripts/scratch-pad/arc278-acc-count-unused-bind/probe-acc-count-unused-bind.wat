@@ -21,10 +21,10 @@
 ;; Finding: docs/arc/2026/06/278-rules-engine/the-position-axis-was-chosen-not-derived/
 ;;          FINDING-acc-count-miscounts-with-an-unused-bind.md
 
-(:wat::core::defrecord :cnb::Station [location <- :wat::core::String])
-(:wat::core::defrecord :cnb::Reading [location <- :wat::core::String  value <- :wat::core::i64])
-(:wat::core::defrecord :cnb::Plain   [n <- :wat::core::i64])
-(:wat::core::defrecord :cnb::Extra   [n <- :wat::core::i64])
+(:wat::core::defrecord :cnb::Station [location <- wat.type/String])
+(:wat::core::defrecord :cnb::Reading [location <- wat.type/String  value <- wat.type/i64])
+(:wat::core::defrecord :cnb::Plain   [n <- wat.type/i64])
+(:wat::core::defrecord :cnb::Extra   [n <- wat.type/i64])
 
 (:wat::rete::defrule :cnb::plain
   :when [(:cnb::Station (?loc :- :location))
@@ -44,11 +44,11 @@
   (:wat::core::match (:wat::rete::insert s f) [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert")]))
 
-(:wat::core::defn :cnb::n [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::i64
+(:wat::core::defn :cnb::n [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/i64
   (:cnb::Plain/n (:wat::core::Option/expect
     (:wat::map::get (:wat::core::first (:wat::rete::query s q)) "?f") "row")))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :cnb)
           (:wat::core::PersistentVector (:cnb::q-plain) (:cnb::q-extra)))

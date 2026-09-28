@@ -39,7 +39,7 @@
   (:wat::core::apply f seed [x]))
 
 (:wat::core::defn :user::rung-pred
-  [f <- [T :-> :wat::core::bool] x <- T] -> :wat::core::bool
+  [f <- [T :-> wat.type/bool] x <- T] -> wat.type/bool
   (:wat::core::apply f [x]))
 
 
@@ -47,11 +47,11 @@
 ;; at the declaration site, so the probe mirrors that: the rung proves the annotation parses and
 ;; the value threads through a signature, which is exactly what the two migrating sites do.
 (:wat::core::defn :user::rung-nullary
-  [f <- [:-> :wat::core::Record]] -> [:-> :wat::core::Record]
+  [f <- [:-> wat.type/Record]] -> [:-> wat.type/Record]
   f)
 
 (:wat::core::defn :user::rung-nested-ret
-  [f <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])] i <- :wat::core::i64 x <- T]
+  [f <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])] i <- wat.type/i64 x <- T]
   -> (:wat::core::Option :- [U])
   (:wat::core::apply f i [x]))
 
@@ -60,5 +60,5 @@
   (:wat::core::apply f p [i]))
 
 (:wat::core::defn :user::rung-tuple
-  [t <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
+  [t <- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])] -> wat.type/i64
   (:wat::core::first t))

@@ -75,37 +75,37 @@
 ;; evidence for `eval_and`'s short-circuit, this time through a String verb's own arity/range fence
 ;; rather than an arithmetic one.
 
-(:wat::core::defn :wst::items [] -> :wat::core::i64 400)   ;; 5*2*8*5 — CRT-clean, both sides
+(:wat::core::defn :wst::items [] -> wat.type/i64 400)   ;; 5*2*8*5 — CRT-clean, both sides
 
-(:wat::core::defn :wst::row-count [] -> :wat::core::i64 12)
+(:wat::core::defn :wst::row-count [] -> wat.type/i64 12)
 
 ;; k mod 5    → n's category (see header)
 ;; k mod 2    → tag/padded's category
 ;; k mod 8    → minlen, a PER-FACT bound threshold (row 5's "not just a constant")
 (:wat::core::defrecord :wst::Req
-  [k      <- :wat::core::i64
-   n      <- :wat::core::String
-   tag    <- :wat::core::String
-   minlen <- :wat::core::i64
-   padded <- :wat::core::String])
+  [k      <- wat.type/i64
+   n      <- wat.type/String
+   tag    <- wat.type/String
+   minlen <- wat.type/i64
+   padded <- wat.type/String])
 
-(:wat::core::defrecord :wst::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :wst::Hit [k <- wat.type/i64])
 
 ;; row 9's user-defined pure fn: String -> bool, itself built from TWO String verbs across two
 ;; namespaces (`String/contains?` and `string::length`) composed with `and`. feline?(s) :=
 ;; contains(s,"cat") AND length(s) > 3. True for r=2 ("zzcatzz", len 7) and r=3 ("ねこcat", len 5);
 ;; false for r=1 ("cat", len 3 — contains but NOT longer than 3) and r=0/r=4 (no "cat" at all).
-(:wat::rete::core::defn :wst::feline? [s <- :wat::core::String] -> :wat::core::bool
+(:wat::rete::core::defn :wst::feline? [s <- wat.type/String] -> wat.type/bool
   (:wat::rete::core::and
     (:wat::rete::string::contains? s "cat")
     (:wat::rete::i64::> (:wat::rete::string::length s) 3)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
-(:wat::core::defn :wst::conds [] -> :wat::WatAST
+(:wat::core::defn :wst::conds [] -> wat.type/AST
   (:wat::core::quasiquote
     (:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded))))
 
-(:wat::core::defn :wst::ins [] -> :wat::WatAST
+(:wat::core::defn :wst::ins [] -> wat.type/AST
   (:wat::core::quasiquote (:wst::Hit ?k)))
 
 ;; ROW 1 — String/starts-with?. Hit :- Req(…) AND (starts-with? ?n "cat").
@@ -245,7 +245,7 @@
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wst::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :wst::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wst::starts-with))
@@ -265,12 +265,12 @@
 
 ;; seed — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild). Every field is a
 ;; FORMULA over i, independently computable on the Clara side so nothing rots as a hand-kept table.
-(:wat::core::defn :wst::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :wst::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::let [r       (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 5) 5))
                           is-even (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 2) 2)))
                           nm      (:wat::core::cond
@@ -289,18 +289,18 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wst::derived-ints
-  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
+  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wst::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wst::Hit/k f)))
         (:wat::rete::query fired (:wst::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
-(:wat::core::defn :wst::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+(:wat::core::defn :wst::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
@@ -316,13 +316,13 @@
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
 (:wat::core::defn :wst::rule-display-name
-  [full <- :wat::core::String] -> :wat::core::String
+  [full <- wat.type/String] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
     full
     (:wat::string::split full "::")))
 
-(:wat::core::defn :wst::run-row [row <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wst::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let [rules   (:wst::build-rules row)
                     rule    (:wat::core::first rules)
                     staged  (:wst::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wst::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wst::items))
@@ -337,9 +337,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))
         (:wat::string::concat " ->" (:wst::render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
       (:wat::kernel::println (:wst::run-row row)))
     nil
     (:wat::core::range 1 (:wat::i64::+ (:wst::row-count) 1))))

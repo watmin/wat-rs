@@ -41,13 +41,13 @@
 ;; rune:lint(red-by-design) — this file exists to PRINT two disagreeing lines; it loads and runs
 ;;    cleanly, and a reader comparing the two printed vectors is meant to find them different.
 
-(:wat::core::defrecord :d2::A    [x <- :wat::core::i64])
-(:wat::core::defrecord :d2::B    [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :d2::Seed [y <- :wat::core::i64])
-(:wat::core::defrecord :d2::C    [y <- :wat::core::i64])
-(:wat::core::defrecord :d2::Out  [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :d2::Tally [n <- :wat::core::i64])
-(:wat::core::defrecord :d2::Stale [n <- :wat::core::i64])
+(:wat::core::defrecord :d2::A    [x <- wat.type/i64])
+(:wat::core::defrecord :d2::B    [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :d2::Seed [y <- wat.type/i64])
+(:wat::core::defrecord :d2::C    [y <- wat.type/i64])
+(:wat::core::defrecord :d2::Out  [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :d2::Tally [n <- wat.type/i64])
+(:wat::core::defrecord :d2::Stale [n <- wat.type/i64])
 
 ;; round 1 derives C — so the LAST join's right side is empty during round 1
 (:wat::rete::defrule :d2::mk-c
@@ -88,13 +88,13 @@
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
       (:wat::kernel::assertion-failed! :message "terminate")]))
 
-(:wat::core::defn :d2::counts [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :d2::counts [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector
     (:wat::core::length (:wat::rete::query fired (:d2::q-out)))
     (:wat::core::length (:wat::rete::query fired (:d2::q-tally)))
     (:wat::core::length (:wat::rete::query fired (:d2::q-stale)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:d2::counts
       (:wat::core::match (:wat::rete::fire-rules (:d2::seed (:d2::compile)))

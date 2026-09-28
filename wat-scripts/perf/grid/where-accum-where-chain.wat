@@ -22,11 +22,11 @@
 ;;     clojure -Sdeps '{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}' \
 ;;             -M wat-scripts/perf/grid/where-accum-where-chain.clj
 
-(:wat::core::defn :wawc::row-count [] -> :wat::core::i64 2)
+(:wat::core::defn :wawc::row-count [] -> wat.type/i64 2)
 
-(:wat::core::defrecord :wawc::Station [loc <- :wat::core::String])
-(:wat::core::defrecord :wawc::Reading [loc <- :wat::core::String v <- :wat::core::i64])
-(:wat::core::defrecord :wawc::Busy    [loc <- :wat::core::String n <- :wat::core::i64])
+(:wat::core::defrecord :wawc::Station [loc <- wat.type/String])
+(:wat::core::defrecord :wawc::Reading [loc <- wat.type/String v <- wat.type/i64])
+(:wat::core::defrecord :wawc::Busy    [loc <- wat.type/String n <- wat.type/i64])
 
 ;; ROW 1 — the AGREEING CONTROL: station, accumulate, ONE where.
 (:wat::rete::defrule :wawc::one-where
@@ -48,11 +48,11 @@
   :params []
   :when [(?fact :- :wawc::Busy)])
 
-(:wat::core::defn :wawc::sum-n [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wawc::sum-n [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64
-                     p   <- :wat::core::PersistentMap]
-      -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64
+                     p   <- wat.type/PersistentMap]
+      -> wat.type/i64
       (:wat::core::let [f (:wat::core::Option/expect
                              (:wat::map::get p "?fact")
                              "query: ?fact")]
@@ -60,7 +60,7 @@
     0
     (:wat::rete::query s (:wawc::q-Busy))))
 
-(:wat::core::defn :wawc::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wawc::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -70,7 +70,7 @@
 
 ;; Three Readings at MCI, so the accumulate counts 3 and the `>= 2` predicate holds. Both rows
 ;; must report n=3. Native reports 3 and 0 — the trailing tautology erases the match.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [one  (:wat::core::match (:wat::rete::compile-all
             (:wat::core::PersistentVector (:wawc::one-where))

@@ -11,7 +11,7 @@
 ;; included. (It caught the first draft of this file, which is its own corroboration:
 ;; the direction this stone declines to implement is already corpus-illegal.) A
 ;; lower-case parent tests the same direction without writing a retired spelling.
-(:wat::core::defmacro :user::helper/of [n <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :user::helper/of [n <- wat.type/AST] -> wat.type/AST
   `(:wat::core::+ ~n 1))
-(:wat::core::defn :user::entry [] -> :wat::core::i64
+(:wat::core::defn :user::entry [] -> wat.type/i64
   (:user::helper::of 7))

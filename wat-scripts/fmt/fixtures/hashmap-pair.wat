@@ -1,4 +1,4 @@
 (:wat::core::defn :fix::hashmap-pair
   []
-  -> (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
-  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String] :some-kw "some-string"))
+  -> (wat.type/HashMap :- [wat.type/keyword wat.type/String])
+  (wat.type/HashMap :- [wat.type/keyword wat.type/String] :some-kw "some-string"))

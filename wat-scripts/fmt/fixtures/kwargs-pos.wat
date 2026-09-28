@@ -3,11 +3,11 @@
          :wat::core::keyword
          :wat::core::keyword
          :wat::core::keyword
-         (:wat::core::Vector :- [:wat::core::i64])
+         (wat.type/Vector :- [wat.type/i64])
          :wat::core::keyword
-         (:wat::core::Vector :- [:wat::core::i64])
+         (wat.type/Vector :- [wat.type/i64])
          :wat::core::keyword
-         (:wat::core::Vector :- [:wat::core::i64])
-         :-> :wat::core::nil]]
-  -> :wat::core::nil
+         (wat.type/Vector :- [wat.type/i64])
+         :-> wat.type/nil]]
+  -> wat.type/nil
   (f :wat-tests::recorder :satisfies :wat-tests::Recorder :durable [] :ephemeral [] :impls []))

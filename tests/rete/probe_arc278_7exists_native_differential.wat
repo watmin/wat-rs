@@ -1,9 +1,9 @@
 ;; tests/rete/probe_arc278_7exists_native_differential.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines the :w::watched existential rule for exists tests.
 
-(:wat::core::defrecord :w::Station [location <- :wat::core::String])
-(:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])
-(:wat::core::defrecord :w::Watched [location <- :wat::core::String])
+(:wat::core::defrecord :w::Station [location <- wat.type/String])
+(:wat::core::defrecord :w::Reading [location <- wat.type/String  value <- wat.type/i64])
+(:wat::core::defrecord :w::Watched [location <- wat.type/String])
 
 (:wat::rete::defrule :w::watched
   :when
@@ -55,7 +55,7 @@
 (:wat::core::defn :test::seed-oslo-station [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s (:w::Station :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::seed-reading [s <- :wat::rete::Session loc <- :wat::core::String v <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :test::seed-reading [s <- :wat::rete::Session loc <- wat.type/String v <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s (:w::Reading :location loc :value v)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :test::fire-native [s <- :wat::rete::Session] -> :wat::rete::Session
@@ -64,47 +64,47 @@
 (:wat::core::defn :test::fire-oracle [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules$oracle s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :test::count-watched [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :test::count-watched [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:w::q-Watched))))
 
 ;; Rows out of the rule's own beta — one per token that reached the production.
-(:wat::core::defn :test::count-tokens [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :test::count-tokens [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:w::q-watched-tokens))))
 
 ;; Same query with the `exists` wrapper removed — the multiplying control.
-(:wat::core::defn :test::count-join-tokens [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :test::count-join-tokens [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:w::q-watched-join))))
 
-(:wat::core::defn :user::compile-watched-fires-nothing [] -> :wat::core::i64
+(:wat::core::defn :user::compile-watched-fires-nothing [] -> wat.type/i64
   (:test::count-watched (:test::fire-native (:test::compile-watched))))
 
 ;; Fire via `fire` after the given inserts; count derived Watched facts. Four scenarios x {native, oracle}.
 
-(:wat::core::defn :user::native-one-reading [] -> :wat::core::i64
+(:wat::core::defn :user::native-one-reading [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-native
       (:test::seed-reading
         (:test::seed-oslo-station (:test::compile-watched))
         "Oslo" 1))))
 
-(:wat::core::defn :user::oracle-one-reading [] -> :wat::core::i64
+(:wat::core::defn :user::oracle-one-reading [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-oracle
       (:test::seed-reading
         (:test::seed-oslo-station (:test::compile-watched))
         "Oslo" 1))))
 
-(:wat::core::defn :user::native-station-only [] -> :wat::core::i64
+(:wat::core::defn :user::native-station-only [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-native
       (:test::seed-oslo-station (:test::compile-watched)))))
 
-(:wat::core::defn :user::oracle-station-only [] -> :wat::core::i64
+(:wat::core::defn :user::oracle-station-only [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-oracle
       (:test::seed-oslo-station (:test::compile-watched)))))
 
-(:wat::core::defn :user::native-three-readings [] -> :wat::core::i64
+(:wat::core::defn :user::native-three-readings [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-native
       (:test::seed-reading
@@ -115,7 +115,7 @@
           "Oslo" 2)
         "Oslo" 3))))
 
-(:wat::core::defn :user::oracle-three-readings [] -> :wat::core::i64
+(:wat::core::defn :user::oracle-three-readings [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-oracle
       (:test::seed-reading
@@ -126,14 +126,14 @@
           "Oslo" 2)
         "Oslo" 3))))
 
-(:wat::core::defn :user::native-reading-elsewhere [] -> :wat::core::i64
+(:wat::core::defn :user::native-reading-elsewhere [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-native
       (:test::seed-reading
         (:test::seed-oslo-station (:test::compile-watched))
         "Bergen" 1))))
 
-(:wat::core::defn :user::oracle-reading-elsewhere [] -> :wat::core::i64
+(:wat::core::defn :user::oracle-reading-elsewhere [] -> wat.type/i64
   (:test::count-watched
     (:test::fire-oracle
       (:test::seed-reading
@@ -142,7 +142,7 @@
 
 ;; ── Token-level readings for the multiplicity gate (see :w::q-watched-tokens above) ──────────
 
-(:wat::core::defn :user::native-three-readings-tokens [] -> :wat::core::i64
+(:wat::core::defn :user::native-three-readings-tokens [] -> wat.type/i64
   (:test::count-tokens
     (:test::fire-native
       (:test::seed-reading
@@ -153,7 +153,7 @@
           "Oslo" 2)
         "Oslo" 3))))
 
-(:wat::core::defn :user::oracle-three-readings-tokens [] -> :wat::core::i64
+(:wat::core::defn :user::oracle-three-readings-tokens [] -> wat.type/i64
   (:test::count-tokens
     (:test::fire-oracle
       (:test::seed-reading
@@ -164,14 +164,14 @@
           "Oslo" 2)
         "Oslo" 3))))
 
-(:wat::core::defn :user::native-one-reading-tokens [] -> :wat::core::i64
+(:wat::core::defn :user::native-one-reading-tokens [] -> wat.type/i64
   (:test::count-tokens
     (:test::fire-native
       (:test::seed-reading
         (:test::seed-oslo-station (:test::compile-watched))
         "Oslo" 1))))
 
-(:wat::core::defn :user::native-three-readings-join-tokens [] -> :wat::core::i64
+(:wat::core::defn :user::native-three-readings-join-tokens [] -> wat.type/i64
   (:test::count-join-tokens
     (:test::fire-native
       (:test::seed-reading

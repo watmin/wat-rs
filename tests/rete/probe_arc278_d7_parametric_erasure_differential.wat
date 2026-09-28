@@ -31,20 +31,20 @@
 ;; packability predicate that decides batch membership, so it compared writer 2
 ;; to writer 2 and read `extra=[] missing=[]` while the fact was dropping.
 
-(:wat::core::defrecord :d7g::Box :- [T] [k <- :wat::core::i64  v <- :T])
+(:wat::core::defrecord :d7g::Box :- [T] [k <- wat.type/i64  v <- :T])
 ;; A RECORD-valued filler: a second, independent way for one `Box` instance to
 ;; fail `pack_i64_row` (Aggregate, not `Value::i64`) — so the gate is not pinned
 ;; to `String`.
-(:wat::core::defrecord :d7g::Tag [n <- :wat::core::i64])
+(:wat::core::defrecord :d7g::Tag [n <- wat.type/i64])
 ;; A NON-parametric, uniformly-packable class living in the SAME session. It must
 ;; keep the occupancy batch while its neighbour loses it: a cure that narrowed
 ;; batching to nothing would satisfy every equality assertion above and silently
 ;; delete the fast path.
-(:wat::core::defrecord :d7g::Plain [k <- :wat::core::i64])
+(:wat::core::defrecord :d7g::Plain [k <- wat.type/i64])
 
-(:wat::core::defrecord :d7g::Hit      [k <- :wat::core::i64])
-(:wat::core::defrecord :d7g::PlainHit [k <- :wat::core::i64])
-(:wat::core::defrecord :d7g::Pair     [k <- :wat::core::i64])
+(:wat::core::defrecord :d7g::Hit      [k <- wat.type/i64])
+(:wat::core::defrecord :d7g::PlainHit [k <- wat.type/i64])
+(:wat::core::defrecord :d7g::Pair     [k <- wat.type/i64])
 
 (:wat::rete::defrule :d7g::r-box
   :when  [(:d7g::Box (?k :- :k) (?v :- :v))]
@@ -70,37 +70,37 @@
 ;; ── reporting ────────────────────────────────────────────────────────────────
 
 (:wat::core::defn :d7g::render
-  [ks <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+  [ks <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String
-                     n   <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String
+                     n   <- wat.type/i64] -> wat.type/String
       (:wat::string::concat
         acc
         (:wat::string::concat (:wat::i64::to-string n) ",")))
     ""
     (:wat::core::sort ks)))
 
-(:wat::core::defn :d7g::hit-keys [s <- :wat::rete::Session] -> :wat::core::String
+(:wat::core::defn :d7g::hit-keys [s <- :wat::rete::Session] -> wat.type/String
   (:d7g::render
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
           (:d7g::Hit/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7g::q-hit))))))
 
-(:wat::core::defn :d7g::plain-keys [s <- :wat::rete::Session] -> :wat::core::String
+(:wat::core::defn :d7g::plain-keys [s <- :wat::rete::Session] -> wat.type/String
   (:d7g::render
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
           (:d7g::PlainHit/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7g::q-plain))))))
 
-(:wat::core::defn :d7g::pair-keys [s <- :wat::rete::Session] -> :wat::core::String
+(:wat::core::defn :d7g::pair-keys [s <- :wat::rete::Session] -> wat.type/String
   (:d7g::render
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
           (:d7g::Pair/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7g::q-pair))))))
 
@@ -111,10 +111,10 @@
 ;; sets from each. Both engines read the identical staged session, so a
 ;; difference is the engine and nothing else.
 
-(:wat::core::defn :d7g::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
+(:wat::core::defn :d7g::as-record [r <- wat.type/Record] -> wat.type/Record r)
 
 (:wat::core::defn :d7g::report
-  [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])] -> :wat::core::String
+  [facts <- (wat.type/PersistentVector :- [wat.type/Record])] -> wat.type/String
   (:wat::core::let
     [session (:wat::core::match (:wat::rete::compile-all
                (:wat::core::PersistentVector (:d7g::r-box) (:d7g::r-plain) (:d7g::r-pair))
@@ -157,7 +157,7 @@
 ;; ── the workloads ────────────────────────────────────────────────────────────
 
 ;; 1 — the D7 shape: a packable instance FIRST, then the erased one.
-(:wat::core::defn :user::mixed-i64-first [] -> :wat::core::String
+(:wat::core::defn :user::mixed-i64-first [] -> wat.type/String
   (:d7g::report
     (:wat::core::PersistentVector
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
@@ -167,7 +167,7 @@
 ;; 2 — the same class, the erased instance FIRST. The batch runs after the fact
 ;; loop, so order must not change the answer; it did not change the DEFECT
 ;; either, and a cure that only handled one order would pass 1 and fail here.
-(:wat::core::defn :user::mixed-erased-first [] -> :wat::core::String
+(:wat::core::defn :user::mixed-erased-first [] -> wat.type/String
   (:d7g::report
     (:wat::core::PersistentVector
       (:d7g::as-record (:d7g::Box :k 0 :v "not-an-i64"))
@@ -175,7 +175,7 @@
       (:d7g::as-record (:d7g::Box :k 2 :v 200)))))
 
 ;; 3 — alternating, four facts: two packable, two erased.
-(:wat::core::defn :user::mixed-alternating [] -> :wat::core::String
+(:wat::core::defn :user::mixed-alternating [] -> wat.type/String
   (:d7g::report
     (:wat::core::PersistentVector
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
@@ -185,7 +185,7 @@
 
 ;; 4 — A DIFFERENT ERASURE. The unpackable filler is a RECORD, not a String, so
 ;; the gate is about "one class, mixed packability" and not about one type pair.
-(:wat::core::defn :user::mixed-record-filler [] -> :wat::core::String
+(:wat::core::defn :user::mixed-record-filler [] -> wat.type/String
   (:d7g::report
     (:wat::core::PersistentVector
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
@@ -194,7 +194,7 @@
 
 ;; 5 — CONTROL, uniformly PACKABLE: every `Box` holds an i64, so the class keeps
 ;; the occupancy batch. This is the arm a batching-narrowing cure must not break.
-(:wat::core::defn :user::uniform-packable [] -> :wat::core::String
+(:wat::core::defn :user::uniform-packable [] -> wat.type/String
   (:d7g::report
     (:wat::core::PersistentVector
       (:d7g::as-record (:d7g::Box :k 0 :v 100))
@@ -204,7 +204,7 @@
 ;; 6 — CONTROL, uniformly UNPACKABLE: no `Box` packs, so the class was never in
 ;; the batch and only writer 1 ever ran. This arm was already correct before the
 ;; cure; it is here so a regression on the all-activate path names itself.
-(:wat::core::defn :user::uniform-unpackable [] -> :wat::core::String
+(:wat::core::defn :user::uniform-unpackable [] -> wat.type/String
   (:d7g::report
     (:wat::core::PersistentVector
       (:d7g::as-record (:d7g::Box :k 0 :v "a"))
@@ -215,7 +215,7 @@
 ;; the batch; `d7g::Plain` must keep it, and the join must pair every `Box` with
 ;; its `Plain` — including the erased `Box`, whose element is the one the replace
 ;; used to discard.
-(:wat::core::defn :user::mixed-beside-uniform [] -> :wat::core::String
+(:wat::core::defn :user::mixed-beside-uniform [] -> wat.type/String
   (:d7g::report
     (:wat::core::PersistentVector
       (:d7g::as-record (:d7g::Box :k 0 :v 100))

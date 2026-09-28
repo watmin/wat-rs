@@ -9,6 +9,6 @@
 (:wat::core::defn :user::process-full-box :- [T]
   [full-box <- (:usr::Box.Full :- [:T])] -> :T
   (:wat::core::let [{:keys [inside]} full-box] inside))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [full-box (:usr::Box.Full {:inside 42})]
     (:wat::kernel::println (:user::process-full-box full-box))))

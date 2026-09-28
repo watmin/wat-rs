@@ -12,11 +12,11 @@
 ;; It must register, expand and COMPUTE. A gate that refuses a type is not an intact
 ;; wall, it is a broken one.
 (:wat::core::defmacro :my::typed-id
-  [x <- :wat::WatAST]
-  -> :wat::WatAST
+  [x <- wat.type/AST]
+  -> wat.type/AST
   (:wat::core::let
     [cv (:wat::core::fresh-symbol "coord")]
     `((wat.core/fn [~cv :- wat.core/i64] :- wat.core/i64 ~cv) ~x)))
 
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+(:wat::core::defn :user::compute [] -> wat.type/bool
   (:wat::core::= (:my::typed-id 7) 7))

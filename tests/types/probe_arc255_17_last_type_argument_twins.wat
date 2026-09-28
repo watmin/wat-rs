@@ -10,7 +10,7 @@
 (:wat::core::defn :probe::os :- [T] [o <- (:wat::core::Option :- [T]) d <- :T] -> :T
   (:wat::core::match o [:wat::core::Option.Some {:value v} v] [_ d]))
 (:wat::core::defn :probe::same :- [T] [r <- (:probe::R :- [T T T])] -> (:probe::R :- [T T T]) r)
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:probe::rz (:probe::R :x 1 :y "y" :z "z")))
     (:wat::kernel::println (:probe::eb (:probe::E.B {:w "b"}) "d"))

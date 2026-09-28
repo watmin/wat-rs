@@ -21,10 +21,10 @@
 ;;
 ;; Runs to stdout: prints "PROBE-PASS: SendOutcome::Closed ..." when the far end is
 ;; gone. ::Sent or any raise is a FAIL (assertion-failed!, non-zero exit).
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            (:wat::kernel::assertion-failed! :message "SEND-WALL-PROBE-CRASH")))
      ;; synchronize on the worker's death: recv' blocks until EOF + the crash reason
      ;; lands on the crash channel — by the time this returns, the worker has fully

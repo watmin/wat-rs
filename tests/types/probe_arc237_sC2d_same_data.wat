@@ -2,28 +2,28 @@
 ;; Co-located fixture for probe_arc237_sC2d_same_data.rs
 ;; Loaded via startup_beside(file!()). Each named fn is exercised by its sibling Rust test.
 
-(:wat::core::defrecord :my::Pt    [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :my::Coord [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :my::Pt    [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :my::Coord [x <- wat.type/i64  y <- wat.type/i64])
 
 ;; comp_* — COMPOSITION directly (= (record->map …) (record->map …))
-(:wat::core::defn :user::comp-same-type-equal [] -> :wat::core::bool
+(:wat::core::defn :user::comp-same-type-equal [] -> wat.type/bool
   (:wat::core::= (:wat::core::record->map (:my::Pt :x 0 :y 0))
                  (:wat::core::record->map (:my::Pt :x 0 :y 0))))
 
-(:wat::core::defn :user::comp-cross-type-equal [] -> :wat::core::bool
+(:wat::core::defn :user::comp-cross-type-equal [] -> wat.type/bool
   (:wat::core::= (:wat::core::record->map (:my::Pt :x 0 :y 0))
                  (:wat::core::record->map (:my::Coord :x 0 :y 0))))
 
-(:wat::core::defn :user::comp-diff-value [] -> :wat::core::bool
+(:wat::core::defn :user::comp-diff-value [] -> wat.type/bool
   (:wat::core::= (:wat::core::record->map (:my::Pt :x 0 :y 0))
                  (:wat::core::record->map (:my::Pt :x 0 :y 9))))
 
 ;; samedata_* — the verb :wat::core::Record/same-data?
-(:wat::core::defn :user::samedata-same-type-equal [] -> :wat::core::bool
+(:wat::core::defn :user::samedata-same-type-equal [] -> wat.type/bool
   (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 0)))
 
-(:wat::core::defn :user::samedata-cross-type-equal [] -> :wat::core::bool
+(:wat::core::defn :user::samedata-cross-type-equal [] -> wat.type/bool
   (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::Coord :x 0 :y 0)))
 
-(:wat::core::defn :user::samedata-diff-value [] -> :wat::core::bool
+(:wat::core::defn :user::samedata-diff-value [] -> wat.type/bool
   (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 9)))

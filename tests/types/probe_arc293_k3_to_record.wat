@@ -13,12 +13,12 @@
 ;;
 ;; GREEN after K3-revise. Returns 7 = y from $core-record (4) + x from $holon-record (3).
 
-(:wat::core::defstruct :k3::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defstruct :k3::Pt [x <- wat.type/i64  y <- wat.type/i64])
 
 (:wat::core::defsurface :k3::Planar :nature :wat::core::Struct
-  :features [x <- :wat::core::i64  y <- :wat::core::i64])
+  :features [x <- wat.type/i64  y <- wat.type/i64])
 
-(:wat::core::defn :k3::demo [] -> :wat::core::i64
+(:wat::core::defn :k3::demo [] -> wat.type/i64
   (:wat::core::let
     [p  (:k3::Pt :x 3 :y 4)
      cr (:wat::core::to-record  p :k3::Planar)    ; -> :k3::Planar$core-record  {x 3 y 4}

@@ -19,8 +19,8 @@
 ;; the import succeeds, and "IMPORTED" appears on stdout.
 (:wat::config::rete::set-max-session-bytes! 8192)
 
-(:wat::core::defrecord :ia::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :ia::Hit [c <- :wat::core::i64])
+(:wat::core::defrecord :ia::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :ia::Hit [c <- wat.type/i64])
 
 (:wat::rete::defquery :ia::q-Hit :params [] :when [(?fact :- :ia::Hit)])
 
@@ -37,7 +37,7 @@
     [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
       (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [e  (:wat::rete::export (:ia::compiled))
                     s1 (:wat::rete::import e)]
     (:wat::kernel::println "IMPORTED")))

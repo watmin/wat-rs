@@ -3,7 +3,7 @@
 ;; long-running MCP eval servers, which are stale relative to this session's HEAD).
 ;; Not a committed test — reconnaissance only, kept loadable per the scratch-pad convention.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::core::PersistentMap
       ;; row 1/4 — polymorphic <, > with NaN on the right

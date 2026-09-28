@@ -3,4 +3,4 @@
 ;; comparison now type-checks (consistency with C4's arithmetic + eval + clj). This
 ;; fixture now type-checks; kept at its original path (name unchanged) since the test
 ;; (`comparison_i64_f64_mixed_coerces`) now asserts Ok.
-(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< 1 2.0))
+(:wat::core::defn :user::compute [] -> wat.type/bool (:wat::core::< 1 2.0))

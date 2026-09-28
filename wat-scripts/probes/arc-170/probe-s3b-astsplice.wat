@@ -6,12 +6,12 @@
 ;;
 ;; EXPECT "6 10".
 
-(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
+(:wat::core::defn :my::double [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::* n 2))
 
 ;; typed drain: the param pins the Process I/O (parent sends (idx,I), recvs (idx,O)); I=O=i64.
 (:wat::core::defn :probe::drain
-  [w <- (:wat::kernel::Process :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
-  -> :wat::core::nil
+  [w <- (:wat::kernel::Process :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (wat.type/Tuple :- [wat.type/i64 wat.type/i64])])]
+  -> wat.type/nil
   (:wat::core::let
     [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 1 5)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
@@ -38,9 +38,9 @@
         (:wat::i64::to-string (:wat::core::second a))
         (:wat::string::concat " " (:wat::i64::to-string (:wat::core::second b)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [work-fn  (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
+    [work-fn  (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
      forms    (:wat::kernel::fn-forms work-fn :probe::__work)
      ;; ── extract the concrete arg/return type keywords off the reified work-fn ──
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
@@ -69,17 +69,17 @@
                    (:wat::string::concat arg-t ")")))
      ;; ── build the shipped runner via quasiquote, splicing the concrete types ──
      runner-def `(:wat::core::defn :probe::__runner
-                   [prn <- ~peer-node] -> :wat::core::nil
+                   [prn <- ~peer-node] -> wat.type/nil
                    (:wat::core::let
                      [pair (:wat::kernel::recv prn)
                       out  (:wat::core::Tuple (:wat::core::first pair)
                                               (:probe::__work (:wat::core::second pair)))
                       _    (:wat::core::match (:wat::kernel::send prn out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                      (:probe::__runner prn)))
-     main-def   `(:wat::core::defn :user::main [] -> :wat::core::nil
+     main-def   `(:wat::core::defn :user::main [] -> wat.type/nil
                    (:probe::__runner
                      (:wat::program::self-peer ~sp1-node ~sp2-node)))
-     runner-forms (:wat::core::Vector :- [:wat::WatAST] runner-def main-def)
+     runner-forms (wat.type/Vector :- [wat.type/AST] runner-def main-def)
      w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat forms runner-forms))]
     (:probe::drain w)))

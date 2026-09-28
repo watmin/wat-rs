@@ -28,10 +28,10 @@
 ;;     clojure -Sdeps '{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}' \
 ;;             -M wat-scripts/perf/grid/where-not-derived-in-query.clj
 
-(:wat::core::defrecord :wndq::S1  [k <- :wat::core::i64])
-(:wat::core::defrecord :wndq::S2  [k <- :wat::core::i64])
-(:wat::core::defrecord :wndq::S3  [k <- :wat::core::i64])
-(:wat::core::defrecord :wndq::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :wndq::S1  [k <- wat.type/i64])
+(:wat::core::defrecord :wndq::S2  [k <- wat.type/i64])
+(:wat::core::defrecord :wndq::S3  [k <- wat.type/i64])
+(:wat::core::defrecord :wndq::Hit [k <- wat.type/i64])
 
 ;; S2 and S3 exist ONLY by derivation. Nothing inserts either.
 (:wat::rete::defrule :wndq::r1 :when [(:wndq::S1 (?k :- :k))] :then [(:wndq::S2 :k ?k)])
@@ -48,7 +48,7 @@
 (:wat::rete::defquery :wndq::q-Hit    :params [] :when [(?fact :- :wndq::Hit)])
 (:wat::rete::defquery :wndq::q-S2     :params [] :when [(?fact :- :wndq::S2)])
 
-(:wat::core::defn :wndq::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wndq::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -57,9 +57,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
 (:wat::core::defn :wndq::run
-  [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+  [rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])
    q     <- :wat::rete::Query]
-  -> :wat::core::i64
+  -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat::core::match (:wat::rete::fire-rules
@@ -72,7 +72,7 @@
 
 ;; Row 1 is the agreeing control and is here, not in a separate file, so a "fix" that achieves
 ;; agreement by breaking the ABSENT case fails visibly in the same output.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [none  (:wat::core::PersistentVector)
      d1    (:wat::core::PersistentVector (:wndq::r1))

@@ -17,7 +17,7 @@
     (:wat::core::let
       [child (:wat::test::spawn-peer (:wat::spawn::process)
                (:wat::core::forms
-                 (:wat::core::defn :user::main [] -> :wat::core::nil
+                 (:wat::core::defn :user::main [] -> wat.type/nil
                    (:wat::core::let
                      [n (:wat::core::match (:wat::kernel::readln)
                           [:wat::kernel::ReadlnOutcome.Datum {:v d} d]
@@ -28,7 +28,7 @@
                       before      (:wat::kernel::sigusr1?)
                       reset-done  (:wat::kernel::reset-sigusr1!)
                       after       (:wat::kernel::sigusr1?)]
-                     (:wat::kernel::println (:wat::core::Vector :- [:wat::core::bool] before after))))))]
+                     (:wat::kernel::println (wat.type/Vector :- [wat.type/bool] before after))))))]
       (:wat::core::match (:wat::kernel::signal child :wat::kernel::Signal.User1)
         [:wat::kernel::SignalOutcome.Delivered {}
           (:wat::core::match (:wat::kernel::send child 0)
@@ -50,4 +50,4 @@
               (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])]
         [:wat::kernel::SignalOutcome.Failed {:cause cause}
           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
-    (:wat::core::Vector :- [:wat::core::bool] true false)))
+    (wat.type/Vector :- [wat.type/bool] true false)))

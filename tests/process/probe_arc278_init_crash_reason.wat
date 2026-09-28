@@ -10,11 +10,11 @@
 
 (:wat::core::defsurface :t::Boom :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :t::Boom::PingRequest  [x <- :wat::core::i64])
+  [(:wat::core::defrecord :t::Boom::PingRequest  [x <- wat.type/i64])
    (:wat::core::defenum :t::Boom::PingResponse :wat::enum::Pure
-     :Ok              [x <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [x <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(ping [self <- :t::Boom req <- :t::Boom::PingRequest] -> :t::Boom::PingResponse :max-request-bytes 524288)])
 
@@ -41,7 +41,7 @@
 ;; so the OWNER's `/start` call raises the reason (the .rs catches that raise). If a tier instead
 ;; surfaced the crash at the ping's recv' (a matchable ::Lost VALUE), this body RETURNS the reason as
 ;; a String; the .rs handles both (raise-at-/start OR value-at-ping) and asserts the sentinel.
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [h   (:t::boominit/start :locus (:wat::spawn::thread) :record (:t::boominit::Record))
      svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
@@ -61,7 +61,7 @@
 ;; connect' collapsed to a bare ECONNREFUSED with the reason discarded. GREEN: the reordered
 ;; launch handshake (send ship → recv Started) makes an :init crash surface over the crash-aware
 ;; `recv' svc`, so /start raises the ProcessPanics envelope carrying the sentinel.
-(:wat::core::defn :user::compute-process [] -> :wat::core::String
+(:wat::core::defn :user::compute-process [] -> wat.type/String
   (:wat::core::let
     [h   (:t::boominit/start :locus (:wat::spawn::process) :record (:t::boominit::Record))
      svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

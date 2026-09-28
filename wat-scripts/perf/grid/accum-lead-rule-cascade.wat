@@ -33,18 +33,18 @@
 ;; Usage (stdin = [items anchors depth]; stdout = one #grid/Result EDN line):
 ;;   echo '[3 2 3]' | cargo run --release --bin wat -- ./wat-scripts/perf/grid/accum-lead-rule-cascade.wat
 
-(:wat::core::defrecord :alrc::Reading [v <- :wat::core::i64])
-(:wat::core::defrecord :alrc::Anchor  [k <- :wat::core::i64])
-(:wat::core::defrecord :alrc::Link    [level <- :wat::core::i64])
-(:wat::core::defrecord :alrc::Busy    [k <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :alrc::Reading [v <- wat.type/i64])
+(:wat::core::defrecord :alrc::Anchor  [k <- wat.type/i64])
+(:wat::core::defrecord :alrc::Link    [level <- wat.type/i64])
+(:wat::core::defrecord :alrc::Busy    [k <- wat.type/i64  n <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defquery :alrc::q-Busy
   :params []
@@ -52,7 +52,7 @@
 
 
 ;; Link(k) :- Link(k-1). Generated per depth; Busy never mentions Link.
-(:wat::core::defn :alrc::build-link [k <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :alrc::build-link [k <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
                     c (:wat::core::quasiquote (:alrc::Link (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:alrc::Link (:wat::core::unquote k)))]
@@ -69,35 +69,35 @@
     :rhs (:wat::core::PersistentVector
       (:wat::core::quote (:alrc::Busy ?k ?n)))))
 
-(:wat::core::defn :alrc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :alrc::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:alrc::build-link k)))
     (:wat::core::PersistentVector (:alrc::busy-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
 
-(:wat::core::defn :alrc::empty-records [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :alrc::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::PersistentVector))
 
-(:wat::core::defn :alrc::seed-facts [items <- :wat::core::i64  anchors <- :wat::core::i64]
-  -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :alrc::seed-facts [items <- wat.type/i64  anchors <- wat.type/i64]
+  -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::let
     [with-read (:wat::core::foldl
-                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  v <- :wat::core::i64]
-                                  -> (:wat::core::PersistentVector :- [:wat::core::Record])
+                  (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  v <- wat.type/i64]
+                                  -> (wat.type/PersistentVector :- [wat.type/Record])
                     (:wat::vector::conj acc (:alrc::Reading :v v)))
                   (:alrc::empty-records)
                   (:wat::core::range 0 items))
      with-anch (:wat::core::foldl
-                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  k <- :wat::core::i64]
-                                  -> (:wat::core::PersistentVector :- [:wat::core::Record])
+                  (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  k <- wat.type/i64]
+                                  -> (wat.type/PersistentVector :- [wat.type/Record])
                     (:wat::vector::conj acc (:alrc::Anchor :k k)))
                   with-read
                   (:wat::core::range 0 anchors))]
     (:wat::vector::conj with-anch (:alrc::Link :level 0))))
 
-(:wat::core::defn :alrc::seed [session <- :wat::rete::Session  items <- :wat::core::i64  anchors <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :alrc::seed [session <- :wat::rete::Session  items <- wat.type/i64  anchors <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all session (:alrc::seed-facts items anchors))
     [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
@@ -111,26 +111,26 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
      (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :alrc::enc [k <- :wat::core::i64  n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :alrc::enc [k <- wat.type/i64  n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ (:wat::i64::* k 1000000000000000) n))
 
-(:wat::core::defn :alrc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :alrc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; Busy only. Link is derived and unqueried — if it leaked in, the count would move with depth.
-(:wat::core::defn :alrc::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :alrc::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+  (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
                                 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                                   (:alrc::enc (:alrc::Busy/k f) (:alrc::Busy/n f))))
                               (:wat::rete::query fired (:alrc::q-Busy))))]
     (:alrc::vec->pvec (:wat::core::sort codes))))
 
-(:wat::core::defn :alrc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :alrc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items anchors depth]")
                     anchors (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [items anchors depth]")

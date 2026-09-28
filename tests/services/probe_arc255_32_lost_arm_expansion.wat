@@ -2,18 +2,18 @@
 ;; ServiceEvent.Lost arm. A defservice cannot be runtime-macroexpanded.
 (:wat::core::defsurface :p32::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :p32::Echo::EchoRequest [msg <- :wat::core::String])
+  [(:wat::core::defrecord :p32::Echo::EchoRequest [msg <- wat.type/String])
    (:wat::core::defenum :p32::Echo::EchoResponse :wat::enum::Pure
-     :Ok [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got <- :wat::core::String])]
+     :Ok [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got <- wat.type/String])]
   :features
   [(echo [self <- :p32::Echo req <- :p32::Echo::EchoRequest] -> :p32::Echo::EchoResponse
      :max-request-bytes 524288)])
 
-(:wat::core::defn :p32::lost-arm [exp <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :p32::lost-arm [exp <- wat.type/AST] -> wat.type/String
   (:wat::core::let
     [s    (:wat::core::write-forms exp)
      cut  (:wat::string::split s "ServiceEvent.Lost")]
@@ -24,7 +24,7 @@
          end  (:wat::string::split rest "ServiceEvent.Malformed")]
         (:wat::string::concat "ServiceEvent.Lost" (:wat::core::first end))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [exp (:wat::core::macroexpand
            (:wat::core::quote

@@ -4,10 +4,10 @@
 
 ;; ─── Test 1: named define is a function value ─────────────────────────────────
 
-(:wat::core::defn :t::test1-double [x <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :t::test1-double [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* x 2))
 
-(:wat::core::defn :t::test1 [] -> :wat::core::i64
+(:wat::core::defn :t::test1 [] -> wat.type/i64
   (:wat::core::let
     [f      :t::test1-double
      result (f 21)]
@@ -15,16 +15,16 @@
 
 ;; ─── Test 2: named define as higher-order argument ────────────────────────────
 
-(:wat::core::defn :t::test2-inc [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :t::test2-inc [n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ n 1))
 
 (:wat::core::defn :t::test2-apply-twice
   [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
-   x <- :wat::core::i64]
-  -> :wat::core::i64
+   x <- wat.type/i64]
+  -> wat.type/i64
   (f (f x)))
 
-(:wat::core::defn :t::test2 [] -> :wat::core::i64
+(:wat::core::defn :t::test2 [] -> wat.type/i64
   (:t::test2-apply-twice :t::test2-inc 5))
 
 ;; ─── Test 3: polymorphic named define instantiates at use site ───────────────
@@ -33,16 +33,16 @@
 
 (:wat::core::defn :t::test3-apply
   [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
-   x <- :wat::core::i64]
-  -> :wat::core::i64
+   x <- wat.type/i64]
+  -> wat.type/i64
   (f x))
 
-(:wat::core::defn :t::test3 [] -> :wat::core::i64
+(:wat::core::defn :t::test3 [] -> wat.type/i64
   (:t::test3-apply :t::test3-identity 99))
 
 ;; ─── Test 4: unregistered keyword stays a literal ────────────────────────────
 
-(:wat::core::defn :t::test4 [] -> :wat::core::i64
+(:wat::core::defn :t::test4 [] -> wat.type/i64
   (:wat::core::let
     [tag    :my-app::tag::user-event
      same?  (:wat::core::= tag :my-app::tag::user-event)]
@@ -54,14 +54,14 @@
 ;; (Migrated off the annihilated :wat::stream::* — arc 118, 2026-06-27;
 ;;  the intent is named-defn-as-HOF-arg, the collection vehicle is incidental.)
 
-(:wat::core::defn :t::test5-double [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :t::test5-double [n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* n 2))
 
 ;; Arc 118.2a — `map` flipped LAZY; `doubled` is consumed TWICE (`first` and `length`) and
 ;; `length` needs a concrete container regardless, so `mapv`.
-(:wat::core::defn :t::test5 [] -> :wat::core::i64
+(:wat::core::defn :t::test5 [] -> wat.type/i64
   (:wat::core::let
-    [source  (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+    [source  (wat.type/Vector :- [wat.type/i64] 1 2 3)
      doubled (:wat::core::mapv :t::test5-double source)
      first   (:wat::core::first doubled)
      len     (:wat::core::length doubled)]

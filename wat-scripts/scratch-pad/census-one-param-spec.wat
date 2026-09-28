@@ -76,20 +76,20 @@
 
 ;; ── span/offset helpers (identical shape to every recorded migration) ───────────────────
 (:wat::core::defn :user::start-off
-  [n <- :wat::WatAST lines <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::i64
+  [n <- wat.type/AST lines <- (wat.type/Vector :- [wat.type/String])] -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 (:wat::core::defn :user::end-off
-  [n <- :wat::WatAST lines <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::i64
+  [n <- wat.type/AST lines <- (wat.type/Vector :- [wat.type/String])] -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
-(:wat::core::defn :user::node-line [n <- :wat::WatAST] -> :wat::core::i64
+(:wat::core::defn :user::node-line [n <- wat.type/AST] -> wat.type/i64
   (:wat::core::Option/expect (:wat::hashmap::get (:wat::core::ast-span n) :line) "one-param-spec: :line"))
 
 ;; ── arity source 1 — the substrate table ─────────────────────────────────────────────────
 ;; Every entry justified: these seven built-ins have NO wat-level `defrecord`/`defstruct` of
 ;; their own to declare arity, so the table is the only source. `Tuple` is deliberately absent.
 (:wat::core::defn :user::substrate-arity []
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])]
     (:wat::core::Tuple ":wat::core::Vector" 1)           ;; Vector<T>
     (:wat::core::Tuple ":wat::core::HashSet" 1)          ;; HashSet<T>
     (:wat::core::Tuple ":wat::core::PersistentVector" 1) ;; PersistentVector<T>
@@ -110,9 +110,9 @@
 ;; there ONLY; for a corpus-declared type, `got > n` is presumed kwargs and left untouched
 ;; (classify's bare-branch gates on this).
 (:wat::core::defn :user::substrate-head?
-  [name <- :wat::core::String] -> :wat::core::bool
+  [name <- wat.type/String] -> wat.type/bool
   (:wat::core::contains?
-    (:wat::core::HashSet :- [:wat::type::Infer]
+    (wat.type/HashSet :- [:wat::type::Infer]
       ":wat::core::Vector" ":wat::core::HashSet" ":wat::core::PersistentVector"
       ":wat::core::Option" ":wat::core::HashMap" ":wat::core::PersistentMap" ":wat::core::Result")
     name))
@@ -122,9 +122,9 @@
 ;; `defn` — a generic FUNCTION's own `:- [T]` param list is a different concept entirely,
 ;; arc 109's turbofish/angle-bracket stones' business, never this one's).
 (:wat::core::defn :user::decl-head?
-  [name <- :wat::core::String] -> :wat::core::bool
+  [name <- wat.type/String] -> wat.type/bool
   (:wat::core::contains?
-    (:wat::core::HashSet :- [:wat::type::Infer]
+    (wat.type/HashSet :- [:wat::type::Infer]
       ":wat::core::defrecord"
       ":wat::holon::defrecord"
       ":wat::core::defstruct"
@@ -145,12 +145,12 @@
 ;; the name slot is a macro-template unquote symbol, not a literal keyword) contributes nothing
 ;; — it is simply not a source of arity, not an error.
 (:wat::core::defn :user::collect-arity
-  [node <- :wat::WatAST] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
+  [node <- wat.type/AST] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
   (:wat::core::let
     [here (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
             (:wat::core::let [ch (:wat::core::ast->children node)]
               (:wat::core::if (:wat::i64::< (:wat::core::length ch) 4)
-                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
+                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
                 (:wat::core::let [h (:wat::core::nth ch 0)]
                   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
                                     (:user::decl-head? (:wat::core::ast-name h))
@@ -163,24 +163,24 @@
                                             false)
                                           false)
                                         false)
-                        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])]
+                        (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])]
                           (:wat::core::Tuple (:wat::core::ast-name nm) (:wat::core::length (:wat::core::ast->children brk))))
-                        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])))
-                    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])))))
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])]))]
+                        (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])))
+                    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])))))
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])]))]
     (:wat::core::concat here (:user::collect-arity-seq (:wat::core::ast->children node)))))
 
 (:wat::core::defn :user::collect-arity-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
+  [items <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
     (:wat::core::concat (:user::collect-arity (:wat::core::first items)) (:user::collect-arity-seq (:wat::core::rest items)))))
 
 ;; arity-lookup — first match in `table`, or -1 (sentinel: no source names this head).
 (:wat::core::defn :user::arity-lookup
-  [table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
-   name  <- :wat::core::String]
-  -> :wat::core::i64
+  [table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
+   name  <- wat.type/String]
+  -> wat.type/i64
   (:wat::core::if (:wat::core::empty? table)
     -1
     (:wat::core::let [h (:wat::core::first table)]
@@ -208,8 +208,8 @@
 ;; nested-parametric case (`(:wat::core::Vector (:pilot::Entry :wat::core::i64 :wat::core::String))`
 ;; — `:pilot::Entry` IS in `table`).
 (:wat::core::defn :user::type-shaped-elem?
-  [node <- :wat::WatAST table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::bool
+  [node <- wat.type/AST table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword") true
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
       (:wat::core::let [ch (:wat::core::ast->children node)]
@@ -293,16 +293,16 @@
               false))))
       false)))
 (:wat::core::defn :user::all-type-shaped?
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::bool
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::empty? items) true
     (:wat::core::if (:user::type-shaped-elem? (:wat::core::first items) table)
       (:user::all-type-shaped? (:wat::core::rest items) table)
       false)))
 (:wat::core::defn :user::bracket-type-shaped?
-  [vec-node <- :wat::WatAST table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::bool
+  [vec-node <- wat.type/AST table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> wat.type/bool
   (:wat::core::let [ch (:wat::core::ast->children vec-node)]
     (:wat::core::if (:wat::core::empty? ch) false (:user::all-type-shaped? ch table))))
 
@@ -315,10 +315,10 @@
 ;; arg[0] passed this and produced `:- [:a 1]` — a value wrapped as a type. Every one of the
 ;; first n args must be type-shaped before this is treated as an attempted param-spec.
 (:wat::core::defn :user::take-n
-  [items <- (:wat::core::Vector :- [:wat::WatAST]) n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
+  [items <- (wat.type/Vector :- [wat.type/AST]) n <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::if (:wat::core::if (:wat::i64::<= n 0) true (:wat::core::empty? items))
-    (:wat::core::Vector :- [:wat::WatAST])
-    (:wat::core::concat (:wat::core::Vector :- [:wat::WatAST] (:wat::core::first items))
+    (wat.type/Vector :- [wat.type/AST])
+    (:wat::core::concat (wat.type/Vector :- [wat.type/AST] (:wat::core::first items))
       (:user::take-n (:wat::core::rest items) (:wat::i64::- n 1)))))
 
 ;; bracket-all-keyword? — STRICTER than bracket-type-shaped?: every element is a literal
@@ -334,12 +334,12 @@
 ;; no other evidence at all, so the strict all-keyword rule is the only defensible bar for
 ;; "this looks enough like a type bracket to be worth a human's attention."
 (:wat::core::defn :user::all-keyword?
-  [items <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
+  [items <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
   (:wat::core::if (:wat::core::empty? items) true
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first items)) "keyword")
       (:user::all-keyword? (:wat::core::rest items))
       false)))
-(:wat::core::defn :user::bracket-all-keyword? [vec-node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::bracket-all-keyword? [vec-node <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [ch (:wat::core::ast->children vec-node)]
     (:wat::core::if (:wat::core::empty? ch) false (:user::all-keyword? ch))))
 
@@ -356,9 +356,9 @@
 ;;   7 bracket-unknown-head  — unmarked `[k…]` bracket whose head names neither arity source;
 ;;                             REPORT, never guessed (row 2's "reported, never guessed")
 (:wat::core::defn :user::classify
-  [node  <- :wat::WatAST
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  [node  <- wat.type/AST
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -459,25 +459,25 @@
 ;; left-to-right over a properly nested AST), matching every recorded migration's
 ;; collect-ascending -> reverse -> splice discipline.
 (:wat::core::defn :user::args-edits-split
-  [args  <- (:wat::core::Vector :- [:wat::WatAST])
-   idx   <- :wat::core::i64
-   n     <- :wat::core::i64
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [args  <- (wat.type/Vector :- [wat.type/AST])
+   idx   <- wat.type/i64
+   n     <- wat.type/i64
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? args)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::let [h      (:wat::core::first args)
                       tl     (:wat::core::into [] (:wat::core::rest args))
                       open-e (:wat::core::if (:wat::core::= idx 0)
-                               (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+                               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                                  (:wat::core::Tuple (:user::start-off h lines) "" ":- ["))
-                               (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+                               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
                       h-e    (:user::collect-edits h table lines)
                       close-e (:wat::core::if (:wat::core::= idx (:wat::i64::- n 1))
-                                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+                                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                                   (:wat::core::Tuple (:user::end-off h lines) "" "]"))
-                                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+                                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
                       rest-e (:user::args-edits-split tl (:wat::i64::+ idx 1) n table lines)]
       (:wat::core::concat open-e (:wat::core::concat h-e (:wat::core::concat close-e rest-e))))))
 
@@ -485,10 +485,10 @@
 ;; nested matches), everything else is edit-free but STILL recurses (a not-a-match / already-
 ;; marked / reported node can still contain a nested match elsewhere in its subtree).
 (:wat::core::defn :user::collect-edits
-  [node  <- :wat::WatAST
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch   (:wat::core::ast->children node)
                        cls  (:user::classify node table)
@@ -498,28 +498,28 @@
         (:wat::core::if (:wat::core::= kind 4)
           (:wat::core::let [vec-node (:wat::core::nth ch 1)]
             (:wat::core::concat
-              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+              (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                 (:wat::core::Tuple (:user::start-off vec-node lines) "" ":- "))
               (:user::collect-edits-seq ch table lines)))
           (:user::collect-edits-seq ch table lines))))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::collect-edits-seq (:wat::core::ast->children node) table lines)
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
 (:wat::core::defn :user::collect-edits-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::concat (:user::collect-edits (:wat::core::first items) table lines)
                         (:user::collect-edits-seq (:wat::core::rest items) table lines))))
 
 ;; ── report collection — kinds 3/5/6/7, never an edit; SILENCE IS THE FAILURE MODE this
 ;; stone must not have, so every non-rewritten candidate site is named: line, head, reason. ──
 (:wat::core::defn :user::classify-message
-  [kind <- :wat::core::i64 hn <- :wat::core::String n <- :wat::core::i64 got <- :wat::core::i64] -> :wat::core::String
+  [kind <- wat.type/i64 hn <- wat.type/String n <- wat.type/i64 got <- wat.type/i64] -> wat.type/String
   (:wat::core::if (:wat::core::= kind 3)
     (:wat::string::interpolate "bare-insufficient: head={h} declared-arity={n} got-args={g} (fewer args than the declared type-param count — cannot split, not guessing)" :h hn :n (:wat::i64::to-string n) :g (:wat::i64::to-string got))
     (:wat::core::if (:wat::core::= kind 5)
@@ -529,9 +529,9 @@
         (:wat::string::interpolate "bracket-unknown-head: head={h} unmarked [..] bracket, bracket-length={g} — head names NEITHER the substrate table NOR any corpus defrecord/defstruct/... :- [..] declaration; reported, never guessed" :h hn :g (:wat::i64::to-string got))))))
 
 (:wat::core::defn :user::collect-reports
-  [node  <- :wat::WatAST
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch   (:wat::core::ast->children node)
                        cls  (:user::classify node table)
@@ -541,48 +541,48 @@
                                                 (:wat::core::if (:wat::core::= kind 6) true
                                                   (:wat::core::= kind 7))))
                               (:wat::core::let [hn (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast-name (:wat::core::first ch)))]
-                                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+                                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                                   (:wat::core::Tuple (:user::node-line node) hn
                                     (:user::classify-message kind hn (:wat::core::second cls) (:wat::core::third cls)))))
-                              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))]
+                              (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
       (:wat::core::concat here (:user::collect-reports-seq ch table)))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::collect-reports-seq (:wat::core::ast->children node) table)
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
 (:wat::core::defn :user::collect-reports-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::concat (:user::collect-reports (:wat::core::first items) table)
                         (:user::collect-reports-seq (:wat::core::rest items) table))))
 
 ;; ── per-file passes ───────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::parse-forms [src <- :wat::core::String] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::parse-forms [src <- wat.type/String] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::ast->children
     (:wat::core::match (:wat::core::read-string src)
       [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
       [:wat::core::ReadOutcome.Malformed {:cause __cause}
         (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
 
-(:wat::core::defn :user::scan-file-arity [path <- :wat::core::String]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
+(:wat::core::defn :user::scan-file-arity [path <- wat.type/String]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
   (:user::collect-arity-seq (:user::parse-forms (:wat::io::read-file path))))
 
-(:wat::core::defn :user::scan-all-arity [paths <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
+(:wat::core::defn :user::scan-all-arity [paths <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
   (:wat::core::if (:wat::core::empty? paths)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])
     (:wat::core::concat (:user::scan-file-arity (:wat::core::first paths))
                         (:user::scan-all-arity (:wat::core::rest paths)))))
 
 ;; ── census main — prints "KIND HEAD" per matched (kind != 0) list node ──────
 (:wat::core::defn :census::walk-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::nil
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? items)
     nil
     (:wat::core::do
@@ -590,9 +590,9 @@
       (:census::walk-seq (:wat::core::rest items) table))))
 
 (:wat::core::defn :census::walk
-  [node <- :wat::WatAST
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::nil
+  [node <- wat.type/AST
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch   (:wat::core::ast->children node)
                        cls  (:user::classify node table)
@@ -610,22 +610,22 @@
       nil)))
 
 (:wat::core::defn :census::file
-  [path <- :wat::core::String
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::nil
+  [path <- wat.type/String
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> wat.type/nil
   (:census::walk-seq (:user::parse-forms (:wat::io::read-file path)) table))
 
 (:wat::core::defn :census::files
-  [paths <- (:wat::core::Vector :- [:wat::core::String])
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])]
-  -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/i64])])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do
       (:census::file (:wat::core::first paths) table)
       (:census::files (:wat::core::rest paths) table))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [ctx   (:wat::core::match (:wat::kernel::readln)
                              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                              [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]

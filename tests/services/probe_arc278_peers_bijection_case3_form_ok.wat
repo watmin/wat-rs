@@ -12,11 +12,11 @@
 ;; ── ECHO: the dialed surface + its service ──────────────────────────────────────
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -35,9 +35,9 @@
   :messages
   [(:wat::core::defrecord :probe::Caller::RunRequest  [])
    (:wat::core::defenum :probe::Caller::RunResponse :wat::enum::Pure
-     :Ok              [out <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [out <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(run [self <- :probe::Caller  req <- :probe::Caller::RunRequest] -> :probe::Caller::RunResponse :max-request-bytes 524288)])
 
@@ -70,7 +70,7 @@
        (:wat::service::Outcome.Reply {:state s :reply rresp})))])
 
 ;; ── the crossing: start both on THREADS, dial caller', which dials echo'. Return the reply. ──
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [eh  (:probe::echo/start   :locus (:wat::spawn::thread) :record (:probe::echo::Record))
      ea  (:probe::echo::Handle/addr eh)

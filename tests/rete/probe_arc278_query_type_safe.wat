@@ -3,9 +3,9 @@
 ;; rule-construction shapes — the `defrule`-macro-generated defn path, and a hand-built inline
 ;; `Rule` literal path — each queried via `query`.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
 
 (:wat::rete::defrule :weather::cold-and-windy
   :when
@@ -21,7 +21,7 @@
 
 ;; ── defn-freeze path: the Rule comes from the `defrule`-macro-generated defn ────────────────
 
-(:wat::core::defn :user::query-defrule-path [] -> :wat::core::i64
+(:wat::core::defn :user::query-defrule-path [] -> wat.type/i64
   (:wat::core::let
     [rules (:wat::core::PersistentVector (:weather::cold-and-windy))
      sess0 (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -32,7 +32,7 @@
 
 ;; ── inline path: a hand-built Rule literal, no defrule macro ────────────────────────────────
 
-(:wat::core::defn :user::query-inline-path [] -> :wat::core::i64
+(:wat::core::defn :user::query-inline-path [] -> wat.type/i64
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))

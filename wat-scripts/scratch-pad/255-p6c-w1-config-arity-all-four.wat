@@ -5,7 +5,7 @@
 ;; arity guard instead of the static type-checker's own arity gate). Each of the
 ;; four `:wat::config::*` nullary readers, called with one extra argument.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::config::dim-count 1)))
       [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "dim-count UNEXPECTED ok: " (:wat::edn::write v)))]

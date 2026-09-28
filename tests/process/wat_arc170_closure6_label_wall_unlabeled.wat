@@ -4,11 +4,11 @@
 ;; `ProcessOpts/label` stays its default `:None`. Proves argv is UNCHANGED from
 ;; before this field existed — `[exe]`, nothing appended — same protocol as the
 ;; labeled sibling (report the child's pid, then block on stdin for the harness).
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [_p (:wat::kernel::println (:wat::program::Env/process-id (:wat::program::env)))
                 outcome (:wat::kernel::readln)]

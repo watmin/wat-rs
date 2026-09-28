@@ -57,20 +57,20 @@
 ;; Usage (stdin = an i64 vector [depth]; stdout = one #grid/Result EDN line):
 ;;   echo '[9]' | cargo wat ./wat-scripts/perf/grid/userfn-accum-derived.wat
 
-(:wat::core::defrecord :cad::Seed  [id <- :wat::core::i64])
-(:wat::core::defrecord :cad::Step  [level <- :wat::core::i64])
-(:wat::core::defrecord :cad::Tally [n <- :wat::core::i64])
+(:wat::core::defrecord :cad::Seed  [id <- wat.type/i64])
+(:wat::core::defrecord :cad::Step  [level <- wat.type/i64])
+(:wat::core::defrecord :cad::Tally [n <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::core::defn :cad::mk-tally
-  [n <- :wat::core::i64]
+  [n <- wat.type/i64]
   -> :cad::Tally
   (:cad::Tally :n n))
 
@@ -86,7 +86,7 @@
 
 ;; build-step k — Step(k) :- Step(k-1). Level literals spliced via quasiquote, same as
 ;; accum-over-derived's per-level rule. One generated rule per level.
-(:wat::core::defn :cad::build-step [k <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :cad::build-step [k <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
                     c (:wat::core::quasiquote (:cad::Step (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:cad::Step (:wat::core::unquote k)))]
@@ -106,18 +106,18 @@
       (:wat::core::quote (:cad::mk-tally ?n)))))
 
 ;; build-rules depth — tally plus one Step(k):-Step(k-1) per k in [1,depth].
-(:wat::core::defn :cad::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :cad::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:cad::build-step k)))
     (:wat::core::PersistentVector (:cad::tally-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
 
-(:wat::core::defn :cad::empty-records [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :cad::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::PersistentVector))
 
-(:wat::core::defn :cad::seed-facts [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :cad::seed-facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::vector::conj
     (:wat::vector::conj
       (:cad::empty-records)
@@ -138,39 +138,39 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
      (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :cad::enc [kind <- :wat::core::i64  level <- :wat::core::i64  id <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :cad::enc [kind <- wat.type/i64  level <- wat.type/i64  id <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+
     (:wat::i64::+ (:wat::i64::* kind 1000000000000000) (:wat::i64::* level 1000000000))
     id))
 
-(:wat::core::defn :cad::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :cad::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector — sorted, NOT deduped. Derived Step levels (level > 0) plus every Tally.
-(:wat::core::defn :cad::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :cad::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
           (:wat::core::map
-            (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
               (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                 (:cad::enc 0 (:cad::Step/level f) 0)))
             (:wat::core::filter
-              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool
+              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool
                 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                   (:wat::i64::> (:cad::Step/level f) 0)))
               (:wat::rete::query fired (:cad::q-Step)))))
      c1 (:wat::core::into c0
           (:wat::core::map
-            (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
               (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                 (:cad::enc 1 0 (:cad::Tally/n f))))
             (:wat::rete::query fired (:cad::q-Tally))))]
     (:cad::vec->pvec (:wat::core::sort c1))))
 
-(:wat::core::defn :cad::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :cad::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth]")
                     rules   (:cad::build-rules depth)

@@ -3,7 +3,7 @@
 ;; impure address and refuse. Pre-255.29 this file was `.wat.bad`. 255.29: the
 ;; address is data, so the chain is pure and the walk terminates accepted.
 (:wat::core::defenum :probe::Chain :- [T] :wat::enum::Pure
-  :Link [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 T])
+  :Link [addr <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 T])
          next <- (:probe::Chain :- [T])]
   :End [])
 (:wat::core::defrecord :probe::HoldsChain

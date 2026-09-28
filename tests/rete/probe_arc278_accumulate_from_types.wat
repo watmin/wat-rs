@@ -17,9 +17,9 @@
 ;; have; 37 `.wat` files carry a `:from` condition, 19 of them grid cells). The rows below are still
 ;; built from the spec, which is what matters here. (see DESIGN.md) — no corpus-driven method could have built this.
 
-(:wat::core::defrecord :tac::Station   [location <- :wat::core::String])
-(:wat::core::defrecord :tac::Reading   [location <- :wat::core::String  value <- :wat::core::i64])
-(:wat::core::defrecord :tac::Threshold [min <- :wat::core::i64])
+(:wat::core::defrecord :tac::Station   [location <- wat.type/String])
+(:wat::core::defrecord :tac::Reading   [location <- wat.type/String  value <- wat.type/i64])
+(:wat::core::defrecord :tac::Threshold [min <- wat.type/i64])
 
 ;; row 1 — a PLAIN BIND, no clauses beyond it. The shape the `:from` arm already handled.
 (:wat::rete::defrule :tac::plain-bind

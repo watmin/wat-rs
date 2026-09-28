@@ -1,6 +1,6 @@
 ;; Proof 3 (NEGATIVE): the hook's record accessors type-check at parse time.
 ;; ProcessLaunch has no field `bogus-field` — startup must fail naming it.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [bound (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      addr  (:wat::spawn::Bound/address bound)
@@ -15,9 +15,9 @@
                (:wat::kernel::assertion-failed! :message "connect': failed binding the hook channel")])
      _proc (:wat::test::spawn-peer
              (:wat::spawn::process::post-spawn
-               (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+               (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                  (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx (:wat::spawn::ProcessLaunch/bogus-field launch)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                    nil)))
              (:wat::core::forms
-               (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]
+               (:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "spawned child"))))]
     0))

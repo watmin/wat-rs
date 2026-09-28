@@ -61,28 +61,28 @@
 
 ;; ★ THE PARAMETRIC RECORD — the constructor of the erasure seam. Copied in form from
 ;; tests/rete/probe_arc278_d7_parametric_erasure_differential.wat:34.
-(:wat::core::defrecord :pe::Box :- [T] [k <- :wat::core::i64  v <- :T])
+(:wat::core::defrecord :pe::Box :- [T] [k <- wat.type/i64  v <- :T])
 
 ;; A RECORD-valued filler: a second, independent way for one `Box` instance to fail
 ;; `pack_i64_row` (Aggregate, not `Value::i64`) — so the axis is not pinned to `String`.
-(:wat::core::defrecord :pe::Tag [n <- :wat::core::i64])
+(:wat::core::defrecord :pe::Tag [n <- wat.type/i64])
 
 ;; The NON-parametric, uniformly-packable neighbour. A live control, not decoration.
-(:wat::core::defrecord :pe::Plain [k <- :wat::core::i64])
+(:wat::core::defrecord :pe::Plain [k <- wat.type/i64])
 
-(:wat::core::defrecord :pe::Hit      [k <- :wat::core::i64])
-(:wat::core::defrecord :pe::PlainHit [k <- :wat::core::i64])
-(:wat::core::defrecord :pe::Pair     [k <- :wat::core::i64])
+(:wat::core::defrecord :pe::Hit      [k <- wat.type/i64])
+(:wat::core::defrecord :pe::PlainHit [k <- wat.type/i64])
+(:wat::core::defrecord :pe::Pair     [k <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defrule :pe::r-box
   :when  [(:pe::Box (?k :- :k) (?v :- :v))]
@@ -104,18 +104,18 @@
 
 ;; encode tag k — canonical single-i64 witness (Hit=0, PlainHit=1, Pair=2). `items` is far below
 ;; 1,000,000 at every size this axis is run at, so the encoding is injective here.
-(:wat::core::defn :pe::encode [tag <- :wat::core::i64  k <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :pe::encode [tag <- wat.type/i64  k <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ (:wat::i64::* tag 1000000) k))
 
 ;; i64-mod a b — non-negative modulo via truncating division (min-finding.wat uses the same
 ;; idiom; there is no native i64::mod). a >= 0 and b > 0 at every call here.
-(:wat::core::defn :pe::i64-mod [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :pe::i64-mod [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
   (:wat::i64::- a (:wat::i64::* (:wat::i64::/ a b) b)))
 
 ;; A `PersistentVector`'s element type is INVARIANT and inferred from its first element, so each
 ;; `Box` INSTANTIATION must be upcast to `Record` before they can share one bag — that upcast is
 ;; all `:pe::as-record` does.
-(:wat::core::defn :pe::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
+(:wat::core::defn :pe::as-record [r <- wat.type/Record] -> wat.type/Record r)
 
 ;; box-for i — ONE class, THREE erasures, cycling by (i mod 3):
 ;;   0 -> Box[i64]     packable
@@ -123,7 +123,7 @@
 ;;   2 -> Box[Tag]     NOT packable, and a DIFFERENT erasure from the String one
 ;; The cycle puts a packable instance before an erased one AND after it, so neither interleaving
 ;; is privileged — the occupancy batch runs after the fact loop and order must not matter.
-(:wat::core::defn :pe::box-for [i <- :wat::core::i64] -> :wat::core::Record
+(:wat::core::defn :pe::box-for [i <- wat.type/i64] -> wat.type/Record
   (:wat::core::cond
     ((:wat::core::= (:pe::i64-mod i 3) 0) (:pe::as-record (:pe::Box :k i :v i)))
     ((:wat::core::= (:pe::i64-mod i 3) 1) (:pe::as-record (:pe::Box :k i :v (:wat::i64::to-string i))))
@@ -132,51 +132,51 @@
 ;; seed session items — stage Box(i, <erasure>) and Plain(i) for i in [0, items), in ONE batch
 ;; `insert-all` (the verb a user should write, so the axis writes it too).
 (:wat::core::defn :pe::seed
-  [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+  [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj
           (:wat::vector::conj acc (:pe::box-for i))
           (:pe::as-record (:pe::Plain :k i))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :pe::hit-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
-  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
-    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 0 (:pe::Hit/k f))))
+(:wat::core::defn :pe::hit-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
+  (:wat::core::into (wat.type/Vector :- [wat.type/i64])
+    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 0 (:pe::Hit/k f))))
       (:wat::rete::query fired (:pe::q-hit)))))
 
-(:wat::core::defn :pe::plain-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
-  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
-    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 1 (:pe::PlainHit/k f))))
+(:wat::core::defn :pe::plain-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
+  (:wat::core::into (wat.type/Vector :- [wat.type/i64])
+    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 1 (:pe::PlainHit/k f))))
       (:wat::rete::query fired (:pe::q-plain)))))
 
-(:wat::core::defn :pe::pair-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
-  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
-    (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 2 (:pe::Pair/k f))))
+(:wat::core::defn :pe::pair-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
+  (:wat::core::into (wat.type/Vector :- [wat.type/i64])
+    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 2 (:pe::Pair/k f))))
       (:wat::rete::query fired (:pe::q-pair)))))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]).
-(:wat::core::defn :pe::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :pe::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived fact (Hit, PlainHit, Pair), canonically encoded and
 ;; sorted ascending. THE accuracy witness: the full set, not a count.
 (:wat::core::defn :pe::derived-vector [fired <- :wat::rete::Session]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [h   (:pe::hit-codes fired)
                     hp  (:wat::core::into h (:pe::plain-codes fired))
                     all (:wat::core::into hp (:pe::pair-codes fired))]
     (:pe::vec->pvec (:wat::core::sort all))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. asym-join.wat).
-(:wat::core::defn :pe::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :pe::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     staged  (:pe::seed (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:pe::r-box) (:pe::r-plain) (:pe::r-pair)) (:wat::core::PersistentVector (:pe::q-hit) (:pe::q-plain) (:pe::q-pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)

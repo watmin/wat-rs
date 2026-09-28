@@ -18,11 +18,11 @@
 ;; feed the child's readln → assert-eq 2 3 fails → child panics before its println → the peer
 ;; dies → recv-all' returns (Err (LociDiedError::Panic …)).
 (:wat::core::defn :my::test::recv-assert-fail []
-  -> (:wat::core::Result :- [(:wat::core::Vector :- [:wat::core::i64]) :wat::kernel::LociDiedError])
+  -> (:wat::core::Result :- [(wat.type/Vector :- [wat.type/i64]) :wat::kernel::LociDiedError])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                 ;; assert-eq: n=2 vs expected=3 — this fails, child panics

@@ -12,8 +12,8 @@
 ;; itself. That matters because the ward list still carried a `conformare` finding claiming these
 ;; sites discard the wat span for `rust_caller_span!()` — stale; the span is real, and it was only
 ;; the RENDERING that was wrong.
-(:wat::core::defrecord :bt::In  [k <- :wat::core::i64])
-(:wat::core::defrecord :bt::Out [k <- :wat::core::i64])
+(:wat::core::defrecord :bt::In  [k <- wat.type/i64])
+(:wat::core::defrecord :bt::Out [k <- wat.type/i64])
 
 (:wat::rete::defrule :bt::r
   :when [(:bt::In (?k :- :k))]
@@ -21,7 +21,7 @@
 
 (:wat::rete::defquery :bt::q :params [] :when [(?fact :- :bt::Out)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::i64::to-string
       (:wat::core::length

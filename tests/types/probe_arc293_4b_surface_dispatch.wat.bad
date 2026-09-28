@@ -6,11 +6,11 @@
 
 (:wat::core::defsurface :t::Shape
   :nature :wat::core::Struct
-  :features [(area [self <- :t::Shape] -> :wat::core::f64)])
+  :features [(area [self <- :t::Shape] -> wat.type/f64)])
 
-(:wat::core::defrecord :t::NoArea [x <- :wat::core::f64])
+(:wat::core::defrecord :t::NoArea [x <- wat.type/f64])
 
 ;; This should be rejected at check time: :t::NoArea does not satisfy :t::Shape
 ;; (no `defn :t::NoArea/area` exists), so the receiver type mismatch fires.
-(:wat::core::defn :t::bad-surface-call [] -> :wat::core::f64
+(:wat::core::defn :t::bad-surface-call [] -> wat.type/f64
   (:t::Shape/area (:t::NoArea 1.0)))

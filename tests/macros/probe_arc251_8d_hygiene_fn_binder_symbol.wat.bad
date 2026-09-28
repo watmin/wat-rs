@@ -8,10 +8,10 @@
 ;; 251.8d-ii cure: if it ever goes rc 0, the type-skip has eaten the binder scan and
 ;; a symbol-spelled capturing macro loads silently.
 (:wat::core::defmacro :my::capturing-param
-  [x <- :wat::WatAST]
-  -> :wat::WatAST
+  [x <- wat.type/AST]
+  -> wat.type/AST
   (:wat::core::if (:wat::core::= 1 1)
     `((wat.core/fn [y :- wat.core/i64] :- wat.core/i64 y) ~x)
     `~x))
-(:wat::core::defn :user::probe [n <- :wat::core::i64]
-  -> :wat::core::i64 (:my::capturing-param n))
+(:wat::core::defn :user::probe [n <- wat.type/i64]
+  -> wat.type/i64 (:my::capturing-param n))

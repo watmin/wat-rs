@@ -5,7 +5,7 @@
 ;; conversion. Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the
 ;; ephemeral session tmp). Mirrors 255-stone-h-1a-holon-metadata-arity.wat's shape.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── :wat::holon::from-holon ──")
     (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::holon::from-holon))

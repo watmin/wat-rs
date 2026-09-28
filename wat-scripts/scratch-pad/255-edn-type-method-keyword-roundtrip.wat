@@ -1,5 +1,5 @@
 ;; Witness: Type/method keywords write with ONE slash and read back.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [written (:wat::edn::write :wat::holon::Hologram/make)]
     (:wat::core::do
       (:wat::kernel::println written)

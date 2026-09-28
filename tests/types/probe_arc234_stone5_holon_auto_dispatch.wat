@@ -2,7 +2,7 @@
 ;; Co-located fixture for probe_arc234_stone5_holon_auto_dispatch.rs (arc 234 Stone 234.5).
 ;; Uses :wat::holon::defrecord (the holon-flavored macro).
 
-(:wat::holon::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::defrecord :myapp::Voltage [magnitude <- wat.type/f64])
 
 ;; ─── Probe 1: to-holon returns holon_form ────────────────────────────────────
 (:wat::core::defn :user::probe-1 [] -> :wat::holon::HolonAST
@@ -35,7 +35,7 @@
       "Bundle failed in Probe 4")))
 
 ;; ─── Probe 5: extract-classifier on record ───────────────────────────────────
-(:wat::core::defn :user::probe-5 [] -> :wat::core::String
+(:wat::core::defn :user::probe-5 [] -> wat.type/String
   (:wat::core::let [r (:myapp::Voltage :magnitude 5.0)]
     (:wat::holon::extract-classifier r)))
 

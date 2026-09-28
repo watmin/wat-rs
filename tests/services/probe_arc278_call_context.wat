@@ -32,14 +32,14 @@
   :messages
   [(:wat::core::defrecord :probe::CallCtx3::WhoamiRequest [])
    (:wat::core::defenum :probe::CallCtx3::WhoamiResponse :wat::enum::Pure
-     :Ok               [caller-id <- :wat::core::i64  namespace <- :wat::core::keyword  operation <- :wat::core::String]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :Ok               [caller-id <- wat.type/i64  namespace <- wat.type/keyword  operation <- wat.type/String]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
    (:wat::core::defrecord :probe::CallCtx3::PingRequest [])
    (:wat::core::defenum :probe::CallCtx3::PingResponse :wat::enum::Pure
-     :Ok               [ok <- :wat::core::bool]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :Ok               [ok <- wat.type/bool]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
    ;; arc 278 ctx-is-mandatory item (2) — `arm-mark` (client-callable) arms the INTERNAL `-mark`
    ;; op via a one-shot Alarm; `-mark` (never on the wire, no request/response) stamps what its
    ;; OWN `SelfInvocation` ctx said into durable state; `peek-mark` (client-callable) reads it
@@ -47,13 +47,13 @@
    (:wat::core::defrecord :probe::CallCtx3::ArmMarkRequest [])
    (:wat::core::defenum :probe::CallCtx3::ArmMarkResponse :wat::enum::Pure
      :Ok               []
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
    (:wat::core::defrecord :probe::CallCtx3::PeekMarkRequest [])
    (:wat::core::defenum :probe::CallCtx3::PeekMarkResponse :wat::enum::Pure
-     :Ok               [seen-op <- :wat::core::String  seen-ns <- :wat::core::keyword]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [seen-op <- wat.type/String  seen-ns <- wat.type/keyword]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(whoami   [self <- :probe::CallCtx3  req <- :probe::CallCtx3::WhoamiRequest]   -> :probe::CallCtx3::WhoamiResponse   :max-request-bytes 524288)
    (ping     [self <- :probe::CallCtx3  req <- :probe::CallCtx3::PingRequest]     -> :probe::CallCtx3::PingResponse     :max-request-bytes 524288)
@@ -64,7 +64,7 @@
 ;; internal `-mark` arm is `[s ctx]`, ctx : `SelfInvocation` (item (2)'s subject).
 (:wat::service::defservice :probe::callctx3svc
   :satisfies :probe::CallCtx3
-  :durable   [seen-op <- :wat::core::String  seen-ns <- :wat::core::keyword]
+  :durable   [seen-op <- wat.type/String  seen-ns <- wat.type/keyword]
   :ephemeral []
   :init (:wat::core::fn [record <- :probe::callctx3svc::Record] -> :probe::callctx3svc::State
           (:probe::callctx3svc::State :durable record))
@@ -108,7 +108,7 @@
 
 ;; Round-trips `whoami` on `c` and returns the caller-id (asserting on transport failures — a
 ;; probe driver, not the subject under test).
-(:wat::core::defn :probe::whoami-id [c <- :probe::CallCtx3] -> :wat::core::i64
+(:wat::core::defn :probe::whoami-id [c <- :probe::CallCtx3] -> wat.type/i64
   (:wat::core::match (:probe::CallCtx3/whoami c (:probe::CallCtx3::WhoamiRequest))
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
@@ -123,7 +123,7 @@
 ;; call-context.md's reproduction: "wait 60ms via a select'-on-after nap"): arm a one-shot timer
 ;; and block on its OWN recv. Gives the server's single-threaded serve loop room to have already
 ;; processed a dropped client's Closed event by the time the caller proceeds.
-(:wat::core::defn :probe::nap! [] -> :wat::core::nil
+(:wat::core::defn :probe::nap! [] -> wat.type/nil
   (:wat::core::let
     [t (:wat::kernel::after :wat::program::PeerKind.process (:wat::time::Millisecond 60) :tick)]
     (:wat::core::match (:wat::kernel::recv t)
@@ -137,7 +137,7 @@
 ;; operation == "whoami" (the op's own kebab name, spliced as a compile-time literal). namespace
 ;; is checked separately (below) since it is a KEYWORD, not an i64/String the harness can pack
 ;; alongside these two in one return value without a THIRD accessor round-trip.
-(:wat::core::defn :user::ctx-populated-id-and-op [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
+(:wat::core::defn :user::ctx-populated-id-and-op [] -> (wat.type/Tuple :- [wat.type/i64 wat.type/String])
   (:wat::core::let
     [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)]
@@ -154,7 +154,7 @@
 
 ;; namespace equals the service's own fqdn — a keyword equality check, kept as its own bool-
 ;; returning driver (the harness above already proves caller-id/operation).
-(:wat::core::defn :user::ctx-namespace-is-fqdn [] -> :wat::core::bool
+(:wat::core::defn :user::ctx-namespace-is-fqdn [] -> wat.type/bool
   (:wat::core::let
     [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)]
@@ -173,7 +173,7 @@
 ;; it keeps the service honest that ctx isn't special-cased to whichever op happens to be first
 ;; declared. (This used to be "a 2-param arm still works, proving opt-in" — that framing died with
 ;; the opt-in design; ctx is unconditional now, so `ping` carries it exactly like `whoami` does.)
-(:wat::core::defn :user::second-public-arm-also-works [] -> :wat::core::bool
+(:wat::core::defn :user::second-public-arm-also-works [] -> wat.type/bool
   (:wat::core::let
     [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)]
@@ -194,7 +194,7 @@
 ;; read it would have compiled and returned the durable record's ZERO-VALUE defaults forever,
 ;; never firing red). `peek-mark` reads it back. A bounded, event-driven poll (mirrors
 ;; probe_arc278_self_scheduling.wat's `poll-until` — NOT a sleep-guess) waits for the async fire.
-(:wat::core::defn :probe::peek-mark! [c <- :probe::CallCtx3] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::keyword])
+(:wat::core::defn :probe::peek-mark! [c <- :probe::CallCtx3] -> (wat.type/Tuple :- [wat.type/String wat.type/keyword])
   (:wat::core::match (:probe::CallCtx3/peek-mark c (:probe::CallCtx3::PeekMarkRequest))
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
@@ -208,7 +208,7 @@
 ;; peek-until — bounded retry, event-driven backoff (`:probe::nap!`), terminates on the OBSERVED
 ;; seen-op becoming non-empty (i.e. `-mark` has genuinely fired and its ctx landed in state).
 (:wat::core::defn :probe::peek-until
-  [c <- :probe::CallCtx3  attempts <- :wat::core::i64] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::keyword])
+  [c <- :probe::CallCtx3  attempts <- wat.type/i64] -> (wat.type/Tuple :- [wat.type/String wat.type/keyword])
   (:wat::core::if (:wat::i64::<= attempts 0)
     (:wat::kernel::assertion-failed! :message "peek-until: bound exhausted — -mark never fired")
     (:wat::core::let [got (:probe::peek-mark! c)]
@@ -219,7 +219,7 @@
 
 ;; Returns Tuple(operation-is-dash-mark, namespace-is-fqdn) — both booleans, computed here (a
 ;; keyword/String equality check on the ctx facts the INTERNAL arm actually saw).
-(:wat::core::defn :user::internal-arm-ctx-populated [] -> (:wat::core::Tuple :- [:wat::core::bool :wat::core::bool])
+(:wat::core::defn :user::internal-arm-ctx-populated [] -> (wat.type/Tuple :- [wat.type/bool wat.type/bool])
   (:wat::core::let
     [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)
@@ -252,7 +252,7 @@
 ;; return tuple), so by the time this call returns, c1/c3 are alive in the CALLER's frame and c2
 ;; is the only one gone.
 (:wat::core::defn :probe::stability-connect-phase [h <- :probe::callctx3svc::Handle]
-  -> (:wat::core::Tuple :- [:wat::core::i64 :probe::CallCtx3 :probe::CallCtx3])
+  -> (wat.type/Tuple :- [wat.type/i64 :probe::CallCtx3 :probe::CallCtx3])
   (:wat::core::let
     [c1 (:probe::connect! h)
      _  (:probe::whoami-id c1)
@@ -265,7 +265,7 @@
 ;; Returns Tuple(id-before, id-after) — the harness asserts they are EQUAL (and, as a second,
 ;; independent proof, that id-after is the ANALYTICALLY correct value 2 — the third id ever
 ;; minted — not merely "unchanged from whatever id-before happened to be").
-(:wat::core::defn :user::stability-gate [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+(:wat::core::defn :user::stability-gate [] -> (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
   (:wat::core::let
     [h         (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      phase     (:probe::stability-connect-phase h)

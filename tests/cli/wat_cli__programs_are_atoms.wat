@@ -7,7 +7,7 @@
 ;; program uses (:wat::kernel::println "wat-atoms") — the println call is
 ;; the load-bearing expression captured as data and re-executed via
 ;; eval-ast!. No stdin required.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [program
        (:wat::core::quote

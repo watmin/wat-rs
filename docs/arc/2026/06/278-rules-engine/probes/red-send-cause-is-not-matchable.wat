@@ -36,12 +36,12 @@
 ;;    cause was a fabricated constant: the producer collapses it and every reader discards it. This
 ;;    probe is the first thing in the substrate that tries to READ a send failure's reason.
 
-(:wat::core::defn :probe::send-side-cannot-match [] -> :wat::core::nil
+(:wat::core::defn :probe::send-side-cannot-match [] -> wat.type/nil
   (:wat::core::let
     [peer (:wat::test::spawn-peer
             (:wat::spawn::process)
             (:wat::core::forms
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::kernel::println "child up"))))]
     (:wat::core::match (:wat::kernel::send peer "ping")
       [:wat::kernel::SendOutcome.Sent {} nil]
@@ -61,12 +61,12 @@
         (:wat::kernel::println "an io failure")])))
 
 ;; ── POSITIVE CONTROL — the recv side already carries a matchable cause. MUST type-check. ──────
-(:wat::core::defn :probe::recv-side-already-works [] -> :wat::core::nil
+(:wat::core::defn :probe::recv-side-already-works [] -> wat.type/nil
   (:wat::core::let
     [peer (:wat::test::spawn-peer
             (:wat::spawn::process)
             (:wat::core::forms
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::kernel::println "child up"))))]
     (:wat::core::match (:wat::kernel::recv peer)
       [:wat::kernel::RecvOutcome.Message {:msg _m} nil]
@@ -84,5 +84,5 @@
             (:wat::kernel::println "the peer is gone")]
           [_ (:wat::kernel::println "some other death")])])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "red-send-cause probe: if you see this, the send arm compiled"))

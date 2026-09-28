@@ -1,6 +1,6 @@
 ;; Stone 255.12 NON-VACUITY — the divergence is a VARIANT NAME. Still refused.
 (:wat::core::defenum :p255_12::Var :wat::enum::Pure
-  :Ok [v <- :wat::core::i64]
+  :Ok [v <- wat.type/i64]
   :Err)
 (:wat::core::defenum :p255_12::Var :wat::enum::Pure
   :Ok [v <- :wat::type::i64]

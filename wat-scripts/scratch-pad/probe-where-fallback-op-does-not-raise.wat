@@ -42,8 +42,8 @@
 ;; EXPECT: "before-fire", then the query returns exactly one :pfo::Hit with k=2 and sum=-999 (the
 ;; FALLBACK value, not a crash, not the true overflowed sum) — proof the fallback path fired.
 
-(:wat::core::defrecord :pfo::Big [k <- :wat::core::i64  n <- :wat::core::i64])
-(:wat::core::defrecord :pfo::Hit [k <- :wat::core::i64  sum <- :wat::core::i64])
+(:wat::core::defrecord :pfo::Big [k <- wat.type/i64  n <- wat.type/i64])
+(:wat::core::defrecord :pfo::Hit [k <- wat.type/i64  sum <- wat.type/i64])
 
 ;; ?n is i64::MAX for k=2; (?n + 1) overflows. The TOTAL fence variant must not raise — it must
 ;; substitute :undefined's fallback (-999) and let the rule fire normally.
@@ -58,7 +58,7 @@
   :params []
   :when [(?fact :- :pfo::Hit)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [session (:wat::core::match (:wat::rete::insert-all
                (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:pfo::add-in-where)) (:wat::core::PersistentVector (:pfo::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -70,7 +70,7 @@
      _       (:wat::kernel::println "after-fire")
      hits    (:wat::rete::query fired (:pfo::q-Hit))]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::nil  h <- :wat::core::PersistentMap] -> :wat::core::nil
+      (:wat::core::fn [acc <- wat.type/nil  h <- wat.type/PersistentMap] -> wat.type/nil
         (:wat::kernel::println h))
       nil
       hits)))

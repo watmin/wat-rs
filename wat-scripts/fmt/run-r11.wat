@@ -7,7 +7,7 @@
 (:wat::load-file! "rules/atoms.wat")
 (:wat::load-file! "rules/defrecord.wat")
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv (:wat::runtime::argv)
      path (:wat::core::Option/expect (:wat::core::get argv 2) "usage: wat wat-scripts/fmt/run-r11.wat <file.wat>")

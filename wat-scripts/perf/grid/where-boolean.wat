@@ -45,9 +45,9 @@
 ;; it is no answer at all. Confirmed by reading `eval_and`/`eval_or` in src/runtime.rs: both walk
 ;; `args` left-to-right and return on the deciding value without evaluating the rest.
 
-(:wat::core::defn :wsb::items [] -> :wat::core::i64 210)   ;; 2*3*5*7 — CRT-clean, both sides
+(:wat::core::defn :wsb::items [] -> wat.type/i64 210)   ;; 2*3*5*7 — CRT-clean, both sides
 
-(:wat::core::defn :wsb::row-count [] -> :wat::core::i64 15)
+(:wat::core::defn :wsb::row-count [] -> wat.type/i64 15)
 
 ;; a(i) = i mod 2 == 0        (half)
 ;; b(i) = i mod 3 == 0        (a third)
@@ -55,28 +55,28 @@
 ;; d(i) = i mod 7 == 0        (a seventh)
 ;; l(i) = i mod 7             (row 15's short-circuit denominator; l == 0 exactly when d)
 (:wat::core::defrecord :wsb::Req
-  [k <- :wat::core::i64
-   a <- :wat::core::bool
-   b <- :wat::core::bool
-   c <- :wat::core::bool
-   d <- :wat::core::bool
-   l <- :wat::core::i64])
+  [k <- wat.type/i64
+   a <- wat.type/bool
+   b <- wat.type/bool
+   c <- wat.type/bool
+   d <- wat.type/bool
+   l <- wat.type/i64])
 
-(:wat::core::defrecord :wsb::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :wsb::Hit [k <- wat.type/i64])
 
 ;; row 14's user-defined pure fn — boolean-VALUED, itself built from `or`, then composed with an
 ;; inline `and`/`not` at the call site. edge?(k) := k < 30 or k >= 180 (the two 30-wide tails of
 ;; the 210-range) => 60 of 210 satisfy edge? on its own.
-(:wat::rete::core::defn :wsb::edge? [k <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :wsb::edge? [k <- wat.type/i64] -> wat.type/bool
   (:wat::rete::core::or
     (:wat::rete::i64::< k 30)
     (:wat::rete::i64::>= k 180)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
-(:wat::core::defn :wsb::conds [] -> :wat::WatAST
+(:wat::core::defn :wsb::conds [] -> wat.type/AST
   (:wat::core::quasiquote (:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l))))
 
-(:wat::core::defn :wsb::ins [] -> :wat::WatAST
+(:wat::core::defn :wsb::ins [] -> wat.type/AST
   (:wat::core::quasiquote (:wsb::Hit ?k)))
 
 ;; ROW 1 — and/2. Hit :- Req(…) AND (a and b).  k mod 2==0 and k mod 3==0 => k mod 6==0 => 35/210.
@@ -219,7 +219,7 @@
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wsb::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :wsb::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wsb::and2))
@@ -242,12 +242,12 @@
 
 ;; seed — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild). Every field is a
 ;; FORMULA over i, independently computable on the Clara side so nothing rots as a hand-kept table.
-(:wat::core::defn :wsb::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :wsb::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::let [m7 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 7) 7))
                           a  (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 2) 2)))
                           b  (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
@@ -260,18 +260,18 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wsb::derived-ints
-  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
+  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wsb::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wsb::Hit/k f)))
         (:wat::rete::query fired (:wsb::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
-(:wat::core::defn :wsb::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+(:wat::core::defn :wsb::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
@@ -287,13 +287,13 @@
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
 (:wat::core::defn :wsb::rule-display-name
-  [full <- :wat::core::String] -> :wat::core::String
+  [full <- wat.type/String] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
     full
     (:wat::string::split full "::")))
 
-(:wat::core::defn :wsb::run-row [row <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wsb::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let [rules   (:wsb::build-rules row)
                     rule    (:wat::core::first rules)
                     staged  (:wsb::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsb::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wsb::items))
@@ -308,9 +308,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))
         (:wat::string::concat " ->" (:wsb::render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
       (:wat::kernel::println (:wsb::run-row row)))
     nil
     (:wat::core::range 1 (:wat::i64::+ (:wsb::row-count) 1))))

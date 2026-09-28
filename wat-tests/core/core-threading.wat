@@ -98,7 +98,7 @@
 ;;   => (:wat-tests::core::core-threading::inc1 3) = 4.
 
 (:wat::core::defn :wat-tests::core::core-threading::inc1
-  [x <- :wat::core::i64] -> :wat::core::i64
+  [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ x 1))
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-first-bare-step
@@ -114,7 +114,7 @@
 ;;   => (:wat-tests::core::core-threading::double 7) = 14.
 
 (:wat::core::defn :wat-tests::core::core-threading::double
-  [x <- :wat::core::i64] -> :wat::core::i64
+  [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* x 2))
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-last-bare-step
@@ -137,12 +137,12 @@
 ;; bracket-counting.  Both paths must equal 55.
 
 (:wat::core::defn :wat-tests::core::core-threading::square
-  [n <- :wat::core::i64] -> :wat::core::i64
+  [n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* n n))
 
 (:wat::core::defn :wat-tests::core::core-threading::add
-  [a <- :wat::core::i64
-   b <- :wat::core::i64] -> :wat::core::i64
+  [a <- wat.type/i64
+   b <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ a b))
 
 (:wat::test::deftest :wat-tests::core::core-threading::pipeline-sum-of-squares
@@ -151,7 +151,7 @@
   ;; fold step here becomes `:wat::core::reduce` (same 3-arg shape, Stream-aware) instead —
   ;; `map` stays lazy (consumed exactly once by the fold; no materializer needed).
   (:wat::core::let
-    [xs      (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)
+    [xs      (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)
      threaded
        (:wat::core::->> xs
          (:wat::core::map :wat-tests::core::core-threading::square)

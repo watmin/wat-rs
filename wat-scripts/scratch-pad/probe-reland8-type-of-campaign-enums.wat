@@ -1,7 +1,7 @@
 ;; RELAND 8 STOP-4: type-of stdlib enums the campaign could have corrupted.
 ;; A FQDN in a variant :name is the Option-None class of corruption.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "=== Option ===")
   (:wat::kernel::pprintln (:wat::runtime::type-of :wat::core::Option))
   (:wat::kernel::println "=== Result ===")

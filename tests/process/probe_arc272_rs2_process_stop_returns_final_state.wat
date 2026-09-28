@@ -9,21 +9,21 @@
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest        [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :my::Counter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::counter
   :satisfies :my::Counter
-  :durable   [count <- :wat::core::i64]
+  :durable   [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]
@@ -35,7 +35,7 @@
        (:wat::service::Outcome.Reply {:state (:my::counter::State :durable (:my::counter::Record :count c))
                                       :reply (:my::Counter::IncrementResponse.Ok {:value c})})))])
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [h     (:my::counter/start :locus (:wat::spawn::process) :record (:my::counter::Record :count 0))
      c     (:wat::core::match (:wat::kernel::connect (:my::counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

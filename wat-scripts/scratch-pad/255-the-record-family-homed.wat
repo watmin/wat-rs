@@ -41,14 +41,14 @@
 ;; `:wat::core::Fault` (wat/core.wat) into the pre-existing `:wat::core::Error` surface it
 ;; already, load-bearingly, satisfies (`runtime.rs`'s `fault_from_runtime_error` relies on
 ;; exactly this edge).
-(:wat::core::defrecord :probe255rf::FieldAtEx [sk <- :wat::core::i64])
-(:wat::core::defrecord :probe255rf::ToMapEx [sk <- :wat::core::i64])
-(:wat::core::defrecord :probe255rf::AssocEx [sk <- :wat::core::i64])
-(:wat::core::defrecord :probe255rf::PtEx [sk <- :wat::core::i64])
-(:wat::core::defrecord :probe255rf::CoordEx [sk <- :wat::core::i64])
-(:wat::core::defstruct :probe255rf::StructFieldEx [sk <- :wat::core::i64])
-(:wat::core::defstruct :probe255rf::StructNewEx [sk <- :wat::core::i64])
-(:wat::core::defenum :probe255rf::VariantEx :wat::enum::Pure :V [sk <- :wat::core::i64])
+(:wat::core::defrecord :probe255rf::FieldAtEx [sk <- wat.type/i64])
+(:wat::core::defrecord :probe255rf::ToMapEx [sk <- wat.type/i64])
+(:wat::core::defrecord :probe255rf::AssocEx [sk <- wat.type/i64])
+(:wat::core::defrecord :probe255rf::PtEx [sk <- wat.type/i64])
+(:wat::core::defrecord :probe255rf::CoordEx [sk <- wat.type/i64])
+(:wat::core::defstruct :probe255rf::StructFieldEx [sk <- wat.type/i64])
+(:wat::core::defstruct :probe255rf::StructNewEx [sk <- wat.type/i64])
+(:wat::core::defenum :probe255rf::VariantEx :wat::enum::Pure :V [sk <- wat.type/i64])
 
 ;; ★ NO `:user::`/`:probe255rf::` wrapper fn for the metadata-of calls below — the
 ;; collection-readers probe's own note applies here too: `Record/assoc`/`Record/same-data?`/
@@ -61,7 +61,7 @@
 ;; just the three with schemes, so a reader cannot mistake the inlining for a per-verb special
 ;; case).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── section 1 — behaviour unchanged ──")
     (:wat::kernel::println

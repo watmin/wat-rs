@@ -33,9 +33,9 @@
 ;; not D11.
 (:wat::core::defenum :d11o::E :wat::enum::Pure :A :B)
 
-(:wat::core::defrecord :d11o::In    [k <- :wat::core::i64  s <- :wat::core::String  v <- :d11o::E])
-(:wat::core::defrecord :d11o::Inner [n <- :wat::core::i64])
-(:wat::core::defrecord :d11o::One   [n <- :wat::core::i64])
+(:wat::core::defrecord :d11o::In    [k <- wat.type/i64  s <- wat.type/String  v <- :d11o::E])
+(:wat::core::defrecord :d11o::Inner [n <- wat.type/i64])
+(:wat::core::defrecord :d11o::One   [n <- wat.type/i64])
 (:wat::core::defrecord :d11o::Mid   [i <- :d11o::Inner])
 
 (:wat::core::defrecord :d11o::OutA [i <- :d11o::Inner])
@@ -84,10 +84,10 @@
       [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
       [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "fire: round cap")])))
 
-(:wat::core::defn :d11o::one [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::PersistentMap
+(:wat::core::defn :d11o::one [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/PersistentMap
   (:wat::core::first (:wat::rete::query s q)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s  (:d11o::fired)
      fa (:wat::core::Option/expect (:wat::map::get (:d11o::one s (:d11o::qa)) "?f") "okA")

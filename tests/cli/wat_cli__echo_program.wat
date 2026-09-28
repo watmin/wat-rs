@@ -3,7 +3,7 @@
 ;; readln / println EDN-only contract (arc 170 slice 1f-ι), crossbeam channel
 ;; wiring, stdio bridge threads, clean shutdown. See
 ;; tests/cli/wat_cli.rs::echo_program_reads_stdin_writes_stdout.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [line (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:wat::kernel::println line)))

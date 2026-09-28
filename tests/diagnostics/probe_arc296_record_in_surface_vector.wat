@@ -11,12 +11,12 @@
 
 (:wat::core::defsurface :g::E
   :nature :wat::core::Record
-  :features [msg <- :wat::core::String])
+  :features [msg <- wat.type/String])
 
 (:wat::core::defrecord :g::Boom
-  [msg <- :wat::core::String])
+  [msg <- wat.type/String])
 
-(:wat::core::defn :probe::drive [] -> :wat::core::i64
+(:wat::core::defn :probe::drive [] -> wat.type/i64
   (:wat::core::let
-    [v (:wat::core::Vector :- [:g::E] (:g::Boom :msg "x"))]
+    [v (wat.type/Vector :- [:g::E] (:g::Boom :msg "x"))]
     (:wat::vec::length v)))

@@ -31,7 +31,7 @@
 ;;
 ;; Run: `target/release/wat wat-scripts/scratch-pad/255-stepvalue-watast-roundtrip-probe.wat`
 
-(:wat::core::defn :user::show [label <- :wat::core::String form <- :wat::WatAST] -> :wat::core::nil
+(:wat::core::defn :user::show [label <- wat.type/String form <- wat.type/AST] -> wat.type/nil
   (:wat::core::match (:wat::eval-step! form)
     [:wat::core::Result.Ok {:value step}
       (:wat::core::match step
@@ -44,7 +44,7 @@
     [:wat::core::Result.Err {:error e}
       (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  ERR ->") (:wat::kernel::println e))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "== PART 1: AlreadyTerminal (input already a value-shape literal) ==")
     (:wat::kernel::println "quote rational renders:")

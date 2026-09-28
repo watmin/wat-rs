@@ -1,7 +1,7 @@
 ;; Co-located fixture for wat_simhash.rs — slurped via startup_beside(file!()).
 ;; Each fn returns a String label rather than println-ing it.
 
-(:wat::core::defn :my::compute-deterministic [] -> :wat::core::String
+(:wat::core::defn :my::compute-deterministic [] -> wat.type/String
   (:wat::core::let
     [a  (:wat::holon::Bind
           (:wat::holon::to-holon "role")
@@ -10,13 +10,13 @@
      k2 (:wat::holon::simhash a)]
     (:wat::core::if (:wat::core::= k1 k2)  "yes" "no")))
 
-(:wat::core::defn :my::compute-atom-stable [] -> :wat::core::String
+(:wat::core::defn :my::compute-atom-stable [] -> wat.type/String
   (:wat::core::let
     [k1 (:wat::holon::simhash (:wat::holon::to-holon 0))
      k2 (:wat::holon::simhash (:wat::holon::to-holon 0))]
     (:wat::core::if (:wat::core::= k1 k2)  "yes" "no")))
 
-(:wat::core::defn :my::compute-same-shape [] -> :wat::core::String
+(:wat::core::defn :my::compute-same-shape [] -> wat.type/String
   (:wat::core::let
     [a  (:wat::holon::Bind
           (:wat::holon::to-holon "role")
@@ -28,7 +28,7 @@
      k2 (:wat::holon::simhash b)]
     (:wat::core::if (:wat::core::= k1 k2)  "same" "diff")))
 
-(:wat::core::defn :my::compute-distinct-atoms [] -> :wat::core::String
+(:wat::core::defn :my::compute-distinct-atoms [] -> wat.type/String
   (:wat::core::let
     [alpha (:wat::holon::to-holon "alpha")
      beta  (:wat::holon::to-holon "beta")
@@ -36,7 +36,7 @@
      k-b   (:wat::holon::simhash beta)]
     (:wat::core::if (:wat::core::= k-a k-b)  "same" "diff")))
 
-(:wat::core::defn :my::compute-arithmetic [] -> :wat::core::String
+(:wat::core::defn :my::compute-arithmetic [] -> wat.type/String
   (:wat::core::let
     ;; a simhash result is a usable :wat::core::i64 in arithmetic. Arc 300 C3 —
     ;; `(+ k k)` on a hash (a large i64) OVERFLOWS, which now honestly errors

@@ -17,7 +17,7 @@
 ;; record, which type-checked and then raised `TypeMismatch`. Renders through
 ;; the same door `str`/`join` use (`render_str_total`), so a record renders by
 ;; NAME (`{:x 1}`), never positionally (`{:field-0 1}`).
-(:wat::core::defrecord :wat-tests::interpolate::Rec [x <- :wat::core::i64])
+(:wat::core::defrecord :wat-tests::interpolate::Rec [x <- wat.type/i64])
 
 (:wat::test::deftest :wat-tests::interpolate::runtime-record-named-fields
 

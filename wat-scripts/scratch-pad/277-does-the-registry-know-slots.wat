@@ -8,18 +8,18 @@
 ;;
 ;; This asks the registry directly. NOT a grep. R9: QVOD NON ROGATVR, NVMERATVR.
 
-(:wat::core::defn :q::has-syntax? [r <- :wat::intrinsic::Row] -> :wat::core::bool
+(:wat::core::defn :q::has-syntax? [r <- :wat::intrinsic::Row] -> wat.type/bool
   (:wat::core::not (:wat::core::= (:wat::intrinsic::Row/syntax r) "")))
 
-(:wat::core::defn :q::show [r <- :wat::intrinsic::Row] -> :wat::core::nil
+(:wat::core::defn :q::show [r <- :wat::intrinsic::Row] -> wat.type/nil
   (:wat::kernel::println (:wat::string::interpolate "{n}   {s}"
     :n (:wat::core::str (:wat::intrinsic::Row/name r))
     :s (:wat::intrinsic::Row/syntax r))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rows (:wat::intrinsic::rows)
-     with (:wat::core::into (:wat::core::Vector :- [:wat::intrinsic::Row])
+     with (:wat::core::into (wat.type/Vector :- [:wat::intrinsic::Row])
             (:wat::core::filter :q::has-syntax? rows))]
     (:wat::core::do
       (:wat::kernel::println (:wat::string::interpolate

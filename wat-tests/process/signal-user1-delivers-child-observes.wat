@@ -26,7 +26,7 @@
     (:wat::core::let
       [child (:wat::test::spawn-peer (:wat::spawn::process)
                (:wat::core::forms
-                 (:wat::core::defn :user::main [] -> :wat::core::nil
+                 (:wat::core::defn :user::main [] -> wat.type/nil
                    (:wat::core::let
                      [n (:wat::core::match (:wat::kernel::readln)
                           [:wat::kernel::ReadlnOutcome.Datum {:v d} d]

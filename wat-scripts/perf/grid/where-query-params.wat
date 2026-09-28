@@ -5,9 +5,9 @@
 ;;   (query s q :?loc "MCI") → [{?n 0, ?loc MCI}] when MCI has wind and no temps.
 ;; Readout is `query`, never query-by-type-string.
 
-(:wat::core::defrecord :wqp::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wqp::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wqp::Hit  [loc <- :wat::core::String])
+(:wat::core::defrecord :wqp::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wqp::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wqp::Hit  [loc <- wat.type/String])
 
 (:wat::rete::defrule :wqp::mark
   :when [(:wqp::Wind (?loc :- :loc) (?w :- :kph)
@@ -28,7 +28,7 @@
   :params []
   :when [(:wqp::Hit (?loc :- :loc))])
 
-(:wat::core::defn :wqp::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wqp::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -36,7 +36,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [rules   (:wat::core::PersistentVector (:wqp::mark))
                     queries (:wat::core::PersistentVector
                               (:wqp::temps-at) (:wqp::all-wind) (:wqp::hits))

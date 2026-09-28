@@ -14,21 +14,21 @@
   :messages
   [(:wat::core::defrecord :probe::Counter::GetRequest       [])
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- :wat::core::i64])
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::counter
   :satisfies :probe::Counter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]
@@ -46,9 +46,9 @@
 ;; kwargs work-fn: item positional, `counter` a dialed `:key` kwarg (grant+Setup ride `each`'s
 ;; own tail). The side effect is the increment; the return value is discarded by `each`.
 (:wat::core::defn :probe::record-hit
-  [item <- :wat::core::String
+  [item <- wat.type/String
    & [counter <- (:wat::kernel::Peer :- [:probe::Counter::Op :probe::Counter::Reply])]]
-  -> :wat::core::i64
+  -> wat.type/i64
   (:wat::core::match
     (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
     [:probe::Counter::IncrementResponse.Ok {:value value} value]
@@ -61,7 +61,7 @@
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
 ;; Returns (each's own return value, the counter's final durable count) so the Rust driver can
 ;; assert BOTH halves of the success gate: `each` returns nil, and every item's side effect fired.
-(:wat::core::defn :probe::run [] -> (:wat::core::Tuple :- [:wat::core::nil :wat::core::i64])
+(:wat::core::defn :probe::run [] -> (wat.type/Tuple :- [wat.type/nil wat.type/i64])
   (:wat::core::let
     [h        (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      each-out (:wat::bracket::each (:wat::spawn::process) ["a" "b" "c" "d" "e"] :probe::record-hit :counter h)

@@ -11,30 +11,30 @@
 ;; SAFE: pure collections + one println count, no rete, no forks.
 ;;   ./target/release/wat wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat
 
-(:wat::core::defn :cx::pos? [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
+(:wat::core::defn :cx::pos? [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
   (:wat::core::if (:wat::core::>= x 0) (:wat::core::Option.Some {:value x}) :wat::core::Option.None))
 
-(:wat::core::defn :cx::build-list [n <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
+(:wat::core::defn :cx::build-list [n <- wat.type/i64] -> (wat.type/List :- [wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::List :- [:wat::core::i64])  i <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
+    (:wat::core::fn [acc <- (wat.type/List :- [wat.type/i64])  i <- wat.type/i64] -> (wat.type/List :- [wat.type/i64])
       (:wat::linkedlist::conj acc i))
     (:wat::core::List)
     (:wat::core::reverse (:wat::core::range 0 n))))
 
-(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :cx::build-pv [n <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  i <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/i64])
       (:wat::vector::conj acc i))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 
 ;; A side-effecting "predicate" — println's, then always keeps. Lets us COUNT invocations by
 ;; counting printed lines (rather than eyeballing timing).
-(:wat::core::defn :cx::counting-keep [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
+(:wat::core::defn :cx::counting-keep [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
   (:wat::core::let [__ (:wat::kernel::println (:wat::i64::to-string x))]
     (:wat::core::Option.Some {:value x})))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [
     n 10
     v  (:wat::core::range 0 n)
@@ -42,25 +42,25 @@
     pv (:cx::build-pv n)
 
     ;; (a) cross-container agreement for several delegating verbs.
-    keep-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::keep :cx::pos? v))
-    keep-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::keep :cx::pos? l))
-    keep-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::keep :cx::pos? pv))
+    keep-v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::keep :cx::pos? v))
+    keep-l  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::keep :cx::pos? l))
+    keep-pv (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::keep :cx::pos? pv))
 
-    dedupe-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::dedupe v))
-    dedupe-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::dedupe l))
-    dedupe-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::dedupe pv))
+    dedupe-v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::dedupe v))
+    dedupe-l  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::dedupe l))
+    dedupe-pv (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::dedupe pv))
 
-    distinct-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::distinct v))
-    distinct-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::distinct l))
-    distinct-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::distinct pv))
+    distinct-v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::distinct v))
+    distinct-l  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::distinct l))
+    distinct-pv (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::distinct pv))
 
-    map-idx-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) v))
-    map-idx-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) l))
-    map-idx-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) pv))
+    map-idx-v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::map-indexed (:wat::core::fn [i <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ i x)) v))
+    map-idx-l  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::map-indexed (:wat::core::fn [i <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ i x)) l))
+    map-idx-pv (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::map-indexed (:wat::core::fn [i <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ i x)) pv))
 
-    take-nth-v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::take-nth 3 v))
-    take-nth-l  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::take-nth 3 l))
-    take-nth-pv (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::take-nth 3 pv))
+    take-nth-v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::take-nth 3 v))
+    take-nth-l  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::take-nth 3 l))
+    take-nth-pv (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::take-nth 3 pv))
 
     ;; cond over negated pairwise tests — short-circuits to false at the first disagreement,
     ;; terminal :else is the last pairwise test (cleaner than a nested-if pyramid).

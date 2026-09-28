@@ -3,7 +3,7 @@
 ;; defn with metadata; metadata-of on the binding name returns Some(map).
 (:wat::core::defn :my::f
   {:doc "doubles x"}
-  [x <- :wat::core::i64] -> :wat::core::i64
+  [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ x x))
-(:wat::core::defn :user::compute [] -> (:wat::core::Option :- [:wat::core::i64])
+(:wat::core::defn :user::compute [] -> (:wat::core::Option :- [wat.type/i64])
   (:wat::runtime::metadata-of :my::f))

@@ -2,7 +2,7 @@
 ;; :ensure :fn must be 1-arity; 2-arity must reject at type-check. startup MUST fail.
 
 (:wat::core::defclause :my::bad
-  ([x <- :wat::core::i64] -> :wat::core::i64
-    :ensure (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
+  ([x <- wat.type/i64] -> wat.type/i64
+    :ensure (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
               (:wat::i64::> a b))
     x))

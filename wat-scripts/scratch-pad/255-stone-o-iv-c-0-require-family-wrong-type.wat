@@ -8,7 +8,7 @@
 ;; byte-for-byte. NOTHING MOVED: this is a read-only probe. Scratch, per
 ;; holon/CLAUDE.md's .wat scratch convention.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── require_hologram: (:wat::holon::Hologram/len 5) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Hologram/len 5)))

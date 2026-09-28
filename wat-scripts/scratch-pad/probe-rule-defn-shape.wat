@@ -3,15 +3,15 @@
 ;; nested let-body, so the codemod's index assumptions (defn shape, let-bindings shape) are
 ;; grounded against the real AST rather than guessed from reading source text.
 
-(:wat::core::defn :user::kinds [ch <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::String
+(:wat::core::defn :user::kinds [ch <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String c <- :wat::WatAST] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String c <- wat.type/AST] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::core::ast-kind c))))
     ""
     ch))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [src   (:wat::io::read-file "wat-scripts/perf/grid/where-shapes.wat")
      tree  (:wat::core::match (:wat::core::read-string src)
@@ -26,7 +26,7 @@
      rule  (:wat::core::first
              (:wat::core::into []
                (:wat::core::filter
-                 (:wat::core::fn [f <- :wat::WatAST] -> :wat::core::bool
+                 (:wat::core::fn [f <- wat.type/AST] -> wat.type/bool
                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind f) "list")
                      (:wat::core::let [ch (:wat::core::ast->children f)]
                        (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)

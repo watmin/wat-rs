@@ -1,8 +1,8 @@
 ;; scout-cap-roundtrip: faithful inner-form preservation across write-forms/read-string.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [form      (:wat::core::quote
-                  (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool
+                  (:wat::core::fn [n <- wat.type/i64] -> wat.type/bool
                     (:wat::core::> n 3)))
      edn       (:wat::core::write-forms form)
      back      (:wat::core::match (:wat::core::read-string edn) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])

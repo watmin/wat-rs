@@ -1,10 +1,10 @@
 (:wat::core::defmacro :my::probe
-  [body <- :wat::WatAST]
-  -> :wat::WatAST
+  [body <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::core::do
      (:wat::core::defstruct :my::probe::Point
-       [x <- :wat::core::i64
-        y <- :wat::core::i64])
+       [x <- wat.type/i64
+        y <- wat.type/i64])
      ~body))
 
 (:my::probe

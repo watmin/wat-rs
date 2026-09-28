@@ -2,9 +2,9 @@
 ;; CONTROL — the same edge with the marker an empty defstruct: checks, runs, prints (both binaries).
 (:wat::core::defstruct :probe::Wi [])
 (:wat::core::defsurface :probe::Greets :- [T] :nature :wat::core::Struct
-  :features [(greet [self <- (:probe::Greets :- [T])] -> :wat::core::String)])
+  :features [(greet [self <- (:probe::Greets :- [T])] -> wat.type/String)])
 (:wat::core::defstruct :probe::Box [])
 (:wat::core::extend-type :probe::Box (:probe::Greets :- [:probe::Wi])
-  (greet [self] -> :wat::core::String "hello"))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+  (greet [self] -> wat.type/String "hello"))
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:probe::Greets/greet (:probe::Box))))

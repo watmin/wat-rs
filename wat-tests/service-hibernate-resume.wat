@@ -21,17 +21,17 @@
 ;; service ships them across a process fork.
 (:wat::core::defsurface :wat-tests::HibCounter :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::HibCounter::IncrementRequest  [n <- :wat::core::i64])
+  [(:wat::core::defrecord :wat-tests::HibCounter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :wat-tests::HibCounter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(increment [self <- :wat-tests::HibCounter  req <- :wat-tests::HibCounter::IncrementRequest] -> :wat-tests::HibCounter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :wat-tests::hib-counter
   :satisfies :wat-tests::HibCounter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(increment [s ctx req]
@@ -42,7 +42,7 @@
          {:state (:wat-tests::hib-counter::State :durable (:wat-tests::hib-counter::Record :count c))
          :reply (:wat-tests::HibCounter::IncrementResponse.Ok {:value c})})))  ]
   ;; :stop projects State → i64 (the count) via State/durable
-  :stop (:wat::core::fn [s <- :wat-tests::hib-counter::State] -> :wat::core::i64
+  :stop (:wat::core::fn [s <- :wat-tests::hib-counter::State] -> wat.type/i64
           (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────

@@ -69,7 +69,7 @@
 ;; print looked like evidence and was vacuous, which is the same failure this file's header
 ;; warns about one level up. Inline calls cannot do that: the booleans below are produced by
 ;; the row, at run time, or they are not there at all.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::core::PersistentMap
       :hit

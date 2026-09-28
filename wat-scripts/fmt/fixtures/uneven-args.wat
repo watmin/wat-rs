@@ -1,2 +1,2 @@
-(:wat::core::defn :fix::uneven [self <- :wat::core::i64 work-fn <- :wat::core::String c <- :wat::core::f64] -> :wat::core::i64
+(:wat::core::defn :fix::uneven [self <- wat.type/i64 work-fn <- wat.type/String c <- wat.type/f64] -> wat.type/i64
   self)

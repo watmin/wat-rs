@@ -3,15 +3,15 @@
 ;; colon-angle-bracket keyword strings from them (matching the established idiom
 ;; the existing arity-6 AST-walk uses).
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
-  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                                :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 (:wat::core::defn :probe::work
-  [item <- :wat::core::String
+  [item <- wat.type/String
    & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::match
     (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
   [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
@@ -20,7 +20,7 @@
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [types    (:wat::runtime::field-types-of :probe::work::Kwargs)
      ty0      (:wat::core::first types)

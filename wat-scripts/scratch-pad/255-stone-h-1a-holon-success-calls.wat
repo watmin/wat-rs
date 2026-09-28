@@ -8,7 +8,7 @@
 ;; the sibling wrong-arity script instead, not here. Scratch, per
 ;; holon/CLAUDE.md's .wat scratch convention.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::let
       [s (:wat::holon::OnlineSubspace/new 10000 8)
@@ -57,7 +57,7 @@
 
     (:wat::core::let
       [labels
-        (:wat::core::Vector :- [:wat::holon::HolonAST]
+        (wat.type/Vector :- [:wat::holon::HolonAST]
           (:wat::holon::to-holon "up")
           (:wat::holon::to-holon "down"))
        r (:wat::holon::Reckoner/new-discrete "test-rec" 10000 1 labels)

@@ -14,11 +14,11 @@
 
 (:wat::core::defsurface :probe::Op1 :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Op1::DoOpRequest [payload <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Op1::DoOpRequest [payload <- wat.type/String])
    (:wat::core::defenum :probe::Op1::DoOpResponse :wat::enum::Pure
-     :Ok              [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [n <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(do-op [self <- :probe::Op1  req <- :probe::Op1::DoOpRequest] -> :probe::Op1::DoOpResponse :max-request-bytes 524288)])
 
@@ -39,9 +39,9 @@
          (:wat::service::Outcome.Reply {:state s :reply (:probe::Op1::DoOpResponse.Ok {:n n})}))))])
 
 ;; Build an ASCII string of n*32 bytes (byte-length == char-length for ASCII).
-(:wat::core::defn :probe::pl [n <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :probe::pl [n <- wat.type/i64] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  _i <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
@@ -49,7 +49,7 @@
 ;; (1) an over-cap request returns the MATCHABLE `RequestTooLarge{bytes, cap}` variant — a value
 ;;     the client `match`es, not a raise. Returns `bytes` (a positive i64 > cap) on RequestTooLarge,
 ;;     else -1 (the Ok arm) so the harness can distinguish.
-(:wat::core::defn :user::over-op-returns-matchable [] -> :wat::core::i64
+(:wat::core::defn :user::over-op-returns-matchable [] -> wat.type/i64
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap
      h   (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
@@ -73,7 +73,7 @@
 ;; (2) the SAME connection recovers IN PLACE: an over-cap request (→ RequestTooLarge, connection
 ;;     KEPT — the request arrived, so it is a normal reply, no eviction) then an in-budget request
 ;;     on the SAME peer `c` (→ Ok). Returns the Ok `n` (> 0) if the connection survived, else -1.
-(:wat::core::defn :user::same-conn-recovers [] -> :wat::core::i64
+(:wat::core::defn :user::same-conn-recovers [] -> wat.type/i64
   (:wat::core::let
     [big   (:probe::pl 20)     ;; > cap
      h     (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))

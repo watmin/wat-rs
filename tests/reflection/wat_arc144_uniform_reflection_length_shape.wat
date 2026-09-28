@@ -1,7 +1,7 @@
 ;; tests/reflection/wat_arc144_uniform_reflection_length_shape.wat
 ;; Co-located fixture for test dispatch_length_signature_and_body_shape.
 ;; Probe: signature-of-defn :wat::core::length returns Some; body-of returns None.
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+(:wat::core::defn :user::compute [] -> wat.type/bool
   (:wat::core::let
               [sig-opt
                 (:wat::runtime::signature-of-defn :wat::core::length)

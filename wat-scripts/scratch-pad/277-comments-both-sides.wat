@@ -14,16 +14,16 @@
 (:wat::load-file! "../fmt/rules/defrecord.wat")
 
 (:wat::core::defn :user::count-comments
-  [tag <- :wat::core::String
-   s   <- :wat::core::String]
-  -> :wat::core::i64
+  [tag <- wat.type/String
+   s   <- wat.type/String]
+  -> wat.type/i64
   (:wat::core::match (:wat::core::read-string-with-comments s)
     [:wat::core::ReadWithCommentsOutcome.Forms {:forms forms :comments comments}
       (:wat::core::length comments)]
     [:wat::core::ReadWithCommentsOutcome.Malformed {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::string::concat tag (:wat::core::Error/message cause)))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv  (:wat::runtime::argv)
      path  (:wat::core::Option/expect (:wat::core::get argv 2)

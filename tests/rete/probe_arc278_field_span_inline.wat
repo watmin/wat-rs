@@ -5,12 +5,12 @@
 ;; It used to hand the producer `clause.span()` — the WHOLE comparison — under a doc promising
 ;; *"the span of the FIELD rather than the clause"*. The caret must land on `:nofield` alone.
 
-(:wat::core::defrecord :fsi::Src [k <- :wat::core::i64])
-(:wat::core::defrecord :fsi::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :fsi::Src [k <- wat.type/i64])
+(:wat::core::defrecord :fsi::Hit [k <- wat.type/i64])
 
 (:wat::rete::defrule :fsi::r
   :when [(:fsi::Src (?k :- :k) (:wat::rete::i64::= :nofield 5))]
   :then [(:fsi::Hit :k ?k)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "the wall refuses before main runs"))

@@ -3,11 +3,11 @@
 ;; (wat-scripts/fuzz/rete-differential.wat) on its first widened run, both in the
 ;; ACCUMULATE family, both silent.
 
-(:wat::core::defrecord :user::W  [k <- :wat::core::i64])
-(:wat::core::defrecord :user::P1 [k <- :wat::core::i64])
-(:wat::core::defrecord :user::S1 [k <- :wat::core::i64])
-(:wat::core::defrecord :user::S2 [k <- :wat::core::i64])
-(:wat::core::defrecord :user::S3 [k <- :wat::core::i64])
+(:wat::core::defrecord :user::W  [k <- wat.type/i64])
+(:wat::core::defrecord :user::P1 [k <- wat.type/i64])
+(:wat::core::defrecord :user::S1 [k <- wat.type/i64])
+(:wat::core::defrecord :user::S2 [k <- wat.type/i64])
+(:wat::core::defrecord :user::S3 [k <- wat.type/i64])
 
 ;; ── B — a SECOND `where` after an accumulate matches NOTHING ────────────────
 ;; qB1 (one where) agrees at 1. qB2 differs ONLY by a trailing, trivially-true
@@ -46,8 +46,8 @@
   :when [(?fact :- :user::S2)])
 
 (:wat::core::defn :user::two
-  [q <- :wat::rete::Query  rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
-  -> (:wat::core::Vector :- [:wat::core::i64])
+  [q <- :wat::rete::Query  rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])]
+  -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1 (:wat::core::match (:wat::rete::insert-all s0 (:wat::core::PersistentVector (:user::W 7) (:user::W 7))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     s2 (:wat::core::match (:wat::rete::insert-all s1 (:wat::core::PersistentVector (:user::P1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
@@ -55,15 +55,15 @@
                     nf (:wat::core::match (:wat::rete::fire-rules st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     of (:wat::core::match (:wat::rete::fire-rules$oracle st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::mapv
-      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+      (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
       (:wat::core::PersistentVector
         (:wat::core::length (:wat::rete::query nf q))
         (:wat::core::length (:wat::rete::query of q))))))
 
-(:wat::core::defn :user::norules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::norules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector))
 
-(:wat::core::defn :user::one-rule [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::one-rule [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r1"
       :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:user::S1 (?k :- :k))))
@@ -71,7 +71,7 @@
 
 ;; [B1-native B1-oracle  B2-native B2-oracle  A2-native A2-oracle  A3-native A3-oracle]
 ;; A2 = 1-rule chain (2 rounds), A3 = 2-rule chain (3 rounds).
-(:wat::core::defn :user::rows [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :user::rows [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::into
     (:wat::core::into
       (:wat::core::into (:user::two (:user::qB1) (:user::norules))
@@ -82,7 +82,7 @@
 ;; [C-noChain-native C-noChain-oracle | C-chain-native C-chain-oracle | S2-native S2-oracle]
 ;; With no chain S2 is absent and both must pass (1,1). With the chain S2 exists
 ;; and both must block (0,0). The last pair proves S2 really is derived in BOTH.
-(:wat::core::defn :user::rows-c [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :user::rows-c [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let [both (:wat::core::PersistentVector (:user::qC) (:user::qS2))
                     s0 (:wat::core::match (:wat::rete::compile-all (:user::one-rule) both) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     st (:wat::core::match (:wat::rete::insert-all s0 (:wat::core::PersistentVector (:user::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
@@ -93,7 +93,7 @@
                     nf0 (:wat::core::match (:wat::rete::fire-rules t0) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     of0 (:wat::core::match (:wat::rete::fire-rules$oracle t0) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::mapv
-      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+      (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
       (:wat::core::PersistentVector
         (:wat::core::length (:wat::rete::query nf0 (:user::qC)))
         (:wat::core::length (:wat::rete::query of0 (:user::qC)))

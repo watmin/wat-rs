@@ -7,10 +7,10 @@
 
 ;; a concrete log payload — a user record the producer `edn::write`s into the opaque message String.
 (:wat::core::defrecord :user::PriceEvent
-  [asset <- :wat::core::keyword
-   price <- :wat::core::i64])
+  [asset <- wat.type/keyword
+   price <- wat.type/i64])
 
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [sh      (:wat::query::mem-store/start :locus (:wat::spawn::thread)
                :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -18,12 +18,12 @@
      jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
                :record (:wat::telemetry::journal::Record) :store-addr saddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags    (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      msg     (:wat::edn::write (:user::PriceEvent :asset :BTC :price 100000))
      l       (:wat::telemetry::Log
                :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :time-ns 456
                :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info :message msg)
-     batch   (:wat::core::Vector :- [:wat::telemetry::Log] l)
+     batch   (wat.type/Vector :- [:wat::telemetry::Log] l)
      _wr     (:wat::telemetry::Journal/write-logs journal
                (:wat::telemetry::Journal::WriteLogsRequest batch))
      client  (:wat::core::match (:wat::kernel::connect saddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

@@ -17,11 +17,11 @@
 ;; budgeted receiver rejects the over-budget frame (RecvError::FrameTooLarge) → the outcome is ::Lost
 ;; carrying the frame-cap reason. We MATCH and RETURN the Lost cause's `Failure/message` as a VALUE the
 ;; .rs asserts (it must NAME the cap reason, not collapse to the reasonless peer-closed mute).
-(:wat::core::defn :user::over-budget-recv [] -> :wat::core::String
+(:wat::core::defn :user::over-budget-recv [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process::max-message-bytes 256)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println
                "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))))]
     (:wat::core::match (:wat::kernel::recv p)

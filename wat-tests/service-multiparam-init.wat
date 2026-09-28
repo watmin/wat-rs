@@ -18,18 +18,18 @@
   :messages
   [(:wat::core::defrecord :wat-tests::OffsetCounter::TotalRequest  [])
    (:wat::core::defenum :wat-tests::OffsetCounter::TotalResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(total [self <- :wat-tests::OffsetCounter  req <- :wat-tests::OffsetCounter::TotalRequest] -> :wat-tests::OffsetCounter::TotalResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :wat-tests::offset-counter
   :satisfies :wat-tests::OffsetCounter
-  :durable   [count <- :wat::core::i64]
-  :ephemeral [base <- :wat::core::i64]
+  :durable   [count <- wat.type/i64]
+  :ephemeral [base <- wat.type/i64]
   :init (:wat::core::fn [record <- :wat-tests::offset-counter::Record
-                         offset <- :wat::core::i64]
+                         offset <- wat.type/i64]
           -> :wat-tests::offset-counter::State
           (:wat-tests::offset-counter::State :durable record :base offset))
   :impls

@@ -7,10 +7,10 @@
 ;; faithful-Clojure form made `quasiquote_inner` / the binder scan miss the
 ;; template entirely, and the SAME capturing macro loaded CLEAN.
 (:wat::core::defmacro :my::capturing
-  [x <- :wat::WatAST]
-  -> :wat::WatAST
+  [x <- wat.type/AST]
+  -> wat.type/AST
   (:wat::core::if (:wat::core::= 1 1)
     (wat.core/quasiquote (wat.core/let [tmp (wat.core/unquote x)] tmp))
     `~x))
-(:wat::core::defn :user::probe [n <- :wat::core::i64]
-  -> :wat::core::i64 (:my::capturing n))
+(:wat::core::defn :user::probe [n <- wat.type/i64]
+  -> wat.type/i64 (:my::capturing n))

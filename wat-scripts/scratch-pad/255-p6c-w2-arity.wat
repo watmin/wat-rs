@@ -5,7 +5,7 @@
 ;; type-checker's own arity gate, which would reject a wrong-arity literal call
 ;; before it ever reached the handler). One wrong-arity call per verb.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::stream::empty 1)))
       [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "stream::empty UNEXPECTED ok: " (:wat::edn::write v)))]

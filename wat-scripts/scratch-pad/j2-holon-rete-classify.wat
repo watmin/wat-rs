@@ -4,15 +4,15 @@
 ;; wat [bool :-> bool], cosine `where` > 0.9. Oracle names the mystery;
 ;; native must too.
 
-(:wat::core::defrecord :j2::Catalog     [name <- :wat::core::String  obs <- :wat::holon::HolonAST])
+(:wat::core::defrecord :j2::Catalog     [name <- wat.type/String  obs <- :wat::holon::HolonAST])
 (:wat::core::defrecord :j2::Observation [obs  <- :wat::holon::HolonAST])
-(:wat::core::defrecord :j2::Guess       [name <- :wat::core::String])
+(:wat::core::defrecord :j2::Guess       [name <- wat.type/String])
 
 (:wat::core::defn :j2::table-of
   [f <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
   -> :wat::holon::HolonAST
   (:wat::holon::to-holon
-    (:wat::core::Vector :- [:wat::core::bool] (f true) (f false))))
+    (wat.type/Vector :- [wat.type/bool] (f true) (f false))))
 
 (:wat::rete::defrule :j2::classify
   :when
@@ -29,17 +29,17 @@
   :params []
   :when [(:j2::Guess (?name :- :name))])
 
-(:wat::core::defn :j2::catalog [] -> (:wat::core::PersistentVector :- [:j2::Catalog])
+(:wat::core::defn :j2::catalog [] -> (wat.type/PersistentVector :- [:j2::Catalog])
   (:wat::core::PersistentVector
-    (:j2::Catalog :name "identity"    :obs (:j2::table-of (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool b)))
-    (:j2::Catalog :name "not"         :obs (:j2::table-of (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool (:wat::core::if b false true))))
-    (:j2::Catalog :name "const-true"  :obs (:j2::table-of (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool true)))
-    (:j2::Catalog :name "const-false" :obs (:j2::table-of (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool false)))))
+    (:j2::Catalog :name "identity"    :obs (:j2::table-of (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b)))
+    (:j2::Catalog :name "not"         :obs (:j2::table-of (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true))))
+    (:j2::Catalog :name "const-true"  :obs (:j2::table-of (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true)))
+    (:j2::Catalog :name "const-false" :obs (:j2::table-of (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool false)))))
 
 (:wat::core::defn :j2::run
   [fire    <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    mystery <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::let
     [s0    (:wat::core::match (:wat::rete::compile-all
              (:wat::core::PersistentVector (:j2::classify))
@@ -55,10 +55,10 @@
         "q-Guess: ?name")
       (:wat::string::concat "count=" (:wat::i64::to-string n)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
-    (:wat::kernel::println (:wat::core::PersistentMap :identity (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool b))))
-    (:wat::kernel::println (:wat::core::PersistentMap :not (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool (:wat::core::if b false true)))))
-    (:wat::kernel::println (:wat::core::PersistentMap :const-true (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool true))))
-    (:wat::kernel::println (:wat::core::PersistentMap :const-false (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool false))))
-    (:wat::kernel::println (:wat::core::PersistentMap :native-id (:j2::run :wat::rete::fire-rules (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool b))))))
+    (:wat::kernel::println (:wat::core::PersistentMap :identity (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))))
+    (:wat::kernel::println (:wat::core::PersistentMap :not (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true)))))
+    (:wat::kernel::println (:wat::core::PersistentMap :const-true (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true))))
+    (:wat::kernel::println (:wat::core::PersistentMap :const-false (:j2::run :wat::rete::fire-rules$oracle (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool false))))
+    (:wat::kernel::println (:wat::core::PersistentMap :native-id (:j2::run :wat::rete::fire-rules (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))))))

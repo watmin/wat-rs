@@ -18,19 +18,19 @@
 ;;   echo '[3]' | cargo wat ./wat-scripts/perf/grid/retract-multiplicity.wat
 ;;   => #grid/Result {:axis "retract-multiplicity" :size [3] :derived [0 1 2] :native-ns N ...}
 
-(:wat::core::defrecord :rm::F   [k <- :wat::core::i64])
-(:wat::core::defrecord :rm::G   [k <- :wat::core::i64])
-(:wat::core::defrecord :rm::Out [k <- :wat::core::i64])
+(:wat::core::defrecord :rm::F   [k <- wat.type/i64])
+(:wat::core::defrecord :rm::G   [k <- wat.type/i64])
+(:wat::core::defrecord :rm::Out [k <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defquery :rm::q-Out
   :params []
@@ -39,7 +39,7 @@
 
 ;; build-rules — the single join: Out(k) :- F(k) AND G(k). Two equal F(k) × one G(k) fire
 ;; two activations, so Out carries multiplicity if the query does not collapse it.
-(:wat::core::defn :rm::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :rm::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "out"
       :lhs (:wat::core::PersistentVector
@@ -50,13 +50,13 @@
 
 ;; seed session items — F(i)+G(i) once each for i in [0, items), then ONE extra F(0).
 ;; Duplicate ONLY the retracted key so the justified derived-multiplicity split cannot dominate.
-(:wat::core::defn :rm::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :rm::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::vector::conj
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                        -> (:wat::core::PersistentVector :- [:wat::core::Record])
+        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                        -> (wat.type/PersistentVector :- [wat.type/Record])
           (:wat::vector::conj
             (:wat::vector::conj acc (:rm::F i))
             (:rm::G i)))
@@ -68,22 +68,22 @@
   (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]).
-(:wat::core::defn :rm::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :rm::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Out fact's key, SORTED, NOT DEDUPED. Two Out(1) stay
 ;; two 1s. A missing/extra/collapsed key shows up in the byte-for-byte compare.
-(:wat::core::defn :rm::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :rm::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+  (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:rm::Out/k f)))
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:rm::Out/k f)))
                               (:wat::rete::query fired (:rm::q-Out))))]
     (:rm::vec->pvec (:wat::core::sort codes))))
 
-(:wat::core::defn :rm::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :rm::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
                     rules   (:rm::build-rules)

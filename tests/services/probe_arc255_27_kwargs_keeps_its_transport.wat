@@ -5,11 +5,11 @@
 ;; Driven by `probe_arc255_27_kwargs_keeps_its_transport.rs`.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo
@@ -19,9 +19,9 @@
               :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 
 (:wat::core::defn :probe::work
-  [item <- :wat::core::String
+  [item <- wat.type/String
    & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
-  -> :wat::core::String
+  -> wat.type/String
   item)
 
 (:wat::core::defn :probe::kwargs-thread-handle-claimed-shared []

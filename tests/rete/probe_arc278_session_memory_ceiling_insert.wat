@@ -14,7 +14,7 @@
 ;; call rather than an allocator abort.
 (:wat::config::rete::set-max-session-bytes! 4096)
 
-(:wat::core::defrecord :ins::Edge [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :ins::Edge [a <- wat.type/i64  b <- wat.type/i64])
 
 (:wat::rete::defrule :ins::noop
   :when [(:ins::Edge (?a :- :a))]
@@ -24,7 +24,7 @@
   (:wat::rete::InsertOutcome.Inserted {:session s}))
 
 (:wat::core::defn :ins::seed
-  [s <- :wat::rete::Session  n <- :wat::core::i64]
+  [s <- :wat::rete::Session  n <- wat.type/i64]
   -> :wat::rete::InsertOutcome
   ;; ⛔ THE FOLD CARRIES THE OUTCOME, NOT A SESSION — hand-faced, NOT codemod'd. The corpus codemod
   ;; unwraps each `insert` into a Session and dies loudly on a ceiling, which is right for a fixture
@@ -36,7 +36,7 @@
   ;; variant: main's checker would otherwise type the map-ctor as `InsertOutcome.Inserted` and
   ;; refuse the fn (`InsertOutcome` → `InsertOutcome`).
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::InsertOutcome  i <- :wat::core::i64] -> :wat::rete::InsertOutcome
+    (:wat::core::fn [acc <- :wat::rete::InsertOutcome  i <- wat.type/i64] -> :wat::rete::InsertOutcome
       (:wat::core::match acc
         ;; still staging — try the next fact
         [:wat::rete::InsertOutcome.Inserted {:session session}
@@ -49,7 +49,7 @@
     (:ins::inserted s)
     (:wat::core::range 0 n)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :ins)
      s     (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]

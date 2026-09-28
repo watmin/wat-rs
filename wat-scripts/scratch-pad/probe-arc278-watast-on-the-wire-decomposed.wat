@@ -98,23 +98,23 @@
 
 (:wat::core::defsurface :probe::WireKind :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::WireKind::EchoRequest [n <- :wat::core::i64])
+  [(:wat::core::defrecord :probe::WireKind::EchoRequest [n <- wat.type/i64])
    (:wat::core::defenum :probe::WireKind::EchoResponse :wat::enum::Pure
-     :Ok               [n <- :wat::core::i64]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :probe::WireKind::CountRequest [defs <- (:wat::core::Vector :- [:wat::WatAST])])
+     :Ok               [n <- wat.type/i64]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (:wat::core::defrecord :probe::WireKind::CountRequest [defs <- (wat.type/Vector :- [wat.type/AST])])
    (:wat::core::defenum :probe::WireKind::CountResponse :wat::enum::Pure
-     :Ok               [n <- :wat::core::i64]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [n <- wat.type/i64]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo  [self <- :probe::WireKind  req <- :probe::WireKind::EchoRequest]  -> :probe::WireKind::EchoResponse  :max-request-bytes 524288)
    (count [self <- :probe::WireKind  req <- :probe::WireKind::CountRequest] -> :probe::WireKind::CountResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::wirekindsvc
   :satisfies :probe::WireKind
-  :durable   [calls <- :wat::core::i64]
+  :durable   [calls <- wat.type/i64]
   :ephemeral []
   :init (:wat::core::fn [record <- :probe::wirekindsvc::Record] -> :probe::wirekindsvc::State
           (:probe::wirekindsvc::State :durable record))
@@ -135,13 +135,13 @@
     [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 ;; three quoted declarations — a payload with a known length of 3
-(:wat::core::defn :probe::three-forms [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :- [:wat::WatAST]
-    (:wat::core::quote (:wat::core::defrecord :usr::A [c <- :wat::core::i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::B [c <- :wat::core::i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::C [c <- :wat::core::i64]))))
+(:wat::core::defn :probe::three-forms [] -> (wat.type/Vector :- [wat.type/AST])
+  (wat.type/Vector :- [wat.type/AST]
+    (:wat::core::quote (:wat::core::defrecord :usr::A [c <- wat.type/i64]))
+    (:wat::core::quote (:wat::core::defrecord :usr::B [c <- wat.type/i64]))
+    (:wat::core::quote (:wat::core::defrecord :usr::C [c <- wat.type/i64]))))
 
-(:wat::core::defn :probe::run-echo [] -> :wat::core::nil
+(:wat::core::defn :probe::run-echo [] -> wat.type/nil
   (:wat::core::let
     [h (:probe::wirekindsvc/start :locus (:wat::spawn::process) :record (:probe::wirekindsvc::Record :calls 0))
      c (:probe::connect! h)]
@@ -157,7 +157,7 @@
       [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "CONTROL echo(i64)        => STOPPED")]
       [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "CONTROL echo(i64)        => CLOSED")])))
 
-(:wat::core::defn :probe::run-count [] -> :wat::core::nil
+(:wat::core::defn :probe::run-count [] -> wat.type/nil
   (:wat::core::let
     [h (:probe::wirekindsvc/start :locus (:wat::spawn::process) :record (:probe::wirekindsvc::Record :calls 0))
      c (:probe::connect! h)]
@@ -177,7 +177,7 @@
 ;; A thread peer hands values across in-process; a process peer EDN-encodes them through a pipe.
 ;; thread Ok + process LOST => the defect is in WatAST's EDN encode/decode, not in the value.
 ;; both LOST                => it is not the encoding; look at the serve loop / decode path.
-(:wat::core::defn :probe::run-count-thread [] -> :wat::core::nil
+(:wat::core::defn :probe::run-count-thread [] -> wat.type/nil
   (:wat::core::let
     [h (:probe::wirekindsvc/start :locus (:wat::spawn::thread) :record (:probe::wirekindsvc::Record :calls 0))
      c (:probe::connect! h)]
@@ -196,12 +196,12 @@
       [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "ISOLATOR count THREAD      => STOPPED")]
       [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "ISOLATOR count THREAD      => CLOSED")])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "--- what a Vector<WatAST> LOOKS like to println ---")
     (:wat::kernel::println (:probe::three-forms))
     (:wat::kernel::println "--- and one bare WatAST ---")
-    (:wat::kernel::println (:wat::core::quote (:wat::core::defrecord :usr::A [c <- :wat::core::i64])))
+    (:wat::kernel::println (:wat::core::quote (:wat::core::defrecord :usr::A [c <- wat.type/i64])))
     (:probe::run-echo)
     (:probe::run-count)
     (:probe::run-count-thread)

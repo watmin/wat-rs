@@ -5,14 +5,14 @@
 ;; The child now MATCHES the variant it constructed and `println`s the mapped i64, so the
 ;; assertion proves the enum was registered AND its variants construct AND match — stronger
 ;; than exit-0. Both variants are named (full-enum matching is mandatory; no wildcard arm).
-(:wat::core::defn :my::launch [] -> :wat::core::i64
+(:wat::core::defn :my::launch [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defenum :h::LocalDir :wat::enum::Pure
              :North
              :South)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [d    :h::LocalDir.North
                 n    (:wat::core::match d

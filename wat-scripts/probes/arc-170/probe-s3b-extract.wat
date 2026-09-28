@@ -1,10 +1,10 @@
 ;; probe-s3b-extract.wat — verify extraction of the concrete arg/return type keywords
 ;; off the fn-forms output, and building the tuple-type keyword strings.
-(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
+(:wat::core::defn :my::double [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::* n 2))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [work-fn  (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:my::double n))
+    [work-fn  (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 (:my::double n))
      forms    (:wat::kernel::fn-forms work-fn :bracket::__pool-work)
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
      def-ch   (:wat::core::ast->children def-node)

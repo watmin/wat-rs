@@ -55,7 +55,7 @@
 ;; This arm still earns its place for the KEYING half, which is what its `#[test]` doc claims.
 (:wat::config::rete::set-max-session-bytes! 4000000)
 
-(:wat::core::defrecord :sc::Edge [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :sc::Edge [a <- wat.type/i64  b <- wat.type/i64])
 (:wat::rete::defrule :sc::noop :when [(:sc::Edge (?a :- :a))] :then [])
 
 (:wat::core::defn :sc::compile [] -> :wat::rete::Session
@@ -79,9 +79,9 @@
   (:wat::rete::InsertOutcome.Inserted {:session s}))
 
 ;; Stage `n` facts, SHORT-CIRCUITING on a ceiling so the first breach is carried back intact.
-(:wat::core::defn :sc::stage [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::InsertOutcome
+(:wat::core::defn :sc::stage [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::InsertOutcome
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::InsertOutcome  i <- :wat::core::i64] -> :wat::rete::InsertOutcome
+    (:wat::core::fn [acc <- :wat::rete::InsertOutcome  i <- wat.type/i64] -> :wat::rete::InsertOutcome
       (:wat::core::match acc
         [:wat::rete::InsertOutcome.Inserted {:session session}
           (:wat::rete::insert session (:sc::Edge :a i :b (:wat::i64::+ i 1)))]
@@ -89,24 +89,24 @@
     (:sc::inserted s)
     (:wat::core::range 0 n)))
 
-(:wat::core::defn :sc::stage-more [o <- :wat::rete::InsertOutcome  n <- :wat::core::i64] -> :wat::rete::InsertOutcome
+(:wat::core::defn :sc::stage-more [o <- :wat::rete::InsertOutcome  n <- wat.type/i64] -> :wat::rete::InsertOutcome
   (:wat::core::match o
     [:wat::rete::InsertOutcome.Inserted {:session s} (:sc::stage s n)]
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st} o]))
 
-(:wat::core::defn :sc::rearm-more [o <- :wat::rete::InsertOutcome  n <- :wat::core::i64] -> :wat::rete::InsertOutcome
+(:wat::core::defn :sc::rearm-more [o <- :wat::rete::InsertOutcome  n <- wat.type/i64] -> :wat::rete::InsertOutcome
   (:wat::core::match o
     [:wat::rete::InsertOutcome.Inserted {:session s} (:sc::stage (:sc::rearm s) n)]
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st} o]))
 
-(:wat::core::defn :sc::report [o <- :wat::rete::InsertOutcome  tag <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :sc::report [o <- :wat::rete::InsertOutcome  tag <- wat.type/String] -> wat.type/nil
   (:wat::core::match o
     [:wat::rete::InsertOutcome.Inserted {:session staged}
       (:wat::core::do (:wat::kernel::println tag) (:wat::kernel::println "NO-BREACH"))]
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit limit :used used :staged staged}
       (:wat::core::do (:wat::kernel::println tag) (:wat::kernel::println "REFUSED"))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; CONTROL — one session, two staging rounds, nothing in between.
     (:sc::report (:sc::stage-more (:sc::stage (:sc::compile) 8000) 8000) "control")

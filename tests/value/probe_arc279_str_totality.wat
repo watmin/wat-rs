@@ -17,44 +17,44 @@
 ;; ── CONTROLS (green at HEAD) ────────────────────────────────────────────────
 
 ;; A top-level String renders BARE through `str` — this is what makes `str` `str`.
-(:wat::core::defn :t::control-str-string-is-bare [] -> :wat::core::String
+(:wat::core::defn :t::control-str-string-is-bare [] -> wat.type/String
   (:wat::core::str "abc"))
 
 ;; ...and QUOTED through `show`. This single difference is the whole distinction
 ;; between the two verbs; everything else about them should be identical.
-(:wat::core::defn :t::control-show-string-is-quoted [] -> :wat::core::String
+(:wat::core::defn :t::control-show-string-is-quoted [] -> wat.type/String
   (:wat::core::show "abc"))
 
 ;; A scalar inside the five-arm domain works today.
-(:wat::core::defn :t::control-str-i64 [] -> :wat::core::String
+(:wat::core::defn :t::control-str-i64 [] -> wat.type/String
   (:wat::core::str 42))
 
 ;; ── THE REDS (each raises at HEAD) ──────────────────────────────────────────
 
 ;; A keyword is a scalar by every reasonable reading and is NOT in the five.
-(:wat::core::defn :t::probe-keyword [] -> :wat::core::String
+(:wat::core::defn :t::probe-keyword [] -> wat.type/String
   (:wat::core::str :a-keyword))
 
 ;; nil. `show` renders this as `()` — Rust's unit leaking through a wat verb.
-(:wat::core::defn :t::probe-nil [] -> :wat::core::String
+(:wat::core::defn :t::probe-nil [] -> wat.type/String
   (:wat::core::str nil))
 
 ;; A Vector. `show` renders `[1, 2, 3]` (comma-space: Rust Debug); EDN says `[1 2 3]`.
-(:wat::core::defn :t::probe-vector [] -> :wat::core::String
-  (:wat::core::str (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+(:wat::core::defn :t::probe-vector [] -> wat.type/String
+  (:wat::core::str (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
 ;; A map. `show` renders `{:a: 1}` — a DOUBLED colon, which is nobody's syntax.
 ;; Key ORDER is deliberately not asserted: maps are unordered, and pinning order
 ;; here would be string equality standing in for data equality (builder's ruling,
 ;; 2026-08-14). One key only, so the assertion is order-free by construction.
-(:wat::core::defn :t::probe-map [] -> :wat::core::String
+(:wat::core::defn :t::probe-map [] -> wat.type/String
   (:wat::core::str {:a 1}))
 
 ;; NESTED strings stay QUOTED even though the top-level one would not be. This is
 ;; the Clojure rule (`str` uses the readable form inside collections) and it is
 ;; the row that proves `str` is not merely "show with the quotes stripped".
-(:wat::core::defn :t::probe-nested-string-stays-quoted [] -> :wat::core::String
-  (:wat::core::str (:wat::core::Vector :- [:wat::core::String] "a")))
+(:wat::core::defn :t::probe-nested-string-stays-quoted [] -> wat.type/String
+  (:wat::core::str (wat.type/Vector :- [wat.type/String] "a")))
 
 ;; ── THE ROW THIS PROBE SHOULD HAVE HAD ON DAY ONE ───────────────────────────
 ;; `str` on a RECORD. The original probe sampled a map, a float, a keyword, nil and a
@@ -64,7 +64,7 @@
 ;; `println` of the same value answered `{:x 1 :y 2}`. ONE VALUE, TWO FACES.
 ;; Root: `value_to_edn_string` hardcoded `None` for the registry (296's `field-N`
 ;; defect). That door is DELETED; this row is the wall that keeps it deleted.
-(:wat::core::defrecord :t::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :t::Pt [x <- wat.type/i64  y <- wat.type/i64])
 
-(:wat::core::defn :t::probe-record-named-fields [] -> :wat::core::String
+(:wat::core::defn :t::probe-record-named-fields [] -> wat.type/String
   (:wat::core::str (:t::Pt :x 1 :y 2)))

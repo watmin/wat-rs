@@ -7,10 +7,10 @@
 ;; compile error, closing the swallow door. A *faced* recv (matched over
 ;; Message/Closed/Lost) has type `O` (or a joined arm type), not `(RecvOutcome :- [O])`, and
 ;; stays legal; this fixture deliberately does NOT face it.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [p (:wat::kernel::spawn-program (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            nil))
      _ (:wat::kernel::recv p)]
     nil))

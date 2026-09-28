@@ -21,26 +21,26 @@
 ;;   FAIL: any `#tag`/`body` envelope, or a `:`-prefixed key, anywhere in the output.
 
 (:wat::core::defrecord :probe::Content
-  [type <- :wat::core::String
-   text <- :wat::core::String])
+  [type <- wat.type/String
+   text <- wat.type/String])
 
 (:wat::core::defrecord :probe::Result
-  [content <- (:wat::core::Vector :- [:probe::Content])
-   isError <- :wat::core::bool])
+  [content <- (wat.type/Vector :- [:probe::Content])
+   isError <- wat.type/bool])
 
 (:wat::core::defrecord :probe::Response
-  [jsonrpc <- :wat::core::String
-   id      <- :wat::core::i64
+  [jsonrpc <- wat.type/String
+   id      <- wat.type/i64
    result  <- :probe::Result])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [reply (:probe::Response
              :jsonrpc "2.0"
              :id      1
              :result  (:probe::Result
                         :content (:wat::core::conj
-                                   (:wat::core::Vector :- [:probe::Content])
+                                   (wat.type/Vector :- [:probe::Content])
                                    (:probe::Content :type "text" :text "42"))
                         :isError false))]
     (:wat::core::do

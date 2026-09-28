@@ -13,5 +13,5 @@
 ;; locals).
 (:wat::core::def :my::LIMIT 512)
 
-(:wat::core::defn :my::plus-limit [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :my::plus-limit [n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ n :my::LIMIT))

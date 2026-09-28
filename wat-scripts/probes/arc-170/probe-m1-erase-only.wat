@@ -3,9 +3,9 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -20,11 +20,11 @@
   :Setup [addr <- :wat::kernel::Address]
   :Work  [s    <- :I])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea  (:probe::echo::Handle/addr eh)                       ;; concrete (Address' :- [Op Reply])
      eab (:wat::core::ann-form ea :wat::kernel::Address)      ;; erase -> bare Address'
-     v   (:wat::core::Vector :- [:wat::kernel::Address] eab)       ;; store bare in (Vector :- [Address'])
+     v   (wat.type/Vector :- [:wat::kernel::Address] eab)       ;; store bare in (Vector :- [Address'])
      msg (:probe::PoolMsg.Setup {:addr (:wat::core::first v)})]       ;; bare-D Setup constructor
     (:wat::kernel::println "erase-ok")))

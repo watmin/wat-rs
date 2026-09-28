@@ -13,8 +13,8 @@
 ;; expanded `aggregate-new`/`kwargs-construct` forms `b98cf189` already established this for.
 ;; This fixture is the newly-admitted form: it must now compile AND fire end to end.
 
-(:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
-(:wat::core::defstruct :cg::Handle [label <- :wat::core::i64])
+(:wat::core::defrecord :cg::Anchor [x <- wat.type/i64])
+(:wat::core::defstruct :cg::Handle [label <- wat.type/i64])
 
 (:wat::rete::defrule :cg::gather
   :when [(:cg::Anchor (?x :- :x))]
@@ -25,7 +25,7 @@
   :when [(:cg::Handle (?label :- :label))])
 
 
-(:wat::core::defn :user::run [] -> :wat::core::i64
+(:wat::core::defn :user::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Handle))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

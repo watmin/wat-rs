@@ -8,7 +8,7 @@
 ;; Peer', and round-trips the surface op — the same client face any caller uses.
 
 ;; ── run-stdout: start stdout-svc on `fd`, connect', write two lines, return the # of ::Ok acks. ──
-(:wat::core::defn :user::run-stdout [fd <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :user::run-stdout [fd <- wat.type/i64] -> wat.type/i64
   (:wat::core::let
     [h  (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread)
           :record (:wat::kernel::stdout-svc::Record) :fd fd)
@@ -48,7 +48,7 @@
 ;; stays alive through it, exactly as run-stdout keeps `h` alive across its two writes. (In production the
 ;; freeze bootstrap holds the primes' Handles globally; here the fixture must hold `h` itself, or dropping
 ;; it stops the service and the next write sees RecvOutcome::Closed.)
-(:wat::core::defn :user::run-stdout-batched [fd <- :wat::core::i64  payload <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::run-stdout-batched [fd <- wat.type/i64  payload <- wat.type/String] -> wat.type/nil
   (:wat::core::let
     [h (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread)
          :record (:wat::kernel::stdout-svc::Record) :fd fd)
@@ -62,7 +62,7 @@
 
 ;; ── run-stdin: start stdin-svc on `fd`, connect', read ONE line → the line String; EOF → "EOF";
 ;;    RequestTooLarge → "RTL" (all three matchable — the no-hidden-failures EOF upgrade). ──────────
-(:wat::core::defn :user::run-stdin [fd <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :user::run-stdin [fd <- wat.type/i64] -> wat.type/String
   (:wat::core::let
     [h (:wat::kernel::stdin-svc/start :locus (:wat::spawn::thread)
          :record (:wat::kernel::stdin-svc::Record) :fd fd)

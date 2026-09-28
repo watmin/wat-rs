@@ -2,13 +2,13 @@
 ;; Arc 209 Stone C0b.1 — thread-tier connection (listener' / connect' / accept').
 ;; Service accepts one client, doubles its number. Client sends 5, expects 10.
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [pair  (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l     (:wat::spawn::Bound/listener pair)
      addr  (:wat::spawn::Bound/address pair)
      svc   (:wat::test::spawn-peer (:wat::spawn::thread)
-              (:wat::core::fn [_admin <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+              (:wat::core::fn [_admin <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                 (:wat::core::let
                   [conn (:wat::core::match (:wat::kernel::accept l)
                           [:wat::kernel::AcceptOutcome.Accepted {:peer p} p]

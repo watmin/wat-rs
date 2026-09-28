@@ -2,7 +2,7 @@
 ;; assoc with i64 as arg0 (neither HashMap nor Record) must reject.
 ;; startup MUST fail.
 
-(:wat::core::defn :user::bad [] -> :wat::core::i64
+(:wat::core::defn :user::bad [] -> wat.type/i64
   (:wat::core::length
     (:wat::hashmap::keys
       (:wat::core::assoc 42 "k" 1))))

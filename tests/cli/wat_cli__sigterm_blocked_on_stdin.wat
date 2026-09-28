@@ -9,7 +9,7 @@
 ;; A compute loop reaches its poll on its own; a blocked read never reaches anything
 ;; unless the read itself is multiplexed against the shutdown signal.
 
-(:wat::core::defn :demo::loop [] -> :wat::core::nil
+(:wat::core::defn :demo::loop [] -> wat.type/nil
   (:wat::core::match (:wat::kernel::read-frame )
     [:wat::kernel::ReadFrameOutcome.Frame {:text text}
       (:wat::core::do
@@ -23,7 +23,7 @@
     ;; parked thread pinned the process alive until stdin EOF'd.
     [:wat::kernel::ReadFrameOutcome.Stopped {} nil]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "READY")
     (:demo::loop)))

@@ -21,13 +21,13 @@
 ;; cases against the CONTROL cases — if their error shapes are the same, the classifier
 ;; is not available and `:repl::turn`'s match arm as drafted is dishonest.
 
-(:wat::core::defn :probe::try [label <- :wat::core::String  src <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :probe::try [label <- wat.type/String  src <- wat.type/String] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println label)
     (:wat::kernel::println
       (:wat::eval-ast! (:wat::core::first (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; ── DECLARATIONS — each should refuse in a way the REPL can recognize ──
     (:probe::try "A-def"       "(:wat::core::def :usr::x 1)")

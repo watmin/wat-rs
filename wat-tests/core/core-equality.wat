@@ -58,9 +58,9 @@
 ;; i64-param bindings enforces same-type equality at the call site.
 
 (:wat::core::defn :wat-tests::core::core-equality::eq-i64
-  [a <- :wat::core::i64
-   b <- :wat::core::i64]
-  -> :wat::core::bool
+  [a <- wat.type/i64
+   b <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::= a b))
 
 (:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-works
@@ -68,9 +68,9 @@
   (:wat::test::assert-eq (:wat-tests::core::core-equality::eq-i64 3 3) true))
 
 (:wat::core::defn :wat-tests::core::core-equality::eq-i64-b
-  [a <- :wat::core::i64
-   b <- :wat::core::i64]
-  -> :wat::core::bool
+  [a <- wat.type/i64
+   b <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::= a b))
 
 (:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-false
@@ -118,7 +118,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_equality_cross_type_eq_rejected)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let [b (:wat::core::= 1 1.5)] b))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}

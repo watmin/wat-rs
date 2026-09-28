@@ -6,9 +6,9 @@
 ;;
 ;; NO :user::main — a world-under-test needs none (freeze does not require it; cf. startup_bare, freeze.rs:738).
 
-(:wat::core::defrecord :n::A   [k <- :wat::core::i64])
-(:wat::core::defrecord :n::Bad [k <- :wat::core::i64])
-(:wat::core::defrecord :n::Ok  [k <- :wat::core::i64])
+(:wat::core::defrecord :n::A   [k <- wat.type/i64])
+(:wat::core::defrecord :n::Bad [k <- wat.type/i64])
+(:wat::core::defrecord :n::Ok  [k <- wat.type/i64])
 
 ;; derive Bad for k=2 only
 (:wat::rete::defrule :n::mark-bad
@@ -24,10 +24,10 @@
 ;; A(1),A(2),A(3): Bad for k=2 (stratum 0); Warn = A with no Bad (stratum 1); Safe = A with no Warn (stratum 2).
 ;; Correct closure: Bad={2}, Warn={1,3}, Safe={2} → (Bad:1, Warn:2, Safe:1). Exercises acc-facts reconstruction:
 ;; Warn's stratum must see the derived Bad; Safe's stratum must see the derived Warn.
-(:wat::core::defrecord :n3::A    [k <- :wat::core::i64])
-(:wat::core::defrecord :n3::Bad  [k <- :wat::core::i64])
-(:wat::core::defrecord :n3::Warn [k <- :wat::core::i64])
-(:wat::core::defrecord :n3::Safe [k <- :wat::core::i64])
+(:wat::core::defrecord :n3::A    [k <- wat.type/i64])
+(:wat::core::defrecord :n3::Bad  [k <- wat.type/i64])
+(:wat::core::defrecord :n3::Warn [k <- wat.type/i64])
+(:wat::core::defrecord :n3::Safe [k <- wat.type/i64])
 
 (:wat::rete::defrule :n3::mark-bad
   :when [(:n3::A (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
@@ -74,7 +74,7 @@
   ;; parameter's type says so. This is the differential's whole point: both sides are the same
   ;; TYPE, so the harness can pass either and compare like for like.
   [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n)
                     s0    (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1    (:wat::core::match (:wat::rete::insert s0 (:n::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
@@ -95,7 +95,7 @@
   ;; parameter's type says so. This is the differential's whole point: both sides are the same
   ;; TYPE, so the harness can pass either and compare like for like.
   [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n3)
                     s0    (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1    (:wat::core::match (:wat::rete::insert s0 (:n3::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
@@ -114,11 +114,11 @@
 
 ;; just-eval entry points — thin zero-arg wrappers naming the fire verb (the only thing the
 ;; differential varies), so the Rust driver only names an entry point (no inline wat).
-(:wat::core::defn :user::n-oracle-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::n-oracle-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:n::run-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::n-native-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::n-native-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:n::run-counts :wat::rete::fire-rules))
-(:wat::core::defn :user::n3-oracle-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::n3-oracle-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:n3::run-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::n3-native-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::n3-native-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:n3::run-counts :wat::rete::fire-rules))

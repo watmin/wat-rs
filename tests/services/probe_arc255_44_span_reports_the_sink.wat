@@ -7,8 +7,8 @@
 
 (:wat::service::defservice :probe::modestore
   :satisfies :wat::query::Store
-  :durable [mode <- :wat::core::String
-            rows <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])]
+  :durable [mode <- wat.type/String
+            rows <- (wat.type/PersistentVector :- [:wat::query::StoredRow])]
   :impls
   [(ensure-schema [s ctx req]
      (:wat::service::Outcome.Reply
@@ -40,17 +40,17 @@
      (:wat::service::Outcome.Reply
        {:state s
         :reply (:wat::query::Store::ScanResponse.Success
-                 {:rows (:wat::core::Vector :- [:wat::query::Row])
+                 {:rows (wat.type/Vector :- [:wat::query::Row])
                   :cursor :wat::core::Option.None})}))
    (scan-index [s ctx req]
      (:wat::service::Outcome.Reply
        {:state s
         :reply (:wat::query::Store::ScanIndexResponse.Success
-                 {:rows (:wat::core::Vector :- [:wat::query::IndexRow])
+                 {:rows (wat.type/Vector :- [:wat::query::IndexRow])
                   :cursor :wat::core::Option.None})}))])
 
 (:wat::core::defn :user::log-through
-  [mode <- :wat::core::String]
+  [mode <- wat.type/String]
   -> :wat::telemetry::Span::LogResponse
   (:wat::core::let
     [sh (:probe::modestore/start :locus (:wat::spawn::thread)
@@ -66,10 +66,10 @@
                :record (:wat::telemetry::span::Record
                          :namespace "probe"
                          :uuid (:wat::uuid::v4)
-                         :tags (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+                         :tags (wat.type/HashMap :- [wat.type/keyword wat.type/String])
                          :start-time-ns 0
-                         :counters (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
-                         :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples]))
+                         :counters (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+                         :durations (wat.type/HashMap :- [wat.type/keyword :wat::telemetry::Samples]))
                :sink-addr (:wat::telemetry::journal::Handle/addr jh))]
         (:wat::core::let
           [span (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph))

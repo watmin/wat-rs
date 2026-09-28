@@ -3,13 +3,13 @@
 
 (:wat::core::use! :rust::test::TupleUtils)
 
-(:wat::core::defn :my::compute-sum2 [] -> :wat::core::i64
+(:wat::core::defn :my::compute-sum2 [] -> wat.type/i64
   (:rust::test::TupleUtils/sum2 (:wat::core::Tuple 20 22)))
 
-(:wat::core::defn :my::compute-pair-first [] -> :wat::core::i64
+(:wat::core::defn :my::compute-pair-first [] -> wat.type/i64
   (:wat::core::first (:rust::test::TupleUtils/pair_of 7 13)))
 
-(:wat::core::defn :my::compute-describe [] -> :wat::core::String
+(:wat::core::defn :my::compute-describe [] -> wat.type/String
   (:rust::test::TupleUtils/describe
     (:wat::core::Tuple 1 "row" true)))
 

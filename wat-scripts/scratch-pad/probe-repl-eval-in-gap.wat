@@ -31,7 +31,7 @@
 ;;   STEP 3a (eval-ast!, the ambient world)  → Err `unknown function: :usr::f`
 ;;   STEP 3b (eval-with-defs!, the supplied world) → Evaluated [7]
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; STEP 1 — a REPL turn's worth of input: one definition line, held as pure data.
      ;; `read-string` returns the ONE wrapping form; `ast->children` is the def vector.

@@ -43,8 +43,8 @@
 
 ;; ── dial — the separately-typed verb, load-bearing (pins K,V) per the parametric precedent ──
 (:wat::core::defn :wat-tests::cache-svc/dial
-  [a <- (:wat::kernel::Address :- [(:wat::cache::Cache::Op :- [:wat::core::String :wat::core::i64]) (:wat::cache::Cache::Reply :- [:wat::core::String :wat::core::i64])])]
-  -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [:wat::core::String :wat::core::i64]) (:wat::cache::Cache::Reply :- [:wat::core::String :wat::core::i64])])
+  [a <- (:wat::kernel::Address :- [(:wat::cache::Cache::Op :- [wat.type/String wat.type/i64]) (:wat::cache::Cache::Reply :- [wat.type/String wat.type/i64])])]
+  -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [wat.type/String wat.type/i64]) (:wat::cache::Cache::Reply :- [wat.type/String wat.type/i64])])
   (:wat::core::match (:wat::kernel::connect a)
     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
     [:wat::kernel::ConnectOutcome.Closed {:cause cz}
@@ -59,8 +59,8 @@
 
 ;; one result -> one token; NEVER a rendered-string `contains`, a real pattern match per element.
 (:wat::core::defn :wat-tests::cache-svc/result-label
-  [r <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
-  -> :wat::core::String
+  [r <- (:wat::cache::Cache::GetResult :- [wat.type/i64])]
+  -> wat.type/String
   (:wat::core::match r
     [:wat::cache::Cache::GetResult.Hit {:value v} (:wat::string::concat "Hit:" (:wat::i64::to-string v))]
     [:wat::cache::Cache::GetResult.Miss {} "Miss"]))
@@ -68,8 +68,8 @@
 ;; the whole batch's results, index order preserved, rendered "[tok,tok,...]" — the fold walks
 ;; `results` LEFT TO RIGHT and `conj` appends, so this string's token order IS `results`' order.
 (:wat::core::defn :wat-tests::cache-svc/get-label
-  [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [:wat::core::i64])])]
-  -> :wat::core::String
+  [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [wat.type/i64])])]
+  -> wat.type/String
   (:wat::core::match r
     [:wat::kernel::RecvOutcome.Message {:msg __recv}
       (:wat::core::match __recv
@@ -78,11 +78,11 @@
             (:wat::string::concat
               (:wat::string::join ","
                 (:wat::core::foldl
-                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                   res <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
-                    -> (:wat::core::Vector :- [:wat::core::String])
+                  (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String])
+                                   res <- (:wat::cache::Cache::GetResult :- [wat.type/i64])]
+                    -> (wat.type/Vector :- [wat.type/String])
                     (:wat::core::conj acc (:wat-tests::cache-svc/result-label res)))
-                  (:wat::core::Vector :- [:wat::core::String])
+                  (wat.type/Vector :- [wat.type/String])
                   results))
               "]"))]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
@@ -101,7 +101,7 @@
 ;; honest token is whether the batch was accepted at all.
 (:wat::core::defn :wat-tests::cache-svc/put-label
   [r <- (:wat::kernel::RecvOutcome :- [:wat::cache::Cache::PutResponse])]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::match r
     [:wat::kernel::RecvOutcome.Message {:msg __recv}
       (:wat::core::match __recv
@@ -118,7 +118,7 @@
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SIX behaviours in one round trip ──────────────────
-(:wat::core::defn :wat-tests::cache-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> :wat::core::String
+(:wat::core::defn :wat-tests::cache-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
   (:wat::core::let
     [h (:wat::cache::lru-svc/start :locus locus
          :record (:wat::cache::lru-svc::Record :capacity 2))
@@ -129,7 +129,7 @@
      put-batch (:wat-tests::cache-svc/put-label
                  (:wat::cache::lru-svc/put a
                    (:wat::cache::Cache::PutRequest
-                     :entries (:wat::core::Vector :- [(:wat::cache::Entry :- [:wat::core::String :wat::core::i64])]
+                     :entries (wat.type/Vector :- [(:wat::cache::Entry :- [wat.type/String wat.type/i64])]
                                 (:wat::cache::Entry :key "k1" :value 100)
                                 (:wat::cache::Entry :key "k2" :value 200)))))
      ;; ★ INDEX ALIGNMENT — ONE `get` round trip, THREE probes, DELIBERATELY JUMBLED: k2 (a hit,
@@ -141,25 +141,25 @@
      get-jumbled (:wat-tests::cache-svc/get-label
                    (:wat::cache::lru-svc/get b
                      (:wat::cache::Cache::GetRequest
-                       :probes (:wat::core::Vector :- [:wat::core::String] "k2" "missing" "k1"))))
+                       :probes (wat.type/Vector :- [wat.type/String] "k2" "missing" "k1"))))
      ;; BATCH-OF-ONE put — the degenerate case, still meaningful: overflows capacity 2; k2 is LRU.
      ;; `PutResponse` carries nothing back (file-header departure note) — eviction is provable only
      ;; via a later `get` miss, which is exactly the next probe.
      put-k3 (:wat-tests::cache-svc/put-label
               (:wat::cache::lru-svc/put a
                 (:wat::cache::Cache::PutRequest
-                  :entries (:wat::core::Vector :- [(:wat::cache::Entry :- [:wat::core::String :wat::core::i64])]
+                  :entries (wat.type/Vector :- [(:wat::cache::Entry :- [wat.type/String wat.type/i64])]
                              (:wat::cache::Entry :key "k3" :value 300)))))
      ;; BATCH-OF-ONE get + EVICTION IS OBSERVABLE THROUGH THE ACTOR — k2 was evicted by the put
      ;; above; a batch-of-one get names it a Miss, not an error.
      get-k2-miss (:wat-tests::cache-svc/get-label
                    (:wat::cache::lru-svc/get b
                      (:wat::cache::Cache::GetRequest
-                       :probes (:wat::core::Vector :- [:wat::core::String] "k2"))))
+                       :probes (wat.type/Vector :- [wat.type/String] "k2"))))
      ;; EMPTY PROBE VECTOR — `Ok` with an empty results Vector, not an error.
      get-empty (:wat-tests::cache-svc/get-label
                  (:wat::cache::lru-svc/get b
-                   (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::core::String]))))
+                   (:wat::cache::Cache::GetRequest :probes (wat.type/Vector :- [wat.type/String]))))
      _ (:wat::cache::lru-svc/stop h)]
     (:wat::string::concat put-batch
       (:wat::string::concat " | " (:wat::string::concat get-jumbled

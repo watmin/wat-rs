@@ -4,7 +4,7 @@
 ;; crosses a channel. `peer-pair'` (the annihilated bare-pair primitive) is replaced by the
 ;; substrate's own connection path: listener' binds, connect' takes the client end, accept'
 ;; the server end. No spawn, and the ceremony every real consumer pays.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [bound (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      lis   (:wat::spawn::Bound/listener bound)
@@ -28,9 +28,9 @@
                (:wat::kernel::assertion-failed! :message "accept': failed accepting the hook channel")])
      _thr  (:wat::test::spawn-peer
              (:wat::spawn::thread::post-spawn
-               (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil
+               (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> wat.type/nil
                  (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx 777) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])] nil)))
-             (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+             (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                nil))
      sentinel (:wat::core::match (:wat::kernel::recv rx)
                 [:wat::kernel::RecvOutcome.Message {:msg m} m]

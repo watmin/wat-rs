@@ -2,9 +2,9 @@
 ;; slurped via startup_beside(file!()).
 
 ;; compute-a: spawn a thread peer that sends its own os-thread-id back.
-(:wat::core::defn :probe::compute-a [] -> :wat::core::i64
+(:wat::core::defn :probe::compute-a [] -> wat.type/i64
   (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                              (:wat::core::match
                                (:wat::kernel::send self
                                  (:wat::program::Env/os-thread-id (:wat::program::env)))
@@ -30,9 +30,9 @@
     got))
 
 ;; compute-b: spawn a thread peer that sends 111 if its peer-kind is :thread, else 222.
-(:wat::core::defn :probe::compute-b [] -> :wat::core::i64
+(:wat::core::defn :probe::compute-b [] -> wat.type/i64
   (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                              (:wat::core::match
                                (:wat::kernel::send self
                                  (:wat::core::if

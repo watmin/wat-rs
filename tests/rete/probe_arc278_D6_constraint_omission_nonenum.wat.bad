@@ -20,8 +20,8 @@
 
 (:wat::core::defenum :d6x::Tag :wat::enum::Pure :A :B)
 
-(:wat::core::defrecord :d6x::Reading [n <- :wat::core::i64  v <- (:wat::core::PersistentVector :- [:wat::core::i64])])
-(:wat::core::defrecord :d6x::Hit     [n <- :wat::core::i64])
+(:wat::core::defrecord :d6x::Reading [n <- wat.type/i64  v <- (wat.type/PersistentVector :- [wat.type/i64])])
+(:wat::core::defrecord :d6x::Hit     [n <- wat.type/i64])
 
 (:wat::rete::defrule :d6x::hit
   :when
@@ -31,7 +31,7 @@
   :then
   [(:d6x::Hit :n ?n)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :d6x)
      session (:wat::core::match (:wat::rete::compile rules) ((:wat::rete::CompileOutcome::Compiled __s) __s) ((:wat::rete::CompileOutcome::MayNotTerminate __r __f) (:wat::kernel::assertion-failed! :message "may not terminate")))

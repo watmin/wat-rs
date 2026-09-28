@@ -1,7 +1,7 @@
 ;; NOTE-rete-cond-lowers-on-the-lhs-but-not-the-rhs.md (2026-08-24, inbound).
 ;; `cond` works in a `where` and was claimed to fail at compile-all in a `:then`.
-(:wat::core::defrecord :cr::In  [n <- :wat::core::i64])
-(:wat::core::defrecord :cr::Out [label <- :wat::core::String])
+(:wat::core::defrecord :cr::In  [n <- wat.type/i64])
+(:wat::core::defrecord :cr::Out [label <- wat.type/String])
 
 (:wat::rete::defrule :cr::rule
   :when
@@ -12,7 +12,7 @@
 
 (:wat::rete::defquery :cr::q :params [] :when [(?fact :- :cr::Out)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::core::length
       (:wat::core::let

@@ -11,11 +11,11 @@
 ;; static arg-vector check.
 
 (:wat::core::defn :probe::show
-  [tag <- :wat::core::String r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
-  -> :wat::core::nil
+  [tag <- wat.type/String r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
+  -> wat.type/nil
   (:wat::kernel::println (:wat::string::concat tag ": " (:wat::edn::write r))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:probe::show "declare-acronyms with an erroring ns expr, via eval-ast!+quote"
     (:wat::eval-ast! (:wat::core::quote
       (:wat::string::declare-acronyms (:wat::i64::/ 1 0) ["ACL"])))))

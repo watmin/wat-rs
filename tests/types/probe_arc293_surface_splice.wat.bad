@@ -9,16 +9,16 @@
 ;; the RED gate. This fixture is the build's own correctness check that the conflict is caught.)
 
 (:wat::core::defsurface :probe::HasIntFoobar :nature :wat::core::Record
-  :features [foobar <- :wat::core::i64])
+  :features [foobar <- wat.type/i64])
 
 (:wat::core::defsurface :probe::HasStrFoobar :nature :wat::core::Record
-  :features [foobar <- :wat::core::String])
+  :features [foobar <- wat.type/String])
 
 ;; splices two surfaces that install `foobar` at CONFLICTING types → MUST be rejected.
 (:wat::core::defrecord :probe::Conflict
   [~@:probe::HasIntFoobar
    ~@:probe::HasStrFoobar
-   own <- :wat::core::i64])
+   own <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "should never reach here — Conflict must fail to declare"))

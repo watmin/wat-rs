@@ -28,15 +28,15 @@
 ;; reported bug. `four-after` is depth: the frontier must loop, not just take one extra
 ;; step, or a fix that special-cases two would pass while three still silently failed.
 
-(:wat::core::defrecord :wpf::A   [id <- :wat::core::i64  k <- :wat::core::String])
-(:wat::core::defrecord :wpf::B   [id <- :wat::core::i64])
-(:wat::core::defrecord :wpf::C   [id <- :wat::core::i64])
-(:wat::core::defrecord :wpf::D   [id <- :wat::core::i64])
-(:wat::core::defrecord :wpf::E   [id <- :wat::core::i64])
-(:wat::core::defrecord :wpf::One   [x <- :wat::core::i64])
-(:wat::core::defrecord :wpf::Two   [x <- :wat::core::i64])
-(:wat::core::defrecord :wpf::Four  [x <- :wat::core::i64])
-(:wat::core::defrecord :wpf::Trail [x <- :wat::core::i64])
+(:wat::core::defrecord :wpf::A   [id <- wat.type/i64  k <- wat.type/String])
+(:wat::core::defrecord :wpf::B   [id <- wat.type/i64])
+(:wat::core::defrecord :wpf::C   [id <- wat.type/i64])
+(:wat::core::defrecord :wpf::D   [id <- wat.type/i64])
+(:wat::core::defrecord :wpf::E   [id <- wat.type/i64])
+(:wat::core::defrecord :wpf::One   [x <- wat.type/i64])
+(:wat::core::defrecord :wpf::Two   [x <- wat.type/i64])
+(:wat::core::defrecord :wpf::Four  [x <- wat.type/i64])
+(:wat::core::defrecord :wpf::Trail [x <- wat.type/i64])
 
 (:wat::rete::defrule :wpf::r-one
   :when [(:wpf::A (?id :- :id) (?k :- :k) (:wat::rete::string::= ?k "yes"))
@@ -78,7 +78,7 @@
       (:wat::core::PersistentVector (:wpf::D :id 1) (:wpf::D :id 2))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
     (:wat::core::PersistentVector (:wpf::E :id 1) (:wpf::E :id 2))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :wpf::counts [s <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :wpf::counts [s <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector
     (:wat::core::length (:wat::rete::query s (:wpf::q1)))
     (:wat::core::length (:wat::rete::query s (:wpf::q2)))
@@ -86,9 +86,9 @@
     (:wat::core::length (:wat::rete::query s (:wpf::qt)))))
 
 ;; [one, two, four, trailing] x [native, oracle] — every slot must be 1.
-(:wat::core::defn :user::native-and-oracle [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::mapv
-    (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+    (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
     (:wat::vector::concat
       (:wpf::counts (:wat::core::match (:wat::rete::fire-rules (:wpf::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
       (:wpf::counts (:wat::core::match (:wat::rete::fire-rules$oracle (:wpf::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

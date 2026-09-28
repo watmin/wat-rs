@@ -3,7 +3,7 @@
 ;; A readln outcome dropped in a `do` non-final position is the same swallow through the other
 ;; door. Both doors must be closed or the wall is half a wall — the send'-wall needed Phase 3a
 ;; (`do`) AND 3b (`let`-`_`) for exactly this reason. This fixture deliberately does NOT face it.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::readln )
     nil))

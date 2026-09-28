@@ -13,37 +13,37 @@
 ;; ── fact model ──────────────────────────────────────────────────────────────
 ;; Node — one per leaf AST node the walk visits (position-aware: post-arrow tracked).
 (:wat::core::defrecord :fix::Node
-  [kind       <- :wat::core::String
-   name       <- :wat::core::String
-   offset     <- :wat::core::i64
-   len        <- :wat::core::i64
-   post-arrow <- :wat::core::bool])
+  [kind       <- wat.type/String
+   name       <- wat.type/String
+   offset     <- wat.type/i64
+   len        <- wat.type/i64
+   post-arrow <- wat.type/bool])
 
 ;; The three PURE classification facts — offset/len (+ name where the drive needs it to
 ;; reconstruct the keyword). No transformed text: the drive does keyword/to-symbol etc.
 (:wat::core::defrecord :fix::HeadConv
-  [offset <- :wat::core::i64
-   len    <- :wat::core::i64
-   name   <- :wat::core::String])
+  [offset <- wat.type/i64
+   len    <- wat.type/i64
+   name   <- wat.type/String])
 
 (:wat::core::defrecord :fix::ArrowConv
-  [offset <- :wat::core::i64
-   len    <- :wat::core::i64])
+  [offset <- wat.type/i64
+   len    <- wat.type/i64])
 
 (:wat::core::defrecord :fix::TypeConv
-  [offset <- :wat::core::i64
-   len    <- :wat::core::i64
-   name   <- :wat::core::String])
+  [offset <- wat.type/i64
+   len    <- wat.type/i64
+   name   <- wat.type/String])
 
 ;; ── pure string predicates (used in :where guards) ──────────────────────────
 ;; head-keyword-str? — name string is ::-namespaced.
 (:wat::rete::core::defn :fix::head-keyword-str?
-  [name <- :wat::core::String] -> :wat::core::bool
+  [name <- wat.type/String] -> wat.type/bool
   (:wat::rete::string::contains? name "::"))
 
 ;; type-shaped-keyword-str? — name has matching "<" + ">" OR "(" + ")".
 (:wat::rete::core::defn :fix::type-shaped-keyword-str?
-  [name <- :wat::core::String] -> :wat::core::bool
+  [name <- wat.type/String] -> wat.type/bool
   (:wat::rete::core::if (:wat::rete::core::if (:wat::rete::string::contains? name "<")
                     (:wat::rete::string::contains? name ">")
                     false)
@@ -121,7 +121,7 @@
 ;; Each test's node literal and query tail are fixed and enumerable — no runtime parameterization.
 
 ;; head-keyword→conv: a head keyword, not post-arrow, not type-shaped.
-(:wat::core::defn :user::head-keyword-count [] -> :wat::core::i64
+(:wat::core::defn :user::head-keyword-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -129,7 +129,7 @@
      fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:fix::q-HeadConv)))))
 
-(:wat::core::defn :user::head-keyword-name [] -> :wat::core::String
+(:wat::core::defn :user::head-keyword-name [] -> wat.type/String
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -141,7 +141,7 @@
         "?name")
       "q-HeadConv: ?name")))
 
-(:wat::core::defn :user::head-keyword-offset [] -> :wat::core::i64
+(:wat::core::defn :user::head-keyword-offset [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -154,7 +154,7 @@
       "q-HeadConv: ?offset")))
 
 ;; post-arrow=true → excluded from head-keyword→conv (the ¬post-arrow guard).
-(:wat::core::defn :user::post-arrow-keyword-headconv-count [] -> :wat::core::i64
+(:wat::core::defn :user::post-arrow-keyword-headconv-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -163,7 +163,7 @@
     (:wat::core::length (:wat::rete::query fired (:fix::q-HeadConv)))))
 
 ;; arrow→conv: "<-".
-(:wat::core::defn :user::left-arrow-count [] -> :wat::core::i64
+(:wat::core::defn :user::left-arrow-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -171,7 +171,7 @@
      fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:fix::q-ArrowConv)))))
 
-(:wat::core::defn :user::left-arrow-offset [] -> :wat::core::i64
+(:wat::core::defn :user::left-arrow-offset [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -184,7 +184,7 @@
       "q-ArrowConv: ?offset")))
 
 ;; arrow→conv: "->" also deduces an ArrowConv.
-(:wat::core::defn :user::right-arrow-count [] -> :wat::core::i64
+(:wat::core::defn :user::right-arrow-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -193,7 +193,7 @@
     (:wat::core::length (:wat::rete::query fired (:fix::q-ArrowConv)))))
 
 ;; a non-arrow symbol deduces nothing (neither ArrowConv nor HeadConv).
-(:wat::core::defn :user::non-arrow-arrows-count [] -> :wat::core::i64
+(:wat::core::defn :user::non-arrow-arrows-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -201,7 +201,7 @@
      fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:fix::q-ArrowConv)))))
 
-(:wat::core::defn :user::non-arrow-heads-count [] -> :wat::core::i64
+(:wat::core::defn :user::non-arrow-heads-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -210,7 +210,7 @@
     (:wat::core::length (:wat::rete::query fired (:fix::q-HeadConv)))))
 
 ;; type-keyword→conv: post-arrow keyword (not type-shaped, but post-arrow) → TypeConv.
-(:wat::core::defn :user::post-arrow-typeconv-count [] -> :wat::core::i64
+(:wat::core::defn :user::post-arrow-typeconv-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -218,7 +218,7 @@
      fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:fix::q-TypeConv)))))
 
-(:wat::core::defn :user::post-arrow-typeconv-name [] -> :wat::core::String
+(:wat::core::defn :user::post-arrow-typeconv-name [] -> wat.type/String
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -232,7 +232,7 @@
 
 ;; a structurally-type-shaped keyword (Vector<...>) is a TypeConv even at head position, and is
 ;; EXCLUDED from HeadConv (the ¬type-shaped guard) — no double edit.
-(:wat::core::defn :user::type-shaped-typeconv-count [] -> :wat::core::i64
+(:wat::core::defn :user::type-shaped-typeconv-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -240,7 +240,7 @@
      fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:fix::q-TypeConv)))))
 
-(:wat::core::defn :user::type-shaped-headconv-count [] -> :wat::core::i64
+(:wat::core::defn :user::type-shaped-headconv-count [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :fix)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

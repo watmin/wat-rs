@@ -13,10 +13,10 @@
 ;; errors. Comparing plain strings sidesteps that resolution entirely.
 (:wat::core::defn :probe::matches?
   [got <- :wat::core::Equatable want <- :wat::core::Equatable]
-  -> :wat::core::bool
+  -> wat.type/bool
   (:wat::core::= got want))
 
-(:wat::core::defn :user::mine? [ex <- :wat::intrinsic::Example] -> :wat::core::bool
+(:wat::core::defn :user::mine? [ex <- :wat::intrinsic::Example] -> wat.type/bool
   (:wat::core::let [name (:wat::keyword::to-string (:wat::intrinsic::Example/fqdn ex))]
     (:wat::core::or
       (:wat::string::starts-with? name "wat::core::ast")
@@ -28,13 +28,13 @@
             (:wat::core::= name "wat::core::keyword-node")
             (:wat::core::= name "wat::core::fresh-symbol")))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [all-examples (:wat::intrinsic::examples)
                      mine (:wat::core::into [] (:wat::core::filter :user::mine? all-examples))]
     (:wat::core::do
       (:wat::kernel::println (:wat::string::interpolate "MINE COUNT: {n}" :n (:wat::i64::to-string (:wat::core::length mine))))
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::i64 ex <- :wat::intrinsic::Example] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64 ex <- :wat::intrinsic::Example] -> wat.type/i64
           (:wat::core::do
             (:wat::kernel::println
               (:wat::string::interpolate "fqdn={fqdn} run={run} pure={pure} det={det}"

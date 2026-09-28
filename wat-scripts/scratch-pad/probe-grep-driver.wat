@@ -8,7 +8,7 @@
 ;; `rules-corpus-03-source-to-facts.wat`'s `:fx::match-arrow` proved. A file containing at least
 ;; one `<-` (i.e. any real wat function/rule with a binder) matches; a file with none does not —
 ;; that asymmetry is what row 3 (facts do not leak between files) needs.
-(:wat::core::defrecord :pg::IsArrow [id <- :wat::core::i64])
+(:wat::core::defrecord :pg::IsArrow [id <- wat.type/i64])
 
 (:wat::rete::defrule :pg::arrow
   :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
@@ -33,8 +33,8 @@
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "kind" :value "symbol")))])
 
-(:wat::core::defn :user::the-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector :- [:wat::rete::Rule] (:pg::arrow) (:pg::match-arrow)))
+(:wat::core::defn :user::the-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
+  (wat.type/PersistentVector :- [:wat::rete::Rule] (:pg::arrow) (:pg::match-arrow)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::grep::run (:user::the-rules)))

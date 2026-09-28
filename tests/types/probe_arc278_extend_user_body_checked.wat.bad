@@ -9,9 +9,9 @@
 ;; At HEAD this fixture FREEZES CLEAN (the flaw): the wrong-typed satisfier compiles.
 ;; The gate test's `Ok` arm therefore panics at HEAD; the fix turns it GREEN.
 (:wat::core::defsurface :probe::Sink :nature :wat::core::Struct
-  :features [(emit [self <- :probe::Sink  x <- :wat::core::i64] -> :wat::core::i64)])
+  :features [(emit [self <- :probe::Sink  x <- wat.type/i64] -> wat.type/i64)])
 
-(:wat::core::defstruct :probe::Mem [n <- :wat::core::i64])
+(:wat::core::defstruct :probe::Mem [n <- wat.type/i64])
 
 (:wat::core::extend-type :probe::Mem :probe::Sink
   (emit [self x] "i am a string, not an i64"))        ;; WRONG: surface says -> :i64

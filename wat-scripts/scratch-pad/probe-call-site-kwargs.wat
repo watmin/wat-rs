@@ -15,10 +15,10 @@
   (:wat::core::let [origin (:wat::kernel::call-site)] origin))
 
 ;; the subject: a kwargs fn, the exact shape defservice's start/resume use
-(:wat::core::defn :probe::kw [& [tag <- :wat::core::String]] -> :wat::kernel::Frame
+(:wat::core::defn :probe::kw [& [tag <- wat.type/String]] -> :wat::kernel::Frame
   (:wat::core::let [origin (:wat::kernel::call-site)] origin))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:probe::positional))
     (:wat::kernel::println (:probe::kw :tag "x"))))

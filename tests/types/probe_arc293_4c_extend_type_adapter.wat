@@ -17,13 +17,13 @@
 
 (:wat::core::defsurface :t::Tagged
   :nature :wat::core::Struct
-  :features [(tag [self <- :t::Tagged] -> :wat::core::i64)])
+  :features [(tag [self <- :t::Tagged] -> wat.type/i64)])
 
 ;; THE MONKEYPATCH — teach the foreign `:wat::core::String` to be `:t::Tagged`.
-(:wat::core::extend-type :wat::core::String :t::Tagged
-  (tag [self] -> :wat::core::i64 42))
+(:wat::core::extend-type wat.type/String :t::Tagged
+  (tag [self] -> wat.type/i64 42))
 
 ;; A consumer requiring the surface; a String now satisfies it (structural, via the adapter).
-(:wat::core::defn :t::tag-of [s <- :t::Tagged] -> :wat::core::i64 (:t::Tagged/tag s))
+(:wat::core::defn :t::tag-of [s <- :t::Tagged] -> wat.type/i64 (:t::Tagged/tag s))
 
-(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::tag-of "hello"))
+(:wat::core::defn :t::probe [] -> wat.type/i64 (:t::tag-of "hello"))

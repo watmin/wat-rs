@@ -6,7 +6,7 @@
 ;; TYPE property, so a domain of two was refused exactly as an unbounded i64 counter is. Measured
 ;; with the check disarmed: bool converges at 2, enum(3) at 2, guarded i64 at 501, and unguarded
 ;; i64 aborts the allocator.
-(:wat::core::defrecord :ft::F [flag <- :wat::core::bool])
+(:wat::core::defrecord :ft::F [flag <- wat.type/bool])
 
 (:wat::rete::defrule :ft::flip
   :when  [(:ft::F (?b :- :flag))]
@@ -14,7 +14,7 @@
 
 (:wat::rete::defquery :ft::q :params [] :when [(?fact :- :ft::F)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to

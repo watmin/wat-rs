@@ -16,11 +16,11 @@
 ;; 512 KiB cap. The child stays alive (blocked in the kernel's write(2), pipe buffer full) while the
 ;; parent's frame reader accumulates past the cap → FrameTooLarge → Lost.
 
-(:wat::core::defn :user::compute [] -> (:wat::spawn::ServiceEvent :- [:wat::core::nil :wat::core::nil :wat::core::nil])
+(:wat::core::defn :user::compute [] -> (:wat::spawn::ServiceEvent :- [wat.type/nil wat.type/nil wat.type/nil])
   (:wat::core::let
     [child (:wat::test::spawn-peer (:wat::spawn::process)
              (:wat::core::forms
-               (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:wat::core::defn :user::main [] -> wat.type/nil
                  ;; Simulate a NON-CONFORMING peer that floods fd 1 (the peer wire) with un-terminated
                  ;; bytes. The `:user::` child controls NOTHING: every raw-write primitive is
                  ;; kernel/test-gated (users cannot flood ad-hoc), and the ONLY user-reachable flood is
@@ -31,4 +31,4 @@
                  (:wat::core::let
                    [_n (:wat::test::flood-own-stdout)]
                    nil))))]
-    (:wat::kernel::select (:wat::core::Vector :- [(:wat::kernel::Process :- [:wat::core::nil :wat::core::nil])] child))))
+    (:wat::kernel::select (wat.type/Vector :- [(:wat::kernel::Process :- [wat.type/nil wat.type/nil])] child))))

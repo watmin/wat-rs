@@ -1,4 +1,4 @@
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [_ (:wat::core::Result/expect
                         (:wat::eval-ast! (:wat::core::match (:wat::core::read-string "(:wat::core::this-verb-does-not-exist)") [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
                         "boom at runtime")]

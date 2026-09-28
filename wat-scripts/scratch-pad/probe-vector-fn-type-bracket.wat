@@ -4,6 +4,6 @@
 ;; a well-typed T, then trip `eval_vector_ctor`'s runtime match — which only accepts
 ;; WatAST::Keyword | WatAST::List for args[0], not WatAST::Vector — as MalformedForm?
 (:wat::core::def :user::main
-  (:wat::core::fn [] -> :wat::core::nil
+  (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println
-      (:wat::core::Vector :- [[:wat::core::i64 :-> :wat::core::bool]]))))
+      (wat.type/Vector :- [[:wat::core::i64 :-> wat.type/bool]]))))

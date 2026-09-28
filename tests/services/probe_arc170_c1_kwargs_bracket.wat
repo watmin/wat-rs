@@ -7,11 +7,11 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -24,9 +24,9 @@
 
 (:wat::core::defenum :probe::Msg :wat::enum::Pure
   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
-  :Work  [s    <- :wat::core::String])
+  :Work  [s    <- wat.type/String])
 
-(:wat::core::defn :probe::run [] -> :wat::core::String
+(:wat::core::defn :probe::run [] -> wat.type/String
   (:wat::core::let
     [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea   (:probe::echo::Handle/addr eh)
@@ -34,21 +34,21 @@
               (:wat::core::forms
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages
-                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-                     :Ok              [reply <- :wat::core::String]
-                     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+                     :Ok              [reply <- wat.type/String]
+                     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 (:wat::core::defenum :probe::Msg :wat::enum::Pure
                   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
-                  :Work  [s    <- :wat::core::String])
+                  :Work  [s    <- wat.type/String])
                 ;; ── the KWARGS work-fn: item positional, `echo` a :key Peer' kwarg ──
                 (:wat::core::defn :probe::work
-                  [item <- :wat::core::String
+                  [item <- wat.type/String
                    & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
-                  -> :wat::core::String
+                  -> wat.type/String
                   (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
                     [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
                     [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
@@ -57,9 +57,9 @@
                       (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
                 ;; ── serve loop: Work arm invokes via the COMPANION :key val call ──
                 (:wat::core::defn :probe::serve
-                  [self <- (:wat::kernel::Peer :- [:wat::core::String :probe::Msg])
+                  [self <- (:wat::kernel::Peer :- [wat.type/String :probe::Msg])
                    held <- (:wat::core::Option :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])])]
-                  -> :wat::core::nil
+                  -> wat.type/nil
                   (:wat::core::match (:wat::kernel::recv self)
                     [:wat::kernel::RecvOutcome.Message {:msg m}
                       (:wat::core::match m
@@ -78,7 +78,7 @@
                     [:wat::kernel::RecvOutcome.Stopped {} nil]
                     [:wat::kernel::RecvOutcome.Closed {}
                       (:wat::kernel::assertion-failed! :message "recv': self closed — serve loop terminating")]))
-                (:wat::core::defn :user::main [] -> :wat::core::nil
+                (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String :probe::Msg)]
                     (:probe::serve self :wat::core::Option.None)))))

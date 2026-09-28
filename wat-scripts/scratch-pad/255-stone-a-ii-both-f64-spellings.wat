@@ -22,7 +22,7 @@
 ;; Run:  ./target/release/wat --check ./wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat   # EXIT=0
 ;;       ./target/release/wat        ./wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat   # EXIT=0 (17/17 assertions pass)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::test::assert-eq (:wat::f64::+ 1.0 2.0) 3.0)
     (:wat::test::assert-eq (:wat::f64::- 5.0 3.0) 2.0)

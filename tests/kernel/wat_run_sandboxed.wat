@@ -28,11 +28,11 @@
 
 ;; ── noop — a clean child that prints nothing closes the wire ────────────────
 ;; No message, clean nil-return → recv' → Closed.
-(:wat::core::defn :my::compute-noop [] -> :wat::core::String
+(:wat::core::defn :my::compute-noop [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
+           (:wat::core::defn :user::main [] -> wat.type/nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m} "message"]
       [:wat::kernel::RecvOutcome.Lost {:cause _cause} "lost"]
@@ -41,11 +41,11 @@
 
 ;; ── single stdout write — the value crosses the wire DECODED ────────────────
 ;; `(println "hello")` → recv' → Message[m], m the native String "hello".
-(:wat::core::defn :my::compute-single-line [] -> :wat::core::String
+(:wat::core::defn :my::compute-single-line [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println "hello"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -60,11 +60,11 @@
 ;; surfaces as Lost. The terminal eprintln's value rides the crash cause:
 ;; LociDiedError::Panic.message = the value's EDN "\"oops\"".
 ;; Returns [msg1 msg2 death-message].
-(:wat::core::defn :my::compute-stdout-stderr [] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :my::compute-stdout-stderr [] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::do
                (:wat::kernel::println "one")
                (:wat::kernel::println "two")
@@ -100,11 +100,11 @@
 ;; AST, never a source string re-lexed in the child. This preserves the current
 ;; body's raise!->Panic semantics (what the test has actually exercised since its
 ;; arc-170 rearchitecture).
-(:wat::core::defn :my::compute-parse-error [] -> :wat::core::String
+(:wat::core::defn :my::compute-parse-error [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::raise! (:wat::core::Fault/of "inner-failure")))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
@@ -126,11 +126,11 @@
 ;; `invoke_main_missing_is_error` (missing main → UserMainMissing) +
 ;; finish_forked_child's Ok(Err runtime) arm → process_died_error_runtime_value.
 ;; Returns a tag naming the variant that actually surfaced (so a RED reveals it).
-(:wat::core::defn :my::compute-missing-main [] -> :wat::core::String
+(:wat::core::defn :my::compute-missing-main [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :my::not-a-main [] -> :wat::core::nil nil)))]
+           (:wat::core::defn :my::not-a-main [] -> wat.type/nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -149,11 +149,11 @@
 ;; `(raise! (Fault/of "boom"))` crashes it. Unbuffered PipeWriter → the "before
 ;; panic" Message is received BEFORE the crash surfaces as Lost[Panic].
 ;; Returns [partial-message panic-message].
-(:wat::core::defn :my::compute-panic-partial [] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :my::compute-panic-partial [] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::do
                (:wat::kernel::println "before panic")
                (:wat::kernel::raise! (:wat::core::Fault/of "boom"))))))
@@ -177,11 +177,11 @@
 ;; takes the Err arm; `(eprintln "err")` is a DYING declaration → the child dies.
 ;; recv' → Lost[Panic] whose message is the eprintln value's EDN "\"err\"".
 ;; (The Ok arm — `(println "ok")` — never runs.)
-(:wat::core::defn :my::compute-scope-inside [] -> :wat::core::String
+(:wat::core::defn :my::compute-scope-inside [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::match
                (:wat::eval-file! "/nonexistent-in-child-loader.wat")
                [:wat::core::Result.Ok {:value h} (:wat::kernel::println "ok")]
@@ -197,11 +197,11 @@
 
 ;; ── scope outside — same empty-loader Err arm; the Ok "leaked" never runs ───
 ;; recv' → Lost[Panic] whose message is the eprintln value's EDN "\"blocked\"".
-(:wat::core::defn :my::compute-scope-outside [] -> :wat::core::String
+(:wat::core::defn :my::compute-scope-outside [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::match
                (:wat::eval-file! "/also-nonexistent-in-child-loader.wat")
                [:wat::core::Result.Ok {:value _} (:wat::kernel::println "leaked")]

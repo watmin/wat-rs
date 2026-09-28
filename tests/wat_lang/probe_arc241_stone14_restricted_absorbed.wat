@@ -3,6 +3,6 @@
 
 (:wat::core::defn :test::restricted-target
   {:restricted-to [:test::]}
-  [] -> :wat::core::i64 42)
+  [] -> wat.type/i64 42)
 (:wat::core::defn :test::allowed-caller
-  [] -> :wat::core::i64 (:test::restricted-target))
+  [] -> wat.type/i64 (:test::restricted-target))

@@ -91,9 +91,9 @@
 ;; "propagate"/"abort") and land on OPPOSITE verdicts — exactly the trap the brief named: the body's
 ;; Rust TYPE decides, not the family. `Partial`.
 
-(:wat::core::defrecord :probe::AggProbe [a <- :wat::core::i64 b <- :wat::core::i64])
+(:wat::core::defrecord :probe::AggProbe [a <- wat.type/i64 b <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; behavior: aggregate-new / kwargs-construct still construct correctly
     (:wat::kernel::println (:wat::string::concat "aggregate-new field a=" (:wat::i64::to-string (:wat::core::Record/field-at (:wat::core::aggregate-new :probe::AggProbe 3 4) 0))))

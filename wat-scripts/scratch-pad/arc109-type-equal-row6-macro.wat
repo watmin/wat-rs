@@ -9,12 +9,12 @@
 ;; The macro body calls `type-equal?` directly (not inside emitted/quoted code) to compare the
 ;; two DECLARED type nodes it was handed, and emits a different literal depending on the answer
 ;; — i.e., the comparison happens AT EXPAND TIME, in the macro's own Rust-reachable body.
-(:wat::core::defmacro :probe::same-shape? [a <- :wat::WatAST b <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :probe::same-shape? [a <- wat.type/AST b <- wat.type/AST] -> wat.type/AST
   (:wat::core::if (:wat::core::type-equal? a b)
     (:wat::core::keyword-node ":same")
     (:wat::core::keyword-node ":different")))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "macroexpand (:probe::same-shape? (Peer :- [A B]) (Peer :- [A B])) — same:")
     (:wat::kernel::println

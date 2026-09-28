@@ -2,6 +2,6 @@
 ;; Calling :i64-typed clause with :String arg must reject at check time. startup MUST fail.
 
 (:wat::core::defclause :my::only-i64
-  ([x <- :wat::core::i64] -> :wat::core::i64 x))
-(:wat::core::defn :user::bad [] -> :wat::core::nil
+  ([x <- wat.type/i64] -> wat.type/i64 x))
+(:wat::core::defn :user::bad [] -> wat.type/nil
   (:wat::core::do (:my::only-i64 "string-arg") nil))

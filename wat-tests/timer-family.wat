@@ -11,10 +11,10 @@
 ;; A delay is a select (cascade-interruptible by construction); never a thread::sleep.
 (:wat::core::defn :test::timer::nap
   [d <- :wat::time::Duration]
-  -> :wat::core::nil
+  -> wat.type/nil
   (:wat::core::match
     (:wat::kernel::select
-      (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])]
+      (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/nil])]
         (:wat::kernel::after :wat::program::PeerKind.thread d nil)))
      
     [:wat::spawn::ServiceEvent.Message {:idx _idx :msg _m} nil]
@@ -30,8 +30,8 @@
 ;; Naps a growing delay between attempts; returns the attempt it "succeeded" on.
 ;; Each nap is a fresh one-shot `after` (periodic = re-armed one-shots, no `tick`).
 (:wat::core::defn :test::timer::retry-until
-  [target <- :wat::core::i64  attempt <- :wat::core::i64  millis <- :wat::core::i64]
-  -> :wat::core::i64
+  [target <- wat.type/i64  attempt <- wat.type/i64  millis <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::>= attempt target) 
     attempt
     (:wat::core::let [_ (:test::timer::nap (:wat::time::Millisecond millis))]
@@ -56,7 +56,7 @@
   (:wat::test::assert-eq
     (:wat::core::match
       (:wat::kernel::select
-        (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
+        (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])]
           (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 20) :slow)
           (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 1) :fast)))
        

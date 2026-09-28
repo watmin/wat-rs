@@ -64,21 +64,21 @@
   :messages
   ;; `Tally` is declared HERE and nowhere else. Its kwargs companion can only exist
   ;; if the surface's hoist registered it.
-  [(:wat::core::defrecord :probe::Chan::Tally [n <- :wat::core::i64])
+  [(:wat::core::defrecord :probe::Chan::Tally [n <- wat.type/i64])
    (:wat::core::defrecord :probe::Chan::CountRequest [])
    (:wat::core::defenum :probe::Chan::CountResponse :wat::enum::Pure
      :Ok               [tally <- :probe::Chan::Tally]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got <- :wat::core::String])]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got <- wat.type/String])]
   :features
   [(count [self <- :probe::Chan  req <- :probe::Chan::CountRequest]
      -> :probe::Chan::CountResponse :max-request-bytes 4096)])
 
 (:wat::service::defservice :probe::chan-svc
   :satisfies :probe::Chan
-  :durable   [seen <- :wat::core::i64]
+  :durable   [seen <- wat.type/i64]
   :ephemeral []
   :impls
   ;; ★ THE ASSERTION IS THIS BODY EXPANDING AT ALL. `(:probe::Chan::Tally :n …)` is the

@@ -8,4 +8,4 @@
 ;; used to make. Same instantiation `probe2.wat`'s already-proven return-type
 ;; annotation uses (`(:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])`).
 (:wat::core::typealias :probe::arc214::ThreadPeer
-  (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64]))
+  (:wat::kernel::Thread :- [wat.type/i64 wat.type/i64]))

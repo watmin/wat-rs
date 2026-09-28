@@ -12,16 +12,16 @@
 ;; stdin = [n]  (n = how many Left facts to stage)
 ;; stdout = one #probe/SeedTimes EDN line.
 
-(:wat::core::defrecord :seedp::Left [key <- :wat::core::i64  lid <- :wat::core::i64])
+(:wat::core::defrecord :seedp::Left [key <- wat.type/i64  lid <- wat.type/i64])
 
 (:wat::core::defrecord :probe::SeedTimes
-  [n              <- :wat::core::i64
-   per-fact-ns    <- :wat::core::i64
-   batch-ns       <- :wat::core::i64
-   per-fact-facts <- :wat::core::i64
-   batch-facts    <- :wat::core::i64])
+  [n              <- wat.type/i64
+   per-fact-ns    <- wat.type/i64
+   batch-ns       <- wat.type/i64
+   per-fact-facts <- wat.type/i64
+   batch-facts    <- wat.type/i64])
 
-(:wat::core::defn :seedp::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :seedp::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; an empty session — one rule so `compile` has something to chew, never fired here.
@@ -34,25 +34,25 @@
         :rhs (:wat::core::PersistentVector)))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 ;; PATH A — the grid's current shape: N calls to the per-fact verb, threaded through a foldl.
-(:wat::core::defn :seedp::seed-per-fact [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :seedp::seed-per-fact [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [acc <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert acc (:seedp::Left :key i :lid i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     s
     (:wat::core::range 0 n)))
 
 ;; PATH B — build the fact vector, then ONE call to the native batch verb.
-(:wat::core::defn :seedp::seed-batch [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :seedp::seed-batch [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     s
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::vector::conj acc (:seedp::Left :key i :lid i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 n))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [params (:wat::core::match (:wat::kernel::readln )
               [:wat::kernel::ReadlnOutcome.Datum {:v __d} __d]

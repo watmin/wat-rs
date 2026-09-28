@@ -10,27 +10,27 @@
 ;; Function definitions, macros, etc. are silently skipped.
 
 (:wat::core::defstruct :enterprise::config::SizeAdjust
-  [asset    <- :wat::core::keyword
-   factor   <- :wat::core::f64
-   reason   <- :wat::core::String])
+  [asset    <- wat.type/keyword
+   factor   <- wat.type/f64
+   reason   <- wat.type/String])
 
 (:wat::core::defstruct :enterprise::observer::market::TradeSignal
-  [asset       <- :wat::core::keyword
-   side        <- :wat::core::keyword
-   size        <- :wat::core::f64
-   confidence  <- :wat::core::f64
+  [asset       <- wat.type/keyword
+   side        <- wat.type/keyword
+   size        <- wat.type/f64
+   confidence  <- wat.type/f64
    proposed-at <- :wat::time::Instant])
 
 (:wat::core::defstruct :enterprise::treasury::events::Fill
-  [order-id     <- :wat::core::i64
-   asset        <- :wat::core::keyword
-   filled-size  <- :wat::core::f64
-   filled-price <- :wat::core::f64])
+  [order-id     <- wat.type/i64
+   asset        <- wat.type/keyword
+   filled-size  <- wat.type/f64
+   filled-price <- wat.type/f64])
 
 ;; A function definition — should be ignored by the scanner.
 (:wat::core::defn :enterprise::observer::market::TradeSignal/show
   [sig <- :enterprise::observer::market::TradeSignal]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::format "[{asset}] {side} @ {size}"
     :asset (:enterprise::observer::market::TradeSignal/asset sig)
     :side (:enterprise::observer::market::TradeSignal/side sig)

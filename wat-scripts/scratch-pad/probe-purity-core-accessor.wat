@@ -1,7 +1,7 @@
-(:wat::core::defn :user::uf [src <- :wat::core::String] -> :wat::WatAST
+(:wat::core::defn :user::uf [src <- wat.type/String] -> wat.type/AST
   (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [real (:user::uf "(:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error))")
      eq   (:user::uf "(:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool (:wat::core::= n n))")

@@ -5,7 +5,7 @@
 
 (:wat::core::defn :my::kernel::restricted-fn
   {:restricted-to [:my::kernel::]}
-  [x <- :wat::core::i64] -> :wat::core::i64 x)
+  [x <- wat.type/i64] -> wat.type/i64 x)
 
-(:wat::core::defn :my::kernel::ok-caller [] -> :wat::WatAST
+(:wat::core::defn :my::kernel::ok-caller [] -> wat.type/AST
   (:wat::core::quote (my.kernel/restricted-fn 7)))

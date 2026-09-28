@@ -1,7 +1,7 @@
 ;; An unbounded T is not a :u::Mark. Same body position as the bounded defn.
 (:wat::core::defsurface :u::Mark :nature :wat::core::Record :features [])
-(:wat::core::defrecord :u::In [n <- :wat::core::i64])
+(:wat::core::defrecord :u::In [n <- wat.type/i64])
 (:wat::core::extend-type :u::In :u::Mark)
-(:wat::core::defn :u::takes-mark [m <- :u::Mark] -> :wat::core::i64 1)
-(:wat::core::defn :u::plain :- [T] [x <- :T] -> :wat::core::i64
+(:wat::core::defn :u::takes-mark [m <- :u::Mark] -> wat.type/i64 1)
+(:wat::core::defn :u::plain :- [T] [x <- :T] -> wat.type/i64
   (:u::takes-mark x))

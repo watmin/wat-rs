@@ -4,11 +4,11 @@
 
 (:wat::core::defenum :probe::PoolMsg :- [D I] :wat::enum::Pure
   :Setup [deps <- :D]
-  :Work  [pair <- (:wat::core::Tuple :- [:wat::core::i64 I])])
+  :Work  [pair <- (wat.type/Tuple :- [wat.type/i64 I])])
 
 (:wat::core::defn :probe::serve
-  [self <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:probe::PoolMsg :- [:wat::core::nil :wat::core::i64])])]
-  -> :wat::core::nil
+  [self <- (:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (:probe::PoolMsg :- [wat.type/nil wat.type/i64])])]
+  -> wat.type/nil
   (:wat::core::match (:wat::kernel::recv self)
     [:wat::kernel::RecvOutcome.Message {:msg m}
       (:wat::core::match m
@@ -30,10 +30,10 @@
     [:wat::kernel::RecvOutcome.Stopped {} nil]
     [:wat::kernel::RecvOutcome.Closed {} nil]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [sp <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:probe::PoolMsg :- [:wat::core::nil :wat::core::i64])])] -> :wat::core::nil
+         (:wat::core::fn [sp <- (:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (:probe::PoolMsg :- [wat.type/nil wat.type/i64])])] -> wat.type/nil
            (:probe::serve sp)))
      _  (:wat::core::match (:wat::kernel::send w (:probe::PoolMsg.Work {:pair (:wat::core::Tuple 0 3)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      r0 (:wat::kernel::recv w)

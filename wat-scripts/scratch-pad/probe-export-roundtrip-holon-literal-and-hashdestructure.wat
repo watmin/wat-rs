@@ -1,9 +1,9 @@
 ;; Does a rete program carrying (a) a `#holon` literal and (b) a hash-destructure arm survive the
 ;; `#wat.rete/Export` wire? Both are 2026-08-28/29 additions and both put NEW shapes into the
 ;; compiled program: `Expr::Lit(Value::holon__HolonAST)` and `Pat::Fields`.
-(:wat::core::defrecord :xr::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :xr::In  [k <- :wat::core::String  p <- :xr::Point  h <- :wat::holon::HolonAST])
-(:wat::core::defrecord :xr::Out [k <- :wat::core::String])
+(:wat::core::defrecord :xr::Point [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :xr::In  [k <- wat.type/String  p <- :xr::Point  h <- :wat::holon::HolonAST])
+(:wat::core::defrecord :xr::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :xr::rule
   :when
@@ -24,7 +24,7 @@
     (:wat::core::match (:wat::rete::insert s (:xr::In :k "hit"  :p (:xr::Point :x 40 :y 2) :h #holon [1 2 3])) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
     (:xr::In :k "miss" :p (:xr::Point :x 1 :y 1) :h #holon [7 8 9])) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :xr)
      qs    (:wat::core::PersistentVector (:xr::q))]

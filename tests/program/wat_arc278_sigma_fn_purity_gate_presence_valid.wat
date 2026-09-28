@@ -1,3 +1,3 @@
 (:wat::config::set-presence-sigma!
-  (:wat::core::fn [d <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::fn [d <- wat.type/i64] -> wat.type/i64
     d))

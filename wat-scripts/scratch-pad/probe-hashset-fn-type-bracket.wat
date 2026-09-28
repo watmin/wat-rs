@@ -3,6 +3,6 @@
 ;; Keyword|List-only match (src/collection/eval.rs) reject a well-typed
 ;; `[T :-> R]` fn-type-bracket T that check-time (parse_type_node) accepts?
 (:wat::core::def :user::main
-  (:wat::core::fn [] -> :wat::core::nil
+  (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println
-      (:wat::core::HashSet :- [[:wat::core::i64 :-> :wat::core::bool]]))))
+      (wat.type/HashSet :- [[:wat::core::i64 :-> wat.type/bool]]))))

@@ -8,10 +8,10 @@
 ;; Expect: Temp=60 → Hot=1, Alert=1 (cascade!), Critical=0  → 1 Deduction
 ;;         Temp=95 → Hot=1, Alert=1, Critical=1             → 2 Deductions
 
-(:wat::core::defrecord :usr::Temp     [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Hot      [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Alert    [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Critical [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Temp     [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Hot      [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Alert    [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Critical [c <- wat.type/i64])
 
 (:wat::rete::defrule :usr::hot
   :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
@@ -38,7 +38,7 @@
   :when [(?fact :- :usr::Critical)])
 
 
-(:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Temp] -> :wat::core::String
+(:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Temp] -> wat.type/String
   (:wat::core::let
     [fired (:wat::core::match (:wat::rete::fire-rules (:wat::core::match (:wat::rete::insert template seed) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      h (:wat::core::length (:wat::rete::query fired (:usr::q-Hot)))
@@ -48,7 +48,7 @@
       (:wat::string::concat " Alert=" (:wat::string::concat (:wat::core::str a)
         (:wat::string::concat " Critical=" (:wat::core::str cr))))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:usr::hot) (:usr::alert) (:usr::critical))
      template (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Alert) (:usr::q-Critical))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]

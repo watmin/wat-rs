@@ -1,13 +1,13 @@
-(:wat::core::defn :my::adder [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ n 5))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :my::adder [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ n 5))
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [wf (:wat::kernel::fn-forms :my::adder :probe::work)
      w  (:wat::test::spawn-peer (:wat::spawn::process)
           (:wat::core::concat wf
             (:wat::core::forms
-              (:wat::core::defn :probe::runner [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+              (:wat::core::defn :probe::runner [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                 (:wat::core::let [i (:wat::kernel::recv self) _ (:wat::core::match (:wat::kernel::send self (:probe::work i)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])] (:probe::runner self)))
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64))))))
      _ (:wat::core::match (:wat::kernel::send w 1) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]) _ (:wat::core::match (:wat::kernel::send w 2) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      ra (:wat::kernel::recv w)

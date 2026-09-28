@@ -17,7 +17,7 @@
 ;; resolves, so its `{}` is a ctor PAYLOAD, not a map literal, and a payload key must be a bare
 ;; field keyword — it is now `MalformedForm`, not a clever lookup. The property it tested is proven
 ;; by the last line here instead, which needs no phantom to make its point.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; ⛔ ONE println, not three. stdout must be a SINGLE EDN value so the assertion can be a
   ;; structural golden (`tests/lint/no_inlined_edn.rs` bans an inline EDN string literal, and
   ;; three values on three lines cannot be one golden). The vector carries all three reads:

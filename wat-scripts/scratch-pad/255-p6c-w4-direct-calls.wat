@@ -10,9 +10,9 @@
 ;; ordinary shape the one that matters most. `field-names-of`/`field-types-of`
 ;; are called on a defstruct, mirroring `wat-scripts/probes/arc-170/probe-strikeB-fields.wat`.
 
-(:wat::core::defstruct :probe::W4Bag [n <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defstruct :probe::W4Bag [n <- wat.type/i64  s <- wat.type/String])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::i64::+)
       [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "metadata-of-i64+ :name= " (:wat::edn::write (:wat::hashmap::get hm :name))

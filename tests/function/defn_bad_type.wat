@@ -2,5 +2,5 @@
 ;; Defn declares -> :nil but body returns i64. startup MUST fail with ReturnTypeMismatch.
 
 (:wat::core::defn :user::bad
-  [] -> :wat::core::nil
+  [] -> wat.type/nil
   42)

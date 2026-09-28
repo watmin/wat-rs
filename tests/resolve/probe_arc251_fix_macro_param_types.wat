@@ -8,6 +8,6 @@
 ;; still-legal keyword; the rule under test — Keyword-shaped type slots on a defmacro's
 ;; rest param get rewritten, content-agnostic — is unaffected and its golden is
 ;; unchanged. Class 3 (a): subject survives.
-(:wat::core::defn :user::run [] -> :wat::core::String
+(:wat::core::defn :user::run [] -> wat.type/String
   (:wat::fix::fix-macro-param-types ";; keep me byte-identical\n(:wat::core::defmacro :user::m [a <- :wat::holon::HolonAST & rest <- :wat::holon::Holons] -> :wat::holon::HolonAST a)\n(:wat::core::defn :user::f [x <- :wat::core::i64] -> :wat::core::i64 x)"))
 

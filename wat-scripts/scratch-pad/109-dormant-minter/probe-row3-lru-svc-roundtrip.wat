@@ -2,12 +2,12 @@
 ;; Drives `:wat::cache::lru-svc :- [K V]` (wat/cache.wat) end to end: start as a
 ;; thread, connect, put an entry, get it back. K=String, V=i64, pinned explicitly
 ;; via ann-form (neither :durable nor :locus carries K/V for /start to infer from).
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h (:wat::core::ann-form
          (:wat::cache::lru-svc/start :locus (:wat::spawn::thread)
            :record (:wat::cache::lru-svc::Record :capacity 4))
-         (:wat::cache::lru-svc::Handle :- [:wat::core::String :wat::core::i64 :wat::kernel::Transport.Shared]))
+         (:wat::cache::lru-svc::Handle :- [wat.type/String wat.type/i64 :wat::kernel::Transport.Shared]))
      c (:wat::core::match (:wat::kernel::connect (:wat::cache::lru-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
          [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]

@@ -23,22 +23,22 @@
 ;; Mirrors tests/types/probe_arc293_acceptance_demo.wat exactly, renamed.
 (:wat::core::defsurface :sq::Seqable
   :nature :wat::core::Struct
-  :features [(as-vec [self <- :sq::Seqable] -> (:wat::core::Vector :- [:wat::core::i64]))])
+  :features [(as-vec [self <- :sq::Seqable] -> (wat.type/Vector :- [wat.type/i64]))])
 
-(:wat::core::extend-type :wat::core::Vector :sq::Seqable
-  (as-vec [self] -> (:wat::core::Vector :- [:wat::core::i64]) self))
+(:wat::core::extend-type wat.type/Vector :sq::Seqable
+  (as-vec [self] -> (wat.type/Vector :- [wat.type/i64]) self))
 
-(:wat::core::extend-type :wat::core::PersistentVector :sq::Seqable
-  (as-vec [self] -> (:wat::core::Vector :- [:wat::core::i64])
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) self)))
+(:wat::core::extend-type wat.type/PersistentVector :sq::Seqable
+  (as-vec [self] -> (wat.type/Vector :- [wat.type/i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64]) self)))
 
 ;; the payoff: ONE function over ANY Seqable — what join/map/filter want
-(:wat::core::defn :sq::count-of [s <- :sq::Seqable] -> :wat::core::i64
+(:wat::core::defn :sq::count-of [s <- :sq::Seqable] -> wat.type/i64
   (:wat::core::length (:sq::Seqable/as-vec s)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::join ","
-      (:wat::core::Vector :- [:wat::core::i64]
-        (:sq::count-of (:wat::core::Vector :- [:wat::core::i64] 10 20 30))
+      (wat.type/Vector :- [wat.type/i64]
+        (:sq::count-of (wat.type/Vector :- [wat.type/i64] 10 20 30))
         (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))))))

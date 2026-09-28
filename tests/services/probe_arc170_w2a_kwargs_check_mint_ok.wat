@@ -10,11 +10,11 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo
@@ -25,11 +25,11 @@
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- wat.type/String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
-     :Ok              [v <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [v <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::kv
@@ -40,10 +40,10 @@
 
 ;; the kwargs work-fn -> AUTO-mints :probe::enrich::kwargs-check
 (:wat::core::defn :probe::enrich
-  [item <- :wat::core::String
+  [item <- wat.type/String
    & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])
       kv   <- (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])]]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
     [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
     [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
@@ -57,7 +57,7 @@
 ;; HANDLES (no coord upcast — the bodiless edge admits them directly). `:user::main`
 ;; discards the pair (`_pair`, a plain let-binding) so the call still exercises the
 ;; param-type gate while `main` keeps its required `[] -> :nil` contract.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh    (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      kvh   (:probe::kv/start   :locus (:wat::spawn::process) :record (:probe::kv::Record))

@@ -29,23 +29,23 @@
 
 (:wat::core::defsurface :tl::Bag :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :tl::Bag::PutRequest [n <- :wat::core::i64])
+  [(:wat::core::defrecord :tl::Bag::PutRequest [n <- wat.type/i64])
    (:wat::core::defenum :tl::Bag::PutResponse :wat::enum::Pure
-     :Ok               [n <- :wat::core::i64]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [n <- wat.type/i64]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(put [self <- :tl::Bag  req <- :tl::Bag::PutRequest]
      -> :tl::Bag::PutResponse :max-request-bytes 4096)])
 
 (:wat::service::defservice :tl::bag-svc
-  :satisfies :tl::Bag  :durable [n <- :wat::core::i64]  :ephemeral []
+  :satisfies :tl::Bag  :durable [n <- wat.type/i64]  :ephemeral []
   :impls
   [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:tl::Bag::PutResponse.Ok {:n 1})}))])
 
 (:wat::core::defn :tl::try [c <- (:wat::kernel::Peer :- [:tl::Bag::Op :tl::Bag::Reply])
-                           label <- :wat::core::String] -> :wat::core::nil
+                           label <- wat.type/String] -> wat.type/nil
   (:wat::core::match (:tl::Bag/put c (:tl::Bag::PutRequest :n 1))
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::kernel::println (:wat::string::concat label " => Message (served)"))]
@@ -56,7 +56,7 @@
     [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::println (:wat::string::concat label " => CLOSED"))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h (:tl::bag-svc/start :locus (:wat::spawn::thread) :record (:tl::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tl::bag-svc::Handle/addr h))

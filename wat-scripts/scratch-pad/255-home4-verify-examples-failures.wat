@@ -5,12 +5,12 @@
 ;; so the println side effects are forced (map over a lazy Seqable doesn't
 ;; force without a consumer).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [failures (:wat::doctest::verify-examples)]
     (:wat::core::do
       (:wat::kernel::println (:wat::string::interpolate "TOTAL FAILURES: {n}" :n (:wat::i64::to-string (:wat::core::length failures))))
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::i64 f <- :wat::doctest::Failure] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64 f <- :wat::doctest::Failure] -> wat.type/i64
           (:wat::core::do
             (:wat::kernel::println
               (:wat::string::interpolate "{fqdn}  ::  {reason}"

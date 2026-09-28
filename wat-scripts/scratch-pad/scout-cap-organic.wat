@@ -1,12 +1,12 @@
 ;; scout-cap-organic: the ORGANIC capture path a macro would expand to.
 ;; User writes (fn ...) organically; macro wraps it as (write-forms (quote (fn ...))).
 ;; Result is a String field (fork-safe). Server does read-string to rebuild the form.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; what the macro emits at the call site — NO hand-typed string, NO user quote visible:
      captured (:wat::core::write-forms
                  (:wat::core::quote
-                    (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool
+                    (:wat::core::fn [n <- wat.type/i64] -> wat.type/bool
                       (:wat::core::> n 3))))
      ;; server side rebuild:
      form     (:wat::core::match (:wat::core::read-string captured) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])

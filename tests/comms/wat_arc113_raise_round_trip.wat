@@ -22,11 +22,11 @@
 ;; Returns (Option :- [String]) = the raised Fault's message field, read structurally,
 ;; proving the error rode the boundary as a record — not a stringified blob.
 
-(:wat::core::defn :my::compute [] -> (:wat::core::Option :- [:wat::core::String])
+(:wat::core::defn :my::compute [] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::let
     [p
       (:wat::test::spawn-peer (:wat::spawn::thread)
-        (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+        (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
           (:wat::kernel::raise!
             (:wat::core::Fault/of "arc113-raise-data"))))]
     (:wat::core::match (:wat::kernel::recv p)

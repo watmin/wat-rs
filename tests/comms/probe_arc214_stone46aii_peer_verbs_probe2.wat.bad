@@ -3,9 +3,9 @@
 ;; A defn declaring -> :String whose body recv's from an i64-peer MUST fail at check.
 ;; startup_from_file on this file is expected to return Err.
 
-(:wat::core::defn :user::bad-recv [] -> :wat::core::String
+(:wat::core::defn :user::bad-recv [] -> wat.type/String
   (:wat::core::let [peer (:wat::kernel::spawn-program (:wat::spawn::thread)
-                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                              (:wat::kernel::send self (:wat::kernel::recv self))))]
     (:wat::kernel::recv peer)))
 

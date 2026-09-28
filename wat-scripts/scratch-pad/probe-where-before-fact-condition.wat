@@ -1,8 +1,8 @@
 ;; NOTE-rete-a-where-before-a-fact-condition-silently-matches-nothing.md (2026-08-24, inbound).
 ;; A `where` FOLLOWED by a fact condition is claimed to match nothing, silently.
-(:wat::core::defrecord :wb::A [n <- :wat::core::i64])
-(:wat::core::defrecord :wb::B [m <- :wat::core::i64])
-(:wat::core::defrecord :wb::Out [n <- :wat::core::i64])
+(:wat::core::defrecord :wb::A [n <- wat.type/i64])
+(:wat::core::defrecord :wb::B [m <- wat.type/i64])
+(:wat::core::defrecord :wb::Out [n <- wat.type/i64])
 
 ;; WHERE FIRST — the reported defect.
 (:wat::rete::defrule :wb::where-first
@@ -13,7 +13,7 @@
 
 (:wat::rete::defquery :wb::q :params [] :when [(?fact :- :wb::Out)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::core::length
       (:wat::core::let

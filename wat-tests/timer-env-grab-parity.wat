@@ -21,23 +21,23 @@
   :messages
   [(:wat::core::defrecord :wat-tests::Deadline::WaitTickRequest  [])
    (:wat::core::defenum :wat-tests::Deadline::WaitTickResponse :wat::enum::Pure
-     :Ok              [fired <- :wat::core::keyword]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [fired <- wat.type/keyword]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(wait-tick [self <- :wat-tests::Deadline  req <- :wat-tests::Deadline::WaitTickRequest] -> :wat-tests::Deadline::WaitTickResponse :max-request-bytes 524288)])
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::deadline
   :satisfies :wat-tests::Deadline
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(wait-tick [s ctx req]
      (:wat::core::let
        [m (:wat::core::match
             (:wat::kernel::select
-              (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
+              (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])]
                 (:wat::kernel::after
                   (:wat::program::Env/peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
                   (:wat::time::Millisecond 50)

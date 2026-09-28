@@ -4,14 +4,14 @@
 ;; The client op protocol: compute-and-reply. No Stop op — the owner dropping its
 ;; handle (→ :Shutdown) terminates the service structurally (the c0b1b guarantee).
 (:wat::core::defenum :user::Op :wat::enum::Pure
-  :Compute [n <- :wat::core::i64])
+  :Compute [n <- wat.type/i64])
 
 ;; The service loop — poll' multiplexes the self-peer, the listener, the clients.
 (:wat::core::defn :user::serve
-  [self    <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
-   l       <- (:wat::kernel::Listener :- [:user::Op :wat::core::i64])
-   clients <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :user::Op])])]
-  -> :wat::core::nil
+  [self    <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])
+   l       <- (:wat::kernel::Listener :- [:user::Op wat.type/i64])
+   clients <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 :user::Op])])]
+  -> wat.type/nil
   (:wat::core::match (:wat::kernel::poll self l clients) 
     [:wat::spawn::ServiceEvent.Shutdown {} nil]
     [:wat::spawn::ServiceEvent.Connection {:peer peer}
@@ -30,14 +30,14 @@
 
 ;; Spawn the service, connect one client, round-trip a scalar (5*2 = 10), then
 ;; scope-exit drops `svc` → :Shutdown → the service terminates and the join completes.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [b    (:wat::kernel::listener (:wat::spawn::thread) :user::Op :wat::core::i64)
      l    (:wat::spawn::Bound/listener b)
      addr (:wat::spawn::Bound/address b)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
-              (:user::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :user::Op])]))))
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
+              (:user::serve self l (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 :user::Op])]))))
      c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _    (:wat::core::match (:wat::kernel::send c1 (:user::Op.Compute {:n 5})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      r1   (:wat::core::match (:wat::kernel::recv c1)

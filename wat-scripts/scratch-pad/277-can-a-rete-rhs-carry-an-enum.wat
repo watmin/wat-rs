@@ -18,10 +18,10 @@
   :Align [])
 
 (:wat::core::defrecord :user::Seed
-  [id <- :wat::core::i64])
+  [id <- wat.type/i64])
 
 (:wat::core::defrecord :user::Broken
-  [id   <- :wat::core::i64
+  [id   <- wat.type/i64
    kind <- :user::BreakKind])
 
 ;; THE QUESTION: an enum-variant constructor in a :then value position.
@@ -33,7 +33,7 @@
   :params []
   :when [(?fact :- :user::Broken)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules    (:wat::rete::collect-rules :user)
      template (:wat::core::match (:wat::rete::compile-all rules

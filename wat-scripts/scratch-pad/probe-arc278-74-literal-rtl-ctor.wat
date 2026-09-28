@@ -35,14 +35,14 @@
 (:wat::core::defsurface :probe::PCtor :- [K V] :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::PCtor::GetRequest :- [K]
-     [probes <- (:wat::core::Vector :- [K])
-      limit  <- :wat::core::i64])
+     [probes <- (wat.type/Vector :- [K])
+      limit  <- wat.type/i64])
    (:wat::core::defenum :probe::PCtor::GetResponse :- [V] :wat::enum::Pure
-     :Ok               [results <- (:wat::core::Vector :- [V])]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got      <- :wat::core::String])]
+     :Ok               [results <- (wat.type/Vector :- [V])]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path     <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got      <- wat.type/String])]
   :features
   [(get [self <- (:probe::PCtor :- [K V])  req <- (:probe::PCtor::GetRequest :- [K])]
      -> (:probe::PCtor::GetResponse :- [V]) :max-request-bytes 1024)])
@@ -50,27 +50,27 @@
 ;; ★ THE CLAIM UNDER TEST — a LITERAL ctor call naming the BARE base of a
 ;;   PARAMETRIC response enum, in exactly the position the macro will splice it.
 (:wat::core::defn :probe::mk-rtl-parametric []
-    -> (:probe::PCtor::GetResponse :- [:wat::core::i64])
+    -> (:probe::PCtor::GetResponse :- [wat.type/i64])
   (:probe::PCtor::GetResponse.RequestTooLarge {:bytes 9999 :cap 1024}))
 
 ;; The RequestMalformed twin — the same strike lands on it, so it is under test too.
 (:wat::core::defn :probe::mk-rm-parametric []
-    -> (:probe::PCtor::GetResponse :- [:wat::core::i64])
+    -> (:probe::PCtor::GetResponse :- [wat.type/i64])
   (:probe::PCtor::GetResponse.RequestMalformed
-    {:path (:wat::core::Vector :- [:wat::core::String] "limit") :expected "i64" :got "String"}))
+    {:path (wat.type/Vector :- [wat.type/String] "limit") :expected "i64" :got "String"}))
 
 ;; ── NON-VACUITY CONTROL: the MONOMORPHIC case, which the pre-#72 concatenation
 ;;    already built literally for the whole corpus. If the parametric arms above
 ;;    pass but this fails, the probe is measuring something other than its subject.
 (:wat::core::defsurface :probe::MCtor :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::MCtor::PutRequest [k <- :wat::core::String])
+  [(:wat::core::defrecord :probe::MCtor::PutRequest [k <- wat.type/String])
    (:wat::core::defenum :probe::MCtor::PutResponse :wat::enum::Pure
-     :Ok               [n <- :wat::core::i64]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
-                        expected <- :wat::core::String
-                        got      <- :wat::core::String])]
+     :Ok               [n <- wat.type/i64]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path     <- (wat.type/Vector :- [wat.type/String])
+                        expected <- wat.type/String
+                        got      <- wat.type/String])]
   :features
   [(put [self <- :probe::MCtor  req <- :probe::MCtor::PutRequest]
      -> :probe::MCtor::PutResponse :max-request-bytes 1024)])

@@ -7,7 +7,7 @@
 ;; --local` into scratch, built, run), not a `git stash`. Direct FQDN-keyword call sites, mirrors
 ;; `255-p6c-w5b-metadata.wat`.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::lower)
       [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::lower :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]

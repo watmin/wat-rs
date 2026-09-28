@@ -6,12 +6,12 @@
 ;; probe-2: doubled braces mixed with a real placeholder.
 ;; probe-3: trailing literal close brace after a placeholder.
 
-(:wat::core::defn :user::probe-1 [] -> :wat::core::String
+(:wat::core::defn :user::probe-1 [] -> wat.type/String
   (:wat::core::format "{{literal}}"))
 
-(:wat::core::defn :user::probe-2 [] -> :wat::core::String
+(:wat::core::defn :user::probe-2 [] -> wat.type/String
   (:wat::core::format "{{x}} = {name}" :name "v"))
 
-(:wat::core::defn :user::probe-3 [] -> :wat::core::String
+(:wat::core::defn :user::probe-3 [] -> wat.type/String
   (:wat::core::format "{name}}}" :name "v"))
 

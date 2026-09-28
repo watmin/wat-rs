@@ -27,10 +27,10 @@
 
 ;; The head of a form: the child at index 0 that carries a name. DERIVED — rule 2 joins it.
 (:wat::core::defrecord :ls::Head
-  [form <- :wat::core::i64
-   name <- :wat::core::String
-   line <- :wat::core::i64
-   col  <- :wat::core::i64])
+  [form <- wat.type/i64
+   name <- wat.type/String
+   line <- wat.type/i64
+   col  <- wat.type/i64])
 
 (:wat::rete::defrule :ls::head-of
   :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
@@ -55,5 +55,5 @@
                        (:wat::grep::Capture :name "col"   :value (:wat::rete::i64::to-string ?cc))
                        (:wat::grep::Capture :name "kind"  :value (:wat::rete::core::variant-name ?ck))))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :ls))

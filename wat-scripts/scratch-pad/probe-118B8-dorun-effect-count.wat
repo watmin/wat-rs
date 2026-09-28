@@ -7,10 +7,10 @@
 ;; RUN: ./target/release/wat wat-scripts/scratch-pad/probe-118B8-dorun-effect-count.wat | wc -l
 ;; PASS = exactly 5 (n elements in -> n forces out; dorun keeps nothing but must force everything).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [v  (:wat::core::range 0 5)
-     f  (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+     f  (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
           (:wat::core::do
             (:wat::kernel::println "FORCED")
             x))]

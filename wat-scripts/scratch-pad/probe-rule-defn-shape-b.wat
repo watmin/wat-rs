@@ -2,9 +2,9 @@
 ;; conds/ins helper) rule-defns, e.g. where-boolean.wat's :wsb::rule-and2. Grounds the codemod's
 ;; Shape-B index assumptions (bindings-vec arity, helper-defn body shape) against the real AST.
 
-(:wat::core::defn :user::kinds [ch <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::String
+(:wat::core::defn :user::kinds [ch <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String c <- :wat::WatAST] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String c <- wat.type/AST] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::core::ast-kind c))))
     ""
@@ -15,11 +15,11 @@
 ;; (`ast->children`'s return type) and this is reconnaissance over it, not a force-count probe —
 ;; `into []` materializes the filtered Stream back to a Vector so `first` still applies, same
 ;; "find the named top-level form" semantics, byte-identical answer.
-(:wat::core::defn :user::find-named [forms <- (:wat::core::Vector :- [:wat::WatAST]) nm <- :wat::core::String] -> :wat::WatAST
+(:wat::core::defn :user::find-named [forms <- (wat.type/Vector :- [wat.type/AST]) nm <- wat.type/String] -> wat.type/AST
   (:wat::core::first
     (:wat::core::into []
       (:wat::core::filter
-        (:wat::core::fn [f <- :wat::WatAST] -> :wat::core::bool
+        (:wat::core::fn [f <- wat.type/AST] -> wat.type/bool
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind f) "list")
             (:wat::core::let [ch (:wat::core::ast->children f)]
               (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
@@ -28,7 +28,7 @@
             false))
         forms))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [src   (:wat::io::read-file "wat-scripts/perf/grid/where-boolean.wat")
      tree  (:wat::core::match (:wat::core::read-string src)

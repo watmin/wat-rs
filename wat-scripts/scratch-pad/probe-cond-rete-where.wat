@@ -14,8 +14,8 @@
 ;; `expand_form` (via `resolve::boundary::Boundary::MakeRule`) to expand ONLY the body of a
 ;; `(:wat::rete::where …)` form, leaving the surrounding `:probe::Item` fact pattern untouched.
 ;; Now prints `hits=1` — cond composes correctly in a real `defrule`'s `where`.
-(:wat::core::defrecord :probe::Item [tier <- :wat::core::keyword])
-(:wat::core::defrecord :probe::Hit [tier <- :wat::core::keyword])
+(:wat::core::defrecord :probe::Item [tier <- wat.type/keyword])
+(:wat::core::defrecord :probe::Hit [tier <- wat.type/keyword])
 
 (:wat::rete::defrule :probe::score-rule
   :when
@@ -35,7 +35,7 @@
   :when [(?fact :- :probe::Hit)])
 
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules  (:wat::core::PersistentVector (:probe::score-rule))
      staged (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:probe::Item :tier :silver)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])

@@ -16,13 +16,13 @@
      c (:wat::holon::to-holon "c")
      d (:wat::holon::to-holon "d")
      window-1
-      (:wat::holon::Sequential (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
+      (:wat::holon::Sequential (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
      ;; Trigram returns (:wat::core::Result :- [HolonAST CapacityExceeded]). 4 atoms at
      ;; d=1024 is well under the capacity budget; Err is unreachable
      ;; but the type system still demands we acknowledge it.
      full
       (:wat::core::match
-        (:wat::holon::Trigram (:wat::core::Vector :- [:wat::holon::HolonAST] a b c d))
+        (:wat::holon::Trigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c d))
         
         [:wat::core::Result.Ok {:value h} h]
         [:wat::core::Result.Err {:error _} a])]
@@ -38,7 +38,7 @@
      z (:wat::holon::to-holon "unrelated-z")
      full
       (:wat::core::match
-        (:wat::holon::Trigram (:wat::core::Vector :- [:wat::holon::HolonAST] a b c d))
+        (:wat::holon::Trigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c d))
         
         [:wat::core::Result.Ok {:value h} h]
         [:wat::core::Result.Err {:error _} a])]

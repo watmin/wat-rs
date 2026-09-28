@@ -37,14 +37,14 @@
 
 ;; the LHS fact carries BOTH ends — exactly what `:fx::Span` emits per node.
 (:wat::core::defrecord :p::Loc
-  [line     <- :wat::core::i64
-   col      <- :wat::core::i64
-   end-line <- :wat::core::i64
-   end-col  <- :wat::core::i64])
+  [line     <- wat.type/i64
+   col      <- wat.type/i64
+   end-line <- wat.type/i64
+   end-col  <- wat.type/i64])
 
 (:wat::core::defrecord :p::Hit
   [span <- :wat::core::Span
-   why  <- :wat::core::String])
+   why  <- wat.type/String])
 
 ;; the RHS: LHS binds all four coordinates from a plain fact; the filename "a.wat" is supplied
 ;; IN the RHS (it is a property of the run, exactly as the DESIGN argues); `:end` is a real
@@ -64,7 +64,7 @@
   :params []
   :when [(?fact :- :p::Hit)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::core::PersistentVector (:p::build-hit))
      s0    (:wat::core::match (:wat::rete::insert

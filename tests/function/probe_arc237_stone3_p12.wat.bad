@@ -2,7 +2,7 @@
 ;; ONE :guard per clause; two :guard in same clause must be rejected. startup MUST fail.
 
 (:wat::core::defclause :my::bad
-  ([x <- :wat::core::i64]
+  ([x <- wat.type/i64]
     :guard (:wat::i64::> x 0)
     :guard (:wat::i64::< x 100)
-    -> :wat::core::i64 x))
+    -> wat.type/i64 x))

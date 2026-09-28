@@ -6,7 +6,7 @@
 ;; `from_inner_type_error_is_refused` going red would not distinguish "the `:from` inner is
 ;; unchecked" from "this predicate was fine all along".
 
-(:wat::core::defrecord :tai::Reading [location <- :wat::core::String  value <- :wat::core::i64])
+(:wat::core::defrecord :tai::Reading [location <- wat.type/String  value <- wat.type/i64])
 
 (:wat::rete::defrule :tai::inline-is-typed
   :when [(:tai::Reading (?v :- :value) (:wat::rete::string::= ?v "nope"))]

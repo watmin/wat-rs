@@ -1,11 +1,11 @@
 ;; matrix dim: SELECTIVITY / FAN-OUT. One join, low selectivity: F Lefts × F Rights per key share the key →
 ;; F² joined Pairs per key, K keys → K·F² derived. High F = token explosion (the classic RETE join stress).
 ;; stdin = [keys fanout] EDN; stdout = #perf/Result record (println ∀T→EDN). Times native vs wat-spec.
-(:wat::core::defrecord :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])
-(:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])
-(:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])
+(:wat::core::defrecord :fan::Left  [key <- wat.type/i64  lid <- wat.type/i64])
+(:wat::core::defrecord :fan::Right [key <- wat.type/i64  rid <- wat.type/i64])
+(:wat::core::defrecord :fan::Pair  [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64])
 (:wat::core::defrecord :perf::FanResult
-  [keys <- :wat::core::i64 fanout <- :wat::core::i64 pairs <- :wat::core::i64 native-ns <- :wat::core::i64])
+  [keys <- wat.type/i64 fanout <- wat.type/i64 pairs <- wat.type/i64 native-ns <- wat.type/i64])
 
 (:wat::rete::defquery :fan::q-Pair
   :params []
@@ -13,16 +13,16 @@
 
 
 ;; seed Left(k,f)+Right(k,f) for f in 0..fanout, threaded onto session s, for one key k.
-(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:fan::Left :key k :lid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:fan::Right :key k :rid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     s
     (:wat::core::range 0 fanout)))
 
 (:fan::Pair :key 0 :lid 0 :rid 0)  ;; touch ctor (unused warning guard; harmless)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     keys   (:wat::core::Option/expect   (:wat::core::get params 0) "[keys fanout]")
                     fanout (:wat::core::Option/expect   (:wat::core::get params 1) "[keys fanout]")
@@ -32,7 +32,7 @@
                     rule (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
                     s0   (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     staged (:wat::core::foldl
-                              (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session
+                              (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
                                 (:fan::seed-key acc k fanout))
                               s0
                               (:wat::core::range 0 keys))

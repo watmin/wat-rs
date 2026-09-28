@@ -17,17 +17,17 @@
 ;; is exactly what row 2 must produce modulo the class name — so the goal is not
 ;; invented, it is the sibling's existing behaviour.
 
-(:wat::core::defrecord  :t::Plain [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::holon::defrecord :t::Holo  [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord  :t::Plain [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::holon::defrecord :t::Holo  [x <- wat.type/i64  y <- wat.type/i64])
 
 ;; ── CONTROL (green at HEAD, and must stay green) ────────────────────────────
 ;; The plain record's wire form. This is the shape a holon record must also take.
-(:wat::core::defn :t::wire-plain [] -> :wat::core::String
+(:wat::core::defn :t::wire-plain [] -> wat.type/String
   (:wat::edn::write (:t::Plain :x 1 :y 2)))
 
 ;; ── THE RED ─────────────────────────────────────────────────────────────────
 ;; Same fields, holon holder. At HEAD this is the serialized hologram.
-(:wat::core::defn :t::wire-holon [] -> :wat::core::String
+(:wat::core::defn :t::wire-holon [] -> wat.type/String
   (:wat::edn::write (:t::Holo :x 1 :y 2)))
 
 ;; ── NON-VACUITY (green at HEAD, and MUST stay green) ────────────────────────
@@ -36,7 +36,7 @@
 ;; not absorb its own undefined case), so these FACE the outcome rather than assume the
 ;; happy path — a `Degenerate` would mean the index is a zero vector, i.e. deleted
 ;; rather than derived, which is precisely the failure these rows exist to catch.
-(:wat::core::defn :t::still-measures [] -> :wat::core::f64
+(:wat::core::defn :t::still-measures [] -> wat.type/f64
   (:wat::core::match (:wat::holon::cosine (:t::Holo :x 1 :y 2) (:t::Holo :x 1 :y 2))
     [:wat::holon::CosineOutcome.Similarity {:similarity s} s]
     [:wat::holon::CosineOutcome.Degenerate {:side _side} -1.0]
@@ -44,7 +44,7 @@
 
 ;; Two DIFFERENT holon records must not be coincident at 1.0 — the index still
 ;; discriminates. Guards the degenerate "cosine answers 1.0 for everything" fix.
-(:wat::core::defn :t::still-discriminates [] -> :wat::core::f64
+(:wat::core::defn :t::still-discriminates [] -> wat.type/f64
   (:wat::core::match (:wat::holon::cosine (:t::Holo :x 1 :y 2) (:t::Holo :x 1 :y 3))
     [:wat::holon::CosineOutcome.Similarity {:similarity s} s]
     [:wat::holon::CosineOutcome.Degenerate {:side _side} -1.0]

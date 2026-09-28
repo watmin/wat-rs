@@ -10,7 +10,7 @@
 (:wat::load-file! "../fmt/rules/table.wat")
 (:wat::load-file! "../fmt/rules/atoms.wat")
 (:wat::load-file! "../fmt/rules/defrecord.wat")
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv (:wat::runtime::argv)
      path (:wat::core::Option/expect (:wat::core::get argv 2) "need src")

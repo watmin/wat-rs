@@ -6,7 +6,7 @@
 ;; value — which must be 2. (Asserts the deterministic value, not the whole record: close stamps a
 ;; nondeterministic time-ns.)
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -14,11 +14,11 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      span-rec (:wat::telemetry::span::Record
                 :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :start-time-ns 0
-                :counters (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
-                :durations (:wat::core::HashMap :- [:wat::core::keyword :wat::telemetry::Samples]))
+                :counters (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+                :durations (wat.type/HashMap :- [wat.type/keyword :wat::telemetry::Samples]))
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
      span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

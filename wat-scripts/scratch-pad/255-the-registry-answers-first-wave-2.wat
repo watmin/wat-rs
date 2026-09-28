@@ -101,7 +101,7 @@
 ;;
 ;; Run: target/release/wat wat-scripts/scratch-pad/255-the-registry-answers-first-wave-2.wat
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [hm-keys-total   (:wat::rete::total? (:wat::core::quote (:wat::hashmap::keys m)))
      map-keys-total  (:wat::rete::total? (:wat::core::quote (:wat::map::keys m)))

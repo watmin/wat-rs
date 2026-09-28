@@ -20,7 +20,7 @@
     origin))
 
 ;; ── case 2: call-site inside a MACRO-GENERATED defn (the defservice start shape) ──────
-(:wat::core::defmacro :probe::gen-spawner [name <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :probe::gen-spawner [name <- wat.type/AST] -> wat.type/AST
   `(:wat::core::defn ~name [] -> :wat::kernel::Frame
      (:wat::core::let
        [origin (:wat::kernel::call-site)]
@@ -28,7 +28,7 @@
 
 (:probe::gen-spawner :probe::via-macro)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:probe::via-let))     ;; <- expect THIS line
     (:wat::kernel::println (:probe::via-macro)))) ;; <- expect THIS line (a different one)

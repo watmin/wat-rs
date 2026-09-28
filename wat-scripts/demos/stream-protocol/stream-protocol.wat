@@ -51,15 +51,15 @@
 ;; so this catches the other direction: a sender that thinks it sent more than it
 ;; did.
 (:wat::core::defenum :proto::Frame :wat::enum::Pure
-  :Chunk       [text  <- :wat::core::String]
-  :SectionDone [count <- :wat::core::i64])
+  :Chunk       [text  <- wat.type/String]
+  :SectionDone [count <- wat.type/i64])
 
 ;; The ack is a value, not a convention. `Got` says "this frame decoded and I
 ;; accepted it"; `SectionAck` closes the section with the count the reader saw, so
 ;; a mismatch is visible to the SENDER rather than only to us.
 (:wat::core::defenum :proto::Ack :wat::enum::Pure
-  :Got        [n     <- :wat::core::i64]
-  :SectionAck [count <- :wat::core::i64])
+  :Got        [n     <- wat.type/i64]
+  :SectionAck [count <- wat.type/i64])
 
 ;; ── The reader — one section ──────────────────────────────────────────────────
 ;;
@@ -80,9 +80,9 @@
 ;; dying here — loudly, and naming which of the two ways the stream went
 ;; missing — is the correct behaviour.
 (:wat::core::defn :proto::read-section
-  [acc <- :wat::core::String
-   n   <- :wat::core::i64]
-  -> :wat::core::String
+  [acc <- wat.type/String
+   n   <- wat.type/i64]
+  -> wat.type/String
   (:wat::core::match
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
@@ -114,7 +114,7 @@
 ;;
 ;; Everything after the last marker is ordinary program work. That is the handover,
 ;; and it is the same boundary the substrate crossed to reach `:user::main`.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [header  (:proto::read-section "" 0)
      body    (:proto::read-section "" 0)]

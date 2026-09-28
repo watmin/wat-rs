@@ -4,8 +4,8 @@
 ;; ":wat::uuid::v4" as the offending head. Mirrors
 ;; tests/rete/probe_arc278_6b_ii_a_where_oracle_impure.wat's shape exactly, swapping the violating verb.
 
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :wf::Gate            [celsius <- :wat::core::i64])
+(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :wf::Gate            [celsius <- wat.type/i64])
 
 (:wat::rete::defrule :wf::bad-gate
   :when
@@ -19,7 +19,7 @@
   :when [(?fact :- :wf::Gate)])
 
 
-(:wat::core::defn :user::run-gate-c5 [] -> :wat::core::i64
+(:wat::core::defn :user::run-gate-c5 [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
       [rules   (:wat::rete::collect-rules :wf)

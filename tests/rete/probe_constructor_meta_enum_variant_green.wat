@@ -6,9 +6,9 @@
 ;; (`walk_nested_constructors`, `src/rete/validate.rs`) must not reject a legal call.
 
 (:wat::core::defenum :cg::Status :wat::enum::Pure
-  :Active [level <- :wat::core::i64])
+  :Active [level <- wat.type/i64])
 
-(:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
+(:wat::core::defrecord :cg::Anchor [x <- wat.type/i64])
 (:wat::core::defrecord :cg::Wrap   [s <- :cg::Status])
 
 (:wat::rete::defrule :cg::gather
@@ -21,7 +21,7 @@
 
 
 ;; Fires via the WAT ORACLE.
-(:wat::core::defn :user::run-oracle [] -> :wat::core::i64
+(:wat::core::defn :user::run-oracle [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Wrap))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -36,7 +36,7 @@
       [:cg::Status.Active {:level lvl} lvl])))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
-(:wat::core::defn :user::run-native [] -> :wat::core::i64
+(:wat::core::defn :user::run-native [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Wrap))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

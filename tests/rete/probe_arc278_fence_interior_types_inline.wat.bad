@@ -10,7 +10,7 @@
 ;;   "`:wat::rete::string::=` compares at `string`, but operand `?k` has type
 ;;    `i64` — use the rete comparator for `i64`"
 
-(:wat::core::defrecord :tgi::N [k <- :wat::core::i64])
+(:wat::core::defrecord :tgi::N [k <- wat.type/i64])
 
 (:wat::rete::defrule :tgi::inline-is-typed
   :when [(:tgi::N (?k :- :k))

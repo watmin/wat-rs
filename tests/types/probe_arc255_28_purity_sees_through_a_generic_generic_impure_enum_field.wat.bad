@@ -4,4 +4,4 @@
   :Held [v <- :T]
   :Free [])
 (:wat::core::defrecord :probe::HoldsLease
-  [lease <- (:probe::Lease :- [:wat::core::i64])])
+  [lease <- (:probe::Lease :- [wat.type/i64])])

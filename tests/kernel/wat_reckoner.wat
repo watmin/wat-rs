@@ -1,9 +1,9 @@
 ;; Co-located fixture for wat_reckoner.rs — slurped via startup_beside(file!()).
 
-(:wat::core::defn :my::compute-discrete-dims-labels [] -> :wat::core::String
+(:wat::core::defn :my::compute-discrete-dims-labels [] -> wat.type/String
   (:wat::core::let
     [labels
-      (:wat::core::Vector :- [:wat::holon::HolonAST]
+      (wat.type/Vector :- [:wat::holon::HolonAST]
         (:wat::holon::to-holon "up")
         (:wat::holon::to-holon "down"))
      r
@@ -15,10 +15,10 @@
       (:wat::core::and (:wat::core::= d 10000) (:wat::core::= nlabels 2))
        "ok" "wrong")))
 
-(:wat::core::defn :my::compute-observe-predict [] -> :wat::core::String
+(:wat::core::defn :my::compute-observe-predict [] -> wat.type/String
   (:wat::core::let
     [labels
-      (:wat::core::Vector :- [:wat::holon::HolonAST]
+      (wat.type/Vector :- [:wat::holon::HolonAST]
         (:wat::holon::to-holon "up")
         (:wat::holon::to-holon "down"))
      r
@@ -30,7 +30,7 @@
      conviction (:wat::core::third pred)]
     (:wat::core::if (:wat::core::>= conviction 0.0)  "ok" "wrong")))
 
-(:wat::core::defn :my::compute-continuous-construct [] -> :wat::core::String
+(:wat::core::defn :my::compute-continuous-construct [] -> wat.type/String
   (:wat::core::let
     [r (:wat::holon::Reckoner/new-continuous "cont" 10000 100 0.0 16)
      d (:wat::holon::Reckoner/dims r)]

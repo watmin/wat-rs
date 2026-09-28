@@ -2,8 +2,8 @@
 ;; Widest test and widest body sit on DIFFERENT clauses: each clause fits
 ;; alone; padding the short tests toward the wide one would not.
 (:wat::core::defn :fix::cond-overflow
-  [k <- :wat::core::String]
-  -> :wat::core::String
+  [k <- wat.type/String]
+  -> wat.type/String
   (:wat::core::cond
     ((:wat::core::= k "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") "a")
     ((:wat::core::= k "short") "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")

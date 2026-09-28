@@ -1,4 +1,4 @@
 (:wat::core::defrecord :fix::Rec
-  [celsius <- :wat::core::i64
-   some <- :wat::core::f64
-   other <- :wat::core::String])
+  [celsius <- wat.type/i64
+   some <- wat.type/f64
+   other <- wat.type/String])

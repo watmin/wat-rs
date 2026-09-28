@@ -13,11 +13,11 @@
 ;;   failure (the point of this test) maps to 1, mirroring the old
 ;;   `RunResult/failure` Some→1 / None→0.
 
-(:wat::core::defn :my::compute-prints-hello [] -> :wat::core::String
+(:wat::core::defn :my::compute-prints-hello [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println "hello"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -28,10 +28,10 @@
       [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "compute-prints-hello: child closed before sending its value")])))
 
-(:wat::core::defn :my::compute-assertion-failure [] -> :wat::core::i64
+(:wat::core::defn :my::compute-assertion-failure [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            ;; The child body (assert-eq 1 2) is unchanged; a failing assertion
            ;; crashes the peer BEFORE the completion-signal send' — the parent's
            ;; recv' then faces Lost[cause] (the LociDiedError carrying the

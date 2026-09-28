@@ -38,47 +38,47 @@
 ;; byte-identical before and after this stone — see
 ;; `255-stone-q-2-direct-door-unchanged.wat`, this probe's sibling.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv (:wat::runtime::argv)
      case (:wat::core::Option/expect (:wat::core::get argv 2) "usage: <this file> <case>")]
     (:wat::core::cond
       ((:wat::core::= case "i64-type")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::Value] 1 "x")))))
+         (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/Value] 1 "x")))))
 
       ((:wat::core::= case "i64-overflow")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::Value] 9223372036854775807 1)))))
+         (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/Value] 9223372036854775807 1)))))
 
       ((:wat::core::= case "div-zero")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::i64::/ (:wat::core::Vector :- [:wat::core::Value] 5 0)))))
+         (:wat::core::apply :wat::i64::/ (wat.type/Vector :- [wat.type/Value] 5 0)))))
 
       ((:wat::core::= case "f64-type")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::f64::+ (:wat::core::Vector :- [:wat::core::Value] 1.0 "x")))))
+         (:wat::core::apply :wat::f64::+ (wat.type/Vector :- [wat.type/Value] 1.0 "x")))))
 
       ((:wat::core::= case "rational-type")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::rational::+ (:wat::core::Vector :- [:wat::core::Value] (:wat::i64::to-rational 1) "x")))))
+         (:wat::core::apply :wat::rational::+ (wat.type/Vector :- [wat.type/Value] (:wat::i64::to-rational 1) "x")))))
 
       ((:wat::core::= case "bigint-type")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::bigint::+ (:wat::core::Vector :- [:wat::core::Value] (:wat::i64::to-bigint 1) "x")))))
+         (:wat::core::apply :wat::bigint::+ (wat.type/Vector :- [wat.type/Value] (:wat::i64::to-bigint 1) "x")))))
 
       ((:wat::core::= case "arity")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::Value] 1)))))
+         (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/Value] 1)))))
 
       ;; row 2 — two call sites, two spans. Same error KIND, different SOURCE LINE.
       ((:wat::core::= case "span-a")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::Value] 1 "x")))))
+         (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/Value] 1 "x")))))
 
       ((:wat::core::= case "span-b")
        (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::Value] 1 "x")))))
+         (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/Value] 1 "x")))))
 
       (:else
        (:wat::kernel::println (:wat::string::concat "unknown case: " case))))))

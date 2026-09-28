@@ -15,25 +15,25 @@
 
 ;; ─── the SUBJECT: one clause, one (Seqable :- [T]) arm ───────────────────────────────────────────────
 (:wat::core::defclause :my::count-via-clause
-  ([c <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
+  ([c <- (:wat::core::Seqable :- [T])] -> wat.type/i64
     (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c)))))
 
 ;; ─── the CONTROL: identical body + parameter, as a plain `defn` ────────────────────────────────
 (:wat::core::defn :my::count-via-defn :- [T]
-  [c <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
+  [c <- (:wat::core::Seqable :- [T])] -> wat.type/i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c))))
 
 ;; ─── the four containers, through the CLAUSE (all four must fail today) ────────────────────────
-(:wat::core::defn :my::clause-vector [] -> :wat::core::i64
-  (:my::count-via-clause (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+(:wat::core::defn :my::clause-vector [] -> wat.type/i64
+  (:my::count-via-clause (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
-(:wat::core::defn :my::clause-list [] -> :wat::core::i64
+(:wat::core::defn :my::clause-list [] -> wat.type/i64
   (:my::count-via-clause (:wat::core::List 1 2 3)))
 
-(:wat::core::defn :my::clause-persistentvector [] -> :wat::core::i64
+(:wat::core::defn :my::clause-persistentvector [] -> wat.type/i64
   (:my::count-via-clause (:wat::core::PersistentVector 1 2 3)))
 
-(:wat::core::defn :my::clause-stream [] -> :wat::core::i64
+(:wat::core::defn :my::clause-stream [] -> wat.type/i64
   (:my::count-via-clause
     (:wat::stream::cons 1
       (:wat::stream::lazy
@@ -41,16 +41,16 @@
           (:wat::stream::lazy (:wat::stream::empty)))))))
 
 ;; ─── the same four through the CONTROL (all four must succeed today) ───────────────────────────
-(:wat::core::defn :my::defn-vector [] -> :wat::core::i64
-  (:my::count-via-defn (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+(:wat::core::defn :my::defn-vector [] -> wat.type/i64
+  (:my::count-via-defn (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
-(:wat::core::defn :my::defn-list [] -> :wat::core::i64
+(:wat::core::defn :my::defn-list [] -> wat.type/i64
   (:my::count-via-defn (:wat::core::List 1 2 3)))
 
-(:wat::core::defn :my::defn-persistentvector [] -> :wat::core::i64
+(:wat::core::defn :my::defn-persistentvector [] -> wat.type/i64
   (:my::count-via-defn (:wat::core::PersistentVector 1 2 3)))
 
-(:wat::core::defn :my::defn-stream [] -> :wat::core::i64
+(:wat::core::defn :my::defn-stream [] -> wat.type/i64
   (:my::count-via-defn
     (:wat::stream::cons 1
       (:wat::stream::lazy

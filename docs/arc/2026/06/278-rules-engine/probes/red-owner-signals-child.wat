@@ -61,12 +61,12 @@
 ;; is a compile error in both discard doors. The un-faced `let` binding below is deliberate: it is
 ;; what a caller writes BEFORE the wall exists, and P2's must-use gate must reject it.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [proc (:wat::test::spawn-peer
             (:wat::spawn::process)
             (:wat::core::forms
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::kernel::println "child up"))))
      ;; ⚠ DELIBERATELY UN-FACED, AND THE BINDING MUST BE THE BARE `_` — see the header.
      ;;    `_sig` does NOT work here: the gate is an EXACT match on the one-character symbol

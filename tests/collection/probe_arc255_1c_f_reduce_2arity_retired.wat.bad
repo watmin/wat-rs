@@ -12,9 +12,9 @@
 ;; test outright would silently drop the coverage of a retirement — this file (and its harness,
 ;; `probe_arc255_1c_f_reduce_2arity_retired.rs`) keeps it: the 2-arity call below must now be
 ;; REFUSED at check time, naming the arity mismatch precisely (3 expected, 2 got).
-(:wat::core::defn :user::bad [] -> :wat::core::i64
+(:wat::core::defn :user::bad [] -> wat.type/i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64
-                     n   <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64
+                     n   <- wat.type/i64] -> wat.type/i64
       (:wat::i64::+ acc n))
-    (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)))
+    (wat.type/Vector :- [wat.type/i64] 1 2 3 4)))

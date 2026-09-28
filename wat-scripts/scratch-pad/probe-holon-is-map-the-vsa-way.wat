@@ -1,10 +1,10 @@
 ;; Arc 226's ACTUAL mission: `(is-Map? x) ≡ similarity(extract-classifier(x), prototype-of("Map"))`.
 ;; What shipped is a string compare. Is the VSA route buildable from primitives that exist NOW?
 ;;   is-Map?(h)  ≡  coincident?(Bind/left(h), Atom("Map"))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [m        (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] #holon :a #holon 1))
-     v        (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] #holon 1))
+    [m        (:wat::holon::Map (wat.type/Vector :- [:wat::holon::HolonAST] #holon :a #holon 1))
+     v        (:wat::holon::Vector (wat.type/Vector :- [:wat::holon::HolonAST] #holon 1))
      marker   (:wat::holon::Atom (:wat::holon::leaf "Map"))]
     (:wat::core::do
       (:wat::kernel::println "-- the STRUCTURAL predicate that shipped --")

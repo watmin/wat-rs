@@ -14,9 +14,9 @@
 ;; GREEN after K3 (K2 now trivially satisfied since K3 subsumes K2).
 
 (:wat::core::defsurface :k2::Pt :nature :wat::core::Record
-  :features [x <- :wat::core::i64  y <- :wat::core::i64])
+  :features [x <- wat.type/i64  y <- wat.type/i64])
 
-(:wat::core::defn :k2::demo [] -> :wat::core::i64
+(:wat::core::defn :k2::demo [] -> wat.type/i64
   (:wat::i64::+
     (:k2::Pt$core-record/x (:k2::Pt$core-record' 3 4))     ; construct the emitted backing record + read x
     (:k2::Pt$core-record/y (:k2::Pt$core-record' 3 4))))   ; … + read y   ⇒ 3 + 4 = 7

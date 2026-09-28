@@ -8,7 +8,7 @@
 ;; the FQDN keyword literal in-position, same as
 ;; `255-home4-string-carve-metadata.wat`.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── :wat::holon::OnlineSubspace/new ──")
     (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::holon::OnlineSubspace/new))

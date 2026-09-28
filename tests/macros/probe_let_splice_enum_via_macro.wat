@@ -1,10 +1,10 @@
 (:wat::core::defmacro :my::probe
-  [body <- :wat::WatAST]
-  -> :wat::WatAST
+  [body <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::core::let []
      (:wat::core::defenum :my::probe::Event :wat::enum::Pure
-       :Created [id <- :wat::core::i64]
-       :Deleted [id <- :wat::core::i64]
+       :Created [id <- wat.type/i64]
+       :Deleted [id <- wat.type/i64]
        :NoOp)
      ~body))
 

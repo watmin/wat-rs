@@ -58,12 +58,12 @@
 
 (:wat::core::defn :user::axis-ok?
   [got <- (:wat::core::Option :- [:wat::core::Equatable]) want <- :wat::core::Equatable]
-  -> :wat::core::bool
+  -> wat.type/bool
   (:wat::core::match got
     [:wat::core::Option.Some {:value v} (:wat::core::= v want)]
     [:wat::core::Option.None {} false]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match (:wat::runtime::metadata-of :wat::core::sort$native)
     [:wat::core::Option.Some {:value intrinsic-hm}
      (:wat::core::match (:wat::runtime::metadata-of :wat::string::capitalize)

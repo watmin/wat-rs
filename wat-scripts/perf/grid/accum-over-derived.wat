@@ -34,17 +34,17 @@
 ;; Usage (stdin = an i64 vector [depth]; stdout = one #grid/Result EDN line):
 ;;   echo '[9]' | cargo wat ./wat-scripts/perf/grid/accum-over-derived.wat
 
-(:wat::core::defrecord :aod::Seed  [id <- :wat::core::i64])
-(:wat::core::defrecord :aod::Step  [level <- :wat::core::i64])
-(:wat::core::defrecord :aod::Tally [n <- :wat::core::i64])
+(:wat::core::defrecord :aod::Seed  [id <- wat.type/i64])
+(:wat::core::defrecord :aod::Step  [level <- wat.type/i64])
+(:wat::core::defrecord :aod::Tally [n <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defquery :aod::q-Step
   :params []
@@ -58,7 +58,7 @@
 
 ;; build-step k — Step(k) :- Step(k-1). Level literals spliced via quasiquote, same as
 ;; deep-cascade's per-level rule. One generated rule per level, not a self-recursive where.
-(:wat::core::defn :aod::build-step [k <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :aod::build-step [k <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
                     c (:wat::core::quasiquote (:aod::Step (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:aod::Step (:wat::core::unquote k)))]
@@ -76,10 +76,10 @@
       (:wat::core::quote (:aod::Tally ?n)))))
 
 ;; build-rules depth — tally plus one Step(k):-Step(k-1) per k in [1,depth].
-(:wat::core::defn :aod::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :aod::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:aod::build-step k)))
     (:wat::core::PersistentVector (:aod::tally-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
@@ -87,10 +87,10 @@
 ;; Empty (PersistentVector :- [Record]) so Seed and Step can share one batch.
 ;; A two-element literal infers from the first element and refuses the second
 ;; (homogeneous PV; same check-time refusal insert-all has for mixed Records).
-(:wat::core::defn :aod::empty-records [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :aod::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::PersistentVector))
 
-(:wat::core::defn :aod::seed-facts [] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :aod::seed-facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::vector::conj
     (:wat::vector::conj
       (:aod::empty-records)
@@ -111,40 +111,40 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
      (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :aod::enc [kind <- :wat::core::i64  level <- :wat::core::i64  id <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :aod::enc [kind <- wat.type/i64  level <- wat.type/i64  id <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+
     (:wat::i64::+ (:wat::i64::* kind 1000000000000000) (:wat::i64::* level 1000000000))
     id))
 
-(:wat::core::defn :aod::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :aod::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector — sorted, NOT deduped. Derived Step levels (level > 0) plus every Tally.
 ;; A leaked intermediate tally is an extra enc(1,0,k) next to the surviving one.
-(:wat::core::defn :aod::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :aod::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
           (:wat::core::map
-            (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
               (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                 (:aod::enc 0 (:aod::Step/level f) 0)))
             (:wat::core::filter
-              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool
+              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool
                 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                   (:wat::i64::> (:aod::Step/level f) 0)))
               (:wat::rete::query fired (:aod::q-Step)))))
      c1 (:wat::core::into c0
           (:wat::core::map
-            (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
               (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
                 (:aod::enc 1 0 (:aod::Tally/n f))))
             (:wat::rete::query fired (:aod::q-Tally))))]
     (:aod::vec->pvec (:wat::core::sort c1))))
 
-(:wat::core::defn :aod::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :aod::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth]")
                     rules   (:aod::build-rules depth)

@@ -17,17 +17,17 @@
 (:wat::load-file! "../fmt/rules/defrecord.wat")
 
 (:wat::core::defn :user::trailing-empties
-  [parts <- (:wat::core::Vector :- [:wat::core::String])
-   i     <- :wat::core::i64
-   n     <- :wat::core::i64]
-  -> :wat::core::i64
+  [parts <- (wat.type/Vector :- [wat.type/String])
+   i     <- wat.type/i64
+   n     <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::< i 0)
     n
     (:wat::core::if (:wat::string::empty? (:wat::core::nth parts i))
       (:user::trailing-empties parts (:wat::i64::- i 1) (:wat::i64::+ n 1))
       n)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv  (:wat::runtime::argv)
      path  (:wat::core::Option/expect (:wat::core::get argv 2)

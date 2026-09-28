@@ -3,10 +3,10 @@
 ;;   [Wind ?loc] [:not [:not [Temp ?loc]]]  ≡  Wind and a Temp at loc
 ;;   [:not [:not [Temp]]]                   ≡  some Temp exists
 
-(:wat::core::defrecord :wnn::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnn::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnn::Hit  [loc <- :wat::core::String])
-(:wat::core::defrecord :wnn::Yes  [k <- :wat::core::i64])
+(:wat::core::defrecord :wnn::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnn::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnn::Hit  [loc <- wat.type/String])
+(:wat::core::defrecord :wnn::Yes  [k <- wat.type/i64])
 
 (:wat::rete::defrule :wnn::wind-not-not-temp
   :when [(:wnn::Wind (?loc :- :loc))
@@ -31,13 +31,13 @@
   :when [(?fact :- :wnn::Yes)])
 
 
-(:wat::core::defn :wnn::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wnn::n-hit [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wnn::q-Hit))))
 
-(:wat::core::defn :wnn::n-yes [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wnn::n-yes [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wnn::q-Yes))))
 
-(:wat::core::defn :wnn::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wnn::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -45,7 +45,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [mid (:wat::core::PersistentVector (:wnn::wind-not-not-temp))
                     lead (:wat::core::PersistentVector (:wnn::lead-not-not))]
     (:wnn::line 1 "wind-only"

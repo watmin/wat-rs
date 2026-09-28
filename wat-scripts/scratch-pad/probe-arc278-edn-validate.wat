@@ -11,9 +11,9 @@
 ;; production callers since arc 258 Stone 258.5b deleted its last one on the
 ;; trusted-wire premise. Nothing new is validated; the two halves are connected.
 
-(:wat::core::defrecord :vprobe::PutRequest [items <- (:wat::core::Vector :- [:wat::core::String])])
+(:wat::core::defrecord :vprobe::PutRequest [items <- (wat.type/Vector :- [wat.type/String])])
 
-(:wat::core::defn :vprobe::render [v <- :wat::edn::Validation] -> :wat::core::String
+(:wat::core::defn :vprobe::render [v <- :wat::edn::Validation] -> wat.type/String
   (:wat::core::match v
     [:wat::edn::Validation.Valid {} "VALID"]
     [:wat::edn::Validation.Invalid {:path path :expected expected :got got}
@@ -23,9 +23,9 @@
             (:wat::string::concat expected
               (:wat::string::concat " got=" got)))))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [good (:vprobe::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
+    [good (:vprobe::PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
      ;; the attacker's frame: correct TAG, wrong-typed BODY
      bad  (:wat::edn::read "#vprobe/PutRequest {:items [1 2 3]}")
      _ (:wat::kernel::println

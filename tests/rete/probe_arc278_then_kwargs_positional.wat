@@ -7,20 +7,20 @@
 ;;   correct   (a=x, b=y) -> 7 + 1008 + 2009 = 3024
 ;;   transposed(a=y, b=x) -> 7000 + 8001 + 9002 = 24003
 ;; A row COUNT is identical either way, which is why this is a value.
-(:wat::core::defrecord :tk::Src [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :tk::Two [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :tk::Src [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :tk::Two [a <- wat.type/i64  b <- wat.type/i64])
 
 (:wat::rete::defquery :tk::q :params [] :when [(:tk::Two (?a :- :a) (?b :- :b))])
 
-(:wat::core::defn :tk::rule [rhs <- :wat::WatAST] -> :wat::rete::Rule
+(:wat::core::defn :tk::rule [rhs <- wat.type/AST] -> :wat::rete::Rule
   (:wat::rete::Rule :name "r"
     :lhs (:wat::core::PersistentVector
            (:wat::core::quasiquote (:tk::Src (?x :- :x) (?y :- :y))))
     :rhs (:wat::core::PersistentVector rhs)))
 
-(:wat::core::defn :tk::witness [rhs <- :wat::WatAST] -> :wat::core::i64
+(:wat::core::defn :tk::witness [rhs <- wat.type/AST] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
       (:wat::i64::+ acc
         (:wat::i64::+
           (:wat::i64::* (:wat::core::Option/expect (:wat::map::get p "?a") "a") 1000)
@@ -37,9 +37,9 @@
       (:tk::q))))
 
 ;; [declaration-order  reversed-order]
-(:wat::core::defn :user::rows [] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :user::rows [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::mapv
-    (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+    (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
     (:wat::core::PersistentVector
       (:tk::witness (:wat::core::quasiquote (:tk::Two :a ?x :b ?y)))
       (:tk::witness (:wat::core::quasiquote (:tk::Two :b ?y :a ?x))))))

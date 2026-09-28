@@ -1,1 +1,1 @@
-(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "ok"))
+(:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "ok"))

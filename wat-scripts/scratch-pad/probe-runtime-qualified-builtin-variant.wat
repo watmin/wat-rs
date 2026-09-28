@@ -15,27 +15,27 @@
 ;; isolates the PATTERN side of the gap (rooms 2 and 3 of the BRIEF) from the value-position
 ;; question (room 4), which is judged separately.
 
-(:wat::core::defn :user::check-some [] -> :wat::core::i64
+(:wat::core::defn :user::check-some [] -> wat.type/i64
   (:wat::core::match (:wat::core::Option.Some {:value 42})
     [:wat::core::Option.Some {:value x} x]
     [:wat::core::Option.None {} 0]))
 
-(:wat::core::defn :user::check-none [] -> :wat::core::i64
+(:wat::core::defn :user::check-none [] -> wat.type/i64
   (:wat::core::match :wat::core::Option.None
     [:wat::core::Option.Some {:value x} x]
     [:wat::core::Option.None {} -1]))
 
-(:wat::core::defn :user::check-ok [] -> :wat::core::i64
+(:wat::core::defn :user::check-ok [] -> wat.type/i64
   (:wat::core::match (:wat::core::Result.Ok {:value 7})
     [:wat::core::Result.Ok {:value x} x]
     [:wat::core::Result.Err {:error _} -2]))
 
-(:wat::core::defn :user::check-err [] -> :wat::core::i64
+(:wat::core::defn :user::check-err [] -> wat.type/i64
   (:wat::core::match (:wat::core::Result.Err {:error -9})
     [:wat::core::Result.Ok {:value x} x]
     [:wat::core::Result.Err {:error e} e]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [a (:user::check-some)
      b (:user::check-none)

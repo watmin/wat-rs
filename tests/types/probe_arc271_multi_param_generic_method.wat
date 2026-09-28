@@ -8,6 +8,6 @@
 (:wat::core::defrecord :t::C [])
 (:wat::core::extend-type :t::C :t::Combiner (combine [self x y] x))
 
-(:wat::core::defn :user::go [] -> :wat::core::i64
+(:wat::core::defn :user::go [] -> wat.type/i64
   (:t::Combiner/combine (:t::C) 5 "hi"))
 

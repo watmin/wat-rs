@@ -9,9 +9,9 @@
 ;; its attribution cannot depend on order, so a disagreement there would be a driver defect,
 ;; not this finding.
 
-(:wat::core::defrecord :vex::In   [k <- :wat::core::i64])
-(:wat::core::defrecord :vex::Out  [k <- :wat::core::i64])
-(:wat::core::defrecord :vex::Solo [k <- :wat::core::i64])
+(:wat::core::defrecord :vex::In   [k <- wat.type/i64])
+(:wat::core::defrecord :vex::Out  [k <- wat.type/i64])
+(:wat::core::defrecord :vex::Solo [k <- wat.type/i64])
 
 (:wat::rete::defrule :vex::aaa  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
 (:wat::rete::defrule :vex::bbb  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
@@ -50,15 +50,15 @@
     [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
       (:wat::kernel::assertion-failed! :message "roundcap")]))
 
-(:wat::core::defn :vex::rule-of [ex <- :wat::rete::Explained  f <- :wat::core::Record] -> :wat::core::String
+(:wat::core::defn :vex::rule-of [ex <- :wat::rete::Explained  f <- wat.type/Record] -> wat.type/String
   (:wat::core::Option/expect
     (:wat::rete::DerivationNode/rule (:wat::rete::explain ex f))
     "no producing rule recorded for this fact"))
 
 ;; [native Out-rule, oracle Out-rule, native Solo-rule (control), oracle Solo-rule (control)]
-(:wat::core::defn :user::attribution [] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::attribution [] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::mapv
-    (:wat::core::fn [s <- :wat::core::String] -> :wat::core::String s)
+    (:wat::core::fn [s <- wat.type/String] -> wat.type/String s)
     (:wat::core::PersistentVector
       (:vex::rule-of (:vex::nat) (:vex::Out :k 1))
       (:vex::rule-of (:vex::ora) (:vex::Out :k 1))

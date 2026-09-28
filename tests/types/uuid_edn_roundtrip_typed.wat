@@ -1,5 +1,5 @@
 ;; uuid_edn_roundtrip_typed.wat — Uuid survives edn::write + edn::read roundtrip.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [u        (:wat::uuid::v4)
      edn-form (:wat::edn::write u)

@@ -46,8 +46,8 @@
 ;; proves this probe is live; without it every number below is meaningless.
 ;; ANTI-VACUITY: the well-typed rule `ok` must derive, or this probe proves nothing. WHAT IT NOW
 ;; PROVES is the other half of the cure — that a well-typed `:then` still compiles and fires.
-(:wat::core::defrecord :tr::Box [k <- :wat::core::i64  s <- :wat::core::String])
-(:wat::core::defrecord :tr::Good [n <- :wat::core::i64])
+(:wat::core::defrecord :tr::Box [k <- wat.type/i64  s <- wat.type/String])
+(:wat::core::defrecord :tr::Good [n <- wat.type/i64])
 (:wat::rete::defrule :tr::ok
   :when [(:tr::Box (?k :- :k))]
   :then [(:tr::Good :n ?k)])                    ;; i64 into i64 — the CONTROL
@@ -64,7 +64,7 @@
 
 (:wat::rete::defquery :tr::qg :params [] :when [(?f :- :tr::Good)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :tr)
                              (:wat::core::PersistentVector (:tr::qg)))

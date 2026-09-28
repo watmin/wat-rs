@@ -7,10 +7,10 @@
 ;; This routes the closure-seam through fn-forms: reify an anon block → ship the forms to a process
 ;; worker → stream. RED at HEAD (fn-forms does not exist → UnknownFunction). GREEN once S1 lands: "6 10".
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; the work-fn as a runtime anonymous block (Ruby's Parallel { |x| x*2 })
-     work       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
+     work       (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
      ;; reify it to shippable forms that define it under :probe::work in the child's fresh universe
      work-forms (:wat::kernel::fn-forms work :probe::work)
      ;; assemble the child program: the reified work FIRST (so :probe::work resolves), then the
@@ -20,12 +20,12 @@
            work-forms
            (:wat::core::forms
              (:wat::core::defn :probe::runner
-               [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+               [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                (:wat::core::let
                  [item (:wat::kernel::recv self)
                   _    (:wat::core::match (:wat::kernel::send self (:probe::work item)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                  (:probe::runner self)))
-             (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::defn :user::main [] -> wat.type/nil
                (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64))))))
      _ (:wat::core::match (:wat::kernel::send w 3) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      _ (:wat::core::match (:wat::kernel::send w 5) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])

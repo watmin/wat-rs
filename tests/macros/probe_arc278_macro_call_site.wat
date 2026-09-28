@@ -19,7 +19,7 @@
 ;;   gate refuses it in the macro body at expand → startup fails.
 ;; GREEN after: it folds to the Frame construction form → adjacent invocations differ by exactly 1.
 
-(:wat::core::defmacro :probe::here-frame [] -> :wat::WatAST
+(:wat::core::defmacro :probe::here-frame [] -> wat.type/AST
   `~(:wat::kernel::macro-call-site))
 
 (:wat::test::deftest :user::macro-call-site-captures-invocation-line 

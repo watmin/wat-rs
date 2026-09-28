@@ -6,12 +6,12 @@
 ;; GREEN target: prints "5".
 
 (:wat::core::defsurface :probe::Maker :nature :wat::core::Struct
-  :features [(make :- [T] [self <- :probe::Maker  x <- :T] -> (:wat::core::Vector :- [T]))])
+  :features [(make :- [T] [self <- :probe::Maker  x <- :T] -> (wat.type/Vector :- [T]))])
 
 (:wat::core::defstruct :probe::Dup [])
 (:wat::core::extend-type :probe::Dup :probe::Maker (make [self x] [x x]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::i64::to-string
       (:wat::core::nth (:probe::Maker/make (:probe::Dup) 5) 0))))  ;; expect 5

@@ -10,9 +10,9 @@
 ;; cross-condition join gone wrong, it is a plain inline constraint on a field bound two clauses
 ;; above it, exactly the shape `check_constraint_types` already refuses everywhere else.
 
-(:wat::core::defrecord :taf::Station [location <- :wat::core::String])
-(:wat::core::defrecord :taf::Reading [location <- :wat::core::String  value <- :wat::core::i64])
-(:wat::core::defrecord :taf::Busy    [location <- :wat::core::String  n <- :wat::core::i64])
+(:wat::core::defrecord :taf::Station [location <- wat.type/String])
+(:wat::core::defrecord :taf::Reading [location <- wat.type/String  value <- wat.type/i64])
+(:wat::core::defrecord :taf::Busy    [location <- wat.type/String  n <- wat.type/i64])
 
 (:wat::rete::defrule :taf::busy
   :when [(:taf::Station (?loc :- :location))

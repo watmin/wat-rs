@@ -19,8 +19,8 @@
 ;; Every line of that diagram is one join on `:parent` and `:index`. The fact base already holds
 ;; both; nothing here is a new capability, only a question finally asked in the right language.
 
-(:wat::core::defrecord :ul::Unwrap    [id <- :wat::core::i64  parent <- :wat::core::i64])
-(:wat::core::defrecord :ul::ArgIsList [outer <- :wat::core::i64  arg <- :wat::core::i64])
+(:wat::core::defrecord :ul::Unwrap    [id <- wat.type/i64  parent <- wat.type/i64])
+(:wat::core::defrecord :ul::ArgIsList [outer <- wat.type/i64  arg <- wat.type/i64])
 
 ;; the unwrap head — a keyword in head position naming Option/expect
 (:wat::rete::defrule :ul::unwrap
@@ -55,5 +55,5 @@
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "inner" :value ?hn)))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :ul))

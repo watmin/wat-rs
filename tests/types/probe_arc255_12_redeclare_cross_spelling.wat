@@ -15,23 +15,23 @@
 ;; ACCEPTS is indistinguishable from a gate that has stopped firing.
 
 ;; ─── aggregate: a scalar field ───────────────────────────────────────────
-(:wat::core::defrecord :p255_12::Rec [n <- :wat::core::i64])
+(:wat::core::defrecord :p255_12::Rec [n <- wat.type/i64])
 (:wat::core::defrecord :p255_12::Rec [n <- :wat::type::i64])
 
 ;; ─── aggregate: a PARAMETRIC field — head AND argument both re-spelled ───
 (:wat::core::defrecord :p255_12::Holder
-  [xs <- (:wat::core::Vector :- [:wat::core::i64])])
+  [xs <- (wat.type/Vector :- [wat.type/i64])])
 (:wat::core::defrecord :p255_12::Holder
   [xs <- (:wat::type::Vector :- [:wat::type::i64])])
 
 ;; ─── enum: a tagged variant's field ─────────────────────────────────────
 (:wat::core::defenum :p255_12::Enm :wat::enum::Pure
-  :Ok [v <- :wat::core::i64]
+  :Ok [v <- wat.type/i64]
   :Err)
 (:wat::core::defenum :p255_12::Enm :wat::enum::Pure
   :Ok [v <- :wat::type::i64]
   :Err)
 
 ;; ─── typealias: the alias target ────────────────────────────────────────
-(:wat::core::typealias :p255_12::Al :wat::core::i64)
+(:wat::core::typealias :p255_12::Al wat.type/i64)
 (:wat::core::typealias :p255_12::Al :wat::type::i64)

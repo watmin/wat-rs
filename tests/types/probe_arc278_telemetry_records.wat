@@ -3,9 +3,9 @@
 ;; Because main runs, the construction is EXERCISED — RED at HEAD (Metric/Scope/Numeric/Unit undefined);
 ;; GREEN when the records ship, splice expands (Metric/namespace minted), and the unified ctor accepts the
 ;; 8 positional fields (4 spliced Scope + 4 own). Construction syntax the shadowdancer confirms/adjusts.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [tags (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])   ;; empty Tags
+    [tags (wat.type/HashMap :- [wat.type/keyword wat.type/String])   ;; empty Tags
      ;; Arc 294 item (C) — spliced records are constructed via KWARGS at the bare name
      ;; (order-free; the whole point of surface-splice legibility). Bare-positional is
      ;; retired (positional belongs to the prime `:T'`).

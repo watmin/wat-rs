@@ -15,12 +15,12 @@
 ;;   only path, and this probe refuses to take it.
 ;;   Post-stone: GREEN — the raised Fault survives as a structured record, read straight off the Failure.
 
-(:wat::core::defn :my::failure-error-is-structured [] -> (:wat::core::Option :- [:wat::core::String])
+(:wat::core::defn :my::failure-error-is-structured [] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::let
     [p
       (:wat::test::spawn-peer (:wat::spawn::process)
         (:wat::core::forms
-          (:wat::core::defn :user::main [] -> :wat::core::nil
+          (:wat::core::defn :user::main [] -> wat.type/nil
             (:wat::kernel::raise! (:wat::core::Fault/of "structured-error-data")))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]

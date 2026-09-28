@@ -22,15 +22,15 @@
   :Keyword [])
 
 (:wat::core::defrecord :user::EnumNode
-  [id   <- :wat::core::i64
+  [id   <- wat.type/i64
    kind <- :user::NodeKind])
 
 (:wat::core::defrecord :user::StrNode
-  [id   <- :wat::core::i64
-   kind <- :wat::core::String])
+  [id   <- wat.type/i64
+   kind <- wat.type/String])
 
-(:wat::core::defrecord :user::HitA [id <- :wat::core::i64])
-(:wat::core::defrecord :user::HitC [id <- :wat::core::i64])
+(:wat::core::defrecord :user::HitA [id <- wat.type/i64])
+(:wat::core::defrecord :user::HitC [id <- wat.type/i64])
 
 ;; ARM A — equality against a variant constructor in :where
 (:wat::rete::defrule :user::enum-eq-in-where
@@ -47,7 +47,7 @@
 (:wat::rete::defquery :user::q-HitA :params [] :when [(?fact :- :user::HitA)])
 (:wat::rete::defquery :user::q-HitC :params [] :when [(?fact :- :user::HitC)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules    (:wat::rete::collect-rules :user)
      template (:wat::core::match (:wat::rete::compile-all rules

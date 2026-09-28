@@ -16,7 +16,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              ;; assert-eq: 1+0=1 vs expected=2 — this fails, child panics before sending.
              (:wat::test::assert-eq (:wat::i64::+ 1 0) 2))))]
     (:wat::core::match (:wat::kernel::recv p)

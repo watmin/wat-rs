@@ -39,8 +39,8 @@
 ;; and until that exists, any rule about definitions carries this caveat.
 
 ;; a definition's NAME node: child index 1 of a list whose child index 0 is a declaring keyword
-(:wat::core::defrecord :dt::Declarator [parent <- :wat::core::i64])
-(:wat::core::defrecord :dt::Defines    [id <- :wat::core::i64  name <- :wat::core::String])
+(:wat::core::defrecord :dt::Declarator [parent <- wat.type/i64])
+(:wat::core::defrecord :dt::Defines    [id <- wat.type/i64  name <- wat.type/String])
 
 (:wat::rete::defrule :dt::declarator
   :when [(:wat::grep::Node  (?id :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind))
@@ -77,5 +77,5 @@
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "name" :value ?n)))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :dt))

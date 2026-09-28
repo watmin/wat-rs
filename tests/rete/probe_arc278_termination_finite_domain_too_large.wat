@@ -6,7 +6,7 @@
 ;; to anything — or removed — and every other test would still pass, which is the vacuous-gate
 ;; shape this arc keeps pulling out. The refusal here is CORRECT: "provably finite" is not the
 ;; same claim as "safe to admit", and the cap is where those two part company.
-(:wat::core::defrecord :tl::Wide [f0 <- :wat::core::bool  f1 <- :wat::core::bool  f2 <- :wat::core::bool  f3 <- :wat::core::bool  f4 <- :wat::core::bool  f5 <- :wat::core::bool  f6 <- :wat::core::bool  f7 <- :wat::core::bool  f8 <- :wat::core::bool  f9 <- :wat::core::bool  f10 <- :wat::core::bool  f11 <- :wat::core::bool  f12 <- :wat::core::bool  f13 <- :wat::core::bool  f14 <- :wat::core::bool  f15 <- :wat::core::bool  f16 <- :wat::core::bool  f17 <- :wat::core::bool  f18 <- :wat::core::bool  f19 <- :wat::core::bool])
+(:wat::core::defrecord :tl::Wide [f0 <- wat.type/bool  f1 <- wat.type/bool  f2 <- wat.type/bool  f3 <- wat.type/bool  f4 <- wat.type/bool  f5 <- wat.type/bool  f6 <- wat.type/bool  f7 <- wat.type/bool  f8 <- wat.type/bool  f9 <- wat.type/bool  f10 <- wat.type/bool  f11 <- wat.type/bool  f12 <- wat.type/bool  f13 <- wat.type/bool  f14 <- wat.type/bool  f15 <- wat.type/bool  f16 <- wat.type/bool  f17 <- wat.type/bool  f18 <- wat.type/bool  f19 <- wat.type/bool])
 
 (:wat::rete::defrule :tl::flip
   :when  [(:tl::Wide (?b0 :- :f0) (?b1 :- :f1) (?b2 :- :f2) (?b3 :- :f3) (?b4 :- :f4) (?b5 :- :f5) (?b6 :- :f6) (?b7 :- :f7) (?b8 :- :f8) (?b9 :- :f9) (?b10 :- :f10) (?b11 :- :f11) (?b12 :- :f12) (?b13 :- :f13) (?b14 :- :f14) (?b15 :- :f15) (?b16 :- :f16) (?b17 :- :f17) (?b18 :- :f18) (?b19 :- :f19))]
@@ -14,7 +14,7 @@
 
 (:wat::rete::defquery :tl::q :params [] :when [(?fact :- :tl::Wide)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to

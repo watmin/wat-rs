@@ -11,7 +11,7 @@
 ;; A vacuous probe (no `:user::main`) proves nothing — this file has a real `:user::main`,
 ;; printing one line per assertion so the transcript is the proof.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; ── to-string, all three scalars ──────────────────────────────────────────────
     (:wat::kernel::println (:wat::rete::i64::to-string 42))        ;; expect "42"
@@ -24,7 +24,7 @@
         (:wat::core::PersistentVector 7 8 9) :undefined -1))             ;; expect 7
     (:wat::kernel::println
       (:wat::rete::core::Vector/first
-        (:wat::core::Vector :- [:wat::core::i64] 7 8 9) :undefined -1))       ;; expect 7
+        (wat.type/Vector :- [wat.type/i64] 7 8 9) :undefined -1))       ;; expect 7
     (:wat::kernel::println
       (:wat::rete::core::List/first
         (:wat::core::List 7 8 9) :undefined -1))                      ;; expect 7
@@ -35,7 +35,7 @@
         (:wat::core::PersistentVector) :undefined -1))                  ;; expect -1
     (:wat::kernel::println
       (:wat::rete::core::Vector/first
-        (:wat::core::Vector :- [:wat::core::i64]) :undefined -1))            ;; expect -1
+        (wat.type/Vector :- [wat.type/i64]) :undefined -1))            ;; expect -1
     (:wat::kernel::println
       (:wat::rete::core::List/first
         (:wat::core::List) :undefined -1))                           ;; expect -1

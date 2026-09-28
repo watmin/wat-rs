@@ -6,7 +6,7 @@
 ;; journal' dials it. A tail-position start would drop the handle first.
 (:wat::service::defservice :probe::badstore
   :satisfies :wat::query::Store
-  :durable [rows <- (:wat::core::PersistentVector :- [:wat::query::StoredRow])]
+  :durable [rows <- (wat.type/PersistentVector :- [:wat::query::StoredRow])]
   :impls
   [(ensure-schema [s ctx req]
      (:wat::service::Outcome.Reply

@@ -29,26 +29,26 @@
 ;;   gate will force it. That is the ratchet working, not a chore.
 ;; Not a permanent fixture — delete when the ruling ships.
 
-(:wat::core::defn :user::effectful [] -> :wat::core::nil
+(:wat::core::defn :user::effectful [] -> wat.type/nil
   (:wat::core::let
-    [cmp (:wat::core::fn [a <- :wat::core::i64
-                          b <- :wat::core::i64] -> :wat::core::bool
+    [cmp (:wat::core::fn [a <- wat.type/i64
+                          b <- wat.type/i64] -> wat.type/bool
            (:wat::core::do
              (:wat::kernel::println "SIDE-EFFECT-FROM-COMPARATOR")
              (:wat::core::< a b)))]
     (:wat::kernel::println
-      (:wat::core::sort$native cmp (:wat::core::Vector :- [:wat::core::i64] 3 1 2)))))
+      (:wat::core::sort$native cmp (wat.type/Vector :- [wat.type/i64] 3 1 2)))))
 
-(:wat::core::defn :user::inconsistent [] -> :wat::core::nil
+(:wat::core::defn :user::inconsistent [] -> wat.type/nil
   (:wat::core::let
-    [always-less (:wat::core::fn [a <- :wat::core::i64
-                                  b <- :wat::core::i64] -> :wat::core::bool
+    [always-less (:wat::core::fn [a <- wat.type/i64
+                                  b <- wat.type/i64] -> wat.type/bool
                    true)]
     (:wat::kernel::println
       (:wat::core::sort$native always-less
-        (:wat::core::Vector :- [:wat::core::i64] 5 3 9 1 7 2 8 4 6 0)))))
+        (wat.type/Vector :- [wat.type/i64] 5 3 9 1 7 2 8 4 6 0)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:user::effectful)
     (:user::inconsistent)))

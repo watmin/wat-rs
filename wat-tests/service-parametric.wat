@@ -30,14 +30,14 @@
 ;; ── the surface: parametric (arc 170 C2 — a shipped capability), messages bare ──────────────
 (:wat::core::defsurface :wat-tests::Box :- [T] :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::Box::PutRequest [item <- :wat::core::i64])
+  [(:wat::core::defrecord :wat-tests::Box::PutRequest [item <- wat.type/i64])
    (:wat::core::defenum :wat-tests::Box::PutResponse :wat::enum::Pure
      ;; `echo` carries the handler's answer back so the round-trip asserts a VALUE, not just
      ;; "no crash": item + 1 when the generic durable holds something, item + 0 when empty.
-     :Ok              [echo <- :wat::core::i64]
+     :Ok              [echo <- wat.type/i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
   [(put [self <- (:wat-tests::Box :- [T])  req <- :wat-tests::Box::PutRequest]

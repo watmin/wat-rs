@@ -4,7 +4,7 @@
 ;; impure was _unbound_var_instantiated_shared.wat.bad; 255.29 inverts that twin to
 ;; an accepted `.wat` because a Shared address is data.
 (:wat::core::defenum :probe::E :- [T] :wat::enum::Pure
-  :Started [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 T])])
+  :Started [addr <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 T])])
 (:wat::core::defrecord :probe::Carrier :- [T]
   [status <- (:probe::E :- [T])])
 (:wat::core::defrecord :probe::HoldsCarrier

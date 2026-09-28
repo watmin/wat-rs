@@ -65,26 +65,26 @@
 ;; stdout: one #acp/Split EDN line
 ;;   echo '[50 20]' | ./target/release/wat wat-scripts/scratch-pad/probe-accumulate-gather-cost.wat
 
-(:wat::core::defrecord :acp::Group   [g <- :wat::core::i64])
-(:wat::core::defrecord :acp::Reading [g <- :wat::core::i64  v <- :wat::core::i64])
-(:wat::core::defrecord :acp::CountF  [g <- :wat::core::i64  n <- :wat::core::i64])
-(:wat::core::defrecord :acp::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])
-(:wat::core::defrecord :acp::MinF    [g <- :wat::core::i64  n <- :wat::core::i64])
-(:wat::core::defrecord :acp::MaxF    [g <- :wat::core::i64  n <- :wat::core::i64])
-(:wat::core::defrecord :acp::ExistsF [g <- :wat::core::i64])
+(:wat::core::defrecord :acp::Group   [g <- wat.type/i64])
+(:wat::core::defrecord :acp::Reading [g <- wat.type/i64  v <- wat.type/i64])
+(:wat::core::defrecord :acp::CountF  [g <- wat.type/i64  n <- wat.type/i64])
+(:wat::core::defrecord :acp::SumF    [g <- wat.type/i64  n <- wat.type/i64])
+(:wat::core::defrecord :acp::MinF    [g <- wat.type/i64  n <- wat.type/i64])
+(:wat::core::defrecord :acp::MaxF    [g <- wat.type/i64  n <- wat.type/i64])
+(:wat::core::defrecord :acp::ExistsF [g <- wat.type/i64])
 
 ;; Split — the per-phase census. `derived-count` vs `expected-count` is the non-vacuity witness.
 (:wat::core::defrecord :acp::Split
-  [groups         <- :wat::core::i64
-   readings       <- :wat::core::i64
-   facts          <- :wat::core::i64   ;; G*(W+1) — the constant held across the CONTROL sweep
-   build-ns       <- :wat::core::i64
-   compile-ns     <- :wat::core::i64
-   seed-ns        <- :wat::core::i64
-   fire-ns        <- :wat::core::i64
-   derive-ns      <- :wat::core::i64
-   derived-count  <- :wat::core::i64
-   expected-count <- :wat::core::i64])
+  [groups         <- wat.type/i64
+   readings       <- wat.type/i64
+   facts          <- wat.type/i64   ;; G*(W+1) — the constant held across the CONTROL sweep
+   build-ns       <- wat.type/i64
+   compile-ns     <- wat.type/i64
+   seed-ns        <- wat.type/i64
+   fire-ns        <- wat.type/i64
+   derive-ns      <- wat.type/i64
+   derived-count  <- wat.type/i64
+   expected-count <- wat.type/i64])
 
 ;; ─── copied from grid/accum.wat (namespace changed only) ─────────────────────
 
@@ -148,61 +148,61 @@
   :when [(?fact :- :acp::ExistsF)])
 
 
-(:wat::core::defn :acp::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :acp::val [g <- wat.type/i64  j <- wat.type/i64] -> wat.type/i64
   (:wat::core::let [x (:wat::i64::+ (:wat::i64::* g 31) (:wat::i64::* j 17))]
     (:wat::i64::- x (:wat::i64::* (:wat::i64::/ x 1000) 1000))))
 
-(:wat::core::defn :acp::enc [kind <- :wat::core::i64  g <- :wat::core::i64  val <- :wat::core::i64]
-  -> :wat::core::i64
+(:wat::core::defn :acp::enc [kind <- wat.type/i64  g <- wat.type/i64  val <- wat.type/i64]
+  -> wat.type/i64
   (:wat::i64::+
     (:wat::i64::+ (:wat::i64::* kind 1000000000000000) (:wat::i64::* g 1000000000))
     val))
 
-(:wat::core::defn :acp::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :acp::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  x <- :wat::core::i64]
-      -> (:wat::core::PersistentVector :- [:wat::core::i64])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  x <- wat.type/i64]
+      -> (wat.type/PersistentVector :- [wat.type/i64])
       (:wat::vector::conj acc x))
     (:wat::core::PersistentVector)
     v))
 
-(:wat::core::defn :acp::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :acp::seed-readings [session <- :wat::rete::Session  g <- wat.type/i64  W <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [s <- :wat::rete::Session  j <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert s (:acp::Reading :g g :v (:acp::val g j))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
     (:wat::core::range 0 W)))
 
-(:wat::core::defn :acp::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :acp::seed [session <- :wat::rete::Session  G <- wat.type/i64  W <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [s <- :wat::rete::Session  g <- wat.type/i64] -> :wat::rete::Session
       (:acp::seed-readings (:wat::core::match (:wat::rete::insert s (:acp::Group g)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) g W))
     session
     (:wat::core::range 0 G)))
 
-(:wat::core::defn :acp::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :acp::codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 0 (:acp::CountF/g f) (:acp::CountF/n f))))
+    [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
+          (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 0 (:acp::CountF/g f) (:acp::CountF/n f))))
             (:wat::rete::query fired (:acp::q-CountF))))
      c1 (:wat::core::into c0
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 1 (:acp::SumF/g f) (:acp::SumF/n f))))
+          (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 1 (:acp::SumF/g f) (:acp::SumF/n f))))
             (:wat::rete::query fired (:acp::q-SumF))))
      c2 (:wat::core::into c1
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 2 (:acp::MinF/g f) (:acp::MinF/n f))))
+          (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 2 (:acp::MinF/g f) (:acp::MinF/n f))))
             (:wat::rete::query fired (:acp::q-MinF))))
      c3 (:wat::core::into c2
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 3 (:acp::MaxF/g f) (:acp::MaxF/n f))))
+          (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 3 (:acp::MaxF/g f) (:acp::MaxF/n f))))
             (:wat::rete::query fired (:acp::q-MaxF))))
      c4 (:wat::core::into c3
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 4 (:acp::ExistsF/g f) 0)))
+          (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acp::enc 4 (:acp::ExistsF/g f) 0)))
             (:wat::rete::query fired (:acp::q-ExistsF))))]
     c4))
 
-(:wat::core::defn :acp::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :acp::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:acp::vec->pvec (:wat::core::sort (:acp::codes fired))))
 
-(:wat::core::defn :acp::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :acp::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ─── main — five instants, four phases, nothing else between them ────────────
@@ -211,7 +211,7 @@
 ;; no phase can leak into a neighbour's window. Process startup and the final println are
 ;; deliberately unmeasured — the question is the split BETWEEN phases and how `fire-ns` moves
 ;; under the CONTROL sweep.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
                               [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                               [:wat::kernel::ReadlnOutcome.Eof {}

@@ -1,11 +1,11 @@
 ;; arc 255 Stone E-ii — the acceptance probe: every verb of BOTH families, under the new
 ;; spellings, asserts a concrete result. 6 PersistentVector verbs + 7 Vector verbs = 13.
-(:wat::core::defn :user::check [label <- :wat::core::String cond <- :wat::core::bool] -> :wat::core::nil
+(:wat::core::defn :user::check [label <- wat.type/String cond <- wat.type/bool] -> wat.type/nil
   (:wat::core::if cond
     (:wat::kernel::println (:wat::string::concat "ok   " label))
     (:wat::kernel::assertion-failed! :message (:wat::string::concat "FAIL " label))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     ;; ── PersistentVector, 6 verbs: concat, conj, contains?, empty?, get, length ──────────
     [pv0     (:wat::core::PersistentVector 1 2 3)
@@ -28,10 +28,10 @@
 
       ;; ── Vector, 7 verbs: concat, conj, contains?, empty?, extend, get, length ──────────
       (:wat::core::let
-        [v0    (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
-         v-e   (:wat::core::Vector :- [:wat::core::i64])
+        [v0    (wat.type/Vector :- [wat.type/i64] 1 2 3)
+         v-e   (wat.type/Vector :- [wat.type/i64])
          v1    (:wat::vec::conj v0 4)
-         v2    (:wat::vec::concat v0 (:wat::core::Vector :- [:wat::core::i64] 4 5))
+         v2    (:wat::vec::concat v0 (wat.type/Vector :- [wat.type/i64] 4 5))
          v3    (:wat::vec::extend v0 pv0)]
         (:wat::core::do
           (:user::check "vec::length"    (:wat::core::= (:wat::vec::length v0) 3))

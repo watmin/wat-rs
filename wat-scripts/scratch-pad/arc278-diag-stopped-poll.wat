@@ -2,17 +2,17 @@
 ;; has been spawned? Decouples "does the signal handler fire" from "does Thread::recv
 ;; observe SHUTDOWN_RX".
 
-(:wat::core::defn :diag::poll [n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :diag::poll [n <- wat.type/i64] -> wat.type/nil
   (:wat::core::if (:wat::kernel::stopped?)
     (:wat::kernel::println (:wat::string::concat "STOPPED_TRUE at n=" (:wat::i64::to-string n)))
     (:wat::core::if (:wat::i64::> n 200000000)
       (:wat::kernel::println "GAVE_UP_NEVER_STOPPED")
       (:diag::poll (:wat::i64::+ n 1)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            (:wat::core::match (:wat::kernel::recv self)
              [:wat::kernel::RecvOutcome.Message {:msg _m} nil]
              [:wat::kernel::RecvOutcome.Lost {:cause _c} nil]

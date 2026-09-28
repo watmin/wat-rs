@@ -3,7 +3,7 @@
 ;; No placeholder main — startup_beside loads defns only.
 
 ;; pipe_returns_writer_reader_tuple
-(:wat::core::defn :my::pipe-returns-writer-reader-tuple [] -> :wat::core::i64
+(:wat::core::defn :my::pipe-returns-writer-reader-tuple [] -> wat.type/i64
   (:wat::core::let
     [pair (:wat::kernel::pipe)
      _w   (:wat::core::first pair)
@@ -11,7 +11,7 @@
     42))
 
 ;; pipe_writeln_then_read_line_round_trips
-(:wat::core::defn :my::pipe-writeln-round-trips [] -> (:wat::core::Option :- [:wat::core::String])
+(:wat::core::defn :my::pipe-writeln-round-trips [] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::let
     [pair (:wat::kernel::pipe)
      w    (:wat::core::first pair)
@@ -20,7 +20,7 @@
     (:wat::io::IOReader/read-line r)))
 
 ;; pipe_multiple_writelns_read_line_by_line
-(:wat::core::defn :my::pipe-multiple-writelns [] -> :wat::core::String
+(:wat::core::defn :my::pipe-multiple-writelns [] -> wat.type/String
   (:wat::core::let
     [pair (:wat::kernel::pipe)
      w    (:wat::core::first pair)
@@ -32,12 +32,12 @@
     (:wat::core::match a 
       [:wat::core::Option.Some {:value sa}
        (:wat::core::match b 
-         [:wat::core::Option.Some {:value sb} (:wat::string::join "," (:wat::core::Vector :- [:wat::core::String] sa sb))]
+         [:wat::core::Option.Some {:value sb} (:wat::string::join "," (wat.type/Vector :- [wat.type/String] sa sb))]
          [:wat::core::Option.None {}     "second-missing"])]
       [:wat::core::Option.None {} "first-missing"])))
 
 ;; pipe_write_string_then_read_exact_bytes
-(:wat::core::defn :my::pipe-write-string-exact-bytes [] -> :wat::core::i64
+(:wat::core::defn :my::pipe-write-string-exact-bytes [] -> wat.type/i64
   (:wat::core::let
     [pair (:wat::kernel::pipe)
      w    (:wat::core::first pair)
@@ -49,7 +49,7 @@
       [:wat::core::Option.None {}        -1])))
 
 ;; pipe_preserves_utf8_lines
-(:wat::core::defn :my::pipe-preserves-utf8 [] -> (:wat::core::Option :- [:wat::core::String])
+(:wat::core::defn :my::pipe-preserves-utf8 [] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::let
     [pair (:wat::kernel::pipe)
      w    (:wat::core::first pair)

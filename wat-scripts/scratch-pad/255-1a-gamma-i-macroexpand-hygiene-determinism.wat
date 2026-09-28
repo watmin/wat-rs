@@ -14,10 +14,10 @@
 ;; Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the ephemeral
 ;; session tmp).
 
-(:wat::core::defmacro :probe::twice [x <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :probe::twice [x <- wat.type/AST] -> wat.type/AST
   `(:wat::core::let [tmp ~x] (:wat::i64::+ tmp tmp)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [form1 (:wat::core::macroexpand-1 (:wat::core::quote (:probe::twice 5)))
      form2 (:wat::core::macroexpand-1 (:wat::core::quote (:probe::twice 5)))]

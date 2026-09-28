@@ -27,7 +27,7 @@
   :Map [])
 
 (:wat::core::defn :user::kind-of
-  [s <- :wat::core::String]
+  [s <- wat.type/String]
   -> :user::NodeKind
   (:wat::core::cond
     ((:wat::core::= s "int") (:user::NodeKind.IntLit {}))
@@ -48,7 +48,7 @@
 
 (:wat::core::defn :user::kind-name
   [k <- :user::NodeKind]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::match k
     [:user::NodeKind.IntLit {} "int"]
     [:user::NodeKind.FloatLit {} "float"]
@@ -66,7 +66,7 @@
     [:user::NodeKind.Map {} "map"]
 ))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::interpolate "roundtrip={r} same={s} cross={c}"
       :r (:user::kind-name (:user::kind-of "list"))

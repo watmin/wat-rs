@@ -1,6 +1,6 @@
 ;; ADMIT fixture — the 3-arity reduce is total; identical in every other byte.
-(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- (:wat::core::PersistentVector :- [:wat::core::i64])])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- (wat.type/PersistentVector :- [wat.type/i64])])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -8,7 +8,7 @@
    (:wat::rete::where
      (:wat::rete::i64::=
        (:wat::rete::core::reduce
-         (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64
+         (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64
            (:wat::rete::i64::+ acc x :undefined 0))
          0 ?v)
        3))]
@@ -17,7 +17,7 @@
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

@@ -50,16 +50,16 @@
 ;;     wat-scripts/scratch-pad/census-growing-collection-in-a-lazy-walk.wat
 
 (:wat::core::defn :census::src
-  [form <- :wat::WatAST] -> :wat::core::String
+  [form <- wat.type/AST] -> wat.type/String
   (:wat::core::ast->source form))
 
 (:wat::core::defn :census::kids
-  [form <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
+  [form <- wat.type/AST] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::into [] (:wat::core::ast->children form)))
 
 ;; The head keyword of a list form, or "" for an atom / empty list.
 (:wat::core::defn :census::head
-  [form <- :wat::WatAST] -> :wat::core::String
+  [form <- wat.type/AST] -> wat.type/String
   (:wat::core::let
     [ch (:census::kids form)]
     (:wat::core::if (:wat::core::empty? ch) "" (:census::src (:wat::core::first ch)))))
@@ -67,7 +67,7 @@
 ;; A per-element GROWTH verb: the container-grows-by-one family. `into`/`concat` are BULK and
 ;; deliberately excluded — they are not the per-element accumulation this class is about.
 (:wat::core::defn :census::is-growth-verb?
-  [name <- :wat::core::String] -> :wat::core::bool
+  [name <- wat.type/String] -> wat.type/bool
   (:wat::core::or
     (:wat::core::or
       (:wat::core::= name ":wat::core::conj")
@@ -82,9 +82,9 @@
 
 ;; Does this form have ANY argument that is a growth-verb call?
 (:wat::core::defn :census::has-growth-arg?
-  [form <- :wat::WatAST] -> :wat::core::bool
+  [form <- wat.type/AST] -> wat.type/bool
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool child <- :wat::WatAST] -> :wat::core::bool
+    (:wat::core::fn [acc <- wat.type/bool child <- wat.type/AST] -> wat.type/bool
       (:wat::core::or acc (:census::is-growth-verb? (:census::head child))))
     false
     (:wat::core::into [] (:wat::core::drop (:census::kids form) 1))))
@@ -92,15 +92,15 @@
 ;; Is `call-head` a self-call of the fn declared as `declared`? `declared` may carry type params
 ;; (`:wat::core::distinct-walk :- [T]`) while the call site never does.
 (:wat::core::defn :census::is-self-call?
-  [declared <- :wat::core::String call-head <- :wat::core::String] -> :wat::core::bool
+  [declared <- wat.type/String call-head <- wat.type/String] -> wat.type/bool
   (:wat::core::and
     (:wat::core::not (:wat::core::= call-head ""))
     (:wat::string::starts-with? declared call-head)))
 
 ;; Walk a fn body hunting self-calls that carry a grown accumulator.
 (:wat::core::defn :census::hunt
-  [path <- :wat::core::String declared <- :wat::core::String form <- :wat::WatAST]
-  -> :wat::core::nil
+  [path <- wat.type/String declared <- wat.type/String form <- wat.type/AST]
+  -> wat.type/nil
   (:wat::core::do
     (:wat::core::if
       (:wat::core::and
@@ -114,13 +114,13 @@
                 (:wat::string::concat "  ::  " (:census::src form)))))))
       nil)
     (:wat::core::run!
-      (:wat::core::fn [c <- :wat::WatAST] -> :wat::core::nil (:census::hunt path declared c))
+      (:wat::core::fn [c <- wat.type/AST] -> wat.type/nil (:census::hunt path declared c))
       (:census::kids form))))
 
 ;; Does this fn body walk lazily? `stream::lazy` wraps a deferred cell; `stream::next` pulls one.
 ;; Either makes the enclosing fn a walker whose accumulator can be pinned per-cell.
 (:wat::core::defn :census::is-lazy-body?
-  [form <- :wat::WatAST] -> :wat::core::bool
+  [form <- wat.type/AST] -> wat.type/bool
   (:wat::core::let
     [s (:census::src form)]
     (:wat::core::or
@@ -129,7 +129,7 @@
 
 ;; At every form: if it declares a fn, hunt its body for the shape; then descend regardless.
 (:wat::core::defn :census::walk
-  [path <- :wat::core::String form <- :wat::WatAST] -> :wat::core::nil
+  [path <- wat.type/String form <- wat.type/AST] -> wat.type/nil
   (:wat::core::let
     [h  (:census::head form)
      ch (:census::kids form)]
@@ -150,11 +150,11 @@
             (:census::hunt path declared form)))
         nil)
       (:wat::core::run!
-        (:wat::core::fn [c <- :wat::WatAST] -> :wat::core::nil (:census::walk path c))
+        (:wat::core::fn [c <- wat.type/AST] -> wat.type/nil (:census::walk path c))
         ch))))
 
 (:wat::core::defn :census::file
-  [path <- :wat::core::String] -> :wat::core::nil
+  [path <- wat.type/String] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "== " path))
     (:census::walk path
@@ -163,9 +163,9 @@
         [:wat::core::ReadOutcome.Malformed {:cause __cause}
           (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::run!
-    (:wat::core::fn [p <- :wat::core::String] -> :wat::core::nil (:census::file p))
+    (:wat::core::fn [p <- wat.type/String] -> wat.type/nil (:census::file p))
     (:wat::core::match (:wat::kernel::readln )
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
       [:wat::kernel::ReadlnOutcome.Eof {}

@@ -7,14 +7,14 @@
 ;; reference) — the SymbolBound provenance's binding_span vs head_span distinctness the
 ;; probe asserts depends on that real textual separation.
 
-(:wat::core::defn :user::int-literal [] -> :wat::core::i64
+(:wat::core::defn :user::int-literal [] -> wat.type/i64
   42)
 
-(:wat::core::defn :user::string-literal [] -> :wat::core::String
+(:wat::core::defn :user::string-literal [] -> wat.type/String
   "hello")
 
-(:wat::core::defn :user::let-bound-lookup [] -> :wat::core::i64
+(:wat::core::defn :user::let-bound-lookup [] -> wat.type/i64
   (:wat::core::let [x 42] x))
 
-(:wat::core::defn :user::destructure-lookup [] -> :wat::core::i64
+(:wat::core::defn :user::destructure-lookup [] -> wat.type/i64
   (:wat::core::let [[a b] (:wat::core::Tuple 1 2)] a))

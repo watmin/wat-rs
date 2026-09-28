@@ -41,17 +41,17 @@
    :expand-time :wat::runtime::ExpandTime.Legal
    :category :wat::runtime::Category.Transform
    :examples [["(:user::probe-complete 41)" "41"]]}
-  [x <- :wat::core::i64]
-  -> :wat::core::i64
+  [x <- wat.type/i64]
+  -> wat.type/i64
   x)
 
 (:wat::core::defn :user::probe-restricted
   {:restricted-to [:user::]}
-  [x <- :wat::core::i64]
-  -> :wat::core::i64
+  [x <- wat.type/i64]
+  -> wat.type/i64
   x)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── probe-complete: calls fine, metadata-of decodes the axes ──")
     (:wat::kernel::println (:wat::string::concat "call result: " (:wat::edn::write (:user::probe-complete 41))))

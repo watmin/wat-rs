@@ -17,7 +17,7 @@
     [a (:wat::holon::to-holon "a")
      b (:wat::holon::to-holon "b")
      c (:wat::holon::to-holon "c")
-     xs (:wat::core::Vector :- [:wat::holon::HolonAST] a b c)
+     xs (wat.type/Vector :- [:wat::holon::HolonAST] a b c)
      bigram
        (:wat::core::match
          (:wat::holon::Bigram xs)
@@ -44,10 +44,10 @@
      c (:wat::holon::to-holon "c")
      ;; The first 2-window in [a b c] is Sequential([a b]).
      window-1
-       (:wat::holon::Sequential (:wat::core::Vector :- [:wat::holon::HolonAST] a b))
+       (:wat::holon::Sequential (wat.type/Vector :- [:wat::holon::HolonAST] a b))
      full
        (:wat::core::match
-         (:wat::holon::Bigram (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
+         (:wat::holon::Bigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
          
          [:wat::core::Result.Ok {:value h} h]
          [:wat::core::Result.Err {:error _} a])]
@@ -62,7 +62,7 @@
      z (:wat::holon::to-holon "unrelated-z")
      full
        (:wat::core::match
-         (:wat::holon::Bigram (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
+         (:wat::holon::Bigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
          
          [:wat::core::Result.Ok {:value h} h]
          [:wat::core::Result.Err {:error _} a])]

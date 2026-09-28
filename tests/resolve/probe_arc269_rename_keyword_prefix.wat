@@ -1,4 +1,4 @@
-(:wat::core::defn :user::go [] -> :wat::core::String
+(:wat::core::defn :user::go [] -> wat.type/String
   (:wat::fix::rename-keyword-prefix ":my::old::Bound" ":my::new::Bound"
     "(:wat::core::let
    ;; KEEP THIS COMMENT byte-identical

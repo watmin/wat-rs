@@ -13,11 +13,11 @@
 
 (:wat::core::defsurface :probe::Cap1 :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Cap1::DoOpRequest [payload <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Cap1::DoOpRequest [payload <- wat.type/String])
    (:wat::core::defenum :probe::Cap1::DoOpResponse :wat::enum::Pure
-     :Ok              [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [n <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(do-op [self <- :probe::Cap1  req <- :probe::Cap1::DoOpRequest] -> :probe::Cap1::DoOpResponse
      :max-request-bytes 200)])
@@ -33,9 +33,9 @@
      (:wat::service::Outcome.Reply {:state s :reply (:probe::Cap1::DoOpResponse.Ok {:n 0})}))])
 
 ;; Build an ASCII string of n*32 bytes (byte-length == char-length for ASCII).
-(:wat::core::defn :probe::pl [n <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :probe::pl [n <- wat.type/i64] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  _i <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
@@ -43,7 +43,7 @@
 ;; (1) an over-cap request must be flagged `RequestTooLarge` BY THE CODEGEN (the body returns
 ;;     bare `:Ok`). Returns `bytes` (> 200) on the RequestTooLarge arm, else -1 (the Ok arm) so
 ;;     the harness can distinguish. RED NOW: no codegen → the body's `:Ok 0` comes back → -1.
-(:wat::core::defn :user::over-op-codegen-flags [] -> :wat::core::i64
+(:wat::core::defn :user::over-op-codegen-flags [] -> wat.type/i64
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap, < FOO
      h   (:probe::cap1svc/start :locus (:wat::spawn::process) :record (:probe::cap1svc::Record))
@@ -59,7 +59,7 @@
 ;;     codegen, connection KEPT) then an in-budget request on the SAME peer `c` (→ Ok). Returns 1
 ;;     if the connection survived the flag, else -1. (Before 16.2 this trivially passes — both
 ;;     requests just `:Ok`; after 16.2 it guards that the RequestTooLarge path does not evict.)
-(:wat::core::defn :user::same-conn-recovers-after-codegen [] -> :wat::core::i64
+(:wat::core::defn :user::same-conn-recovers-after-codegen [] -> wat.type/i64
   (:wat::core::let
     [big (:probe::pl 20)     ;; > cap
      h   (:probe::cap1svc/start :locus (:wat::spawn::process) :record (:probe::cap1svc::Record))

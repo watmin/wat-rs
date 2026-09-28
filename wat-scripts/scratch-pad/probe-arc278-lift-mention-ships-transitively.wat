@@ -12,19 +12,19 @@
 ;;   MENTION-DEEP — lifted fn calls a fn that calls a fn → TWO levels of transitivity
 ;; MENTION-1 == PC means transitive collection works and ONE mention suffices.
 
-(:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
 
 ;; the leaf helper
-(:wat::rete::core::defn :usr::big? [n <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :usr::big? [n <- wat.type/i64] -> wat.type/bool
   (:wat::rete::i64::> n 100))
 
 ;; a MIDDLE fn that calls the leaf — this is what a lifted where-body looks like
-(:wat::rete::core::defn :usr::ok-rule$where0 [?c :- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :usr::ok-rule$where0 [?c :- wat.type/i64] -> wat.type/bool
   (:usr::big? ?c))
 
 ;; ── PC — everything in ordinary call position: the CEILING ──────────────────
-(:wat::core::defn :usr::pc [] -> :wat::core::bool
+(:wat::core::defn :usr::pc [] -> wat.type/bool
   (:usr::ok-rule$where0 150))
 
 ;; ── BASE — the shape defrule emits today: names live only inside the quote ──
@@ -42,7 +42,7 @@
                           (:wat::rete::where (:usr::ok-rule$where0 ?c))])
       (:wat::core::quote [(:usr::Hot :c ?c)]))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [pc (:wat::kernel::fn-forms :usr::pc
           (:wat::keyword::from-string "user::root-pc"))

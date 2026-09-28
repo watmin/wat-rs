@@ -40,11 +40,11 @@
 ;; deftest is the better tool and this is theatre.
 
 ;; ── the shared domain: real words, not single chars ──────────────────────────
-(:wat::core::defn :wat-tests::pat::words [] -> (:wat::core::PersistentVector :- [:wat::core::String])
+(:wat::core::defn :wat-tests::pat::words [] -> (wat.type/PersistentVector :- [wat.type/String])
   (:wat::core::PersistentVector "alpha" "beta" "gamma"))
 
 (:wat::core::defn :wat-tests::pat::join-dots
-  [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::String
+  [v <- (wat.type/PersistentVector :- [wat.type/String])] -> wat.type/String
   (:wat::string::join "." v))
 
 ;; DELETED: a `gen-path` helper lived here, defined and never called — P1 and P2 build the
@@ -67,7 +67,7 @@
 ;; did exactly that and could not fail). A round-trip needs no oracle at all: it
 ;; compares the input to itself.
 (:wat::core::defn :wat-tests::pat::law-roundtrip
-  [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::bool
+  [v <- (wat.type/PersistentVector :- [wat.type/String])] -> wat.type/bool
   ;; ⚠ EVERY ELEMENT, NOT ELEMENT 0. This first asserted only the length and `[0]` —
   ;; which a `split` that transposed elements 1 and 2 would pass. The advertised
   ;; property is `split ∘ join == id`, so the law has to be that, or the table is
@@ -80,7 +80,7 @@
     (:wat::core::and (:wat::core::= (:wat::core::length back) n)
       (:wat::core::= 0
         (:wat::core::foldl
-          (:wat::core::fn [bad <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+          (:wat::core::fn [bad <- wat.type/i64  i <- wat.type/i64] -> wat.type/i64
             (:wat::core::if
               (:wat::core::= (:wat::core::Option/expect (:wat::core::get back i) "split[i]")
                              (:wat::gen::nth v i))
@@ -111,14 +111,14 @@
 ;;   f(x) <= f(x ++ y)             — monotonicity
 ;;   f(rename(x)) == rename(f(x))  — equivariance
 (:wat::core::defn :wat-tests::pat::sum-lengths
-  [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::i64
+  [v <- (wat.type/PersistentVector :- [wat.type/String])] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::core::i64  s <- :wat::core::String] -> :wat::core::i64
+    (:wat::core::fn [a <- wat.type/i64  s <- wat.type/String] -> wat.type/i64
       (:wat::i64::+ a (:wat::string::length s)))
     0 v))
 
 (:wat::core::defn :wat-tests::pat::law-metamorphic
-  [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::bool
+  [v <- (wat.type/PersistentVector :- [wat.type/String])] -> wat.type/bool
   (:wat::core::let [n      (:wat::core::length v)
                     joined (:wat-tests::pat::join-dots v)]
     (:wat::core::= (:wat::string::length joined)
@@ -150,13 +150,13 @@
 ;; written a tautology — the exact defect GEN-VIGILIA found in four laws that computed
 ;; their expected values with the verbs they were testing.
 (:wat::core::defenum :wat-tests::pat::Cmd :wat::enum::Pure
-  :Put [k <- :wat::core::i64  v <- :wat::core::i64]
-  :Del [k <- :wat::core::i64])
+  :Put [k <- wat.type/i64  v <- wat.type/i64]
+  :Del [k <- wat.type/i64])
 
 ;; a variant constructor is a CALL FORM, so a one-line wrapper makes it a function value
-(:wat::core::defn :wat-tests::pat::mk-put [k <- :wat::core::i64  v <- :wat::core::i64]
+(:wat::core::defn :wat-tests::pat::mk-put [k <- wat.type/i64  v <- wat.type/i64]
   -> :wat-tests::pat::Cmd (:wat-tests::pat::Cmd.Put {:k k :v v}))
-(:wat::core::defn :wat-tests::pat::mk-del [k <- :wat::core::i64]
+(:wat::core::defn :wat-tests::pat::mk-del [k <- wat.type/i64]
   -> :wat-tests::pat::Cmd (:wat-tests::pat::Cmd.Del {:k k}))
 
 ;; 4 keys x 3 values = 12 Puts, + 4 Dels = 16 commands; sequences of 0..2 => 273 programs
@@ -167,12 +167,12 @@
 
 ;; THE REAL THING — fold the program over a PersistentMap
 (:wat::core::defn :wat-tests::pat::run-real
-  [cmds <- (:wat::core::PersistentVector :- [:wat-tests::pat::Cmd])]
-  -> (:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::i64])
+  [cmds <- (wat.type/PersistentVector :- [:wat-tests::pat::Cmd])]
+  -> (wat.type/PersistentMap :- [wat.type/i64 wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [m <- (:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::i64])
+    (:wat::core::fn [m <- (wat.type/PersistentMap :- [wat.type/i64 wat.type/i64])
                      c <- :wat-tests::pat::Cmd]
-                    -> (:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::i64])
+                    -> (wat.type/PersistentMap :- [wat.type/i64 wat.type/i64])
       (:wat::core::match c
         [:wat-tests::pat::Cmd.Put {:k k :v v} (:wat::map::assoc m k v)]
         [:wat-tests::pat::Cmd.Del {:k k}   (:wat::map::dissoc m k)]))
@@ -181,11 +181,11 @@
 
 ;; THE MODEL — last command touching `k` wins. No map involved.
 (:wat::core::defn :wat-tests::pat::model-get
-  [cmds <- (:wat::core::PersistentVector :- [:wat-tests::pat::Cmd])  k <- :wat::core::i64]
-  -> (:wat::core::Option :- [:wat::core::i64])
+  [cmds <- (wat.type/PersistentVector :- [:wat-tests::pat::Cmd])  k <- wat.type/i64]
+  -> (:wat::core::Option :- [wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Option :- [:wat::core::i64])  c <- :wat-tests::pat::Cmd]
-                    -> (:wat::core::Option :- [:wat::core::i64])
+    (:wat::core::fn [acc <- (:wat::core::Option :- [wat.type/i64])  c <- :wat-tests::pat::Cmd]
+                    -> (:wat::core::Option :- [wat.type/i64])
       (:wat::core::match c
         [:wat-tests::pat::Cmd.Put {:k ck :v cv}
           (:wat::core::if (:wat::core::= ck k) (:wat::core::Option.Some {:value cv}) acc)]
@@ -195,8 +195,8 @@
     cmds))
 
 (:wat::core::defn :wat-tests::pat::agrees-at
-  [cmds <- (:wat::core::PersistentVector :- [:wat-tests::pat::Cmd])  k <- :wat::core::i64]
-  -> :wat::core::bool
+  [cmds <- (wat.type/PersistentVector :- [:wat-tests::pat::Cmd])  k <- wat.type/i64]
+  -> wat.type/bool
   (:wat::core::let [real  (:wat::map::get (:wat-tests::pat::run-real cmds) k)
                     model (:wat-tests::pat::model-get cmds k)]
     (:wat::core::match model
@@ -210,7 +210,7 @@
           [:wat::core::Option.None {}       true])])))
 
 (:wat::core::defn :wat-tests::pat::law-model
-  [cmds <- (:wat::core::PersistentVector :- [:wat-tests::pat::Cmd])] -> :wat::core::bool
+  [cmds <- (wat.type/PersistentVector :- [:wat-tests::pat::Cmd])] -> wat.type/bool
   ;; every key in the domain, on every program — not a sampled key
   (:wat::core::and (:wat-tests::pat::agrees-at cmds 0)
     (:wat::core::and (:wat-tests::pat::agrees-at cmds 1)
@@ -237,11 +237,11 @@
 ;; membership is asserted too. A law that pins only a count is the shape that let a
 ;; wrong `check` go unnoticed for a month (GEN-VIGILIA finding D).
 (:wat::core::defn :wat-tests::pat::law-set-algebra
-  [c <- :wat::gen::Coord] -> :wat::core::bool
+  [c <- :wat::gen::Coord] -> wat.type/bool
   (:wat::core::let
     [a  (:wat::gen::nth c 0)
      b  (:wat::gen::nth c 1)
-     s0 (:wat::core::HashSet :- [:wat::core::i64])
+     s0 (wat.type/HashSet :- [wat.type/i64])
      ab (:wat::hashset::conj (:wat::hashset::conj s0 a) b)
      ba (:wat::hashset::conj (:wat::hashset::conj s0 b) a)
      ;; idempotence: adding `a` twice adds nothing the second time
@@ -275,21 +275,21 @@
 ;;
 ;; THE DIFFERENCE IS NOT CONVENIENCE, IT IS THE DENOMINATOR. Filtering leaves you a
 ;; number you cannot interpret; `bind` leaves you `card` = exactly the valid cases.
-(:wat::core::defn :wat-tests::pat::index-space [n <- :wat::core::i64]
-  -> (:wat::gen::Gen :- [:wat::core::i64])
+(:wat::core::defn :wat-tests::pat::index-space [n <- wat.type/i64]
+  -> (:wat::gen::Gen :- [wat.type/i64])
   ;; n is the LENGTH; the valid indices are 0..n. A length-0 vector has no valid index,
   ;; and `gen` floors a negative card at 0, so that branch contributes nothing.
   (:wat::gen::ints 0 n))
 
 (:wat::core::defn :wat-tests::pat::law-dependent
-  [c <- :wat::gen::Coord] -> :wat::core::bool
+  [c <- :wat::gen::Coord] -> wat.type/bool
   ;; c = [len idx] with idx < len, by construction of the space below
   (:wat::core::let
     [len (:wat::gen::nth c 0)
      idx (:wat::gen::nth c 1)
      v   (:wat::core::into (:wat::core::PersistentVector)
            (:wat::core::mapv
-             (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+             (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64
                (:wat::i64::* i 10))
              (:wat::core::range 0 len)))]
     (:wat::core::match (:wat::vector::get v idx)
@@ -297,15 +297,15 @@
       [:wat::core::Option.None {}       false])))
 
 ;; the dependent space, as a coordinate: length 1..4, then a valid index for THAT length
-(:wat::core::defn :wat-tests::pat::pair [len <- :wat::core::i64  idx <- :wat::core::i64]
+(:wat::core::defn :wat-tests::pat::pair [len <- wat.type/i64  idx <- wat.type/i64]
   -> :wat::gen::Coord
   (:wat::core::PersistentVector len idx))
 
 (:wat::core::defn :wat-tests::pat::gen-valid-index [] -> (:wat::gen::Gen :- [:wat::gen::Coord])
   (:wat::gen::bind (:wat::gen::ints 1 5)
-    (:wat::core::fn [len <- :wat::core::i64] -> (:wat::gen::Gen :- [:wat::gen::Coord])
+    (:wat::core::fn [len <- wat.type/i64] -> (:wat::gen::Gen :- [:wat::gen::Coord])
       (:wat::gen::fmap
-        (:wat::core::fn [idx <- :wat::core::i64] -> :wat::gen::Coord
+        (:wat::core::fn [idx <- wat.type/i64] -> :wat::gen::Coord
           (:wat-tests::pat::pair len idx))
         (:wat-tests::pat::index-space len)))))
 
@@ -331,11 +331,11 @@
 ;; shape most domains have — a path, a version string, an identifier, a log line, a
 ;; query — and `fmap` over a `record` is how you get it.
 (:wat::core::defrecord :wat-tests::pat::Req
-  [method   <- :wat::core::String
-   resource <- :wat::core::String
-   id       <- :wat::core::String])
+  [method   <- wat.type/String
+   resource <- wat.type/String
+   id       <- wat.type/String])
 
-(:wat::core::defn :wat-tests::pat::render [r <- :wat-tests::pat::Req] -> :wat::core::String
+(:wat::core::defn :wat-tests::pat::render [r <- :wat-tests::pat::Req] -> wat.type/String
   (:wat::string::join "/" (:wat::core::PersistentVector
     (:wat-tests::pat::Req/method r) (:wat-tests::pat::Req/resource r) (:wat-tests::pat::Req/id r))))
 
@@ -346,7 +346,7 @@
     (:wat::gen::elements (:wat::core::PersistentVector "1" "42" "999"))))
 
 ;; the property is about the DOMAIN, and it uses two real substrate verbs
-(:wat::core::defn :wat-tests::pat::law-domain [r <- :wat-tests::pat::Req] -> :wat::core::bool
+(:wat::core::defn :wat-tests::pat::law-domain [r <- :wat-tests::pat::Req] -> wat.type/bool
   (:wat::core::let [line  (:wat-tests::pat::render r)
                     parts (:wat::string::split line "/")]
     (:wat::core::and (:wat::string::starts-with? line (:wat-tests::pat::Req/method r))
@@ -374,7 +374,7 @@
 ;; each caller bound its own space. A caller who needs a narrower space for one
 ;; condition just passes a narrower generator — no change to the property at all.
 (:wat::core::defn :wat-tests::pat::parts-survive
-  [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::bool
+  [v <- (wat.type/PersistentVector :- [wat.type/String])] -> wat.type/bool
   (:wat::core::let [joined (:wat::string::join "/" v)
                     back   (:wat::string::split joined "/")]
     (:wat::core::= (:wat::core::length back) (:wat::core::length v))))
@@ -382,7 +382,7 @@
 ;; ONE property, ANY caller's generator. Note the parameter type: a `Gen` of the shape
 ;; the property needs, and nothing more — this is the "arg-spec" the caller conforms to.
 (:wat::core::defn :wat-tests::pat::check-parts
-  [g <- (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [:wat::core::String])])]
+  [g <- (:wat::gen::Gen :- [(wat.type/PersistentVector :- [wat.type/String])])]
   -> :wat::gen::CheckOutcome
   (:wat::gen::check g :wat-tests::pat::parts-survive))
 
@@ -420,7 +420,7 @@
 ;; the same standard, because the corpus is the thing that gets COPIED.
 
 (:wat::core::defn :wat-tests::pat::held
-  [o <- :wat::gen::CheckOutcome  expect-pts <- :wat::core::i64] -> :wat::core::nil
+  [o <- :wat::gen::CheckOutcome  expect-pts <- wat.type/i64] -> wat.type/nil
   (:wat::core::match o
     [:wat::gen::CheckOutcome.Checked {:points pts :violations v :first-failure _first}
       (:wat::core::let [_ (:wat::test::assert-eq pts expect-pts)]

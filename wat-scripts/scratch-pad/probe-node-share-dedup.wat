@@ -36,21 +36,21 @@
 ;; The rule shape is copied VERBATIM from wat-scripts/perf/grid/node-share.wat's build-rule — if it
 ;; drifts from the axis, this probe stops describing the thing that was measured.
 
-(:wat::core::defrecord :nsp::A [k <- :wat::core::i64])
-(:wat::core::defrecord :nsp::B [k <- :wat::core::i64])
-(:wat::core::defrecord :nsp::Out [k <- :wat::core::i64])
+(:wat::core::defrecord :nsp::A [k <- wat.type/i64])
+(:wat::core::defrecord :nsp::B [k <- wat.type/i64])
+(:wat::core::defrecord :nsp::Out [k <- wat.type/i64])
 
 (:wat::core::defrecord :probe::NodeCounts
-  [n       <- :wat::core::i64
-   total   <- :wat::core::i64
-   next-id <- :wat::core::i64
-   kinds   <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])])
+  [n       <- wat.type/i64
+   total   <- wat.type/i64
+   next-id <- wat.type/i64
+   kinds   <- (wat.type/HashMap :- [wat.type/String wat.type/i64])])
 
 ;; build-rule i n — VERBATIM the axis's rule: Out(k) :- A(k) AND B(k) AND (i == k mod n).
 ;; The leading two conditions are byte-identical across every i (no i splices into them), so they
 ;; are exactly the shareable prefix under test. Only the trailing `where` carries the per-rule
 ;; literal. `mod` is written as the truncating-division idiom (no native i64 mod).
-(:wat::core::defn :nsp::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :nsp::build-rule [i <- wat.type/i64  n <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [a-c     (:wat::core::quasiquote (:nsp::A (?k :- :k)))
                     b-c     (:wat::core::quasiquote (:nsp::B (?k :- :k)))
                     where-c (:wat::core::quasiquote
@@ -63,10 +63,10 @@
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
-(:wat::core::defn :nsp::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :nsp::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
-      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
+      -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:nsp::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
@@ -75,13 +75,13 @@
 ;; takes the last `::` segment of the node record's own type FQDN, so this needs no per-kind
 ;; enumeration and will surface a node kind this probe's author never thought of.
 (:wat::core::defn :nsp::count-kinds
-  [session <- :wat::rete::Session] -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+  [session <- :wat::rete::Session] -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
   (:wat::core::let [network (:wat::rete::Session/network session)
                     keys    (:wat::map::keys network)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
-                       k   <- :wat::core::i64]
-        -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+      (:wat::core::fn [acc <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+                       k   <- wat.type/i64]
+        -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
         (:wat::core::let [node (:wat::core::Option/expect
                                  (:wat::map::get network k)
                                  "count-kinds: node not found")
@@ -91,10 +91,10 @@
                                  [:wat::core::Option.None {} 0])]
           (:wat::hashmap::assoc acc kind (:wat::i64::+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
-      (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
+      (wat.type/HashMap :- [wat.type/String wat.type/i64])
       keys)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
                               [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                               [:wat::kernel::ReadlnOutcome.Eof {}

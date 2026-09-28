@@ -29,20 +29,20 @@
 ;; measuring something else. If NEITHER raised BEFORE the fix, the defect was not here.
 
 (:wat::core::defstruct :probe::Paper
-  [grace-residue <- :wat::core::f64])
+  [grace-residue <- wat.type/f64])
 
 ;; ── the CONTROL: no matches?, no pattern, no DSL tokens ─────────────────────────────────────
-(:wat::core::defn :probe::control [p <- :probe::Paper] -> :wat::core::bool
+(:wat::core::defn :probe::control [p <- :probe::Paper] -> wat.type/bool
   (:wat::f64::< (:probe::Paper/grace-residue p) 5.0))
 
 ;; ── the SUBJECT: identical shipping, but the body holds a `matches?`. `=` and `<` here are
 ;; PATTERN GRAMMAR owned by check.rs's `infer_form_matches` walker — not call heads — and `?gr`
 ;; is bound by the pattern, not by any enclosing scope. Reading any of them as code is the bug.
-(:wat::core::defn :probe::subject [p <- :probe::Paper] -> :wat::core::bool
+(:wat::core::defn :probe::subject [p <- :probe::Paper] -> wat.type/bool
   (:wat::form::matches? p
     (:probe::Paper (= ?gr :grace-residue) (< ?gr 5.0))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; ARM 1 — the control. A closure comes back.
      ctl (:wat::kernel::fn-forms :probe::control

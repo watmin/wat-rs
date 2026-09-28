@@ -7,11 +7,11 @@
 ;; macro-dispatch guard (which declines `(Head :- [args])` on shape) still lets the companion macro
 ;; fire for the ordinary kwargs-call shape (no `:-` at index 1).
 
-(:wat::core::defrecord :arc109row3::Pair [a <- :wat::core::i64 b <- :wat::core::i64])
-(:wat::core::defstruct :arc109row3::SPair [a <- :wat::core::i64 b <- :wat::core::i64])
-(:wat::holon::defrecord :arc109row3::HPair [a <- :wat::core::i64 b <- :wat::core::i64])
+(:wat::core::defrecord :arc109row3::Pair [a <- wat.type/i64 b <- wat.type/i64])
+(:wat::core::defstruct :arc109row3::SPair [a <- wat.type/i64 b <- wat.type/i64])
+(:wat::holon::defrecord :arc109row3::HPair [a <- wat.type/i64 b <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; order-free kwargs: b before a — only possible if the companion macro still fires.
     (:wat::kernel::println

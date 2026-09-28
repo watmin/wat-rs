@@ -6,9 +6,9 @@
 ;;
 ;;   ./target/release/wat wat-scripts/scratch-pad/255-p6c1-two-verbs-homed.wat   # EXIT=0
 
-(:wat::core::defstruct :probe::P6c1Subject [amount <- :wat::core::i64])
+(:wat::core::defstruct :probe::P6c1Subject [amount <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; cpu-count: nullary (SUBSET-shape context tail — span only), returns a positive i64.
     (:wat::test::assert-eq (:wat::i64::> (:wat::program::cpu-count) 0) true)

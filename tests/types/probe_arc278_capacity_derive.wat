@@ -20,9 +20,9 @@
 ;;   2. The real `:wat::telemetry::Log` floor is `>= 56` (the design doc's fixed-value-only sum:
 ;;      Uuid 36 + i64 20; the shipped derive additionally adds field-name-key + tag costs on top).
 (:wat::core::defrecord :probe::RecA
-  [a <- :wat::core::i64  b <- :wat::core::String])
+  [a <- wat.type/i64  b <- wat.type/String])
 (:wat::core::defrecord :probe::RecB
-  [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::i64])
+  [a <- wat.type/i64  b <- wat.type/String  c <- wat.type/i64])
 
 (:wat::core::def :probe::floor-a (:wat::telemetry::framing-floor-of :probe::RecA))
 (:wat::core::def :probe::floor-b (:wat::telemetry::framing-floor-of :probe::RecB))
@@ -33,5 +33,5 @@
 (:wat::core::def :probe::assert-log-floor
   (:wat::test::assert-true (:wat::core::>= :probe::floor-log 56)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "arc278 capacity derive: adaptivity proven"))

@@ -13,20 +13,20 @@
 ;; ⛔ MEASUREMENT, never a ratchet — same standing rule as `255-registry-census.wat`: a gate
 ;; freezes NAMES so it can DISAGREE with the present; one computing both sides always agrees.
 
-(:wat::core::defn :b0::alias? [r <- :wat::intrinsic::Row] -> :wat::core::bool
+(:wat::core::defn :b0::alias? [r <- :wat::intrinsic::Row] -> wat.type/bool
   (:wat::core::match (:wat::intrinsic::Row/alias-of r)
     [:wat::core::Option.Some {:value _} true] [:wat::core::Option.None {} false]))
 
-(:wat::core::defn :b0::target [r <- :wat::intrinsic::Row] -> :wat::core::String
+(:wat::core::defn :b0::target [r <- :wat::intrinsic::Row] -> wat.type/String
   (:wat::core::match (:wat::intrinsic::Row/alias-of r)
     [:wat::core::Option.Some {:value t} t] [:wat::core::Option.None {} ""]))
 
-(:wat::core::defn :b0::render [r <- :wat::intrinsic::Row] -> :wat::core::String
+(:wat::core::defn :b0::render [r <- :wat::intrinsic::Row] -> wat.type/String
   (:wat::string::concat
     (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "  ->  ")
     (:b0::target r)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [rows    (:wat::core::into [] (:wat::intrinsic::rows))
                     aliases (:wat::core::into [] (:wat::core::filter :b0::alias? rows))]
     (:wat::core::do
@@ -34,7 +34,7 @@
         "alias rows: " (:wat::i64::to-string (:wat::core::length aliases))))
       (:wat::kernel::println "── every alias row, as `name -> target` ──")
       (:wat::core::mapv
-        (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
+        (:wat::core::fn [r <- :wat::intrinsic::Row] -> wat.type/nil
           (:wat::kernel::println (:b0::render r)))
         aliases)
       (:wat::kernel::println ""))))

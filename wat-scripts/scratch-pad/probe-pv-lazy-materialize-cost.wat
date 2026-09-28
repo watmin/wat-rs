@@ -41,24 +41,24 @@
 ;;   echo '[2000]' | ./target/release/wat wat-scripts/scratch-pad/probe-pv-lazy-materialize-cost.wat
 
 (:wat::core::defrecord :cx::Costs
-  [n            <- :wat::core::i64
-   build-ns     <- :wat::core::i64
-   into-pv-ns   <- :wat::core::i64
-   into-vec-ns  <- :wat::core::i64
-   fold-ns      <- :wat::core::i64
-   rest-walk-ns <- :wat::core::i64
-   into-pv-len  <- :wat::core::i64
-   into-vec-len <- :wat::core::i64
-   fold-len     <- :wat::core::i64
-   rest-walk-sum <- :wat::core::i64])
+  [n            <- wat.type/i64
+   build-ns     <- wat.type/i64
+   into-pv-ns   <- wat.type/i64
+   into-vec-ns  <- wat.type/i64
+   fold-ns      <- wat.type/i64
+   rest-walk-ns <- wat.type/i64
+   into-pv-len  <- wat.type/i64
+   into-vec-len <- wat.type/i64
+   fold-len     <- wat.type/i64
+   rest-walk-sum <- wat.type/i64])
 
-(:wat::core::defn :cx::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :cx::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; keep? — the all-pass predicate. Matches query-by-type-string's real behaviour on this
 ;; workload: every production fact IS of the queried type, so its filter keeps 100%. A
 ;; selective predicate would shrink the output and confound a size comparison.
-(:wat::core::defn :cx::keep? [x <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :cx::keep? [x <- wat.type/i64] -> wat.type/bool
   (:wat::core::>= x 0))
 
 ;; rest-walk — the `rest` mechanism ISOLATED. Sums the vector by first/rest recursion, which is
@@ -66,12 +66,12 @@
 ;; `empty?` because `rest` RAISES on an empty PersistentVector (collection/eval.rs:1646).
 ;; Returns the sum purely as a non-vacuity witness — the walk must actually visit every element.
 (:wat::core::defn :cx::rest-walk
-  [pv <- (:wat::core::PersistentVector :- [:wat::core::i64])  acc <- :wat::core::i64] -> :wat::core::i64
+  [pv <- (wat.type/PersistentVector :- [wat.type/i64])  acc <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::empty? pv)
     acc
     (:cx::rest-walk (:wat::core::rest pv) (:wat::i64::+ acc (:wat::core::first pv)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln )
                              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                              [:wat::kernel::ReadlnOutcome.Eof {}
@@ -82,9 +82,9 @@
 
                     b0     (:wat::time::now)
                     pv     (:wat::core::foldl
-                             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
-                                              i   <- :wat::core::i64]
-                               -> (:wat::core::PersistentVector :- [:wat::core::i64])
+                             (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
+                                              i   <- wat.type/i64]
+                               -> (wat.type/PersistentVector :- [wat.type/i64])
                                (:wat::vector::conj acc i))
                              (:wat::core::PersistentVector)
                              (:wat::core::range 0 n))
@@ -98,16 +98,16 @@
 
                     ;; Same pipeline, Vector target — measured linear in the derive chain.
                     v0     (:wat::time::now)
-                    ivec   (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+                    ivec   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                              (:wat::core::filter :cx::keep? pv))
                     v1     (:wat::time::now)
 
                     ;; CONTROL — no laziness anywhere; foldl iterates the PV natively.
                     f0     (:wat::time::now)
                     folded (:wat::core::foldl
-                             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
-                                              x   <- :wat::core::i64]
-                               -> (:wat::core::PersistentVector :- [:wat::core::i64])
+                             (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
+                                              x   <- wat.type/i64]
+                               -> (wat.type/PersistentVector :- [wat.type/i64])
                                (:wat::core::if (:cx::keep? x)
                                  (:wat::vector::conj acc x)
                                  acc))

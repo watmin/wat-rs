@@ -22,7 +22,7 @@
 ;; `rune:` marker — "no magic comments"; and `Termination::Asserted [why <- String]` — "their
 ;; strings are their reason for themselves"). An author's string is not a proof.
 
-(:wat::core::defrecord :gc::N [k <- :wat::core::i64])
+(:wat::core::defrecord :gc::N [k <- wat.type/i64])
 
 (:wat::rete::defrule :gc::count-up
   :when
@@ -35,7 +35,7 @@
 
 ;; No println before compile-all — the same lesson the fn-head fixture records: announcing
 ;; "compiled" first prints whether or not the compile then fails.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to

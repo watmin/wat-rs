@@ -7,7 +7,7 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "-- a bare keyword VALUE through edn::write --")
     (:wat::kernel::println (:wat::edn::write :my::doc::some-name))

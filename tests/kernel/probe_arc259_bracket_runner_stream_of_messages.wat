@@ -1,12 +1,12 @@
 ;; Co-located fixture for probe_arc259_bracket_runner.rs — runner_serves_a_stream_of_messages.
 ;; 3-item stream: proves the peer serves MULTIPLE messages (1->2, 2->4, 3->6; sum 12).
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
    (:wat::core::let
      [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-                     (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+                     (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                        (:wat::bracket::runner-loop self
-                         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))))
+                         (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))))
       _a (:wat::kernel::send peer 1)
       a  (:wat::core::match (:wat::kernel::recv peer)
            [:wat::kernel::RecvOutcome.Message {:msg m} m]

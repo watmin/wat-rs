@@ -4,7 +4,7 @@
 ;; refuse the other half of the shape it claims to cover.
 ;;
 ;; Arc 278 item 8 — the termination verifier reads the `where` fence.
-(:wat::core::defrecord :b8::N [k <- :wat::core::i64])
+(:wat::core::defrecord :b8::N [k <- wat.type/i64])
 
 (:wat::rete::defrule :b8::ok-down
   :when
@@ -15,7 +15,7 @@
 
 (:wat::rete::defquery :b8::q :params [] :when [(?fact :- :b8::N)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match
     (:wat::rete::compile-all (:wat::rete::collect-rules :b8) (:wat::core::PersistentVector (:b8::q)))
     [:wat::rete::CompileOutcome.Compiled {:session __s} (:wat::kernel::println "ADMITTED")]

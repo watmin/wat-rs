@@ -38,12 +38,12 @@
 ;; serve threads: saw-tick? + the client's idx (-1 = not yet connected). Replies :Pong to the client
 ;; ONLY once BOTH the timer's :Tick and the client's (re-tagged) :Ping have been delivered by poll'.
 (:wat::core::defn :probe-retag::serve-thread
-  [self        <- (:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])
+  [self        <- (:wat::kernel::Peer :- [wat.type/nil wat.type/nil])
    l           <- (:wat::kernel::Listener :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply])
-   selectables <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])])
-   saw-tick    <- :wat::core::bool
-   client-idx  <- :wat::core::i64]
-  -> :wat::core::nil
+   selectables <- (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])])
+   saw-tick    <- wat.type/bool
+   client-idx  <- wat.type/i64]
+  -> wat.type/nil
   (:wat::core::match (:wat::kernel::poll self l selectables) 
     [:wat::spawn::ServiceEvent.Shutdown {} nil]
     [:wat::spawn::ServiceEvent.Connection {:peer peer}
@@ -85,13 +85,13 @@
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
      _svc (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])]
-              -> :wat::core::nil
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/nil wat.type/nil])]
+              -> wat.type/nil
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind.thread
                      (:wat::time::Millisecond 5) (:probe-retag::Svc::Op.Tick {}))]
                 (:probe-retag::serve-thread self l
-                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
+                  (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                   false -1))))
      c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op.Ping {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
@@ -117,12 +117,12 @@
                 :Ping []
                 :Tick [])
               (:wat::core::defn :probe-retag::serve-proc
-                [self        <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) :wat::core::nil])
+                [self        <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) wat.type/nil])
                  l           <- (:wat::kernel::Listener :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply])
-                 selectables <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])])
-                 saw-tick    <- :wat::core::bool
-                 client-idx  <- :wat::core::i64]
-                -> :wat::core::nil
+                 selectables <- (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])])
+                 saw-tick    <- wat.type/bool
+                 client-idx  <- wat.type/i64]
+                -> wat.type/nil
                 (:wat::core::match (:wat::kernel::poll self l selectables) 
                   [:wat::spawn::ServiceEvent.Shutdown {} nil]
                   [:wat::spawn::ServiceEvent.Connection {:peer peer}
@@ -153,7 +153,7 @@
                     (:probe-retag::serve-proc self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
                   [:wat::spawn::ServiceEvent.Admin {:msg _m}
                     (:probe-retag::serve-proc self l selectables saw-tick client-idx)]))
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::core::let
                   [b2   (:wat::kernel::listener (:wat::spawn::process) :probe-retag::Surface::Op :probe-retag::Surface::Reply)
                    self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) :wat::core::nil)
@@ -161,7 +161,7 @@
                    t    (:wat::kernel::after :wat::program::PeerKind.process
                           (:wat::time::Millisecond 5) (:probe-retag::Svc::Op.Tick {}))]
                   (:probe-retag::serve-proc self (:wat::spawn::Bound/listener b2)
-                    (:wat::core::Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
+                    (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
                     false -1)))))
      addr (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -178,7 +178,7 @@
     r))
 
 ;; ── the assertion — BOTH tiers: the client's RE-TAGGED :Ping AND the timer's pass-through :Tick ────
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:probe-retag::thread-mix) 
       [:probe-retag::Surface::Reply.Pong {} (:wat::kernel::println "thread: Pong — re-tagged client :Ping + pass-through timer :Tick both dispatched")])

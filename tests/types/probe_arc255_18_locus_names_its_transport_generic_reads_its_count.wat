@@ -4,9 +4,9 @@
 ;; 255.19 closed the gap by REMOVAL, not by the checker: `runner-count` is now a `Locus` surface
 ;; method, so a generic locus reads its runner count directly.
 ;; POSITIVE: one generic reader, called with a process locus (Wire) and a thread locus (Shared).
-(:wat::core::defn :probe::count :- [T] [l <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64
+(:wat::core::defn :probe::count :- [T] [l <- (:wat::spawn::Locus :- [T])] -> wat.type/i64
   (:wat::spawn::Locus/runner-count l))
-(:wat::core::defn :probe::via-process [] -> :wat::core::i64
+(:wat::core::defn :probe::via-process [] -> wat.type/i64
   (:probe::count (:wat::spawn::process::runner-count 8)))
-(:wat::core::defn :probe::via-thread [] -> :wat::core::i64
+(:wat::core::defn :probe::via-thread [] -> wat.type/i64
   (:probe::count (:wat::spawn::thread::runner-count 3)))

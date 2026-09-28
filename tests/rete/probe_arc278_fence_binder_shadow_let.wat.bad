@@ -7,7 +7,7 @@
 ;; beside a condition binding `?k` to `i64`). After this stone: refused at rule-compile time,
 ;; `FenceBinderShadowsReteVar`, naming the binder `?k` and the form `let`.
 
-(:wat::core::defrecord :fbsl::N [k <- :wat::core::i64])
+(:wat::core::defrecord :fbsl::N [k <- wat.type/i64])
 
 (:wat::rete::defrule :fbsl::shadow-in-let
   :when [(:fbsl::N (?k :- :k))

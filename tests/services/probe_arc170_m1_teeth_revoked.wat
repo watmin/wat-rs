@@ -15,11 +15,11 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -35,7 +35,7 @@
 ;; Served carries dial-#2's reply to preserve the DISCRIMINATE intent (a regressed revoke → a real reply).
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Bounced []                          ;; dial #2 refused → prober crashed → owner saw Lost/Closed
-  :Served  [reply <- :wat::core::String]) ;; dial #2 ADMITTED (revoke regressed) → prober replied → owner saw Message
+  :Served  [reply <- wat.type/String]) ;; dial #2 ADMITTED (revoke regressed) → prober replied → owner saw Message
 
 (:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
@@ -48,14 +48,14 @@
                 ;; the child evals in a FRESH world — it must re-declare the surface it dials.
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages
-                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-                     :Ok              [reply <- :wat::core::String]
-                     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+                     :Ok              [reply <- wat.type/String]
+                     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-                (:wat::core::defn :user::main [] -> :wat::core::nil
+                (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String
                              (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]))
@@ -95,7 +95,7 @@
      r2  (:wat::core::match (:wat::kernel::peer-pid prober) 
            [:wat::core::Option.Some {:value p}
              (:wat::core::let
-               [_  (:probe::echo/grant  eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; ack'd PeersAllowed
+               [_  (:probe::echo/grant  eh (wat.type/Vector :- [wat.type/i64] p)) ;; ack'd PeersAllowed
                 _  (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])                                   ;; arc 278 #73 — the recv' below already faces the stop ;; give addr → dial #1
                 r1 (:wat::core::match (:wat::kernel::recv prober)                    ;; "echo:hi" (dial #1 admitted); ::Message passes m through so the DISCRIMINATE assert holds
                      [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -105,7 +105,7 @@
                        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")]
                      [:wat::kernel::RecvOutcome.Closed {}
                        (:wat::kernel::assertion-failed! :message "recv': prober closed")])
-                _  (:probe::echo/revoke eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; ack'd PeersDenied — pid GONE
+                _  (:probe::echo/revoke eh (wat.type/Vector :- [wat.type/i64] p)) ;; ack'd PeersDenied — pid GONE
                 _  (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])                                   ;; arc 278 #73 — the recv' below already faces the stop ;; re-dial signal (AFTER revoke ack)
                 r2 (:wat::core::match (:wat::kernel::recv prober)                    ;; owner FACES the outcome as a VALUE, returns the enum
                      [:wat::kernel::RecvOutcome.Message {:msg m} (:probe::Outcome.Served {:reply m})]  ;; dial #2 admitted (the regression) — carries the reply

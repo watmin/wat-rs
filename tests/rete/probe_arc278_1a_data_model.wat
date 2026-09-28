@@ -3,21 +3,21 @@
 ;; (RootJoinNode id0 -> ProductionNode id1) and expose the two probe assertions the sibling .rs
 ;; makes on it. (No extra records: nine node records + Session live on rete.wat.)
 
-(:wat::core::defn :user::network-length [] -> :wat::core::i64
+(:wat::core::defn :user::network-length [] -> wat.type/i64
   (:wat::core::let
     [n0 (:wat::rete::RootJoinNode :id 0 :children (:wat::core::PersistentVector 1))
      n1 (:wat::rete::ProductionNode :id 1 :rule-name "rule-1")
-     net (:wat::map::assoc (:wat::map::assoc (:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record]) 0 n0) 1 n1)
+     net (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record]) 0 n0) 1 n1)
      em  (:wat::core::PersistentMap)
      ev  (:wat::core::PersistentVector)
      s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts (:wat::rete::FactBag :items ev) :next-id 2 :query-memory em)]
     (:wat::map::length (:wat::rete::Session/network s))))
 
-(:wat::core::defn :user::render-dag-of-session [] -> :wat::core::String
+(:wat::core::defn :user::render-dag-of-session [] -> wat.type/String
   (:wat::core::let
     [n0 (:wat::rete::RootJoinNode :id 0 :children (:wat::core::PersistentVector 1))
      n1 (:wat::rete::ProductionNode :id 1 :rule-name "rule-1")
-     net (:wat::map::assoc (:wat::map::assoc (:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record]) 0 n0) 1 n1)
+     net (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record]) 0 n0) 1 n1)
      em  (:wat::core::PersistentMap)
      ev  (:wat::core::PersistentVector)
      s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts (:wat::rete::FactBag :items ev) :next-id 2 :query-memory em)]

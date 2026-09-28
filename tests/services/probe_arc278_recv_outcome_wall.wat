@@ -14,7 +14,7 @@
 ;; — assert the structure exactly" (builder, 2026-07-22; R55 REVOLVTIONE, NVLLA LARVA).
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                       ;; matched ::Message (the .rs asserts this NEVER happens)
-  :Lost    [sentinel-present? <- :wat::core::bool]  ;; matched ::Lost — admin: true (reason carried); client: false (reason-free 500)
+  :Lost    [sentinel-present? <- wat.type/bool]  ;; matched ::Lost — admin: true (reason carried); client: false (reason-free 500)
   ;; arc 278 #73 — matched ::Stopped (the .rs asserts this NEVER happens either: this probe
   ;; never asks the substrate to stop, it only crashes the peer). A structural twin of
   ;; ::Closed, not folded into it — a stop is neither the peer dying nor the peer closing.
@@ -26,13 +26,13 @@
   [(:wat::core::defrecord :probe::Crash::BoomRequest [])
    (:wat::core::defrecord :probe::Crash::BoomrtRequest [])
    (:wat::core::defenum :probe::Crash::BoomResponse :wat::enum::Pure
-     :Ok              [ok <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :Ok              [ok <- wat.type/bool]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
    (:wat::core::defenum :probe::Crash::BoomrtResponse :wat::enum::Pure
-     :Ok              [ok <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [ok <- wat.type/bool]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(boom   [self <- :probe::Crash  req <- :probe::Crash::BoomRequest] -> :probe::Crash::BoomResponse
      :max-request-bytes 524288)
@@ -42,7 +42,7 @@
 ;; boom = a PANIC (assertion-failed!). boomrt = a RUNTIME-ERROR (div-by-zero on the durable x=0).
 (:wat::service::defservice :probe::crash
   :satisfies :probe::Crash
-  :durable   [x <- :wat::core::i64]
+  :durable   [x <- wat.type/i64]
   :ephemeral []
   :init (:wat::core::fn [record <- :probe::crash::Record] -> :probe::crash::State
           (:probe::crash::State :durable record))

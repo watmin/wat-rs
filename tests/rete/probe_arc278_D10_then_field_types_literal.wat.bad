@@ -6,8 +6,8 @@
 ;; source is its own arm, and an arm nothing drives is an arm nothing protects.
 ;;
 ;; Driven at HEAD: `#tl/Bad {:n "LITERAL-STRING"}` reached the fact set.
-(:wat::core::defrecord :dlt::Box [k <- :wat::core::i64])
-(:wat::core::defrecord :dlt::Bad [n <- :wat::core::i64])
+(:wat::core::defrecord :dlt::Box [k <- wat.type/i64])
+(:wat::core::defrecord :dlt::Bad [n <- wat.type/i64])
 
 (:wat::rete::defrule :dlt::bad
   :when [(:dlt::Box (?k :- :k))]
@@ -21,5 +21,5 @@
 ;; supposed: the mutation run of 2026-09-03 produced exactly that face. A main that DOES something
 ;; makes the rete refusal the ONLY reason this file can fail, which is what makes the probe's
 ;; failure assertion mean something on its own, before the `.edn` golden is even consulted.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

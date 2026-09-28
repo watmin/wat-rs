@@ -4,9 +4,9 @@
 ;; the cap is off by one in the permissive direction; if its twin ever fails, off by one in the
 ;; strict direction — and the strict direction silently steals a round of legitimate depth.
 (:wat::config::rete::set-max-fire-rounds! 501)
-(:wat::core::defrecord :cap::Edge  [a <- :wat::core::i64  b <- :wat::core::i64])
-(:wat::core::defrecord :cap::Start [n <- :wat::core::i64])
-(:wat::core::defrecord :cap::Reach [n <- :wat::core::i64])
+(:wat::core::defrecord :cap::Edge  [a <- wat.type/i64  b <- wat.type/i64])
+(:wat::core::defrecord :cap::Start [n <- wat.type/i64])
+(:wat::core::defrecord :cap::Reach [n <- wat.type/i64])
 
 (:wat::rete::defrule :cap::seed
   :when [(:cap::Start (?n :- :n))]
@@ -20,14 +20,14 @@
 
 (:wat::rete::defquery :cap::q :params [] :when [(?fact :- :cap::Reach)])
 
-(:wat::core::defn :cap::edges [] -> (:wat::core::PersistentVector :- [:cap::Edge])
+(:wat::core::defn :cap::edges [] -> (wat.type/PersistentVector :- [:cap::Edge])
   (:wat::core::into (:wat::core::PersistentVector)
     (:wat::core::mapv
-      (:wat::core::fn [i <- :wat::core::i64] -> :cap::Edge
+      (:wat::core::fn [i <- wat.type/i64] -> :cap::Edge
         (:cap::Edge :a i :b (:wat::i64::+ i 1)))
       (:wat::core::range 0 500))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; ⛔ HAND-FACED, NOT CODEMOD'D (arc 278 the fire-outcome wall). The corpus codemod collapses both
   ;; ceiling arms to an `assertion-failed!` message — correct for a fixture that merely must not
   ;; proceed, and WRONG here: this gate exists to pin the refusal's `cap`, and a message string

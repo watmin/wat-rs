@@ -9,7 +9,7 @@
 ;; checks clean AND instantiates at two distinct types.
 (:wat::core::defn :user::id [x <- :T] -> :T x)
 
-(:wat::core::defn :user::rung-1-two-instantiations [] -> :wat::core::nil
+(:wat::core::defn :user::rung-1-two-instantiations [] -> wat.type/nil
   (:wat::core::let [_  (:user::id 1)
                     __ (:user::id "s")]
     nil))
@@ -40,7 +40,7 @@
 ;; disturb it — if this ever goes red, the change reached further than its own surface.
 (:wat::core::defn :user::app :- [T] [f <- [T :-> T] x <- :T] -> :T (:wat::core::apply f [x]))
 
-(:wat::core::defn :user::rung-4-control [] -> :wat::core::nil
-  (:wat::core::let [_  (:user::app (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 1)
-                    __ (:user::app (:wat::core::fn [s <- :wat::core::String] -> :wat::core::String s) "s")]
+(:wat::core::defn :user::rung-4-control [] -> wat.type/nil
+  (:wat::core::let [_  (:user::app (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x) 1)
+                    __ (:user::app (:wat::core::fn [s <- wat.type/String] -> wat.type/String s) "s")]
     nil))

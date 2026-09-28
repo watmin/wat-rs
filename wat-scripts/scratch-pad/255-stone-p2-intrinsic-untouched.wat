@@ -7,7 +7,7 @@
 ;; `metadata-of` read the unevaluated WatAST arg, and a helper's typed param would
 ;; force the FQDN keyword to resolve to its function type before it got there.)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "i64+ show-source= " (:wat::core::show-source :wat::i64::+)))
     (:wat::core::match (:wat::runtime::metadata-of :wat::i64::+)

@@ -18,9 +18,9 @@
 ;; row below runs the same workload at the DEFAULT ceiling, where it must complete.
 (:wat::config::rete::set-max-session-bytes! 16777216)
 
-(:wat::core::defrecord :fd::A [a <- :wat::core::i64])
-(:wat::core::defrecord :fd::B [b <- :wat::core::i64])
-(:wat::core::defrecord :fd::C [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :fd::A [a <- wat.type/i64])
+(:wat::core::defrecord :fd::B [b <- wat.type/i64])
+(:wat::core::defrecord :fd::C [a <- wat.type/i64  b <- wat.type/i64])
 
 (:wat::rete::defrule :fd::cross
   :when [(:fd::A (?x :- :a)) (:fd::B (?y :- :b))]
@@ -30,11 +30,11 @@
 
 (:wat::core::defn :fd::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [acc <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:fd::A :a i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:fd::B :b i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     s (:wat::core::range 0 200)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :fd)
      s     (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fd::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

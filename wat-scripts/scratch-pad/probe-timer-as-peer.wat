@@ -24,10 +24,10 @@
 ;; thread that poll's it). On the timer's Message, forward the msg UP the self-peer and
 ;; exit; the parent recv's it off the lineage handle.
 (:wat::core::defn :probe::serve-thread
-  [self  <- (:wat::kernel::Peer :- [:wat::core::keyword :wat::core::nil])
-   l     <- (:wat::kernel::Listener :- [:wat::core::keyword :wat::core::nil])
-   peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])])]
-  -> :wat::core::nil
+  [self  <- (:wat::kernel::Peer :- [wat.type/keyword wat.type/nil])
+   l     <- (:wat::kernel::Listener :- [wat.type/keyword wat.type/nil])
+   peers <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])])]
+  -> wat.type/nil
   (:wat::core::match (:wat::kernel::poll self l peers) 
     [:wat::spawn::ServiceEvent.Shutdown {} nil]
     [:wat::spawn::ServiceEvent.Connection {:peer peer}
@@ -41,17 +41,17 @@
       (:probe::serve-thread self l (:wat::seq::remove-at peers idx))]
     [_ nil]))
 
-(:wat::core::defn :probe::thread-timer-in-poll [] -> :wat::core::keyword
+(:wat::core::defn :probe::thread-timer-in-poll [] -> wat.type/keyword
   (:wat::core::let
     [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::keyword :wat::core::nil)
      l    (:wat::spawn::Bound/listener pair)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::keyword :wat::core::nil])]
-              -> :wat::core::nil
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/keyword wat.type/nil])]
+              -> wat.type/nil
               (:wat::core::let
                 [t (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 30) :tick)]
                 (:probe::serve-thread self l
-                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t)))))
+                  (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])] t)))))
      got  (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -61,15 +61,15 @@
 
 ;; ── PROCESS tier ──────────────────────────────────────────────────────────────
 ;; Same shape, forked child universe: listener' + self-peer + timer all built in the child.
-(:wat::core::defn :probe::process-timer-in-poll [] -> :wat::core::keyword
+(:wat::core::defn :probe::process-timer-in-poll [] -> wat.type/keyword
   (:wat::core::let
     [svc (:wat::test::spawn-peer (:wat::spawn::process)
            (:wat::core::forms
              (:wat::core::defn :probe::serve-proc
-               [self  <- (:wat::kernel::Peer :- [:wat::core::keyword :wat::core::nil])
-                l     <- (:wat::kernel::Listener :- [:wat::core::keyword :wat::core::nil])
-                peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])])]
-               -> :wat::core::nil
+               [self  <- (:wat::kernel::Peer :- [wat.type/keyword wat.type/nil])
+                l     <- (:wat::kernel::Listener :- [wat.type/keyword wat.type/nil])
+                peers <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])])]
+               -> wat.type/nil
                (:wat::core::match (:wat::kernel::poll self l peers) 
                  [:wat::spawn::ServiceEvent.Shutdown {} nil]
                  [:wat::spawn::ServiceEvent.Connection {:peer peer}
@@ -81,13 +81,13 @@
                  [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
                    (:probe::serve-proc self l (:wat::seq::remove-at peers idx))]
                  [_ nil]))
-             (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::defn :user::main [] -> wat.type/nil
                (:wat::core::let
                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::keyword :wat::core::nil)
                   self (:wat::program::self-peer :wat::core::keyword :wat::core::nil)
                   t    (:wat::kernel::after :wat::program::PeerKind.process (:wat::time::Millisecond 30) :tick)]
                  (:probe::serve-proc self (:wat::spawn::Bound/listener b)
-                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t))))))
+                   (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])] t))))))
      got (:wat::core::match (:wat::kernel::recv svc)
             [:wat::kernel::RecvOutcome.Message {:msg m} m]
             [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
@@ -96,7 +96,7 @@
     got))
 
 ;; ── the assertion — both tiers deliver the timer's :tick through poll' ─────────
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::test::assert-eq (:probe::thread-timer-in-poll) :tick)
     (:wat::test::assert-eq (:probe::process-timer-in-poll) :tick)))

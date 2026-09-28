@@ -3,4 +3,4 @@
 
 (:wat::core::def-restricted :test::r
   :restricted-to [:test::]
-  (:wat::core::fn [] -> :wat::core::i64 42))
+  (:wat::core::fn [] -> wat.type/i64 42))

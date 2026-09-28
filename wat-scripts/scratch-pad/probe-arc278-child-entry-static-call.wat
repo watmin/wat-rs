@@ -27,15 +27,15 @@
   :messages
   [(:wat::core::defrecord :probe::CE::PingRequest [])
    (:wat::core::defenum :probe::CE::PingResponse :wat::enum::Pure
-     :Ok               [ok <- :wat::core::bool]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [ok <- wat.type/bool]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(ping [self <- :probe::CE  req <- :probe::CE::PingRequest] -> :probe::CE::PingResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::ce
   :satisfies :probe::CE
-  :durable   [n <- :wat::core::i64]
+  :durable   [n <- wat.type/i64]
   :ephemeral []
   :init (:wat::core::fn [record <- :probe::ce::Record] -> :probe::ce::State
           (:probe::ce::State :durable record))
@@ -57,23 +57,23 @@
   [self <- (:wat::kernel::Peer :- [:probe::ce::Status :probe::ce::Admin])
    l    <- (:wat::kernel::Listener :- [:probe::CE::Op :probe::CE::Reply])
    ship <- :probe::ce::Admin]
-  -> :wat::core::nil
+  -> wat.type/nil
   (:wat::core::let
     [state (:probe::ce::dispatch-admin ship)]
   (:probe::ce::serve self l
     ;; the selectables slot: `(Vector :- [(Tuple :- [i64 (Peer :- [Reply Op])])])` — the id travels WITH its peer
     ;; (arc 278 the call context). The element type is ONE tuple type-keyword, exactly as
     ;; `selectable-entry-ty` builds it (service.wat:979).
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])])])
     0
     state)))
 
 ;; ── CLAIM B — does a closure walk rooted HERE reach the service internals? ────────────────────
 (:wat::core::defn :user::declared-names
-  [forms <- (:wat::core::Vector :- [:wat::WatAST])
-   i     <- :wat::core::i64
-   acc   <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [forms <- (wat.type/Vector :- [wat.type/AST])
+   i     <- wat.type/i64
+   acc   <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     acc
     (:wat::core::let
@@ -87,10 +87,10 @@
               (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch))))]
       (:user::declared-names forms (:wat::i64::+ i 1) (:wat::core::conj acc nm)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [forms (:wat::kernel::fn-forms :probe::ce::child-entry-shape :user::root-entry)
-     names (:user::declared-names forms 0 (:wat::core::Vector :- [:wat::core::String]))
+     names (:user::declared-names forms 0 (wat.type/Vector :- [wat.type/String]))
      _n    (:wat::kernel::println
              (:wat::string::concat "closure forms="
                (:wat::i64::to-string (:wat::core::length forms))))

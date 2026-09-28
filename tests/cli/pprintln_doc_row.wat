@@ -11,7 +11,7 @@
 (:wat::load-file! "../../wat-scripts/fmt/rules/atoms.wat")
 (:wat::load-file! "../../wat-scripts/fmt/rules/defrecord.wat")
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::pprintln
     (:wat::doc::from-map
       (:wat::core::Option/expect

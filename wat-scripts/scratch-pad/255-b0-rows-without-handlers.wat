@@ -7,17 +7,17 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet — same standing rule as `255-registry-census.wat`.
 
-(:wat::core::defn :hh::handlerless? [r <- :wat::intrinsic::Row] -> :wat::core::bool
+(:wat::core::defn :hh::handlerless? [r <- :wat::intrinsic::Row] -> wat.type/bool
   (:wat::core::not (:wat::intrinsic::Row/has-handler r)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [rows (:wat::core::into [] (:wat::intrinsic::rows))
                     hl   (:wat::core::into [] (:wat::core::filter :hh::handlerless? rows))]
     (:wat::core::do
       (:wat::kernel::println (:wat::string::concat
         "rows with NO native handler: " (:wat::i64::to-string (:wat::core::length hl))))
       (:wat::core::mapv
-        (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
+        (:wat::core::fn [r <- :wat::intrinsic::Row] -> wat.type/nil
           (:wat::kernel::println (:wat::keyword::to-string (:wat::intrinsic::Row/name r))))
         hl)
       (:wat::kernel::println ""))))

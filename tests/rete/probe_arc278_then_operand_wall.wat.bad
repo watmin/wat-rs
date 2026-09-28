@@ -15,11 +15,11 @@
 ;; layer — is a bare non-`?` symbol: not a literal, not a `?var`, not a call. See
 ;; `probe_arc278_then_user_forms_expr.wat` for the now-legal nested-form sibling of
 ;; this fixture.
-(:wat::core::defrecord :nf::In  [a <- :wat::core::i64])
-(:wat::core::defrecord :nf::Out [a <- :wat::core::i64])
+(:wat::core::defrecord :nf::In  [a <- wat.type/i64])
+(:wat::core::defrecord :nf::Out [a <- wat.type/i64])
 
 (:wat::rete::defrule :nf::compute
   :when  [(:nf::In (?a :- :a))]
   :then  [(:nf::Out bogus-bare-symbol)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+(:wat::core::defn :user::main [] -> wat.type/nil nil)

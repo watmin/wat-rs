@@ -27,24 +27,24 @@
 ;; losing a native fold to an interpreted walk over a Stream.
 
 ;; ARM A — what `reduce` does TODAY for a Vector: the native foldl intrinsic.
-(:wat::core::defn :bench::via-foldl [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
-  (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :bench::via-foldl [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
+  (:wat::core::foldl (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
                        (:wat::i64::+ acc x))
     0 v))
 
 ;; ARM B — what a collapsed `reduce` would do: normalise to a Stream, then walk it interpreted.
-(:wat::core::defn :bench::via-walk [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
-  (:wat::core::foldl-spec-walk (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :bench::via-walk [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
+  (:wat::core::foldl-spec-walk (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
                              (:wat::i64::+ acc x))
     0 (:wat::core::Seqable/seq v)))
 
-(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [n  200000
-     v  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 n))
+     v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 n))
      ;; ORDER A: walk first, then foldl
      a0 (:wat::time::now) ra (:bench::via-walk v)  a1 (:wat::time::now)
      b0 (:wat::time::now) rb (:bench::via-foldl v) b1 (:wat::time::now)

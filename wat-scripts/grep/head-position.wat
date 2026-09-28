@@ -14,7 +14,7 @@
 ;; ("sequence has fewer than 1 element(s)"), which is exactly the red this session hit in
 ;; corpus-03. Every call site is a place that can raise; every mention is not.
 
-(:wat::core::defrecord :hp::IsHead [id <- :wat::core::i64])
+(:wat::core::defrecord :hp::IsHead [id <- wat.type/i64])
 
 ;; a node in head position — index 0 of its parent form
 (:wat::rete::defrule :hp::head
@@ -38,5 +38,5 @@
 ;; `collect-rules` reflects the symbol table for every zero-arg fn in `hp::` whose return type is
 ;; `:wat::rete::Rule` — the marker `defrule` plants. A hand-written vector would be a second list
 ;; of the same rules, and a rule added later would silently not run.
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :hp))

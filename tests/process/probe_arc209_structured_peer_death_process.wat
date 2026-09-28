@@ -11,10 +11,10 @@
 ;; recovers that Failure; we `edn::write` it so all three structured fields ride the returned String —
 ;; the .rs asserts they survive recv'.
 
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::process)
                            (:wat::core::forms
-                             (:wat::core::defn :user::main [] -> :wat::core::nil
+                             (:wat::core::defn :user::main [] -> wat.type/nil
                                (:wat::core::let [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                                                   _ (:wat::kernel::assertion-failed! :message "proc-structured-marker" :actual (:wat::core::Option.Some {:value "PROC-ACTUAL-5521"}) :expected (:wat::core::Option.Some {:value "PROC-EXPECTED-8841"}))]
                                  nil))))

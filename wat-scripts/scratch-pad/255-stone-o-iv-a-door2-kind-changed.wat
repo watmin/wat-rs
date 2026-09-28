@@ -5,10 +5,10 @@
 ;; this stone even though its underlying EvalError kind changed from "unknown-function"
 ;; to something else. This probe reads the kind directly to show that change.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match (:wat::eval-ast! (:wat::core::quote
                         (:wat::core::apply :wat::f64::max-of
-                          (:wat::core::Vector :- [:wat::core::f64] 3.0 9.0 41.0))))
+                          (wat.type/Vector :- [wat.type/f64] 3.0 9.0 41.0))))
     [:wat::core::Result.Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
     [:wat::core::Result.Err {:error e}
       (:wat::kernel::println (:wat::string::concat "DOOR2 max-of kind=" (:wat::core::EvalError/kind e)))]))

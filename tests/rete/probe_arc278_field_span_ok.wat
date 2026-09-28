@@ -6,9 +6,9 @@
 ;; unrelated reason — "it refused" is also what a broken fixture looks like. This one must COMPILE
 ;; AND FIRE, and it prints the number of derived facts so a silent no-match cannot pass either.
 
-(:wat::core::defrecord :fso::Src   [k <- :wat::core::i64])
-(:wat::core::defrecord :fso::Inner [x <- :wat::core::i64])
-(:wat::core::defrecord :fso::Outer [k <- :wat::core::i64  inner <- :fso::Inner])
+(:wat::core::defrecord :fso::Src   [k <- wat.type/i64])
+(:wat::core::defrecord :fso::Inner [x <- wat.type/i64])
+(:wat::core::defrecord :fso::Outer [k <- wat.type/i64  inner <- :fso::Inner])
 
 (:wat::rete::defrule :fso::r
   :when [(:fso::Src (?k :- :k) (?b :- :k) (:wat::rete::i64::= :k 5))]
@@ -16,7 +16,7 @@
 
 (:wat::rete::defquery :fso::q :params [] :when [(?f :- :fso::Outer)])
 
-(:wat::core::defn :fso::fire [] -> :wat::core::i64
+(:wat::core::defn :fso::fire [] -> wat.type/i64
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :fso) (:wat::core::PersistentVector (:fso::q)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
@@ -35,5 +35,5 @@
           (:wat::kernel::assertion-failed! :message "fire: round cap")])
       (:fso::q)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:fso::fire)))

@@ -2,9 +2,9 @@
 ;; 300-item stream: TCO proof (work-fn x*2; driver sends 1..=300; sum 2*(1+...+300)=90300).
 
 (:wat::core::defn :user::drive
-    [peer <- (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])
-     n    <- :wat::core::i64
-     acc  <- :wat::core::i64] -> :wat::core::i64
+    [peer <- (:wat::kernel::Thread :- [wat.type/i64 wat.type/i64])
+     n    <- wat.type/i64
+     acc  <- wat.type/i64] -> wat.type/i64
    (:wat::core::if (:wat::core::= n 0)
      acc
      (:wat::core::let [_   (:wat::core::match (:wat::kernel::send peer n) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget stream item; outcome ignored uniformly regardless of cause
@@ -18,11 +18,11 @@
                                (:wat::kernel::assertion-failed! :message "recv': peer closed mid-stream")])]
        (:user::drive peer (:wat::core::- n 1) (:wat::core::+ acc res)))))
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
    (:wat::core::let
      [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-                     (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+                     (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                        (:wat::bracket::runner-loop self
-                         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))))]
+                         (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))))]
      (:user::drive peer 300 0)))
 

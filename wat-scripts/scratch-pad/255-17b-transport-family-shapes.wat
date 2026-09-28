@@ -4,10 +4,10 @@
 (:wat::core::defenum :probe::Tr :wat::enum::Pure
   :Sh []
   :Wi [])
-(:wat::core::defrecord :probe::Box :- [X] [tags <- (:wat::core::Vector :- [X])])
+(:wat::core::defrecord :probe::Box :- [X] [tags <- (wat.type/Vector :- [X])])
 (:wat::core::defn :probe::mk-wi [] -> (:probe::Box :- [:probe::Tr.Wi])
-  (:probe::Box :tags (:wat::core::Vector :- [:probe::Tr.Wi])))
-(:wat::core::defn :probe::takes-wi [b <- (:probe::Box :- [:probe::Tr.Wi])] -> :wat::core::i64
+  (:probe::Box :tags (wat.type/Vector :- [:probe::Tr.Wi])))
+(:wat::core::defn :probe::takes-wi [b <- (:probe::Box :- [:probe::Tr.Wi])] -> wat.type/i64
   (:wat::core::count (:probe::Box/tags b)))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:probe::takes-wi (:probe::mk-wi))))

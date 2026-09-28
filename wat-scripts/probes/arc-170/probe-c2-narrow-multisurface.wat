@@ -3,15 +3,15 @@
 ;; parametric receiver errors → bug is multi-surface (pre-existing mono satisfaction blocks parametric)
 ;; clean → bug is specific to the AUTO-EMITTED service Handle
 (:wat::core::defsurface :probe::Flat :nature :wat::core::Struct
-  :features [(tag [self <- :probe::Flat] -> :wat::core::String)])
+  :features [(tag [self <- :probe::Flat] -> wat.type/String)])
 (:wat::core::defsurface :probe::Pair2 :- [A B] :nature :wat::core::Struct
   :features [(fst [self <- (:probe::Pair2 :- [A B])] -> :A)])
-(:wat::core::defrecord :probe::Multi [i <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :probe::Multi [i <- wat.type/i64  s <- wat.type/String])
 (:wat::core::extend-type :probe::Multi :probe::Flat
   (tag [self] (:probe::Multi/s self)))
-(:wat::core::extend-type :probe::Multi (:probe::Pair2 :- [:wat::core::i64 :wat::core::String])
+(:wat::core::extend-type :probe::Multi (:probe::Pair2 :- [wat.type/i64 wat.type/String])
   (fst [self] (:probe::Multi/i self)))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [m  (:probe::Multi :i 42 :s "hi")
      ok (:wat::core::ann-form (:probe::Pair2/fst m) :wat::core::i64)]

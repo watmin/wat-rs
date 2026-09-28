@@ -9,9 +9,9 @@
 ;;
 ;; Prove the miss before fixing the join rematch.
 
-(:wat::core::defrecord :wjl::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wjl::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wjl::Hit  [loc <- :wat::core::String])
+(:wat::core::defrecord :wjl::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wjl::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wjl::Hit  [loc <- wat.type/String])
 
 ;; THE HOLE — leftover `?c` lives on the Wind cond, not in a :where.
 (:wat::rete::defrule :wjl::wind-above-temp-inline
@@ -35,10 +35,10 @@
   :params []
   :when [(?fact :- :wjl::Hit)])
 
-(:wat::core::defn :wjl::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wjl::n-hit [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wjl::q-Hit))))
 
-(:wat::core::defn :wjl::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wjl::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -51,7 +51,7 @@
     (:wat::core::PersistentVector rule)
     (:wat::core::PersistentVector (:wjl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [inline (:wjl::run (:wjl::wind-above-temp-inline))
                     where  (:wjl::run (:wjl::wind-above-temp-where))]
     (:wjl::line 1 "empty-inline"

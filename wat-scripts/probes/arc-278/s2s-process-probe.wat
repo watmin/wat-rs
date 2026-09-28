@@ -14,9 +14,9 @@
 ;; ── ECHO: the dialed surface + its service ──────────────────────────────────────
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -33,8 +33,8 @@
 (:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Caller::RunRequest  [])
-   (:wat::core::defenum :probe::Caller::RunResponse :wat::enum::Pure :Ok [out <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+   (:wat::core::defenum :probe::Caller::RunResponse :wat::enum::Pure :Ok [out <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(run [self <- :probe::Caller  req <- :probe::Caller::RunRequest] -> :probe::Caller::RunResponse :max-request-bytes 524288)])
 
@@ -68,15 +68,15 @@
 ;; arc 278: caller' births on a PROCESS whose post-spawn hook grants caller's own pid to
 ;; echo's accept-gate BEFORE caller''s :init dials echo' (grant-before-dial ordering — the
 ;; hook fires owner-side with the child ProcessLaunch{pid} after the fork, before :init ships).
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh  (:probe::echo/start   :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea  (:probe::echo::Handle/addr eh)
      ch  (:probe::caller/start
            :locus (:wat::spawn::process::post-spawn
-                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                       (:probe::echo/grant eh
-                        (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
            :record (:probe::caller::Record) :echo-addr ea)
      cc  (:wat::core::match (:wat::kernel::connect (:probe::caller::Handle/addr ch)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))

@@ -67,20 +67,20 @@
 ;;    tests/clj_expr_oracle already pins bit-identical to wat's i64::quot/rem/mod; `i64::/`
 ;;    (truncating) is mirrored by `quot`, never `/` (which would silently become a ratio).
 
-(:wat::core::defn :wnm::items [] -> :wat::core::i64 200)   ;; the stream size, both sides
+(:wat::core::defn :wnm::items [] -> wat.type/i64 200)   ;; the stream size, both sides
 
 ;; row-count — bumped by hand when a row lands. Row 11 is included IN this count (it is a designed
 ;; crash, not a bug) — see the header note above for why the pair's gate will hard-fail on it.
-(:wat::core::defn :wnm::row-count [] -> :wat::core::i64 10)
+(:wat::core::defn :wnm::row-count [] -> wat.type/i64 10)
 
 (:wat::core::defrecord :wnm::Num
-  [k <- :wat::core::i64    ;; identity, 0..199
-   a <- :wat::core::i64    ;; a(i) = i - 100        — signed, range -100..99
-   z <- :wat::core::i64    ;; z(i) = (i mod 5) - 2  — signed, range -2..2, ZERO when i mod 5 == 2
-   x <- :wat::core::f64    ;; x(i) = i*0.25 - 25.0  — f64, range -25.0..24.75
-   y <- :wat::core::f64])  ;; y(i) = i*0.1          — f64, range 0.0..19.9
+  [k <- wat.type/i64    ;; identity, 0..199
+   a <- wat.type/i64    ;; a(i) = i - 100        — signed, range -100..99
+   z <- wat.type/i64    ;; z(i) = (i mod 5) - 2  — signed, range -2..2, ZERO when i mod 5 == 2
+   x <- wat.type/f64    ;; x(i) = i*0.25 - 25.0  — f64, range -25.0..24.75
+   y <- wat.type/f64])  ;; y(i) = i*0.1          — f64, range 0.0..19.9
 
-(:wat::core::defrecord :wnm::Hit [k <- :wat::core::i64])   ;; the single production type
+(:wat::core::defrecord :wnm::Hit [k <- wat.type/i64])   ;; the single production type
 
 ;; ROW 1 — quot, negative dividend. quot truncates TOWARD ZERO. Hit(k) :- Num(…) AND quot(a,7) < 0.
 ;; VERIFIED (standalone counting probe over the real i64::quot): 94 of 200.
@@ -206,7 +206,7 @@
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure (mirrors where-shapes.wat).
-(:wat::core::defn :wnm::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :wnm::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wnm::quot-neg))
@@ -227,12 +227,12 @@
 ;;   z(i) = (i mod 5) - 2   — zero when i mod 5 == 2 (40 of 200 facts; row 11's poison set)
 ;;   x(i) = i*0.25 - 25.0
 ;;   y(i) = i*0.1
-(:wat::core::defn :wnm::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :wnm::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
+      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                      -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::let [a (:wat::i64::- i 100)
                           z (:wat::i64::- (:wat::i64::mod i 5) 2)
                           x (:wat::f64::- (:wat::f64::* (:wat::i64::to-f64 i) 0.25) 25.0)
@@ -244,18 +244,18 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending.
 (:wat::core::defn :wnm::derived-ints
-  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
+  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::sort
-    (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wnm::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wnm::Hit/k f)))
         (:wat::rete::query fired (:wnm::q-Hit))))))
 
 ;; render-ints — mirrors where-shapes.wat's render-ints EXACTLY (own rendering, not the EDN
 ;; printer, so `diff` is the entire verdict).
-(:wat::core::defn :wnm::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+(:wat::core::defn :wnm::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc
         (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
@@ -273,13 +273,13 @@
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
 (:wat::core::defn :wnm::rule-display-name
-  [full <- :wat::core::String] -> :wat::core::String
+  [full <- wat.type/String] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
     full
     (:wat::string::split full "::")))
 
-(:wat::core::defn :wnm::run-row [row <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wnm::run-row [row <- wat.type/i64] -> wat.type/String
   (:wat::core::let [rules   (:wnm::build-rules row)
                     rule    (:wat::core::first rules)
                     staged  (:wnm::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnm::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wnm::items))
@@ -294,9 +294,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))
         (:wat::string::concat " ->" (:wnm::render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
       (:wat::kernel::println (:wnm::run-row row)))
     nil
     (:wat::core::range 1 (:wat::i64::+ (:wnm::row-count) 1))))

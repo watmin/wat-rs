@@ -6,7 +6,7 @@
 ;; Direct FQDN-keyword call sites, not routed through a helper fn (mirrors
 ;; `255-p6c-w1-config-metadata.wat` / `255-stone-p2-intrinsic-untouched.wat`).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::stream::empty)
       [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::empty :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]

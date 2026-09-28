@@ -1,5 +1,5 @@
 ;; tests/function/recursive_patterns_t3.wat — nested_options_three_levels
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
               [mm
                 (:wat::core::Option.Some {:value (:wat::core::Option.Some {:value 42})})

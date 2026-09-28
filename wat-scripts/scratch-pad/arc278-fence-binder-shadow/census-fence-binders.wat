@@ -16,11 +16,11 @@
 ;;   MATCH-FENCE <path> @L<line> binder=<name>
 ;;   (nothing) for a match arm pattern that is NOT a bare symbol (literal/variant/hash-destructure)
 
-(:wat::core::defn :user::structural? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::structural? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
+    (:wat::core::contains? (wat.type/HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
-(:wat::core::defn :user::head-name [node <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::head-name [node <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch) ""
@@ -28,10 +28,10 @@
           (:wat::core::ast-name (:wat::core::first ch)) "")))
     ""))
 
-(:wat::core::defn :user::line-of [node <- :wat::WatAST] -> :wat::core::i64
+(:wat::core::defn :user::line-of [node <- wat.type/AST] -> wat.type/i64
   (:wat::core::Option/expect (:wat::hashmap::get (:wat::core::ast-span node) :line) "line"))
 
-(:wat::core::defn :user::report-binder [path <- :wat::core::String kind <- :wat::core::String node <- :wat::WatAST name <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::report-binder [path <- wat.type/String kind <- wat.type/String node <- wat.type/AST name <- wat.type/String] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat kind
       (:wat::string::concat " " (:wat::string::concat path
@@ -40,7 +40,7 @@
 
 ;; walk-fence — generic recursive walk over a fence's interior, dispatching `let`/`match`
 ;; specially and everything else structurally.
-(:wat::core::defn :user::walk-fence [node <- :wat::WatAST path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::walk-fence [node <- wat.type/AST path <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node) h (:user::head-name node)]
       (:wat::core::if (:wat::core::= h ":wat::rete::core::let")
@@ -52,7 +52,7 @@
       (:user::walk-fence-seq (:wat::core::ast->children node) path)
       nil)))
 
-(:wat::core::defn :user::walk-fence-seq [items <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::walk-fence-seq [items <- (wat.type/Vector :- [wat.type/AST]) path <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? items) nil
     (:wat::core::do
       (:user::walk-fence (:wat::core::first items) path)
@@ -61,11 +61,11 @@
 ;; walk-let-vec — a let's binding VECTOR: chunks of (name val). Report each name as a binder
 ;; (LET-FENCE), then recurse walk-fence into the VALUE (outer scope, still walked upstream by the
 ;; real checker) — here just for completeness so a nested let/match inside a value is also found.
-(:wat::core::defn :user::walk-let-vec [vecnode <- :wat::WatAST path <- :wat::core::String letnode <- :wat::WatAST] -> :wat::core::nil
+(:wat::core::defn :user::walk-let-vec [vecnode <- wat.type/AST path <- wat.type/String letnode <- wat.type/AST] -> wat.type/nil
   (:wat::core::let [items (:wat::core::ast->children vecnode)]
     (:user::walk-let-pairs items path letnode)))
 
-(:wat::core::defn :user::walk-let-pairs [items <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String letnode <- :wat::WatAST] -> :wat::core::nil
+(:wat::core::defn :user::walk-let-pairs [items <- (wat.type/Vector :- [wat.type/AST]) path <- wat.type/String letnode <- wat.type/AST] -> wat.type/nil
   (:wat::core::if (:wat::core::< (:wat::core::length items) 2) nil
     (:wat::core::let [name-node (:wat::core::Option/expect (:wat::core::get items 0) "name")
                       val-node  (:wat::core::Option/expect (:wat::core::get items 1) "val")
@@ -78,7 +78,7 @@
 ;; walk-match-arms — each item is (pattern body). Report pattern if it is a bare symbol (a
 ;; BINDER, per lower_pat); otherwise it's a literal/variant/hash-destructure, not a name-shadow
 ;; risk. Recurse walk-fence into the BODY regardless (nested let/match inside an arm).
-(:wat::core::defn :user::walk-match-arms [arms <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::walk-match-arms [arms <- (wat.type/Vector :- [wat.type/AST]) path <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? arms) nil
     (:wat::core::let [arm (:wat::core::first arms)]
       (:wat::core::do
@@ -96,7 +96,7 @@
 
 ;; find-wheres — full-tree walk for literal (:wat::rete::where <expr>) forms; on a hit, walks
 ;; the fence's interior with walk-fence.
-(:wat::core::defn :user::find-wheres [node <- :wat::WatAST path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::find-wheres [node <- wat.type/AST path <- wat.type/String] -> wat.type/nil
   (:wat::core::do
     (:wat::core::if (:wat::core::= (:user::head-name node) ":wat::rete::where")
       (:user::walk-fence-seq (:wat::core::into [] (:wat::core::rest (:wat::core::ast->children node))) path)
@@ -105,13 +105,13 @@
       (:user::find-wheres-seq (:wat::core::ast->children node) path)
       nil)))
 
-(:wat::core::defn :user::find-wheres-seq [items <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::find-wheres-seq [items <- (wat.type/Vector :- [wat.type/AST]) path <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? items) nil
     (:wat::core::do
       (:user::find-wheres (:wat::core::first items) path)
       (:user::find-wheres-seq (:wat::core::into [] (:wat::core::rest items)) path))))
 
-(:wat::core::defn :user::process-file [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::process-file [path <- wat.type/String] -> wat.type/nil
   (:wat::core::let [src (:wat::io::read-file path)]
     (:wat::core::match (:wat::core::read-string src)
       [:wat::core::ReadOutcome.Forms {:forms __f}
@@ -119,16 +119,16 @@
       [:wat::core::ReadOutcome.Malformed {:cause __c}
         (:wat::core::do (:wat::kernel::println (:wat::string::concat "PARSE-FAIL " path)) nil)])))
 
-(:wat::core::defn :user::process-seq [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::process-seq [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths) nil
     (:wat::core::do
       (:user::process-file (:wat::core::first paths))
       (:user::process-seq (:wat::core::into [] (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:user::process-seq
-      (:wat::core::Vector :- [:wat::core::String]
+      (wat.type/Vector :- [wat.type/String]
       "tests/cli/mode_parity__deep_freeze_recursion.wat"
       "tests/cli/mode_parity__empty.wat"
       "tests/cli/mode_parity__good.wat"

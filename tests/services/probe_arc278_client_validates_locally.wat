@@ -24,11 +24,11 @@
 
 (:wat::core::defsurface :probe::Budget :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Budget::PutRequest [payload <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Budget::PutRequest [payload <- wat.type/String])
    (:wat::core::defenum :probe::Budget::PutResponse :wat::enum::Pure
-     :Ok              [ok <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [ok <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(put [self <- :probe::Budget  req <- :probe::Budget::PutRequest] -> :probe::Budget::PutResponse :max-request-bytes 100)])
 
@@ -42,9 +42,9 @@
 
 ;; A String of exactly n*32 bytes (kept LOCAL — mirrors :probe::payload-of in the sibling FOO
 ;; fixture so this file has no cross-file dependency).
-(:wat::core::defn :probe::budget-payload-of [n <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :probe::budget-payload-of [n <- wat.type/i64] -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String  _i <- wat.type/i64] -> wat.type/String
       (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
@@ -52,7 +52,7 @@
 ;; THE DISCRIMINATOR PROBE. Terminal caller throughout: every unexpected shape SURFACES via
 ;; `assertion-failed!` rather than swallowing it — this probe's only job is to catch a wrong
 ;; shape, never to hide one. Returns the follow-up's `ok` (7) when everything holds.
-(:wat::core::defn :user::over-budget-refused-locally-then-connection-survives [] -> :wat::core::i64
+(:wat::core::defn :user::over-budget-refused-locally-then-connection-survives [] -> wat.type/i64
   (:wat::core::let
     [poison  (:probe::budget-payload-of 100)   ;; 100*32 = 3200 bytes > FOO(2048) > cap(100)
      h       (:probe::budgetsvc/start :locus (:wat::spawn::process) :record (:probe::budgetsvc::Record))

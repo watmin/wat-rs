@@ -5,8 +5,8 @@
 ;; `src/rete/validate.rs`) must not reject a legal, fully-supplied kwargs construction. Compiles
 ;; AND fires, through both the oracle and the native kernel.
 
-(:wat::core::defrecord :cr2g::Anchor [x <- :wat::core::i64])
-(:wat::core::defrecord :cr2g::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
+(:wat::core::defrecord :cr2g::Anchor [x <- wat.type/i64])
+(:wat::core::defrecord :cr2g::Rate   [count <- wat.type/i64 window <- wat.type/i64])
 
 (:wat::rete::defrule :cr2g::gather
   :when [(:cr2g::Anchor (?x :- :x))]
@@ -18,7 +18,7 @@
 
 
 ;; Fires via the WAT ORACLE.
-(:wat::core::defn :user::run-oracle [] -> :wat::core::i64
+(:wat::core::defn :user::run-oracle [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cr2g)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cr2g::q-Rate))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -35,7 +35,7 @@
         "q-Rate: ?window"))))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
-(:wat::core::defn :user::run-native [] -> :wat::core::i64
+(:wat::core::defn :user::run-native [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cr2g)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cr2g::q-Rate))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

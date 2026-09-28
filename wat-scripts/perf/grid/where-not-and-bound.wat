@@ -5,11 +5,11 @@
 ;; Wat binds the shared field (?c) — same join, no whole-fact ?t.
 ;; Rows 5–8: Wind seeds ?loc (Clara negation-with-prior-bindings).
 
-(:wat::core::defrecord :wnab::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnab::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnab::Cold [c <- :wat::core::i64])
-(:wat::core::defrecord :wnab::Hit  [k <- :wat::core::i64])
-(:wat::core::defrecord :wnab::At   [loc <- :wat::core::String])
+(:wat::core::defrecord :wnab::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnab::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnab::Cold [c <- wat.type/i64])
+(:wat::core::defrecord :wnab::Hit  [k <- wat.type/i64])
+(:wat::core::defrecord :wnab::At   [loc <- wat.type/String])
 
 (:wat::rete::defrule :wnab::not-match-temp
   :when [(:wat::rete::not
@@ -36,13 +36,13 @@
   :when [(?fact :- :wnab::At)])
 
 
-(:wat::core::defn :wnab::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wnab::n-hit [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wnab::q-Hit))))
 
-(:wat::core::defn :wnab::n-at [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wnab::n-at [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wnab::q-At))))
 
-(:wat::core::defn :wnab::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wnab::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -50,7 +50,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [lead (:wat::core::PersistentVector (:wnab::not-match-temp))
                     pref (:wat::core::PersistentVector (:wnab::prior-not-match))]
     (:wnab::line 1 "empty"

@@ -4,7 +4,7 @@
 ;; eval_in_frozen's (:t::fix) and asserts the fixed source contains "contains?"/"HashSet" and no longer
 ;; the nested if-=-ladder. (The inner \"...\" are the wat source-string the lexer sees.)
 
-(:wat::core::defn :t::fix [] -> :wat::core::String
+(:wat::core::defn :t::fix [] -> wat.type/String
   (:wat::lint::lint-fix-file
     (:wat::source::File :path "t.wat"
       :source "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))")))

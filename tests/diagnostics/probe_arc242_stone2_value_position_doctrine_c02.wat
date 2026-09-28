@@ -1,1 +1,1 @@
-(:wat::core::defn :test::f [] -> :wat::core::nil nil)
+(:wat::core::defn :test::f [] -> wat.type/nil nil)

@@ -16,16 +16,16 @@
 
 ;; Leading-space count of a line.
 (:wat::core::defn :user::indent-of
-  [line <- :wat::core::String
-   i    <- :wat::core::i64]
-  -> :wat::core::i64
+  [line <- wat.type/String
+   i    <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::>= i (:wat::string::length line))
     i
     (:wat::core::if (:wat::core::= (:wat::string::subs line i (:wat::i64::+ i 1)) " ")
       (:user::indent-of line (:wat::i64::+ i 1))
       i)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv  (:wat::runtime::argv)
      path  (:wat::core::Option/expect (:wat::core::get argv 2)
@@ -34,9 +34,9 @@
      rules (:wat::rete::collect-rules :fmt)
      out   (:wat::fmt::format-source path src rules)]
     (:wat::core::foldl
-      (:wat::core::fn [acc  <- :wat::core::nil
-                       line <- :wat::core::String]
-        -> :wat::core::nil
+      (:wat::core::fn [acc  <- wat.type/nil
+                       line <- wat.type/String]
+        -> wat.type/nil
         (:wat::core::if (:wat::i64::> (:wat::string::length line) 120)
           (:wat::kernel::println
             (:wat::string::interpolate

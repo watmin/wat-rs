@@ -3,5 +3,5 @@
 ;; defn-with-metadata expands to (def :name {meta} (fn ...)) — must parse cleanly.
 (:wat::core::defn :my::f
   {:doc "doubles its input"}
-  [x <- :wat::core::i64] -> :wat::core::i64
+  [x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ x x))

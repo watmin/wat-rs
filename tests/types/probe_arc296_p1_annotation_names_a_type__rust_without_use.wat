@@ -3,4 +3,4 @@
 ;; FFI type). It is NOT in wat-rs defaults, not use!d here, not a TypeEnv
 ;; member. Accepting this would be a :rust:: prefix blanket (STOP-1).
 (:wat::core::defn :user::f [g <- :rust::test::Greeting] -> :rust::test::Greeting g)
-(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "ok"))
+(:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "ok"))

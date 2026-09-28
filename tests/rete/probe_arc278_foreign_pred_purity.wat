@@ -5,10 +5,10 @@
 ;; entropy). Mirrors the accessor-purity idiom: each entry QUOTES the predicate under test and
 ;; hands it to the fence predicate — the quoted body is never evaluated.
 
-(:wat::core::defn :user::foreign-pred-is-pure [] -> :wat::core::bool
+(:wat::core::defn :user::foreign-pred-is-pure [] -> wat.type/bool
   (:wat::rete::pure?
     (:wat::core::quote
-      (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+      (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
         (:wat::core::match
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
           [:wat::edn::ReadForeignOutcome.Value {:value fr}
@@ -17,10 +17,10 @@
               [:wat::core::Option.None {} false])]
           [:wat::edn::ReadForeignOutcome.Malformed {:cause _} false])))))
 
-(:wat::core::defn :user::foreign-pred-is-deterministic [] -> :wat::core::bool
+(:wat::core::defn :user::foreign-pred-is-deterministic [] -> wat.type/bool
   (:wat::rete::deterministic?
     (:wat::core::quote
-      (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+      (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
         (:wat::core::match
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
           [:wat::edn::ReadForeignOutcome.Value {:value fr}
@@ -29,10 +29,10 @@
               [:wat::core::Option.None {} false])]
           [:wat::edn::ReadForeignOutcome.Malformed {:cause _} false])))))
 
-(:wat::core::defn :user::foreign-pred-is-total [] -> :wat::core::bool
+(:wat::core::defn :user::foreign-pred-is-total [] -> wat.type/bool
   (:wat::rete::total?
     (:wat::core::quote
-      (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+      (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/bool
         (:wat::core::match
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
           [:wat::edn::ReadForeignOutcome.Value {:value fr}
@@ -43,9 +43,9 @@
 
 ;; GUARD: the SAME predicate with an impure op (println) in the body must STILL be rejected — the
 ;; edn namespace fix is not a blanket-allow; the impure op's impurity must still propagate.
-(:wat::core::defn :user::impure-foreign-pred-is-not-pure [] -> :wat::core::bool
+(:wat::core::defn :user::impure-foreign-pred-is-not-pure [] -> wat.type/bool
   (:wat::rete::pure?
     (:wat::core::quote
-      (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::nil
+      (:wat::core::fn [log <- :wat::telemetry::Log] -> wat.type/nil
         (:wat::kernel::println
           (:wat::edn::ForeignRecord/get (:wat::edn::read-foreign (:wat::telemetry::Log/message log)) :severity))))))

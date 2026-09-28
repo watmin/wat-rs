@@ -9,10 +9,10 @@
 ;; (message_only_failure over the crash-channel reason) — no crash_tx reshape needed.
 ;; Runs to stdout: prints "STOP0-LOST-MESSAGE: …BOOM-SENTINEL-9173…" on success; any
 ;; other arm eprintln's (terminal, exits non-zero).
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            (:wat::kernel::assertion-failed! :message "BOOM-SENTINEL-9173")))]
     (:wat::core::match (:wat::kernel::recv p) 
       [:wat::kernel::RecvOutcome.Message {:msg _m}

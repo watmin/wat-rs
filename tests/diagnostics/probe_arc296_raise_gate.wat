@@ -17,17 +17,17 @@
 ;;     message carries the raised Fault's message "boom".
 ;; (c) Passing a Fault to [e <- :wat::core::Error] param type-checks.
 
-(:wat::core::defn :probe::accept-error [e <- :wat::core::Error] -> :wat::core::String
+(:wat::core::defn :probe::accept-error [e <- :wat::core::Error] -> wat.type/String
   (:wat::core::Error/message e))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; (c) Fault/of satisfies :wat::core::Error structurally.
      msg  (:probe::accept-error (:wat::core::Fault/of "boom"))
      ;; (b) A child that raises is caught over the primed wire as Lost[Panic].
      p    (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
-              (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::kernel::raise! (:wat::core::Fault/of "boom")))))
      ;; raise-msg: the Panic message if caught as Lost[Panic]; a sentinel otherwise.
      raise-msg (:wat::core::match (:wat::kernel::recv p)

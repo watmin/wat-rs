@@ -12,7 +12,7 @@
 ;; verified below before the liar is built, so the control is grounded in a measured fact,
 ;; not an assumption.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [src       "(:a ~b)"
      lines     (:wat::string::split src "\n")
@@ -45,7 +45,7 @@
       ;; ":wat::core::unquote"). fix-text-apply must now refuse instead of splicing.
       (:wat::kernel::println "ROW 1 — attempting fix-text-apply with a liar's claim…")
       (:wat::fix::fix-text-apply src
-        (:wat::core::Vector :- [:wat::fix::Edit]
+        (wat.type/Vector :- [:wat::fix::Edit]
           (:wat::core::Tuple off ":wat::core::unquote" "REPLACED")))
       (:wat::kernel::println "ROW 1 FAILED TO RAISE — the stone did not hold.")
       nil)))

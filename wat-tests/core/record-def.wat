@@ -25,17 +25,17 @@
 ;; ─── Top-level type declarations ────────────────────────────────────────────
 
 ;; BASE record: two i64 fields.
-(:wat::core::defrecord :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :test::rd::Pt [x <- wat.type/i64  y <- wat.type/i64])
 
 ;; Second BASE record (different class_fqdn, one field) — used in predicate-false
 ;; and class-guard tests.
-(:wat::core::defrecord :test::rd::Box [w <- :wat::core::i64])
+(:wat::core::defrecord :test::rd::Box [w <- wat.type/i64])
 
 ;; HOLONIC record: two i64 fields.
-(:wat::holon::defrecord :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::holon::defrecord :test::rd::HPt [x <- wat.type/i64  y <- wat.type/i64])
 
 ;; Liskov helper: accepts ANY :wat::core::Record (base OR holonic) and returns true.
-(:wat::core::defn :test::rd::accepts-base? [v <- :wat::core::Record] -> :wat::core::bool true)
+(:wat::core::defn :test::rd::accepts-base? [v <- wat.type/Record] -> wat.type/bool true)
 
 
 ;; ─── BASE: construct + slash-accessor (x) ───────────────────────────────────
@@ -91,7 +91,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            ;; Accessor returns i64; do discards it and returns nil.
            ;; The class guard fires before the nil is reached — that's the point;
            ;; the crash reaches the parent's recv' as Lost before the completion send'.
@@ -152,7 +152,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            ;; to-holon panics at runtime on base record; do discards result and
            ;; returns nil. The runtime error fires before the nil is reached — the
            ;; crash reaches the parent's recv' as Lost before the completion send'.

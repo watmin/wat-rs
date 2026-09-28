@@ -3,7 +3,7 @@
 ;; run BEFORE and AFTER the migration. Purity/Determinism must read the same both times —
 ;; the migration changes the handler's PARAM LIST, not its declared metadata.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "== metadata-of uuid::v4 ==")
     (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::uuid::v4))

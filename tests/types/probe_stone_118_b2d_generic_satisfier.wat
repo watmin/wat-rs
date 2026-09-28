@@ -25,9 +25,9 @@
 ;; nothing caught this for a month).
 
 (:wat::core::defn :my::eats-concrete
-  [c <- (:wat::core::Seqable :- [:wat::core::i64])] -> :wat::core::i64
+  [c <- (:wat::core::Seqable :- [wat.type/i64])] -> wat.type/i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c))))
 
 ;; THE ROW THAT WAS RED — a (Vector :- [i64]) routed through the surface method. Now yields (Stream :- [i64]).
-(:wat::core::defn :my::via-surface-method [] -> :wat::core::i64
-  (:my::eats-concrete (:wat::core::Seqable/seq (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))
+(:wat::core::defn :my::via-surface-method [] -> wat.type/i64
+  (:my::eats-concrete (:wat::core::Seqable/seq (wat.type/Vector :- [wat.type/i64] 1 2 3))))

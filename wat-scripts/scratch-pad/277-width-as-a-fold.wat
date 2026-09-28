@@ -14,7 +14,7 @@
 ;; THE CONTROL, and it is the whole point of this file: for a form ALREADY on one line the DERIVED
 ;; width must EQUAL its actual span width. Any disagreement is printed. Silence is the proof.
 
-(:wat::core::defn :wf::width [node <- :wat::WatAST] -> :wat::core::i64
+(:wat::core::defn :wf::width [node <- wat.type/AST] -> wat.type/i64
   (:wat::core::let [kids (:wat::core::ast->children node)]
     (:wat::core::if (:wat::core::empty? kids)
       ;; leaf — its own source text, verbatim
@@ -22,13 +22,13 @@
       ;; interior — 2 delimiters + Σ children + (n-1) separators  ==  Σ + n + 1
       (:wat::core::+
         (:wat::core::foldl
-          (:wat::core::fn [acc <- :wat::core::i64 k <- :wat::WatAST] -> :wat::core::i64
+          (:wat::core::fn [acc <- wat.type/i64 k <- wat.type/AST] -> wat.type/i64
             (:wat::core::+ acc (:wf::width k)))
           0 kids)
         (:wat::core::+ (:wat::core::length kids) 1)))))
 
 ;; walk every node; report ONLY a disagreement on a single-line form.
-(:wat::core::defn :wf::check [node <- :wat::WatAST path <- :wat::core::String] -> :wat::core::i64
+(:wat::core::defn :wf::check [node <- wat.type/AST path <- wat.type/String] -> wat.type/i64
   (:wat::core::let
     ;; `wat/grep.wat` promises extent-of is the ONLY site that unwraps a span. Honour it.
     [x        (:wat::grep::extent-of node)
@@ -50,21 +50,21 @@
                       1000001)))
                 0)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::i64 k <- :wat::WatAST] -> :wat::core::i64
+      (:wat::core::fn [acc <- wat.type/i64 k <- wat.type/AST] -> wat.type/i64
         (:wat::core::+ acc (:wf::check k path)))
       mine kids)))
 
-(:wat::core::defn :wf::run [path <- :wat::core::String] -> :wat::core::i64
+(:wat::core::defn :wf::run [path <- wat.type/String] -> wat.type/i64
   (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
     [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::i64 f <- :wat::WatAST] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64 f <- wat.type/AST] -> wat.type/i64
           (:wat::core::+ acc (:wf::check f path)))
         0 (:wat::core::ast->children forms))]
     [:wat::core::ReadOutcome.Malformed {:cause c}
       (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))]))
 
-(:wat::core::defn :wf::report [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :wf::report [path <- wat.type/String] -> wat.type/nil
   (:wat::core::let [n       (:wf::run path)
                     checked (:wat::i64::quot n 1000000)
                     bad     (:wat::i64::rem  n 1000000)]
@@ -74,7 +74,7 @@
 
 ;; ⛔ THE CONTROL MUST BE SEEN TO FIRE. A bare "0 mismatches" is indistinguishable from
 ;; "0 forms were examined" — the vacuous green. CHECKED is printed beside it, always.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wf::report "wat/io.wat")
     (:wf::report "wat/grep.wat")

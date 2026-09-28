@@ -26,9 +26,9 @@
   :messages
   [(:wat::core::defrecord :probe::FFX::PingRequest [])
    (:wat::core::defenum :probe::FFX::PingResponse :wat::enum::Pure
-     :Ok               [ok <- :wat::core::bool]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [ok <- wat.type/bool]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(ping [self <- :probe::FFX  req <- :probe::FFX::PingRequest] -> :probe::FFX::PingResponse :max-request-bytes 524288)])
 
@@ -56,15 +56,15 @@
 
 ;; ── render a (Vector :- [WatAST]) to one string so we can ask whether a name appears in it ───────────
 (:wat::core::defn :user::render-forms
-  [forms <- (:wat::core::Vector :- [:wat::WatAST])  i <- :wat::core::i64  acc <- :wat::core::String]
-  -> :wat::core::String
+  [forms <- (wat.type/Vector :- [wat.type/AST])  i <- wat.type/i64  acc <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     acc
     (:user::render-forms forms (:wat::i64::+ i 1)
       (:wat::string::concat acc
         (:wat::core::ast->source (:wat::core::nth forms i))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [manifest  (:probe::ffx::service-forms)
      closure   (:wat::kernel::fn-forms :probe::ffx::serve :user::shipped-serve)

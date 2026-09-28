@@ -20,7 +20,7 @@
 ;;
 ;; Run:  printf '{"edn":"(:wat::core::i64::+ 1 2)"}\n' | ./target/release/wat <this file>
 
-(:wat::core::defn :probe::show-frame [] -> :wat::core::nil
+(:wat::core::defn :probe::show-frame [] -> wat.type/nil
   (:wat::core::match (:wat::kernel::read-frame )
     ;; ASSUMPTION 1: echo the raw text back. If it is the whole JSON line, read-frame frames
     ;; JSON fine. If it is truncated at the first `:` or `"`, the EDN-aware scanner mis-frames
@@ -30,12 +30,12 @@
     [:wat::kernel::ReadFrameOutcome.Eof {} nil]
     [:wat::kernel::ReadFrameOutcome.Stopped {} nil]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; ASSUMPTION 2: a String-keyed map through write-json.
     (:wat::kernel::println
       (:wat::edn::write-json
         (:wat::hashmap::assoc
-          (:wat::core::HashMap :- [:wat::core::String :wat::core::String])
+          (wat.type/HashMap :- [wat.type/String wat.type/String])
           "edn" "#some.edn/Thing {:whatever 42}")))
     (:probe::show-frame)))

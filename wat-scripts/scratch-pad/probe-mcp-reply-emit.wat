@@ -21,10 +21,10 @@
 ;; That is what this measures. `write-json` of a String must come back as a QUOTED, ESCAPED
 ;; JSON string literal, ready to drop into the skeleton verbatim.
 
-(:wat::core::defn :probe::edn-with-quotes [] -> :wat::core::String
+(:wat::core::defn :probe::edn-with-quotes [] -> wat.type/String
   "#some.ns/Rec {:field \"val\" :another 42}")
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; the raw EDN, as `edn::write` would hand it back
     (:wat::kernel::println (:probe::edn-with-quotes))

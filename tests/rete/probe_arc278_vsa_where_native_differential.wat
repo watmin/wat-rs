@@ -3,26 +3,26 @@
 ;; Degenerate cosine takes the CALLER's `:undefined`, not a constant.
 ;; coincident?/presence? must fire, not `compiled apply cannot dispatch`.
 
-(:wat::core::defrecord :vsa::Catalog     [name <- :wat::core::String  obs <- :wat::holon::HolonAST])
+(:wat::core::defrecord :vsa::Catalog     [name <- wat.type/String  obs <- :wat::holon::HolonAST])
 (:wat::core::defrecord :vsa::Observation [obs  <- :wat::holon::HolonAST])
-(:wat::core::defrecord :vsa::Guess       [name <- :wat::core::String])
+(:wat::core::defrecord :vsa::Guess       [name <- wat.type/String])
 (:wat::core::defrecord :vsa::Pair        [a <- :wat::holon::HolonAST  b <- :wat::holon::HolonAST])
-(:wat::core::defrecord :vsa::Hit         [tag <- :wat::core::String])
+(:wat::core::defrecord :vsa::Hit         [tag <- wat.type/String])
 
 (:wat::core::defn :vsa::table-of
   [f <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
   -> :wat::holon::HolonAST
   (:wat::holon::to-holon
-    (:wat::core::Vector :- [:wat::core::bool] (f true) (f false))))
+    (wat.type/Vector :- [wat.type/bool] (f true) (f false))))
 
 (:wat::core::defn :vsa::id-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
-  (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool b))
+  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))
 (:wat::core::defn :vsa::not-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
-  (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool (:wat::core::if b false true)))
+  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true)))
 (:wat::core::defn :vsa::const-true-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
-  (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool true))
+  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true))
 (:wat::core::defn :vsa::const-false-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
-  (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool false))
+  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool false))
 
 (:wat::rete::defrule :vsa::classify-cosine
   :when
@@ -79,7 +79,7 @@
   :params []
   :when [(:vsa::Hit (?tag :- :tag))])
 
-(:wat::core::defn :vsa::catalog [] -> (:wat::core::PersistentVector :- [:vsa::Catalog])
+(:wat::core::defn :vsa::catalog [] -> (wat.type/PersistentVector :- [:vsa::Catalog])
   (:wat::core::PersistentVector
     (:vsa::Catalog :name "identity"    :obs (:vsa::table-of (:vsa::id-fn)))
     (:vsa::Catalog :name "not"         :obs (:vsa::table-of (:vsa::not-fn)))
@@ -90,7 +90,7 @@
   [fire    <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    rule    <- :wat::rete::Rule
    mystery <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::let
     [s0   (:wat::core::match (:wat::rete::compile-all
             (:wat::core::PersistentVector rule)
@@ -109,7 +109,7 @@
 (:wat::core::defn :vsa::deg-count
   [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    rule <- :wat::rete::Rule]
-  -> :wat::core::i64
+  -> wat.type/i64
   (:wat::core::let
     [h     (:wat::holon::to-holon "some-atom")
      other (:wat::holon::to-holon "an-entirely-different-atom")
@@ -123,55 +123,55 @@
 
 (:wat::core::defn :vsa::deg-counts
   [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::PersistentVector
     (:vsa::deg-count fire (:vsa::deg-neg1))
     (:vsa::deg-count fire (:vsa::deg-seven))))
 
 ;; ── cosine classify (the j2 fixture) ─────────────────────────────────────────
-(:wat::core::defn :user::oracle-id [] -> :wat::core::String
+(:wat::core::defn :user::oracle-id [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::id-fn)))
-(:wat::core::defn :user::native-id [] -> :wat::core::String
+(:wat::core::defn :user::native-id [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-not [] -> :wat::core::String
+(:wat::core::defn :user::oracle-not [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::not-fn)))
-(:wat::core::defn :user::native-not [] -> :wat::core::String
+(:wat::core::defn :user::native-not [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::not-fn)))
-(:wat::core::defn :user::oracle-const-true [] -> :wat::core::String
+(:wat::core::defn :user::oracle-const-true [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::const-true-fn)))
-(:wat::core::defn :user::native-const-true [] -> :wat::core::String
+(:wat::core::defn :user::native-const-true [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::const-true-fn)))
-(:wat::core::defn :user::oracle-const-false [] -> :wat::core::String
+(:wat::core::defn :user::oracle-const-false [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::const-false-fn)))
-(:wat::core::defn :user::native-const-false [] -> :wat::core::String
+(:wat::core::defn :user::native-const-false [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::const-false-fn)))
 
 ;; ── coincident? / presence? ──────────────────────────────────────────────────
-(:wat::core::defn :user::oracle-coincident-id [] -> :wat::core::String
+(:wat::core::defn :user::oracle-coincident-id [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-coincident) (:vsa::id-fn)))
-(:wat::core::defn :user::native-coincident-id [] -> :wat::core::String
+(:wat::core::defn :user::native-coincident-id [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-coincident) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-coincident-not [] -> :wat::core::String
+(:wat::core::defn :user::oracle-coincident-not [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-coincident) (:vsa::not-fn)))
-(:wat::core::defn :user::native-coincident-not [] -> :wat::core::String
+(:wat::core::defn :user::native-coincident-not [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-coincident) (:vsa::not-fn)))
-(:wat::core::defn :user::oracle-presence-id [] -> :wat::core::String
+(:wat::core::defn :user::oracle-presence-id [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-presence) (:vsa::id-fn)))
-(:wat::core::defn :user::native-presence-id [] -> :wat::core::String
+(:wat::core::defn :user::native-presence-id [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-presence) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-presence-not [] -> :wat::core::String
+(:wat::core::defn :user::oracle-presence-not [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-presence) (:vsa::not-fn)))
-(:wat::core::defn :user::native-presence-not [] -> :wat::core::String
+(:wat::core::defn :user::native-presence-not [] -> wat.type/String
   (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-presence) (:vsa::not-fn)))
 
 ;; presence? is a noise-floor detector, not a 0.9 classifier — four-row catalog
 ;; can hit more than one name. Self vs orthogonal pins it is not silent-false.
 (:wat::core::defn :vsa::presence-pair
   [fire     <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
-   cat-name <- :wat::core::String
+   cat-name <- wat.type/String
    cat-fn   <- :wat::core::Fn(wat::core::bool)->wat::core::bool
    mystery  <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
-  -> :wat::core::String
+  -> wat.type/String
   (:wat::core::let
     [s0    (:wat::core::match (:wat::rete::compile-all
              (:wat::core::PersistentVector (:vsa::classify-presence))
@@ -187,17 +187,17 @@
         "q-Guess: ?name")
       (:wat::string::concat "count=" (:wat::i64::to-string n)))))
 
-(:wat::core::defn :user::oracle-presence-self [] -> :wat::core::String
+(:wat::core::defn :user::oracle-presence-self [] -> wat.type/String
   (:vsa::presence-pair :wat::rete::fire-rules$oracle "identity" (:vsa::id-fn) (:vsa::id-fn)))
-(:wat::core::defn :user::native-presence-self [] -> :wat::core::String
+(:wat::core::defn :user::native-presence-self [] -> wat.type/String
   (:vsa::presence-pair :wat::rete::fire-rules "identity" (:vsa::id-fn) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-presence-orthogonal [] -> :wat::core::String
+(:wat::core::defn :user::oracle-presence-orthogonal [] -> wat.type/String
   (:vsa::presence-pair :wat::rete::fire-rules$oracle "not" (:vsa::not-fn) (:vsa::id-fn)))
-(:wat::core::defn :user::native-presence-orthogonal [] -> :wat::core::String
+(:wat::core::defn :user::native-presence-orthogonal [] -> wat.type/String
   (:vsa::presence-pair :wat::rete::fire-rules "not" (:vsa::not-fn) (:vsa::id-fn)))
 
 ;; ── degenerate cosine inside a rule ──────────────────────────────────────────
-(:wat::core::defn :user::oracle-deg [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::oracle-deg [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:vsa::deg-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::native-deg [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::native-deg [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:vsa::deg-counts :wat::rete::fire-rules))

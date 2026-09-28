@@ -2,7 +2,7 @@
 ;;   Uuid -> Bind(Tag("uuid"), String(hex))
 ;; so the Tag is the LEFT of a Bind, never the top node. Asking `is-Tag?` of the uuid holon
 ;; itself therefore CANNOT be true — which is exactly why its column read all-false.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [u  (:wat::uuid::nil)
      h  (:wat::holon::to-holon u)]

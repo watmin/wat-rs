@@ -2,16 +2,16 @@
 (:wat::core::defsurface :probe::Seedy :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Seedy::GetRequest  [])
-   (:wat::core::defenum :probe::Seedy::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+   (:wat::core::defenum :probe::Seedy::GetResponse :wat::enum::Pure :Ok [v <- wat.type/i64] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                               :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get [self <- :probe::Seedy  req <- :probe::Seedy::GetRequest] -> :probe::Seedy::GetResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::seedy
   :satisfies :probe::Seedy
   :durable   []
-  :ephemeral [seed <- :wat::core::i64]
-  :init (:wat::core::fn [record <- :probe::seedy::Record  seed <- :wat::core::i64]
+  :ephemeral [seed <- wat.type/i64]
+  :init (:wat::core::fn [record <- :probe::seedy::Record  seed <- wat.type/i64]
           -> :probe::seedy::State
           (:probe::seedy::State :durable record :seed seed))
   :impls
@@ -19,7 +19,7 @@
      (:wat::service::Outcome.Reply {:state s
        :reply (:probe::Seedy::GetResponse.Ok {:v (:probe::seedy::State/seed s)})}))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h  (:probe::seedy/start :locus (:wat::spawn::process) :record (:probe::seedy::Record) :seed 99)
      c  (:wat::core::match (:wat::kernel::connect (:probe::seedy::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

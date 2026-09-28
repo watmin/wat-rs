@@ -7,11 +7,11 @@
 ;; this stone's own stdlib conversion of `:wat::test::spawn-peer`'s
 ;; `(wat.type/Vector :- [wat.type/AST])` clause.
 (:wat::core::defclause :probe::which-container
-  ([xs <- (wat.type/Vector :- [wat.type/i64])] -> :wat::core::String "vector")
-  ([xs <- (:wat::core::List :- [:wat::core::i64])] -> :wat::core::String "list"))
+  ([xs <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String "vector")
+  ([xs <- (wat.type/List :- [wat.type/i64])] -> wat.type/String "list"))
 
-(:wat::core::defn :user::vector-clause-dispatches [] -> :wat::core::bool
+(:wat::core::defn :user::vector-clause-dispatches [] -> wat.type/bool
   (:wat::core::= (:probe::which-container [1 2 3]) "vector"))
 
-(:wat::core::defn :user::list-clause-dispatches [] -> :wat::core::bool
+(:wat::core::defn :user::list-clause-dispatches [] -> wat.type/bool
   (:wat::core::= (:probe::which-container (:wat::core::List 1 2 3)) "list"))

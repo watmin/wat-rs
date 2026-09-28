@@ -6,7 +6,7 @@
 ;; and these stay two macros. Relaxing `is_reference()` — the cure the 255.12
 ;; brief proposed for site 2 — would make this file freeze CLEAN and silently
 ;; discard the second template.
-(:wat::core::defmacro :p255_12::MB [x <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :p255_12::MB [x <- wat.type/AST] -> wat.type/AST
   `(:wat::core::let [v ~x] v))
-(:wat::core::defmacro :p255_12::MB [x <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :p255_12::MB [x <- wat.type/AST] -> wat.type/AST
   `(:wat::core::let [v ~x] :v))

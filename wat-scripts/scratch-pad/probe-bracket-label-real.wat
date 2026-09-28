@@ -19,11 +19,11 @@
 ;;   PASS: each worker's cmdline carries this file's path and the `<<map-call>>` line below.
 ;;   FAIL: it carries wat/bracket.wat (the template) — the constant label.
 
-(:wat::core::defn :probe::own-cmdline [_i <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :probe::own-cmdline [_i <- wat.type/i64] -> wat.type/String
   (:wat::io::read-file "/proc/self/cmdline"))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [out (:wat::bracket::map (:wat::spawn::process) (:wat::core::Vector :- [:wat::core::i64] 1 2)
+    [out (:wat::bracket::map (:wat::spawn::process) (wat.type/Vector :- [wat.type/i64] 1 2)
            :probe::own-cmdline)] ;; <<map-call>>
     (:wat::kernel::println out)))

@@ -16,10 +16,10 @@
 
 ;; a methods-bearing surface (the "Store")
 (:wat::core::defsurface :probe::Store :nature :wat::core::Struct
-  :features [(put [self <- :probe::Store  x <- :wat::core::i64] -> :wat::core::i64)])
+  :features [(put [self <- :probe::Store  x <- wat.type/i64] -> wat.type/i64)])
 
 ;; a concrete satisfier (a struct — impure, like a real connection holding a resource)
-(:wat::core::defstruct :probe::Mem [tag <- :wat::core::i64])
+(:wat::core::defstruct :probe::Mem [tag <- wat.type/i64])
 
 ;; extend Mem to satisfy Store (body-only: bare-symbol args, types inherited from the surface)
 (:wat::core::extend-type :probe::Mem :probe::Store
@@ -29,7 +29,7 @@
 ;; a HOLDER whose attribute `store` is typed as the SURFACE (not concrete Mem) — a struct (the :ephemeral facet)
 (:wat::core::defstruct :probe::Svc [store <- :probe::Store])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [m   (:probe::Mem 100)
      svc (:probe::Svc m)                                      ;; hold the satisfier in the surface-typed attribute

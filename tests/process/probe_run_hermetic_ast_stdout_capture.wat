@@ -11,11 +11,11 @@
 ;; EDN-quoted stdout scrape. Lost[LociDiedError] / Closed are never swallowed.
 ;; (shape: tests/kernel/wat_run_sandboxed_ast.wat compute-prints-hello.)
 
-(:wat::core::defn :probe::ast::capture-stdout [] -> :wat::core::String
+(:wat::core::defn :probe::ast::capture-stdout [] -> wat.type/String
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println "hello-from-probe"))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg m} m]

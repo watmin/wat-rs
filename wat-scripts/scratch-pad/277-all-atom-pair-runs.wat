@@ -19,5 +19,5 @@
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "form" :value (:wat::rete::i64::to-string ?p))))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :aa))

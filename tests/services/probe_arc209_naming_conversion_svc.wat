@@ -9,17 +9,17 @@
 ;; therefore proves the kebab<->pascal derivation handles the multi-word op.
 (:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :my::Svc::GetObjectRequest  [n <- :wat::core::i64])
+  [(:wat::core::defrecord :my::Svc::GetObjectRequest  [n <- wat.type/i64])
    (:wat::core::defenum :my::Svc::GetObjectResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get-object [self <- :my::Svc  req <- :my::Svc::GetObjectRequest] -> :my::Svc::GetObjectResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::svc
   :satisfies :my::Svc
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get-object [s ctx req]
@@ -27,7 +27,7 @@
 
 ;; End-to-end through the KEBAB client method `:my::svc/get-object` (multi-word); echoes the
 ;; request's n back as the response value (42), proving the whole multi-word wiring resolved.
-(:wat::core::defn :user::req-id [] -> :wat::core::i64
+(:wat::core::defn :user::req-id [] -> wat.type/i64
   (:wat::core::let
     [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
      c (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

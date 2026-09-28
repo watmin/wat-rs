@@ -15,7 +15,7 @@
 ;;      connection — that absence is the whole point of the three-type split, and it is STRUCTURAL:
 ;;      there is no field to read, so asking a timer for a connection cannot be written down).
 
-(:wat::core::defn :user::self-invocation-reads-core [] -> :wat::core::String
+(:wat::core::defn :user::self-invocation-reads-core [] -> wat.type/String
   (:wat::core::let
     [inv (:wat::service::SelfInvocation
            :namespace     :probe::ticker
@@ -24,7 +24,7 @@
            :start-ns      42)]
     (:wat::service::SelfInvocation/operation inv)))
 
-(:wat::core::defn :user::lifecycle-invocation-reads-core-and-conn [] -> :wat::core::i64
+(:wat::core::defn :user::lifecycle-invocation-reads-core-and-conn [] -> wat.type/i64
   (:wat::core::let
     [inv (:wat::service::LifecycleInvocation
            :namespace     :probe::ticker
@@ -34,7 +34,7 @@
            :conn-id       7)]
     (:wat::service::LifecycleInvocation/conn-id inv)))
 
-(:wat::core::defn :user::invocation-reads-core-and-conn [] -> :wat::core::i64
+(:wat::core::defn :user::invocation-reads-core-and-conn [] -> wat.type/i64
   (:wat::core::let
     [inv (:wat::service::Invocation
            :namespace     :probe::ticker
@@ -46,7 +46,7 @@
       (:wat::service::Invocation/conn-id inv)
       (:wat::string::length (:wat::service::Invocation/operation inv)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:user::self-invocation-reads-core)

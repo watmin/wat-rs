@@ -3,4 +3,4 @@
 ;; as the Wire twin. Pre-stone this file was `.wat.bad` and froze as
 ;; ImpureFieldInPureAggregate.
 (:wat::core::defrecord :probe::HoldsShared
-  [addr <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64 :wat::kernel::Transport.Shared])])
+  [addr <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 :wat::kernel::Transport.Shared])])

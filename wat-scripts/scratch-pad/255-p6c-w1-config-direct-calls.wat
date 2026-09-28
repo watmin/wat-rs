@@ -5,7 +5,7 @@
 ;; after homing them into the `#[wat_intrinsic]` registry — only the DISPATCH
 ;; mechanism changes, not the returned value.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "dim-count= " (:wat::edn::write (:wat::config::dim-count))))
     (:wat::kernel::println (:wat::string::concat "dim-capacity= " (:wat::edn::write (:wat::config::dim-capacity))))

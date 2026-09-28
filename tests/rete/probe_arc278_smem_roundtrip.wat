@@ -10,12 +10,12 @@
 ;; start+connect stay inlined in each deftest (spawn scope law: a helper that returns the peer
 ;; leaves the service thread dead). Op helpers take the live Store.
 
-(:wat::core::defn :test::five-rows [] -> (:wat::core::Vector :- [:wat::query::StoredRow])
+(:wat::core::defn :test::five-rows [] -> (wat.type/Vector :- [:wat::query::StoredRow])
   (:wat::core::let
-    [empty-ik (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey])
-     ik-a     (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
-     ik-c     (:wat::core::HashMap :- [:wat::core::String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))]
-    (:wat::core::Vector :- [:wat::query::StoredRow]
+    [empty-ik (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey])
+     ik-a     (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
+     ik-c     (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))]
+    (wat.type/Vector :- [:wat::query::StoredRow]
       (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
       (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik)
       (:wat::query::StoredRow :pk "u#1" :sk "c" :data "{:v 3}" :index-keys ik-c)
@@ -36,12 +36,12 @@
       [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
       [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
 
-(:wat::core::defn :test::ensure-schema [store <- :wat::query::Store] -> :wat::core::nil
+(:wat::core::defn :test::ensure-schema [store <- :wat::query::Store] -> wat.type/nil
   (:wat::core::match
     (:wat::query::Store/ensure-schema store
       (:wat::query::Store::EnsureSchemaRequest
         :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-        :indexes (:wat::core::Vector :- [:wat::query::IndexSchema] (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
+        :indexes (wat.type/Vector :- [:wat::query::IndexSchema] (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
     [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv
       [:wat::query::Store::EnsureSchemaResponse.Success {} nil]
       [_ (:wat::kernel::assertion-failed! :message "ensure-schema failed")])]
@@ -56,7 +56,7 @@
      store (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
     (:test::ensure-schema store)))
 
-(:wat::core::defn :test::put-five [store <- :wat::query::Store] -> :wat::core::nil
+(:wat::core::defn :test::put-five [store <- :wat::query::Store] -> wat.type/nil
   (:wat::core::match (:wat::query::Store/put store (:wat::query::Store::PutRequest (:test::five-rows)))
     [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv
       [:wat::query::Store::PutResponse.Success {} nil]
@@ -73,7 +73,7 @@
     (:test::ensure-schema store)
     (:test::put-five store)))
 
-(:wat::core::defn :test::scan-page1 [store <- :wat::query::Store] -> :wat::core::nil
+(:wat::core::defn :test::scan-page1 [store <- :wat::query::Store] -> wat.type/nil
   (:wat::core::match
     (:wat::query::Store/scan store
       (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor :wat::core::Option.None))
@@ -97,7 +97,7 @@
     (:test::put-five store)
     (:test::scan-page1 store)))
 
-(:wat::core::defn :test::scan-page2 [store <- :wat::query::Store] -> :wat::core::nil
+(:wat::core::defn :test::scan-page2 [store <- :wat::query::Store] -> wat.type/nil
   (:wat::core::match
     (:wat::query::Store/scan store
       (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Option.Some {:value "b"})))
@@ -121,7 +121,7 @@
     (:test::put-five store)
     (:test::scan-page2 store)))
 
-(:wat::core::defn :test::scan-page3 [store <- :wat::query::Store] -> :wat::core::nil
+(:wat::core::defn :test::scan-page3 [store <- :wat::query::Store] -> wat.type/nil
   (:wat::core::match
     (:wat::query::Store/scan store
       (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Option.Some {:value "d"})))
@@ -145,7 +145,7 @@
     (:test::put-five store)
     (:test::scan-page3 store)))
 
-(:wat::core::defn :test::scan-index [store <- :wat::query::Store] -> :wat::core::nil
+(:wat::core::defn :test::scan-index [store <- :wat::query::Store] -> wat.type/nil
   (:wat::core::match
     (:wat::query::Store/scan-index store
       (:wat::query::Store::ScanIndexRequest

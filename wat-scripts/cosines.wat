@@ -1,7 +1,7 @@
 ;; The arc-294 R2 homecoming cosines — plain EDN measured directly (294.a).
 ;; No manual (to-holon …): the measurement surface now lifts any EdnRepresentable
 ;; value internally. Expected, structurally: 1.0 / ~0.486 / ~0.574 / ~0.011.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; identical map → exact coincidence
     (:wat::kernel::pprintln (:wat::holon::cosine {:a 1 :b 2} {:a 1 :b 2}))

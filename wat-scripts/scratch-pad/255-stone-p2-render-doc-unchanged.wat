@@ -6,7 +6,7 @@
 ;; (reflect.rs:349-356), and this stone touches neither that derivation nor
 ;; `entry.args` itself.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::core::render-doc :wat::core::if))
     (:wat::kernel::println (:wat::core::render-doc :wat::core::let))))

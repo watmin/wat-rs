@@ -7,9 +7,9 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -22,9 +22,9 @@
 ;; the union the worker recv's: Setup hands the address; Work is one unit of work.
 (:wat::core::defenum :probe::Msg :wat::enum::Pure
   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
-  :Work  [s    <- :wat::core::String])
+  :Work  [s    <- wat.type/String])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea   (:probe::echo::Handle/addr eh)
@@ -33,19 +33,19 @@
                 ;; child fresh world — re-declare the surface + the union it dials/receives
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages
-                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
+                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 (:wat::core::defenum :probe::Msg :wat::enum::Pure
                   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
-                  :Work  [s    <- :wat::core::String])
+                  :Work  [s    <- wat.type/String])
                 ;; the serve loop: threads the held service peer (Option, None until Setup)
                 (:wat::core::defn :probe::serve
-                  [self <- (:wat::kernel::Peer :- [:wat::core::String :probe::Msg])
+                  [self <- (:wat::kernel::Peer :- [wat.type/String :probe::Msg])
                    held <- (:wat::core::Option :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])])]
-                  -> :wat::core::nil
+                  -> wat.type/nil
                   (:wat::core::match (:wat::core::match (:wat::kernel::recv self) [:wat::kernel::RecvOutcome.Message {:msg __d} __d] [:wat::kernel::RecvOutcome.Lost {:cause __c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __c))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]) 
                     [:probe::Msg.Setup {:addr addr}
                       (:probe::serve self (:wat::core::Option.Some {:value (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])}))]   ;; DIAL-and-HOLD
@@ -59,14 +59,14 @@
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])]
                         (:probe::serve self held))]))
-                (:wat::core::defn :user::main [] -> :wat::core::nil
+                (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String :probe::Msg)]
                     (:probe::serve self :wat::core::Option.None)))))
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             [:wat::core::Option.Some {:value p}
               (:wat::core::let
-                [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; grant BEFORE the setup dial
+                [_  (:probe::echo/grant eh (wat.type/Vector :- [wat.type/i64] p)) ;; grant BEFORE the setup dial
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Setup {:addr ea})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])            ;; worker dials-and-holds (admitted)
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg.Work {:s "a"})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
                  rr1 (:wat::kernel::recv worker)

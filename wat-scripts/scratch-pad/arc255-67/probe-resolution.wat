@@ -1,5 +1,5 @@
 ;; probe-resolution.wat — arc 255.67, measure which of the 24 wat.type/ names resolve today.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [a (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
      b (:wat::core::fn [x <- wat.type/f64] -> wat.type/f64 x)

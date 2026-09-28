@@ -3,28 +3,28 @@
 ;; monotonic caller-id counter defservice's generated serve threads as pure state); this
 ;; hand-rolled probe ignores it, same as it already ignores everything else it receives.
 (:wat::core::defn :my::svc::serve
-  [self    <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
-   l       <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
-   clients <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])
-   next-id <- :wat::core::i64
-   st      <- :wat::core::i64] -> :wat::core::nil
+  [self    <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])
+   l       <- (:wat::kernel::Listener :- [wat.type/i64 wat.type/i64])
+   clients <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])])
+   next-id <- wat.type/i64
+   st      <- wat.type/i64] -> wat.type/nil
   nil)
 
 ;; init fn: takes ship (i64) and returns St (i64) — identity for this wiring probe.
 ;; arc 291: launch now takes [self ship init serve service-forms lu-addr-kw] (6 args).
-(:wat::core::defn :my::svc::init [ship <- :wat::core::i64] -> :wat::core::i64 ship)
+(:wat::core::defn :my::svc::init [ship <- wat.type/i64] -> wat.type/i64 ship)
 
 ;; arc 278: lu-mk-kw ctor twin — builds the lineage-up value (here Lu=i64) FROM the address.
 ;; The thread tier's serve closure sends `(apply lu-mk-kw (Bound/address b) [])` as its
 ;; readiness Started after :init; the parent discards it (crash-aware barrier), so any i64 does.
 (:wat::core::defn :my::svc::mk-lu
-  [a <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64 0)
+  [a <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64])] -> wat.type/i64 0)
 
 ;; Locus-AGNOSTIC: the param is `(:wat::spawn::Locus :- [T])` (255.18: the locus names its transport).
 ;; `Locus/launch` routes through it.
 ;; arc 291: launch signature = [self ship init serve service-forms lu-addr-kw] (6 args).
 ;; Launched has 5 type params [S R Sh Lu T]; S R Sh Lu are i64 here, T comes from the locus.
-(:wat::core::defn :user::start-it :- [T] [h <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [:wat::core::i64 :wat::core::i64 :wat::core::i64 :wat::core::i64 T])
+(:wat::core::defn :user::start-it :- [T] [h <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 T])
   (:wat::spawn::Locus/launch h 0
     (:wat::keyword::from-string "my::svc::init")
     (:wat::keyword::from-string "my::svc::serve")
@@ -34,6 +34,6 @@
 
 ;; Drive it with a concrete (thread): reaching `true` means the whole locus-agnostic launch wired and
 ;; ran without crashing (listener' accepted :Locus, launch dispatched, apply invoked serve, peer spawned).
-(:wat::core::defn :user::go [] -> :wat::core::bool
+(:wat::core::defn :user::go [] -> wat.type/bool
   (:wat::core::let [h (:user::start-it (:wat::spawn::thread))]
     true))

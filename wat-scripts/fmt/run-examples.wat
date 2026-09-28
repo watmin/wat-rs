@@ -12,32 +12,32 @@
 (:wat::load-file! "rules/defrecord.wat")
 
 (:wat::core::defrecord :user::Ex
-  [n       <- :wat::core::i64
-   changed <- :wat::core::i64
-   inline  <- :wat::core::i64
-   over    <- :wat::core::i64
-   worst   <- :wat::core::i64])
+  [n       <- wat.type/i64
+   changed <- wat.type/i64
+   inline  <- wat.type/i64
+   over    <- wat.type/i64
+   worst   <- wat.type/i64])
 
 (:wat::core::defn :user::line-stats
-  [s <- :wat::core::String]
-  -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  [s <- wat.type/String]
+  -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
-                     line <- :wat::core::String]
-      -> (:wat::core::PersistentVector :- [:wat::core::i64])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
+                     line <- wat.type/String]
+      -> (wat.type/PersistentVector :- [wat.type/i64])
       (:wat::core::let [w (:wat::string::length line)
                         over (:wat::core::nth acc 0)
                         worst (:wat::core::nth acc 1)]
-        (:wat::core::PersistentVector :- [:wat::core::i64]
+        (wat.type/PersistentVector :- [wat.type/i64]
           (:wat::core::if (:wat::i64::> w 120) (:wat::i64::+ over 1) over)
           (:wat::core::if (:wat::i64::> w worst) w worst))))
-    (:wat::core::PersistentVector :- [:wat::core::i64] 0 0)
+    (wat.type/PersistentVector :- [wat.type/i64] 0 0)
     (:wat::string::split s "\n")))
 
 (:wat::core::defn :user::one
   [acc   <- :user::Ex
-   piece <- :wat::core::String
-   rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
+   piece <- wat.type/String
+   rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])]
   -> :user::Ex
   (:wat::core::let
     [out   (:wat::fmt::format-source "<ex>" piece rules)
@@ -63,7 +63,7 @@
       :over    (:wat::i64::+ (:user::Ex/over acc) over)
       :worst   (:wat::core::if (:wat::i64::> w (:user::Ex/worst acc)) w (:user::Ex/worst acc)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv (:wat::runtime::argv)
      path (:wat::core::Option/expect (:wat::core::get argv 2) "usage: wat run-examples.wat <file.wat>")
@@ -73,7 +73,7 @@
       [:wat::core::ReadOutcome.Forms {:forms forms}
         (:wat::core::let
           [acc (:wat::core::foldl
-                 (:wat::core::fn [a <- :user::Ex  f <- :wat::WatAST] -> :user::Ex
+                 (:wat::core::fn [a <- :user::Ex  f <- wat.type/AST] -> :user::Ex
                    (:user::one a (:wat::core::ast->source f) rules))
                  (:user::Ex :n 0 :changed 0 :inline 0 :over 0 :worst 0)
                  (:wat::core::ast->children forms))]

@@ -2,9 +2,9 @@
 ;; Arc 259 Stone S2a — ThreadProg self-peer model on the unified pipes-only Peer.
 ;; The thread prog drives its OWN pipes-only self-peer: recv the parent's 42, echo it back.
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+                           (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
                              (:wat::core::match
                                (:wat::kernel::send self
                                  (:wat::core::match (:wat::kernel::recv self)

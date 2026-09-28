@@ -15,19 +15,19 @@
 ;; specific error variant + message.
 
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
-(:wat::core::defrecord  :probe::A [x <- :wat::core::i64])
-(:wat::core::defrecord  :probe::B [y <- :wat::core::i64])
+(:wat::core::defrecord  :probe::A [x <- wat.type/i64])
+(:wat::core::defrecord  :probe::B [y <- wat.type/i64])
 (:wat::core::extend-type :probe::A :probe::Reason)
 (:wat::core::extend-type :probe::B :probe::Reason)
 
 ;; DIFFERENT return types across the two concrete-satisfier clauses:
 (:wat::core::defclause :probe::describe
-  ([r <- :probe::A] -> :wat::core::String "a-string")
-  ([r <- :probe::B] -> :wat::core::i64    42))
+  ([r <- :probe::A] -> wat.type/String "a-string")
+  ([r <- :probe::B] -> wat.type/i64    42))
 
 (:wat::core::defn :probe::as-reason [r <- :probe::B] -> :probe::Reason r)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [reason (:probe::as-reason (:probe::B 1))
      result (:probe::describe reason)]

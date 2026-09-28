@@ -1,16 +1,16 @@
 ;; tests/program/probe_arc259_program_init_fn.wat — co-located fixture for probe_arc259_program_init_fn.rs,
 ;; slurped via startup_beside(file!()).
 
-(:wat::core::defrecord :user::MyEnv [port <- :wat::core::i64])
+(:wat::core::defrecord :user::MyEnv [port <- wat.type/i64])
 
 ;; compute-init: spawn a thread peer with (thread/init f) where f returns MyEnv{port:8080};
 ;; peer reads user-data's port and sends it back.
-(:wat::core::defn :probe::compute-init [] -> :wat::core::i64
+(:wat::core::defn :probe::compute-init [] -> wat.type/i64
   (:wat::core::let
     [peer (:wat::test::spawn-peer
             (:wat::spawn::thread::init
-              (:wat::core::fn [] -> :wat::core::Record (:user::MyEnv :port 8080)))
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+              (:wat::core::fn [] -> wat.type/Record (:user::MyEnv :port 8080)))
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
               (:wat::core::match
                 (:wat::kernel::send self
                   (:user::MyEnv/port
@@ -35,13 +35,13 @@
 ;; the peer dies before sending. Arc 278 recv'-wall: recv' returns a matchable RecvOutcome VALUE
 ;; (never a raise) — the dead peer surfaces as ::Lost. We MATCH and RETURN the Lost cause's
 ;; `Failure/message` (the init-fn's crash reason) as a VALUE the .rs asserts.
-(:wat::core::defn :probe::compute-error-init [] -> :wat::core::String
+(:wat::core::defn :probe::compute-error-init [] -> wat.type/String
   (:wat::core::let
     [peer (:wat::test::spawn-peer
             (:wat::spawn::thread::init
-              (:wat::core::fn [] -> :wat::core::Record
+              (:wat::core::fn [] -> wat.type/Record
                 (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv))))
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
               (:wat::core::match (:wat::kernel::send self 7)
                 [:wat::kernel::SendOutcome.Sent {} nil]
                 [:wat::kernel::SendOutcome.HandleClosed {} nil]
@@ -62,10 +62,10 @@
 
 ;; compute-default: spawn a plain (thread) peer — user-data defaults to EmptyEnv;
 ;; peer sends 1 if conforms?, else 0.
-(:wat::core::defn :probe::compute-default [] -> :wat::core::i64
+(:wat::core::defn :probe::compute-default [] -> wat.type/i64
   (:wat::core::let
     [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
               (:wat::core::match
                 (:wat::kernel::send self
                   (:wat::core::if

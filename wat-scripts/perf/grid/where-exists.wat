@@ -5,12 +5,12 @@
 ;;   [:or [:exists [Caw]] [:exists [Temp < 20]]]   — either presence
 ;;   [Loc ?loc] [:exists [Wind ?loc]]              — left seed; two winds → one Hit
 
-(:wat::core::defrecord :wex::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wex::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wex::Caw  [t <- :wat::core::i64 w <- :wat::core::i64])
-(:wat::core::defrecord :wex::Loc  [loc <- :wat::core::String])
-(:wat::core::defrecord :wex::At   [loc <- :wat::core::String])
-(:wat::core::defrecord :wex::Hit  [k <- :wat::core::i64])
+(:wat::core::defrecord :wex::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wex::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wex::Caw  [t <- wat.type/i64 w <- wat.type/i64])
+(:wat::core::defrecord :wex::Loc  [loc <- wat.type/String])
+(:wat::core::defrecord :wex::At   [loc <- wat.type/String])
+(:wat::core::defrecord :wex::Hit  [k <- wat.type/i64])
 
 (:wat::rete::defrule :wex::lead-wind
   :when [(:wat::rete::exists (:wex::Wind (?loc :- :loc)))]
@@ -51,13 +51,13 @@
   :when [(?fact :- :wex::Hit)])
 
 
-(:wat::core::defn :wex::n-at [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wex::n-at [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wex::q-At))))
 
-(:wat::core::defn :wex::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wex::n-hit [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wex::q-Hit))))
 
-(:wat::core::defn :wex::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wex::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -65,7 +65,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [lead (:wat::core::PersistentVector (:wex::lead-wind))
                     both (:wat::core::PersistentVector (:wex::both-exist))
                     ore  (:wat::core::PersistentVector (:wex::or-exists))

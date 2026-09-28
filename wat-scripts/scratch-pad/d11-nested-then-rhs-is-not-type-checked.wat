@@ -39,8 +39,8 @@
 ;; ANTI-VACUITY: the well-typed nested rule below must derive, or this file proves nothing. What
 ;; it now proves is the other half of the cure — that a WELL-TYPED nested constructor still
 ;; compiles and fires.
-(:wat::core::defrecord :d11r::Box   [k <- :wat::core::i64  s <- :wat::core::String])
-(:wat::core::defrecord :d11r::Inner [n <- :wat::core::i64])
+(:wat::core::defrecord :d11r::Box   [k <- wat.type/i64  s <- wat.type/String])
+(:wat::core::defrecord :d11r::Inner [n <- wat.type/i64])
 (:wat::core::defrecord :d11r::Outer [i <- :d11r::Inner])
 
 (:wat::rete::defrule :d11r::ok
@@ -49,7 +49,7 @@
 
 (:wat::rete::defquery :d11r::qo :params [] :when [(?f :- :d11r::Outer)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :d11r)
                              (:wat::core::PersistentVector (:d11r::qo)))

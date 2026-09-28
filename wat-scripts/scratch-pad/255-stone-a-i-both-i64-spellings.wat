@@ -20,7 +20,7 @@
 ;; Run:  ./target/release/wat --check ./wat-scripts/scratch-pad/255-stone-a-i-both-i64-spellings.wat   # EXIT=0
 ;;       ./target/release/wat        ./wat-scripts/scratch-pad/255-stone-a-i-both-i64-spellings.wat   # EXIT=0 (17/17 assertions pass)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::test::assert-eq (:wat::i64::+ 1 2) 3)
     (:wat::test::assert-eq (:wat::i64::- 5 3) 2)

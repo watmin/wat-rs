@@ -18,18 +18,18 @@
 ;; service ships them across a process fork.
 (:wat::core::defsurface :wat-tests::RespCounter :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::RespCounter::IncrementRequest  [n <- :wat::core::i64])
+  [(:wat::core::defrecord :wat-tests::RespCounter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :wat-tests::RespCounter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(increment [self <- :wat-tests::RespCounter  req <- :wat-tests::RespCounter::IncrementRequest] -> :wat-tests::RespCounter::IncrementResponse :max-request-bytes 524288)])
 
 ;; ── the service: a counter; :stop projects State → i64 (the count) ──
 (:wat::service::defservice :wat-tests::resp-counter
   :satisfies :wat-tests::RespCounter
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(increment [s ctx req]
@@ -41,7 +41,7 @@
          :reply (:wat-tests::RespCounter::IncrementResponse.Ok {:value c})})))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
   ;; decoupled from the ::Record. Read count through State/durable.
-  :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> :wat::core::i64
+  :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> wat.type/i64
           (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────

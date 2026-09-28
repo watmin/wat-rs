@@ -17,9 +17,9 @@
 ;; RED at HEAD: `:wat::telemetry::log` does not exist → unknown callee → startup fails.
 ;; GREEN after: the widget captures each `(log …)` call's own line → adjacent calls differ by exactly 1.
 
-(:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+(:wat::core::defrecord :probe::Note [text <- wat.type/String])
 
-(:wat::core::defn :user::log-line-diff [] -> :wat::core::i64
+(:wat::core::defn :user::log-line-diff [] -> wat.type/i64
   (:wat::core::let
     [msh     (:wat::query::mem-store/start :locus (:wat::spawn::thread)
                :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -27,7 +27,7 @@
      jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
                :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr   (:wat::telemetry::journal::Handle/addr jh)
-     tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags    (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      ;; two (log …) on ADJACENT lines — the whole point; keep them consecutive (a line between → diff 2 → RED).
      _ws     (:wat::telemetry::with-span span jaddr "probe-ns" tags
                (:wat::core::do

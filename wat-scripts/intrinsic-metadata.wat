@@ -7,7 +7,7 @@
 ;; Usage:
 ;;   cargo wat ./wat-scripts/intrinsic-metadata.wat
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match
     (:wat::runtime::metadata-of :wat::intrinsic::examples)  
     [:wat::core::Option.None {}

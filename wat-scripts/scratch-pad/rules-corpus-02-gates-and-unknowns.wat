@@ -57,25 +57,25 @@
 ;; pre-split facts is deliberate: string surgery is not reasoning, and the fence would
 ;; refuse most of it anyway. Feed rules facts at the granularity of the DECISION.
 (:wat::core::defrecord :m::Member
-  [id     <- :wat::core::i64
-   prefix <- :wat::core::String     ;; "String" | "string" | "i64" | "Vector" …
-   base   <- :wat::core::String     ;; "concat" | "length" | "to-string" …
-   style  <- :wat::core::String])   ;; "slash" (Prefix/base) | "colons" (prefix::base)
+  [id     <- wat.type/i64
+   prefix <- wat.type/String     ;; "String" | "string" | "i64" | "Vector" …
+   base   <- wat.type/String     ;; "concat" | "length" | "to-string" …
+   style  <- wat.type/String])   ;; "slash" (Prefix/base) | "colons" (prefix::base)
 
 ;; A RULING is data, not a branch. This is the decision table L6 argues for: nothing in the
 ;; spelling of `:wat::core::string::length` says it becomes `wat.string/length` while
 ;; `:wat::core::i64::to-string` becomes `wat.core.i64/to-string`. Somebody decided.
 (:wat::core::defrecord :m::Ruling
-  [concept <- :wat::core::String
-   target  <- :wat::core::String])
+  [concept <- wat.type/String
+   target  <- wat.type/String])
 
 ;; ─── DERIVED: the gates ──────────────────────────────────────────────────────
-(:wat::core::defrecord :m::Concept      [id <- :wat::core::i64  concept <- :wat::core::String  style <- :wat::core::String])
-(:wat::core::defrecord :m::StyleSeen    [concept <- :wat::core::String  style <- :wat::core::String])
-(:wat::core::defrecord :m::Inconsistent [concept <- :wat::core::String])
-(:wat::core::defrecord :m::Settled      [concept <- :wat::core::String])
-(:wat::core::defrecord :m::Target       [id <- :wat::core::i64  ns <- :wat::core::String  base <- :wat::core::String])
-(:wat::core::defrecord :m::NoRuling     [concept <- :wat::core::String])
+(:wat::core::defrecord :m::Concept      [id <- wat.type/i64  concept <- wat.type/String  style <- wat.type/String])
+(:wat::core::defrecord :m::StyleSeen    [concept <- wat.type/String  style <- wat.type/String])
+(:wat::core::defrecord :m::Inconsistent [concept <- wat.type/String])
+(:wat::core::defrecord :m::Settled      [concept <- wat.type/String])
+(:wat::core::defrecord :m::Target       [id <- wat.type/i64  ns <- wat.type/String  base <- wat.type/String])
+(:wat::core::defrecord :m::NoRuling     [concept <- wat.type/String])
 
 ;; G1 — CONCEPT. `String` and `string` are the same concept; case is a spelling accident.
 ;; The RHS computes (rete ops only), so the normalisation is part of the derivation.
@@ -118,7 +118,7 @@
   :then [(:m::Target :id ?id :ns ?t :base ?b)])
 
 ;; BISECT probe: same rule minus the Member re-join, to locate why `target` is dark.
-(:wat::core::defrecord :m::TargetNS [concept <- :wat::core::String  ns <- :wat::core::String])
+(:wat::core::defrecord :m::TargetNS [concept <- wat.type/String  ns <- wat.type/String])
 (:wat::rete::defrule :m::target-ns
   :when [(:m::Settled (?c :- :concept))
          (:m::Ruling  (?c :- :concept) (?t :- :target))]
@@ -187,10 +187,10 @@
     (:wat::core::PersistentVector
       (:m::Ruling :concept "i64" :target "wat.core.i64"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :m::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :m::show [label <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::core::PersistentVector
              (:m::concept-of) (:m::style-seen) (:m::inconsistent)

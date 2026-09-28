@@ -4,9 +4,9 @@
 ;;  2. Does the family PARTITION? `nil()` is `classified("Symbol","nil")` by construction, so
 ;;     `is-Nil?` and `is-Symbol?` should BOTH answer true for nil. A rule keyed on `is-Symbol?`
 ;;     would then also catch every nil.
-(:wat::holon::defrecord :probe::Order [id <- :wat::core::i64])
+(:wat::holon::defrecord :probe::Order [id <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rec (:probe::Order :id 7)
      h   (:wat::holon::to-holon rec)

@@ -17,9 +17,9 @@
 ;; Core types the bare tagged keyword honestly as the CONSTRUCTOR it is and refuses. Rete's prefix
 ;; shortcut is what makes it LESS correct than core for the same input.
 
-(:wat::core::defenum :tg::P :wat::enum::Pure :Hi [n <- :wat::core::i64])
-(:wat::core::defrecord :tg::Req [k <- :wat::core::i64  grade <- :tg::P])
-(:wat::core::defrecord :tg::Hit [k <- :wat::core::i64])
+(:wat::core::defenum :tg::P :wat::enum::Pure :Hi [n <- wat.type/i64])
+(:wat::core::defrecord :tg::Req [k <- wat.type/i64  grade <- :tg::P])
+(:wat::core::defrecord :tg::Hit [k <- wat.type/i64])
 
 ;; The constraint names the tagged variant BARE — there is no such value.
 (:wat::rete::defrule :tg::good
@@ -28,7 +28,7 @@
 
 (:wat::rete::defquery :tg::q :params [] :when [(?f :- :tg::Hit)])
 
-(:wat::core::defn :tg::fire [] -> :wat::core::i64
+(:wat::core::defn :tg::fire [] -> wat.type/i64
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :tg) (:wat::core::PersistentVector (:tg::q)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
@@ -47,5 +47,5 @@
           (:wat::kernel::assertion-failed! :message "fire: round cap")])
       (:tg::q)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:tg::fire)))

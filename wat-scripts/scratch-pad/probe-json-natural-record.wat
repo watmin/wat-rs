@@ -17,14 +17,14 @@
 ;;   CONTROL bare-keyed + SUBJECT #-tagged    => the gap is real; Stone 2a is the fix
 
 (:wat::core::defstruct :probe::ContentS
-  [type <- :wat::core::String
-   text <- :wat::core::String])
+  [type <- wat.type/String
+   text <- wat.type/String])
 
 (:wat::core::defrecord :probe::ContentR
-  [type <- :wat::core::String
-   text <- :wat::core::String])
+  [type <- wat.type/String
+   text <- wat.type/String])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; CONTROL — the struct. If this is not bare-keyed JSON, nothing below means anything.
     (:wat::kernel::println

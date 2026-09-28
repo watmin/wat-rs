@@ -13,14 +13,14 @@
 ;; "unknown-function", which is exactly what this probe needs to distinguish the two
 ;; branches without looking at message text.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [registered (:wat::eval-ast! (:wat::core::quote
                   (:wat::core::apply :wat::f64::max-of
-                    (:wat::core::Vector :- [:wat::core::f64] 3.0 9.0 41.0))))
+                    (wat.type/Vector :- [wat.type/f64] 3.0 9.0 41.0))))
      unknown    (:wat::eval-ast! (:wat::core::quote
                   (:wat::core::apply :wat::not::a::real::verb
-                    (:wat::core::Vector :- [:wat::core::i64] 1))))]
+                    (wat.type/Vector :- [wat.type/i64] 1))))]
     (:wat::core::do
       (:wat::core::match registered
         [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "UNEXPECTED ok: " (:wat::edn::write v)))]

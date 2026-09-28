@@ -7,7 +7,7 @@
   -> :T
   payload)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::interpolate "D={d}"
       :d (:wat::i64::to-string (:dm109d::hold :payload 7)))))

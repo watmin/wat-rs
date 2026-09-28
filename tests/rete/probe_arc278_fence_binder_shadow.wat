@@ -12,7 +12,7 @@
 ;; PAYLOAD binder (`(:wat::core::Some v)`) — the deep-scan case `check_match_pattern_for_shadow`
 ;; exists to still admit, since `v` is plain.
 
-(:wat::core::defrecord :fbso::N [k <- :wat::core::i64 o <- (:wat::core::Option :- [:wat::core::i64])])
+(:wat::core::defrecord :fbso::N [k <- wat.type/i64 o <- (:wat::core::Option :- [wat.type/i64])])
 
 ;; row 1 — the real corpus shape: plain binder holding a rete var's VALUE.
 (:wat::rete::defrule :fbso::plain-let-value

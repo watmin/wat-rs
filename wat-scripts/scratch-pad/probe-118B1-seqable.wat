@@ -16,29 +16,29 @@
 
 ;; An unbounded source — row 7's subject.
 (:wat::core::defn :probe::nat
-  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
+  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:probe::nat (:wat::core::+ i 1)))))
 
 ;; ★ ROW 6 — ONE generic fn over ANY (Seqable :- [T]). This is the shape the whole route exists for:
 ;; after B2 every sequence verb in the stdlib looks like this, and so does a user's.
 (:wat::core::defn :probe::count-via-seq :- [T]
-  [s <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
+  [s <- (:wat::core::Seqable :- [T])] -> wat.type/i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
 ;; Rows 2–5 — `seq` on each container drains to the same elements, in order. Joined so the ORDER
 ;; is asserted, not just the count: a coercion that reversed or shuffled would pass a length check.
 (:wat::core::defn :probe::elems-of :- [T]
-  [s <- (:wat::core::Seqable :- [T])] -> :wat::core::String
+  [s <- (:wat::core::Seqable :- [T])] -> wat.type/String
   (:wat::string::join "," (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; rows 2-5 — order-preserving drain through the surface, one line per container.
     (:wat::kernel::println
       (:wat::string::join " | "
-        (:wat::core::Vector :- [:wat::core::String]
-          (:probe::elems-of (:wat::core::Vector :- [:wat::core::i64] 1 2 3))
+        (wat.type/Vector :- [wat.type/String]
+          (:probe::elems-of (wat.type/Vector :- [wat.type/i64] 1 2 3))
           (:probe::elems-of (:wat::core::PersistentVector 1 2 3 4))
           (:probe::elems-of (:wat::core::List 1 2 3 4 5))
           (:probe::elems-of (:wat::stream::cons 7
@@ -48,8 +48,8 @@
     ;; ★ row 6 — the generic fn CALLED with all four. Expect 3,4,5,2.
     (:wat::kernel::println
       (:wat::string::join ","
-        (:wat::core::Vector :- [:wat::core::i64]
-          (:probe::count-via-seq (:wat::core::Vector :- [:wat::core::i64] 1 2 3))
+        (wat.type/Vector :- [wat.type/i64]
+          (:probe::count-via-seq (wat.type/Vector :- [wat.type/i64] 1 2 3))
           (:probe::count-via-seq (:wat::core::PersistentVector 1 2 3 4))
           (:probe::count-via-seq (:wat::core::List 1 2 3 4 5))
           (:probe::count-via-seq (:wat::stream::cons 1

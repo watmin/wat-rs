@@ -7,21 +7,21 @@
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest        [])
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :my::Counter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::counter
   :satisfies :my::Counter
-  :durable   [count <- :wat::core::i64]
+  :durable   [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]
@@ -35,7 +35,7 @@
 
 ;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
 ;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
-(:wat::core::defn :user::reply-value [r <- :my::Counter::Reply] -> :wat::core::i64
+(:wat::core::defn :user::reply-value [r <- :my::Counter::Reply] -> wat.type/i64
   (:wat::core::match r 
     [:my::Counter::Reply.Get {:resp resp}
      (:wat::core::match resp [:my::Counter::GetResponse.Ok {:value value} value]
@@ -58,7 +58,7 @@
 ;; Hand-drive the GENERATED serve (C.3 wraps start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +
 ;; initial state (State (Record 0)), connects a client, round-trips two ops, reads the typed Reply.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [pair (:wat::kernel::listener (:wat::spawn::thread) :my::Counter::Op :my::Counter::Reply)
      l    (:wat::spawn::Bound/listener pair)
@@ -69,7 +69,7 @@
      ;; the monotonic caller-id counter) and its `clients` slot is now (Tuple :- [i64 (Peer :- […])])
      ;; entries (the id travels WITH its peer), not the bare Peer vector.
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:my::counter::Status :my::counter::Admin])] -> :wat::core::nil
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:my::counter::Status :my::counter::Admin])] -> wat.type/nil
               (:my::counter::serve self l
                 ;; arc 278 the call context — the Op slot must be the SERVICE superset type
                 ;; (`my::counter::Op`, not the surface `my::Counter::Op`) DIRECTLY: the
@@ -78,7 +78,7 @@
                 ;; Tuple wrapper (unify recurses into tuple elements without re-entering
                 ;; assignable) — so an empty vector built at the widened surface type no
                 ;; longer round-trips once `clients`' element is (Tuple :- [i64 (Peer :- […])]).
-                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:my::Counter::Reply :my::counter::Op])])])
+                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 (:wat::kernel::Peer :- [:my::Counter::Reply :my::counter::Op])])])
                 0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

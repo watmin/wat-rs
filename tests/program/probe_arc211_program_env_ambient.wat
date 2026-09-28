@@ -2,7 +2,7 @@
 ;; slurped via startup_beside(file!()).
 
 ;; c02: construct Env with (started-at=5000, peer-started-at=6000) and return epoch-millis of peer-started-at.
-(:wat::core::defn :probe::c02-compute [] -> :wat::core::i64
+(:wat::core::defn :probe::c02-compute [] -> wat.type/i64
   (:wat::time::epoch-millis
     (:wat::program::Env/peer-started-at
       (:wat::program::Env
@@ -12,7 +12,7 @@
         :user-data (:wat::program::EmptyEnv)))))
 
 ;; c03: read started-at from the installed ambient env via (:wat::program::env).
-(:wat::core::defn :probe::c03-compute [] -> :wat::core::i64
+(:wat::core::defn :probe::c03-compute [] -> wat.type/i64
   (:wat::time::epoch-millis
     (:wat::program::Env/started-at
       (:wat::program::env))))
@@ -26,7 +26,7 @@
     :user-data (:wat::program::EmptyEnv)))
 
 ;; c04: user::main that reads from the ambient env (proves invoke_user_main installs it).
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::program::Env/started-at (:wat::program::env))
     nil))

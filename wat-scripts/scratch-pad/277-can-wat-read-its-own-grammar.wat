@@ -12,10 +12,10 @@
 ;;
 ;; This tries ALL 36. Not one. R9: QVOD NON ROGATVR, NVMERATVR.
 
-(:wat::core::defn :g::has-syntax? [r <- :wat::intrinsic::Row] -> :wat::core::bool
+(:wat::core::defn :g::has-syntax? [r <- :wat::intrinsic::Row] -> wat.type/bool
   (:wat::core::not (:wat::core::= (:wat::intrinsic::Row/syntax r) "")))
 
-(:wat::core::defn :g::try [r <- :wat::intrinsic::Row] -> :wat::core::i64
+(:wat::core::defn :g::try [r <- :wat::intrinsic::Row] -> wat.type/i64
   (:wat::core::match (:wat::core::read-string (:wat::intrinsic::Row/syntax r))
     [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::let [kids (:wat::core::ast->children forms)]
@@ -31,12 +31,12 @@
           :m (:wat::core::Error/message cause)))
         1)]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [with (:wat::core::into (:wat::core::Vector :- [:wat::intrinsic::Row])
+    [with (:wat::core::into (wat.type/Vector :- [:wat::intrinsic::Row])
             (:wat::core::filter :g::has-syntax? (:wat::intrinsic::rows)))
      bad  (:wat::core::foldl
-            (:wat::core::fn [acc <- :wat::core::i64 r <- :wat::intrinsic::Row] -> :wat::core::i64
+            (:wat::core::fn [acc <- wat.type/i64 r <- :wat::intrinsic::Row] -> wat.type/i64
               (:wat::core::+ acc (:g::try r)))
             0 with)]
     (:wat::kernel::println (:wat::string::interpolate

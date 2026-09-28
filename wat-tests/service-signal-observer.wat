@@ -41,9 +41,9 @@
   :messages
   [(:wat::core::defrecord :wat-tests::SignalObserver::ObserveRequest [])
    (:wat::core::defenum :wat-tests::SignalObserver::ObserveResponse :wat::enum::Pure
-     :Ok               [requests <- :wat::core::i64  sighup <- :wat::core::bool  user1 <- :wat::core::bool  user2 <- :wat::core::bool]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [requests <- wat.type/i64  sighup <- wat.type/bool  user1 <- wat.type/bool  user2 <- wat.type/bool]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(observe [self <- :wat-tests::SignalObserver  req <- :wat-tests::SignalObserver::ObserveRequest] -> :wat-tests::SignalObserver::ObserveResponse :max-request-bytes 524288)])
 
@@ -52,7 +52,7 @@
 ;; never reset here) and folds the current reading into the durable record it replies with. ─────
 (:wat::service::defservice :wat-tests::signal-observer
   :satisfies :wat-tests::SignalObserver
-  :durable [requests <- :wat::core::i64  sighup <- :wat::core::bool  user1 <- :wat::core::bool  user2 <- :wat::core::bool]
+  :durable [requests <- wat.type/i64  sighup <- wat.type/bool  user1 <- wat.type/bool  user2 <- wat.type/bool]
   :ephemeral []
   :impls
   [(observe [s ctx req]
@@ -102,7 +102,7 @@
        after-hangup
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
          [:wat-tests::SignalObserver::ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
-           (:wat::core::Vector :- [:wat::core::bool]
+           (wat.type/Vector :- [wat.type/bool]
              (:wat::core::= reqs 1) hup (:wat::core::not u1) (:wat::core::not u2))]
          [:wat-tests::SignalObserver::ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
            (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge after sighup")]
@@ -117,7 +117,7 @@
        after-user1
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
          [:wat-tests::SignalObserver::ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
-           (:wat::core::Vector :- [:wat::core::bool]
+           (wat.type/Vector :- [wat.type/bool]
              (:wat::core::= reqs 2) hup u1 (:wat::core::not u2))]
          [:wat-tests::SignalObserver::ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
            (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge after user1")]
@@ -132,7 +132,7 @@
        after-user2
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
          [:wat-tests::SignalObserver::ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
-           (:wat::core::Vector :- [:wat::core::bool]
+           (wat.type/Vector :- [wat.type/bool]
              (:wat::core::= reqs 3) hup u1 u2)]
          [:wat-tests::SignalObserver::ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
            (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge after user2")]
@@ -146,9 +146,9 @@
          [:wat::kernel::SignalOutcome.Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])]
 
       (:wat::core::concat
-        (:wat::core::Vector :- [:wat::core::bool] sighup-delivered user1-delivered user2-delivered terminate-delivered)
+        (wat.type/Vector :- [wat.type/bool] sighup-delivered user1-delivered user2-delivered terminate-delivered)
         (:wat::core::concat after-hangup (:wat::core::concat after-user1 after-user2))))
-    (:wat::core::Vector :- [:wat::core::bool]
+    (wat.type/Vector :- [wat.type/bool]
       true true true true     ;; the four SignalOutcome::Delivered (sighup/user1/user2/terminate)
       true true true true     ;; after sighup:  requests=1, sighup,  !user1, !user2
       true true true true     ;; after user1:   requests=2, sighup,  user1,  !user2

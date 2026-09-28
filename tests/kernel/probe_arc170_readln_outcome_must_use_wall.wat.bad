@@ -9,7 +9,7 @@
 ;; A FACED readln (matched over Datum/Eof/Stopped) has type `T` (the decoded value) or a joined
 ;; arm type, never `(ReadlnOutcome :- [T])` — so the gate fires ONLY on the raw dropped form and every
 ;; migrated call site stays legal. This fixture deliberately does NOT face it.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_ (:wat::kernel::readln )]
     nil))

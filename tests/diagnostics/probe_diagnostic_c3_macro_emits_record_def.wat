@@ -4,7 +4,7 @@
 ;; A defmacro whose OUTPUT contains a defrecord macro-call (must re-expand) + a defenum
 ;; wrapping that record as a variant field type (record must precede the enum) + a defn using
 ;; the Op variant and the Record accessor. This mirrors the C.3 target expansion in miniature.
-(:wat::core::defmacro :t::mk [base <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :t::mk [base <- wat.type/AST] -> wat.type/AST
   (:wat::core::let
     [base-str (:wat::keyword::to-string base)
      req-name (:wat::keyword::from-string (:wat::string::concat base-str "::Req"))
@@ -23,9 +23,9 @@
      ;; hardcoded `::` in the concatenated string; `op-name` is already the Op enum's FQDN.
      go-var   (:wat::runtime::compose-variant op-name :Go)]
     `(:wat::core::do
-       (:wat::core::defrecord ~req-name [n <- :wat::core::i64])
+       (:wat::core::defrecord ~req-name [n <- wat.type/i64])
        (:wat::core::defenum ~op-name :wat::enum::Pure :Go [req <- ~req-ty])
-       (:wat::core::defn ~go-name [n <- :wat::core::i64] -> :wat::core::i64
+       (:wat::core::defn ~go-name [n <- wat.type/i64] -> wat.type/i64
          (:wat::core::match (~go-var {:req (~req-name :n n)}) 
            [~go-var {:req req} (~acc-name req)])))))
 

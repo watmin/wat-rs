@@ -20,7 +20,7 @@
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-vector
   (:wat::core::let [out (:wat::core::into [] (:wat::core::Seqable/seq
-                          (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))]
+                          (wat.type/Vector :- [wat.type/i64] 1 2 3)))]
     (:wat::test::assert-eq (:wat::string::join "," out) "1,2,3")))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-persistentvector
@@ -48,13 +48,13 @@
 ;; `-stream` twin.
 
 (:wat::core::defn :wat-tests::core::core-seqable::count-via-seq :- [T]
-  [s <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
+  [s <- (:wat::core::Seqable :- [T])] -> wat.type/i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::generic-fn-over-seqable-accepts-all-four
   (:wat::core::do
     (:wat::test::assert-eq
-      (:wat-tests::core::core-seqable::count-via-seq (:wat::core::Vector :- [:wat::core::i64] 1 2 3)) 3)
+      (:wat-tests::core::core-seqable::count-via-seq (wat.type/Vector :- [wat.type/i64] 1 2 3)) 3)
     (:wat::test::assert-eq
       (:wat-tests::core::core-seqable::count-via-seq (:wat::core::PersistentVector 1 2 3 4)) 4)
     (:wat::test::assert-eq
@@ -72,7 +72,7 @@
 ;; is the assertion — `assert-eq` is only there to pin the values it yielded.
 
 (:wat::core::defn :wat-tests::core::core-seqable::nat
-  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
+  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:wat-tests::core::core-seqable::nat (:wat::core::+ i 1)))))
 

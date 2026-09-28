@@ -19,8 +19,8 @@
 ;; "ONE COPY … hand-written at THREE independent sites". `typing.rs` is the fourth.
 
 (:wat::core::defenum :evt::G :wat::enum::Pure :Hi :Lo)
-(:wat::core::defrecord :evt::Req [k <- :wat::core::i64  grade <- :evt::G])
-(:wat::core::defrecord :evt::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :evt::Req [k <- wat.type/i64  grade <- :evt::G])
+(:wat::core::defrecord :evt::Hit [k <- wat.type/i64])
 
 ;; CONTROL — the variant EXISTS. Must match exactly the one Hi row.
 (:wat::rete::defrule :evt::good
@@ -29,7 +29,7 @@
 
 (:wat::rete::defquery :evt::q :params [] :when [(?f :- :evt::Hit)])
 
-(:wat::core::defn :evt::fire [] -> :wat::core::i64
+(:wat::core::defn :evt::fire [] -> wat.type/i64
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :evt) (:wat::core::PersistentVector (:evt::q)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
@@ -48,5 +48,5 @@
           (:wat::kernel::assertion-failed! :message "fire: round cap")])
       (:evt::q)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:evt::fire)))

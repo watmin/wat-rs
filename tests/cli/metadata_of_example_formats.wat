@@ -13,17 +13,17 @@
 (:wat::load-file! "../../wat-scripts/fmt/rules/defrecord.wat")
 
 (:wat::core::defn :user::widest
-  [s <- :wat::core::String]
-  -> :wat::core::i64
+  [s <- wat.type/String]
+  -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [m <- :wat::core::i64  line <- :wat::core::String] -> :wat::core::i64
+    (:wat::core::fn [m <- wat.type/i64  line <- wat.type/String] -> wat.type/i64
       (:wat::core::if (:wat::i64::> (:wat::string::length line) m)
         (:wat::string::length line)
         m))
     0
     (:wat::string::split s "\n")))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :fmt)
      meta  (:wat::core::Option/expect

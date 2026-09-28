@@ -33,10 +33,10 @@
     origin))
 
 ;; the macro EMITS the call to :probe::inner — mirroring bracket-map emitting (map-worker …)
-(:wat::core::defmacro :probe::emit-call [] -> :wat::WatAST
+(:wat::core::defmacro :probe::emit-call [] -> wat.type/AST
   `(:probe::inner))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:probe::emit-call))
     (:wat::kernel::println (:probe::emit-call))))

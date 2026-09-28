@@ -15,7 +15,7 @@
 ;; bindings is the hoistable join-blowup form the corpus was migrated away from at `feb5fae91`;
 ;; a fixture in a teaching directory must not re-teach it.
 
-(:wat::core::defrecord :tgc::N [k <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :tgc::N [k <- wat.type/i64  s <- wat.type/String])
 
 ;; row 1 — knowable and RIGHT: i64 comparator over two i64-bound join vars.
 (:wat::rete::defrule :tgc::typed-i64

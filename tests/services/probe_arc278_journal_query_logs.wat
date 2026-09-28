@@ -2,9 +2,9 @@
 ;; Symmetric to journal_query (metrics): write 2 Logs (t=1s,2s), query-logs BROAD [0,3s] -> 2,
 ;; NARROW [1.5s,3s] -> 1. Returns 2*10+1 = 21. Closes the un-probed query-logs gap.
 
-(:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+(:wat::core::defrecord :probe::Note [text <- wat.type/String])
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -12,7 +12,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:probe::Note :text "one")))
@@ -20,7 +20,7 @@
              :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Warn
              :message (:wat::edn::write (:probe::Note :text "two")))
      _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2)))
+             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1 l2)))
      bq    (:wat::telemetry::Journal/query-logs journal
              (:wat::telemetry::Journal::QueryLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::Option.None))

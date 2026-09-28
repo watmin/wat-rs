@@ -1,13 +1,13 @@
 ;; Co-located fixture for wat_engram_library.rs — slurped via startup_beside(file!()).
 ;; Each fn returns a String label rather than println-ing it.
 
-(:wat::core::defn :my::compute-empty [] -> :wat::core::String
+(:wat::core::defn :my::compute-empty [] -> wat.type/String
   (:wat::core::let
     [lib (:wat::holon::EngramLibrary/new 10000)
      n   (:wat::holon::EngramLibrary/len lib)]
     (:wat::core::if (:wat::core::= n 0)  "empty" "non-empty")))
 
-(:wat::core::defn :my::compute-add-count [] -> :wat::core::String
+(:wat::core::defn :my::compute-add-count [] -> wat.type/String
   (:wat::core::let
     [lib     (:wat::holon::EngramLibrary/new 10000)
      sub     (:wat::holon::OnlineSubspace/new 10000 4)
@@ -22,7 +22,7 @@
         (:wat::core::and found (:wat::core::not missing))) 
       "ok" "wrong")))
 
-(:wat::core::defn :my::compute-match [] -> :wat::core::String
+(:wat::core::defn :my::compute-match [] -> wat.type/String
   (:wat::core::let
     [lib      (:wat::holon::EngramLibrary/new 10000)
      sub      (:wat::holon::OnlineSubspace/new 10000 4)

@@ -18,8 +18,8 @@
 ;; same records, same shape, one unbound variable apart. If both compile, the DSL diagnoses
 ;; nothing and the claim is REFUTED. If both fail, the instrument is not isolating the mistake.
 
-(:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
 
 ;; ── CONTROL — well-formed: `?c` is bound by the `<-` in :when and consumed in :then.
 (:wat::rete::defrule :usr::ok-rule
@@ -33,7 +33,7 @@
   :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
   :then [(:usr::Hot :c ?missing)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; ★ THE BLOCKER, CLOSED HONESTLY. The child-entry strike died because `fn-forms` raised
      ;; on `?c` while walking a rules body. `defrule` expands to a defn calling `make-rule`

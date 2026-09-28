@@ -18,13 +18,13 @@
   [(:wat::core::defrecord :probe::Tick2::StartRequest [])
    (:wat::core::defenum :probe::Tick2::StartResponse :wat::enum::Pure
      :Ok               []
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
    (:wat::core::defrecord :probe::Tick2::BumpRequest [])
    (:wat::core::defenum :probe::Tick2::BumpResponse :wat::enum::Pure
      :Ok               []
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(start [self <- :probe::Tick2  req <- :probe::Tick2::StartRequest] -> :probe::Tick2::StartResponse
      :max-request-bytes 524288)
@@ -33,7 +33,7 @@
 
 (:wat::service::defservice :probe::tick2
   :satisfies :probe::Tick2
-  :durable   [count <- :wat::core::i64]
+  :durable   [count <- wat.type/i64]
   :ephemeral []
   :impls
   [;; The one difference from the sibling `.wat.bad`: arms `-tick` (INTERNAL), not `bump`.

@@ -13,10 +13,10 @@
     [svc     (:wat::test::spawn-peer (:wat::spawn::process)
                (:wat::core::forms
                 (:wat::core::defn :user::serve
-                  [self    <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64])
-                   l       <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
-                   clients <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])]
-                  -> :wat::core::nil
+                  [self    <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) wat.type/i64])
+                   l       <- (:wat::kernel::Listener :- [wat.type/i64 wat.type/i64])
+                   clients <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])])]
+                  -> wat.type/nil
                   (:wat::core::match (:wat::kernel::poll self l clients) 
                     [:wat::spawn::ServiceEvent.Shutdown {} nil]
                     [:wat::spawn::ServiceEvent.Connection {:peer peer}
@@ -31,14 +31,14 @@
                       (:user::serve self l (:wat::seq::remove-at clients idx))]
                     ;; Admin wildcard — arc 291 new variant; not exercised by this probe.
                     [_ nil]))
-                (:wat::core::defn :user::main [] -> :wat::core::nil
+                (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
                     [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
                      self (:wat::program::self-peer
-                             (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64)
+                             (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) :wat::core::i64)
                      _    (:wat::core::match (:wat::kernel::send self (:wat::spawn::Bound/address b)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                     (:user::serve self (:wat::spawn::Bound/listener b)
-                      (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))))
+                      (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]))))))
      ;; recv' the service's minted capability (blocks until service sends it).
      svc-addr (:wat::core::match (:wat::kernel::recv svc)
                 [:wat::kernel::RecvOutcome.Message {:msg m} m]
@@ -53,12 +53,12 @@
      ;; stranger self-peer: S=i64 (would send up — never does), R=(Address' :- [i64 i64]) (receives cap).
      stranger (:wat::test::spawn-peer (:wat::spawn::process)
                 (:wat::core::forms
-                  (:wat::core::defn :user::main [] -> :wat::core::nil
+                  (:wat::core::defn :user::main [] -> wat.type/nil
                     (:wat::core::let
                       ;; receive the leaked service address from the owner via our lineage channel.
                       [self (:wat::program::self-peer
                                :wat::core::i64
-                               (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]))
+                               (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]))
                        addr (:wat::core::match (:wat::kernel::recv self)  ;; blocks until parent sends the cap
                               [:wat::kernel::RecvOutcome.Message {:msg m} m]
                               [:wat::kernel::RecvOutcome.Lost {:cause cause}

@@ -1,4 +1,4 @@
-(:wat::core::defn :user::c01 [] -> :wat::core::bool
+(:wat::core::defn :user::c01 [] -> wat.type/bool
   (:wat::core::List?
     (:wat::core::match (:wat::core::read-string
       (:wat::core::write-forms

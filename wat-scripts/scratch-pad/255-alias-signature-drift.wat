@@ -11,11 +11,11 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet — same standing rule as `255-registry-census.wat`.
 
-(:wat::core::defn :drift::alias? [r <- :wat::intrinsic::Row] -> :wat::core::bool
+(:wat::core::defn :drift::alias? [r <- :wat::intrinsic::Row] -> wat.type/bool
   (:wat::core::match (:wat::intrinsic::Row/alias-of r)
     [:wat::core::Option.Some {:value _} true] [:wat::core::Option.None {} false]))
 
-(:wat::core::defn :drift::render [r <- :wat::intrinsic::Row] -> :wat::core::String
+(:wat::core::defn :drift::render [r <- :wat::intrinsic::Row] -> wat.type/String
   (:wat::string::concat
     (:wat::string::concat
       (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "|")
@@ -23,21 +23,21 @@
     (:wat::core::match (:wat::intrinsic::Row/alias-of r)
       [:wat::core::Option.Some {:value t} t] [:wat::core::Option.None {} ""])))
 
-(:wat::core::defn :drift::plain [r <- :wat::intrinsic::Row] -> :wat::core::String
+(:wat::core::defn :drift::plain [r <- :wat::intrinsic::Row] -> wat.type/String
   (:wat::string::concat
     (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "@")
     (:wat::i64::to-string (:wat::intrinsic::Row/arity r))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [rows    (:wat::core::into [] (:wat::intrinsic::rows))
                     aliases (:wat::core::into [] (:wat::core::filter :drift::alias? rows))]
     (:wat::core::do
       (:wat::core::mapv
-        (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
+        (:wat::core::fn [r <- :wat::intrinsic::Row] -> wat.type/nil
           (:wat::kernel::println (:wat::string::concat "ALIAS " (:drift::render r))))
         aliases)
       (:wat::core::mapv
-        (:wat::core::fn [r <- :wat::intrinsic::Row] -> :wat::core::nil
+        (:wat::core::fn [r <- :wat::intrinsic::Row] -> wat.type/nil
           (:wat::kernel::println (:wat::string::concat "ROW " (:drift::plain r))))
         rows)
       (:wat::kernel::println ""))))

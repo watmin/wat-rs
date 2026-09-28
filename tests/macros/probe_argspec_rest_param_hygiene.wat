@@ -6,18 +6,18 @@
 ;; to carry the Identifier so bind-key == lookup-key.
 
 (:wat::core::defmacro :test::make-rest-sum
-  [] -> :wat::WatAST
+  [] -> wat.type/AST
   `(:wat::core::defclause :test::rest-sum
-     ([x <- :wat::core::i64 y <- :wat::core::i64
-       & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+     ([x <- wat.type/i64 y <- wat.type/i64
+       & rest <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
        (:wat::core::foldl
-         (:wat::core::fn [acc <- :wat::core::i64 n <- :wat::core::i64] -> :wat::core::i64
+         (:wat::core::fn [acc <- wat.type/i64 n <- wat.type/i64] -> wat.type/i64
            (:wat::i64::+ acc n))
          (:wat::i64::+ x y)
          rest))))
 
 (:test::make-rest-sum)
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:test::rest-sum 1 2 3 4))
 

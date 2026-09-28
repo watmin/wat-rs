@@ -4,7 +4,7 @@
 
 ;; ─── Probe 1 — watast_to_holon Keyword arm ───────────────────────────────────
 
-(:wat::core::defn :t::probe-1 [] -> :wat::core::String
+(:wat::core::defn :t::probe-1 [] -> wat.type/String
   (:wat::core::let
     [h   (:wat::holon::from-wat (:wat::core::quote :foo))
      edn (:wat::edn::write h)]
@@ -12,7 +12,7 @@
 
 ;; ─── Probe 2 — :wat::holon::leaf Keyword arm ─────────────────────────────────
 
-(:wat::core::defn :t::probe-2 [] -> :wat::core::String
+(:wat::core::defn :t::probe-2 [] -> wat.type/String
   (:wat::core::let
     [h   (:wat::holon::leaf :user::foo)
      edn (:wat::edn::write h)]
@@ -20,7 +20,7 @@
 
 ;; ─── Probe 3a — eval-step! AlreadyTerminal Keyword ───────────────────────────
 
-(:wat::core::defn :t::probe-3a [] -> :wat::core::String
+(:wat::core::defn :t::probe-3a [] -> wat.type/String
   (:wat::core::let
     [step-result
       (:wat::eval-step! (:wat::core::quote :outcome))
@@ -32,7 +32,7 @@
 
 ;; ─── Probe 3b — from-wat(quote :outcome) identity equality ───────────────────
 
-(:wat::core::defn :t::probe-3b [] -> :wat::core::String
+(:wat::core::defn :t::probe-3b [] -> wat.type/String
   (:wat::core::let
     [h1  (:wat::holon::from-wat (:wat::core::quote :outcome))
      h2  (:wat::holon::from-wat (:wat::core::quote :outcome))
@@ -41,7 +41,7 @@
 
 ;; ─── Probe 4 — EDN keyword wire format ───────────────────────────────────────
 
-(:wat::core::defn :t::probe-4 [] -> :wat::core::String
+(:wat::core::defn :t::probe-4 [] -> wat.type/String
   (:wat::core::let
     [h   (:wat::holon::leaf :bar)
      edn (:wat::edn::write h)]
@@ -49,7 +49,7 @@
 
 ;; ─── Probe 5 — Value::Unit consistency / nil leaf ────────────────────────────
 
-(:wat::core::defn :t::probe-5 [] -> :wat::core::String
+(:wat::core::defn :t::probe-5 [] -> wat.type/String
   (:wat::core::let
     [h   (:wat::holon::leaf nil)
      edn (:wat::edn::write h)]
@@ -57,7 +57,7 @@
 
 ;; ─── Probe 6 — watast_to_holon keyword distinct identities ───────────────────
 
-(:wat::core::defn :t::probe-6 [] -> :wat::core::String
+(:wat::core::defn :t::probe-6 [] -> wat.type/String
   (:wat::core::let
     [h1  (:wat::holon::from-wat (:wat::core::quote :foo))
      h2  (:wat::holon::from-wat (:wat::core::quote :bar))
@@ -85,16 +85,16 @@
 ;; stay alongside as encoding regression guards.
 ;; `[[feedback_ask_what_a_test_measures_before_fixing_how_it_measures]]`
 
-(:wat::core::defn :t::probe-1-is-keyword [] -> :wat::core::String
+(:wat::core::defn :t::probe-1-is-keyword [] -> wat.type/String
   (:wat::edn::write
     (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :foo)))))
 
-(:wat::core::defn :t::probe-1-is-symbol [] -> :wat::core::String
+(:wat::core::defn :t::probe-1-is-symbol [] -> wat.type/String
   (:wat::edn::write
     (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote :foo)))))
 
-(:wat::core::defn :t::probe-2-is-keyword [] -> :wat::core::String
+(:wat::core::defn :t::probe-2-is-keyword [] -> wat.type/String
   (:wat::edn::write (:wat::holon::is-Keyword? (:wat::holon::leaf :user::foo))))
 
-(:wat::core::defn :t::probe-5-is-nil [] -> :wat::core::String
+(:wat::core::defn :t::probe-5-is-nil [] -> wat.type/String
   (:wat::edn::write (:wat::holon::is-Nil? (:wat::holon::leaf nil))))

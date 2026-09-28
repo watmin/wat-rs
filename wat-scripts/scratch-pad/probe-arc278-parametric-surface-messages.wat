@@ -47,15 +47,15 @@
 (:wat::core::defsurface :probe::PCache :- [K V] :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::PCache::GetRequest :- [K]
-     [probes <- (:wat::core::Vector :- [K])])
+     [probes <- (wat.type/Vector :- [K])])
    (:wat::core::defenum :probe::PCache::GetResponse :- [K V] :wat::enum::Pure
      ;; `echo` carries the K-typed probes back so a WIRE gate — once the layer above is ruled —
      ;; can assert on the actual values in BOTH directions, not just "no crash".
-     :Ok              [echo    <- (:wat::core::Vector :- [K])
-                       results <- (:wat::core::Vector :- [(:wat::core::Option :- [V])])]
+     :Ok              [echo    <- (wat.type/Vector :- [K])
+                       results <- (wat.type/Vector :- [(:wat::core::Option :- [V])])]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
   [(get [self <- (:probe::PCache :- [K V])  req <- (:probe::PCache::GetRequest :- [K])]

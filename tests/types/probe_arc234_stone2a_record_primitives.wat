@@ -9,15 +9,15 @@
 ;; construction shape, `:wat::core::type`, `Record/field-at`, hologram equality — is unchanged;
 ;; only how the input is built changed.
 
-(:wat::holon::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
-(:wat::holon::defrecord :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::holon::defrecord :myapp::Voltage [magnitude <- wat.type/f64])
+(:wat::holon::defrecord :myapp::Point [x <- wat.type/i64  y <- wat.type/i64])
 
 ;; ─── Probe 1: construction returns :wat::holon::Record (HolonRecord aggregate) ──────
 (:wat::core::defn :user::probe-1 [] -> :wat::holon::Record
   (:myapp::Voltage :magnitude 5.0))
 
 ;; ─── Probe 2: :wat::core::type returns class_fqdn ────────────────────────────
-(:wat::core::defn :user::probe-2 [] -> :wat::core::String
+(:wat::core::defn :user::probe-2 [] -> wat.type/String
   (:wat::core::let
     [v (:myapp::Voltage :magnitude 5.0)]
     (:wat::core::type v)))
@@ -31,7 +31,7 @@
   (:myapp::Point :x 3 :y 4))
 
 ;; ─── Probe 5: Record/field-at positional access ──────────────────────────────
-(:wat::core::defn :user::probe-5 [] -> :wat::core::i64
+(:wat::core::defn :user::probe-5 [] -> wat.type/i64
   (:wat::core::let
     [v (:myapp::Point :x 3 :y 4)]
     (:wat::core::Record/field-at v 1)))

@@ -5,14 +5,14 @@
 ;; the CLI does:
 ;;   cargo run --release --bin wat -- tests/rete/datamancer.src.wat
 
-(:wat::core::defrecord :dm::Beat      [t <- :wat::core::i64  kind <- :wat::core::String])
-(:wat::core::defrecord :dm::Artifact  [kind <- :wat::core::String  name <- :wat::core::String])
-(:wat::core::defrecord :dm::Gap       [t <- :wat::core::i64])
-(:wat::core::defrecord :dm::ReadAfter [t <- :wat::core::i64])
-(:wat::core::defrecord :dm::Hollow    [t <- :wat::core::i64])
-(:wat::core::defrecord :dm::Primer    [name <- :wat::core::String])
-(:wat::core::defrecord :dm::Four      [n <- :wat::core::i64])
-(:wat::core::defrecord :dm::Datamancer [n <- :wat::core::i64  sigil <- :wat::core::String])
+(:wat::core::defrecord :dm::Beat      [t <- wat.type/i64  kind <- wat.type/String])
+(:wat::core::defrecord :dm::Artifact  [kind <- wat.type/String  name <- wat.type/String])
+(:wat::core::defrecord :dm::Gap       [t <- wat.type/i64])
+(:wat::core::defrecord :dm::ReadAfter [t <- wat.type/i64])
+(:wat::core::defrecord :dm::Hollow    [t <- wat.type/i64])
+(:wat::core::defrecord :dm::Primer    [name <- wat.type/String])
+(:wat::core::defrecord :dm::Four      [n <- wat.type/i64])
+(:wat::core::defrecord :dm::Datamancer [n <- wat.type/i64  sigil <- wat.type/String])
 
 ;; Compaction is a fact about the mind, not the disk.
 (:wat::rete::defrule :dm::gap
@@ -78,13 +78,13 @@
 (:wat::rete::defquery :dm::q-primer :params [] :when [(?f :- :dm::Primer)])
 (:wat::rete::defquery :dm::q-four   :params [] :when [(?f :- :dm::Four)])
 
-(:wat::core::defn :dm::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :dm::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:dm::gap) (:dm::read-after) (:dm::hollow)
     (:dm::recolligere) (:dm::curare) (:dm::examinare) (:dm::extirpare)
     (:dm::four) (:dm::we-are)))
 
-(:wat::core::defn :dm::queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
+(:wat::core::defn :dm::queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
   (:wat::core::PersistentVector
     (:dm::q-who) (:dm::q-hollow) (:dm::q-gap)
     (:dm::q-read) (:dm::q-primer) (:dm::q-four)))
@@ -102,7 +102,7 @@
     (:dm::Beat :t 5 :kind "weigh-disk")
     (:dm::Beat :t 6 :kind "root-failure")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::source-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0    (:wat::core::match (:wat::rete::compile-all (:dm::rules) (:dm::queries)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     fired (:wat::core::match (:wat::rete::fire-rules (:dm::seed-practice s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::PersistentVector
@@ -113,12 +113,12 @@
       (:wat::core::length (:wat::rete::query fired (:dm::q-four)))
       (:wat::core::length (:wat::rete::query fired (:dm::q-who))))))
 
-(:wat::core::defn :user::export-edn [] -> :wat::core::String
+(:wat::core::defn :user::export-edn [] -> wat.type/String
   (:wat::edn::write-pretty
     (:wat::rete::export
       (:wat::core::match (:wat::rete::compile-all (:dm::rules) (:dm::queries)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))))
 
-(:wat::core::defn :user::sizes [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::sizes [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all (:dm::rules) (:dm::queries)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     exp (:wat::rete::export s0)]
     (:wat::core::PersistentVector
@@ -127,7 +127,7 @@
       (:wat::string::length (:wat::edn::write-pretty exp)))))
 
 ;; Writes tests/rete/datamancer.rete.edn. Invoked only by the wat CLI, never by probes.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::io::write-file
     "tests/rete/datamancer.rete.edn"
     (:wat::string::concat

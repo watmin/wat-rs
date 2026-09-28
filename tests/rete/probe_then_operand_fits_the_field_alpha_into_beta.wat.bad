@@ -9,4 +9,4 @@
   :when [(:fit::Src (?k :- :k))]
   :then [(:fit::Box :k ?k)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+(:wat::core::defn :user::main [] -> wat.type/nil nil)

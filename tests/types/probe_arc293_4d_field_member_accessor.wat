@@ -11,11 +11,11 @@
 
 (:wat::core::defsurface :t::Colored
   :nature :wat::core::Struct
-  :features [color <- :wat::core::String])
+  :features [color <- wat.type/String])
 
-(:wat::core::defrecord :t::Ball [color <- :wat::core::String  radius <- :wat::core::f64])
+(:wat::core::defrecord :t::Ball [color <- wat.type/String  radius <- wat.type/f64])
 
 ;; Call the FIELD member as an accessor THROUGH the surface — routes by runtime type to :t::Ball/color.
-(:wat::core::defn :t::hue [c <- :t::Colored] -> :wat::core::String (:t::Colored/color c))
+(:wat::core::defn :t::hue [c <- :t::Colored] -> wat.type/String (:t::Colored/color c))
 
-(:wat::core::defn :t::probe [] -> :wat::core::String (:t::hue (:t::Ball :color "red" :radius 2.0)))
+(:wat::core::defn :t::probe [] -> wat.type/String (:t::hue (:t::Ball :color "red" :radius 2.0)))

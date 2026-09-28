@@ -1,8 +1,8 @@
 (:wat::core::defmacro :my::probe
-  [body <- :wat::WatAST]
-  -> :wat::WatAST
+  [body <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::core::do
-     (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
+     (:wat::core::defn :my::helper [] -> wat.type/i64 42)
      ~body))
 
-(:my::probe (:wat::core::defn :my::main [] -> :wat::core::i64 (:my::helper)))
+(:my::probe (:wat::core::defn :my::main [] -> wat.type/i64 (:my::helper)))

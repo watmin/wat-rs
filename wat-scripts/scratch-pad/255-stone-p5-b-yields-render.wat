@@ -9,7 +9,7 @@
 ;; sections are captured instead by a plain Rust `#[test]` in
 ;; `src/intrinsic/mod.rs` (no checker involved) — see the rider's report.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::core::render-doc :wat::holon::Hologram/make))
     (:wat::kernel::println (:wat::core::render-doc :wat::intrinsic::yields-witness))

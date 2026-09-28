@@ -5,12 +5,12 @@
 ;; around this exact gap). `:cg::make-rate`'s body is `(:cg::Rate :count c :window w)`, which
 ;; macro-expands to `:wat::core::kwargs-construct` — the verb classification this brief closes.
 
-(:wat::core::defrecord :cg::Anchor [x <- :wat::core::i64])
-(:wat::core::defrecord :cg::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
+(:wat::core::defrecord :cg::Anchor [x <- wat.type/i64])
+(:wat::core::defrecord :cg::Rate   [count <- wat.type/i64 window <- wat.type/i64])
 
 (:wat::rete::core::defn :cg::make-rate
-  [c <- :wat::core::i64
-   w <- :wat::core::i64]
+  [c <- wat.type/i64
+   w <- wat.type/i64]
   -> :cg::Rate
   (:cg::Rate :count c :window w))
 
@@ -24,7 +24,7 @@
 
 
 ;; Fires via the WAT ORACLE.
-(:wat::core::defn :user::run-oracle [] -> :wat::core::i64
+(:wat::core::defn :user::run-oracle [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Rate))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -37,7 +37,7 @@
       "q-Rate: ?count")))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
-(:wat::core::defn :user::run-native [] -> :wat::core::i64
+(:wat::core::defn :user::run-native [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Rate))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

@@ -14,7 +14,7 @@
 ;; Before this stone: accepted silently. After: refused at rule-compile time,
 ;; `FenceBinderShadowsReteVar`, naming the binder `?k` and the form `match`.
 
-(:wat::core::defrecord :fbsm::N [k <- :wat::core::i64])
+(:wat::core::defrecord :fbsm::N [k <- wat.type/i64])
 
 (:wat::rete::defrule :fbsm::shadow-in-match
   :when [(:fbsm::N (?k :- :k))

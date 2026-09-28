@@ -1,8 +1,8 @@
 ;; Harvest is fire-time. Insert does not refresh query-memory.
 ;; fire → query=1 → insert more → query still 1 → fire → query=2.
 
-(:wat::core::defrecord :qhp::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :qhp::Hit  [c <- :wat::core::i64])
+(:wat::core::defrecord :qhp::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :qhp::Hit  [c <- wat.type/i64])
 
 (:wat::rete::defrule :qhp::cool
   :when [(:qhp::Temp (?c :- :c))
@@ -11,7 +11,7 @@
 
 (:wat::rete::defquery :qhp::q-Hit :params [] :when [(?f :- :qhp::Hit)])
 
-(:wat::core::defn :user::protocol [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :user::protocol [] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:qhp::cool))
                          (:wat::core::PersistentVector (:qhp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

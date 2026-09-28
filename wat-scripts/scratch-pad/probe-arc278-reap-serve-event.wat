@@ -11,10 +11,10 @@
 ;;                         ("poll': listener recv failed — address was dropped")
 
 (:wat::core::defn :se::serve
-  [self  <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
-   l     <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
-   peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])]
-  -> :wat::core::nil
+  [self  <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])
+   l     <- (:wat::kernel::Listener :- [wat.type/i64 wat.type/i64])
+   peers <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])])]
+  -> wat.type/nil
   (:wat::core::match (:wat::kernel::poll self l peers)
     ;; THE REPORT CHANNEL: the spawned thread CANNOT println (stdio services are not
     ;; routed into a hand-spawned thread — see the SVC LOST row this probe first
@@ -47,8 +47,8 @@
       (:se::serve self l (:wat::seq::remove-at peers idx))]
     [_ nil]))
 
-(:wat::core::defn :se::try [c <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
-                           label <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :se::try [c <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])
+                           label <- wat.type/String] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::kernel::send c 7)
       [:wat::kernel::SendOutcome.Sent {} nil]
@@ -67,15 +67,15 @@
         (:wat::kernel::println (:wat::string::concat label " => CLOSED"))])
     nil))
 
-(:wat::core::defn :se::row-tail [] -> :wat::core::nil
+(:wat::core::defn :se::row-tail [] -> wat.type/nil
   (:wat::core::let
     [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]
-              -> :wat::core::nil
-              (:se::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))
+            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]
+              -> wat.type/nil
+              (:se::serve self l (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]))))
      c    (:wat::core::match (:wat::kernel::connect a)
             [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
             [:wat::kernel::ConnectOutcome.Closed {:cause _f}  (:wat::kernel::assertion-failed! :message "refused")]
@@ -87,5 +87,5 @@
     ;; poll' index 0 EOFs. If the loop reaches the Shutdown arm, the client reads 999.
     (:se::try c "row TAIL    ")))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do (:se::row-tail) nil))

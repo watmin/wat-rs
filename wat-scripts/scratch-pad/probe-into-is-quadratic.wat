@@ -20,23 +20,23 @@
 ;; stdout = one #probe/IntoCost EDN line.
 
 (:wat::core::defrecord :probe::IntoCost
-  [n <- :wat::core::i64
-   stream-drain-ns <- :wat::core::i64      ;; A — via map -> Stream -> stream->vec (n x Vec-copy conj)
-   native-concat-ns <- :wat::core::i64     ;; B — via the (Vector,Vector) clause -> one concat
-   pvec-drain-ns <- :wat::core::i64        ;; C — same stream drain, rpds accumulator (structural sharing)
-   drain-len <- :wat::core::i64            ;; non-vacuity: all three must equal n, or the comparison is void
-   concat-len <- :wat::core::i64
-   pvec-len <- :wat::core::i64])
+  [n <- wat.type/i64
+   stream-drain-ns <- wat.type/i64      ;; A — via map -> Stream -> stream->vec (n x Vec-copy conj)
+   native-concat-ns <- wat.type/i64     ;; B — via the (Vector,Vector) clause -> one concat
+   pvec-drain-ns <- wat.type/i64        ;; C — same stream drain, rpds accumulator (structural sharing)
+   drain-len <- wat.type/i64            ;; non-vacuity: all three must equal n, or the comparison is void
+   concat-len <- wat.type/i64
+   pvec-len <- wat.type/i64])
 
-(:wat::core::defn :iq::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :iq::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; src n — a (Vector :- [i64]) of n elements, built ONCE and outside both timed regions so the
 ;; construction cost is charged to neither path.
-(:wat::core::defn :iq::src [n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::i64])
-  (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::range 0 n)))
+(:wat::core::defn :iq::src [n <- wat.type/i64] -> (wat.type/Vector :- [wat.type/i64])
+  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 n)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [params (:wat::core::match (:wat::kernel::readln )
               [:wat::kernel::ReadlnOutcome.Datum {:v __d} __d]
@@ -47,13 +47,13 @@
 
      ;; A — the suspect: map yields a lazy Stream, `into` drains it with n conj calls.
      a0   (:wat::time::now)
-     va   (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
-            (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) src))
+     va   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
+            (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x) src))
      a1   (:wat::time::now)
 
      ;; B — the control: Vector into Vector hits the `concat` clause, one native build.
      b0   (:wat::time::now)
-     vb   (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) src)
+     vb   (:wat::core::into (wat.type/Vector :- [wat.type/i64]) src)
      b1   (:wat::time::now)
 
      ;; C — the SAME stream drain, but accumulating into a PersistentVector. `stream->pvec`
@@ -62,7 +62,7 @@
      ;; linear and the O(n) drain already exists — no new Rust required.
      c0   (:wat::time::now)
      vc   (:wat::core::into (:wat::core::PersistentVector)
-            (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) src))
+            (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x) src))
      c1   (:wat::time::now)]
 
     (:wat::kernel::println

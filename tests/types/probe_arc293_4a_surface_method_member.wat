@@ -8,15 +8,15 @@
 ;; surface with a single METHOD member (no fields)
 (:wat::core::defsurface :geo::Sized
   :nature :wat::core::Struct
-  :features [(size [self <- :geo::Sized] -> :wat::core::i64)])
+  :features [(size [self <- :geo::Sized] -> wat.type/i64)])
 
 ;; a record that backs `size` with a method (a defn :geo::Box/size)
-(:wat::core::defrecord :geo::Box [w <- :wat::core::i64])
-(:wat::core::defn :geo::Box/size [self <- :geo::Box] -> :wat::core::i64
+(:wat::core::defrecord :geo::Box [w <- wat.type/i64])
+(:wat::core::defn :geo::Box/size [self <- :geo::Box] -> wat.type/i64
   (:geo::Box/w self))
 
 ;; a consumer requiring :geo::Sized — a :geo::Box must be ACCEPTED here (it exposes size)
-(:wat::core::defn :geo::needs-sized [s <- :geo::Sized] -> :wat::core::nil nil)
+(:wat::core::defn :geo::needs-sized [s <- :geo::Sized] -> wat.type/nil nil)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:geo::needs-sized (:geo::Box :w 5)))

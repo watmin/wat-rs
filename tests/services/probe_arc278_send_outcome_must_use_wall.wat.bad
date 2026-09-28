@@ -5,10 +5,10 @@
 ;; position — a located compile error, so a swallow is unrepresentable (R57). A *faced* send'
 ;; (`match`ed over Sent/Closed/Lost) has type `nil`, not `SendOutcome`, and stays legal; this
 ;; fixture deliberately does NOT face it.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [p (:wat::kernel::spawn-program (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
            nil))]
     (:wat::core::do
       (:wat::kernel::send p 42)

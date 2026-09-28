@@ -15,9 +15,9 @@
 ;; rule's `where` fence pins the fold's VALUE at 30 (10 + 20), so that count cannot pass on a
 ;; wrong sum. A live equality gate, not only a tamper target.
 
-(:wat::core::defrecord :ifk::Group   [g <- :wat::core::i64])
-(:wat::core::defrecord :ifk::Reading [g <- :wat::core::i64  v <- :wat::core::i64])
-(:wat::core::defrecord :ifk::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :ifk::Group   [g <- wat.type/i64])
+(:wat::core::defrecord :ifk::Reading [g <- wat.type/i64  v <- wat.type/i64])
+(:wat::core::defrecord :ifk::SumF    [g <- wat.type/i64  n <- wat.type/i64])
 
 (:wat::rete::defrule :ifk::sum-rule
   :when [(:ifk::Group (?g :- :g))
@@ -29,10 +29,10 @@
 
 (:wat::rete::defquery :ifk::q-Sum :params [] :when [(?f :- :ifk::SumF)])
 
-(:wat::core::defn :ifk::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :ifk::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:ifk::sum-rule)))
 
-(:wat::core::defn :ifk::queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
+(:wat::core::defn :ifk::queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
   (:wat::core::PersistentVector (:ifk::q-Sum)))
 
 (:wat::core::defn :ifk::compile [] -> :wat::rete::Session
@@ -50,7 +50,7 @@
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
       (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :ifk::fired-sum [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :ifk::fired-sum [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat::core::match (:wat::rete::fire-rules (:ifk::seed s))
@@ -67,10 +67,10 @@
 (:wat::core::defn :user::fold-export [] -> :wat::rete::Export
   (:wat::rete::export (:ifk::compile)))
 
-(:wat::core::defn :user::fold-import-and-fire [e <- :wat::rete::Export] -> :wat::core::i64
+(:wat::core::defn :user::fold-import-and-fire [e <- :wat::rete::Export] -> wat.type/i64
   (:ifk::fired-sum (:wat::rete::import e)))
 
-(:wat::core::defn :user::fold-native-fire [] -> :wat::core::i64
+(:wat::core::defn :user::fold-native-fire [] -> wat.type/i64
   (:ifk::fired-sum (:ifk::compile)))
 
 ;; ── THE UNPACKED HALF — the SAME gap, reached through `Bindings::get` ─────────────────────────
@@ -89,8 +89,8 @@
 ;; Untampered want: TWO tag groups (a=10, b=20), the `where` fence admits only the one summing
 ;; to 10, so exactly ONE TagSum — a value gate again, not a liveness count.
 
-(:wat::core::defrecord :ifk::Tagged [g <- :wat::core::i64  v <- :wat::core::i64  tag <- :wat::core::String])
-(:wat::core::defrecord :ifk::TagSum [tag <- :wat::core::String  n <- :wat::core::i64])
+(:wat::core::defrecord :ifk::Tagged [g <- wat.type/i64  v <- wat.type/i64  tag <- wat.type/String])
+(:wat::core::defrecord :ifk::TagSum [tag <- wat.type/String  n <- wat.type/i64])
 
 (:wat::rete::defrule :ifk::tag-sum-rule
   :when [(:ifk::Group (?g :- :g))
@@ -100,10 +100,10 @@
 
 (:wat::rete::defquery :ifk::q-TagSum :params [] :when [(?f :- :ifk::TagSum)])
 
-(:wat::core::defn :ifk::tag-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :ifk::tag-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:ifk::tag-sum-rule)))
 
-(:wat::core::defn :ifk::tag-queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
+(:wat::core::defn :ifk::tag-queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
   (:wat::core::PersistentVector (:ifk::q-TagSum)))
 
 (:wat::core::defn :ifk::tag-compile [] -> :wat::rete::Session
@@ -121,7 +121,7 @@
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
       (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :ifk::tag-fired-sum [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :ifk::tag-fired-sum [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat::core::match (:wat::rete::fire-rules (:ifk::tag-seed s))
@@ -135,10 +135,10 @@
 (:wat::core::defn :user::tag-export [] -> :wat::rete::Export
   (:wat::rete::export (:ifk::tag-compile)))
 
-(:wat::core::defn :user::tag-import-and-fire [e <- :wat::rete::Export] -> :wat::core::i64
+(:wat::core::defn :user::tag-import-and-fire [e <- :wat::rete::Export] -> wat.type/i64
   (:ifk::tag-fired-sum (:wat::rete::import e)))
 
-(:wat::core::defn :user::tag-native-fire [] -> :wat::core::i64
+(:wat::core::defn :user::tag-native-fire [] -> wat.type/i64
   (:ifk::tag-fired-sum (:ifk::tag-compile)))
 
 ;; ── THE SLOT HALF — `fold_bucket`'s unpacked path, and why it takes THIS shape ────────────────
@@ -159,9 +159,9 @@
 ;;
 ;; Untampered want: bucket {v=7} sums to 7, the fence admits it, ONE SlotSum.
 
-(:wat::core::defrecord :ifk::Label   [g <- :wat::core::i64  v <- :wat::core::i64  tag <- :wat::core::String])
-(:wat::core::defrecord :ifk::Slotted [g <- :wat::core::i64  v <- :wat::core::i64  tag <- :wat::core::String])
-(:wat::core::defrecord :ifk::SlotSum [g <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :ifk::Label   [g <- wat.type/i64  v <- wat.type/i64  tag <- wat.type/String])
+(:wat::core::defrecord :ifk::Slotted [g <- wat.type/i64  v <- wat.type/i64  tag <- wat.type/String])
+(:wat::core::defrecord :ifk::SlotSum [g <- wat.type/i64  n <- wat.type/i64])
 
 (:wat::rete::defrule :ifk::slot-sum-rule
   :when [(:ifk::Label (?g :- :g) (?v :- :v) (?tag :- :tag))
@@ -171,10 +171,10 @@
 
 (:wat::rete::defquery :ifk::q-SlotSum :params [] :when [(?f :- :ifk::SlotSum)])
 
-(:wat::core::defn :ifk::slot-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :ifk::slot-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:ifk::slot-sum-rule)))
 
-(:wat::core::defn :ifk::slot-queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
+(:wat::core::defn :ifk::slot-queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
   (:wat::core::PersistentVector (:ifk::q-SlotSum)))
 
 (:wat::core::defn :ifk::slot-compile [] -> :wat::rete::Session
@@ -191,7 +191,7 @@
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
       (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :ifk::slot-fired-sum [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :ifk::slot-fired-sum [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat::core::match (:wat::rete::fire-rules (:ifk::slot-seed s))
@@ -205,8 +205,8 @@
 (:wat::core::defn :user::slot-export [] -> :wat::rete::Export
   (:wat::rete::export (:ifk::slot-compile)))
 
-(:wat::core::defn :user::slot-import-and-fire [e <- :wat::rete::Export] -> :wat::core::i64
+(:wat::core::defn :user::slot-import-and-fire [e <- :wat::rete::Export] -> wat.type/i64
   (:ifk::slot-fired-sum (:wat::rete::import e)))
 
-(:wat::core::defn :user::slot-native-fire [] -> :wat::core::i64
+(:wat::core::defn :user::slot-native-fire [] -> wat.type/i64
   (:ifk::slot-fired-sum (:ifk::slot-compile)))

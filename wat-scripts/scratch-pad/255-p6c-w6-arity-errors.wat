@@ -7,7 +7,7 @@
 ;; raised by the shim rather than the deleted hand-rolled `args.len() != N` guard. The pre-image
 ;; shape (identical op/expected/got text) was confirmed against a real HEAD clone before homing.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::length (:wat::core::Vector 1 2) 9)))
       [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "length UNEXPECTED ok: " (:wat::edn::write v)))]

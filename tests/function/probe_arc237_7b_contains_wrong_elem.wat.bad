@@ -2,5 +2,5 @@
 ;; contains? on (Vector :- [i64]) with a String elem must reject at check time.
 ;; startup MUST fail.
 
-(:wat::core::defn :user::bad [] -> :wat::core::bool
+(:wat::core::defn :user::bad [] -> wat.type/bool
   (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) "x"))

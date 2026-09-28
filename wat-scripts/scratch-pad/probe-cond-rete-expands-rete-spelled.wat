@@ -11,7 +11,7 @@
 ;;
 ;; READ THE EXPANDED FORM FIRST (CLAUDE.md item 4). This prints it.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rete-expanded (:wat::core::macroexpand
                      (:wat::core::quote

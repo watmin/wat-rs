@@ -5,8 +5,8 @@
 ;; `compile_condition_local` refuse it. Law A sees this spelling.
 ;; See DESIGN-STONE-inline-constraint-admits-non-rete.md.
 
-(:wat::core::defrecord :probe::Reading [location <- :wat::core::String  value <- :wat::core::i64])
-(:wat::core::defrecord :probe::Hot     [location <- :wat::core::String])
+(:wat::core::defrecord :probe::Reading [location <- wat.type/String  value <- wat.type/i64])
+(:wat::core::defrecord :probe::Hot     [location <- wat.type/String])
 
 (:wat::rete::defrule :probe::untyped-equality
   :when
@@ -19,7 +19,7 @@
   :when [(?fact :- :probe::Hot)])
 
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hot))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

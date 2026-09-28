@@ -1,4 +1,4 @@
 (:wat::core::defn :fix::get-odd
-  [x <- :wat::core::i64]
-  -> (:wat::core::Option :- [:wat::core::i64])
-  (:wat::hashmap::get (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) :k))
+  [x <- wat.type/i64]
+  -> (:wat::core::Option :- [wat.type/i64])
+  (:wat::hashmap::get (wat.type/HashMap :- [wat.type/keyword wat.type/i64]) :k))

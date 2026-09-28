@@ -3,5 +3,5 @@
 ;; (BRIEF-f64-fallback-rows.md) still propagates a caller type error and never routes it into
 ;; the `:undefined` fallback (that fallback covers a DOMAIN hole — NaN/±Inf — never a caller
 ;; bug). See BRIEF-f64-fallback-rows.md, EXPECTATIONS row 10.
-(:wat::core::defn :user::bad-f64-fallback-call [] -> :wat::core::f64
+(:wat::core::defn :user::bad-f64-fallback-call [] -> wat.type/f64
   (:wat::rete::f64::+ 1.0 1 :undefined 0.0))

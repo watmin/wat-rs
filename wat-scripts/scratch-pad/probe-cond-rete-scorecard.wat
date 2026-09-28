@@ -5,7 +5,7 @@
 ;;
 ;; Row 2 — the tier ladder, read from wat/core.wat:1237 before writing this clause (paren clauses,
 ;; terminal (:else body), exactly core's syntax) — spelled with the RETE alias throughout.
-(:wat::core::defn :probe::tier-score [tier <- :wat::core::keyword] -> :wat::core::f64
+(:wat::core::defn :probe::tier-score [tier <- wat.type/keyword] -> wat.type/f64
   (:wat::rete::core::cond
     ((:wat::rete::core::keyword::= tier :gold)   0.5)
     ((:wat::rete::core::keyword::= tier :silver) 0.7)
@@ -14,14 +14,14 @@
 ;; Row 3 — first-match wins: TWO true tests, reorder so the earlier one should win. If :silver's
 ;; arm (first, always true here since both tests use the same tier) fires ahead of :gold's arm
 ;; (second, would also match — 1 = 1 always true), the "first" should be taken.
-(:wat::core::defn :probe::first-match [x <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :probe::first-match [x <- wat.type/i64] -> wat.type/String
   (:wat::rete::core::cond
     ((:wat::i64::= x x) "first")
     ((:wat::i64::= x x) "second")
     (:else                    "else")))
 
 ;; Row 4 — :else terminal fires when every test is false.
-(:wat::core::defn :probe::else-fires [x <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :probe::else-fires [x <- wat.type/i64] -> wat.type/String
   (:wat::rete::core::cond
     ((:wat::i64::> x 1000000) "huge")
     (:else                          "normal")))
@@ -33,7 +33,7 @@
 ;; run through --check, expecting a macro-error naming "cond: non-exhaustive").
 
 ;; Row 7 — core's cond, UNCHANGED, spelled with the CORE (non-rete) name, same shapes.
-(:wat::core::defn :probe::core-tier-score [tier <- :wat::core::keyword] -> :wat::core::f64
+(:wat::core::defn :probe::core-tier-score [tier <- wat.type/keyword] -> wat.type/f64
   (:wat::core::cond
     ((:wat::core::= tier :gold)   0.5)
     ((:wat::core::= tier :silver) 0.7)
@@ -41,22 +41,22 @@
 
 ;; Row 9 — every other rete family unregressed: one Alias (i64::>), one Fallback (i64::+ with
 ;; :undefined), one other Form (if), one Redispatch (foldl).
-(:wat::core::defn :probe::alias-check [] -> :wat::core::bool
+(:wat::core::defn :probe::alias-check [] -> wat.type/bool
   (:wat::rete::i64::> 5 3))
 
-(:wat::core::defn :probe::fallback-check [] -> :wat::core::i64
+(:wat::core::defn :probe::fallback-check [] -> wat.type/i64
   (:wat::rete::i64::+ 1 2 :undefined -1))
 
-(:wat::core::defn :probe::form-if-check [] -> :wat::core::i64
+(:wat::core::defn :probe::form-if-check [] -> wat.type/i64
   (:wat::rete::core::if true 10 20))
 
-(:wat::core::defn :probe::redispatch-check [] -> :wat::core::i64
+(:wat::core::defn :probe::redispatch-check [] -> wat.type/i64
   (:wat::rete::core::foldl
-    (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ a b))
+    (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ a b))
     0
     [1 2 3 4]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "row2 gold="   (:wat::core::str (:probe::tier-score :gold))))
     (:wat::kernel::println (:wat::string::concat "row2 silver=" (:wat::core::str (:probe::tier-score :silver))))

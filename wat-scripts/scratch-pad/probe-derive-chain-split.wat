@@ -39,26 +39,26 @@
 ;; stdout: one #derive/Links EDN line
 ;;   echo '[50 2000]' | ./target/release/wat wat-scripts/scratch-pad/probe-derive-chain-split.wat
 
-(:wat::core::defrecord :dc::A   [k <- :wat::core::i64])
-(:wat::core::defrecord :dc::B   [k <- :wat::core::i64])
-(:wat::core::defrecord :dc::Out [k <- :wat::core::i64])
+(:wat::core::defrecord :dc::A   [k <- wat.type/i64])
+(:wat::core::defrecord :dc::B   [k <- wat.type/i64])
+(:wat::core::defrecord :dc::Out [k <- wat.type/i64])
 
 ;; Links — per-link nanoseconds plus the cardinality witnesses.
 ;; The three counts are the NON-VACUITY guard: every one must equal `items`. A link that
 ;; short-circuited would look cheap AND drop its count, so a fast number with a right count is
 ;; the only reading that means anything.
 (:wat::core::defrecord :dc::Links
-  [rules        <- :wat::core::i64
-   items        <- :wat::core::i64
-   query-ns     <- :wat::core::i64
-   map-ns       <- :wat::core::i64
-   into-ns      <- :wat::core::i64
-   sort-ns      <- :wat::core::i64
-   topv-ns      <- :wat::core::i64
-   direct-ns    <- :wat::core::i64   ;; the CONTROL: query -> foldl conj -> PersistentVector
-   query-count  <- :wat::core::i64
-   into-count   <- :wat::core::i64
-   direct-count <- :wat::core::i64])
+  [rules        <- wat.type/i64
+   items        <- wat.type/i64
+   query-ns     <- wat.type/i64
+   map-ns       <- wat.type/i64
+   into-ns      <- wat.type/i64
+   sort-ns      <- wat.type/i64
+   topv-ns      <- wat.type/i64
+   direct-ns    <- wat.type/i64   ;; the CONTROL: query -> foldl conj -> PersistentVector
+   query-count  <- wat.type/i64
+   into-count   <- wat.type/i64
+   direct-count <- wat.type/i64])
 
 (:wat::rete::defquery :dc::q-Out
   :params []
@@ -67,7 +67,7 @@
 
 ;; ── the workload, copied from grid/node-share.wat (namespace changed only) ───
 
-(:wat::core::defn :dc::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :dc::build-rule [i <- wat.type/i64  n <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [a-c     (:wat::core::quasiquote (:dc::A (?k :- :k)))
                     b-c     (:wat::core::quasiquote (:dc::B (?k :- :k)))
                     where-c (:wat::core::quasiquote
@@ -80,26 +80,26 @@
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
-(:wat::core::defn :dc::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :dc::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
-      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
+      -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:dc::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 
-(:wat::core::defn :dc::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :dc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:dc::A i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:dc::B i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
     (:wat::core::range 0 items)))
 
-(:wat::core::defn :dc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :dc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ── main — one fire, then the derive chain link by link, then the control ────
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
                               [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                               [:wat::kernel::ReadlnOutcome.Eof {}
@@ -116,17 +116,17 @@
                     q       (:wat::rete::query fired (:dc::q-Out))
                     q1      (:wat::time::now)
                     mapped  (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::Out/k f)))
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::Out/k f)))
                               q)
                     q2      (:wat::time::now)
-                    vec     (:wat::core::into (:wat::core::Vector :- [:wat::core::i64]) mapped)
+                    vec     (:wat::core::into (wat.type/Vector :- [wat.type/i64]) mapped)
                     q3      (:wat::time::now)
                     sorted  (:wat::core::sort vec)
                     q4      (:wat::time::now)
                     pv      (:wat::core::foldl
-                              (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
-                                               x   <- :wat::core::i64]
-                                -> (:wat::core::PersistentVector :- [:wat::core::i64])
+                              (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
+                                               x   <- wat.type/i64]
+                                -> (wat.type/PersistentVector :- [wat.type/i64])
                                 (:wat::vector::conj acc x))
                               (:wat::core::PersistentVector)
                               sorted)
@@ -137,9 +137,9 @@
                     ;; is linear while the chain above is quadratic, the container is the defect.
                     d0      (:wat::time::now)
                     direct  (:wat::core::foldl
-                              (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
-                                               p   <- :wat::core::PersistentMap]
-                                -> (:wat::core::PersistentVector :- [:wat::core::i64])
+                              (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
+                                               p   <- wat.type/PersistentMap]
+                                -> (wat.type/PersistentVector :- [wat.type/i64])
                                 (:wat::core::let [f (:wat::core::Option/expect
                                                       (:wat::map::get p "?fact")
                                                       "q-Out: ?fact")]

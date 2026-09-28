@@ -1,8 +1,8 @@
 ;; tests/rete/probe_arc278_6b_ii_a_where_oracle_cmp.wat — comparison-gate world for the where_oracle probe;
 ;; loaded via startup_from_file. Rule filters Temperature by (where (> ?c 0)).
 
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :wg::Gate            [celsius <- :wat::core::i64])
+(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :wg::Gate            [celsius <- wat.type/i64])
 
 (:wat::rete::defrule :wg::cold-gate
   :when
@@ -17,7 +17,7 @@
 
 
 ;; 1 — the where PASSES: Temp(5), (> 5 0) true → exactly one Gate derived.
-(:wat::core::defn :user::run-gate-c5 [] -> :wat::core::i64
+(:wat::core::defn :user::run-gate-c5 [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
       [rules   (:wat::rete::collect-rules :wg)
@@ -27,7 +27,7 @@
       (:wat::rete::query fired (:wg::q-Gate)))))
 
 ;; 2 — the where BLOCKS: Temp(-5), (> -5 0) false → zero Gates (the filter actually filters).
-(:wat::core::defn :user::run-gate-cneg5 [] -> :wat::core::i64
+(:wat::core::defn :user::run-gate-cneg5 [] -> wat.type/i64
   (:wat::core::length
     (:wat::core::let
       [rules   (:wat::rete::collect-rules :wg)

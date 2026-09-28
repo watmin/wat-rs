@@ -17,21 +17,21 @@
   :messages
   [(:wat::core::defrecord :probe::Counter::GetRequest        [])
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- :wat::core::i64])
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- wat.type/i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [value <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::counter
   :satisfies :probe::Counter
-  :durable   [count <- :wat::core::i64]
+  :durable   [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]
@@ -48,9 +48,9 @@
 ;;    detector — a garbled or misrouted reply would fail the typed match and raise). ────────────
 (:wat::core::defn :probe::do-increments
   [c         <- (:wat::kernel::Peer :- [:probe::Counter::Op :probe::Counter::Reply])
-   remaining <- :wat::core::i64
-   acc       <- :wat::core::i64]
-  -> :wat::core::i64
+   remaining <- wat.type/i64
+   acc       <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::core::= remaining 0)
     acc
     (:wat::core::match (:probe::Counter/increment c (:probe::Counter::IncrementRequest :n 1))
@@ -72,9 +72,9 @@
 ;; ── A worker body: connect' our OWN client Peer' to the shared Address', do 4 increments,
 ;;    send the Ok-count back up the self-peer. Factored to a defn so the 3 spawns are identical. ─
 (:wat::core::defn :probe::worker-body
-  [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
+  [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])
    addr <- (:wat::kernel::Address :- [:probe::Counter::Op :probe::Counter::Reply])]
-  -> :wat::core::nil
+  -> wat.type/nil
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect addr)
           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
@@ -90,27 +90,27 @@
 
 ;; helper: recv' an i64 result from a joined worker thread peer.
 (:wat::core::defn :probe::join-count
-  [p <- (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])]
-  -> :wat::core::i64
+  [p <- (:wat::kernel::Thread :- [wat.type/i64 wat.type/i64])]
+  -> wat.type/i64
   (:wat::core::match (:wat::kernel::recv p)
     [:wat::kernel::RecvOutcome.Message {:msg m} m]
     [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
     [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "join-count: stopped — the substrate was asked to stop; worker was ALIVE and the channel open")]
     [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "join-count: worker closed before signalling")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h    (:probe::counter/start :locus (:wat::spawn::thread) :record (:probe::counter::Record :count 0))
      addr (:probe::counter::Handle/addr h)
      ;; spawn ALL THREE workers first (concurrent), each capturing the shared addr — then join.
      w1 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
             (:probe::worker-body self addr)))
      w2 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
             (:probe::worker-body self addr)))
      w3 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
             (:probe::worker-body self addr)))
      r1 (:probe::join-count w1)
      r2 (:probe::join-count w2)

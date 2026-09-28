@@ -27,11 +27,11 @@
 (:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-sum-i64
   
   (:wat::core::let
-    [xs (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)
+    [xs (wat.type/Vector :- [wat.type/i64] 1 2 3 4)
      result
       (:wat::core::reduce
-        (:wat::core::fn [acc <- :wat::core::i64
-                         n   <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64
+                         n   <- wat.type/i64] -> wat.type/i64
           (:wat::i64::+ acc n))
         0
         xs)]
@@ -44,15 +44,15 @@
 (:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-over-stream
   
   (:wat::core::let
-    [xs      (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4)
+    [xs      (wat.type/Vector :- [wat.type/i64] 1 2 3 4)
      doubled (:wat::core::map
-               (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+               (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64
                  (:wat::i64::* n 2))
                xs)
      result
       (:wat::core::reduce
-        (:wat::core::fn [acc <- :wat::core::i64
-                         n   <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::fn [acc <- wat.type/i64
+                         n   <- wat.type/i64] -> wat.type/i64
           (:wat::i64::+ acc n))
         0
         doubled)]

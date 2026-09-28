@@ -1,9 +1,9 @@
 ;; RELAND 9 STOP-2: isolate fire-rules/insert the generated sift body takes.
-(:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Warn [c <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [rules (:wat::core::PersistentVector
              (:wat::rete::make-rule "usr::hot-rule"

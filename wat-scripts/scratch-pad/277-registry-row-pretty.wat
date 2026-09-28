@@ -23,30 +23,30 @@
 (:wat::load-file! "../fmt/rules/defrecord.wat")
 
 (:wat::core::defn :user::widest
-  [s <- :wat::core::String]
-  -> :wat::core::i64
+  [s <- wat.type/String]
+  -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [m <- :wat::core::i64  line <- :wat::core::String] -> :wat::core::i64
+    (:wat::core::fn [m <- wat.type/i64  line <- wat.type/String] -> wat.type/i64
       (:wat::core::if (:wat::i64::> (:wat::string::length line) m)
         (:wat::string::length line)
         m))
     0
     (:wat::string::split s "\n")))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [argv  (:wat::runtime::argv)
      want  (:wat::core::Option/expect (:wat::core::get argv 2)
              "usage: wat 277-registry-row-pretty.wat <fqdn-as-string>")
      rules (:wat::rete::collect-rules :fmt)
      all   (:wat::intrinsic::examples)
-     mine  (:wat::core::into (:wat::core::Vector :- [:wat::intrinsic::Example])
+     mine  (:wat::core::into (wat.type/Vector :- [:wat::intrinsic::Example])
              (:wat::core::filter
-               (:wat::core::fn [e <- :wat::intrinsic::Example] -> :wat::core::bool
+               (:wat::core::fn [e <- :wat::intrinsic::Example] -> wat.type/bool
                  (:wat::core::= (:wat::keyword::to-string (:wat::intrinsic::Example/fqdn e)) want))
                all))]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::nil  e <- :wat::intrinsic::Example] -> :wat::core::nil
+      (:wat::core::fn [acc <- wat.type/nil  e <- :wat::intrinsic::Example] -> wat.type/nil
         (:wat::core::let
           [src (:wat::core::ast->source (:wat::intrinsic::Example/expr e))
            out (:wat::fmt::format-source "<registry>" src rules)]

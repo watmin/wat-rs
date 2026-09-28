@@ -1,4 +1,4 @@
 (:wat::core::defmacro :test::wrap
-  [x <- :wat::WatAST]
-  -> :wat::WatAST
+  [x <- wat.type/AST]
+  -> wat.type/AST
   `(:wat::core::Option.Some {:value ~x}))

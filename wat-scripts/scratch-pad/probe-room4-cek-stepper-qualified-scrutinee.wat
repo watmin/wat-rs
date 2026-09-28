@@ -12,11 +12,11 @@
 ;; precedent measured for the bare-symbol shorthand before its retirement.
 
 (:wat::core::defn :my::test::count-visit
-  [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult]
-  -> (:wat::eval::WalkStep :- [:wat::core::i64])
+  [acc <- wat.type/i64 form <- wat.type/AST step <- :wat::eval::StepResult]
+  -> (:wat::eval::WalkStep :- [wat.type/i64])
   (:wat::eval::WalkStep.Continue {:acc (:wat::i64::+ acc 1)}))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match
     (:wat::eval::walk
       (:wat::core::quote

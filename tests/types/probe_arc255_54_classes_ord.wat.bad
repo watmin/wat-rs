@@ -1,3 +1,3 @@
-(:wat::core::defrecord :u::Pt [n <- :wat::core::i64])
-(:wat::core::defn :user::ord [] -> :wat::core::bool
+(:wat::core::defrecord :u::Pt [n <- wat.type/i64])
+(:wat::core::defn :user::ord [] -> wat.type/bool
   (:wat::core::< (:u::Pt :n 1) (:u::Pt :n 2)))

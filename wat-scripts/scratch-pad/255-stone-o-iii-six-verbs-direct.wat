@@ -9,13 +9,13 @@
 ;;
 ;; Run against the pre-migration tree and the post-migration tree; diff the two transcripts.
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
-  -> :wat::core::String
+(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
+  -> wat.type/String
   (:wat::core::match r
     [:wat::core::Result.Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
     [:wat::core::Result.Err {:error e} (:wat::string::concat "err:" (:wat::core::EvalError/message e))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_01 (:wat::kernel::println (:wat::string::concat "length        " (:wat::edn::write (:wat::vector::length (:wat::core::PersistentVector 1 2 3)))))
      _02 (:wat::kernel::println (:wat::string::concat "empty? true   " (:wat::edn::write (:wat::vector::empty? (:wat::core::PersistentVector)))))

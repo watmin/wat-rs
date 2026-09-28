@@ -31,15 +31,15 @@
    :category :wat::runtime::Category.Transform
    :args [[w :wat::core::String "the segment to capitalize"]]
    :examples [["(:probe::capitalize-like \"object\")" "\"Object\""]]}
-  [w <- :wat::core::String]
-  -> :wat::core::String
+  [w <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::string::length w) 0)
     w
     (:wat::string::concat
       (:wat::string::to-uppercase (:wat::string::subs w 0 1))
       (:wat::string::subs w 1 (:wat::string::length w)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "── the walked verb: :wat::string::capitalize ──")
     (:wat::kernel::println (:wat::string::capitalize "object"))

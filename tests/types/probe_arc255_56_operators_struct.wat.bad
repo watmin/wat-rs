@@ -1,3 +1,3 @@
-(:wat::core::defstruct :u::St [n <- :wat::core::i64])
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+(:wat::core::defstruct :u::St [n <- wat.type/i64])
+(:wat::core::defn :user::compute [] -> wat.type/bool
   (:wat::core::= (:u::St :n 1) (:u::St :n 1)))

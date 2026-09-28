@@ -11,5 +11,5 @@
 ;;
 ;; No corpus form pairs a boundary head with a binder today. The row keeps the invariant
 ;; structural rather than incidental.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:wat::core::show (:wat::core::quote :- [wat.type/i64] (my.app/never-defined 1)))))

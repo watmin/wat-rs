@@ -1,5 +1,5 @@
 ;; Show the EXACT head string the purity classifier sees, for :: vs dotted.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [colon (:wat::core::match (:wat::core::read-string "(:wat::core::> n 3)") [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      dot   (:wat::core::match (:wat::core::read-string "(:wat.core/> n 3)") [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])

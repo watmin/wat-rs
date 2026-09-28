@@ -17,9 +17,9 @@
 ;;     clojure -Sdeps '{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}' \
 ;;             -M wat-scripts/perf/grid/where-nested-combinators.clj
 
-(:wat::core::defrecord :wnc::A [k <- :wat::core::i64])
-(:wat::core::defrecord :wnc::B [k <- :wat::core::i64])
-(:wat::core::defrecord :wnc::C [k <- :wat::core::i64])
+(:wat::core::defrecord :wnc::A [k <- wat.type/i64])
+(:wat::core::defrecord :wnc::B [k <- wat.type/i64])
+(:wat::core::defrecord :wnc::C [k <- wat.type/i64])
 
 ;; 5 — a `:not` nested inside an `:and`, itself negated.
 (:wat::rete::defquery :wnc::q5 :params []
@@ -31,10 +31,10 @@
 (:wat::rete::defquery :wnc::q7 :params []
   :when [(:wat::rete::and (:wat::rete::not (:wnc::A)) (:wat::rete::not (:wnc::B)))])
 
-(:wat::core::defn :wnc::has [w <- :wat::core::i64  bit <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :wnc::has [w <- wat.type/i64  bit <- wat.type/i64] -> wat.type/bool
   (:wat::core::= 1 (:wat::i64::rem (:wat::i64::quot w bit) 2)))
 
-(:wat::core::defn :wnc::n [w <- :wat::core::i64  q <- :wat::rete::Query] -> :wat::core::i64
+(:wat::core::defn :wnc::n [w <- wat.type/i64  q <- :wat::rete::Query] -> wat.type/i64
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector)
           (:wat::core::PersistentVector (:wnc::q5) (:wnc::q6) (:wnc::q7))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -43,7 +43,7 @@
      s3 (:wat::core::if (:wnc::has w 4) (:wat::core::match (:wat::rete::insert s2 (:wnc::C :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s2)]
     (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules s3) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) q))))
 
-(:wat::core::defn :wnc::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wnc::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -51,15 +51,15 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :wnc::sweep [base <- :wat::core::i64  name <- :wat::core::String  q <- :wat::rete::Query] -> :wat::core::nil
+(:wat::core::defn :wnc::sweep [base <- wat.type/i64  name <- wat.type/String  q <- :wat::rete::Query] -> wat.type/nil
   (:wat::core::foldl
-    (:wat::core::fn [_a <- :wat::core::nil  w <- :wat::core::i64] -> :wat::core::nil
+    (:wat::core::fn [_a <- wat.type/nil  w <- wat.type/i64] -> wat.type/nil
       (:wnc::line (:wat::i64::+ base w)
         (:wat::string::concat name (:wat::i64::to-string w))
         (:wnc::n w q)))
     nil (:wat::core::range 0 8)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wnc::sweep 1  "not-and-not-w"  (:wnc::q5))
   (:wnc::sweep 9  "or-and-not-w"   (:wnc::q6))
   (:wnc::sweep 17 "and-not-not-w"  (:wnc::q7)))

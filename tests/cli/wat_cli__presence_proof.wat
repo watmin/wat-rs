@@ -7,7 +7,7 @@
 ;; instead of the retired IOReader/IOWriter stdin-echo path. Presence proof
 ;; prints "absent"/"present" via println (EDN-encoded Strings). Observable
 ;; stdout: "absent"\n"present"\n"wat-atoms"\n.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [program
        (:wat::core::quote

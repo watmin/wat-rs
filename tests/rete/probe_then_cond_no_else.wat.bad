@@ -1,6 +1,6 @@
 ;; NEGATIVE — cond without :else is refused at EXPAND, not by the fence.
-(:wat::core::defrecord :ne::Box [label <- :wat::core::String])
-(:wat::core::defrecord :ne::Src [n <- :wat::core::i64])
+(:wat::core::defrecord :ne::Box [label <- wat.type/String])
+(:wat::core::defrecord :ne::Src [n <- wat.type/i64])
 
 (:wat::rete::defrule :ne::go
   :when [(:ne::Src (?n :- :n))]

@@ -2,7 +2,7 @@
 ;; structs BEFORE writing it into a doc comment (STOP-2: confirm per form with the
 ;; binary). Scratch, per holon/CLAUDE.md's `.wat` scratch convention.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println "quote write-forms:")
     (:wat::kernel::println (:wat::core::write-forms (:wat::core::quote (f x))))
@@ -25,5 +25,5 @@
     (:wat::kernel::println (:wat::core::write-forms (:wat::core::macroexpand (:wat::core::quote (:probe::twice2 5)))))
   ))
 
-(:wat::core::defmacro :probe::twice2 [x <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defmacro :probe::twice2 [x <- wat.type/AST] -> wat.type/AST
   `(:wat::i64::+ ~x ~x))

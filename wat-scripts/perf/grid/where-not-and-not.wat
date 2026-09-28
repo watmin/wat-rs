@@ -5,11 +5,11 @@
 ;;   [Wind ?l] [:not [:and [Temp ?l ?c] [:not [Cold ?c]]]]
 ;; Inner :not is a join-filter on the Temp's temperature, not "no Cold exists".
 
-(:wat::core::defrecord :wnan::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnan::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wnan::Cold [c <- :wat::core::i64])
-(:wat::core::defrecord :wnan::Hit  [k <- :wat::core::i64])
-(:wat::core::defrecord :wnan::At   [loc <- :wat::core::String])
+(:wat::core::defrecord :wnan::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnan::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wnan::Cold [c <- wat.type/i64])
+(:wat::core::defrecord :wnan::Hit  [k <- wat.type/i64])
+(:wat::core::defrecord :wnan::At   [loc <- wat.type/String])
 
 (:wat::rete::defrule :wnan::lead
   :when [(:wat::rete::not
@@ -36,13 +36,13 @@
   :when [(?fact :- :wnan::At)])
 
 
-(:wat::core::defn :wnan::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wnan::n-hit [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wnan::q-Hit))))
 
-(:wat::core::defn :wnan::n-at [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wnan::n-at [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::length (:wat::rete::query s (:wnan::q-At))))
 
-(:wat::core::defn :wnan::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wnan::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -50,7 +50,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [lead (:wat::core::PersistentVector (:wnan::lead))
                     nest (:wat::core::PersistentVector (:wnan::nested))]
     (:wnan::line 1 "lead-empty"

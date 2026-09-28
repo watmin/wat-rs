@@ -7,9 +7,9 @@
 ;;
 ;; It must COMPILE, FIRE, and derive exactly one fact.
 
-(:wat::core::defrecord :nwo::Src   [k <- :wat::core::i64])
-(:wat::core::defrecord :nwo::Inner [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :nwo::Outer [k <- :wat::core::i64  inner <- :nwo::Inner])
+(:wat::core::defrecord :nwo::Src   [k <- wat.type/i64])
+(:wat::core::defrecord :nwo::Inner [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :nwo::Outer [k <- wat.type/i64  inner <- :nwo::Inner])
 
 (:wat::rete::defrule :nwo::r
   :when [(:nwo::Src (?k :- :k))]
@@ -17,7 +17,7 @@
 
 (:wat::rete::defquery :nwo::q :params [] :when [(?f :- :nwo::Outer)])
 
-(:wat::core::defn :nwo::fire [] -> :wat::core::i64
+(:wat::core::defn :nwo::fire [] -> wat.type/i64
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :nwo) (:wat::core::PersistentVector (:nwo::q)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
@@ -36,5 +36,5 @@
           (:wat::kernel::assertion-failed! :message "fire: round cap")])
       (:nwo::q)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:nwo::fire)))

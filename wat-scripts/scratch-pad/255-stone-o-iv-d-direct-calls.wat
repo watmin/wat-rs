@@ -6,7 +6,7 @@
 ;; those two lines is expected to show a different sampled value, not a different SHAPE. All
 ;; other lines must diff byte-identical.
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "core::List 1 2 3: "
       (:wat::edn::write (:wat::core::List 1 2 3))))

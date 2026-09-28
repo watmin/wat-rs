@@ -37,14 +37,14 @@
 ;;   #wat.type/ImpureFieldInPureAggregate, "containment rule (arc 293.W)" — so the only
 ;; way a struct reaches a fence is as a direct fact, which it can be (COMPILED-OK).
 
-(:wat::core::defn :probe::same-tag? [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :probe::same-tag? [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
   (:wat::core::= a b))
 
 (:wat::core::defstruct :u::Box
-  [cache <- (:wat::cache::Lru :- [:wat::core::i64 :wat::core::i64])
-   tag   <- :wat::core::i64])
+  [cache <- (:wat::cache::Lru :- [wat.type/i64 wat.type/i64])
+   tag   <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [b     (:u::Box :cache (:wat::cache::Lru/new 8) :tag 42)
      t1    (:wat::core::struct-field b 1)

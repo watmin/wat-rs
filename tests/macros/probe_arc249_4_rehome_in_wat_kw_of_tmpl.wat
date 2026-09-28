@@ -5,14 +5,14 @@
 ;; so the vehicle swaps to a local test-only macro that mints a plain keyword with no angle
 ;; spelling anywhere, keeping the exact same test topology.
 (:wat::core::defmacro :test::mk-kw
-  [head <- :wat::WatAST arg <- :wat::WatAST] -> :wat::WatAST
+  [head <- wat.type/AST arg <- wat.type/AST] -> wat.type/AST
   (:wat::core::let [head-text (:wat::keyword::to-string head)
                     arg-text  (:wat::keyword::to-string arg)
                     full (:wat::string::concat head-text
                            (:wat::string::concat "-" arg-text))]
     `~(:wat::keyword::from-string full)))
 (:wat::core::defmacro :my::mk
-  [e <- :wat::WatAST] -> :wat::WatAST
+  [e <- wat.type/AST] -> wat.type/AST
   `(:test::mk-kw :foo ~e))
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::keyword::to-string (:my::mk :bar)))

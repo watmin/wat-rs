@@ -28,7 +28,7 @@
   (:wat::core::read-string "(:wat::core::fn [<param> <- :T ...] -> :RetType <body>+)"))
 
 (:wat::core::def :user::main
-  (:wat::core::fn [] -> :wat::core::nil
+  (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println :scratch::let-grammar)
     (:wat::kernel::println :scratch::match-grammar)
     (:wat::kernel::println :scratch::fn-grammar)))

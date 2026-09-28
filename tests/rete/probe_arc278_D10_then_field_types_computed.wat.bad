@@ -16,8 +16,8 @@
 ;; `..._notknowable.wat`'s nk1 (a computed operand whose head states NO type, which must pass).
 ;; Three fixtures over the same source, because "knowable and right", "knowable and wrong" and
 ;; "not knowable" are three different verdicts and only one of them is a refusal.
-(:wat::core::defrecord :dcp::Box [k <- :wat::core::i64])
-(:wat::core::defrecord :dcp::Bad [t <- :wat::core::String])
+(:wat::core::defrecord :dcp::Box [k <- wat.type/i64])
+(:wat::core::defrecord :dcp::Bad [t <- wat.type/String])
 
 (:wat::rete::defrule :dcp::bad
   :when [(:dcp::Box (?k :- :k))]
@@ -31,5 +31,5 @@
 ;; supposed: the mutation run of 2026-09-03 produced exactly that face. A main that DOES something
 ;; makes the rete refusal the ONLY reason this file can fail, which is what makes the probe's
 ;; failure assertion mean something on its own, before the `.edn` golden is even consulted.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

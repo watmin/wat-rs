@@ -15,7 +15,7 @@
 ;;      was already guarded.
 ;;   2. The total fallback spelling `(:wat::rete::core::i64::+ a b :undefined 0)`. The bare
 ;;      `:wat::core::i64::+` is refused by the same fence as "not total".
-(:wat::core::defrecord :fm::N [k <- :wat::core::i64])
+(:wat::core::defrecord :fm::N [k <- wat.type/i64])
 
 ;; The body constructs from a COMPUTED value. Note `(:fm::N :k …)` is kwargs SUGAR — by the time
 ;; this is a stored fn body the macro has rewritten it to `:wat::core::kwargs-construct`, which is
@@ -31,7 +31,7 @@
 
 (:wat::rete::defquery :fm::q :params [] :when [(?fact :- :fm::N)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to

@@ -20,14 +20,14 @@
 
 ;; Tail-recursive countdown whose tail form is `:wat::core::if`. If `eval_if_tail`'s TCO is real,
 ;; this survives any depth; without it, each level costs a Rust frame.
-(:wat::core::defn :probe::countdown-if [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :probe::countdown-if [n <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::i64::<= n 0)
     0
     (:probe::countdown-if (:wat::i64::- n 1))))
 
 ;; The CONTROL for depth: the same recursion at a depth nothing could need a trampoline for.
 ;; If the deep case below fails while this passes, depth is the variable — not a typo in the fn.
-(:wat::core::defn :probe::shallow [] -> :wat::core::i64
+(:wat::core::defn :probe::shallow [] -> wat.type/i64
   (:probe::countdown-if 10))
 
 ;; THE DISCONFIRMING CONTROL. The identical recursion, but the last form is `and` — a FORM (lazy,
@@ -38,7 +38,7 @@
 ;;
 ;; NOT `cond`: that is a defmacro expanding to `if`, so it would inherit `eval_if_tail` and prove
 ;; nothing (measured — it also rejects a non-`:else` terminal arm).
-(:wat::core::defn :probe::countdown-and [n <- :wat::core::i64] -> :wat::core::bool
+(:wat::core::defn :probe::countdown-and [n <- wat.type/i64] -> wat.type/bool
   (:wat::core::if (:wat::i64::<= n 0)
     true
     (:wat::core::and true (:probe::countdown-and (:wat::i64::- n 1)))))
@@ -64,7 +64,7 @@
 ;; The deep `and` case is deliberately NOT driven from main: this file is loader-gated
 ;; (`every_wat_scripts_file_loads`), and a scratch probe that segfaults anyone who runs it is
 ;; hostile. Re-add the call below to reproduce.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:probe::shallow))
     (:wat::kernel::println (:probe::countdown-if 200000))

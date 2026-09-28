@@ -6,4 +6,4 @@
 ;; in value position is now a located check error (BareLegacyUnitValue). This file is
 ;; the INVERTED regression gate for that original claim — see
 ;; tests/wat_lang/wat_arc153_nil_rename.rs::value_position_empty_list_now_rejected.
-(:wat::core::defn :t::nil-form-paren [] -> :wat::core::nil ())
+(:wat::core::defn :t::nil-form-paren [] -> wat.type/nil ())

@@ -9,4 +9,4 @@
 ;; counts (0 declared, 1 supplied).
 
 (:wat::core::defn :t::too_many [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
-  (:wat::eval-edn! :- [:wat::core::i64] "42"))
+  (:wat::eval-edn! :- [wat.type/i64] "42"))

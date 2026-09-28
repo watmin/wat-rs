@@ -18,9 +18,9 @@
 ;; the verifier would have to reason about monotonicity and comparison direction against a
 ;; literal. It was correctly refused, and replaced by this, which is the honest shape of "deep
 ;; workload" anyway: transitive reachability is what real deep Datalog looks like, not a counter.
-(:wat::core::defrecord :cap::Edge  [a <- :wat::core::i64  b <- :wat::core::i64])
-(:wat::core::defrecord :cap::Start [n <- :wat::core::i64])
-(:wat::core::defrecord :cap::Reach [n <- :wat::core::i64])
+(:wat::core::defrecord :cap::Edge  [a <- wat.type/i64  b <- wat.type/i64])
+(:wat::core::defrecord :cap::Start [n <- wat.type/i64])
+(:wat::core::defrecord :cap::Reach [n <- wat.type/i64])
 
 (:wat::rete::defrule :cap::seed
   :when [(:cap::Start (?n :- :n))]
@@ -34,14 +34,14 @@
 
 (:wat::rete::defquery :cap::q :params [] :when [(?fact :- :cap::Reach)])
 
-(:wat::core::defn :cap::edges [] -> (:wat::core::PersistentVector :- [:cap::Edge])
+(:wat::core::defn :cap::edges [] -> (wat.type/PersistentVector :- [:cap::Edge])
   (:wat::core::into (:wat::core::PersistentVector)
     (:wat::core::mapv
-      (:wat::core::fn [i <- :wat::core::i64] -> :cap::Edge
+      (:wat::core::fn [i <- wat.type/i64] -> :cap::Edge
         (:cap::Edge :a i :b (:wat::i64::+ i 1)))
       (:wat::core::range 0 500))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::i64::to-string
       (:wat::core::length

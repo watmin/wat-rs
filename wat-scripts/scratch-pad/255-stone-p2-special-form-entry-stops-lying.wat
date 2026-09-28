@@ -17,7 +17,7 @@
 ;;   let   show-source -> ";; :wat::core::let — substrate primitive (no source available in this context)"
 ;;   let   :arity      -> -1            (STILL variadic — @syntax, not @arg; this must NOT change)
 
-(:wat::core::defn :user::report [form <- :wat::core::keyword] -> :wat::core::nil
+(:wat::core::defn :user::report [form <- wat.type/keyword] -> wat.type/nil
   (:wat::core::let
     [src (:wat::core::show-source form)
      m   (:wat::runtime::metadata-of form)]
@@ -29,7 +29,7 @@
             (:wat::string::concat (:wat::edn::write form) "  :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
         [:wat::core::Option.None {} (:wat::kernel::println (:wat::string::concat (:wat::edn::write form) "  :arity= NONE"))]))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:user::report :wat::core::if)
     (:user::report :wat::core::let)))

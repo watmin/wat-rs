@@ -16,11 +16,11 @@
 ;; Shape copied from the real builders (`wat-scripts/perf/grid/min-finding.wat:65-70`,
 ;; `node-share.wat:65-70`): a fn parameter spliced into a quasiquoted `where`.
 
-(:wat::core::defn :uq::build-where [threshold <- :wat::core::i64] -> :wat::WatAST
+(:wat::core::defn :uq::build-where [threshold <- wat.type/i64] -> wat.type/AST
   (:wat::core::quasiquote
     (:wat::rete::where (:wat::core::>= ?n (:wat::core::unquote threshold)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [built (:uq::build-where 42)]
     (:wat::kernel::println
       (:wat::core::PersistentMap

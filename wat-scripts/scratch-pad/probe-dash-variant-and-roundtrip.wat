@@ -4,14 +4,14 @@
 ;;      variant-constructor form (the macro's keyword-:op resolution mechanism).
 
 (:wat::core::defenum :probe-dv::Op :wat::enum::Pure
-  :Ping [req <- :wat::core::i64]
+  :Ping [req <- wat.type/i64]
   :-Tick [])
 
 ;; (1) construct + match the dash variant
-(:wat::core::defn :probe-dv::fire [] -> :wat::core::i64
+(:wat::core::defn :probe-dv::fire [] -> wat.type/i64
   (:wat::core::match (:probe-dv::Op.-Tick {}) 
     [:probe-dv::Op.-Tick {} 42]
     [:probe-dv::Op.Ping {:req n} n]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:probe-dv::fire)))

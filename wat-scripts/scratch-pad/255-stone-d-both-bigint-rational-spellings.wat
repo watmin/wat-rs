@@ -22,7 +22,7 @@
 ;; Run:  ./target/release/wat --check ./wat-scripts/scratch-pad/255-stone-d-both-bigint-rational-spellings.wat   # EXIT=0
 ;;       ./target/release/wat        ./wat-scripts/scratch-pad/255-stone-d-both-bigint-rational-spellings.wat   # EXIT=0 (12/12 assertions pass)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; ── bigint (6 ops: + - * / to-f64 to-rational) ─────────────────────────
     (:wat::test::assert-eq (:wat::bigint::to-f64 (:wat::bigint::+ (:wat::i64::to-bigint 1) (:wat::i64::to-bigint 2))) 3.0)

@@ -4,5 +4,5 @@
 ;; Arc 170's own purpose: `(:wat::runtime::argv)` carries the WHOLE OS argv to
 ;; `:user::main` — argv[0] = the resolved wat binary, argv[1] = the entry file,
 ;; argv[2..] = whatever else the caller said, unedited.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:wat::runtime::argv)))

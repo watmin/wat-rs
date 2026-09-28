@@ -11,11 +11,11 @@
 ;; Must now fail `startup_from_file` with a located `ReteCheckErrorKind::RhsMissingFields`
 ;; naming the rule, the type, and the missing field `window`.
 
-(:wat::core::defrecord :cr2::Anchor [x <- :wat::core::i64])
-(:wat::core::defrecord :cr2::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
+(:wat::core::defrecord :cr2::Anchor [x <- wat.type/i64])
+(:wat::core::defrecord :cr2::Rate   [count <- wat.type/i64 window <- wat.type/i64])
 
 (:wat::rete::defrule :cr2::gather
   :when [(:cr2::Anchor (?x :- :x))]
   :then [(:cr2::Rate :count 7)])
 
-(:wat::core::defn :user::run [] -> :wat::core::i64 0)
+(:wat::core::defn :user::run [] -> wat.type/i64 0)

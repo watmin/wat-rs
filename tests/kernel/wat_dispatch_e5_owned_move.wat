@@ -3,12 +3,12 @@
 
 (:wat::core::use! :rust::test::Ticket)
 
-(:wat::core::defn :my::compute-redeem [] -> :wat::core::i64
+(:wat::core::defn :my::compute-redeem [] -> wat.type/i64
   (:wat::core::let
     [t (:rust::test::Ticket/new 777)]
     (:rust::test::Ticket/redeem t)))
 
-(:wat::core::defn :my::compute-double-redeem [] -> :wat::core::i64
+(:wat::core::defn :my::compute-double-redeem [] -> wat.type/i64
   (:wat::core::let
     [t     (:rust::test::Ticket/new 42)
      first (:rust::test::Ticket/redeem t)]

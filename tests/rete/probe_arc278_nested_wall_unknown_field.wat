@@ -10,13 +10,13 @@
 ;; `(:wat::core::kwargs-construct :nwu::Inner :x ?k :nope ?k)` before freeze, putting the type at
 ;; index 1; matched against `items[0]` this form resolved to no type and was accepted unvalidated.
 
-(:wat::core::defrecord :nwu::Src   [k <- :wat::core::i64])
-(:wat::core::defrecord :nwu::Inner [x <- :wat::core::i64])
-(:wat::core::defrecord :nwu::Outer [k <- :wat::core::i64  inner <- :nwu::Inner])
+(:wat::core::defrecord :nwu::Src   [k <- wat.type/i64])
+(:wat::core::defrecord :nwu::Inner [x <- wat.type/i64])
+(:wat::core::defrecord :nwu::Outer [k <- wat.type/i64  inner <- :nwu::Inner])
 
 (:wat::rete::defrule :nwu::r
   :when [(:nwu::Src (?k :- :k))]
   :then [(:nwu::Outer :k ?k :inner (:nwu::Inner :x ?k :nope ?k))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println "the wall refuses before main runs"))

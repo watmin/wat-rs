@@ -34,7 +34,7 @@
         :file (:wat::kernel::Frame/file origin)
         :line (:wat::kernel::Frame/line origin)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     ;; The harness locates the next line by its trailing marker and asserts the spawned
     ;; child's ps label carries exactly it. A MARKER, not a source-text match: searching for
@@ -45,7 +45,7 @@
     [locus (:probe::labeled-locus) ;; <<origin-call>>
      p (:wat::test::spawn-peer locus
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [_a (:wat::test::assert-eq 0 (:wat::core::length (:wat::runtime::argv)))
                 _p (:wat::kernel::println (:wat::program::Env/process-id (:wat::program::env)))

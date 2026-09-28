@@ -4,11 +4,11 @@
 ;; NOT `startup_beside`/`call_beside`) by probe_arc278_query_type_safe.rs's
 ;; `query_typo_is_a_compile_error` test.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
 
-(:wat::core::defn :user::query-typo [] -> :wat::core::i64
+(:wat::core::defn :user::query-typo [] -> wat.type/i64
   (:wat::core::let
     [c1    (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))

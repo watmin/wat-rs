@@ -4,6 +4,6 @@
 
 (:wat::core::defrecord :user::Tag [])
 (:wat::core::defclause :user::id-tag
-  ([t <- :user::Tag] -> :wat::core::i64 7))
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+  ([t <- :user::Tag] -> wat.type/i64 7))
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:user::id-tag (:user::Tag)))

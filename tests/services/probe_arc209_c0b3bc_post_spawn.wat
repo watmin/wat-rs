@@ -6,7 +6,7 @@
 ;; annihilated with the rest of the hand-rolled IPC. The replacement is the substrate's own
 ;; connection path — `listener'` binds a rendezvous, `connect'` takes the client end,
 ;; `accept'` the server end. Still no spawn, and now the same ceremony every real consumer pays.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [bound (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      lis   (:wat::spawn::Bound/listener bound)
@@ -30,11 +30,11 @@
                (:wat::kernel::assertion-failed! :message "accept': failed accepting the hook channel")])
      _proc (:wat::test::spawn-peer
              (:wat::spawn::process::post-spawn
-               (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+               (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> wat.type/nil
                  (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx (:wat::spawn::ProcessLaunch/pid launch)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                    nil)))
              (:wat::core::forms
-               (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))
+               (:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "spawned child"))))
      pid   (:wat::core::match (:wat::kernel::recv rx)
              [:wat::kernel::RecvOutcome.Message {:msg m} m]
              [:wat::kernel::RecvOutcome.Lost {:cause cause}

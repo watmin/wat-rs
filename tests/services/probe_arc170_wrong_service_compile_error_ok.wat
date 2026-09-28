@@ -6,11 +6,11 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo
@@ -21,11 +21,11 @@
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- wat.type/String])
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
-     :Ok              [v <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [v <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::kv
@@ -34,7 +34,7 @@
             (:wat::service::Outcome.Reply {:state s
               :reply (:probe::Kv::GetResponse.Ok {:v (:probe::Kv::GetRequest/k req)})}))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      kvh (:probe::kv/start   :locus (:wat::spawn::process) :record (:probe::kv::Record))

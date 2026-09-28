@@ -8,7 +8,7 @@
 ;; NOTE: this is UN-correlated nesting (child has its own uuid, no parent link). Parent->child
 ;; correlation (a parent-uuid on the scope, the trace tree) is the enhancement still to build.
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -16,7 +16,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      _ws   (:wat::telemetry::with-span outer jaddr "outer-ns" tags
              (:wat::core::do
                (:wat::core::match (:wat::telemetry::Span/incr outer (:wat::telemetry::Span::IncrRequest :name :o))

@@ -13,12 +13,12 @@
 ;; type-checks. GREEN after K1b: the derived nature (Record) < the floor (HolonRecord) -> rejected.
 
 (:wat::core::defsurface :k1b::Vsa :nature :wat::holon::Record
-  :features [(measure [self <- :k1b::Vsa] -> :wat::core::f64)])
+  :features [(measure [self <- :k1b::Vsa] -> wat.type/f64)])
 
-(:wat::core::extend-type :wat::core::String :k1b::Vsa
-  (measure [self] -> :wat::core::f64 0.0))
+(:wat::core::extend-type wat.type/String :k1b::Vsa
+  (measure [self] -> wat.type/f64 0.0))
 
-(:wat::core::defn :k1b::use [x <- :k1b::Vsa] -> :wat::core::f64 (:k1b::Vsa/measure x))
+(:wat::core::defn :k1b::use [x <- :k1b::Vsa] -> wat.type/f64 (:k1b::Vsa/measure x))
 
-(:wat::core::defn :k1b::demo [] -> :wat::core::f64
+(:wat::core::defn :k1b::demo [] -> wat.type/f64
   (:k1b::use "hello"))     ; a String in a :nature :HolonRecord slot — MUST be rejected (String is not a holon)

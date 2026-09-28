@@ -19,11 +19,11 @@
 ;; would make two rules that both derive `(:kw::Hit :k 1)` indistinguishable from one rule firing.
 
 (:wat::core::defrecord :kw::Req
-  [k <- :wat::core::i64
-   tag <- :wat::core::keyword
-   ns <- :wat::core::keyword
-   rec <- :wat::core::keyword])
-(:wat::core::defrecord :kw::Hit [k <- :wat::core::i64])
+  [k <- wat.type/i64
+   tag <- wat.type/keyword
+   ns <- wat.type/keyword
+   rec <- wat.type/keyword])
+(:wat::core::defrecord :kw::Hit [k <- wat.type/i64])
 
 ;; ROUTE 1 — a `::`-free keyword constant. Matches row k=1 only.
 (:wat::rete::defrule :kw::plain
@@ -42,7 +42,7 @@
 
 (:wat::rete::defquery :kw::q :params [] :when [(?f :- :kw::Hit)])
 
-(:wat::core::defn :kw::fire [] -> :wat::core::i64
+(:wat::core::defn :kw::fire [] -> wat.type/i64
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :kw) (:wat::core::PersistentVector (:kw::q)))
           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
@@ -64,5 +64,5 @@
           (:wat::kernel::assertion-failed! :message "fire: round cap")])
       (:kw::q)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:kw::fire)))

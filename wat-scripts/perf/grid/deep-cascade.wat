@@ -30,22 +30,22 @@
 ;;   echo '[10 100]' | cargo wat ./wat-scripts/perf/grid/deep-cascade.wat
 ;;   => #grid/Result {:axis "deep-cascade" :size [10 100] :derived [...] :native-ns N}
 
-(:wat::core::defrecord :cascade::Node [level <- :wat::core::i64  id <- :wat::core::i64])
-(:wat::core::defrecord :cascade::Tag  [level <- :wat::core::i64  id <- :wat::core::i64])
+(:wat::core::defrecord :cascade::Node [level <- wat.type/i64  id <- wat.type/i64])
+(:wat::core::defrecord :cascade::Tag  [level <- wat.type/i64  id <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64
-   insert-ns      <- :wat::core::i64
-   fire-ns        <- :wat::core::i64
-   query-ns       <- :wat::core::i64
-   protocol-ns    <- :wat::core::i64])
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64
+   insert-ns      <- wat.type/i64
+   fire-ns        <- wat.type/i64
+   query-ns       <- wat.type/i64
+   protocol-ns    <- wat.type/i64])
 
 (:wat::rete::defquery :cascade::q-Node
   :params []
@@ -60,7 +60,7 @@
 ;; build-rule k — the k-th cascade level: join Node⋈Tag at level (k-1) on ?id, derive Node,Tag at
 ;; level k. The level literals (k-1 in the conditions, k in the inserts) are spliced via
 ;; quasiquote/unquote (byte-identical in shape to the legacy file's :perf::build-rule).
-(:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :dc::build-rule [k <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
                     c1 (:wat::core::quasiquote (:cascade::Node (?id :- :id) (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id :- :id) (?m :- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))
@@ -71,31 +71,31 @@
       :rhs (:wat::core::PersistentVector t1 t2))))
 
 ;; build-rules depth — the rule set [rule1 .. rule depth], folding build-rule over (range 1 depth+1).
-(:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :dc::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
       (:wat::vector::conj acc (:dc::build-rule k)))
     (:wat::core::PersistentVector (:dc::build-rule 1))
     (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
 ;; seed-level-0 session width — stage Node(0,i)+Tag(0,i) for i in [0, width), threading the session.
 ;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x 2N.
-(:wat::core::defn :dc::level-0-facts [width <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])
+(:wat::core::defn :dc::level-0-facts [width <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::vector::conj
         (:wat::vector::conj acc (:cascade::Node :level 0 :id i))
         (:cascade::Tag :level 0 :id i)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 width)))
 
-(:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session
+(:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all session (:dc::level-0-facts width)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; enc kind level id — canonical single-i64 witness for one derived fact (mirrors accum.wat's
 ;; :acc::enc: kind*1e15 + level*1e9 + id).
-(:wat::core::defn :dc::enc [kind <- :wat::core::i64  level <- :wat::core::i64  id <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :dc::enc [kind <- wat.type/i64  level <- wat.type/i64  id <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+
     (:wat::i64::+ (:wat::i64::* kind 1000000000000000) (:wat::i64::* level 1000000000))
     id))
@@ -103,33 +103,33 @@
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :dc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :dc::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; codes fired — every DERIVED Node/Tag fact (level > 0), canonically encoded, into one (Vector :- [i64]).
 ;; Level-0 facts are the seeded input, excluded from the witness (mirrors accum/negation excluding
 ;; their own seed types from the derived witness).
-(:wat::core::defn :dc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
+(:wat::core::defn :dc::codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::let
-    [c0 (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::enc 0 (:cascade::Node/level f) (:cascade::Node/id f))))
-            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Node/level f) 0)))
+    [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
+          (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::enc 0 (:cascade::Node/level f) (:cascade::Node/id f))))
+            (:wat::core::filter (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Node/level f) 0)))
               (:wat::rete::query fired (:cascade::q-Node)))))
      c1 (:wat::core::into c0
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::enc 1 (:cascade::Tag/level f) (:cascade::Tag/id f))))
-            (:wat::core::filter (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Tag/level f) 0)))
+          (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::enc 1 (:cascade::Tag/level f) (:cascade::Tag/id f))))
+            (:wat::core::filter (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::i64::> (:cascade::Tag/level f) 0)))
               (:wat::rete::query fired (:cascade::q-Tag)))))]
     c1))
 
 ;; derived-vector fired — the sorted i64 accuracy witness (the full derived set, not a count).
-(:wat::core::defn :dc::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :dc::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:dc::vec->pvec (:wat::core::sort (:dc::codes fired))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors accum.wat's ns-between).
-(:wat::core::defn :dc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :dc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [depth width]")

@@ -6,23 +6,23 @@
 ;; and folds the results into ONE i64 the parent reads back, so a single asserted number proves
 ;; each form registered: 99 (def) + 1+2 (struct accessors) + 10 (enum match) + 10 (newtype /0)
 ;; + 7 (typealias-returning fn, through the macro) = 129.
-(:wat::core::defn :my::launch [] -> :wat::core::i64
+(:wat::core::defn :my::launch [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::def :h::def-answer 99)
            (:wat::core::defstruct :h::MixPoint8
-             [x <- :wat::core::i64
-              y <- :wat::core::i64])
+             [x <- wat.type/i64
+              y <- wat.type/i64])
            (:wat::core::defenum :h::MixDir8 :wat::enum::Pure
              :Up
              :Down)
            (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
-           (:wat::core::typealias :h::MixCount8 :wat::core::i64)
-           (:wat::core::defn :h::mix-i64-fn8 [v <- :wat::core::i64] -> :h::MixCount8
+           (:wat::core::typealias :h::MixCount8 wat.type/i64)
+           (:wat::core::defn :h::mix-i64-fn8 [v <- wat.type/i64] -> :h::MixCount8
              v)
-           (:wat::core::defmacro :h::mix-id8 [z <- :wat::WatAST] -> :wat::WatAST `~z)
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defmacro :h::mix-id8 [z <- wat.type/AST] -> wat.type/AST `~z)
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [ans  :h::def-answer
                 pt   (:h::MixPoint8 :x 1 :y 2)

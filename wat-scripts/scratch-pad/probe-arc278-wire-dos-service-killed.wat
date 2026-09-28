@@ -27,18 +27,18 @@
 ;; deftest in wat-tests/service-request-malformed.wat, both tiers.)
 (:wat::core::defsurface :dos::Bag :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :dos::Bag::PutRequest [items <- (:wat::core::Vector :- [:wat::core::String])])
+  [(:wat::core::defrecord :dos::Bag::PutRequest [items <- (wat.type/Vector :- [wat.type/String])])
    (:wat::core::defenum :dos::Bag::PutResponse :wat::enum::Pure
-     :Ok              [n <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [n <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(put [self <- :dos::Bag  req <- :dos::Bag::PutRequest]
      -> :dos::Bag::PutResponse :max-request-bytes 4096)])
 
 (:wat::service::defservice :dos::bag-svc
   :satisfies :dos::Bag
-  :durable   [n <- :wat::core::i64]
+  :durable   [n <- wat.type/i64]
   :ephemeral []
   :impls
   [(put [s ctx req]
@@ -49,8 +49,8 @@
            (:wat::core::nth (:dos::Bag::PutRequest/items req) 0))})}))])
 
 (:wat::core::defn :dos::try
-  [c <- (:wat::kernel::Peer :- [:dos::Bag::Op :dos::Bag::Reply])  label <- :wat::core::String
-   req <- :dos::Bag::PutRequest] -> :wat::core::nil
+  [c <- (:wat::kernel::Peer :- [:dos::Bag::Op :dos::Bag::Reply])  label <- wat.type/String
+   req <- :dos::Bag::PutRequest] -> wat.type/nil
   (:wat::core::match (:dos::Bag/put c req)
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
@@ -77,10 +77,10 @@
     [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::println (:wat::string::concat label " => Closed"))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h (:dos::bag-svc/start :locus (:wat::spawn::process) :record (:dos::bag-svc::Record :n 0))
-     good (:dos::Bag::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
+     good (:dos::Bag::PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
      bad  (:wat::edn::read "#dos.Bag/PutRequest {:items [1 2 3]}")
      ;; ATTACKER connection
      a (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))

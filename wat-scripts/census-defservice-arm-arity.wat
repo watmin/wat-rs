@@ -33,7 +33,7 @@
 
 ;; ── is this top-level form a defservice? ────────────────────────────────────────────────
 (:wat::core::defn :user::defservice-form?
-  [form <- :wat::WatAST] -> :wat::core::bool
+  [form <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [ch (:wat::core::ast->children form)]
     (:wat::core::if (:wat::core::empty? ch)
       false
@@ -42,8 +42,8 @@
 
 ;; ── the children FOLLOWING the child whose source is `kw` (i.e. that section's value) ───
 (:wat::core::defn :user::index-after-keyword
-  [ch <- (:wat::core::Vector :- [:wat::WatAST])  kw <- :wat::core::String  i <- :wat::core::i64]
-  -> :wat::core::i64
+  [ch <- (wat.type/Vector :- [wat.type/AST])  kw <- wat.type/String  i <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::i64::>= i (:wat::core::length ch))
     -1
     (:wat::core::if (:wat::core::= (:wat::core::ast->source (:wat::core::nth ch i)) kw)
@@ -52,7 +52,7 @@
 
 ;; ── one arm → its param-vector arity (0 if the arm has no param vector) ────────────────
 (:wat::core::defn :user::arm-arity
-  [arm <- :wat::WatAST] -> :wat::core::i64
+  [arm <- wat.type/AST] -> wat.type/i64
   (:wat::core::let [ch (:wat::core::ast->children arm)]
     (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
       0
@@ -60,7 +60,7 @@
 
 ;; ── one arm → is it INTERNAL (leading `-` on the op name)? ─────────────────────────────
 (:wat::core::defn :user::arm-internal?
-  [arm <- :wat::WatAST] -> :wat::core::bool
+  [arm <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [ch (:wat::core::ast->children arm)]
     (:wat::core::if (:wat::core::empty? ch)
       false
@@ -69,18 +69,18 @@
 
 ;; ── one defservice form → its arms ─────────────────────────────────────────────────────
 (:wat::core::defn :user::arms-of
-  [form <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
+  [form <- wat.type/AST] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::let [ch  (:wat::core::ast->children form)
                     idx (:user::index-after-keyword ch ":impls" 0)]
     (:wat::core::if (:wat::i64::< idx 0)
-      (:wat::core::Vector :- [:wat::WatAST])
+      (wat.type/Vector :- [wat.type/AST])
       (:wat::core::if (:wat::i64::>= idx (:wat::core::length ch))
-        (:wat::core::Vector :- [:wat::WatAST])
+        (wat.type/Vector :- [wat.type/AST])
         (:wat::core::ast->children (:wat::core::nth ch idx))))))
 
 ;; ── report one arm as a line: "<file> <op> <arity> <internal?>" ────────────────────────
 (:wat::core::defn :user::report-arms
-  [arms <- (:wat::core::Vector :- [:wat::WatAST])  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
+  [arms <- (wat.type/Vector :- [wat.type/AST])  path <- wat.type/String  i <- wat.type/i64] -> wat.type/nil
   (:wat::core::if (:wat::i64::>= i (:wat::core::length arms))
     nil
     (:wat::core::let
@@ -100,7 +100,7 @@
         (:user::report-arms arms path (:wat::i64::+ i 1))))))
 
 (:wat::core::defn :user::census-forms
-  [forms <- (:wat::core::Vector :- [:wat::WatAST])  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
+  [forms <- (wat.type/Vector :- [wat.type/AST])  path <- wat.type/String  i <- wat.type/i64] -> wat.type/nil
   (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     nil
     (:wat::core::do
@@ -110,7 +110,7 @@
       (:user::census-forms forms path (:wat::i64::+ i 1)))))
 
 (:wat::core::defn :user::census-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])  i <- :wat::core::i64] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])  i <- wat.type/i64] -> wat.type/nil
   (:wat::core::if (:wat::i64::>= i (:wat::core::length paths))
     nil
     (:wat::core::let
@@ -123,7 +123,7 @@
         (:user::census-forms (:wat::core::ast->children tree) path 0)
         (:user::census-each paths (:wat::i64::+ i 1))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::census-each
     (:wat::core::match (:wat::kernel::readln )
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

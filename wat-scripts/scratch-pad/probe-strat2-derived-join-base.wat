@@ -29,11 +29,11 @@
 ;; Both arms MUST read 1. This file is loader-gated, so it stays alive; the run keeps it honest.
 ;; A 0 in SUBJECT is the regression returning.
 
-(:wat::core::defrecord :z::A   [c <- :wat::core::String])
-(:wat::core::defrecord :z::Bad [c <- :wat::core::String])
-(:wat::core::defrecord :z::R   [c <- :wat::core::String  t <- :wat::core::String])
-(:wat::core::defrecord :z::S   [c <- :wat::core::String])
-(:wat::core::defrecord :z::Out [c <- :wat::core::String  t <- :wat::core::String])
+(:wat::core::defrecord :z::A   [c <- wat.type/String])
+(:wat::core::defrecord :z::Bad [c <- wat.type/String])
+(:wat::core::defrecord :z::R   [c <- wat.type/String  t <- wat.type/String])
+(:wat::core::defrecord :z::S   [c <- wat.type/String])
+(:wat::core::defrecord :z::Out [c <- wat.type/String  t <- wat.type/String])
 
 ;; SUBJECT — stratum 2: derived THROUGH a negation. `:z::Bad` is never seeded, so the
 ;; negation is satisfied and `S` must (and does) derive.
@@ -43,8 +43,8 @@
   :then [(:z::S :c ?c)])
 
 ;; CONTROL — stratum 1: the same conclusion with no negation in its path.
-(:wat::core::defrecord :z::S2  [c <- :wat::core::String])
-(:wat::core::defrecord :z::Out2 [c <- :wat::core::String  t <- :wat::core::String])
+(:wat::core::defrecord :z::S2  [c <- wat.type/String])
+(:wat::core::defrecord :z::Out2 [c <- wat.type/String  t <- wat.type/String])
 (:wat::rete::defrule :z::settled-plain
   :when [(:z::A (?c :- :c))]
   :then [(:z::S2 :c ?c)])
@@ -78,10 +78,10 @@
   :when [(?fact :- :z::Out)])
 
 
-(:wat::core::defn :z::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :z::show [label <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [f (:wat::core::match (:wat::rete::fire-rules
          (:wat::core::match (:wat::rete::insert

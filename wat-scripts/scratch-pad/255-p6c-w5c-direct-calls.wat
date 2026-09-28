@@ -12,16 +12,16 @@
 ;; rune:lint(rete-name-unminted) :wat::rete::DerivationStep/bindings — macro-generated defrecord field accessor (wat/rete.wat:391); never appears as literal text, only synthesized at expansion time.
 ;; rune:lint(rete-name-unminted) :wat::rete::DerivationStep/constraints — macro-generated defrecord field accessor (wat/rete.wat:392); never appears as literal text, only synthesized at expansion time.
 
-(:wat::core::defrecord :w5cprobe::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :w5cprobe::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :w5cprobe::ColdAndWindy [location <- :wat::core::String])
+(:wat::core::defrecord :w5cprobe::Temperature  [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :w5cprobe::WindSpeed    [kph     <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :w5cprobe::ColdAndWindy [location <- wat.type/String])
 
 (:wat::rete::defrule :w5cprobe::cold-and-windy
   :when [(:w5cprobe::Temperature (?loc :- :location) (?c :- :celsius) (:wat::rete::i64::< ?c 20))
          (:w5cprobe::WindSpeed    (?loc :- :location) (?k :- :kph)     (:wat::rete::i64::> ?k 30))]
   :then [(:w5cprobe::ColdAndWindy :location ?loc)])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; lower — returns nil on a successful lower.
     (:wat::kernel::println (:wat::string::concat "lower= " (:wat::edn::write (:wat::rete::lower (:wat::core::quote (:wat::rete::i64::> ?c 5))))))

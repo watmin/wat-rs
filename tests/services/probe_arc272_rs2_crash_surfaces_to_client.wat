@@ -5,15 +5,15 @@
   :messages
   [(:wat::core::defrecord :my::Svc::BoomRequest  [])
    (:wat::core::defenum :my::Svc::BoomResponse :wat::enum::Pure
-     :Ok              [ok <- :wat::core::bool]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [ok <- wat.type/bool]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(boom [self <- :my::Svc  req <- :my::Svc::BoomRequest] -> :my::Svc::BoomResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::svc
   :satisfies :my::Svc
-  :durable [count <- :wat::core::i64]
+  :durable [count <- wat.type/i64]
   :ephemeral []
   :impls
   [(boom [s ctx req]
@@ -24,7 +24,7 @@
 ;; gets a reason-free 500 (the crash reason is administrative, on the owner's channel). We MATCH and
 ;; RETURN a marker: "LOST:<administrative msg>" on the crash, "MESSAGE"/"CLOSED" otherwise — the .rs
 ;; asserts the crash surfaced as ::Lost (not a mute ::Closed, not a fake ::Message, not a hang).
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [h  (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
      c  (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

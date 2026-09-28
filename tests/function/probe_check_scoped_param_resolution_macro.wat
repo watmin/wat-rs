@@ -6,7 +6,7 @@
 (:wat::core::defmacro :test::make-bad-ret
   [] -> (:AST :- [:wat::holon::HolonAST])
   `(:wat::core::defclause :test::bad-ret
-     ([x <- :wat::core::i64] -> :wat::core::bool x)))
+     ([x <- wat.type/i64] -> wat.type/bool x)))
 
 (:test::make-bad-ret)
 

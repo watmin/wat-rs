@@ -1,6 +1,6 @@
 ;; Co-located fixture for wat_online_subspace.rs — slurped via startup_beside(file!()).
 
-(:wat::core::defn :my::compute-construct [] -> :wat::core::String
+(:wat::core::defn :my::compute-construct [] -> wat.type/String
   (:wat::core::let
     [s (:wat::holon::OnlineSubspace/new 10000 16)
      d (:wat::holon::OnlineSubspace/dim s)
@@ -11,7 +11,7 @@
         (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) 
       "ok" "wrong")))
 
-(:wat::core::defn :my::compute-update [] -> :wat::core::String
+(:wat::core::defn :my::compute-update [] -> wat.type/String
   (:wat::core::let
     [s       (:wat::holon::OnlineSubspace/new 10000 4)
      v       (:wat::holon::encode (:wat::holon::to-holon "x"))
@@ -19,7 +19,7 @@
      n       (:wat::holon::OnlineSubspace/n s)]
     (:wat::core::if (:wat::core::= n 1)  "incremented" "stuck")))
 
-(:wat::core::defn :my::compute-eigenvalues [] -> :wat::core::String
+(:wat::core::defn :my::compute-eigenvalues [] -> wat.type/String
   (:wat::core::let
     [s    (:wat::holon::OnlineSubspace/new 10000 8)
      eigs (:wat::holon::OnlineSubspace/eigenvalues s)

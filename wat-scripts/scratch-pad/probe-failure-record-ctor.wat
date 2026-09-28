@@ -18,11 +18,11 @@
 ;; annihilation — the stored message/location fields were REMOVED; Failure carries the raised
 ;; `:wat::core::Error` STRUCTURALLY in a mandatory `error` field, and `Failure/message` is now a
 ;; DERIVED accessor reading `error.message`). Order/types cross-checked against `message_only_failure`.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [f (:wat::kernel::Failure
          :error (:wat::core::Fault/of "hello")
-         :frames (:wat::core::Vector :- [:wat::kernel::Frame])
+         :frames (wat.type/Vector :- [:wat::kernel::Frame])
          :actual :wat::core::Option.None
          :expected :wat::core::Option.None)]
     (:wat::kernel::println (:wat::kernel::Failure/message f))))

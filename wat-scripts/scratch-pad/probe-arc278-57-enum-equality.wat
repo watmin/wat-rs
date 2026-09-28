@@ -26,7 +26,7 @@
 (:wat::core::defenum :eq::Method :wat::enum::Pure :GET :POST :PUT :DELETE)
 (:wat::core::defenum :eq::Status :wat::enum::Pure :OPEN :CLOSED)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::core::PersistentMap
       ;; ACCEPT — same user enum, both operands. The row's whole job.

@@ -16,7 +16,7 @@
 ;; child, not merely that the file loaded.
 
 (:wat::core::defmacro :wat-tests::core::core-nth-macro-body::second-child
-  [form <- :wat::WatAST] -> :wat::WatAST
+  [form <- wat.type/AST] -> wat.type/AST
   `~(:wat::core::nth (:wat::core::ast->children form) 1))
 
 (:wat::test::deftest :wat-tests::core::core-nth-macro-body::macro-body-can-call-nth

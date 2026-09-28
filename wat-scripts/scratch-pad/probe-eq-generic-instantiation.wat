@@ -28,7 +28,7 @@
 ;; hole) but the hole SURVIVES inside a generic body instantiated at an unequatable type.
 ;; `=`/`not=` grade `@Totality Partial` — same verdict as before this stone, for a
 ;; narrower and now-precisely-located reason (the type-var door, not an ungated `Fn` domain).
-(:wat::core::defn :user::eq-generic :- [[T :< :wat::core::Equatable]] [a <- :T b <- :T] -> :wat::core::bool
+(:wat::core::defn :user::eq-generic :- [[T :< :wat::core::Equatable]] [a <- :T b <- :T] -> wat.type/bool
   (:wat::core::= a b))
 
 ;; The call on two functions is tests/types/probe_arc255_56_eq_generic_fn.wat.bad.

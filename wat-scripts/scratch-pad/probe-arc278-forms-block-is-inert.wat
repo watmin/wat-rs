@@ -42,15 +42,15 @@
 ;; GREEN = the forms block is genuinely inert to the expander (as it already was to the resolver);
 ;; RED naming `UnknownFactType` inside the block is the drift this stone closes.
 
-(:wat::core::defn :probe278b::payload [] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :probe278b::payload [] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::forms
-    (:wat::core::defrecord :probe278b::Temp [c <- :wat::core::i64])
-    (:wat::core::defrecord :probe278b::Hot  [c <- :wat::core::i64])
+    (:wat::core::defrecord :probe278b::Temp [c <- wat.type/i64])
+    (:wat::core::defrecord :probe278b::Hot  [c <- wat.type/i64])
     (:wat::rete::defrule :probe278b::rule-userfn
       :when [(:probe278b::Temp (?c :- :c))]
       :then [(:probe278b::Hot :c ?c)])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat "forms payload length="
       (:wat::i64::to-string (:wat::core::length (:probe278b::payload))))))

@@ -5,5 +5,5 @@
 (:wat::core::defrecord :hello::Box :- [Elem] [v <- :Elem])
 (:wat::core::extend-type :- [Elem] (:hello::Box :- [Elem]) (:hello::Greets :- [Elem])
   (greet [self] -> :Elem (:hello::Box/v self)))
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:wat::i64::+ 1 (:hello::Greets/greet (:hello::Box :v "hello, world!")))))

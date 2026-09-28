@@ -1,7 +1,7 @@
 ;; Co-located fixture for probe_arc278_insert_reports_the_verb.rs.
 ;; Runtime TypeMismatch on a non-Record fact — not a .wat.bad; this loads and type-checks.
 
-(:wat::core::defrecord :l22::F [n <- :wat::core::i64])
+(:wat::core::defrecord :l22::F [n <- wat.type/i64])
 
 (:wat::core::defn :user::empty-session [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector))

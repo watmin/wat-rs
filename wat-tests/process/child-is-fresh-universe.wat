@@ -5,7 +5,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_process_child_is_fresh_universe)
          (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:probe::parent-only 1))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome.Message {:msg _m}

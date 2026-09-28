@@ -18,18 +18,18 @@
 (:wat::core::defsurface :probe-det::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe-det::Bag::PutRequest
-     [items <- (:wat::core::Vector :- [:wat::core::String])])
+     [items <- (wat.type/Vector :- [wat.type/String])])
    (:wat::core::defenum :probe-det::Bag::PutResponse :wat::enum::Pure
-     :Ok              [len <- :wat::core::i64]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [len <- wat.type/i64]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(put [self <- :probe-det::Bag  req <- :probe-det::Bag::PutRequest]
      -> :probe-det::Bag::PutResponse :max-request-bytes 4096)])
 
 (:wat::service::defservice :probe-det::bag-svc
   :satisfies :probe-det::Bag
-  :durable   [n <- :wat::core::i64]
+  :durable   [n <- wat.type/i64]
   :ephemeral []
   :impls
   ;; The handler uses `items[0]` AS A STRING — exactly what the declaration promises.
@@ -41,9 +41,9 @@
 
 (:wat::core::defn :probe-det::round-trip
   [c     <- (:wat::kernel::Peer :- [:probe-det::Bag::Op :probe-det::Bag::Reply])
-   label <- :wat::core::String
+   label <- wat.type/String
    req   <- :probe-det::Bag::PutRequest]
-  -> :wat::core::nil
+  -> wat.type/nil
   (:wat::core::match (:probe-det::Bag/put c req)
     [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
@@ -74,7 +74,7 @@
       (:wat::kernel::println
         (:wat::string::concat label " => RecvOutcome::Closed"))]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h (:probe-det::bag-svc/start :locus (:wat::spawn::process)
          :record (:probe-det::bag-svc::Record :n 0))
@@ -88,7 +88,7 @@
          [:wat::kernel::ConnectOutcome.Failed {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))])
      good (:probe-det::Bag::PutRequest
-            :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
+            :items (wat.type/Vector :- [wat.type/String] "abcd"))
      _ (:probe-det::round-trip c "[process] control " good)
      bad (:wat::edn::read "#probe-det.Bag/PutRequest {:items [1 2 3]}")
      _ (:probe-det::round-trip c "[process] MISTYPED" bad)]

@@ -2,13 +2,13 @@
 ;; Before the fix: child re-parses a fields-less recordtype and dies with
 ;;   "malformed recordtype declaration: expected (:recordtype :Name :Parent [fields]) ... got 2 args".
 ;; After: the freeze reconstructs (:recordtype :Name :root [x <- :i64]) and it works → [2 4 6].
-(:wat::core::defrecord :probe::Foo [x <- :wat::core::i64])
+(:wat::core::defrecord :probe::Foo [x <- wat.type/i64])
 
-(:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :probe::double [n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::* n 2))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::bracket::map (:wat::spawn::process)
-      (:wat::core::Vector :- [:wat::core::i64] 1 2 3)
+      (wat.type/Vector :- [wat.type/i64] 1 2 3)
       :probe::double)))

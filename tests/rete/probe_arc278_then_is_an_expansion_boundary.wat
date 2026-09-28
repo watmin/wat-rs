@@ -25,9 +25,9 @@
 ;; avoids it by never expanding fact patterns at all). Row 4 nests a constructor
 ;; inside a value: its `cond` must expand while its head stays a `:teb::Pair`.
 
-(:wat::core::defrecord :teb::In   [n <- :wat::core::String])
-(:wat::core::defrecord :teb::Out  [v <- :wat::core::String])
-(:wat::core::defrecord :teb::Pair [a <- :wat::core::String  b <- :wat::core::String])
+(:wat::core::defrecord :teb::In   [n <- wat.type/String])
+(:wat::core::defrecord :teb::Out  [v <- wat.type/String])
+(:wat::core::defrecord :teb::Pair [a <- wat.type/String  b <- wat.type/String])
 (:wat::core::defrecord :teb::Wrap [p <- :teb::Pair])
 
 ;; kwargs `:then`, macro in the value
@@ -55,7 +55,7 @@
                                     :b ?n))])
 
 ;; LHS control — the path that already worked, so a regression there is visible too
-(:wat::core::defrecord :teb::LhsOut [v <- :wat::core::String])
+(:wat::core::defrecord :teb::LhsOut [v <- wat.type/String])
 (:wat::rete::defrule :teb::lhs
   :when [(:teb::In (?n :- :n))
          (:wat::rete::where (:wat::rete::core::cond
@@ -68,28 +68,28 @@
 (:wat::rete::defquery :teb::q-wrap :params [] :when [(?fact :- :teb::Wrap)])
 (:wat::rete::defquery :teb::q-lhs  :params [] :when [(?fact :- :teb::LhsOut)])
 
-(:wat::core::defn :teb::fired [n <- :wat::core::String] -> :wat::rete::Session
+(:wat::core::defn :teb::fired [n <- wat.type/String] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules
     (:wat::core::match (:wat::rete::insert-all
       (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :teb)
         (:wat::core::PersistentVector (:teb::q-out) (:teb::q-pair) (:teb::q-wrap) (:teb::q-lhs))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
       (:wat::core::PersistentVector (:teb::In :n n))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :teb::fact [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::PersistentMap
+(:wat::core::defn :teb::fact [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/PersistentMap
   (:wat::core::first (:wat::rete::query s q)))
 
 ;; [kwargs-a, kwargs-b, kwargs-else, positional, nested-value, nested-sibling, lhs-count]
-(:wat::core::defn :user::witness [] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::witness [] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::let [fa (:teb::fired "a")
                     fb (:teb::fired "b")
                     fz (:teb::fired "z")
-                    ga (:wat::core::fn [s <- :wat::rete::Session] -> :wat::core::String
+                    ga (:wat::core::fn [s <- :wat::rete::Session] -> wat.type/String
                          (:teb::Out/v (:wat::core::Option/expect
                            (:wat::map::get (:teb::fact s (:teb::q-out)) "?fact") "out")))
                     wa (:wat::core::Option/expect
                          (:wat::map::get (:teb::fact fa (:teb::q-wrap)) "?fact") "wrap")]
     (:wat::core::mapv
-      (:wat::core::fn [x <- :wat::core::String] -> :wat::core::String x)
+      (:wat::core::fn [x <- wat.type/String] -> wat.type/String x)
       (:wat::core::PersistentVector
         (ga fa) (ga fb) (ga fz)
         (:teb::Pair/a (:wat::core::Option/expect

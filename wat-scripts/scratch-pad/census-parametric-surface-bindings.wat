@@ -22,21 +22,21 @@
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["wat/seq.wat"]\n' | ./target/release/wat wat-scripts/scratch-pad/census-parametric-surface-bindings.wat
 
-(:wat::core::defn :census::head-of [form <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :census::head-of [form <- wat.type/AST] -> wat.type/String
   (:wat::core::let [ch (:wat::core::ast->children form)]
     (:wat::core::if (:wat::core::empty? ch)
       ""
       (:wat::core::ast->source (:wat::core::first ch)))))
 
 (:wat::core::defn :census::nth-source
-  [form <- :wat::WatAST idx <- :wat::core::i64] -> :wat::core::String
+  [form <- wat.type/AST idx <- wat.type/i64] -> wat.type/String
   (:wat::core::let [ch (:wat::core::into [] (:wat::core::ast->children form))]
     (:wat::core::if (:wat::core::< (:wat::core::length ch) (:wat::core::+ idx 1))
       ""
       (:wat::core::ast->source (:wat::core::nth ch idx)))))
 
 ;; Report this form if it is a defsurface / extend-type, then recurse into every child.
-(:wat::core::defn :census::walk [form <- :wat::WatAST] -> :wat::core::nil
+(:wat::core::defn :census::walk [form <- wat.type/AST] -> wat.type/nil
   (:wat::core::do
     (:wat::core::let [h (:census::head-of form)]
       (:wat::core::if (:wat::core::= h ":wat::core::defsurface")
@@ -51,12 +51,12 @@
               (:census::nth-source form 2)))
           nil)))
     (:wat::core::run!
-      (:wat::core::fn [c <- :wat::WatAST] -> :wat::core::nil (:census::walk c))
+      (:wat::core::fn [c <- wat.type/AST] -> wat.type/nil (:census::walk c))
       (:wat::core::into [] (:wat::core::ast->children form)))))
 
-(:wat::core::defn :census::file [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :census::file [path <- wat.type/String] -> wat.type/nil
   (:wat::core::run!
-    (:wat::core::fn [f <- :wat::WatAST] -> :wat::core::nil
+    (:wat::core::fn [f <- wat.type/AST] -> wat.type/nil
       (:census::walk f))
     (:wat::core::into []
       (:wat::core::ast->children
@@ -65,9 +65,9 @@
           [:wat::core::ReadOutcome.Malformed {:cause __cause}
             (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::run!
-    (:wat::core::fn [p <- :wat::core::String] -> :wat::core::nil (:census::file p))
+    (:wat::core::fn [p <- wat.type/String] -> wat.type/nil (:census::file p))
     (:wat::core::match (:wat::kernel::readln )
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
       [:wat::kernel::ReadlnOutcome.Eof {}

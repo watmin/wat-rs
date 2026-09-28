@@ -6,14 +6,14 @@
 ;; parity and splice a different literal into the expansion. Before the fix
 ;; this RefusedInMacro's at expand time on the i64::mod head; after the fix
 ;; it expands + runs green.
-(:wat::core::defmacro :my::list-parity [& xs <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::WatAST
+(:wat::core::defmacro :my::list-parity [& xs <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/AST
   (:wat::core::if (:wat::core::= (:wat::i64::mod (:wat::core::length xs) 2) 0)
     
     `"even"
     `"odd"))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:my::list-parity 1 2 3 4))
     (:wat::kernel::println (:my::list-parity 1 2 3))

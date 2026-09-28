@@ -8,8 +8,8 @@
   :features
   [(get [self <- (:probe::Holds :- [T])] -> :T)])
 
-(:wat::core::defrecord :probe::BadBox [s <- :wat::core::String])
-(:wat::core::extend-type :probe::BadBox (:probe::Holds :- [:wat::core::i64])
+(:wat::core::defrecord :probe::BadBox [s <- wat.type/String])
+(:wat::core::extend-type :probe::BadBox (:probe::Holds :- [wat.type/i64])
   (get [self] (:probe::BadBox/s self)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "x"))
+(:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "x"))

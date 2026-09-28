@@ -4,9 +4,9 @@
   :messages
   [(:wat::core::defrecord :probe::Mini::PingRequest [])
    (:wat::core::defenum :probe::Mini::PingResponse :wat::enum::Pure
-     :Ok               [ok <- :wat::core::bool]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok               [ok <- wat.type/bool]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(ping [self <- :probe::Mini  req <- :probe::Mini::PingRequest] -> :probe::Mini::PingResponse :max-request-bytes 524288)])
 
@@ -31,7 +31,7 @@
              [:probe::Mini::Tag.Rejected {} false])]
        (:wat::service::Outcome.Reply {:state s :reply (:probe::Mini::PingResponse.Ok {:ok ok})})))])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [h (:probe::mini/start :locus (:wat::spawn::process) :record (:probe::mini::Record :tag (:probe::Mini::Tag.Closed {})))
      c (:wat::core::match (:wat::kernel::connect (:probe::mini::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

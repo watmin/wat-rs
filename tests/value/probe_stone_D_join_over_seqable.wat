@@ -12,29 +12,29 @@
 ;;      not `true`).
 
 ;; ── row 1: Vector, unchanged fast path ─────────────────────────────────────
-(:wat::core::defn :probe::join-vector [] -> :wat::core::String
-  (:wat::string::join "-" (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+(:wat::core::defn :probe::join-vector [] -> wat.type/String
+  (:wat::string::join "-" (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
 ;; ── row 2: Stream — `map` over a Vector never re-materializes; join must accept the
 ;;    resulting lazy Stream directly. Before Stone D this was refused at CHECK time.
-(:wat::core::defn :probe::join-stream [] -> :wat::core::String
+(:wat::core::defn :probe::join-stream [] -> wat.type/String
   (:wat::string::join "-"
     (:wat::core::map
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))
-      (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))
+      (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
+      (wat.type/Vector :- [wat.type/i64] 1 2 3))))
 
 ;; ── row 3: List — the whole Seqable set, not just Stream.
-(:wat::core::defn :probe::join-list [] -> :wat::core::String
+(:wat::core::defn :probe::join-list [] -> wat.type/String
   (:wat::string::join "-" (:wat::core::List 1 2 3)))
 
 ;; ── row 4a/4b: rendering parity — same non-string (bool) elements, one path Vector,
 ;;    one path Stream. Both must render identically ("true,false,true"), proving the
 ;;    Stream arm renders through `render_str_total`, same as the Vector arm.
-(:wat::core::defn :probe::join-vector-bool [] -> :wat::core::String
-  (:wat::string::join "," (:wat::core::Vector :- [:wat::core::bool] true false true)))
+(:wat::core::defn :probe::join-vector-bool [] -> wat.type/String
+  (:wat::string::join "," (wat.type/Vector :- [wat.type/bool] true false true)))
 
-(:wat::core::defn :probe::join-stream-bool [] -> :wat::core::String
+(:wat::core::defn :probe::join-stream-bool [] -> wat.type/String
   (:wat::string::join ","
     (:wat::core::map
-      (:wat::core::fn [x <- :wat::core::bool] -> :wat::core::bool x)
-      (:wat::core::Vector :- [:wat::core::bool] true false true))))
+      (:wat::core::fn [x <- wat.type/bool] -> wat.type/bool x)
+      (wat.type/Vector :- [wat.type/bool] true false true))))

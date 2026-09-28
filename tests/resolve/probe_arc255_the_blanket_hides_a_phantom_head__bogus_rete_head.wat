@@ -31,7 +31,7 @@
 ;; when the blanket's own stone lands, this row goes red at exactly the right moment, and that
 ;; stone owns updating it. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::rete::f64::>X 1.0 0.5))
     nil))

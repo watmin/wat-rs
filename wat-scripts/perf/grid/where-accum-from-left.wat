@@ -5,9 +5,9 @@
 ;; Empty :from still fires with count 0. Field form (no extra ?w bind) so
 ;; the count is not grouped. n= is the SUM of Hit.n (two-locs has two Hits).
 
-(:wat::core::defrecord :wafl::Temp [c <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wafl::Wind [kph <- :wat::core::i64 loc <- :wat::core::String])
-(:wat::core::defrecord :wafl::Hit  [loc <- :wat::core::String n <- :wat::core::i64])
+(:wat::core::defrecord :wafl::Temp [c <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wafl::Wind [kph <- wat.type/i64 loc <- wat.type/String])
+(:wat::core::defrecord :wafl::Hit  [loc <- wat.type/String n <- wat.type/i64])
 
 (:wat::rete::defrule :wafl::count-winds-above-temp
   :when
@@ -22,11 +22,11 @@
   :params []
   :when [(?fact :- :wafl::Hit)])
 
-(:wat::core::defn :wafl::sum-n [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wafl::sum-n [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64
-                     p   <- :wat::core::PersistentMap]
-      -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64
+                     p   <- wat.type/PersistentMap]
+      -> wat.type/i64
       (:wat::core::let [f (:wat::core::Option/expect
                              (:wat::map::get p "?fact")
                              "query: ?fact")]
@@ -34,7 +34,7 @@
     0
     (:wat::rete::query s (:wafl::q-Hit))))
 
-(:wat::core::defn :wafl::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :wafl::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
   (:wat::kernel::println
     (:wat::string::concat
       (:wat::string::concat "row " (:wat::i64::to-string row))
@@ -42,7 +42,7 @@
         (:wat::string::concat " " name)
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [base (:wat::core::match (:wat::rete::compile-all
                            (:wat::core::PersistentVector (:wafl::count-winds-above-temp))
                            (:wat::core::PersistentVector (:wafl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]

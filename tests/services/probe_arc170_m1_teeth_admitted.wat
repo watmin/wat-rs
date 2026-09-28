@@ -10,11 +10,11 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- :wat::core::String]
-     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Ok              [reply <- wat.type/String]
+     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -25,7 +25,7 @@
               :reply (:probe::Echo::EchoResponse.Ok
                 {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
-(:wat::core::defn :user::compute [] -> :wat::core::String
+(:wat::core::defn :user::compute [] -> wat.type/String
   (:wat::core::let
     [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea  (:probe::echo::Handle/addr eh)
@@ -36,14 +36,14 @@
                 ;; (deterministic derivation → wire-identical Op/Reply; arc-054 idempotent).
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
                   :messages
-                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+                  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-                     :Ok              [reply <- :wat::core::String]
-                     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+                     :Ok              [reply <- wat.type/String]
+                     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-                (:wat::core::defn :user::main [] -> :wat::core::nil
+                (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
                     [self (:wat::program::self-peer
                             :wat::core::String
@@ -68,7 +68,7 @@
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            [:wat::core::Option.Some {:value p}
-             (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))]
+             (:probe::echo/grant eh (wat.type/Vector :- [wat.type/i64] p))]
            [:wat::core::Option.None {}
              (:wat::kernel::assertion-failed! :message "peer-pid returned None on a process prober")])
      ;; hand A's addr down; the prober dials — served ONLY because we granted its pid.

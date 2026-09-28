@@ -2,23 +2,23 @@
 ;; slurped via startup_beside(file!()). Functions RETURN String results for eval_in_frozen.
 ;; Arc 294.a: cosine accepts any EdnRepresentable value, lifting via to_holon_inner.
 
-(:wat::core::defn :vfc::construct-via-encode [] -> :wat::core::String
+(:wat::core::defn :vfc::construct-via-encode [] -> wat.type/String
   (:wat::core::let
     [v1 (:wat::holon::encode (:wat::holon::to-holon "x"))
      v2 (:wat::holon::encode (:wat::holon::to-holon "x"))]
     (:wat::core::if (:wat::core::= v1 v2)  "equal" "diff")))
 
-(:wat::core::defn :vfc::distinct-atoms [] -> :wat::core::String
+(:wat::core::defn :vfc::distinct-atoms [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "alpha"))
      vb (:wat::holon::encode (:wat::holon::to-holon "beta"))]
     (:wat::core::if (:wat::core::= va vb)  "same" "diff")))
 
 (:wat::core::defstruct :my::Engram
-  [label <- :wat::core::String
+  [label <- wat.type/String
    vec   <- :wat::holon::Vector])
 
-(:wat::core::defn :vfc::struct-field-roundtrip [] -> :wat::core::String
+(:wat::core::defn :vfc::struct-field-roundtrip [] -> wat.type/String
   (:wat::core::let
     [v (:wat::holon::encode (:wat::holon::to-holon "x"))
      e (:my::Engram :label "alpha" :vec v)
@@ -31,7 +31,7 @@
 ;; None of these fixtures can reach either domain hole (same-dim, non-zero
 ;; vectors), but the match must still name every variant.
 
-(:wat::core::defn :vfc::cosine-ast-ast [] -> :wat::core::String
+(:wat::core::defn :vfc::cosine-ast-ast [] -> wat.type/String
   (:wat::core::let
     [a (:wat::holon::to-holon "x")
      b (:wat::holon::to-holon "x")]
@@ -41,7 +41,7 @@
       [:wat::holon::CosineOutcome.Degenerate {:side _side} "degenerate"]
       [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :vfc::cosine-vec-vec [] -> :wat::core::String
+(:wat::core::defn :vfc::cosine-vec-vec [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
@@ -51,7 +51,7 @@
       [:wat::holon::CosineOutcome.Degenerate {:side _side} "degenerate"]
       [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :vfc::cosine-ast-vec [] -> :wat::core::String
+(:wat::core::defn :vfc::cosine-ast-vec [] -> wat.type/String
   (:wat::core::let
     [a (:wat::holon::to-holon "x")
      vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
@@ -61,7 +61,7 @@
       [:wat::holon::CosineOutcome.Degenerate {:side _side} "degenerate"]
       [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :vfc::cosine-vec-ast [] -> :wat::core::String
+(:wat::core::defn :vfc::cosine-vec-ast [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      b (:wat::holon::to-holon "x")]
@@ -71,7 +71,7 @@
       [:wat::holon::CosineOutcome.Degenerate {:side _side} "degenerate"]
       [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :vfc::dot-vec-vec [] -> :wat::core::String
+(:wat::core::defn :vfc::dot-vec-vec [] -> wat.type/String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      vb (:wat::holon::encode (:wat::holon::to-holon "x"))]
@@ -80,7 +80,7 @@
         (:wat::core::if (:wat::core::> d 0.0)  "positive" "non-positive")]
       [:wat::holon::DotOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
-(:wat::core::defn :vfc::simhash-agree [] -> :wat::core::String
+(:wat::core::defn :vfc::simhash-agree [] -> wat.type/String
   (:wat::core::let
     [ast (:wat::holon::to-holon "alpha")
      vec (:wat::holon::encode ast)
@@ -96,7 +96,7 @@
 (:wat::core::defn :vfc::cosine-string [] -> :wat::holon::CosineOutcome
   (:wat::holon::cosine "hello" "world"))
 
-(:wat::core::defn :vfc::encode-deterministic [] -> :wat::core::String
+(:wat::core::defn :vfc::encode-deterministic [] -> wat.type/String
   (:wat::core::let
     [a
       (:wat::holon::Bind

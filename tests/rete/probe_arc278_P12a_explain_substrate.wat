@@ -1,10 +1,10 @@
 ;; tests/rete/probe_arc278_P12a_explain_substrate.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Two-level weather cascade for explain-substrate tests.
 
-(:wat::core::defrecord :weather::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :weather::ColdAndWindy [celsius <- :wat::core::i64  kph      <- :wat::core::i64])
-(:wat::core::defrecord :weather::WeatherAlert [celsius <- :wat::core::i64  kph      <- :wat::core::i64])
+(:wat::core::defrecord :weather::Temperature  [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::WindSpeed    [kph     <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :weather::ColdAndWindy [celsius <- wat.type/i64  kph      <- wat.type/i64])
+(:wat::core::defrecord :weather::WeatherAlert [celsius <- wat.type/i64  kph      <- wat.type/i64])
 
 (:wat::rete::defrule :weather::cold-and-windy
   :when
@@ -40,7 +40,7 @@
 (:wat::core::defn :test::explain-oslo-oracle [] -> :wat::rete::Explained
   (:wat::core::match (:wat::rete::fire-rules-explain$oracle (:test::seed-oslo (:test::compile-weather))) [:wat::rete::FireOutcome.Fired {:value __explained} __explained] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules-explain: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules-explain: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :user::compile-weather-fires-nothing [] -> :wat::core::i64
+(:wat::core::defn :user::compile-weather-fires-nothing [] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat::core::match (:wat::rete::fire-rules (:test::compile-weather)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
@@ -48,28 +48,28 @@
 
 ;; 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
 ;; fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
-(:wat::core::defn :user::closure-fidelity-coldandwindy-count [] -> :wat::core::i64
+(:wat::core::defn :user::closure-fidelity-coldandwindy-count [] -> wat.type/i64
   (:wat::core::length
     (:wat::rete::query
       (:wat::rete::Explained/session (:test::explain-oslo))
       (:weather::q-ColdAndWindy))))
 
 ;; 2. INDEX POPULATED — the support map has one entry per derived fact: ColdAndWindy + WeatherAlert = 2.
-(:wat::core::defn :user::support-index-length [] -> :wat::core::i64
+(:wat::core::defn :user::support-index-length [] -> wat.type/i64
   (:wat::map::length (:wat::rete::Explained/support (:test::explain-oslo))))
 
 ;; 3. CHAINS CAPTURED — each entry's producing token carries its real `matches` support chain. Sum of chain
 ;; lengths over all support entries: ColdAndWindy's token has 2 edges (Temperature, WindSpeed), WeatherAlert's
 ;; has 1 (ColdAndWindy) → 3. This proves the index stores the real provenance, not just fact keys.
-(:wat::core::defn :user::support-chains-total-length [] -> :wat::core::i64
+(:wat::core::defn :user::support-chains-total-length [] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  sv <- :wat::rete::Support]
-      -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64  sv <- :wat::rete::Support]
+      -> wat.type/i64
       (:wat::i64::+ acc
         (:wat::core::length (:wat::rete::Token/matches (:wat::rete::Support/token sv)))))
     0
     (:wat::map::values (:wat::rete::Explained/support (:test::explain-oslo)))))
 
 ;; 4. ORACLE SIGIL — fire-rules-explain$oracle matches native support cardinality.
-(:wat::core::defn :user::support-index-length-oracle [] -> :wat::core::i64
+(:wat::core::defn :user::support-index-length-oracle [] -> wat.type/i64
   (:wat::map::length (:wat::rete::Explained/support (:test::explain-oslo-oracle))))

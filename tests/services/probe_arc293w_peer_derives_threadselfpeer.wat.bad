@@ -3,12 +3,12 @@
 ;; type. This file stays red for the rule that replaced it: a struct on a
 ;; thread peer is refused.
 
-(:wat::core::defstruct :probe::S [val <- :wat::core::i64])
+(:wat::core::defstruct :probe::S [val <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [_p (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:probe::S :wat::core::i64])]
-              -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::Peer :- [:probe::S wat.type/i64])]
+              -> wat.type/nil
             nil))]
     nil))

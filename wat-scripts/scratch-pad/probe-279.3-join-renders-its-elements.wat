@@ -24,13 +24,13 @@
 ;; stone's.
 
 (:wat::core::defn :user::join-ish :- [T]
-  [sep <- :wat::core::String xs <- (:wat::core::Vector :- [T])] -> :wat::core::String
+  [sep <- wat.type/String xs <- (wat.type/Vector :- [T])] -> wat.type/String
   (:wat::string::join sep
-    (:wat::core::mapv (:wat::core::fn [x <- T] -> :wat::core::String (:wat::core::str x)) xs)))
+    (:wat::core::mapv (:wat::core::fn [x <- T] -> wat.type/String (:wat::core::str x)) xs)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; the row that does not work today through the public verb — numbers
-    (:wat::kernel::println (:user::join-ish "," (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+    (:wat::kernel::println (:user::join-ish "," (wat.type/Vector :- [wat.type/i64] 1 2 3)))
     ;; the NON-VACUITY control: strings still work, and come back BARE (not re-quoted)
-    (:wat::kernel::println (:user::join-ish "-" (:wat::core::Vector :- [:wat::core::String] "a" "b")))))
+    (:wat::kernel::println (:user::join-ish "-" (wat.type/Vector :- [wat.type/String] "a" "b")))))

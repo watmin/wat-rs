@@ -38,19 +38,19 @@
 ;;   echo '[2000 3]' | cargo wat ./wat-scripts/perf/grid/min-finding.wat
 ;;   => #grid/Result {:axis "min-finding" :size [2000 3] :derived [...] :native-ns N}
 
-(:wat::core::defrecord :mf::Station [loc <- :wat::core::i64])
-(:wat::core::defrecord :mf::Reading [loc <- :wat::core::i64])
-(:wat::core::defrecord :mf::Busy    [loc <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :mf::Station [loc <- wat.type/i64])
+(:wat::core::defrecord :mf::Reading [loc <- wat.type/i64])
+(:wat::core::defrecord :mf::Busy    [loc <- wat.type/i64  n <- wat.type/i64])
 
 (:wat::core::defrecord :grid::Result
-  [axis      <- :wat::core::String
-   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   native-ns      <- :wat::core::i64
+  [axis      <- wat.type/String
+   size      <- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      <- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
-   oracle-ns      <- :wat::core::i64])
+   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      <- wat.type/i64])
 
 (:wat::rete::defquery :mf::q-Busy
   :params []
@@ -60,7 +60,7 @@
 ;; encode loc n — canonical single-i64 witness for one activated Busy fact. `n` is a station's
 ;; finding count (< 2*threshold, far below 1,000,000) and `loc` is < 1,000,000 at every grid size,
 ;; so the encoding is injective for the sizes this axis is ever run at.
-(:wat::core::defn :mf::encode [loc <- :wat::core::i64  n <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :mf::encode [loc <- wat.type/i64  n <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ (:wat::i64::* loc 1000000) n))
 
 ;; build-rule threshold — the single minimum-finding-set rule:
@@ -70,7 +70,7 @@
 ;; bare i64 LITERAL via unquote (a computed value into a literal position is proven — deep-cascade
 ;; embeds `(= ?l (unquote prev))` the same way). The accumulate condition mirrors the probe's
 ;; COUNT const exactly: (?n <- (:wat::rete::acc::count) :from (:mf::Reading (?loc <- :loc))).
-(:wat::core::defn :mf::build-rule [threshold <- :wat::core::i64] -> :wat::rete::Rule
+(:wat::core::defn :mf::build-rule [threshold <- wat.type/i64] -> :wat::rete::Rule
   (:wat::core::let [station-c (:wat::core::quasiquote (:mf::Station (?loc :- :loc)))
                     acc-c     (:wat::core::quasiquote
                                 (?n :- (:wat::rete::acc::count) :from (:mf::Reading (?loc :- :loc))))
@@ -90,18 +90,18 @@
 ;; i64-mod a b — non-negative modulo via truncating division (no native i64::mod/rem; only
 ;; + - * / exist — same idiom strat-neg.wat uses for its even test `(* (/ ?k 2) 2)`). a >= 0 and
 ;; b > 0 for every call here (station indices and 2*threshold), so truncation-toward-zero is exact.
-(:wat::core::defn :mf::i64-mod [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :mf::i64-mod [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
   (:wat::i64::- a (:wat::i64::* (:wat::i64::/ a b) b)))
 
 ;; seed-readings session loc count — stage `count` Reading(loc) findings for one station.
 ;; reading-facts loc count — `count` Reading(loc) facts as a FACT VECTOR. No longer threads a
 ;; Session: staging is one BATCH `insert-all` at the end of `seed`.
 (:wat::core::defn :mf::reading-facts
-  [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  loc <- :wat::core::i64  count <- :wat::core::i64]
-  -> (:wat::core::PersistentVector :- [:wat::core::Record])
+  [acc <- (wat.type/PersistentVector :- [wat.type/Record])  loc <- wat.type/i64  count <- wat.type/i64]
+  -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::foldl
-    (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Record])  _r <- :wat::core::i64]
-                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
+    (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Record])  _r <- wat.type/i64]
+                    -> (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::vector::conj a (:mf::Reading loc)))
     acc
     (:wat::core::range 0 count)))
@@ -110,14 +110,14 @@
 ;; (i mod (2*threshold)) Reading(i) findings. Counts span [0, 2T) so exactly the stations with
 ;; (i mod 2T) >= T activate.
 (:wat::core::defn :mf::seed
-  [session <- :wat::rete::Session  stations <- :wat::core::i64  threshold <- :wat::core::i64]
+  [session <- :wat::rete::Session  stations <- wat.type/i64  threshold <- wat.type/i64]
   -> :wat::rete::Session
   (:wat::core::let [span (:wat::i64::* 2 threshold)]
     (:wat::core::match (:wat::rete::insert-all
       session
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
-                        -> (:wat::core::PersistentVector :- [:wat::core::Record])
+        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
+                        -> (wat.type/PersistentVector :- [wat.type/Record])
           (:mf::reading-facts
             (:wat::vector::conj acc (:mf::Station i))
             i
@@ -128,26 +128,26 @@
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :mf::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+(:wat::core::defn :mf::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every activated Busy fact, canonically encoded (loc*1M + n) and sorted
 ;; ascending. THIS is the accuracy witness: the full activated set, not a count — a mismatch
 ;; anywhere (a station that should/shouldn't have activated, or a wrong finding count) shows up.
 (:wat::core::defn :mf::derived-vector
-  [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:mf::vec->pvec
     (:wat::core::sort
-      (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+      (:wat::core::into (wat.type/Vector :- [wat.type/i64])
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f))))
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f))))
           (:wat::rete::query fired (:mf::q-Busy)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
-(:wat::core::defn :mf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+(:wat::core::defn :mf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
   (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [params    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     stations  (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [stations threshold]")
                     threshold (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [stations threshold]")

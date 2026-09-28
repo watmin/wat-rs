@@ -42,25 +42,25 @@
 ;;           mechanism A-2-i's own probes already cover, re-asserted here as the negative row this
 ;;           stone's brief asks for)
 
-(:wat::core::defrecord :probe::R [sk <- :wat::core::i64])
+(:wat::core::defrecord :probe::R [sk <- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     ;; row 1 — accessor as a HEAD -> true
     (:wat::kernel::println
       (:wat::rete::pure? (:wat::core::quote
-        (:wat::core::fn [a <- :probe::R] -> :wat::core::i64
+        (:wat::core::fn [a <- :probe::R] -> wat.type/i64
           (:probe::R/sk a)))))
     ;; row 2 — the SAME accessor, resolved through an env binding -> false (unchanged)
     (:wat::kernel::println
       (:wat::core::let [k :probe::R/sk]
         (:wat::rete::pure? (:wat::core::quote
-          (:wat::core::fn [a <- :probe::R] -> :wat::core::i64
+          (:wat::core::fn [a <- :probe::R] -> wat.type/i64
             (k a))))))
     ;; row 3 — an EFFECTFUL fn, resolved through an env binding -> false (no widening)
     (:wat::kernel::println
-      (:wat::core::let [k (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+      (:wat::core::let [k (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
                              (:wat::core::do (:wat::kernel::println "!") x))]
         (:wat::rete::pure? (:wat::core::quote
-          (:wat::core::fn [a <- :wat::core::i64] -> :wat::core::i64
+          (:wat::core::fn [a <- wat.type/i64] -> wat.type/i64
             (k a))))))))

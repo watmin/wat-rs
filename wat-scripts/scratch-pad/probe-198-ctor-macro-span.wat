@@ -4,18 +4,18 @@
 ;; restriction check never fires — this is pure introspection of the expansion).
 (:wat::core::defstruct :my::Token
   {:restricted-to [:my::issuer::]}
-  [id <- :wat::core::i64])
+  [id <- wat.type/i64])
 
-(:wat::core::defn :probe::pos-str [p <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])] -> :wat::core::String
+(:wat::core::defn :probe::pos-str [p <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])] -> wat.type/String
   (:wat::string::concat "l" (:wat::i64::to-string (:wat::core::Option/expect (:wat::hashmap::get p :line) "line"))
     ":c" (:wat::i64::to-string (:wat::core::Option/expect (:wat::hashmap::get p :col) "col"))))
 
-(:wat::core::defn :probe::dump-children [kids <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :probe::dump-children [kids <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64 depth <- wat.type/i64] -> wat.type/nil
   (:wat::core::match (:wat::vec::get kids i)
     [:wat::core::Option.Some {:value c} (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth))]
     [:wat::core::Option.None {} nil]))
 
-(:wat::core::defn :probe::dump [node <- :wat::WatAST depth <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :probe::dump [node <- wat.type/AST depth <- wat.type/i64] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println
       (:wat::string::concat "depth=" (:wat::i64::to-string depth)
@@ -26,7 +26,7 @@
         "]"))
     (:probe::dump-children (:wat::core::ast->children node) 0 (:wat::core::+ depth 1))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [forms (:wat::core::match (:wat::core::read-string "(:my::Token 7)")
               [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]

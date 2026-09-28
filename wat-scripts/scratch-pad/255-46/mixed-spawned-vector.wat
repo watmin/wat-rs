@@ -3,8 +3,8 @@
 (:wat::core::defn :user::mixed :- [S R]
   [t <- (:wat::kernel::Thread :- [S R])
    p <- (:wat::kernel::Process :- [S R])]
-  -> (:wat::core::Vector :- [(:wat::spawn::Spawned :- [S R])])
-  (:wat::core::Vector :- [(:wat::spawn::Spawned :- [S R])] t p))
+  -> (wat.type/Vector :- [(:wat::spawn::Spawned :- [S R])])
+  (wat.type/Vector :- [(:wat::spawn::Spawned :- [S R])] t p))
 
 ;; Negative control (run at the weigh, not kept: this directory is type-check gated): the same
 ;; body typed as (Vector :- [(Thread :- [S R])]) is REFUSED — "parameter #3 expects (Thread :- [:S :R]);

@@ -22,16 +22,16 @@
 ;; ORDER-SENSITIVE by construction: doubling the accumulator before adding makes each element's
 ;; contribution depend on how many elements followed it.
 (:wat::core::defn :wat-tests::core::core-foldl-spec::shift-add
-  [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+  [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
   (:wat::i64::+ (:wat::i64::* acc 2) x))
 
 (:wat::core::defn :wat-tests::core::core-foldl-spec::id
-  [x <- :wat::core::i64] -> :wat::core::i64 x)
+  [x <- wat.type/i64] -> wat.type/i64 x)
 
 ;; ─── the four containers, at a length where order and associativity both bite ─────────────────
 
 (:wat::test::deftest :wat-tests::core::core-foldl-spec::agree-on-vector
-  (:wat::core::let [v (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)]
+  (:wat::core::let [v (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)]
     (:wat::test::assert-eq
       (:wat::core::foldl      :wat-tests::core::core-foldl-spec::shift-add 0 v)
       (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 v))))
@@ -53,7 +53,7 @@
 ;; closed, and it is checked against the spec rather than against a hand-written expectation.
 (:wat::test::deftest :wat-tests::core::core-foldl-spec::agree-on-stream
   (:wat::core::let [st (:wat::core::map :wat-tests::core::core-foldl-spec::id
-                         (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5))]
+                         (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5))]
     (:wat::test::assert-eq
       (:wat::core::foldl      :wat-tests::core::core-foldl-spec::shift-add 0 st)
       (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 st))))
@@ -61,18 +61,18 @@
 ;; ─── the lengths where a fold's edges live: 0, 1, 2 ───────────────────────────────────────────
 
 (:wat::test::deftest :wat-tests::core::core-foldl-spec::agree-on-empty
-  (:wat::core::let [v (:wat::core::Vector :- [:wat::core::i64])]
+  (:wat::core::let [v (wat.type/Vector :- [wat.type/i64])]
     (:wat::test::assert-eq
       (:wat::core::foldl      :wat-tests::core::core-foldl-spec::shift-add 0 v)
       (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 v))))
 
 (:wat::test::deftest :wat-tests::core::core-foldl-spec::agree-on-one-and-two
   (:wat::core::do
-    (:wat::core::let [v (:wat::core::Vector :- [:wat::core::i64] 7)]
+    (:wat::core::let [v (wat.type/Vector :- [wat.type/i64] 7)]
       (:wat::test::assert-eq
         (:wat::core::foldl      :wat-tests::core::core-foldl-spec::shift-add 0 v)
         (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 v)))
-    (:wat::core::let [v (:wat::core::Vector :- [:wat::core::i64] 7 3)]
+    (:wat::core::let [v (wat.type/Vector :- [wat.type/i64] 7 3)]
       (:wat::test::assert-eq
         (:wat::core::foldl      :wat-tests::core::core-foldl-spec::shift-add 0 v)
         (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 v)))))
@@ -85,8 +85,8 @@
 ;; order-sensitive: left-fold gives 100-1-2-3-4-5 = 85, and ANY re-ordering or re-association gives
 ;; something else. Without it, "they agree" is a claim about nothing.
 (:wat::test::deftest :wat-tests::core::core-foldl-spec::nonvacuity-order-is-observable
-  (:wat::core::let [fwd (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4 5)
-                    rev (:wat::core::Vector :- [:wat::core::i64] 5 4 3 2 1)]
+  (:wat::core::let [fwd (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)
+                    rev (wat.type/Vector :- [wat.type/i64] 5 4 3 2 1)]
     (:wat::core::do
       (:wat::test::assert-eq
         (:wat::core::foldl :wat-tests::core::core-foldl-spec::shift-add 0 fwd) 57)

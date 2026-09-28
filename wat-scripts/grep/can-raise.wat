@@ -25,9 +25,9 @@
 ;;   - macro-template interiors are included (see defined-twice.wat's finding).
 ;;   - it says nothing about transitive risk through a CALLEE — only lexical containment.
 
-(:wat::core::defrecord :cr::Under   [anc <- :wat::core::i64  node <- :wat::core::i64])
-(:wat::core::defrecord :cr::Partial [id  <- :wat::core::i64  verb <- :wat::core::String])
-(:wat::core::defrecord :cr::Defn    [id  <- :wat::core::i64  name <- :wat::core::String])
+(:wat::core::defrecord :cr::Under   [anc <- wat.type/i64  node <- wat.type/i64])
+(:wat::core::defrecord :cr::Partial [id  <- wat.type/i64  verb <- wat.type/String])
+(:wat::core::defrecord :cr::Defn    [id  <- wat.type/i64  name <- wat.type/String])
 
 ;; ── the transitive closure ──────────────────────────────────────────────────────────
 (:wat::rete::defrule :cr::a-direct
@@ -84,5 +84,5 @@
                        (:wat::grep::Capture :name "fn"   :value ?fname)
                        (:wat::grep::Capture :name "verb" :value ?verb)))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :cr))

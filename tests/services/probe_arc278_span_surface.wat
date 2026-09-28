@@ -6,7 +6,7 @@
 ;; state — each op just replies its Ok/Done.
 
 ;; a trivial payload record the producer `edn::write`s into the opaque log message String (Stone B).
-(:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+(:wat::core::defrecord :probe::Note [text <- wat.type/String])
 
 (:wat::service::defservice :probe::toy-span
   :satisfies :wat::telemetry::Span
@@ -19,7 +19,7 @@
    (close [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:wat::telemetry::Span::CloseResponse.Done {})}))])
 
 ;; :user::compute — start the toy on a thread, dial it, drive all four ops, return 1 iff close -> Done.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
     [h    (:probe::toy-span/start :locus (:wat::spawn::thread) :record (:probe::toy-span::Record))
      span (:wat::core::match (:wat::kernel::connect (:probe::toy-span::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])

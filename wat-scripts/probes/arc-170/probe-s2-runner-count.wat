@@ -11,10 +11,10 @@
 ;; value at the abstract protocol type; `:wat::spawn::Locus/runner-count` (255.19: a surface
 ;; method, was a defclause) dispatches on the concrete class at runtime. This is the exact S3
 ;; usage (the bracket holds a `(Locus :- [T])`).
-(:wat::core::defn :user::read-blind :- [T] [l <- (:wat::spawn::Locus :- [T])] -> :wat::core::i64
+(:wat::core::defn :user::read-blind :- [T] [l <- (:wat::spawn::Locus :- [T])] -> wat.type/i64
   (:wat::spawn::Locus/runner-count l))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; explicit process pool of 8
      p8    (:wat::spawn::process::runner-count 8)

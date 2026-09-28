@@ -1,5 +1,5 @@
 ;; THE CRUX: read-string of the DOTTED wire text (as write-forms emits) vs pure?
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [dotted "(:wat.core/fn [n <- :wat.core/i64] -> :wat.core/bool (:wat.core/> n 3))"
      rs     (:wat::core::match (:wat::core::read-string dotted) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])

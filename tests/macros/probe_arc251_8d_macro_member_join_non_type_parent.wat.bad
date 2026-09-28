@@ -4,5 +4,5 @@
 ;; kind: an unknown member is refused whether or not the parent names a type.
 (wat.core/defmacro user.helper/of [n :- wat/WatAST] :- wat/WatAST
   `(:wat::core::+ ~n 1))
-(:wat::core::defn :user::entry [] -> :wat::core::i64
+(:wat::core::defn :user::entry [] -> wat.type/i64
   (:user::helper/nope 7))

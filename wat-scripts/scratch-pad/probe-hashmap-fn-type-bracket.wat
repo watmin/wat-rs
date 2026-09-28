@@ -3,6 +3,6 @@
 ;; well-typed `[T :-> R]` fn-type-bracket K/V that check-time (parse_type_node,
 ;; via parse_param_spec_slot) accepts?
 (:wat::core::def :user::main
-  (:wat::core::fn [] -> :wat::core::nil
+  (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println
-      (:wat::core::HashMap :- [[:wat::core::i64 :-> :wat::core::bool] :wat::core::i64]))))
+      (wat.type/HashMap :- [[:wat::core::i64 :-> wat.type/bool] wat.type/i64]))))

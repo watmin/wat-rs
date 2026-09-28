@@ -5,18 +5,18 @@
 ;; program's top level, in that order) are unchanged. The child now exercises ALL THREE and
 ;; `println`s the combined result (99 from the struct via the factory + 1 from the enum match),
 ;; so a single value proves every declaration registered in order — stronger than exit-0.
-(:wat::core::defn :my::launch [] -> :wat::core::i64
+(:wat::core::defn :my::launch [] -> wat.type/i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defstruct :h::LocalItem
-             [value <- :wat::core::i64])
+             [value <- wat.type/i64])
            (:wat::core::defenum :h::LocalKind :wat::enum::Pure
              :A
              :B)
            (:wat::core::defn :h::make-item [] -> :h::LocalItem
              (:h::LocalItem 99))
-           (:wat::core::defn :user::main [] -> :wat::core::nil
+           (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [item (:h::make-item)
                 kind :h::LocalKind.A

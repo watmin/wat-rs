@@ -8,5 +8,5 @@
 ;; The probe_arc296_raise_gate.rs Rust test loads this file via startup_from_file
 ;; and asserts that startup returns Err (the wall holds).
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::raise! 42))

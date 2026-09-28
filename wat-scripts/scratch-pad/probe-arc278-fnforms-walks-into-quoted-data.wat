@@ -18,17 +18,17 @@
 ;; Only clean-passes + quoted-raises isolates it.
 
 ;; ── the CONTROL: no quote, and every symbol it names is real ────────────────────────────────
-(:wat::core::defn :probe::clean [] -> :wat::core::i64
+(:wat::core::defn :probe::clean [] -> wat.type/i64
   42)
 
 ;; ── the SUBJECT: identical shipping, but the body is QUOTED DATA naming things that do not
 ;; exist and are not meant to. This is legal, ordinary wat: `quote` is how you build a form.
 ;; `mystery-symbol` is a bare Symbol — deliberately NOT `?`-prefixed, so the result cannot be
 ;; read as being about rete's pattern-variable spelling.
-(:wat::core::defn :probe::quoted-junk [] -> :wat::WatAST
+(:wat::core::defn :probe::quoted-junk [] -> wat.type/AST
   (:wat::core::quote (mystery-symbol another-nonexistent-name)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [;; ARM 1 — the control. Expect a closure to come back.
      clean-forms (:wat::kernel::fn-forms :probe::clean

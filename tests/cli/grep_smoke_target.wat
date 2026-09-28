@@ -1,12 +1,12 @@
 ;; Positive control for every program under wat-scripts/grep/.
 ;; Driven by grep_programs_still_match.rs. Parse only — wat --grep does not type-check.
-(:wat::core::defn :smoke::dup [] -> :wat::core::nil
+(:wat::core::defn :smoke::dup [] -> wat.type/nil
   nil)
 
-(:wat::core::defn :smoke::dup [] -> :wat::core::nil
+(:wat::core::defn :smoke::dup [] -> wat.type/nil
   nil)
 
-(:wat::core::defn :smoke::hits [] -> :wat::core::nil
+(:wat::core::defn :smoke::hits [] -> wat.type/nil
   (:wat::core::do
     (:wat::core::first [])
     (:wat::core::Option/expect

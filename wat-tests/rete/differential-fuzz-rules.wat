@@ -23,22 +23,22 @@
 ;;     shared alpha with a de-duplicated children list is a documented past hazard in
 ;;     `fire_rules_stratified`'s own comments.
 
-(:wat::core::defrecord :wat-tests::rete::rules::Src [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :wat-tests::rete::rules::Src [x <- wat.type/i64  y <- wat.type/i64])
 ;; TWO fields, and the witness combines them asymmetrically — `a` and `b` must be distinguishable
 ;; or a transposed `:then` is invisible.
-(:wat::core::defrecord :wat-tests::rete::rules::Two [a <- :wat::core::i64  b <- :wat::core::i64])
-(:wat::core::defrecord :wat-tests::rete::rules::Alt [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::defrecord :wat-tests::rete::rules::Two [a <- wat.type/i64  b <- wat.type/i64])
+(:wat::core::defrecord :wat-tests::rete::rules::Alt [a <- wat.type/i64  b <- wat.type/i64])
 
 ;; ── the `:then` forms ────────────────────────────────────────────────────────
 ;; `ord 0` writes the fields in DECLARATION order; `ord 1` writes them REVERSED. Both must derive
 ;; the same fact — that is precisely what the wall's reorder promises, and what a positional
 ;; misread would break.
-(:wat::core::defn :wat-tests::rete::rules::then-two [ord <- :wat::core::i64] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::rules::then-two [ord <- wat.type/i64] -> wat.type/AST
   (:wat::core::if (:wat::core::= ord 0)
     (:wat::core::quasiquote (:wat-tests::rete::rules::Two :a ?x :b ?y))
     (:wat::core::quasiquote (:wat-tests::rete::rules::Two :b ?y :a ?x))))
 
-(:wat::core::defn :wat-tests::rete::rules::then-alt [ord <- :wat::core::i64] -> :wat::WatAST
+(:wat::core::defn :wat-tests::rete::rules::then-alt [ord <- wat.type/i64] -> wat.type/AST
   (:wat::core::if (:wat::core::= ord 0)
     (:wat::core::quasiquote (:wat-tests::rete::rules::Alt :a ?y :b ?x))
     (:wat::core::quasiquote (:wat-tests::rete::rules::Alt :b ?x :a ?y))))
@@ -46,8 +46,8 @@
 ;; `arity 1` derives one fact; `arity 2` derives a SECOND fact of a different class from the same
 ;; activation — the multi-fact `:then`, which no sibling generates.
 (:wat::core::defn :wat-tests::rete::rules::then-forms
-  [ord <- :wat::core::i64  arity <- :wat::core::i64]
-  -> (:wat::core::PersistentVector :- [:wat::WatAST])
+  [ord <- wat.type/i64  arity <- wat.type/i64]
+  -> (wat.type/PersistentVector :- [wat.type/AST])
   (:wat::core::if (:wat::core::= arity 1)
     (:wat::core::PersistentVector (:wat-tests::rete::rules::then-two ord))
     (:wat::core::PersistentVector
@@ -58,8 +58,8 @@
 ;; `nrules 2` adds a SECOND rule reading the SAME `Src` class — a shared alpha. Its `:then` writes
 ;; the fields the other way round, so the two rules are distinguishable in the witness.
 (:wat::core::defn :wat-tests::rete::rules::rule-set
-  [ord <- :wat::core::i64  arity <- :wat::core::i64  nrules <- :wat::core::i64]
-  -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+  [ord <- wat.type/i64  arity <- wat.type/i64  nrules <- wat.type/i64]
+  -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::let [lhs (:wat::core::PersistentVector
                           (:wat::core::quasiquote
                             (:wat-tests::rete::rules::Src (?x :- :x) (?y :- :y))))
@@ -100,10 +100,10 @@
   :when [(:wat-tests::rete::rules::Two (?a :- :a) (?b :- :b))])
 
 (:wat::core::defn :wat-tests::rete::rules::witness-of
-  [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::i64
+  [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  p <- :wat::core::PersistentMap]
-      -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap]
+      -> wat.type/i64
       (:wat::core::let [a (:wat::core::Option/expect (:wat::map::get p "?a") "?a")
                         b (:wat::core::Option/expect (:wat::map::get p "?b") "?b")]
         (:wat::i64::+ acc (:wat::i64::+ (:wat::i64::* a 1000) b))))
@@ -111,17 +111,17 @@
     (:wat::rete::query s q)))
 
 ;; Both classes summed, so a rule set deriving into `Alt` is not invisible to the witness.
-(:wat::core::defn :wat-tests::rete::rules::witness [s <- :wat::rete::Session] -> :wat::core::i64
+(:wat::core::defn :wat-tests::rete::rules::witness [s <- :wat::rete::Session] -> wat.type/i64
   (:wat::i64::+
     (:wat-tests::rete::rules::witness-of s (:wat-tests::rete::rules::q-two))
     (:wat-tests::rete::rules::witness-of s (:wat-tests::rete::rules::q-alt))))
 
 (:wat::core::defrecord :wat-tests::rete::rules::Case
-  [ord    <- :wat::core::i64   ;; :then kwargs order — declaration vs reversed
-   arity  <- :wat::core::i64   ;; 1 or 2 derived facts per activation
-   nrules <- :wat::core::i64   ;; 1, or 2 sharing one alpha
-   srcs   <- :wat::core::i64   ;; how many Src facts (distinct x,y per fact)
-   qparam <- :wat::core::i64]) ;; 0 unparameterised · 1 param SELECTS a row · 2 param matches NOTHING
+  [ord    <- wat.type/i64   ;; :then kwargs order — declaration vs reversed
+   arity  <- wat.type/i64   ;; 1 or 2 derived facts per activation
+   nrules <- wat.type/i64   ;; 1, or 2 sharing one alpha
+   srcs   <- wat.type/i64   ;; how many Src facts (distinct x,y per fact)
+   qparam <- wat.type/i64]) ;; 0 unparameterised · 1 param SELECTS a row · 2 param matches NOTHING
 
 (:wat::core::defn :wat-tests::rete::rules::seed
   [c <- :wat-tests::rete::rules::Case] -> :wat::rete::Session
@@ -138,7 +138,7 @@
      ;; landing on the same number by symmetry.
      facts (:wat::core::into (:wat::core::PersistentVector)
              (:wat::core::mapv
-               (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::rules::Src
+               (:wat::core::fn [i <- wat.type/i64] -> :wat-tests::rete::rules::Src
                  (:wat-tests::rete::rules::Src :x i :y (:wat::i64::+ i 7)))
                (:wat::core::range 0 (:wat-tests::rete::rules::Case/srcs c))))]
     (:wat::core::match (:wat::rete::insert-all s0 facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))
@@ -147,9 +147,9 @@
 ;; `qparam 2` selects a value no Src produces, so the correct answer is the EMPTY sum — a row that
 ;; would hide a param being ignored entirely, since ignoring it returns every row instead of none.
 (:wat::core::defn :wat-tests::rete::rules::param-witness
-  [s <- :wat::rete::Session  qparam <- :wat::core::i64] -> :wat::core::i64
+  [s <- :wat::rete::Session  qparam <- wat.type/i64] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
       (:wat::core::let [a (:wat::core::Option/expect (:wat::map::get p "?a") "?a")
                         b (:wat::core::Option/expect (:wat::map::get p "?b") "?b")]
         (:wat::i64::+ acc (:wat::i64::+ (:wat::i64::* a 1000) b))))
@@ -159,14 +159,14 @@
       (:wat::rete::query s (:wat-tests::rete::rules::q-two-at) :?a 999))))
 
 (:wat::core::defn :wat-tests::rete::rules::readout
-  [s <- :wat::rete::Session  c <- :wat-tests::rete::rules::Case] -> :wat::core::i64
+  [s <- :wat::rete::Session  c <- :wat-tests::rete::rules::Case] -> wat.type/i64
   (:wat::core::let [qp (:wat-tests::rete::rules::Case/qparam c)]
     (:wat::core::if (:wat::core::= qp 0)
       (:wat-tests::rete::rules::witness s)
       (:wat-tests::rete::rules::param-witness s qp))))
 
 (:wat::core::defn :wat-tests::rete::rules::prop [c <- :wat-tests::rete::rules::Case]
-  -> :wat::core::bool
+  -> wat.type/bool
   (:wat::core::let [st (:wat-tests::rete::rules::seed c)]
     (:wat::core::= (:wat-tests::rete::rules::readout (:wat::core::match (:wat::rete::fire-rules st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) c)
                    (:wat-tests::rete::rules::readout (:wat::core::match (:wat::rete::fire-rules$oracle st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) c))))
@@ -195,7 +195,7 @@
 ;; agree, `violations` would still read 0, and the file would certify an engine that had swapped
 ;; every field it wrote. So the discrimination is asserted directly rather than assumed.
 (:wat::core::defn :wat-tests::rete::rules::witness-of-pair
-  [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
+  [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
   (:wat-tests::rete::rules::witness
     (:wat::core::match (:wat::rete::fire-rules
       (:wat::core::match (:wat::rete::insert
@@ -264,9 +264,9 @@
 (:wat::test::time-limit "60s")
 (:wat::test::deftest :wat-tests::rete::rules::test-query-params-actually-filter
   (:wat::core::let
-    [mk (:wat::core::fn [qp <- :wat::core::i64] -> :wat-tests::rete::rules::Case
+    [mk (:wat::core::fn [qp <- wat.type/i64] -> :wat-tests::rete::rules::Case
           (:wat-tests::rete::rules::Case :ord 0 :arity 1 :nrules 1 :srcs 3 :qparam qp))
-     fire (:wat::core::fn [c <- :wat-tests::rete::rules::Case] -> :wat::core::i64
+     fire (:wat::core::fn [c <- :wat-tests::rete::rules::Case] -> wat.type/i64
             (:wat-tests::rete::rules::readout
               (:wat::core::match (:wat::rete::fire-rules (:wat-tests::rete::rules::seed c)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) c))
      all  (fire (mk 0))

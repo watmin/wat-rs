@@ -4,9 +4,9 @@
 ;; 5 hot / 5 cold usr::Temp), but runs the op body as a plain :user:: fn — no defservice, no
 ;; connect'/send'/recv' — so any crash surfaces its FULL RuntimeError directly.
 
-(:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
-(:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
+(:wat::core::defrecord :usr::Warn [c <- wat.type/i64])
 
 (:wat::rete::defquery :usr::q-Hot
   :params []
@@ -27,7 +27,7 @@
         (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
         (:wat::core::quote [(:usr::Warn :c ?c)]))) (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -36,11 +36,11 @@
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
+     tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      idxs  (:wat::core::range 0 10)
-     logs  (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
+     logs  (:wat::core::into (wat.type/Vector :- [:wat::telemetry::Log])
              (:wat::core::map
-               (:wat::core::fn [i <- :wat::core::i64] -> :wat::telemetry::Log
+               (:wat::core::fn [i <- wat.type/i64] -> :wat::telemetry::Log
                  (:wat::core::let
                    [hot? (:wat::i64::< (:wat::core::mod i 2) 1)
                     c    (:wat::core::if hot? 60 10)
@@ -56,10 +56,10 @@
       [:wat::telemetry::Journal::QueryLogsResponse.Success {:logs qlogs :cursor _cur}
         (:wat::core::let
           [class-ok (:wat::core::foldl
-                      (:wat::core::fn [ok <- :wat::core::bool log <- :wat::telemetry::Log] -> :wat::core::bool
+                      (:wat::core::fn [ok <- wat.type/bool log <- :wat::telemetry::Log] -> wat.type/bool
                         (:wat::core::if ok
                           (:wat::vec::contains?
-                            (:wat::core::Vector :- [:wat::core::String] "usr::Temp" "usr::Hot" "usr::Warn")
+                            (wat.type/Vector :- [wat.type/String] "usr::Temp" "usr::Hot" "usr::Warn")
                             (:wat::core::match
                               (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
                               [:wat::edn::ReadForeignOutcome.Value {:value payload}
@@ -72,8 +72,8 @@
            _p1 (:wat::kernel::println (:wat::string::concat "class-ok=" (:wat::core::str class-ok)))
            tmpl (:usr::template)
            deds (:wat::core::foldl
-                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Value]) log <- :wat::telemetry::Log]
-                    -> (:wat::core::PersistentVector :- [:wat::core::Value])
+                  (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Value]) log <- :wat::telemetry::Log]
+                    -> (wat.type/PersistentVector :- [wat.type/Value])
                     (:wat::core::concat acc
                       (:wat::core::let
                         [fired (:wat::core::match (:wat::rete::fire-rules
@@ -81,14 +81,14 @@
                         (:wat::core::concat
                           (:wat::core::into (:wat::core::PersistentVector)
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::Value
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
                                 (:wat::core::Option/expect
                                   (:wat::map::get p "?fact")
                                   "q-Hot: ?fact"))
                               (:wat::rete::query fired (:usr::q-Hot))))
                           (:wat::core::into (:wat::core::PersistentVector)
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::Value
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
                                 (:wat::core::Option/expect
                                   (:wat::map::get p "?fact")
                                   "q-Warn: ?fact"))

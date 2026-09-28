@@ -3,11 +3,11 @@
 ;; Valid patterns; startup must SUCCEED for all tests in this file.
 
 (:wat::core::defstruct :test::PaperResolved
-  [outcome       <- :wat::core::String
-   grace-residue <- :wat::core::f64])
+  [outcome       <- wat.type/String
+   grace-residue <- wat.type/f64])
 
 ;; valid_simple_binding_and_comparison
-(:wat::core::defn :t::test1-binding-cmp [p <- :test::PaperResolved] -> :wat::core::bool
+(:wat::core::defn :t::test1-binding-cmp [p <- :test::PaperResolved] -> wat.type/bool
   (:wat::form::matches? p
     (:test::PaperResolved
       (= ?outcome :outcome)
@@ -16,7 +16,7 @@
       (> ?grace-residue 5.0))))
 
 ;; valid_logical_combinators
-(:wat::core::defn :t::test2-logical [p <- :test::PaperResolved] -> :wat::core::bool
+(:wat::core::defn :t::test2-logical [p <- :test::PaperResolved] -> wat.type/bool
   (:wat::form::matches? p
     (:test::PaperResolved
       (= ?outcome :outcome)
@@ -29,7 +29,7 @@
         (:not (= ?outcome "Loss"))))))
 
 ;; valid_where_escape_returns_bool
-(:wat::core::defn :t::test3-where [p <- :test::PaperResolved] -> :wat::core::bool
+(:wat::core::defn :t::test3-where [p <- :test::PaperResolved] -> wat.type/bool
   (:wat::form::matches? p
     (:test::PaperResolved
       (= ?outcome :outcome)

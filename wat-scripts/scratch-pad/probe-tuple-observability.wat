@@ -31,20 +31,20 @@
 ;;   it — which is why `Tuple` is one of the three rows appearing nowhere in the 1569-file corpus.
 ;;   It was never usable, since genesis.
 
-(:wat::core::defn :user::projection [] -> :wat::core::String
+(:wat::core::defn :user::projection [] -> wat.type/String
   (:wat::string::concat
     (:wat::i64::to-string (:wat::core::first  (:wat::core::Tuple 7 99 512)))
     (:wat::string::concat
       (:wat::string::concat "/" (:wat::i64::to-string (:wat::core::second (:wat::core::Tuple 7 99 512))))
       (:wat::string::concat "/" (:wat::i64::to-string (:wat::core::third  (:wat::core::Tuple 7 99 512)))))))
 
-(:wat::core::defn :user::measurement [] -> :wat::core::String
+(:wat::core::defn :user::measurement [] -> wat.type/String
   (:wat::string::concat
     (:wat::i64::to-string (:wat::core::length (:wat::core::Tuple 7 99 512)))
     (:wat::string::concat "/" (:wat::core::bool::to-string
       (:wat::core::contains? (:wat::core::Tuple 7 99 512) 99)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println
     (:wat::core::PersistentMap
       "first/second/third" (:user::projection)

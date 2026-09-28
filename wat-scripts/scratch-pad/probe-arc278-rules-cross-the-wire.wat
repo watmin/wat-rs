@@ -72,19 +72,19 @@
 (:wat::core::defsurface :probe::RuleWire :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::RuleWire::InstallRequest
-     [defs <- (:wat::core::Vector :- [:wat::WatAST])])
+     [defs <- (wat.type/Vector :- [wat.type/AST])])
    (:wat::core::defenum :probe::RuleWire::InstallResponse :wat::enum::Pure
-     :Derived          [n <- :wat::core::i64]
-     :Rejected         [reason <- :wat::core::String]
-     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+     :Derived          [n <- wat.type/i64]
+     :Rejected         [reason <- wat.type/String]
+     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
   :features
   [(install [self <- :probe::RuleWire  req <- :probe::RuleWire::InstallRequest] -> :probe::RuleWire::InstallResponse :max-request-bytes 524288)])
 
 ;; ── the evaluand the SERVICE runs, in the world built from what it was handed ──────────────
 ;; `collect-rules` reflects the namespace of the world it is standing in — the service never
 ;; names a rule; it asks the world the client shipped it. 150 > 100 derives exactly one Hot.
-(:wat::core::defn :probe::evaluand [] -> :wat::WatAST
+(:wat::core::defn :probe::evaluand [] -> wat.type/AST
   (:wat::core::quote
     (:wat::core::length
       (:wat::rete::query
@@ -104,7 +104,7 @@
 ;; ── the service — receives defs off the wire, builds a world, fires, replies with the count ──
 (:wat::service::defservice :probe::rulewiresvc
   :satisfies :probe::RuleWire
-  :durable   [installs <- :wat::core::i64]
+  :durable   [installs <- wat.type/i64]
   :ephemeral []
   :init (:wat::core::fn [record <- :probe::rulewiresvc::Record] -> :probe::rulewiresvc::State
           (:probe::rulewiresvc::State :durable record))
@@ -122,22 +122,22 @@
          (:wat::service::Outcome.Reply {:state s :reply (:probe::RuleWire::InstallResponse.Rejected {:reason "raised"})})]))])
 
 ;; ── the two payloads, differing in ONE form ───────────────────────────────────────────────
-(:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :- [:wat::WatAST]
-    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
+(:wat::core::defn :probe::payload-complete [] -> (wat.type/Vector :- [wat.type/AST])
+  (wat.type/Vector :- [wat.type/AST]
+    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- wat.type/i64]))
+    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- wat.type/i64]))
     (:wat::core::quote
-      (:wat::rete::core::defn :usr::big? [n <- :wat::core::i64] -> :wat::core::bool
+      (:wat::rete::core::defn :usr::big? [n <- wat.type/i64] -> wat.type/bool
         (:wat::rete::i64::> n 100)))
     (:wat::core::quote
       (:wat::rete::defrule :usr::rule-userfn
         :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
         :then [(:usr::Hot :c ?c)]))))
 
-(:wat::core::defn :probe::payload-missing-helper [] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::Vector :- [:wat::WatAST]
-    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
+(:wat::core::defn :probe::payload-missing-helper [] -> (wat.type/Vector :- [wat.type/AST])
+  (wat.type/Vector :- [wat.type/AST]
+    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- wat.type/i64]))
+    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- wat.type/i64]))
     (:wat::core::quote
       (:wat::rete::defrule :usr::rule-userfn
         :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
@@ -152,9 +152,9 @@
     [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 (:wat::core::defn :probe::install!
-  [label <- :wat::core::String
-   defs  <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::core::nil
+  [label <- wat.type/String
+   defs  <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/nil
   (:wat::core::let
     [h (:probe::rulewiresvc/start :locus (:wat::spawn::process)
          :record (:probe::rulewiresvc::Record :installs 0))
@@ -182,7 +182,7 @@
       [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::println (:wat::string::concat label " => CLOSED before reply"))])))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:probe::install! "SUBJECT (helper IN payload)" (:probe::payload-complete))
     (:probe::install! "CONTROL (helper OMITTED)   " (:probe::payload-missing-helper))
