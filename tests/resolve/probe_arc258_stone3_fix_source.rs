@@ -92,7 +92,7 @@ fn contract_05_fix_source_recurses() {
     let out = eval_string("c05").expect("c05: fix-source + write-forms of nested if");
     assert_eq!(
         out,
-        include_str!("probe_arc258_stone3_fix_source__contract-05-nested-do-if.wat"),
+        include_str!("probe_arc258_stone3_fix_source__contract-05-nested-do-if.wat.golden"),
         "fix-source must recurse into (do …) and strip the inner if's annotation"
     );
 }
@@ -102,7 +102,7 @@ fn contract_06_fix_source_preserves_option_expect() {
     let out = eval_string("c06").expect("c06: fix-source + write-forms of Option/expect");
     assert_eq!(
         out,
-        include_str!("probe_arc258_stone3_fix_source__contract-06-preserves-option-expect.wat"),
+        include_str!("probe_arc258_stone3_fix_source__contract-06-preserves-option-expect.wat.golden"),
         "fix-source must preserve Option/expect's -> :T annotation through the walk"
     );
 }
@@ -112,7 +112,7 @@ fn contract_07_end_to_end_clean_source() {
     let out = eval_string("c07-str").expect("c07-str: fix-source + write-forms of annotated if");
     assert_eq!(
         out,
-        include_str!("probe_arc258_stone3_fix_source__contract-07-end-to-end-clean.wat"),
+        include_str!("probe_arc258_stone3_fix_source__contract-07-end-to-end-clean.wat.golden"),
         "fix-source + write-forms: cleaned if must carry no -> and preserve head :wat::core::if"
     );
     assert!(

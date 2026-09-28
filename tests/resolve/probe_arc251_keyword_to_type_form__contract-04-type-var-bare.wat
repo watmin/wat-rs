@@ -1,1 +1,0 @@
-(wat.type/Vector :- [T])

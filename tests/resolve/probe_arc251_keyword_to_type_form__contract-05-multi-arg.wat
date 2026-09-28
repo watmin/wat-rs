@@ -1,1 +1,0 @@
-(wat.type/HashMap :- [wat.type/String wat.type/i64])

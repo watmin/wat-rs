@@ -32,7 +32,7 @@ fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
 fn contract_01_arrow_in_binder() {
     assert_eq!(
         eval_string(":user::c01").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_local_rules__contract-01-arrow-in-binder.wat")
+        include_str!("probe_arc251_fix_source_local_rules__contract-01-arrow-in-binder.wat.golden")
     );
 }
 
@@ -40,7 +40,7 @@ fn contract_01_arrow_in_binder() {
 fn contract_02_post_arrow_scalar_type() {
     assert_eq!(
         eval_string(":user::c02").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_local_rules__contract-02-post-arrow-scalar.wat")
+        include_str!("probe_arc251_fix_source_local_rules__contract-02-post-arrow-scalar.wat.golden")
     );
 }
 
@@ -71,7 +71,7 @@ fn contract_03_structural_parametric_type() {
 fn contract_04_head_still_inverts() {
     assert_eq!(
         eval_string(":user::c04").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_local_rules__contract-04-head-inverts.wat")
+        include_str!("probe_arc251_fix_source_local_rules__contract-04-head-inverts.wat.golden")
     );
 }
 
@@ -79,7 +79,7 @@ fn contract_04_head_still_inverts() {
 fn contract_05_full_fn_literal() {
     assert_eq!(
         eval_string(":user::c05").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_local_rules__contract-05-full-fn-literal.wat"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-05-full-fn-literal.wat.golden"),
         "head inverts, binder + return arrows -> :-, both types -> wat.type/, in one pass"
     );
 }
@@ -88,11 +88,11 @@ fn contract_05_full_fn_literal() {
 fn contract_06_less_than_operator_is_not_a_type() {
     assert_eq!(
         eval_string(":user::c06a").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_local_rules__contract-06a-less-than.wat")
+        include_str!("probe_arc251_fix_source_local_rules__contract-06a-less-than.wat.golden")
     );
     assert_eq!(
         eval_string(":user::c06b").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_local_rules__contract-06b-less-equal.wat")
+        include_str!("probe_arc251_fix_source_local_rules__contract-06b-less-equal.wat.golden")
     );
 }
 
@@ -100,6 +100,6 @@ fn contract_06_less_than_operator_is_not_a_type() {
 fn contract_07_greater_than_operator() {
     assert_eq!(
         eval_string(":user::c07").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_local_rules__contract-07-greater-than.wat")
+        include_str!("probe_arc251_fix_source_local_rules__contract-07-greater-than.wat.golden")
     );
 }

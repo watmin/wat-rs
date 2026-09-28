@@ -645,3 +645,184 @@ Summary [ 377.758s] 6213 tests run: 6212 passed (21 slow), 1 failed, 24 skipped
 `.floor/2026-09-28T06-49-04Z`, exit=100. The one failure is the STOP-1 case above,
 `probe_arc283_1_rename_typearg::rename_reaches_type_arguments`, reported and left untouched per
 doctrine — every other test in the 6213-test suite is green, including all of B, C, and 32 of A.
+
+## AMEND-3 — X-G: goldens are `.wat.golden` (this agent)
+
+Per `AMEND-3-STONE-255.67-goldens-are-not-programs.md`. Method: re-derived SCORE-255.58 §1's
+37-row table from the tree first — every `include_str!` call site and its `.wat` file re-read,
+line numbers cross-checked against the table; all 37 present, unchanged, at the same lines.
+
+### 1. Renamed (37, `git mv <f> <f>.golden`), test's `include_str!` path updated to match, nothing
+   else in the 9 test files changed
+
+- `tests/resolve/probe_arc251_fix_source_local_rules__contract-01-arrow-in-binder.wat`
+- `tests/resolve/probe_arc251_fix_source_local_rules__contract-02-post-arrow-scalar.wat`
+- `tests/resolve/probe_arc251_fix_source_local_rules__contract-04-head-inverts.wat`
+- `tests/resolve/probe_arc251_fix_source_local_rules__contract-05-full-fn-literal.wat`
+- `tests/resolve/probe_arc251_fix_source_local_rules__contract-06a-less-than.wat`
+- `tests/resolve/probe_arc251_fix_source_local_rules__contract-06b-less-equal.wat`
+- `tests/resolve/probe_arc251_fix_source_local_rules__contract-07-greater-than.wat`
+- `tests/resolve/probe_arc251_fix_source_head_rule__contract-01-bare-call-head-inverted.wat`
+- `tests/resolve/probe_arc251_fix_source_head_rule__contract-02-strip-and-head-compose.wat`
+- `tests/resolve/probe_arc251_fix_source_head_rule__contract-03-nested-heads.wat`
+- `tests/resolve/probe_arc251_fix_source_head_rule__contract-04-data-keyword-head.wat`
+- `tests/resolve/probe_arc258_stone3_fix_source__contract-05-nested-do-if.wat`
+- `tests/resolve/probe_arc258_stone3_fix_source__contract-06-preserves-option-expect.wat`
+- `tests/resolve/probe_arc258_stone3_fix_source__contract-07-end-to-end-clean.wat`
+- `tests/resolve/probe_arc251_decl_migrator__c01-typealias-type-slot.wat`
+- `tests/resolve/probe_arc251_decl_migrator__c02-defn-drop-type-params.wat`
+- `tests/resolve/probe_arc251_decl_migrator__c04-user-type-preserved.wat`
+- `tests/resolve/probe_arc251_decl_migrator__c05-newtype-type-slot.wat`
+- `tests/resolve/probe_arc251_decl_migrator__c06-typeunion-core-members.wat`
+- `tests/resolve/probe_arc251_decl_migrator__c07-typeunion-user-members.wat`
+- `tests/resolve/probe_arc251_decl_migrator__c08-defenum-variant-tags.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-01a-scalar-i64.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-01b-scalar-user.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-06-tuple.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c01a-core-fqdn-i64.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c01b-core-fqdn-string.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c03a-legacy-i64.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c03b-legacy-string.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c03c-legacy-bool.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c04-user-type-namespace.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c06-user-type-two-segment.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c07a-type-var-t.wat`
+- `tests/resolve/probe_arc251_type_namespace_fix__c07b-type-var-k.wat`
+- `tests/resolve/probe_arc251_fix_text_comment_faithful__probe-comment-faithful.wat`
+- `tests/resolve/probe_arc251_fix_text_comment_faithful__once-many-comments-idempotent.wat`
+- `tests/resolve/probe_arc269_rename_keyword_prefix__swap-prefix-comment-faithful.wat`
+- `tests/types/probe_arc283_1_rename_typearg__renamed.wat`
+
+Test files edited (`include_str!` path only, `.wat` → `.wat.golden`): `probe_arc251_fix_source_local_rules.rs`,
+`probe_arc251_fix_source_head_rule.rs`, `probe_arc258_stone3_fix_source.rs`, `probe_arc251_decl_migrator.rs`,
+`probe_arc251_keyword_to_type_form.rs`, `probe_arc251_type_namespace_fix.rs`,
+`probe_arc251_fix_text_comment_faithful.rs`, `probe_arc269_rename_keyword_prefix.rs`,
+`probe_arc283_1_rename_typearg.rs`.
+
+### 2. Restored to pre-conversion bytes
+
+Only `tests/types/probe_arc283_1_rename_typearg__renamed.wat.golden`, per the amendment's step 3 (this
+is the STOP-1 file from AMEND-2). Content set to `git show fd04778e4^:tests/types/probe_arc283_1_rename_typearg__renamed.wat`
+verbatim (byte-diffed against that blob — identical, including the absence of a trailing newline on
+both sides).
+
+Checked whether `fd04778e4` touched any of the OTHER 36 renamed goldens: `git show fd04778e4
+--name-only` against the full 37-name list — only `probe_arc283_1_rename_typearg__renamed.wat`
+appears. **No other renamed golden needed restoration.**
+
+### 3. Dead fixtures deleted (6, `git rm`)
+
+Re-verified each is read by nothing: grepped the whole tree (not just `--include=*.rs`) for each
+file name. Each hit found was either the file itself, a stale hardcoded corpus-snapshot list inside
+`wat-scripts/scratch-pad/arc278-fence-binder-shadow/census-fence-binders.wat` (a one-off arc-278
+reconnaissance script, not a test, not part of any gate — confirmed its `main` is a literal 2000+
+line path snapshot from that arc, unrelated to this stone), or prose mentions in two historical SCORE
+docs (`SCORE-STONE-255.57...`, `SCORE-STONE-255.66...`). No `.rs` file under `tests/` references any
+of the six.
+
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-02-parametric.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-03-nested-parametric.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-04-type-var-bare.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-05-multi-arg.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-07-empty-tuple.wat`
+- `tests/resolve/probe_arc251_keyword_to_type_form__contract-08-nested-tuple.wat`
+
+### 4. Gates
+
+**`cargo clippy --release --all-targets -- -D warnings`**: clean, rc 0.
+```
+   Compiling wat v0.1.0 (/home/john/work/holon/wat-rs)
+    Checking with-loader-example v0.1.0 (/home/john/work/holon/wat-rs/examples/with-loader)
+    Checking console-demo v0.1.0 (/home/john/work/holon/wat-rs/examples/console-demo)
+    Finished `release` profile [optimized] target(s) in 12.00s
+```
+
+**`scripts/replay/census.sh`** (fresh census, `.census/2026-09-28T07-14-58Z.txt`, 2262 files) then
+**`scripts/replay/census.sh --diff .census/2026-09-28T04-23-04Z.txt .census/2026-09-28T07-14-58Z.txt`**:
+```
+census-diff: no STOP-8
+```
+rc 0. `comm` between the two path lists confirms the diff is exactly: the 43 files this stone
+removed from `*.wat` (37 renamed + 6 deleted, listed above) leaving the census, plus 3 files added by
+the prior (AMEND-2) agent's work between the PREV stamp and now (`tests/function/probe_arc255_67_wat_type_container_defclause_dispatch.wat`,
+`tests/program/wat_arc170_slice_1e_user_main_nil_new_spelling.wat`, `tests/types/probe_arc255_67_cutover_types.wat`)
+— unrelated to this amendment. 2302 → 2262 = -43 +3, no other change, no rc flip.
+
+**`scripts/replay/delta.sh`** (default 179-file canary):
+```
+  ORIG-CLEAN  160/179
+  CONV-CLEAN  158/179
+  NEW         2   (orig clean -> converted broken)
+  RECOVERY    0   (orig broken -> converted clean)
+
+NEW files:
+  wat-scripts/probes/arc-170/probe-c1-clean-surface.wat
+  wat/holon/Ngram.wat
+```
+`.delta/2026-09-28T07-16-17Z`, exit=0. Identical NEW/RECOVERY to the prior agent's run — none of this
+amendment's 43 touched files are in the delta's 179-file canary list; unrelated.
+
+**`scripts/floor.sh`**:
+```
+Summary [ 376.945s] 6213 tests run: 6212 passed (22 slow), 1 failed, 24 skipped
+```
+`.floor/2026-09-28T07-05-20Z`, exit=100.
+
+### STOP-1 (new) — `probe_arc170_edn_bridge_unspellable::c02_control_ordinary_forms_stay_plain_edn` —
+not a renamed/restored golden's own test. Not re-run. Not worked around.
+
+```
+        FAIL [   0.012s] (3874/6213) wat::program probe_arc170_edn_bridge_unspellable::c02_control_ordinary_forms_stay_plain_edn
+  stdout ───
+
+    running 1 test
+    test probe_arc170_edn_bridge_unspellable::c02_control_ordinary_forms_stay_plain_edn ... FAILED
+
+    failures:
+
+    failures:
+        probe_arc170_edn_bridge_unspellable::c02_control_ordinary_forms_stay_plain_edn
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 60 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'probe_arc170_edn_bridge_unspellable::c02_control_ordinary_forms_stay_plain_edn' (290240) panicked at /home/john/work/holon/wat-rs/tests/program/probe_arc170_edn_bridge_unspellable.rs:103:45:
+    an ordinary corpus file must be readable: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
+
+**Mechanism.** `tests/program/probe_arc170_edn_bridge_unspellable.rs:99-103` hardcodes the path
+`tests/resolve/probe_arc251_fix_source_head_rule__contract-01-bare-call-head-inverted.wat` and reads
+it with `std::fs::read_to_string` — NOT `include_str!` — as "an ordinary corpus file", the deliberate
+CONTROL fixture for that test's EDN-bridge structural check (comment at its own :79-96: "an ordinary
+program crosses as PLAIN EDN"). That file is ALSO, independently, one of the 37 goldens named in
+SCORE-255.58 §1 and this amendment's step 1: the expected OUTPUT of
+`probe_arc251_fix_source_head_rule::contract_01...` (row 8 of the table). It plays both roles at
+once — X-G output golden for one test, ordinary corpus INPUT sample for a wholly unrelated one. The
+37-file re-derivation in this amendment (like SCORE-255.58's original measurement) found every
+`include_str!` call site; neither pass searched for `std::fs::read_to_string`/`read_to_string`
+call sites naming these same paths, so this second consumer was invisible to the method both times.
+
+Renaming the file to `.wat.golden` (this amendment's step 2, uncontested — its OWN test,
+`probe_arc251_fix_source_head_rule.rs`, is green) silently removed it from where
+`probe_arc170_edn_bridge_unspellable.rs:101` still looks, which is why the floor went red on a test
+this amendment's work list never names.
+
+**Not fixed.** Per doctrine ("STOP-1: a floor red that is not a renamed or restored golden's own
+test... STOP" / "A STOP trigger means stop and report, not work around"), the rename is left in
+place exactly as this amendment ordered it, `probe_arc170_edn_bridge_unspellable.rs` is left
+untouched, and the floor is left red — a call for the builder. Two shapes of cure, either legitimate:
+(a) repoint `probe_arc170_edn_bridge_unspellable.rs:101` at a different, still-`.wat` ordinary
+corpus file (the property under test does not care WHICH ordinary file it samples, only that it stays
+plain, un-golden, un-renamed corpus), or (b) treat this one golden as the STOP-2 case the amendment
+anticipated for a file that cannot be cleanly classified golden vs. program — since it is, here,
+BOTH — and revert just its rename, leaving `tests/resolve/probe_arc251_fix_source_head_rule__contract-01-bare-call-head-inverted.wat`
+un-renamed (its own test does not require the `.wat.golden` suffix to pass; only the AMENDMENT's
+motivating property, keeping it out of a future corpus-wide codemod, would be lost for this one file).
+Nothing else in the 6213-test suite is affected: every other renamed/restored/deleted site's own
+tests are green (the full 6212/6213 pass count reflects that — the ONE failure is this one).
+
+**Gate note:** clippy, census-diff, and delta above are unaffected by this STOP (none re-runs the
+floor; none depends on the failing test) and are reported as run, verbatim, per the amendment's step
+5. The floor itself was run exactly once and is not re-run per STOP-1.

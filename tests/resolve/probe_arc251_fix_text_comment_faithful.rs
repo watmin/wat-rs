@@ -26,7 +26,7 @@ fn fix_text_preserves_comments_and_strips_redundant_annotation() {
     let out = eval_string(":user::probe");
     assert_eq!(
         out,
-        include_str!("probe_arc251_fix_text_comment_faithful__probe-comment-faithful.wat"),
+        include_str!("probe_arc251_fix_text_comment_faithful__probe-comment-faithful.wat.golden"),
         "fix-text golden mismatch; comment must survive byte-identical, \
          -> :wat::core::i64 annotation must be stripped"
     );
@@ -37,7 +37,7 @@ fn fix_text_is_comment_faithful_on_many_comments_and_idempotent() {
     let once = eval_string(":user::once");
     assert_eq!(
         once,
-        include_str!("probe_arc251_fix_text_comment_faithful__once-many-comments-idempotent.wat"),
+        include_str!("probe_arc251_fix_text_comment_faithful__once-many-comments-idempotent.wat.golden"),
         "fix-text (many-comments) golden mismatch; all comments + blank line must survive, \
          -> :wat::core::i64 annotation must be stripped"
     );

@@ -1,1 +1,0 @@
-(wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])])

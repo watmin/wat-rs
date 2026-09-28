@@ -32,11 +32,11 @@ fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
 fn c01_core_fqdn_scalar_stays_wat_type() {
     assert_eq!(
         eval_string(":user::c01a").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c01a-core-fqdn-i64.wat")
+        include_str!("probe_arc251_type_namespace_fix__c01a-core-fqdn-i64.wat.golden")
     );
     assert_eq!(
         eval_string(":user::c01b").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c01b-core-fqdn-string.wat")
+        include_str!("probe_arc251_type_namespace_fix__c01b-core-fqdn-string.wat.golden")
     );
 }
 
@@ -63,15 +63,15 @@ fn c02_core_parametric_stays_wat_type() {
 fn c03_bare_legacy_primitive_renders_core() {
     assert_eq!(
         eval_string(":user::c03a").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c03a-legacy-i64.wat")
+        include_str!("probe_arc251_type_namespace_fix__c03a-legacy-i64.wat.golden")
     );
     assert_eq!(
         eval_string(":user::c03b").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c03b-legacy-string.wat")
+        include_str!("probe_arc251_type_namespace_fix__c03b-legacy-string.wat.golden")
     );
     assert_eq!(
         eval_string(":user::c03c").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c03c-legacy-bool.wat")
+        include_str!("probe_arc251_type_namespace_fix__c03c-legacy-bool.wat.golden")
     );
 }
 
@@ -79,7 +79,7 @@ fn c03_bare_legacy_primitive_renders_core() {
 fn c04_user_type_preserves_namespace() {
     assert_eq!(
         eval_string(":user::c04").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c04-user-type-namespace.wat")
+        include_str!("probe_arc251_type_namespace_fix__c04-user-type-namespace.wat.golden")
     );
 }
 
@@ -94,7 +94,7 @@ fn c05_distinct_user_types_do_not_collide() {
 fn c06_user_type_two_segment_preserves_namespace() {
     assert_eq!(
         eval_string(":user::c06").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c06-user-type-two-segment.wat")
+        include_str!("probe_arc251_type_namespace_fix__c06-user-type-two-segment.wat.golden")
     );
 }
 
@@ -102,11 +102,11 @@ fn c06_user_type_two_segment_preserves_namespace() {
 fn c07_type_var_stays_bare() {
     assert_eq!(
         eval_string(":user::c07a").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c07a-type-var-t.wat")
+        include_str!("probe_arc251_type_namespace_fix__c07a-type-var-t.wat.golden")
     );
     assert_eq!(
         eval_string(":user::c07b").expect("eval_string"),
-        include_str!("probe_arc251_type_namespace_fix__c07b-type-var-k.wat")
+        include_str!("probe_arc251_type_namespace_fix__c07b-type-var-k.wat.golden")
     );
 }
 

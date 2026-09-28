@@ -30,7 +30,7 @@ fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
 fn contract_01_bare_call_head_inverted() {
     assert_eq!(
         eval_string(":user::c01").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_head_rule__contract-01-bare-call-head-inverted.wat")
+        include_str!("probe_arc251_fix_source_head_rule__contract-01-bare-call-head-inverted.wat.golden")
     );
 }
 
@@ -38,7 +38,7 @@ fn contract_01_bare_call_head_inverted() {
 fn contract_02_strip_and_head_compose() {
     assert_eq!(
         eval_string(":user::c02").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_head_rule__contract-02-strip-and-head-compose.wat"),
+        include_str!("probe_arc251_fix_source_head_rule__contract-02-strip-and-head-compose.wat.golden"),
         "the annotation is stripped AND the if-head is inverted, in one pass"
     );
 }
@@ -47,7 +47,7 @@ fn contract_02_strip_and_head_compose() {
 fn contract_03_recurses_into_nested_heads() {
     assert_eq!(
         eval_string(":user::c03").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_head_rule__contract-03-nested-heads.wat"),
+        include_str!("probe_arc251_fix_source_head_rule__contract-03-nested-heads.wat.golden"),
         "the nested call's head is inverted too"
     );
 }
@@ -56,6 +56,6 @@ fn contract_03_recurses_into_nested_heads() {
 fn contract_04_data_keyword_head_not_converted() {
     assert_eq!(
         eval_string(":user::c04").expect("eval_string"),
-        include_str!("probe_arc251_fix_source_head_rule__contract-04-data-keyword-head.wat")
+        include_str!("probe_arc251_fix_source_head_rule__contract-04-data-keyword-head.wat.golden")
     );
 }

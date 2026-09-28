@@ -25,7 +25,7 @@ fn rename_keyword_prefix_swaps_prefix_comment_faithful() {
     };
     assert_eq!(
         got,
-        include_str!("probe_arc269_rename_keyword_prefix__swap-prefix-comment-faithful.wat"),
+        include_str!("probe_arc269_rename_keyword_prefix__swap-prefix-comment-faithful.wat.golden"),
         "rename-keyword-prefix golden mismatch; both accessor prefixes must be swapped, \
          old prefix must be gone, comment must survive byte-identical"
     );

@@ -32,11 +32,11 @@ fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
 fn contract_01_scalar() {
     assert_eq!(
         eval_string(":user::c01a").expect("eval_string"),
-        include_str!("probe_arc251_keyword_to_type_form__contract-01a-scalar-i64.wat")
+        include_str!("probe_arc251_keyword_to_type_form__contract-01a-scalar-i64.wat.golden")
     );
     assert_eq!(
         eval_string(":user::c01b").expect("eval_string"),
-        include_str!("probe_arc251_keyword_to_type_form__contract-01b-scalar-user.wat")
+        include_str!("probe_arc251_keyword_to_type_form__contract-01b-scalar-user.wat.golden")
     );
 }
 
@@ -101,7 +101,7 @@ fn contract_05_multi_arg() {
 fn contract_06_tuple() {
     assert_eq!(
         eval_string(":user::c06").expect("eval_string"),
-        include_str!("probe_arc251_keyword_to_type_form__contract-06-tuple.wat")
+        include_str!("probe_arc251_keyword_to_type_form__contract-06-tuple.wat.golden")
     );
 }
 
