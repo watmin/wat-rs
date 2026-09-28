@@ -352,9 +352,21 @@ struct UniformAxis {
 /// else is excluded BY NAME below with the reason — the excluded set is asserted, so a file that
 /// silently changes protocol reds instead of quietly leaving the population.
 fn classify(stem: &str, src: &str) -> Option<UniformAxis> {
-    const MID: &str =
+    const MID_CORE: &str =
         "::seed (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:";
-    let at = src.find(MID)?;
+    // Stone 255.69 — the corpus conversion (`typed-constructors.wat`) rewrites the untyped
+    // `(:wat::core::PersistentVector (:NS::q-Hit))` call to `(wat.type/PersistentVector :- […]
+    // (:NS::q-Hit))` (the SAME type; every axis's own `q-Hit` returns a `:wat::rete::Query`,
+    // confirmed corpus-wide, not assumed) — the same class of raw-FILE-TEXT-vs-denotation drift
+    // the row-count marker below already carries dual spellings for. Try both; a file written in
+    // either reads as the same axis. The paren nesting after the head is unchanged (the type
+    // vector sits BEFORE the `(:NS::q-Hit)` argument, not around it), so `tail`'s
+    // `"{ns}::q-Hit)))"` check needs no change either way.
+    const MID_WAT_TYPE: &str = "::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:";
+    let (at, mid_len) = match src.find(MID_CORE) {
+        Some(p) => (p, MID_CORE.len()),
+        None => (src.find(MID_WAT_TYPE)?, MID_WAT_TYPE.len()),
+    };
     let head = &src[..at];
     let ns_start = head.rfind("(:")? + 2;
     let ns = &head[ns_start..];
@@ -362,7 +374,7 @@ fn classify(stem: &str, src: &str) -> Option<UniformAxis> {
         return None;
     }
     // The query and the items call must both be this same namespace's.
-    let tail = &src[at + MID.len()..];
+    let tail = &src[at + mid_len..];
     if !tail.starts_with(&format!("{ns}::q-Hit)))")) {
         return None;
     }

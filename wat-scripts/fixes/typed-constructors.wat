@@ -1,5 +1,20 @@
 ;; wat-scripts/fixes/typed-constructors.wat — arc 255, STONE 255.69.
 ;; SCOPE: corpus
+;; rune:replay(unreadable-preimage) — this codemod's transformation is a function of TWO
+;;   inputs, not one: the file's own text, AND a per-site type table sourced externally from
+;;   `WAT_CHECK_TYPES=1 wat --check` (item 2's own rule: "the table is an input, not a
+;;   committed artifact"), supplied at run time via the `.typed-constructors-table.edn`
+;;   side-channel this file's `:user::main` reads. `every_recorded_migration_replays.rs`'s
+;;   harness runs a stem's own codemod with `current_dir(manifest())` and NO such file present
+;;   (it is deliberately never committed) — `:user::main` would fail on the read before a
+;;   single site could even be considered, so no `before.pre`/`after.post` pair is a readable
+;;   preimage this replay mechanism can drive: committing one would mean committing its
+;;   (explicitly non-committed) type-table input too. Item 1's run-time behavior is covered
+;;   instead by `tests/function/probe_stone255_69_wat_type_scalar_dispatch.rs`; this codemod's
+;;   OWN correctness is covered by the corpus-scale evidence in this stone's SCORE (independent
+;;   census re-derivation, dry-run before/after `--check` parity, `scripts/replay/{census,
+;;   delta}.sh`, and idempotence over all 362 converted files) — a genuine before/after fixture
+;;   pair, not a canned one this harness could exercise.
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-255.69-typed-constructors.md
