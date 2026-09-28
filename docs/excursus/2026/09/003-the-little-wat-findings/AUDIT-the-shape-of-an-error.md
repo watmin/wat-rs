@@ -231,3 +231,13 @@ four decode sites. Offered an interim wrapper, the builder: *"should we just do 
 deferral usually backfires"*. So the SWEEP (`BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md`)
 runs first — ~130 kinds, three strikes S1–S3, pure declaration (zero golden changes) — and B follows
 with no wrapper left anywhere. Delivery becomes **A ✓ → S1 → S2 → S3 → B → C → D → E → F**.
+
+## Strike B worklist — wire defects the sweep found (pure declaration may not fix them)
+
+Each is recorded where found; B changes the wire, so B takes them.
+
+| from | defect | the cure B owes |
+|---|---|---|
+| S1 | `NoMatchingClauseAtCallSite.attempted-clauses` — each attempt an UNTAGGED `{:arity :param-types}` map (`src/check.rs:442`, `clause_attempts_to_edn`); the one check kind left undeclared | tag it (a declared attempt record), then declare the kind |
+| S1 | sum-typed sub-values ride FLAT per-variant tags (`#wat.kernel/NotFnForm`, not `EnsureFnInvalidReason.NotFnForm`), so wat cannot declare them as one `defenum`; S1 declared five unrelated records joined by `reason <- :wat::core::Value`. Same shape as 3a's `ClauseFailureReason` gap | a sum type's variants carry DOTTED tags on the wire; the field then types as the enum |
+| S1 | `EnsureFnInvalidReason` tags `wat.kernel` by the derive's default namespace, though it is a check diagnostic | name its namespace deliberately |
