@@ -87,3 +87,22 @@ container, takes a `Stream` (`wat/fix.wat:1287` is `(reverse (sort eds))`).
 - **A variadic tuple parameter** (`(Tuple :- [i64 & Rest])`) is **cut**: a second rest capability with no consumer.
 - **Open: a bound in a head binder binds every clause.** `sort-by`'s comparator clause never calls `<`, yet a head
   `[K :< Orderable]` would demand it.
+
+## Ruled 2026-09-27 — the cutover's type namespace (for 251.8d)
+
+- **F1:** a type the language itself provides (no wat declaration: the scalars, `Vector`, `HashMap`, `HashSet`,
+  `PersistentVector`/`PersistentMap`, `List`, `Tuple`, `Value`, `Instant`/`Duration`, the syntax tree) is spelled
+  `wat.type/…` in every type position; `wat.core/<that type>` in a type position is illegal. Names unchanged (the
+  2026-09-20 ruling), except:
+- **N-AST:** `:wat::WatAST` becomes **`wat.type/AST`**.
+- **Declared types keep their declaring namespace:** `wat.core/Option` (`wat.core/Option.Some {:value …}`,
+  `wat.core/Option.None {}`), `wat.core/Result` (`.Ok {:value …}`, `.Err {:err …}`), and every `defenum`/`defrecord`/
+  `defstruct` name. The builder: *"i don't think Option belongs in type.. its a utility that core needs"*.
+  `HolonAST` is a subsystem type: `wat.holon/HolonAST`.
+- **P1:** `(wat.type/Vector :- [wat.type/i64])` is a **type**, "a vector of i64s", never a call. Any walk that meets a
+  `(Head :- [...])` form treats it as a type (the macro-body purity gate at `src/macros/eval.rs:458` misread it as a call,
+  and passed the old spelling only because `:wat::core::Vector` is also the constructor's name).
+- **Enum purity (open, not blocking):** a generic enum's `wat.enum/Pure` means "holds no resource in its own fields";
+  each instance is as pure as its type arguments (255.28). Measured: a `Pure` enum with a concrete struct field is
+  refused; `(u/Box :- [u/Conn])` of a `Pure` `u/Box` is impure and refused inside a record. Proposed (D): rename the
+  marker so the word says exactly that. Unruled.
