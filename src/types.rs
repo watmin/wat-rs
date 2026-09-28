@@ -2381,6 +2381,16 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::kernel::ClauseAttempt"
     );
 
+    // Excursus 003 sweep S1 — :wat::kernel::Remedy / EnsureFnInvalidReason's five
+    // flat records. Registered BEFORE wat/check-errors.wat's records below:
+    // TypeMismatch/ReturnTypeMismatch/MalformedForm name Remedy as a field.
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Remedy");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::NotFnForm");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::ArityNotOne");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::ArgTypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::ReturnTypeNotBool");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::MalformedSignature");
+
     // :wat::kernel::Failure — structured panic / assertion payload
     // populated when a sandboxed `:user::main` fails. Slice 2b fills
     // the carried error / frames from `catch_unwind`; slice 3's
@@ -2527,6 +2537,46 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::WriteStopped");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnAxisViolation");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnRecursive");
+
+    // ─── Excursus 003 sweep S1 — the CheckErrorKind wat records ───────────────
+    // Declared in `wat/check-errors.wat`. 33 of 34 `CheckErrorKind` variants
+    // (`NoMatchingClauseAtCallSite` is a ruled exception — an untagged map on
+    // today's wire, see that file's header) plus the `CheckErrors` aggregate.
+
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::CheckErrors");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::ArityMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::TypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::ReturnTypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::UnknownCallee");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::MalformedForm");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::CommCallOutOfPosition");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::ProcessJoinBeforeOutputDrain");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::ProcessJoinHoldsStdinSender");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyPrimitive");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyUnitType");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyUnitValue");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyUnitName");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyLetStar");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyLambda");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyLowercaseFn");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyContainerHead");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyStreamPath");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyLruCacheServicePath");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyKernelQueuePath");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::DefRedefForbidden");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::DefRedefTypeChange");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::UnnamespacedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::ReservedPrefix");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::DottedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::DuplicateScheme");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyMainSignature");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::BareLegacyConsolePath");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::DefRestrictedCallerNotAllowed");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::AmbiguousClauseReturnAtCallSite");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::GuardExprNotBoolean");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::EnsureFnInvalid");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::HygieneScopeDivergence");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::PublicOpInAlarm");
 
     // (:wat::kernel::RecvOutcome :- [O]) — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):

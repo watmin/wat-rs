@@ -127,3 +127,223 @@ fn tagged(variant: &str, body: OwnedValue) -> OwnedValue {
 fn kw(name: &str) -> OwnedValue {
     OwnedValue::Keyword(Keyword::new(name))
 }
+
+// ─── Excursus 003 sweep S1 — the check taxonomy's declaration gates ──────────
+//
+// G-list, G-strict (per the brief's per-strike gate list;
+// docs/excursus/2026/09/003-the-little-wat-findings/
+// BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md). Placed as an
+// internal `#[cfg(test)]` module (not `tests/diagnostics/`, unlike step 3a's
+// `probe_excursus003_step3a_wat_records.rs`): `decode_trusted_wire`
+// (`src/edn/render.rs`) is `pub(crate)`, and `CheckErrorKind::MalformedForm`'s
+// `remedies` field needs `crate::remedy::Remedy` — a `pub(crate) mod remedy`
+// type unreachable from an external integration-test crate. An in-tree unit
+// test has both; `TypeMismatch`'s driven instance uses a genuine
+// retirement-table `callee` (`:wat::core::struct`) so its `remedies` field
+// exercises a REAL, non-empty `#wat.kernel/Remedy` on the wire without ever
+// naming the `Remedy` type directly.
+//
+// G-mirror (no golden moved) is a `git diff --stat -- '*.edn'` check, not a
+// Rust assertion — stated in the strike report, not here.
+#[cfg(test)]
+mod excursus_003_s1_gates {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use super::super::error::{CheckError, CheckErrorKind, CheckErrors, EnsureFnInvalidReason};
+    use crate::edn::contract::WatError;
+    use crate::edn::render::decode_trusted_wire;
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn s() -> Span {
+        Span::new(Arc::new("test.wat".to_string()), 1, 0)
+    }
+
+    /// One instance of every `CheckErrorKind` variant (34, measured against
+    /// `src/check/error.rs:87`), paired with its Rust variant name — the same
+    /// name `error_edn()` tags it with on the wire (`#wat.check/<Name>`).
+    /// `NoMatchingClauseAtCallSite` IS included here (a real produced kind);
+    /// it is the ONE kind with no declared record (see `wat/check-errors.wat`'s
+    /// header) and is asserted to stay foreign below, not typed.
+    fn all_variants() -> Vec<(&'static str, CheckErrorKind)> {
+        vec![
+            ("ArityMismatch", CheckErrorKind::ArityMismatch { callee: ":user::f".into(), expected: 2, got: 1 }),
+            // Arc 241.8 retirement-table hit — exercises a REAL, non-empty
+            // `remedies` (a genuine `#wat.kernel/Remedy`) via `type_error_remedies_via`,
+            // with no direct `Remedy` construction needed.
+            ("TypeMismatch", CheckErrorKind::TypeMismatch {
+                callee: ":wat::core::struct".into(), param: "x".into(), expected: "i64".into(), got: "String".into(),
+            }),
+            ("ReturnTypeMismatch", CheckErrorKind::ReturnTypeMismatch {
+                function: ":user::f".into(), expected: "i64".into(), got: "String".into(), remedies: vec![],
+            }),
+            ("UnknownCallee", CheckErrorKind::UnknownCallee { callee: ":user::ghost".into() }),
+            ("MalformedForm", CheckErrorKind::MalformedForm { head: "if".into(), reason: "missing branch".into(), remedies: vec![] }),
+            ("CommCallOutOfPosition", CheckErrorKind::CommCallOutOfPosition { callee: ":wat::kernel::send".into() }),
+            ("ProcessJoinBeforeOutputDrain", CheckErrorKind::ProcessJoinBeforeOutputDrain {
+                process_identifier: "p".into(), output_accessor: ":wat::kernel::Process/stdout".into(), output_accessor_span: s(),
+            }),
+            ("ProcessJoinHoldsStdinSender", CheckErrorKind::ProcessJoinHoldsStdinSender {
+                process_identifier: "p".into(), stdin_sender_span: s(),
+            }),
+            ("BareLegacyPrimitive", CheckErrorKind::BareLegacyPrimitive { primitive: ":i64".into(), fqdn: ":wat::core::i64".into() }),
+            ("BareLegacyUnitType", CheckErrorKind::BareLegacyUnitType),
+            ("BareLegacyUnitValue", CheckErrorKind::BareLegacyUnitValue),
+            ("BareLegacyUnitName", CheckErrorKind::BareLegacyUnitName),
+            ("BareLegacyLetStar", CheckErrorKind::BareLegacyLetStar),
+            ("BareLegacyLambda", CheckErrorKind::BareLegacyLambda),
+            ("BareLegacyLowercaseFn", CheckErrorKind::BareLegacyLowercaseFn),
+            ("BareLegacyContainerHead", CheckErrorKind::BareLegacyContainerHead { head: ":vector".into(), fqdn: ":wat::core::Vector".into() }),
+            ("BareLegacyStreamPath", CheckErrorKind::BareLegacyStreamPath { old: ":wat::std::stream::map".into(), new: ":wat::stream::map".into() }),
+            ("BareLegacyLruCacheServicePath", CheckErrorKind::BareLegacyLruCacheServicePath {
+                old: ":wat::lru::CacheService::get".into(), new: ":wat::lru::get".into(),
+            }),
+            ("BareLegacyKernelQueuePath", CheckErrorKind::BareLegacyKernelQueuePath {
+                old: ":wat::kernel::QueueSender".into(), new: ":wat::kernel::Sender".into(),
+            }),
+            ("DefRedefForbidden", CheckErrorKind::DefRedefForbidden { name: ":user::x".into(), original_def_span: s() }),
+            ("DefRedefTypeChange", CheckErrorKind::DefRedefTypeChange {
+                name: ":user::x".into(), prior_type: "i64".into(), new_type: "String".into(), original_def_span: s(),
+            }),
+            ("UnnamespacedName", CheckErrorKind::UnnamespacedName { name: "x".into() }),
+            ("ReservedPrefix", CheckErrorKind::ReservedPrefix { name: ":wat::x".into() }),
+            ("DottedName", CheckErrorKind::DottedName { name: ":user::x.y".into() }),
+            ("DuplicateScheme", CheckErrorKind::DuplicateScheme { name: ":user::x".into() }),
+            ("BareLegacyMainSignature", CheckErrorKind::BareLegacyMainSignature),
+            ("BareLegacyConsolePath", CheckErrorKind::BareLegacyConsolePath { path: ":wat::console::log".into() }),
+            ("DefRestrictedCallerNotAllowed", CheckErrorKind::DefRestrictedCallerNotAllowed {
+                callee: ":wat::x".into(), enclosing_fn: ":user::f".into(), prefixes: vec![":user::".into()],
+            }),
+            // The ONE STOP-listed kind — see wat/check-errors.wat's header. No
+            // record declared; must stay foreign (asserted below).
+            ("NoMatchingClauseAtCallSite", CheckErrorKind::NoMatchingClauseAtCallSite {
+                name: ":user::clause".into(), called_arity: 1, called_arg_types: vec!["i64".into()],
+                attempted_clauses: vec![(1, vec!["String".into()])],
+            }),
+            ("AmbiguousClauseReturnAtCallSite", CheckErrorKind::AmbiguousClauseReturnAtCallSite {
+                name: ":user::clause".into(), called_arg_types: vec!["i64".into()], candidate_returns: vec!["String".into(), "bool".into()],
+            }),
+            ("GuardExprNotBoolean", CheckErrorKind::GuardExprNotBoolean {
+                defclause_name: ":user::clause".into(), clause_index: 0, got_type: "i64".into(),
+            }),
+            ("EnsureFnInvalid", CheckErrorKind::EnsureFnInvalid {
+                defclause_name: ":user::clause".into(), clause_index: 0, reason: EnsureFnInvalidReason::ArityNotOne { got: 2 },
+            }),
+            ("HygieneScopeDivergence", CheckErrorKind::HygieneScopeDivergence {
+                name: ":user::x".into(), ref_key: "x#1".into(), binder_key: "x#2".into(),
+            }),
+            ("PublicOpInAlarm", CheckErrorKind::PublicOpInAlarm { variant: ":probe::Op::Bump".into(), op_type: ":probe::Op".into() }),
+        ]
+    }
+
+    /// The one ruled G-list exception: `NoMatchingClauseAtCallSite` produces a
+    /// real tag but has no declared record (an untagged map on today's wire —
+    /// see `wat/check-errors.wat`'s header STOP section).
+    const G_LIST_STOP_EXCEPTIONS: &[&str] = &["NoMatchingClauseAtCallSite"];
+
+    /// Scan `wat/check-errors.wat`'s OWN source for every top-level
+    /// `(:wat::core::defrecord :wat::check::<Name> ...)` form, excluding the
+    /// `CheckErrors` aggregate (not a `CheckErrorKind` variant).
+    fn declared_check_kind_names() -> BTreeSet<String> {
+        let src = include_str!("../../wat/check-errors.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/check-errors.wat")
+            .expect("wat/check-errors.wat must parse");
+        let mut names = BTreeSet::new();
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defrecord" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            let Some(bare) = name.as_str().strip_prefix(":wat::check::") else { continue };
+            if bare == "CheckErrors" {
+                continue;
+            }
+            names.insert(bare.to_string());
+        }
+        names
+    }
+
+    /// G-list — the declaration is the list. The set of tags `error_edn()`
+    /// produces for `all_variants()` must equal the set of `defrecord
+    /// :wat::check::*` names in `wat/check-errors.wat`, modulo the one ruled
+    /// STOP exception (which must stay UNDECLARED, not merely absent from
+    /// `all_variants()`).
+    ///
+    /// Mutation (recorded in the strike report, not re-encoded here): add a
+    /// stray `(:wat::core::defrecord :wat::check::Bogus [])` to
+    /// `wat/check-errors.wat` — RED (declared has an extra name `produced`
+    /// never names).
+    #[test]
+    fn g_list_declaration_is_the_list() {
+        let produced: BTreeSet<String> = all_variants().iter().map(|(name, _)| name.to_string()).collect();
+        let declared = declared_check_kind_names();
+        let mut expected = produced;
+        for ex in G_LIST_STOP_EXCEPTIONS {
+            assert!(expected.remove(*ex), "{ex}: expected in the produced set (all_variants) — is it still a real CheckErrorKind variant?");
+        }
+        assert_eq!(
+            expected, declared,
+            "declared `:wat::check::<Kind>` records in wat/check-errors.wat must equal the \
+             CheckErrorKind tags error_edn() produces, minus the ruled STOP exception(s)"
+        );
+        for ex in G_LIST_STOP_EXCEPTIONS {
+            assert!(
+                !declared.contains(*ex),
+                "{ex} is a ruled STOP exception (an untagged map on the wire) and must stay undeclared — \
+                 declaring it now would mean the STOP no longer applies and this constant is stale"
+            );
+        }
+    }
+
+    /// G-strict — every declared kind decodes typed. For every `CheckErrorKind`
+    /// variant, `decode_trusted_wire(error_edn())` must succeed (strict decode
+    /// is all-or-nothing: `edn_to_value_caps`'s `foreign` flag is `false` on
+    /// this path, so ANY unresolved nested tag anywhere in the tree fails the
+    /// WHOLE decode — success here is already proof of full, deep typing, not
+    /// just the outer tag). The one STOP-listed kind must FAIL (still foreign)
+    /// — proving the exception is real, not merely unexercised.
+    ///
+    /// Mutation (recorded in the strike report): comment out one
+    /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::check::
+    /// ArityMismatch`) — RED, and the assertion message names `ArityMismatch`.
+    #[test]
+    fn g_strict_every_declared_kind_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        for (name, kind) in all_variants() {
+            let err = CheckError { span: s(), kind };
+            let wire = wat_edn::write(&err.error_edn());
+            let decoded = decode_trusted_wire(&wire, Some(&types), None);
+            if G_LIST_STOP_EXCEPTIONS.contains(&name) {
+                assert!(
+                    decoded.is_err(),
+                    "{name}: STOP-listed kind was expected to remain foreign (no declared record), \
+                     but decode_trusted_wire succeeded — {decoded:?}"
+                );
+            } else {
+                assert!(
+                    decoded.is_ok(),
+                    "{name}: decode_trusted_wire(error_edn()) must succeed as a typed record; got {decoded:?}"
+                );
+            }
+        }
+    }
+
+    /// G-strict, the `CheckErrors` aggregate — `#wat.check/CheckErrors {...}`
+    /// with two nested, fully-floored `CheckError` items in `:causes` must
+    /// decode typed end to end (the same all-or-nothing strict decode as
+    /// above, so this also proves the nested items decode typed).
+    #[test]
+    fn g_strict_check_errors_aggregate_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        let errs = CheckErrors(vec![
+            CheckError { span: s(), kind: CheckErrorKind::ArityMismatch { callee: ":user::f".into(), expected: 2, got: 1 } },
+            CheckError { span: s(), kind: CheckErrorKind::UnknownCallee { callee: ":user::ghost".into() } },
+        ]);
+        let wire = wat_edn::write(&errs.error_edn());
+        let decoded = decode_trusted_wire(&wire, Some(&types), None);
+        assert!(decoded.is_ok(), "CheckErrors aggregate must decode typed; got {decoded:?}");
+    }
+}

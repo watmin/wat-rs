@@ -82,6 +82,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/runtime-errors.wat",
         source: include_str!("../../wat/runtime-errors.wat"),
     },
+    // Excursus 003 sweep S1 — the 33 declared `:wat::check::<Kind>` records
+    // mirroring `CheckErrorKind` (one ruled exception, `NoMatchingClauseAtCallSite`
+    // — an untagged map on today's wire), plus the `CheckErrors` aggregate. After
+    // `wat/kernel/diagnostics.wat`: several records reference `:wat::kernel::Remedy`,
+    // declared there.
+    WatSource {
+        path: "wat/check-errors.wat",
+        source: include_str!("../../wat/check-errors.wat"),
+    },
     // Arc 296 J — `:wat::edn::*` read/validate outcomes. After core.wat (`Error`).
     WatSource {
         path: "wat/edn.wat",
