@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::runtime::define-alias"
       :reason "':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead"
       :remedies [

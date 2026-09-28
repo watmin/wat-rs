@@ -30,6 +30,6 @@
 (:wat::core::defrecord :wat::stdlib::ParseFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    path <- :wat::core::String
    cause <- :wat::core::Error])

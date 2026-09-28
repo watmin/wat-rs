@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::i64 form: Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::i64"
       :reason "Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position"
       :remedies []

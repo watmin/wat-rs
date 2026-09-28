@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":u::wants-holon: parameter #1 expects :wat::holon::Record; got :geo::Pt"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":u::wants-holon"
       :param "#1"
       :expected ":wat::holon::Record"

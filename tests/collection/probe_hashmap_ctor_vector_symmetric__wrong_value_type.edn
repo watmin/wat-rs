@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":wat::core::HashMap: parameter value #1 expects :wat::core::i64; got :wat::core::String"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::core::HashMap"
       :param "value #1"
       :expected ":wat::core::i64"

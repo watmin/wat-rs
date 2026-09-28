@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::defn-restricted form: ':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::defn-restricted"
       :reason "':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`"
       :remedies [

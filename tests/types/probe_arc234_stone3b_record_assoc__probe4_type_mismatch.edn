@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :op ":wat::core::Record/assoc"
   :expected "wat::core::f64"
   :got {

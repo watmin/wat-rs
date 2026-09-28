@@ -2170,7 +2170,7 @@
   :nature :wat::core::Record
   :features [message  <- :wat::core::String
              location <- :wat::core::Span
-             causes   <- (:wat::core::Vector :- [:wat::core::Error])])
+             ])
 
 ;; ─── Arc 296 S3: :wat::core::Fault — canonical minimal error record ──────────
 ;;
@@ -2186,12 +2186,12 @@
 (:wat::core::defrecord :wat::core::Fault
   [message  <- :wat::core::String
    location <- :wat::core::Span
-   causes   <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 (:wat::core::defmacro :wat::core::Fault/of
   [msg <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) :causes (:wat::core::Vector :- [:wat::core::Error])))
+  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) ))
 
 ;; ─── Arc 296: :wat::core::EvalError — moving the source of truth to wat ───
 ;;

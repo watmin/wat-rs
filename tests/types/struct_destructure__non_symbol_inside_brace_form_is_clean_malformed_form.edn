@@ -11,6 +11,5 @@
       }
     }
   }
-  :causes []
   :reason "map-literal body must alternate key + value pairs; got 1 forms"
 }

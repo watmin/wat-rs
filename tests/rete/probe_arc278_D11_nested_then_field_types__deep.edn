@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/RhsOperandTypeMismatch {
             :message "defrule `d11d::bad`: `:then` insert of `:d11d::Inner` field `:n` is declared `:wat::core::i64`; operand is `:wat::core::String`"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "d11d::bad"
             :fact-type "d11d::Inner"
             :field "n"
@@ -48,7 +47,6 @@
                 }
               }
             }
-            :causes []
             :rule "d11d::bad"
             :fact-type "d11d::Inner"
             :field "t"

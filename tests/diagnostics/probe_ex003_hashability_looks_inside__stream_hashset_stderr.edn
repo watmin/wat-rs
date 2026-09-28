@@ -14,7 +14,6 @@
             }
           }
         }
-        :causes []
         :op ":wat::core::HashSet/conj"
         :expected "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))"
         :got #wat.runtime/ValueSnapshot {

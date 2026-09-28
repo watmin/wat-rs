@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/BareLegacyLambda {
       :message "':wat::core::lambda' is retired (arc 155); canonical FQDN is ':wat::core::fn'. Clojure-faithful single-letform vocabulary: lowercase 'fn' for function values (matches Clojure's user-facing `fn`). Rename ':wat::core::lambda' -> ':wat::core::fn' at the offending site."
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :retired ":wat::core::lambda"
       :fqdn ":wat::core::fn"
     }
@@ -42,7 +41,6 @@
           }
         }
       }
-      :causes []
       :retired ":fn(...)->ret"
       :fqdn ":wat::core::Fn(...)->ret"
     }

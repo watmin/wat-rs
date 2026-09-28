@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/UnknownEnumVariant {
             :message "defrule `evt::good` (`:evt::Req`): `:evt::G` has no variant `Hii`; available variants: [Hi, Lo]"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "evt::good"
             :fact-type "evt::Req"
             :enum-path "evt::G"

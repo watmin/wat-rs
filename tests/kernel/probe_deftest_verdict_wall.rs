@@ -61,7 +61,8 @@ fn failing_deftest_is_reported_as_failed() {
     // actual/expected LEFT this record — they are the assertion's OWN fields now, below).
     let f = aggregate_fields(&failure, "wat::kernel::Failure");
     // An assert-eq failure's `error` is its own record now, :wat::runtime::AssertionFailed —
-    // fields [message, location, causes, actual, expected].
+    // fields [message, location, actual, expected] (excursus 003 strike B1: `causes` left
+    // the floor, F3 — no longer a field here at all).
     let assertion_failed = aggregate_fields(&f[0], "wat::runtime::AssertionFailed");
     assert_eq!(
         match &assertion_failed[0] {
@@ -82,8 +83,8 @@ fn failing_deftest_is_reported_as_failed() {
         },
         Some("probe_deftest_verdict_wall.wat".to_string())
     );
-    assert_eq!(option_string(&assertion_failed[3]), Some("4".to_string()), "AssertionFailed.actual");
-    assert_eq!(option_string(&assertion_failed[4]), Some("4242".to_string()), "AssertionFailed.expected");
+    assert_eq!(option_string(&assertion_failed[2]), Some("4".to_string()), "AssertionFailed.actual");
+    assert_eq!(option_string(&assertion_failed[3]), Some("4242".to_string()), "AssertionFailed.expected");
 }
 
 /// The other half of the claim: the wall does not simply call everything a failure.

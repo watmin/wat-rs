@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/UnknownField {
             :message "defrule `fsi::r`: `:fsi::Src` has no field `:nofield`; available fields: [k]"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "fsi::r"
             :fact-type "fsi::Src"
             :field "nofield"

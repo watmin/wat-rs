@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":my::trading::pretty: parameter #1 expects :my::trading::Price; got :wat::core::f64"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":my::trading::pretty"
       :param "#1"
       :expected ":my::trading::Price"

@@ -55,9 +55,6 @@ impl crate::edn::contract::WatError for CheckError {
     fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
     }
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
-    }
     fn variant(&self) -> OwnedValue {
         use crate::edn::contract::ToEdn;
         crate::edn::contract::strip_span_from_tagged(self.to_edn())
@@ -65,20 +62,20 @@ impl crate::edn::contract::WatError for CheckError {
 }
 
 impl crate::edn::contract::ToEdn for CheckErrors {
-    /// `#wat.kernel/CheckErrors {:causes [#wat.kernel/<Variant> {…} …]}` —
+    /// `#wat.kernel/CheckErrors {:errors [#wat.kernel/<Variant> {…} …]}` —
     /// each `CheckError` in the collection is a navigable tagged value, not a
     /// line in a `:detail` prose blob. This is the structured form the
     /// process-boundary IPC path and `--check-output` consumers read.
     ///
-    /// Excursus 003 step 3c: the bespoke `:errors` key retires in favour of
-    /// `:causes` — the floor's own slot for "the errors that caused this
-    /// one" — so both this raw form and the floor form ([`crate::edn::contract::WatError::causes`]
-    /// below) agree on one name.
+    /// Excursus 003 strike B1: reverting step 3c's move — the aggregate's
+    /// items are its MEMBERS, not its causes (F3), so this raw form and the
+    /// floor form ([`crate::edn::contract::WatError::variant`] below) both
+    /// carry them under `:errors`, the aggregate's own declared field.
     fn to_edn(&self) -> OwnedValue {
         let items: Vec<OwnedValue> = self.0.iter().map(|e| e.to_edn()).collect();
         tagged(
             "CheckErrors",
-            OwnedValue::Map(vec![(kw("causes"), OwnedValue::Vector(items))]),
+            OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]),
         )
     }
 }
@@ -86,8 +83,8 @@ impl crate::edn::contract::ToEdn for CheckErrors {
 impl crate::edn::contract::WatError for CheckErrors {
     /// Concise COLLECTION summary — a count, NOT the concatenated multi-line
     /// render of every item. Each item carries its own single-line `:message`
-    /// inside the recursively-floored `:causes` array, so re-rendering them
-    /// here would double-encode the exact content the floor already holds.
+    /// inside the `:errors` array, so re-rendering them here would
+    /// double-encode the exact content that array already holds.
     fn message(&self) -> String {
         let n = self.0.len();
         format!("{} type-check error{}", n, if n == 1 { "" } else { "s" })
@@ -104,17 +101,13 @@ impl crate::edn::contract::WatError for CheckErrors {
             .expect("CheckErrors must not be empty — every construction site guards is_empty()")
             .location()
     }
-    /// Excursus 003 step 3c: the items ARE the causes — each already
-    /// satisfies the floor (`CheckError: WatError`), so it is embedded via
-    /// its own `error_edn()`, never the bespoke `:errors` key.
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(self.0.iter().map(|e| e.error_edn()).collect())
-    }
-    /// The collection envelope carries no variant-specific fields beyond the
-    /// floor: `:message`/`:location`/`:causes` say everything there is to say
-    /// about a batch of type-check errors.
+    /// Excursus 003 strike B1: the items are the aggregate's OWN `:errors`
+    /// field now (reverting step 3c's move onto the shared `causes` floor
+    /// slot) — each item already satisfies the floor (`CheckError: WatError`),
+    /// so it is embedded via its own `error_edn()`.
     fn variant(&self) -> OwnedValue {
-        tagged("CheckErrors", OwnedValue::Map(vec![]))
+        let items: Vec<OwnedValue> = self.0.iter().map(|e| e.error_edn()).collect();
+        tagged("CheckErrors", OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]))
     }
 }
 
@@ -163,9 +156,9 @@ mod excursus_003_s1_gates {
     /// One instance of every `CheckErrorKind` variant (34, measured against
     /// `src/check/error.rs:87`), paired with its Rust variant name — the same
     /// name `error_edn()` tags it with on the wire (`#wat.check/<Name>`).
-    /// `NoMatchingClauseAtCallSite` IS included here (a real produced kind);
-    /// it is the ONE kind with no declared record (see `wat/check-errors.wat`'s
-    /// header) and is asserted to stay foreign below, not typed.
+    /// Excursus 003 strike B1, item 6: `NoMatchingClauseAtCallSite` is now a
+    /// declared record too (`wat/check-errors.wat`) — every variant here now
+    /// decodes typed; see `g_strict_every_declared_kind_decodes_typed` below.
     fn all_variants() -> Vec<(&'static str, CheckErrorKind)> {
         vec![
             ("ArityMismatch", CheckErrorKind::ArityMismatch { callee: ":user::f".into(), expected: 2, got: 1 }),
@@ -237,10 +230,12 @@ mod excursus_003_s1_gates {
         ]
     }
 
-    /// The one ruled G-list exception: `NoMatchingClauseAtCallSite` produces a
-    /// real tag but has no declared record (an untagged map on today's wire —
-    /// see `wat/check-errors.wat`'s header STOP section).
-    const G_LIST_STOP_EXCEPTIONS: &[&str] = &["NoMatchingClauseAtCallSite"];
+    /// Excursus 003 strike B1, item 6: the last G-list exception retired.
+    /// `NoMatchingClauseAtCallSite` is now a declared record (its
+    /// `attempted-clauses` attempts are now tagged `AttemptedClause`s, not a
+    /// bare map) — kept as an empty list, not deleted, so a FUTURE STOP has
+    /// somewhere to go without re-inventing this scaffold.
+    const G_LIST_STOP_EXCEPTIONS: &[&str] = &[];
 
     /// Scan `wat/check-errors.wat`'s OWN source for every top-level
     /// `(:wat::core::defrecord :wat::check::<Name> ...)` form, excluding the
@@ -258,7 +253,11 @@ mod excursus_003_s1_gates {
             }
             let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
             let Some(bare) = name.as_str().strip_prefix(":wat::check::") else { continue };
-            if bare == "CheckErrors" {
+            // `CheckErrors` (the aggregate) and `AttemptedClause` (excursus 003 strike B1,
+            // item 6's sub-value — `NoMatchingClauseAtCallSite.attempted-clauses`' element
+            // type) are declared records in this file but are NOT `CheckErrorKind` variants,
+            // so `all_variants()` never produces either tag.
+            if bare == "CheckErrors" || bare == "AttemptedClause" {
                 continue;
             }
             names.insert(bare.to_string());
@@ -303,8 +302,11 @@ mod excursus_003_s1_gates {
     /// is all-or-nothing: `edn_to_value_caps`'s `foreign` flag is `false` on
     /// this path, so ANY unresolved nested tag anywhere in the tree fails the
     /// WHOLE decode — success here is already proof of full, deep typing, not
-    /// just the outer tag). The one STOP-listed kind must FAIL (still foreign)
-    /// — proving the exception is real, not merely unexercised.
+    /// just the outer tag). Excursus 003 strike B1's GB4: `G_LIST_STOP_EXCEPTIONS`
+    /// is now empty, so EVERY variant — `NoMatchingClauseAtCallSite` included —
+    /// must decode `Ok`. This is the "foreign count is 0" gate: mutate by
+    /// untagging `AttemptedClause` again (`src/check.rs::clause_attempts_to_edn`)
+    /// and this test goes RED on `NoMatchingClauseAtCallSite`.
     ///
     /// Mutation (recorded in the strike report): comment out one
     /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::check::

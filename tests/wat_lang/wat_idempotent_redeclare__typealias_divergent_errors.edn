@@ -11,6 +11,5 @@
       }
     }
   }
-  :causes []
   :name ":my::Amount"
 }

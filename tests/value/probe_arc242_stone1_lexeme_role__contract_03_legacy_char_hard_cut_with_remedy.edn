@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::Char"
       :reason "':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)"
       :remedies [
@@ -50,7 +49,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::Char"
       :reason "':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)"
       :remedies [

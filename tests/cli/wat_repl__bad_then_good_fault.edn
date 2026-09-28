@@ -1,14 +1,19 @@
-#wat.core/Fault {
+#wat.resolve/UnresolvedReferences {
   :message "1 unresolved reference"
   :location #wat.core/Span {
-    :file "<runtime>"
-    :line 0
-    :col 0
-    :end #wat.core/Option.None {}
+    :file "<read-string>"
+    :line 1
+    :col 2
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 1
+        :col 12
+      }
+    }
   }
-  :causes [
-    #wat.resolve/UnresolvedReferences {
-      :message "1 unresolved reference"
+  :errors [
+    #wat.resolve/UnresolvedReference {
+      :message "unresolved reference `:usr::nope` (call head — not a builtin, not a registered function)"
       :location #wat.core/Span {
         :file "<read-string>"
         :line 1
@@ -20,25 +25,8 @@
           }
         }
       }
-      :causes [
-        #wat.resolve/UnresolvedReference {
-          :message "unresolved reference `:usr::nope` (call head — not a builtin, not a registered function)"
-          :location #wat.core/Span {
-            :file "<read-string>"
-            :line 1
-            :col 2
-            :end #wat.core/Option.Some {
-              :value #wat.core/Pos {
-                :line 1
-                :col 12
-              }
-            }
-          }
-          :causes []
-          :path ":usr::nope"
-          :context "call head — not a builtin, not a registered function"
-        }
-      ]
+      :path ":usr::nope"
+      :context "call head — not a builtin, not a registered function"
     }
   ]
 }

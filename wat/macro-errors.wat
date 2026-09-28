@@ -40,21 +40,21 @@
 (:wat::core::defrecord :wat::macro::DuplicateMacro
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; A user macro declared under a reserved `:wat::...` prefix.
 (:wat::core::defrecord :wat::macro::ReservedPrefix
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; A macro name reached the registration gate with no namespace.
 (:wat::core::defrecord :wat::macro::UnnamespacedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; A macro name reached the registration gate with a `.` in its name segment
@@ -62,21 +62,21 @@
 (:wat::core::defrecord :wat::macro::DottedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; A `defmacro` form was malformed.
 (:wat::core::defrecord :wat::macro::MalformedDefmacro
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    reason <- :wat::core::String])
 
 ;; A macro call passed the wrong number of arguments (fixed-arity macro).
 (:wat::core::defrecord :wat::macro::ArityMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
    expected <- :wat::core::i64
    got <- :wat::core::i64])
@@ -86,7 +86,7 @@
 (:wat::core::defrecord :wat::macro::ArityTooFew
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
    minimum <- :wat::core::i64
    got <- :wat::core::i64])
@@ -95,7 +95,7 @@
 (:wat::core::defrecord :wat::macro::UnboundMacroParam
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; `unquote-splicing` was applied to a non-sequence argument. `got` is the
@@ -104,7 +104,7 @@
 (:wat::core::defrecord :wat::macro::SpliceNotSequence
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
    got <- :wat::core::String])
 
@@ -113,14 +113,14 @@
 (:wat::core::defrecord :wat::macro::ExpansionDepthExceeded
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    limit <- :wat::core::i64])
 
 ;; Other malformation in a macro invocation or template.
 (:wat::core::defrecord :wat::macro::MalformedTemplate
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    reason <- :wat::core::String])
 
 ;; A computed-unquote expression named a keyword head that is not on the
@@ -128,7 +128,7 @@
 (:wat::core::defrecord :wat::macro::RefusedInMacro
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    head <- :wat::core::String])
 
 ;; A call head whose registry entry declares `ExpandTime::ExpandOnly` was
@@ -136,7 +136,7 @@
 (:wat::core::defrecord :wat::macro::ExpandOnlyOutsideMacro
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    head <- :wat::core::String])
 
 ;; A program-body quasiquote template introduces a literal name in a binder
@@ -144,7 +144,7 @@
 (:wat::core::defrecord :wat::macro::ProgramBodyIntroducesName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    macro-name <- :wat::core::String
    binder <- :wat::core::String])
 
@@ -154,7 +154,7 @@
 (:wat::core::defrecord :wat::macro::ProgramBodyEvalFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    macro-name <- :wat::core::String
    cause <- :wat::core::Error])
 
@@ -164,5 +164,5 @@
 (:wat::core::defrecord :wat::macro::MacroEvalRuntimeFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    cause <- :wat::core::Error])

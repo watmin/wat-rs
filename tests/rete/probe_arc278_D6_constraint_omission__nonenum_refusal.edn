@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/ConstraintTypeNotComparable {
             :message "defrule `d6x::hit` (`:d6x::Reading`): `:wat::rete::core::enum::not=` compares operand `?v`, declared `(:wat::core::PersistentVector :- [:wat::core::i64])`, for which rete has NO comparator — the rete equality surface is i64/f64/string/bool/keyword/enum. Compare a scalar FIELD of it instead"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "d6x::hit"
             :fact-type "d6x::Reading"
             :head ":wat::rete::core::enum::not="

@@ -34,21 +34,21 @@
 (:wat::core::defrecord :wat::type::DuplicateType
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Arc 138 slice 2 — a type name used a reserved prefix.
 (:wat::core::defrecord :wat::type::ReservedPrefix
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; A top-level type name reached a registration gate with no namespace.
 (:wat::core::defrecord :wat::type::UnnamespacedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Arc 296 stone H-1 — a type name's segment after the last `::` contains a
@@ -56,14 +56,14 @@
 (:wat::core::defrecord :wat::type::DottedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Arc 138 slice 2 — a malformed type-declaration form (wrong outer shape).
 (:wat::core::defrecord :wat::type::MalformedDecl
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    head <- :wat::core::String
    reason <- :wat::core::String])
 
@@ -71,7 +71,7 @@
 (:wat::core::defrecord :wat::type::MalformedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    raw <- :wat::core::String
    reason <- :wat::core::String])
 
@@ -79,7 +79,7 @@
 (:wat::core::defrecord :wat::type::MalformedField
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    reason <- :wat::core::String])
 
 ;; Arc 130 follow-up / Stone 241.10 — a malformed enum variant, with ranked
@@ -87,7 +87,7 @@
 (:wat::core::defrecord :wat::type::MalformedVariant
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    enum-name <- :wat::core::String
    offending <- :wat::core::String
    reason <- :wat::core::String
@@ -97,7 +97,7 @@
 (:wat::core::defrecord :wat::type::MalformedTypeExpr
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    raw <- :wat::core::String
    reason <- :wat::core::String])
 
@@ -105,7 +105,7 @@
 (:wat::core::defrecord :wat::type::AnyBanned
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    raw <- :wat::core::String])
 
 ;; A typealias's expansion, traced through the currently-registered aliases,
@@ -113,7 +113,7 @@
 (:wat::core::defrecord :wat::type::CyclicAlias
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; A parametric typealias was referenced with the wrong number of type
@@ -121,7 +121,7 @@
 (:wat::core::defrecord :wat::type::AliasArityMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
    expected <- :wat::core::i64
    got <- :wat::core::i64])
@@ -131,7 +131,7 @@
 (:wat::core::defrecord :wat::type::InnerColonInCompoundArg
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    raw <- :wat::core::String
    offending <- :wat::core::String])
 
@@ -139,14 +139,14 @@
 (:wat::core::defrecord :wat::type::CyclicUnion
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Stone 237.1 — a typeunion was declared with zero members.
 (:wat::core::defrecord :wat::type::EmptyUnion
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Stone 237.1 — a typeunion was declared with exactly one member (a
@@ -154,7 +154,7 @@
 (:wat::core::defrecord :wat::type::SingleMemberUnion
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Stone 237.1 — a typeunion's member list contained a shape typeunion does
@@ -162,7 +162,7 @@
 (:wat::core::defrecord :wat::type::InvalidUnionMember
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    union-name <- :wat::core::String
    member-form <- :wat::core::String
    reason <- :wat::core::String])
@@ -172,7 +172,7 @@
 (:wat::core::defrecord :wat::type::CyclicSubtype
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    child <- :wat::core::String
    parent <- :wat::core::String])
 
@@ -181,7 +181,7 @@
 (:wat::core::defrecord :wat::type::ImpureFieldInPureAggregate
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    aggregate <- :wat::core::String
    field <- :wat::core::String
    field-ty <- :wat::core::String])
@@ -191,7 +191,7 @@
 (:wat::core::defrecord :wat::type::ImpureVariantFieldInPureEnum
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    enum-name <- :wat::core::String
    variant <- :wat::core::String
    field <- :wat::core::String
@@ -202,7 +202,7 @@
 (:wat::core::defrecord :wat::type::HolonRecordCapacityExceeded
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    aggregate <- :wat::core::String
    field-count <- :wat::core::i64
    budget <- :wat::core::i64])
@@ -212,7 +212,7 @@
 (:wat::core::defrecord :wat::type::UnconsumedTypeParam
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    decl <- :wat::core::String
    param <- :wat::core::String])
 
@@ -220,5 +220,5 @@
 (:wat::core::defrecord :wat::type::UnknownNamedType
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    path <- :wat::core::String])

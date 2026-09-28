@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::do form: do form requires at least one form; got zero"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::do"
       :reason "do form requires at least one form; got zero"
       :remedies []

@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :t::Plain form: :t::Plain declares 0 type parameter(s) but 1 were supplied"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":t::Plain"
       :reason ":t::Plain declares 0 type parameter(s) but 1 were supplied"
       :remedies []

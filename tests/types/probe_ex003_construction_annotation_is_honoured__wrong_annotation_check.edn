@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":p::Ops: parameter #1 expects :wat::core::i64; got :p::E.A"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":p::Ops"
       :param "#1"
       :expected ":wat::core::i64"
@@ -45,7 +44,6 @@
           }
         }
       }
-      :causes []
       :callee ":p::Ops"
       :param "#2"
       :expected "[:wat::core::i64 :-> :wat::core::i64]"

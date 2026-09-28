@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/ReturnTypeMismatch {
       :message ":user::compute: body produces :wat::holon::HolonAST; signature declares :()"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :function ":user::compute"
       :expected ":()"
       :got ":wat::holon::HolonAST"
@@ -44,7 +43,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::holon::to-holon"
       :param "#1"
       :expected "atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T)"

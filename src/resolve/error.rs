@@ -74,35 +74,37 @@ impl crate::edn::contract::WatError for ResolveError {
                 .location(),
         }
     }
-    /// Excursus 003 step 3c: the items ARE the causes. `UnresolvedReference`
-    /// is a sub-value, not one of the 11 `WatError` families, but it GAINS
-    /// the floor here (`impl WatError for UnresolvedReference` below) so its
-    /// `path`/`context` sit beside a real `:message`/`:location`/`:causes`
-    /// instead of the retired bespoke `:unresolved` key.
-    fn causes(&self) -> wat_edn::OwnedValue {
-        match self {
-            ResolveError::UnresolvedReferences(list) => {
-                wat_edn::OwnedValue::Vector(list.iter().map(|r| r.error_edn()).collect())
-            }
-        }
-    }
-    /// The collection envelope carries no variant-specific fields beyond the
-    /// floor.
+    /// Excursus 003 strike B1: the items are the aggregate's OWN `:errors`
+    /// field now (reverting step 3c's move onto the shared `causes` floor
+    /// slot). `UnresolvedReference` is a sub-value, not one of the top-level
+    /// `WatError` families, but it GAINS the floor here (`impl WatError for
+    /// UnresolvedReference` below) so its `path`/`context` sit beside a real
+    /// `:message`/`:location` instead of the retired bespoke `:unresolved`
+    /// key.
     fn variant(&self) -> wat_edn::OwnedValue {
         use wat_edn::{OwnedValue, Tag};
-        OwnedValue::Tagged(
-            Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReferences"),
-            Box::new(OwnedValue::Map(vec![])),
-        )
+        match self {
+            ResolveError::UnresolvedReferences(list) => {
+                let items: Vec<OwnedValue> = list.iter().map(|r| r.error_edn()).collect();
+                OwnedValue::Tagged(
+                    Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReferences"),
+                    Box::new(OwnedValue::Map(vec![(
+                        crate::edn::contract::edn_kw("errors"),
+                        OwnedValue::Vector(items),
+                    )])),
+                )
+            }
+        }
     }
 }
 
 impl crate::edn::contract::ToEdn for ResolveError {
-    /// `#wat.resolve/UnresolvedReferences {:causes [#wat.resolve/UnresolvedReference {…} …]}`
+    /// `#wat.resolve/UnresolvedReferences {:errors [#wat.resolve/UnresolvedReference {…} …]}`
     /// — each failed reference is a navigable tagged value (path, context,
-    /// span), not a line in a prose blob. Excursus 003 step 3c: the bespoke
-    /// `:unresolved` key retires in favour of `:causes`, matching
-    /// `CheckErrors`/`ReteCheckErrors`.
+    /// span), not a line in a prose blob. Excursus 003 strike B1: reverting
+    /// step 3c's move — the aggregate's items are its MEMBERS, not its
+    /// causes, so this raw form and the floor form above both carry them
+    /// under `:errors`.
     fn to_edn(&self) -> wat_edn::OwnedValue {
         use crate::edn::contract::edn_kw;
         use wat_edn::{OwnedValue, Tag};
@@ -112,7 +114,7 @@ impl crate::edn::contract::ToEdn for ResolveError {
                 let refs: Vec<OwnedValue> = list.iter().map(|r| r.to_edn()).collect();
                 OwnedValue::Tagged(
                     Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReferences"),
-                    Box::new(OwnedValue::Map(vec![(edn_kw("causes"), OwnedValue::Vector(refs))])),
+                    Box::new(OwnedValue::Map(vec![(edn_kw("errors"), OwnedValue::Vector(refs))])),
                 )
             }
         }
@@ -137,17 +139,14 @@ impl crate::edn::contract::ToEdn for UnresolvedReference {
 
 impl crate::edn::contract::WatError for UnresolvedReference {
     /// Excursus 003 step 3c item 2 — `UnresolvedReference` "gains the
-    /// floor": it is a sub-value embedded inside `ResolveError::causes()`,
+    /// floor": it is a sub-value embedded inside `ResolveError`'s `:errors`,
     /// but that embedding is via `error_edn()`, so it needs its own
-    /// `message`/`location`/`causes`/`variant`.
+    /// `message`/`location`/`variant`.
     fn message(&self) -> String {
         format!("unresolved reference `{}` ({})", self.path, self.context)
     }
     fn location(&self) -> crate::span::Span {
         self.span.clone()
-    }
-    fn causes(&self) -> wat_edn::OwnedValue {
-        wat_edn::OwnedValue::Vector(vec![])
     }
     /// `:path`/`:context`, span stripped (it is now `:location`).
     fn variant(&self) -> wat_edn::OwnedValue {

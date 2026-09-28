@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/RhsArityMismatch {
             :message "defrule `nwa::r`: `:then` insert of `:nwa::Inner` expects 2 positional argument(s); got 1"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "nwa::r"
             :fact-type "nwa::Inner"
             :expected 2

@@ -99,9 +99,6 @@ impl crate::edn::contract::WatError for RuntimeError {
     fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(self.span())
     }
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
-    }
     /// Excursus 003 step 3c — the wire's `variant()` strips BOTH `:span` (the floor
     /// owns `:location`) AND `:frames`/`:frames-elided` (they live on `Failure`, step
     /// 3b, never on a standalone error — see [`crate::edn::contract::strip_frames_from_tagged`]).

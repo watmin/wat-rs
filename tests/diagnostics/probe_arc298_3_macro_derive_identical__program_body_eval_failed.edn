@@ -8,7 +8,6 @@
       :col 1
       :end #wat.core/Option.None {}
     }
-    :causes []
     :reason "bad form"
   }
   :span #wat.core/Span {

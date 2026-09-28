@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :op ":wat::core::apply"
   :expected "wat::core::keyword"
   :got {

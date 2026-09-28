@@ -6,7 +6,6 @@
     :col 1
     :end #wat.core/Option.None {}
   }
-  :causes []
   :process-identifier "worker"
   :bind-location #wat.core/Span {
     :file "src/bar.wat"

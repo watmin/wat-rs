@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :head "int"
   :reason "call head must be a keyword, symbol, or list"
 }

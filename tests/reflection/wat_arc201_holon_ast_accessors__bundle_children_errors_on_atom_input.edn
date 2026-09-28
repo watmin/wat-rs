@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :op ":wat::holon::Bundle/children"
   :expected "a :wat::holon::HolonAST Bundle composition"
   :got {

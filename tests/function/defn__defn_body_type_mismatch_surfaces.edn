@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/ReturnTypeMismatch {
       :message ":user::bad: body produces :wat::core::i64; signature declares :()"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :function ":user::bad"
       :expected ":()"
       :got ":wat::core::i64"

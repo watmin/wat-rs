@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/UnnamespacedName {
       :message "top-level name ':pi' is not namespaced — only fn arguments and let-bindings may be bare; give it a namespace, e.g. ':my::pi'"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :name ":pi"
     }
   ]

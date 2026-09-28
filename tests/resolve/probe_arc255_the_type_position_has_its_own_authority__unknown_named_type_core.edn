@@ -11,6 +11,5 @@
       }
     }
   }
-  :causes []
   :path ":wat::core::Bogus"
 }

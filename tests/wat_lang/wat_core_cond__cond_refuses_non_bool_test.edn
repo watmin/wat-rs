@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":wat::core::if: parameter cond expects :wat::core::bool; got :wat::core::i64"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::core::if"
       :param "cond"
       :expected ":wat::core::bool"

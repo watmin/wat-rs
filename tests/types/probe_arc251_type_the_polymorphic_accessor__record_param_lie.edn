@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/ReturnTypeMismatch {
       :message ":u::a: body produces :wat::core::i64; signature declares :wat::core::String"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :function ":u::a"
       :expected ":wat::core::String"
       :got ":wat::core::i64"

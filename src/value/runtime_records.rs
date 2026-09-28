@@ -226,12 +226,6 @@ record_names_fn!(write_stopped_names, WRITE_STOPPED_FIELDS, "wat/runtime-errors.
 record_names_fn!(rete_defn_axis_violation_names, RETE_DEFN_AXIS_VIOLATION_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnAxisViolation");
 record_names_fn!(rete_defn_recursive_names, RETE_DEFN_RECURSIVE_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnRecursive");
 
-/// An empty `(Vector :- [Error])` — every variant's `causes` except the two
-/// that wrap a nested error (`EvalVerificationFailed`, `MacroExpansionFailed`).
-fn empty_causes() -> Value {
-    Value::Vec(Arc::new(Vec::new()))
-}
-
 /// Excursus 003 strike A (F2) — build a bare `:wat::runtime::AssertionFailed`
 /// `Value::Aggregate(Record)` directly from an assertion's own message/location/
 /// actual/expected, NOT from a `RuntimeErrorKind` (the `AssertionFailed` arm of
@@ -254,23 +248,39 @@ pub(crate) fn assertion_failed_value(
         Arc::new(vec![
             Value::String(Arc::new(message)),
             crate::runtime::value_from_span(location),
-            empty_causes(),
             Value::Option(Arc::new(actual.map(|s| Value::String(Arc::new(s))))),
             Value::Option(Arc::new(expected.map(|s| Value::String(Arc::new(s))))),
         ]),
     )))
 }
 
-/// A nested ERROR (rule 2 of the brief this file implements) becomes ONE
-/// `:wat::core::Fault` in `causes` — its `Display` text as the Fault's
+/// A nested ERROR becomes ONE `:wat::core::Fault` in the named `cause` field
+/// (excursus 003 strike B1, item 4) — its `Display` text as the Fault's
 /// message, and the OUTER `RuntimeError`'s own raising-site span as the
 /// Fault's location (neither `HashError` nor the reused-uniformly
 /// `MacroError` path carries a location `to_record` reads independently
-/// here). The wrapped error's own kind-specific shape (which `HashError`
-/// variant; `MacroError`'s own richer `WatError` location/causes) is OUT OF
-/// SCOPE for this step — named, not papered over, in the strike report.
+/// here).
+///
+/// ⚠ KNOWN GAP, named not papered over: the strike's brief asked for `cause`
+/// to hold the wrapped error's OWN declared record (`HashError`'s / `MacroError`'s
+/// real shape), not a Fault. Measured against that: `HashError`'s eight S2
+/// records (`wat/kernel/diagnostics.wat`) carry NO `message`/`location` floor
+/// at all (its hand-written `ToEdn` impl is a bare `#wat.kernel/<Variant>
+/// {…}` map — S2's own comment says so), so `EvalVerificationFailed.cause`
+/// cannot be typed `:wat::core::Error` and hold a `HashError` variant
+/// directly; it would not structurally satisfy the surface. `MacroError`
+/// DOES implement `WatError` and could decode typed, but `to_record(&self)`
+/// carries no `TypeEnv`/`SymbolTable` to strict-decode with (unlike the four
+/// item-5 wrapper sites, which run inside a call that already holds one) —
+/// threading one through `to_record`'s whole call graph (`kernel/error.rs`,
+/// `process/died.rs`, both peer-death paths) is out of this step's size. This
+/// keeps the STRUCTURALLY SAFE, honest interim shape — a real
+/// `:wat::core::Error` (a `Fault` satisfies the surface), reshaped from the
+/// old `causes: Vector<Error>` (one-element) to the new `cause: Error`
+/// (bare) — and reports the gap for the builder's ruling rather than forcing
+/// a mistyped field or a wide signature change silently.
 fn single_cause_fault(message: String, span: &crate::span::Span) -> Value {
-    Value::Vec(Arc::new(vec![crate::runtime::fault_value(message, Some(span.clone()))]))
+    crate::runtime::fault_value(message, Some(span.clone()))
 }
 
 /// `EdnCoerceMismatch.path`'s wire shape is a `Vector` of dot-path segments
@@ -303,22 +313,22 @@ impl RuntimeError {
             RuntimeErrorKind::UnboundSymbol(name) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::UnboundSymbol".to_string(),
                 unbound_symbol_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(name.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(name.clone()))]),
             ))),
             RuntimeErrorKind::UnknownFunction(path) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::UnknownFunction".to_string(),
                 unknown_function_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(path.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(path.clone()))]),
             ))),
             RuntimeErrorKind::NotValueDispatchable { name } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::NotValueDispatchable".to_string(),
                 not_value_dispatchable_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(name.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(name.clone()))]),
             ))),
             RuntimeErrorKind::NotCallable { got } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::NotCallable".to_string(),
                 not_callable_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), value_snapshot_value(got)]),
+                Arc::new(vec![floor_message, floor_location, value_snapshot_value(got)]),
             ))),
             RuntimeErrorKind::TypeMismatch { op, expected, got } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::TypeMismatch".to_string(),
@@ -326,7 +336,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(op.clone())),
                     Value::String(Arc::new((*expected).to_string())),
                     value_snapshot_value(got),
@@ -338,7 +347,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(op.clone())),
                     Value::i64(*expected as i64),
                     Value::i64(*got as i64),
@@ -347,7 +355,7 @@ impl RuntimeError {
             RuntimeErrorKind::BadCondition { got } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::BadCondition".to_string(),
                 bad_condition_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), value_snapshot_value(got)]),
+                Arc::new(vec![floor_message, floor_location, value_snapshot_value(got)]),
             ))),
             RuntimeErrorKind::MalformedForm { head, reason } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::MalformedForm".to_string(),
@@ -355,7 +363,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(head.clone())),
                     Value::String(Arc::new(reason.clone())),
                 ]),
@@ -363,12 +370,12 @@ impl RuntimeError {
             RuntimeErrorKind::ParamShadowsBuiltin(name) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ParamShadowsBuiltin".to_string(),
                 param_shadows_builtin_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(name.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(name.clone()))]),
             ))),
             RuntimeErrorKind::DivisionByZero => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::DivisionByZero".to_string(),
                 division_by_zero_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes()]),
+                Arc::new(vec![floor_message, floor_location]),
             ))),
             RuntimeErrorKind::IntegerOverflow { op, a, b } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::IntegerOverflow".to_string(),
@@ -376,7 +383,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(op.clone())),
                     Value::i64(*a),
                     Value::i64(*b),
@@ -385,12 +391,12 @@ impl RuntimeError {
             RuntimeErrorKind::DuplicateDefine(name) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::DuplicateDefine".to_string(),
                 duplicate_define_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(name.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(name.clone()))]),
             ))),
             RuntimeErrorKind::ReservedPrefix(prefix) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ReservedPrefix".to_string(),
                 reserved_prefix_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(prefix.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(prefix.clone()))]),
             ))),
             RuntimeErrorKind::UnreachableClause { name, clause_index, subsumed_by, declared_arg_types } => {
                 Value::Aggregate(Arc::new(AggregateValue::record(
@@ -399,7 +405,6 @@ impl RuntimeError {
                     Arc::new(vec![
                         floor_message,
                         floor_location,
-                        empty_causes(),
                         Value::String(Arc::new(name.clone())),
                         Value::i64(*clause_index as i64),
                         Value::i64(*subsumed_by as i64),
@@ -410,27 +415,27 @@ impl RuntimeError {
             RuntimeErrorKind::UnnamespacedName(name) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::UnnamespacedName".to_string(),
                 unnamespaced_name_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(name.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(name.clone()))]),
             ))),
             RuntimeErrorKind::DottedName(name) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::DottedName".to_string(),
                 dotted_name_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(name.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(name.clone()))]),
             ))),
             RuntimeErrorKind::DeclarationInExpressionPosition(head) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::DeclarationInExpressionPosition".to_string(),
                 declaration_in_expression_position_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(head.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(head.clone()))]),
             ))),
             RuntimeErrorKind::EvalForbidsMutationForm { head } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::EvalForbidsMutationForm".to_string(),
                 eval_forbids_mutation_form_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(head.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(head.clone()))]),
             ))),
             RuntimeErrorKind::UserMainMissing => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::UserMainMissing".to_string(),
                 user_main_missing_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes()]),
+                Arc::new(vec![floor_message, floor_location]),
             ))),
             RuntimeErrorKind::EvalVerificationFailed { err } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::EvalVerificationFailed".to_string(),
@@ -440,52 +445,55 @@ impl RuntimeError {
             RuntimeErrorKind::ChannelDisconnected { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ChannelDisconnected".to_string(),
                 channel_disconnected_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(op.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
             RuntimeErrorKind::ReteCeiling(ceiling) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ReteCeiling".to_string(),
                 rete_ceiling_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), rete_ceiling_kind_value(ceiling)]),
+                Arc::new(vec![floor_message, floor_location, rete_ceiling_kind_value(ceiling)]),
             ))),
             RuntimeErrorKind::NoEncodingCtx { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::NoEncodingCtx".to_string(),
                 no_encoding_ctx_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(op.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
             RuntimeErrorKind::NoSourceLoader { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::NoSourceLoader".to_string(),
                 no_source_loader_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(op.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
             RuntimeErrorKind::NoMacroRegistry { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::NoMacroRegistry".to_string(),
                 no_macro_registry_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(op.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
+            // Field order matches the wat declaration (`wat/runtime-errors.wat`):
+            // [message location op cause] — the codemod that added `cause` (excursus 003
+            // strike B1) appended it AFTER the pre-existing `op` field, not before.
             RuntimeErrorKind::MacroExpansionFailed { op, cause } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::MacroExpansionFailed".to_string(),
                 macro_expansion_failed_names(),
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    single_cause_fault(cause.to_string(), self.span()),
                     Value::String(Arc::new(op.clone())),
+                    single_cause_fault(cause.to_string(), self.span()),
                 ]),
             ))),
             RuntimeErrorKind::PatternMatchFailed { value_type } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::PatternMatchFailed".to_string(),
                 pattern_match_failed_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new((*value_type).to_string()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new((*value_type).to_string()))]),
             ))),
             RuntimeErrorKind::EffectfulInStep { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::EffectfulInStep".to_string(),
                 effectful_in_step_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(op.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
             RuntimeErrorKind::NoStepRule { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::NoStepRule".to_string(),
                 no_step_rule_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(op.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
             RuntimeErrorKind::AssertionFailed { actual, expected, .. } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::AssertionFailed".to_string(),
@@ -493,7 +501,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::Option(Arc::new(actual.clone().map(|s| Value::String(Arc::new(s))))),
                     Value::Option(Arc::new(expected.clone().map(|s| Value::String(Arc::new(s))))),
                 ]),
@@ -504,7 +511,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(offending_name.clone())),
                     crate::runtime::value_from_span(outer_define_span.clone()),
                 ]),
@@ -512,7 +518,7 @@ impl RuntimeError {
             RuntimeErrorKind::ServiceNotRunning { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ServiceNotRunning".to_string(),
                 service_not_running_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes(), Value::String(Arc::new(op.clone()))]),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
             RuntimeErrorKind::EdnCoerceMismatch { op, expected, got, path } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::EdnCoerceMismatch".to_string(),
@@ -520,7 +526,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(op.clone())),
                     Value::String(Arc::new((**expected).clone())),
                     Value::String(Arc::new((**got).clone())),
@@ -533,7 +538,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(record_class.clone())),
                     Value::String(Arc::new(field.clone())),
                     Value::Vec(Arc::new(available.iter().map(|s| Value::String(Arc::new(s.clone()))).collect())),
@@ -546,7 +550,6 @@ impl RuntimeError {
                     Arc::new(vec![
                         floor_message,
                         floor_location,
-                        empty_causes(),
                         Value::String(Arc::new(name.clone())),
                         Value::i64(*called_arity as i64),
                         Value::Vec(Arc::new(called_args.iter().map(value_snapshot_value).collect())),
@@ -566,7 +569,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(defclause_name.clone())),
                     Value::i64(*clause_index as i64),
                     Value::String(Arc::new(ensure_expr_snapshot.clone())),
@@ -577,12 +579,12 @@ impl RuntimeError {
             RuntimeErrorKind::MacroAbort { .. } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::MacroAbort".to_string(),
                 macro_abort_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes()]),
+                Arc::new(vec![floor_message, floor_location]),
             ))),
             RuntimeErrorKind::WriteStopped => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::WriteStopped".to_string(),
                 write_stopped_names(),
-                Arc::new(vec![floor_message, floor_location, empty_causes()]),
+                Arc::new(vec![floor_message, floor_location]),
             ))),
             RuntimeErrorKind::ReteDefnAxisViolation { name, axis, head } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ReteDefnAxisViolation".to_string(),
@@ -590,7 +592,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(name.clone())),
                     Value::String(Arc::new((*axis).to_string())),
                     Value::String(Arc::new(head.clone())),
@@ -602,7 +603,6 @@ impl RuntimeError {
                 Arc::new(vec![
                     floor_message,
                     floor_location,
-                    empty_causes(),
                     Value::String(Arc::new(name.clone())),
                     Value::String(Arc::new(head.clone())),
                 ]),

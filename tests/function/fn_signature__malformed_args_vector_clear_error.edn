@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::fn form: triple is incomplete; expected `name <- :T` but ran out of items"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::fn"
       :reason "triple is incomplete; expected `name <- :T` but ran out of items"
       :remedies []

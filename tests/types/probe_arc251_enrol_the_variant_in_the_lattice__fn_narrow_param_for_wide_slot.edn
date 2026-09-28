@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":u::apply: parameter #1 expects [(:u::Alarm :- [:u::Op]) :-> :()]; got [(:u::Alarm :- [:u::Op.Mark]) :-> :()]"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":u::apply"
       :param "#1"
       :expected "[(:u::Alarm :- [:u::Op]) :-> :()]"

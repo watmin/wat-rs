@@ -51,7 +51,7 @@
 (:wat::core::defrecord :wat::load::MalformedLoadForm
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    reason <- :wat::core::String])
 
 ;; Excursus 003 D4 item 1 — the fetched (or entry) file's display label is
@@ -59,7 +59,7 @@
 (:wat::core::defrecord :wat::load::ReservedStdlibLabel
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    label <- :wat::core::String])
 
 ;; A loaded (non-entry) file contained a `(:wat::config::set-*!)` form.
@@ -67,7 +67,7 @@
 (:wat::core::defrecord :wat::load::SetterInLoadedFile
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    loaded-path <- :wat::core::String
    setter-head <- :wat::core::String])
 
@@ -75,7 +75,7 @@
 (:wat::core::defrecord :wat::load::DuplicateLoad
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    path <- :wat::core::String])
 
 ;; A load chain closed back on itself (A loads B loads A). `cycle` is the
@@ -83,7 +83,7 @@
 (:wat::core::defrecord :wat::load::CycleDetected
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    cycle <- (:wat::core::Vector :- [:wat::core::String])])
 
 ;; The loader couldn't fetch the file. `cause` is one of the three flat
@@ -92,7 +92,7 @@
 (:wat::core::defrecord :wat::load::Fetch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    cause <- :wat::core::Value])
 
 ;; Parsing the fetched source failed. `cause` is the nested `ParseError`'s own
@@ -100,7 +100,7 @@
 (:wat::core::defrecord :wat::load::Parse
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    path <- :wat::core::String
    cause <- :wat::core::Error])
 
@@ -110,6 +110,6 @@
 (:wat::core::defrecord :wat::load::VerificationFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    path <- :wat::core::String
    cause <- :wat::core::Value])

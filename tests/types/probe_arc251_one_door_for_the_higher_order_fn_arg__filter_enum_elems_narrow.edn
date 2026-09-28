@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":wat::core::filter: parameter #1 expects [:u::Op :-> :wat::core::bool]; got [:u::Op.Mark :-> :wat::core::bool]"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::core::filter"
       :param "#1"
       :expected "[:u::Op :-> :wat::core::bool]"

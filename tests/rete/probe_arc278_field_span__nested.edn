@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/UnknownField {
             :message "defrule `fsn::r`: `:fsn::Inner` has no field `:nope`; available fields: [x]"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "fsn::r"
             :fact-type "fsn::Inner"
             :field "nope"
@@ -47,7 +46,6 @@
                 }
               }
             }
-            :causes []
             :rule "fsn::r"
             :fact-type "fsn::Inner"
             :missing ["x"]

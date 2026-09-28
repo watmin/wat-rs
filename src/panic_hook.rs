@@ -12,7 +12,7 @@
 //! [#wat.kernel/LociDiedError.Panic
 //!  {:failure #wat.kernel/Failure
 //!    {:error #wat.runtime/AssertionFailed
-//!      {:message "assert-eq failed" :location {…} :causes []
+//!      {:message "assert-eq failed" :location {…}
 //!       :actual "-1" :expected "42"}
 //!     :frames […]
 //!     :frames-elided 0}}]
@@ -273,10 +273,6 @@ mod tests {
         // bare `nil` (arc 296's "absence spoken as a tagged None", derive_tests.rs).
         let end_val = get_field(loc_pairs, "end");
         assert_eq!(option_value(end_val), None, "end should be Option.None: {:?}", end_val);
-
-        // :causes is empty — an assertion names no nested cause of its own.
-        let causes = get_field(error_pairs, "causes");
-        assert_eq!(causes, &OwnedValue::Vector(vec![]), "causes: {:?}", causes);
 
         // :actual and :expected are AssertionFailed's OWN fields now (F2) — `Failure`
         // itself carries neither.

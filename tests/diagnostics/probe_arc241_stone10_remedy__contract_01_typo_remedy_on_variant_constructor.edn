@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/ReturnTypeMismatch {
       :message ":test::pick: body produces :wat::core::keyword; signature declares :my::Status"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :function ":test::pick"
       :expected ":my::Status"
       :got ":wat::core::keyword"

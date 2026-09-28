@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::let form: let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::let"
       :reason "let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3"
       :remedies []

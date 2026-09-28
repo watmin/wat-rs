@@ -45,9 +45,17 @@ pub use wat_edn::ToEdn;
 /// A top-level substrate error that can reach the wire boundary.
 ///
 /// `WatError` enforces the `:wat::core::Error` floor:
-/// every error that crosses the wire MUST carry `:message`, `:location`,
-/// and `:causes` — the three fields that tooling and the runtime always
-/// expect to navigate, regardless of the specific error family.
+/// every error that crosses the wire MUST carry `:message` and `:location` —
+/// the two fields that tooling and the runtime always expect to navigate,
+/// regardless of the specific error family.
+///
+/// Excursus 003 strike B1 (`AUDIT-the-shape-of-an-error.md` F3): `causes`
+/// left the floor. It was read nowhere in wat, wrote `[]` in 38 of 40 runtime
+/// kinds, and carried two meanings under one name (causation for the two
+/// wrapping kinds, membership for the checker aggregates). A wrapping kind
+/// now carries its inner error as a named `cause` field on its own record; an
+/// aggregate carries its members as its own `errors` field. Neither lives on
+/// the shared floor.
 ///
 /// ## Required methods
 ///
@@ -57,18 +65,18 @@ pub use wat_edn::ToEdn;
 ///   `#wat.core/Span {:file :line :col :end}` record, or `nil` when the
 ///   error has no recoverable span (elide-when-unknown discipline, same as
 ///   `push_span_field`).
-/// - `causes()` — the nested error chain as an EDN vector; `[]` for leaf
-///   errors that carry no structured sub-errors.
 /// - `variant()` — the variant-specific fields as a tagged map, identical
 ///   to the error's EXISTING `ToEdn::to_edn()` output with the raw
 ///   `:span` key stripped (the floor now owns `:location`; the variant
-///   must not double-emit the span under a different key).
+///   must not double-emit the span under a different key). An aggregate's
+///   `:errors` key and a wrapping kind's `:cause` key are variant fields now,
+///   not floor fields — `variant()` carries them.
 ///
 /// ## Provided method
 ///
 /// `error_edn()` composes the floor. It takes `variant()` (a tagged map)
-/// and inserts `:message`, `:location`, `:causes` at the front of the body
-/// map, in that order. Implementors MUST NOT override this method.
+/// and inserts `:message`, `:location` at the front of the body map, in
+/// that order. Implementors MUST NOT override this method.
 ///
 /// ## What does NOT implement `WatError`
 ///
@@ -96,11 +104,6 @@ pub trait WatError {
     /// ends.
     fn location(&self) -> crate::span::Span;
 
-    /// The nested error chain. Return `OwnedValue::Vector(vec![])` for leaf
-    /// errors; include the inner error's [`ToEdn::to_edn`] output for
-    /// errors that wrap a typed cause.
-    fn causes(&self) -> OwnedValue;
-
     /// The variant-specific fields as a tagged map.
     ///
     /// Return the existing [`ToEdn::to_edn`] output, stripped of the raw
@@ -111,10 +114,12 @@ pub trait WatError {
     /// Compose the floor. **Do not override.**
     ///
     /// Takes `variant()` (a tagged map) and inserts `:message`,
-    /// `:location`, `:causes` at the front of its body map. This is the
+    /// `:location` at the front of its body map. This is the
     /// canonical wire representation: every wire-crossing error carries
-    /// exactly these three floor keys, in this order, before any
-    /// variant-specific fields.
+    /// exactly these two floor keys, in this order, before any
+    /// variant-specific fields (excursus 003 strike B1 — `causes` left the
+    /// floor; an aggregate's `:errors` and a wrapping kind's `:cause` are
+    /// variant fields now).
     fn error_edn(&self) -> OwnedValue {
         let variant_val = self.variant();
         match variant_val {
@@ -124,17 +129,15 @@ pub trait WatError {
                     other => vec![(edn_kw("body"), other)],
                 };
                 // Dedup: a variant map must not carry its own :message /
-                // :location / :causes — the floor owns those keys. Strip any
+                // :location — the floor owns those keys. Strip any
                 // pre-existing floor keys before inserting (e.g. a `FlatMessage`
                 // whose `key` is literally "message" would otherwise emit a
                 // duplicate-key map).
                 let msg_kw = edn_kw("message");
                 let loc_kw = edn_kw("location");
-                let cause_kw = edn_kw("causes");
-                fields.retain(|(k, _)| k != &msg_kw && k != &loc_kw && k != &cause_kw);
+                fields.retain(|(k, _)| k != &msg_kw && k != &loc_kw);
                 // Insert floor keys at the front, in reverse order so
-                // the final order is :message :location :causes <variant…>.
-                fields.insert(0, (cause_kw, self.causes()));
+                // the final order is :message :location <variant…>.
                 fields.insert(0, (loc_kw, self.location().to_edn()));
                 fields.insert(0, (msg_kw, edn_str(&self.message())));
                 OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
@@ -146,7 +149,6 @@ pub trait WatError {
                 OwnedValue::Map(vec![
                     (edn_kw("message"), edn_str(&self.message())),
                     (edn_kw("location"), self.location().to_edn()),
-                    (edn_kw("causes"), self.causes()),
                     (edn_kw("variant"), other),
                 ])
             }
@@ -303,7 +305,7 @@ pub(crate) fn strip_frames_from_tagged(val: OwnedValue) -> OwnedValue {
 ///
 /// Used as a `#[to_edn(via = crate::edn::contract::error_edn_of)]` target for fields
 /// that embed a nested substrate error that must be serialized via the floor
-/// (`:message` / `:location` / `:causes`) rather than raw `to_edn()`. The field
+/// (`:message` / `:location`) rather than raw `to_edn()`. The field
 /// type must implement [`WatError`]; the derive default (`.to_edn()`) applies to
 /// fields that implement only [`ToEdn`].
 ///
@@ -346,7 +348,7 @@ pub(crate) fn error_edn_of_boxed<T: WatError>(cause: &Box<T>) -> OwnedValue {
 /// representable form.
 ///
 /// Calling `e.error_edn()` (rather than `e.to_edn()`) ensures every wire
-/// payload carries `:message`, `:location`, and `:causes`, regardless of the
+/// payload carries `:message` and `:location`, regardless of the
 /// specific error variant. The 11-key span heresy (`:span` appearing under
 /// different keys across families) is dead: the floor emits ONE `:location`
 /// and the variant() strips the raw `:span`.
@@ -392,10 +394,10 @@ pub fn to_wire_edn(e: &impl WatError) -> String {
 /// (there is no span, no kind, no structured sub-fields to lose); this is NOT
 /// a stringified structured error.
 ///
-/// Serializes to `#wat.kernel/<tag> {:message "…" :location nil :causes []
+/// Serializes to `#wat.kernel/<tag> {:message "…" :location nil
 /// :<key> "<message>"}`. `FlatMessage` implements [`WatError`] so it too
 /// crosses the wire boundary through the floor — even a flat OS-level failure
-/// carries `:message`/`:location`/`:causes`. It is NOT excluded from
+/// carries `:message`/`:location`. It is NOT excluded from
 /// `WatError` (unlike the embedded sub-values `ValueSnapshot`, `Provenance`,
 /// `Span`, …): a `FlatMessage` IS a top-level error at the wire, not a
 /// sub-value inside another error's EDN.
@@ -427,9 +429,6 @@ impl WatError for FlatMessage<'_> {
     /// raising Rust site (captured at construction) stands in for it.
     fn location(&self) -> crate::span::Span {
         self.span.clone()
-    }
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
     }
     /// The variant carries the raw `#wat.kernel/<tag> {:<key> "…"}` envelope.
     /// When `key == "message"` the floor's own `:message` would collide;

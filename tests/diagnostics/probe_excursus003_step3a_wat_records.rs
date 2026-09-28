@@ -184,10 +184,12 @@ fn g1_declaration_is_the_list() {
 
 // ─── G2 — the record agrees with today's wire ─────────────────────────────────
 
-/// Ruling 2026-09-26: exactly two CLASSES of exception between `to_record`'s
-/// render and `WatError::error_edn()`'s wire, applied wherever that shape
-/// occurs — enumerated here by (variant, field) so an unlisted difference
-/// still goes RED.
+/// Ruling 2026-09-26 (Retag), extended by excursus 003 strike B1's `cause` handling
+/// (`is_nested_error_variant` below, not a G2_EXCEPTIONS class — the mismatch is a
+/// FIELD NAME change too, `:error`/`:cause` on the wire vs. `:cause` in `to_record()`,
+/// which a (variant, field) pair keyed on ONE name cannot express): exceptions between
+/// `to_record`'s render and `WatError::error_edn()`'s wire, applied wherever that shape
+/// occurs — enumerated here by (variant, field) so an unlisted difference still goes RED.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ExceptionClass {
     /// The old wire carried this payload untagged (`ValueSnapshot`) or under
@@ -196,9 +198,27 @@ enum ExceptionClass {
     /// `wat.kernel/ClauseFailureReason.<Variant>`); the record declares it,
     /// so it renders tagged/dotted now.
     Retag,
-    /// The old wire kept this as a kind field; the record moves it into
-    /// `causes` as one `:wat::core::Fault`, dropping the field entirely.
-    NestedErrorMoved,
+}
+
+/// Excursus 003 strike B1, item 4: the two wrapping kinds whose wire field
+/// (`EvalVerificationFailed`'s `:error`, `MacroExpansionFailed`'s `:cause`) carries the
+/// wrapped error's OWN rich render, while `to_record()`'s `cause` field is a KNOWN,
+/// NAMED gap — an intentionally flattened `:wat::core::Fault {message location}` (see
+/// `single_cause_fault`'s doc comment, `src/value/runtime_records.rs`), not the wrapped
+/// type's own declared shape. Handled below as its own pass, not a G2_EXCEPTIONS class:
+/// the field NAME differs too (`:error` -> `:cause` for `EvalVerificationFailed`), which
+/// a (variant, ONE field) pair cannot express.
+fn is_nested_error_variant(variant: &str) -> bool {
+    variant == "EvalVerificationFailed" || variant == "MacroExpansionFailed"
+}
+
+/// The wire's own field name for the nested error, per `is_nested_error_variant`.
+fn nested_error_wire_field(variant: &str) -> &'static str {
+    match variant {
+        "EvalVerificationFailed" => "error",
+        "MacroExpansionFailed" => "cause",
+        other => panic!("nested_error_wire_field: not a nested-error variant: {other}"),
+    }
 }
 
 const G2_EXCEPTIONS: &[(&str, &str, ExceptionClass)] = &[
@@ -208,8 +228,6 @@ const G2_EXCEPTIONS: &[(&str, &str, ExceptionClass)] = &[
     ("NoMatchingClause", "called-args", ExceptionClass::Retag),
     ("NoMatchingClause", "attempted-clauses", ExceptionClass::Retag),
     ("PostconditionFailed", "returned-value", ExceptionClass::Retag),
-    ("EvalVerificationFailed", "error", ExceptionClass::NestedErrorMoved),
-    ("MacroExpansionFailed", "cause", ExceptionClass::NestedErrorMoved),
     // `ReteCeiling.ceiling` was ALREADY tagged on the old wire (the derive's own
     // `#[to_edn(namespace = RUNTIME)]` on the nested `ReteCeiling` enum) — the
     // retag here is flat `#wat.runtime/<Variant>` -> dotted
@@ -263,20 +281,17 @@ fn g2_record_agrees_with_wire() {
         let exceptions: Vec<&(&str, &str, ExceptionClass)> =
             G2_EXCEPTIONS.iter().filter(|(v, _, _)| *v == variant).collect();
 
+        let nested_error = is_nested_error_variant(variant);
+
         // Every wire field not named as an exception must appear, byte-identical, in `actual`.
         for (k, v) in &wire_fields {
             let name = key_name(k);
-            if name == "causes" {
-                continue; // causes handled below, as a unit (empty vs. one Fault)
+            if nested_error && name == nested_error_wire_field(variant) {
+                continue; // handled below: to_record()'s `cause` is a KNOWN, intentionally
+                          // flattened gap, not equal to the wire's rich nested render.
             }
             if let Some((_, _, class)) = exceptions.iter().find(|(_, f, _)| *f == name) {
                 match class {
-                    ExceptionClass::NestedErrorMoved => {
-                        assert!(
-                            find_field(&actual_fields, name).is_none(),
-                            "{variant}: field `{name}` should have moved into `causes`, but to_record() still carries it"
-                        );
-                    }
                     ExceptionClass::Retag => {
                         // Checked in the retag pass below; here we only assert it did NOT
                         // vanish (a value must be present under this name in `actual`).
@@ -299,8 +314,11 @@ fn g2_record_agrees_with_wire() {
         // (a NEW field with no G2 exception would be an unnamed, undocumented addition).
         for (k, _) in &actual_fields {
             let name = key_name(k);
-            if name == "message" || name == "location" || name == "causes" {
+            if name == "message" || name == "location" {
                 continue;
+            }
+            if nested_error && name == "cause" {
+                continue; // handled below
             }
             let on_wire = find_field(&wire_fields, name).is_some();
             let is_exception = exceptions.iter().any(|(_, f, _)| *f == name);
@@ -310,24 +328,21 @@ fn g2_record_agrees_with_wire() {
             );
         }
 
-        // `causes`: empty on both sides, unless this variant has a NestedErrorMoved
-        // exception, in which case the wire's is empty and to_record()'s carries
-        // exactly one `:wat::core::Fault`.
-        let has_nested_error = exceptions.iter().any(|(_, _, c)| *c == ExceptionClass::NestedErrorMoved);
-        let actual_causes = find_field(&actual_fields, "causes").expect("floor `causes` must always be present");
-        if has_nested_error {
-            match actual_causes {
-                OwnedValue::Vector(items) if items.len() == 1 => {
-                    let (fault_tag, fault_fields) = as_tagged_map(&items[0]);
-                    assert_eq!(fault_tag.name(), "Fault", "{variant}: the nested error's cause must be a Fault");
-                    assert!(find_field(&fault_fields, "message").is_some(), "{variant}: the cause Fault must carry a message");
-                    assert!(find_field(&fault_fields, "location").is_some(), "{variant}: the cause Fault must carry a location");
-                    assert!(find_field(&fault_fields, "causes").is_some(), "{variant}: the cause Fault must carry (empty) causes");
-                }
-                other => panic!("{variant}: expected causes = [one Fault], got {other:?}"),
-            }
+        // Excursus 003 strike B1, item 4's KNOWN GAP: the two wrapping kinds carry a
+        // `cause` field in `to_record()` — a real `:wat::core::Fault` (structurally a
+        // `:wat::core::Error`, `{message location}`, nothing more), not the wrapped
+        // type's own declared shape (the wire's `:error`/`:cause` carries THAT). Every
+        // other variant carries no `cause` field at all.
+        if nested_error {
+            let actual_cause = find_field(&actual_fields, "cause")
+                .unwrap_or_else(|| panic!("{variant}: to_record() must carry a `cause` field"));
+            let (fault_tag, fault_fields) = as_tagged_map(actual_cause);
+            assert_eq!(fault_tag.name(), "Fault", "{variant}: cause must be a Fault");
+            assert!(find_field(&fault_fields, "message").is_some(), "{variant}: the cause Fault must carry a message");
+            assert!(find_field(&fault_fields, "location").is_some(), "{variant}: the cause Fault must carry a location");
+            assert_eq!(fault_fields.len(), 2, "{variant}: :wat::core::Fault is {{message location}} now (excursus 003 strike B1) — no third field");
         } else {
-            assert_eq!(actual_causes, &OwnedValue::Vector(Vec::new()), "{variant}: causes must be empty");
+            assert!(find_field(&actual_fields, "cause").is_none(), "{variant}: only the two wrapping kinds carry a `cause` field");
         }
 
         // Retag pass: for every listed Retag exception, the OLD wire value must be

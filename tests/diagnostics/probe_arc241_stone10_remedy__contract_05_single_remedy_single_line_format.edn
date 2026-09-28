@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::struct form: ':wat::core::struct' is retired (Stone 241.8)"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::struct"
       :reason "':wat::core::struct' is retired (Stone 241.8)"
       :remedies [

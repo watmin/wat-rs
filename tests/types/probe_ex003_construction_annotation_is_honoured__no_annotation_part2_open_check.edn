@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":p::Ops: parameter #2 expects [:p::E.A :-> :p::E.A]; got [:p::E :-> :p::E]"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":p::Ops"
       :param "#2"
       :expected "[:p::E.A :-> :p::E.A]"

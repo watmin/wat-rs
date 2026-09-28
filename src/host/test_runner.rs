@@ -1091,7 +1091,6 @@ mod arc116_diagnostic_tests {
                 AggregateValue::record("wat::core::Fault".into(), crate::runtime::fault_names(), Arc::new(vec![
                     Value::String(Arc::new(message.to_string())),
                     location_value,
-                    Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
                 ])),
             ))
         };

@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message "#{…} set literal: parameter element #2 expects :wat::core::i64; got :wat::core::keyword"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee "#{…} set literal"
       :param "element #2"
       :expected ":wat::core::i64"
@@ -45,7 +44,6 @@
           }
         }
       }
-      :causes []
       :callee "#{…} set literal"
       :param "element #3"
       :expected ":wat::core::i64"

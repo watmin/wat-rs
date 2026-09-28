@@ -115,7 +115,7 @@
 (:wat::core::defrecord :wat::runtime::UnboundSymbol
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The symbol that had no binding.
    name <- :wat::core::String])
 
@@ -123,7 +123,7 @@
 (:wat::core::defrecord :wat::runtime::UnknownFunction
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The path that named no registered function.
    path <- :wat::core::String])
 
@@ -132,7 +132,7 @@
 (:wat::core::defrecord :wat::runtime::NotValueDispatchable
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The handler's registered name.
    name <- :wat::core::String])
 
@@ -140,7 +140,7 @@
 (:wat::core::defrecord :wat::runtime::NotCallable
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The value that was called, snapshotted for diagnosis.
    got <- :wat::runtime::ValueSnapshot])
 
@@ -148,7 +148,7 @@
 (:wat::core::defrecord :wat::runtime::TypeMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The operation that rejected the value.
    op <- :wat::core::String
 ;; The type name it wanted.
@@ -160,7 +160,7 @@
 (:wat::core::defrecord :wat::runtime::ArityMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The operation whose arity was violated.
    op <- :wat::core::String
 ;; The arity it declared.
@@ -172,7 +172,7 @@
 (:wat::core::defrecord :wat::runtime::BadCondition
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The non-bool value the condition evaluated to, snapshotted.
    got <- :wat::runtime::ValueSnapshot])
 
@@ -180,7 +180,7 @@
 (:wat::core::defrecord :wat::runtime::MalformedForm
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The form's head keyword.
    head <- :wat::core::String
 ;; What was wrong with it.
@@ -190,7 +190,7 @@
 (:wat::core::defrecord :wat::runtime::ParamShadowsBuiltin
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The shadowing parameter's name.
    name <- :wat::core::String])
 
@@ -199,13 +199,13 @@
 (:wat::core::defrecord :wat::runtime::DivisionByZero
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; `i64 + - *` overflowed 64 bits.
 (:wat::core::defrecord :wat::runtime::IntegerOverflow
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The overflowing operator.
    op <- :wat::core::String
 ;; The left operand.
@@ -217,7 +217,7 @@
 (:wat::core::defrecord :wat::runtime::DuplicateDefine
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The redeclared name.
    name <- :wat::core::String])
 
@@ -225,7 +225,7 @@
 (:wat::core::defrecord :wat::runtime::ReservedPrefix
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The reserved prefix that was used.
    prefix <- :wat::core::String])
 
@@ -233,7 +233,7 @@
 (:wat::core::defrecord :wat::runtime::UnreachableClause
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The defclause's declared name.
    name <- :wat::core::String
 ;; 0-based index of the arm that can never fire.
@@ -247,7 +247,7 @@
 (:wat::core::defrecord :wat::runtime::UnnamespacedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The bare name that was registered.
    name <- :wat::core::String])
 
@@ -256,7 +256,7 @@
 (:wat::core::defrecord :wat::runtime::DottedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The dotted name that was registered.
    name <- :wat::core::String])
 
@@ -264,7 +264,7 @@
 (:wat::core::defrecord :wat::runtime::DeclarationInExpressionPosition
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The misplaced declaration form's head.
    head <- :wat::core::String])
 
@@ -273,7 +273,7 @@
 (:wat::core::defrecord :wat::runtime::EvalForbidsMutationForm
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The forbidden form's head.
    head <- :wat::core::String])
 
@@ -282,7 +282,7 @@
 (:wat::core::defrecord :wat::runtime::UserMainMissing
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; `:wat::eval-digest!`/`eval-signed!` verification failed. The wrapped
 ;; `HashError` (`src/hash.rs`) is a nested ERROR, per the brief's rule 2: it
@@ -294,14 +294,15 @@
 (:wat::core::defrecord :wat::runtime::EvalVerificationFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   
+   cause <- :wat::core::Error])
 
 ;; `:wat::kernel::join` reaped a spawned program whose thread panicked before
 ;; yielding a result.
 (:wat::core::defrecord :wat::runtime::ChannelDisconnected
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The operation that observed the disconnect.
    op <- :wat::core::String])
 
@@ -315,7 +316,7 @@
 (:wat::core::defrecord :wat::runtime::ReteCeiling
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; Which ceiling breached, and its measurement.
    ceiling <- :wat::runtime::ReteCeilingKind])
 
@@ -324,7 +325,7 @@
 (:wat::core::defrecord :wat::runtime::NoEncodingCtx
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The primitive that needed the encoding context.
    op <- :wat::core::String])
 
@@ -332,7 +333,7 @@
 (:wat::core::defrecord :wat::runtime::NoSourceLoader
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The primitive that needed file I/O.
    op <- :wat::core::String])
 
@@ -340,7 +341,7 @@
 (:wat::core::defrecord :wat::runtime::NoMacroRegistry
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The primitive that needed macro expansion.
    op <- :wat::core::String])
 
@@ -356,15 +357,16 @@
 (:wat::core::defrecord :wat::runtime::MacroExpansionFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The primitive whose expansion failed.
-   op <- :wat::core::String])
+   op <- :wat::core::String
+   cause <- :wat::core::Error])
 
 ;; A `match` ran with no arm whose pattern matched the scrutinee's shape.
 (:wat::core::defrecord :wat::runtime::PatternMatchFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The scrutinee's runtime type name.
    value-type <- :wat::core::String])
 
@@ -373,7 +375,7 @@
 (:wat::core::defrecord :wat::runtime::EffectfulInStep
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The effectful op that was refused.
    op <- :wat::core::String])
 
@@ -381,7 +383,7 @@
 (:wat::core::defrecord :wat::runtime::NoStepRule
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The unrecognized op.
    op <- :wat::core::String])
 
@@ -400,7 +402,7 @@
 (:wat::core::defrecord :wat::runtime::AssertionFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The failed assertion's actual value, rendered, when the caller supplied one.
    actual <- (:wat::core::Option :- [:wat::core::String])
 ;; The failed assertion's expected value, rendered, when the caller supplied one.
@@ -411,7 +413,7 @@
 (:wat::core::defrecord :wat::runtime::SandboxScopeLeak
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The name that leaked from the outer scope.
    offending-name <- :wat::core::String
 ;; Where the outer-scope define lives.
@@ -421,7 +423,7 @@
 (:wat::core::defrecord :wat::runtime::ServiceNotRunning
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The stdio helper that found no service.
    op <- :wat::core::String])
 
@@ -432,7 +434,7 @@
 (:wat::core::defrecord :wat::runtime::EdnCoerceMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The op whose declared return type the wire value didn't match.
    op <- :wat::core::String
 ;; The wat type the caller's `-> :T` annotation asked for.
@@ -447,7 +449,7 @@
 (:wat::core::defrecord :wat::runtime::UnknownField
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The record class's bare FQDN (no leading colon).
    record-class <- :wat::core::String
 ;; The field name that was attempted.
@@ -462,7 +464,7 @@
 (:wat::core::defrecord :wat::runtime::NoMatchingClause
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The defclause's declared name.
    name <- :wat::core::String
 ;; The number of arguments the call actually supplied.
@@ -476,7 +478,7 @@
 (:wat::core::defrecord :wat::runtime::PostconditionFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The defclause's declared name.
    defclause-name <- :wat::core::String
 ;; 0-based index of the clause whose postcondition failed.
@@ -497,21 +499,21 @@
 (:wat::core::defrecord :wat::runtime::MacroAbort
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; A pipe write was preempted by a process-wide stop request, not a broken
 ;; pipe. No kind fields — the floor message names the condition.
 (:wat::core::defrecord :wat::runtime::WriteStopped
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; A `(:wat::rete::core::defn …)` body failed one of the four purity-fence
 ;; axes, checked once at the definition site.
 (:wat::core::defrecord :wat::runtime::ReteDefnAxisViolation
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The declared helper's own FQDN.
    name <- :wat::core::String
 ;; The failing axis's variant name (Pure / Deterministic / Total / Law A).
@@ -524,7 +526,7 @@
 (:wat::core::defrecord :wat::runtime::ReteDefnRecursive
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
 ;; The declared helper that is (transitively) recursive.
    name <- :wat::core::String
 ;; The callee that closed the cycle (equal to `name` for self-recursion).

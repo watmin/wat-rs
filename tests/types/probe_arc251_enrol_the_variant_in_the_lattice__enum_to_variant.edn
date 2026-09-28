@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":u::takes-has: parameter #1 expects (:u::Demo.Has :- [:wat::core::i64]); got (:u::Demo :- [:wat::core::i64])"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":u::takes-has"
       :param "#1"
       :expected "(:u::Demo.Has :- [:wat::core::i64])"

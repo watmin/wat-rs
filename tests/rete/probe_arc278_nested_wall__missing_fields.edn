@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/RhsMissingFields {
             :message "defrule `nwm::r`: `:then` insert of `:nwm::Inner` is missing required field(s): [y]"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "nwm::r"
             :fact-type "nwm::Inner"
             :missing ["y"]

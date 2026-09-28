@@ -15,7 +15,6 @@
               }
             }
           }
-          :causes []
           :actual #wat.core/Option.None {}
           :expected #wat.core/Option.None {}
         }

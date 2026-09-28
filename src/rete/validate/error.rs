@@ -640,9 +640,6 @@ impl crate::edn::contract::WatError for ReteCheckError {
     fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
     }
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
-    }
     fn variant(&self) -> OwnedValue {
         use crate::edn::contract::ToEdn;
         crate::edn::contract::strip_span_from_tagged(self.to_edn())
@@ -650,13 +647,12 @@ impl crate::edn::contract::WatError for ReteCheckError {
 }
 
 impl crate::edn::contract::ToEdn for ReteCheckErrors {
-    /// Excursus 003 step 3c: the bespoke `:errors` key retires in favour of
-    /// `:causes`, matching `CheckErrors` (`src/check/error_edn.rs`) — one
-    /// name for "the errors that caused this one", raw form and floor form
-    /// alike.
+    /// Excursus 003 strike B1: reverting step 3c's move — the aggregate's
+    /// items are its MEMBERS, not its causes, so this raw form (and the
+    /// floor form below) both carry them under `:errors`.
     fn to_edn(&self) -> OwnedValue {
         let items: Vec<OwnedValue> = self.0.iter().map(|e| e.to_edn()).collect();
-        tagged("ReteCheckErrors", OwnedValue::Map(vec![(kw("causes"), OwnedValue::Vector(items))]))
+        tagged("ReteCheckErrors", OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]))
     }
 }
 
@@ -676,13 +672,13 @@ impl crate::edn::contract::WatError for ReteCheckErrors {
             .expect("ReteCheckErrors must not be empty — validate_rete_rules guards is_empty()")
             .location()
     }
-    /// The items ARE the causes — each already satisfies the floor
+    /// Excursus 003 strike B1: the items are the aggregate's OWN `:errors`
+    /// field now (reverting step 3c's move onto the shared `causes` floor
+    /// slot) — each item already satisfies the floor
     /// (`ReteCheckError: WatError`), embedded via its own `error_edn()`.
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(self.0.iter().map(|e| e.error_edn()).collect())
-    }
     fn variant(&self) -> OwnedValue {
-        tagged("ReteCheckErrors", OwnedValue::Map(vec![]))
+        let items: Vec<OwnedValue> = self.0.iter().map(|e| e.error_edn()).collect();
+        tagged("ReteCheckErrors", OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]))
     }
 }
 

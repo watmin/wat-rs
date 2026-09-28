@@ -27,35 +27,35 @@
 (:wat::core::defrecord :wat::config::SetterAfterNonSetter
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    setter-head <- :wat::core::String])
 
 ;; The same config field was set more than once.
 (:wat::core::defrecord :wat::config::DuplicateField
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    field <- :wat::core::String])
 
 ;; A required field (`dims`, `capacity-mode`) was not set.
 (:wat::core::defrecord :wat::config::RequiredFieldMissing
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    field <- :wat::core::String])
 
 ;; A setter head didn't match any known `:wat::config::set-*!`.
 (:wat::core::defrecord :wat::config::UnknownSetter
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    head <- :wat::core::String])
 
 ;; A setter was called with the wrong number of arguments.
 (:wat::core::defrecord :wat::config::BadArity
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    head <- :wat::core::String
    expected <- :wat::core::i64
    got <- :wat::core::i64])
@@ -64,7 +64,7 @@
 (:wat::core::defrecord :wat::config::BadType
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    field <- :wat::core::String
    expected <- :wat::core::String
    got <- :wat::core::String])
@@ -74,7 +74,7 @@
 (:wat::core::defrecord :wat::config::BadValue
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    field <- :wat::core::String
    reason <- :wat::core::String])
 
@@ -83,4 +83,4 @@
 (:wat::core::defrecord :wat::config::MalformedSetter
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])

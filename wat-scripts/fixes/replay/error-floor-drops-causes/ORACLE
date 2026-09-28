@@ -1,0 +1,15 @@
+# ORACLE for error-floor-drops-causes — the codemod's own header spec, not history.
+#
+# before.pre / after.post are the whole of `wat/resolve-errors.wat` as it stood at
+# 8e189f1f9 (this excursus's own starting HEAD, before the codemod ran) and as the
+# codemod actually left it. No `history` entry: this migration is uncommitted at the
+# time the fixture is written (it lands in the SAME strike), so there is no earlier
+# commit to cite. Every changed line is instead justified by a `spec`/`spec-before`
+# quote drawn verbatim from the codemod's own header comment.
+#
+# `UnresolvedReferences` is one of the three ruled RENAME exceptions (`causes` ->
+# `errors`); `UnresolvedReference` is a plain deletion (the field's line goes blank).
+
+spec errors <- (:wat::core::Vector :- [:wat::core::Error])]) :: RENAMED to `errors`
+spec-before causes <- (:wat::core::Vector :- [:wat::core::Error])]) :: field is removed
+spec-before causes <- (:wat::core::Vector :- [:wat::core::Error]) :: field is removed

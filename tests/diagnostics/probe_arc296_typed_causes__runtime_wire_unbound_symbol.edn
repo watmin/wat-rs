@@ -6,6 +6,5 @@
     :col 1
     :end #wat.core/Option.None {}
   }
-  :causes []
   :name "some-var"
 }

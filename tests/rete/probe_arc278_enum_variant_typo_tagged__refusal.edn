@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/UnknownField {
             :message "defrule `tg::good`: `:tg::Req` has no field `:tg::P.Hi`; available fields: [k, grade]"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "tg::good"
             :fact-type "tg::Req"
             :field "tg::P.Hi"

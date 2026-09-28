@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":wat::kernel::raise!: parameter #1 expects :wat::core::Error; got :wat::core::i64"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::kernel::raise!"
       :param "#1"
       :expected ":wat::core::Error"

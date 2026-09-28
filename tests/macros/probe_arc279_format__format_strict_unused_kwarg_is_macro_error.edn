@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :macro-name ":wat::core::format"
   :cause #wat.macro/MalformedTemplate {
     :message "malformed template: format: kwarg :y is unused — no {y} in template"
@@ -26,7 +25,6 @@
         }
       }
     }
-    :causes []
     :reason "format: kwarg :y is unused — no {y} in template"
   }
 }

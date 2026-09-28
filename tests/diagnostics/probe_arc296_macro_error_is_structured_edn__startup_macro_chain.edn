@@ -8,7 +8,6 @@
       :col 5
       :end #wat.core/Option.None {}
     }
-    :causes []
     :cause #wat.runtime/UnboundSymbol {
       :message "unbound symbol: str"
       :location #wat.core/Span {
@@ -17,7 +16,6 @@
         :col 5
         :end #wat.core/Option.None {}
       }
-      :causes []
       :name "str"
     }
   }

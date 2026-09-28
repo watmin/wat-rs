@@ -120,9 +120,6 @@ impl crate::edn::contract::WatError for MacroError {
     fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
     }
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
-    }
     fn variant(&self) -> OwnedValue {
         use crate::edn::contract::ToEdn;
         crate::edn::contract::strip_span_from_tagged(self.to_edn())
@@ -182,23 +179,6 @@ impl crate::edn::contract::WatError for crate::freeze::StartupError {
             // captured at construction (`crate::rust_caller_span!()`).
             SE::SigmaFn(_, span) => span.clone(),
             SE::MainSignature(_, span) => span.clone(),
-        }
-    }
-    fn causes(&self) -> OwnedValue {
-        use crate::freeze::StartupError as SE;
-        match self {
-            SE::Macro(e) => e.causes(),
-            SE::Runtime(e) => e.causes(),
-            SE::Parse(e) => e.causes(),
-            SE::Config(e) => e.causes(),
-            SE::Load(e) => e.causes(),
-            SE::Type(e) => e.causes(),
-            SE::Resolve(e) => e.causes(),
-            SE::Check(e) => e.causes(),
-            SE::Validator(e) => e.causes(),
-            SE::Stdlib(e) => e.causes(),
-            SE::SigmaFn(_, _) => OwnedValue::Vector(vec![]),
-            SE::MainSignature(_, _) => OwnedValue::Vector(vec![]),
         }
     }
     /// Delegates to the inner error's `variant()` (its own tagged, span-stripped

@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/ReturnTypeMismatch {
       :message ":user::compute: body produces :ns::P; signature declares :wat::holon::HolonAST"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :function ":user::compute"
       :expected ":wat::holon::HolonAST"
       :got ":ns::P"
@@ -44,7 +43,6 @@
           }
         }
       }
-      :causes []
       :callee ":ns::P"
       :param "#1"
       :expected ":wat::core::i64"

@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/DefRestrictedCallerNotAllowed {
       :message "`:my::Vault/secret` has a restricted caller whitelist [:my::admin::]; the enclosing fn `:user::outsider::read-secret` does not match any entry (declared via `{:restricted-to [...]}` metadata-map). An entry without `/` is a namespace prefix (caller FQDN must start with it); an entry containing `/` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `:user::outsider::read-secret` to the `:restricted-to` list at the binding site."
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":my::Vault/secret"
       :enclosing-fn ":user::outsider::read-secret"
       :prefixes [":my::admin::"]

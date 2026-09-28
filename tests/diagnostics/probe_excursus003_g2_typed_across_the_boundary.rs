@@ -82,7 +82,8 @@ fn a_child_division_by_zero_crosses_the_boundary_as_a_typed_runtime_error() {
         "wat::runtime::DivisionByZero",
         "Failure.error must be the DivisionByZero record itself (its class, not its text)"
     );
-    // DivisionByZero.fields = [message, location, causes].
+    // DivisionByZero.fields = [message, location] (excursus 003 strike B1: `causes` left
+    // the floor, F3).
     let struct_message = match &error.fields[0] {
         Value::String(s) => s.to_string(),
         other => panic!("expected DivisionByZero.message to be a String; got {other:?}"),

@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/DefRedefForbidden {
       :message "`:wat::core::def` redef of `:wat-arc157-def-redef-forbidden::a`: name already bound at tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad:2:2. Redef is forbidden by default; opt in via `(:wat::config::set-redef! true)` before this form. Use a different name, or enable redef explicitly."
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :name ":wat-arc157-def-redef-forbidden::a"
       :prior-loc #wat.core/Span {
         :file "tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad"

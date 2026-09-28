@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/RhsFieldTypeMismatch {
             :message "defrule `dcp::bad`: `:then` insert of `:dcp::Bad` fills field `:t`, declared `:wat::core::String` (rete `string`), with operand `(:wat.rete.i64/+ ?k 1 :undefined 0)`, whose type is `i64` — the same construction written outside a rule is a TypeMismatch, and a `:then` value is checked the same way. Supply a value of type `string`, or change `:t`'s declared type"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "dcp::bad"
             :fact-type "dcp::Bad"
             :field "t"

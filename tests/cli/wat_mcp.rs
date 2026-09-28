@@ -349,8 +349,12 @@ fn tagged_ns_name(text: &str, ns: &str, name: &str) -> bool {
     }
 }
 
-fn is_core_fault(text: &str) -> bool {
-    tagged_ns_name(text, "wat.core", "Fault")
+/// Excursus 003 strike B1, item 5: a check-time `:CheckFailed`/`StartupError` cause is now
+/// the strictly decoded, typed diagnostic DIRECTLY (`check_failed_cause`, `src/runtime.rs`) —
+/// no `Fault` wrapper. A call-head that resolves to nothing surfaces as the real
+/// `#wat.resolve/UnresolvedReferences` record, not a `#wat.core/Fault`.
+fn is_unresolved_reference(text: &str) -> bool {
+    tagged_ns_name(text, "wat.resolve", "UnresolvedReferences")
 }
 
 fn is_stale_ticket(text: &str) -> bool {
@@ -530,7 +534,7 @@ fn reset_empties_the_session() {
         r[3].value
     );
     assert!(
-        is_core_fault(&r[3].value),
+        is_unresolved_reference(&r[3].value),
         "after reset the definition is gone: got {}",
         r[3].value
     );
@@ -551,8 +555,8 @@ fn a_failed_evaluation_is_not_fatal() {
         r[0].value
     );
     assert!(
-        is_core_fault(&r[0].value),
-        "an unresolved reference is a #wat.core/Fault: got {}",
+        is_unresolved_reference(&r[0].value),
+        "an unresolved reference is a #wat.resolve/UnresolvedReferences record: got {}",
         r[0].value
     );
     assert_eq!(
@@ -612,7 +616,7 @@ fn every_form_in_a_payload_takes_effect() {
         r[2].value
     );
     assert!(
-        is_core_fault(&r[2].value),
+        is_unresolved_reference(&r[2].value),
         "a failing form later in the payload must surface: got {}",
         r[2].value
     );

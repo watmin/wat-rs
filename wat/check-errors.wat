@@ -26,21 +26,20 @@
 ;; `:wat::kernel::Remedy`, declared there per this sweep — see that file's
 ;; header for why). See `src/load/stdlib.rs`.
 ;;
-;; ── STOP: one untagged record-shaped map on today's wire, NOT declared ──────
+;; ── Excursus 003 strike B1, item 6: the last untagged map, now tagged ───────
 ;;
 ;; `NoMatchingClauseAtCallSite.attempted-clauses` (`src/check.rs`'s
-;; `clause_attempts_to_edn`, routed via `#[to_edn(via = ...)]`) renders each
-;; attempt as a BARE, UNTAGGED `{:arity N :param-types [...]}` map inside a
-;; Vector — no `Tag` at all. The builder has ruled record-shaped values are
-;; always tagged; this one, today, is not. Per the brief: do not declare
-;; around it (tagging it would change the wire, strike B's business) — the
-;; wat type universe also has no honest type for it: `:Any` is banned
-;; (`src/types.rs:86`, "the type universe is closed"), and the map's two keys
-;; hold different-shaped values (`i64` vs `Vector<String>`), so no homogeneous
-;; `HashMap<K,V>` fits either. `NoMatchingClauseAtCallSite` is therefore the
-;; ONE CheckErrorKind variant with NO record declared below (33 of 34
-;; declared) — G-list's ruled exception, named by (variant, field) the same
-;; way step 3a's G2 named its exceptions.
+;; `clause_attempts_to_edn`, routed via `#[to_edn(via = ...)]`) used to render
+;; each attempt as a BARE, UNTAGGED `{:arity N :param-types [...]}` map inside
+;; a Vector — the S1 sweep's one ruled exception (this section used to STOP
+;; here rather than declare around it). Strike B closes the gap: each attempt
+;; is now tagged `#wat.check/AttemptedClause {…}` (declared below, a name
+;; DISTINCT from `:wat::kernel::ClauseAttempt` — that one also carries a
+;; `failure-reason`, which check time has no equivalent of: it never
+;; evaluates real arguments against a clause, only compares a call site's
+;; static shape against each clause's declared one), and
+;; `NoMatchingClauseAtCallSite` itself is now declared (34 of 34 declared;
+;; the G-list exception is retired).
 ;;
 ;; ── The nested `EnsureFnInvalidReason` payload ──────────────────────────────
 ;;
@@ -66,15 +65,15 @@
 (:wat::core::defrecord :wat::check::CheckErrors
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   errors <- (:wat::core::Vector :- [:wat::core::Error])])
 
-;; ─── The 33 declared `CheckErrorKind` records (34 minus the STOP above) ──────
+;; ─── The 34 declared `CheckErrorKind` records ────────────────────────────────
 
 ;; Arc 138 slice 1 — a call site passed the wrong number of arguments.
 (:wat::core::defrecord :wat::check::ArityMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    callee <- :wat::core::String
    expected <- :wat::core::i64
    got <- :wat::core::i64])
@@ -85,7 +84,7 @@
 (:wat::core::defrecord :wat::check::TypeMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    callee <- :wat::core::String
    param <- :wat::core::String
    expected <- :wat::core::String
@@ -99,7 +98,7 @@
 (:wat::core::defrecord :wat::check::ReturnTypeMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    function <- :wat::core::String
    expected <- :wat::core::String
    got <- :wat::core::String
@@ -109,7 +108,7 @@
 (:wat::core::defrecord :wat::check::UnknownCallee
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    callee <- :wat::core::String])
 
 ;; A built-in form is structurally malformed in a way the syntax grammar
@@ -118,7 +117,7 @@
 (:wat::core::defrecord :wat::check::MalformedForm
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    head <- :wat::core::String
    reason <- :wat::core::String
    remedies <- (:wat::core::Vector :- [:wat::kernel::Remedy])])
@@ -128,7 +127,7 @@
 (:wat::core::defrecord :wat::check::CommCallOutOfPosition
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    callee <- :wat::core::String])
 
 ;; Arc 170 — a Process output-channel accessor call conflicts with a
@@ -136,7 +135,7 @@
 (:wat::core::defrecord :wat::check::ProcessJoinBeforeOutputDrain
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    process-identifier <- :wat::core::String
    output-accessor <- :wat::core::String
 ;; Source location of the conflicting output accessor call. Key `output-location`.
@@ -147,7 +146,7 @@
 (:wat::core::defrecord :wat::check::ProcessJoinHoldsStdinSender
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    process-identifier <- :wat::core::String
 ;; Source location where `<process-identifier>` was bound. Key `bind-location`.
    bind-location <- :wat::core::Span])
@@ -156,7 +155,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyPrimitive
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    primitive <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -165,7 +164,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyUnitType
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    primitive <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -174,7 +173,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyUnitValue
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    retired <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -183,7 +182,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyUnitName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    retired <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -192,7 +191,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyLetStar
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    retired <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -201,7 +200,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyLambda
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    retired <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -210,7 +209,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyLowercaseFn
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    retired <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -218,7 +217,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyContainerHead
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    head <- :wat::core::String
    fqdn <- :wat::core::String])
 
@@ -226,7 +225,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyStreamPath
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    old <- :wat::core::String
    new <- :wat::core::String])
 
@@ -234,7 +233,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyLruCacheServicePath
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    old <- :wat::core::String
    new <- :wat::core::String])
 
@@ -242,7 +241,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyKernelQueuePath
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    old <- :wat::core::String
    new <- :wat::core::String])
 
@@ -250,7 +249,7 @@
 (:wat::core::defrecord :wat::check::DefRedefForbidden
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
 ;; Source location of the prior (first) binding. Key `prior-loc`.
    prior-loc <- :wat::core::Span])
@@ -259,7 +258,7 @@
 (:wat::core::defrecord :wat::check::DefRedefTypeChange
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
    prior-type <- :wat::core::String
    new-type <- :wat::core::String
@@ -271,7 +270,7 @@
 (:wat::core::defrecord :wat::check::UnnamespacedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Arc 278 BRIEF-scalar-def-reaches-the-gate — a top-level `def` using a
@@ -279,7 +278,7 @@
 (:wat::core::defrecord :wat::check::ReservedPrefix
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Arc 296 stone H-1 — a registered name's last segment contains a `.`, the
@@ -287,7 +286,7 @@
 (:wat::core::defrecord :wat::check::DottedName
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Arc 296 stone I — a name landed on `CheckEnv`'s overlay scheme table
@@ -295,7 +294,7 @@
 (:wat::core::defrecord :wat::check::DuplicateScheme
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String])
 
 ;; Arc 170 slice 1e — `:user::main` declared with a non-canonical signature.
@@ -303,7 +302,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyMainSignature
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    canonical-signature <- :wat::core::String
    rationale <- :wat::core::String])
 
@@ -313,7 +312,7 @@
 (:wat::core::defrecord :wat::check::BareLegacyConsolePath
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    retired-namespace <- :wat::core::String
    canonical-stdout <- :wat::core::String
    canonical-stderr <- :wat::core::String
@@ -324,24 +323,39 @@
 (:wat::core::defrecord :wat::check::DefRestrictedCallerNotAllowed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    callee <- :wat::core::String
    enclosing-fn <- :wat::core::String
    prefixes <- (:wat::core::Vector :- [:wat::core::String])])
 
-;; STOP — `:wat::check::NoMatchingClauseAtCallSite` (stone 237.2) is NOT
-;; declared. Its `attempted-clauses` field renders each attempt as a bare,
-;; UNTAGGED `{:arity N :param-types [...]}` map (`clause_attempts_to_edn`,
-;; `src/check.rs`) — the exact "record-shaped values are always tagged"
-;; violation the file header's STOP section names. 33 of 34 CheckErrorKind
-;; kinds are declared here; this is the one ruled exception (G-list).
+;; Excursus 003 strike B1, item 6 — one attempted clause's static shape: the
+;; call site's argument count and types didn't match this clause's declared
+;; arity/types. A DISTINCT name from `:wat::kernel::ClauseAttempt` (step 3a's
+;; runtime dispatch-failure attempt) — that one also carries a
+;; `failure-reason`, which check time has none of (see this file's header).
+(:wat::core::defrecord :wat::check::AttemptedClause
+  [arity       <- :wat::core::i64
+   param-types <- (:wat::core::Vector :- [:wat::core::String])])
+
+;; Stone 237.2 — an open-surface `defclause` dispatch's call site matched NO
+;; clause's declared arity/types. `attempted-clauses` used to render each
+;; attempt as a bare, untagged map (this file's header) — now a Vector of the
+;; declared `AttemptedClause` above (34 of 34 CheckErrorKind kinds declared;
+;; the G-list exception retires).
+(:wat::core::defrecord :wat::check::NoMatchingClauseAtCallSite
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+   name <- :wat::core::String
+   called-arity <- :wat::core::i64
+   called-arg-types <- (:wat::core::Vector :- [:wat::core::String])
+   attempted-clauses <- (:wat::core::Vector :- [:wat::check::AttemptedClause])])
 
 ;; Arc <post-278> — an open-surface `defclause` dispatch matched multiple
 ;; narrowing clauses whose declared return types do not unify.
 (:wat::core::defrecord :wat::check::AmbiguousClauseReturnAtCallSite
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
    called-arg-types <- (:wat::core::Vector :- [:wat::core::String])
    candidate-returns <- (:wat::core::Vector :- [:wat::core::String])])
@@ -350,7 +364,7 @@
 (:wat::core::defrecord :wat::check::GuardExprNotBoolean
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    defclause-name <- :wat::core::String
    clause-index <- :wat::core::i64
    got-type <- :wat::core::String])
@@ -362,7 +376,7 @@
 (:wat::core::defrecord :wat::check::EnsureFnInvalid
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    defclause-name <- :wat::core::String
    clause-index <- :wat::core::i64
    reason <- :wat::core::Value])
@@ -372,7 +386,7 @@
 (:wat::core::defrecord :wat::check::HygieneScopeDivergence
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    name <- :wat::core::String
    ref-key <- :wat::core::String
    binder-key <- :wat::core::String])
@@ -383,6 +397,6 @@
 (:wat::core::defrecord :wat::check::PublicOpInAlarm
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    variant <- :wat::core::String
    op-type <- :wat::core::String])

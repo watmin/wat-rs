@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :macro-name ":wat::core::defrecord"
   :cause #wat.macro/MacroEvalRuntimeFailed {
     :message "macro_eval: runtime::eval failed"
@@ -26,7 +25,6 @@
         }
       }
     }
-    :causes []
     :cause #wat.runtime/MalformedForm {
       :message "malformed :wat::core::rest form: cannot take rest of empty Vec"
       :location #wat.core/Span {
@@ -40,7 +38,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::rest"
       :reason "cannot take rest of empty Vec"
     }

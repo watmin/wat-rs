@@ -2538,12 +2538,17 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnAxisViolation");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteDefnRecursive");
 
-    // ─── Excursus 003 sweep S1 — the CheckErrorKind wat records ───────────────
-    // Declared in `wat/check-errors.wat`. 33 of 34 `CheckErrorKind` variants
-    // (`NoMatchingClauseAtCallSite` is a ruled exception — an untagged map on
-    // today's wire, see that file's header) plus the `CheckErrors` aggregate.
+    // ─── Excursus 003 sweep S1 (+ strike B1 item 6) — the CheckErrorKind wat
+    // records ──────────────────────────────────────────────────────────────
+    // Declared in `wat/check-errors.wat`. All 34 `CheckErrorKind` variants
+    // (`NoMatchingClauseAtCallSite` was S1's ruled exception — an untagged map
+    // on the wire — until strike B1 tagged `attempted-clauses` and declared
+    // it too) plus the `CheckErrors` aggregate and the `AttemptedClause`
+    // sub-value.
 
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::CheckErrors");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::AttemptedClause");
+    ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::NoMatchingClauseAtCallSite");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::ArityMismatch");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::TypeMismatch");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::ReturnTypeMismatch");

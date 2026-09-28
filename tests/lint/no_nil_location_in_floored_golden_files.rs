@@ -1,5 +1,6 @@
 //! Excursus 003 step 3c, Gate A — no tracked `.edn` golden holds a FLOORED map (one
-//! carrying `:message`, `:location` AND `:causes` — the `:wat::core::Error` floor) whose
+//! carrying `:message` AND `:location` — the `:wat::core::Error` floor, excursus 003
+//! strike B1's `{message location}`) whose
 //! `:location` is anything OTHER than a `#wat.core/Span`.
 //!
 //! `WatError::location()` used to return `OwnedValue`, so an impl COULD return `nil` — and
@@ -41,14 +42,16 @@ fn is_span(v: &OwnedValue) -> bool {
     matches!(v, Value::Tagged(tag, _) if tag.namespace() == wat_edn::CORE && tag.name() == "Span")
 }
 
-/// Does `entries` carry all three floor keys (`:message`, `:location`, `:causes`)? If so,
-/// return the `:location` value.
+/// Does `entries` carry both floor keys (`:message`, `:location`)? If so, return the
+/// `:location` value. Excursus 003 strike B1: the floor is `{message location}` now —
+/// `:causes` left it (F3) — so a two-key check is the CURRENT floor test, not a
+/// weakening: the same maps that used to carry all three now carry these two, and a map
+/// that never had the floor still has neither.
 fn floor_location<'a>(entries: &'a [(OwnedValue, OwnedValue)]) -> Option<&'a OwnedValue> {
     let msg_kw = OwnedValue::Keyword(wat_edn::Keyword::new("message"));
     let loc_kw = OwnedValue::Keyword(wat_edn::Keyword::new("location"));
-    let cause_kw = OwnedValue::Keyword(wat_edn::Keyword::new("causes"));
     let has = |k: &OwnedValue| entries.iter().any(|(ek, _)| ek == k);
-    if has(&msg_kw) && has(&loc_kw) && has(&cause_kw) {
+    if has(&msg_kw) && has(&loc_kw) {
         entries.iter().find(|(k, _)| k == &loc_kw).map(|(_, v)| v)
     } else {
         None
@@ -56,7 +59,7 @@ fn floor_location<'a>(entries: &'a [(OwnedValue, OwnedValue)]) -> Option<&'a Own
 }
 
 /// Recursively collect every violation under `v`: a map (bare, or a `Tagged` value's body)
-/// that carries the floor (`:message`/`:location`/`:causes`) whose `:location` is not a
+/// that carries the floor (`:message`/`:location`) whose `:location` is not a
 /// `#wat.core/Span`. Returns `(tag-or-"<untagged>", location-rendered)` per violation. Each
 /// map is checked EXACTLY ONCE — the `Tagged` arm checks its own body map directly rather than
 /// re-dispatching into the generic `Map` arm, so a tagged floor map is never reported twice.
@@ -154,7 +157,7 @@ fn no_edn_golden_holds_a_floored_map_with_a_non_span_location() {
 
     assert!(
         violations.is_empty(),
-        "{} golden .edn file(s) hold a FLOORED map (:message/:location/:causes) whose \
+        "{} golden .edn file(s) hold a FLOORED map (:message/:location) whose \
          :location is not a #wat.core/Span — the `nil`-location defect excursus 003 step 3c \
          exists to make unrepresentable. Each producer's `WatError::location()` must return a \
          real `crate::span::Span` (build one with `crate::edn::contract::location_from_span`, \

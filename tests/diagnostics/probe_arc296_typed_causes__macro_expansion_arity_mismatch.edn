@@ -8,7 +8,6 @@
       :col 1
       :end #wat.core/Option.None {}
     }
-    :causes []
     :name ":user::my-macro"
     :expected 1
     :got 2

@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :macro-name ":wat::core::cond"
   :cause #wat.macro/MalformedTemplate {
     :message "malformed template: cond: non-exhaustive — needs a terminal :else arm"
@@ -26,7 +25,6 @@
         }
       }
     }
-    :causes []
     :reason "cond: non-exhaustive — needs a terminal :else arm"
   }
 }

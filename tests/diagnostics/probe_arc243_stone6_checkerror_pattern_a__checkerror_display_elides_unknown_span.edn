@@ -6,7 +6,6 @@
     :col 3
     :end #wat.core/Option.None {}
   }
-  :causes []
   :head "HashMap"
   :fqdn "wat::core::HashMap"
 }

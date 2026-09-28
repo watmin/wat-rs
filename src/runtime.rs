@@ -588,7 +588,7 @@ pub(crate) fn fault_names() -> Arc<Vec<String>> {
 
 /// Convert a `RuntimeError` into a `:wat::core::Fault` (`wat/core.wat`) — the canonical minimal
 /// record that structurally satisfies the `:wat::core::Error` surface: `message`, `location` (a
-/// `:wat::core::Span`, via [`value_from_span`]), `causes` (empty — a Fault is a leaf).
+/// `:wat::core::Span`, via [`value_from_span`]).
 /// Chosen over round-tripping `RuntimeError`'s own `WatError::error_edn()` through `edn_to_value`,
 /// which would require every possible `RuntimeErrorKind` variant tag to be independently
 /// EDN-decodable; `Fault` is already a single, simple, always-registered record.
@@ -600,7 +600,6 @@ pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
         Arc::new(vec![
             Value::String(Arc::new(err.message())),
             value_from_span(err.span().clone()),
-            Value::Vec(Arc::new(Vec::new())),
         ]),
     )))
 }
@@ -632,7 +631,6 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
             Arc::new(vec![
                 Value::String(Arc::new(p.message.clone())),
                 value_from_span(span),
-                Value::Vec(Arc::new(Vec::new())),
             ]),
         )))
     } else {
@@ -649,7 +647,6 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
             Arc::new(vec![
                 Value::String(Arc::new(message)),
                 value_from_span(crate::rust_caller_span!()),
-                Value::Vec(Arc::new(Vec::new())),
             ]),
         )))
     }
@@ -11958,12 +11955,12 @@ fn failure_record(
 
 /// Arc 278 — build a `:wat::core::Fault` `Value::Aggregate(Record)` from a
 /// human message + an optional source location. Field order matches the
-/// `:wat::core::Fault` registration (core.wat): `(message, location, causes)`.
+/// `:wat::core::Fault` registration (core.wat): `(message, location)`.
 /// `location` is a MANDATORY `:wat::core::Span` (not `Option`); when the
 /// panic carried no span (transport/synthetic failures — disconnected, shutdown,
-/// service crash), a synthetic `<runtime>` location marks it honestly. `causes`
-/// is an empty `(Vector :- [Error])`. This is the canonical synthesizer for every
-/// death that is a bare message rather than a structured `raise!`.
+/// service crash), a synthetic `<runtime>` location marks it honestly. This is
+/// the canonical synthesizer for every death that is a bare message rather
+/// than a structured `raise!`.
 pub(crate) fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
     let location_value = match location {
         Some(span) => value_from_span(span),
@@ -11979,7 +11976,6 @@ pub(crate) fn fault_value(message: String, location: Option<crate::span::Span>) 
         Arc::new(vec![
             Value::String(Arc::new(message)),
             location_value,
-            Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
         ]),
     )))
 }
@@ -12586,72 +12582,30 @@ fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Val
     let types = sym.types().map(|t| &**t);
     let ctx = sym.encoding_ctx().map(|c| &**c);
 
-    // Two decodes, in order of how much the substrate can promise about the result:
-    //
-    //   1. STRICT — a fully TYPED record, when the diagnostic's tag is registered.
-    //   2. FOREIGN — arc 278 Stone A's data mode: an unregistered tag reconstructs as a
-    //      self-describing dynamic value instead of raising, recursively, all the way
-    //      down. Most freeze diagnostics land here TODAY (`#wat.resolve/…`,
-    //      `#wat.check/…` are not registered wat types yet — that is arc 296.3's derive
-    //      sweep, `NOTE-pre-world-decode-is-hand-written.md`). The tree is fully
-    //      navigable either way; strict just adds nominal typing, so when 296.3 lands
-    //      these silently upgrade from (2) to (1) with no change here.
-    //
-    // The nested diagnostic rides as a CAUSE under a real `Fault`, rather than BEING the
-    // returned value, so `:CheckFailed`'s declared `:wat::core::Error` is always
-    // satisfied by a genuinely typed record — the dynamic part is contained in the
-    // causes chain, which is exactly what a causes chain is for.
-    let nested = crate::edn::render::decode_trusted_wire(&cause_edn, types, ctx).or_else(|_| {
-        wat_edn::parse_owned(&cause_edn)
-            .map_err(|_| ())
-            .and_then(|owned| {
-                crate::edn::render::edn_to_value_foreign(&owned, types, ctx).map_err(|_| ())
-            })
-    });
-
-    match nested {
-        Ok(inner) => fault_with_cause(
-            e.message(),
-            crate::span::Span::new(Arc::new("<runtime>".to_string()), 0, 0),
-            inner,
+    // Excursus 003 strike B1, item 5: STRICT decode only. The sweep (S1–S3) plus
+    // this strike's item 6 declare every startup-error taxonomy as a wat record, so
+    // a real diagnostic's tag is always registered now — there is no longer a
+    // FOREIGN (data-mode) fallback to reach for. `:CheckFailed`'s declared
+    // `:wat::core::Error` cause receives the strictly decoded, typed diagnostic
+    // DIRECTLY: no `Fault` wrapper, no fabricated `<runtime>:0:0` span.
+    match crate::edn::render::decode_trusted_wire(&cause_edn, types, ctx) {
+        Ok(inner) => inner,
+        // A diagnostic whose own EDN does not strict-decode is now a DEFECT (every
+        // tag should be registered after the sweep + item 6) — report it honestly,
+        // with the diagnostic's REAL location (`e.location()`), never a fabricated
+        // one.
+        Err(_) => fault_value(
+            format!(
+                "{} — the diagnostic did not decode as a typed :wat::core::Error",
+                e.message()
+            ),
+            Some(e.location()),
         ),
-        // A diagnostic whose own EDN neither strict- nor foreign-decodes is itself a
-        // defect. Report the headline honestly rather than smuggling the tree back in as
-        // prose — a degraded TRUE record beats a complete LYING one.
-        Err(()) => fault_value(e.message(), None),
     }
 }
 
 fn form_outcome_check_failed(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Value {
     form_outcome("CheckFailed", vec![check_failed_cause(e, sym)])
-}
-
-/// A `:wat::core::Fault` carrying one nested structured cause — the shape for "here is
-/// what I can say about this failure, and here is the real diagnostic underneath",
-/// keeping the nested error walkable instead of folding it into the sentence.
-///
-/// Arc 109 — `pub(crate)` and location-taking. THE one door for "a decoded diagnostic
-/// becomes an `:wat::core::Error`". Three sites run the strict→foreign decode ladder
-/// (`check_failed_cause` here, `read_outcome_malformed` and `read_json_outcome_malformed`
-/// in `edn/render.rs`); each feeds an enum variant whose cause field is DECLARED
-/// `:wat::core::Error`, and the ladder's FOREIGN arm yields a `Value::wat__edn__ForeignRecord` —
-/// a dynamic bag that satisfies that surface NOWHERE. Two of the three used to return it
-/// directly, making the declared type a lie at the boundary. They route through here now,
-/// so the ladder and its disposal cannot drift apart again.
-pub(crate) fn fault_with_cause(
-    message: String,
-    location: crate::span::Span,
-    cause: Value,
-) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::core::Fault".into(),
-        fault_names(),
-        Arc::new(vec![
-            Value::String(Arc::new(message)),
-            value_from_span(location),
-            Value::Vec(Arc::new(vec![cause])),
-        ]),
-    )))
 }
 
 /// Arc 170 — `:wat::eval-with-defs!`: evaluate ONE form against a world built from a
@@ -12812,22 +12766,15 @@ pub(crate) fn eval_form_against_defs(
     // know which of the full world's residue forms the new line contributed.
     let baseline_residue_len = match freeze_forms(defs.clone()) {
         Ok(world) => world.program.len(),
-        // The accumulated defs no longer freeze on their own. That is not this line's
-        // fault, and saying so is the honest report — but the real diagnostic is still
-        // the freeze's own structured error, so it rides as a nested CAUSE rather than
-        // being folded into the sentence.
+        // The accumulated defs no longer freeze on their own. Excursus 003 strike B1,
+        // item 5: `:CheckFailed`'s cause is the strictly decoded, typed diagnostic
+        // directly — no `Fault` wrapper framing WHICH freeze failed. That framing
+        // sentence ("the accumulated definition set no longer freezes on its own")
+        // is dropped rather than kept behind a `Fault` that no longer conforms to
+        // this site's target shape; the real diagnostic (`check_failed_cause`'s own
+        // typed record) says what actually went wrong.
         Err(e) => {
-            return Ok((
-                form_outcome(
-                    "CheckFailed",
-                    vec![fault_with_cause(
-                        "the accumulated definition set no longer freezes on its own".to_string(),
-                        crate::span::Span::new(Arc::new("<runtime>".to_string()), 0, 0),
-                        check_failed_cause(&e, sym),
-                    )],
-                ),
-                None,
-            ));
+            return Ok((form_outcome("CheckFailed", vec![check_failed_cause(&e, sym)]), None));
         }
     };
 
@@ -15067,7 +15014,9 @@ mod tests {
             "cause is the typed RuntimeError record"
         );
 
-        // Floor + coordinate fields, in declaration order [message, location, causes, path].
+        // Floor + coordinate fields, in declaration order [message, location, path] —
+        // excursus 003 strike B1: `causes` left the floor (F3), so `path` is field(2) now,
+        // not field(3).
         let field = |i: usize| {
             agg.fields
                 .get(i)
@@ -15089,14 +15038,9 @@ mod tests {
             }
             other => panic!(":location must be a typed Span record (never nil); got {other:?}"),
         }
-        // :causes — an empty Vector (this is a leaf error).
-        match field(2) {
-            Value::Vec(c) => assert!(c.is_empty(), ":causes is empty for a leaf error"),
-            other => panic!(":causes must be a Vector; got {other:?}"),
-        }
         // :path — the unknown-function coordinate, PRESERVED (not dropped by a
         // floor-only shortcut).
-        match field(3) {
+        match field(2) {
             Value::String(s) => {
                 assert_eq!(&**s, ":wat::kernel::typo", ":path carries the unknown name")
             }

@@ -11,6 +11,5 @@
       }
     }
   }
-  :causes []
   :reason "macro param `x` is declared `Path(\":wat::core::i64\")`, but a macro param always binds a form — its type must be `:wat::WatAST`"
 }

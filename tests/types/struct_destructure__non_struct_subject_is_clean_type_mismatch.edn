@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":wat::core::let: parameter keys-destructure (outcome) expects an aggregate type; got :wat::core::i64"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::core::let"
       :param "keys-destructure (outcome)"
       :expected "an aggregate type"

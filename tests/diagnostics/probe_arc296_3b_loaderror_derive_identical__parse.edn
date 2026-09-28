@@ -8,7 +8,6 @@
       :col 3
       :end #wat.core/Option.None {}
     }
-    :causes []
   }
   :span #wat.core/Span {
     :file "test.wat"

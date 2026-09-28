@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :aggregate ":w::Bad"
   :field "c"
   :field-ty ":w::Conn"

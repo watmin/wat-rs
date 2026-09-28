@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/RhsOperandTypeMismatch {
             :message "defrule `dps::bad`: `:then` insert of `:dps::Bad` field `:n` is declared `:wat::core::i64`; operand is `:wat::core::String`"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "dps::bad"
             :fact-type "dps::Bad"
             :field "n"
@@ -48,7 +47,6 @@
                 }
               }
             }
-            :causes []
             :rule "dps::bad"
             :fact-type "dps::Bad"
             :field "t"

@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/ReturnTypeMismatch {
       :message ":user::compute: body produces :test::Voltage; signature declares :wat::holon::HolonAST"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :function ":user::compute"
       :expected ":wat::holon::HolonAST"
       :got ":test::Voltage"
@@ -44,7 +43,6 @@
           }
         }
       }
-      :causes []
       :callee ":test::Voltage"
       :param "#1"
       :expected ":wat::core::f64"

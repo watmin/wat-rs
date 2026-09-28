@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/TypeMismatch {
       :message ":wat::i64::+: parameter #1 expects :wat::core::i64; got :wat::core::f64"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::i64::+"
       :param "#1"
       :expected ":wat::core::i64"

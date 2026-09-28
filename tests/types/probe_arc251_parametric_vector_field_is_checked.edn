@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :wat::core::kwargs-construct form: unknown field :NOPE for aggregate :probe::Box (declared fields: v)"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":wat::core::kwargs-construct"
       :reason "unknown field :NOPE for aggregate :probe::Box (declared fields: v)"
       :remedies []

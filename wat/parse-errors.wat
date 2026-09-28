@@ -11,8 +11,8 @@
 ;; `impl wat_edn::ToEdn for ParseError` directly (no `#[derive(ToEdn)]` — the
 ;; derive macro lives in a crate `wat-reader` does not depend on either) that
 ;; emits `#wat.parse/<Variant> {<fields> :span {…}}` — variant fields, THEN
-;; `:span` (not `:location`), and NO `:message` / `:causes` at all. That raw
-;; shape does NOT satisfy `:wat::core::Error` (message/location/causes).
+;; `:span` (not `:location`), and NO `:message` at all. That raw
+;; shape does NOT satisfy `:wat::core::Error` (message/location).
 ;;
 ;; The FLOOR shape actually on the wire wherever a `ParseError` crosses as a
 ;; typed cause (`LoadErrorKind::Parse.cause`, `StdlibErrorKind::ParseFailed.cause`,
@@ -21,9 +21,10 @@
 ;; `impl crate::edn::contract::WatError for ParseError` — `variant()` calls
 ;; `strip_span_from_tagged(self.to_edn())` (drops the raw `:span`), and the
 ;; trait's default `error_edn()` then inserts `:message` (span-free kind
-;; `Display`, first line), `:location` (`self.span`), `:causes` (always `[]`)
-;; in front. THIS composed floor form — `#wat.parse/<Variant> {:message …
-;; :location {…} :causes [] <fields>}` — is what every record below mirrors.
+;; `Display`, first line), `:location` (`self.span`) in front (excursus 003
+;; strike B1: `causes` left the floor, F3 — the trait's `error_edn()` no
+;; longer inserts one). THIS composed floor form — `#wat.parse/<Variant>
+;; {:message … :location {…} <fields>}` — is what every record below mirrors.
 ;; The bare `wat-reader`-side `to_edn()` (`:span`, no floor) is never what
 ;; crosses the wire as a typed cause; it is PURE DECLARATION's mirror target
 ;; only through the `WatError`-composed form, exactly as every other
@@ -78,51 +79,51 @@
 (:wat::core::defrecord :wat::parse::Lex
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    cause <- :wat::core::String])
 
 ;; A `)` was found with no matching `(`.
 (:wat::core::defrecord :wat::parse::UnexpectedRParen
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; An opening `(` was never closed before end of input.
 (:wat::core::defrecord :wat::parse::UnclosedParen
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; A `]` was found with no matching `[`.
 (:wat::core::defrecord :wat::parse::UnexpectedRBracket
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; An opening `[` was never closed before end of input.
 (:wat::core::defrecord :wat::parse::UnclosedBracket
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; A `}` was found with no matching `{`.
 (:wat::core::defrecord :wat::parse::UnexpectedRBrace
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; An opening `{` was never closed before end of input.
 (:wat::core::defrecord :wat::parse::UnclosedBrace
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; A brace-form `{...}` was used as a map literal but violated the pinned
 ;; shape, or as a struct-destructure but a child wasn't a bare Symbol.
 (:wat::core::defrecord :wat::parse::MalformedBraceLiteral
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    reason <- :wat::core::String])
 
 ;; `parse_one` expected exactly one form; got trailing content after the
@@ -130,18 +131,18 @@
 (:wat::core::defrecord :wat::parse::TrailingContent
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; `parse_one` expected a form but the input was empty (all whitespace).
 (:wat::core::defrecord :wat::parse::Empty
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   ])
 
 ;; A symbol token spelled with the reserved `$bound` namespace segment as its
 ;; namespace — only the substrate's own binder construction may produce one.
 (:wat::core::defrecord :wat::parse::ForgedBinderNamespace
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    spelling <- :wat::core::String])

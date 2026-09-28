@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :head ":wat::kernel::after"
   :reason "a wire peer carries only pure data — the value scheduled (:h::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. A process-tier `after` delivers its msg as a wire frame. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
 }

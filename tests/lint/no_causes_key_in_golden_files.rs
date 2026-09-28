@@ -1,0 +1,132 @@
+//! Excursus 003 strike B1, GB1 — no tracked `.edn` golden holds a `:causes` key, anywhere.
+//!
+//! `AUDIT-the-shape-of-an-error.md` F3: `causes` left the `:wat::core::Error` floor
+//! (`wat/core.wat`'s `defsurface` is `{message location}` now). Every declared error
+//! record's `causes <- (:wat::core::Vector :- [:wat::core::Error])` field is gone —
+//! measured at 164 records across the eleven stdlib error files
+//! (`git ls-files 'wat/*.wat' | xargs grep -cE "causes +<-"`). A checker aggregate's
+//! items now live under its own `errors` field; the two wrapping runtime kinds
+//! (`EvalVerificationFailed`, `MacroExpansionFailed`) carry a named `cause`. Nothing
+//! should ever write a `:causes` key again.
+//!
+//! **Parse, never grep.** A text search for `":causes"` would also catch the substring
+//! inside an unrelated string leaf (a rendered error message that happens to quote the
+//! word). This gate parses every tracked `.edn` golden and walks the DATA, flagging a
+//! `:causes` keyword only where it appears as a MAP KEY — the actual shape of the
+//! defect this strike removes, not a text pattern that could coincidentally match prose.
+//!
+//! Scope matches the brief's own measurement: `git ls-files '*.edn'`, no exclusions —
+//! the same corpus `no_double_quoted_edn_in_golden_files.rs` (step 3b's gate G1) and
+//! `no_nil_location_in_floored_golden_files.rs` (step 3c's gate A) both walk.
+//!
+//! Anchor: this gate must be RED on today's (pre-recapture) goldens — the brief measures
+//! about 243 tracked `.edn` files carrying `:causes`. Recorded here, not re-derived by a
+//! second throwaway script, so the count in the strike report and this gate's own anchor
+//! cannot drift apart silently.
+//!
+//! Mutation (recorded in the strike report, not re-encoded here as a second, permanently
+//! mutated copy): re-add `:causes []` to `WatError::error_edn()` (`src/edn/contract.rs`) —
+//! every golden regains a `:causes` key and this gate goes RED across the whole corpus.
+
+use std::path::Path;
+use wat_edn::{OwnedValue, Value};
+
+fn git_ls_files(root: &str, glob: &str) -> Vec<String> {
+    let out = std::process::Command::new("git")
+        .args(["-C", root, "ls-files", "--", glob])
+        .output()
+        .expect("git ls-files");
+    assert!(out.status.success(), "git ls-files must succeed");
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
+/// Recursively collect every occurrence of a `:causes` KEYWORD sitting as a MAP KEY
+/// under `v`, at any depth (a bare map, or a `Tagged` value's body map; nested inside
+/// any list/vector/set element too).
+fn find_causes_keys(v: &OwnedValue, out: &mut usize) {
+    match v {
+        Value::Map(entries) => {
+            for (k, val) in entries {
+                if matches!(k, Value::Keyword(kw) if kw.name() == "causes" && kw.namespace().is_none()) {
+                    *out += 1;
+                }
+                find_causes_keys(k, out);
+                find_causes_keys(val, out);
+            }
+        }
+        Value::List(xs) | Value::Vector(xs) | Value::Set(xs) => {
+            for x in xs {
+                find_causes_keys(x, out);
+            }
+        }
+        Value::Tagged(_, inner) => find_causes_keys(inner, out),
+        _ => {}
+    }
+}
+
+#[test]
+fn no_edn_golden_holds_a_causes_key() {
+    let root = env!("CARGO_MANIFEST_DIR");
+    let paths = git_ls_files(root, "*.edn");
+    // NON-VACUITY: the tracked `.edn` corpus is large; a count this low means
+    // `git ls-files` itself broke, or the corpus was deleted out from under this wall.
+    assert!(
+        paths.len() > 100,
+        "expected the tracked .edn corpus; got {}",
+        paths.len()
+    );
+
+    let mut violations: Vec<(String, usize)> = Vec::new();
+    let mut unparseable = 0usize;
+    for rel in &paths {
+        let full = Path::new(root).join(rel);
+        let src = std::fs::read_to_string(&full).unwrap_or_else(|e| panic!("{rel}: read: {e}"));
+        let trimmed = src.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        // A handful of goldens are TEMPLATES (an unquoted `{PLACEHOLDER}` stands in for a
+        // value substituted at comparison time) and do not parse raw — out of this gate's
+        // reach, same carve-out `no_double_quoted_edn_in_golden_files.rs` documents.
+        let parsed = match wat_edn::parse_owned(trimmed) {
+            Ok(v) => v,
+            Err(_) => {
+                unparseable += 1;
+                continue;
+            }
+        };
+        let mut count = 0usize;
+        find_causes_keys(&parsed, &mut count);
+        if count > 0 {
+            violations.push((rel.clone(), count));
+        }
+    }
+
+    eprintln!("{unparseable} of {} tracked .edn files skipped (unquoted template placeholder)", paths.len());
+    // NON-VACUITY on the skip count: if parsing collapsed wholesale, this gate would
+    // silently check nothing and stay green.
+    assert!(
+        unparseable < paths.len() / 2,
+        "{unparseable} of {} tracked .edn files did not parse at all — far more than the \
+         template-placeholder shape this gate expects; `wat_edn::parse_owned` may be broken, \
+         which would make every skip above silent",
+        paths.len()
+    );
+
+    let total: usize = violations.iter().map(|(_, n)| n).sum();
+    assert!(
+        violations.is_empty(),
+        "{} golden .edn file(s) ({} :causes key(s) total) still carry `:causes` — excursus 003 \
+         strike B1 removed it from the `:wat::core::Error` floor (F3). Recapture with \
+         `UPDATE_EDN=1 cargo nextest run --release`, and read every diff — the allowed changes \
+         are: `:causes …` removed; an aggregate's items move to `:errors`; the two wrapping \
+         runtime kinds gain `:cause`; wrapper-site payloads lose their `Fault` wrap; the check-time \
+         attempt maps gain a tag:\n  {}",
+        violations.len(),
+        total,
+        violations.iter().map(|(f, n)| format!("{f} ({n})")).collect::<Vec<_>>().join("\n  ")
+    );
+}

@@ -225,70 +225,31 @@ fn read_json_outcome_value(value: Value) -> Value {
     tagged_read_outcome_value(READ_JSON_OUTCOME_TYPE, value)
 }
 
-/// `ReadJsonOutcome::Malformed [cause]` — the JSON text did not parse, or the parsed JSON did
-/// not decode to a runtime value.
+/// `ReadJsonOutcome::Malformed [cause]` / `ReadForeignOutcome::Malformed [cause]` — the
+/// JSON/EDN text did not parse, or the parsed JSON did not decode to a runtime value.
 ///
-/// `wat_edn::JsonError` (the error `from_json_string` raises) CANNOT impl `WatError`: it lives in
-/// the `wat-edn` crate, and the trait lives in `src/to_edn.rs` (the orphan rule forbids the
-/// reverse impl). The message is lifted through `FlatMessage` — the existing adapter for a
-/// genuinely flat, structure-free failure (`to_edn.rs:346`) — then decoded back to a typed
-/// `:wat::core::Error` via the IDENTICAL tail the `read-string` Malformed helper uses: the STRICT
-/// decode is preferred and the FOREIGN (data-mode) decode is the fallback for tags the type
-/// registry does not carry yet. Same reasoning as that helper: a structured
-/// diagnostic flattened into a String is the mask this arc exists to kill, and a lossy carrier is
-/// what makes that mask mandatory.
+/// `wat_edn::JsonError` (the error `from_json_string` raises) and `EdnReadError` CANNOT impl
+/// `WatError` here in general (the orphan rule), and in practice never get the chance: by the
+/// time this function runs, the caller has already `.to_string()`'d the error — the structure
+/// was lost ONE LAYER UP, at `eval_edn_read_json`/`eval_edn_read_foreign`'s `Err(e) =>` arms
+/// (out of excursus 003 strike B1's declared scope: items 1–6 name four wire SHAPES, not that
+/// upstream stringification).
+///
+/// Excursus 003 strike B1, item 5: measured, not guessed — the old strict→foreign decode
+/// ladder this function used to run was decoding a synthetic `FlatMessage` tagged
+/// "JsonReadError"/"ForeignReadError", and NEITHER is a declared wat record
+/// (`grep -rn "JsonReadError\|ForeignReadError" wat/` finds nothing): strict decode could
+/// never succeed, so the ladder always fell to FOREIGN. Building a `:wat::core::Fault`
+/// DIRECTLY from the message and the raising site's own span (no EDN round-trip through a tag
+/// that will never be registered) is the honest shape for a genuinely flat failure — not a
+/// degraded "decode failed" fallback. A `Fault` satisfies `:wat::core::Error` structurally, so
+/// the declared `cause <- :wat::core::Error` field is never lied to.
 fn tagged_read_outcome_malformed(
     type_path: &str,
-    error_tag: &str,
     message: &str,
-    sym: &SymbolTable,
     list_span: &crate::span::Span,
 ) -> Value {
-    use crate::edn::contract::WatError;
-    let flat = crate::edn::contract::FlatMessage {
-        tag: error_tag,
-        key: "reason",
-        message,
-        span: crate::rust_caller_span!(),
-    };
-    let cause_edn = wat_edn::write(&flat.error_edn());
-    let types = sym.types().map(|t| &**t);
-    let ctx = sym.encoding_ctx().map(|c| &**c);
-    // Arc 109 — the decoded diagnostic rides as a CAUSE under a real `:wat::core::Fault`,
-    // never AS the returned value. This variant's cause field is DECLARED
-    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::wat__edn__ForeignRecord`, a
-    // self-describing dynamic bag that satisfies that surface NOWHERE — so returning it
-    // directly made the declared type a lie at the boundary, and every consumer calling
-    // `(:wat::core::Error/message __cause)` died with `UnknownFunction: ForeignRecord does
-    // not implement surface method message` instead of reporting the failure. 75 such call
-    // sites across 57 files (wat/fix.wat, lint.wat, service.wat, core.wat's
-    // string::interpolate, deporder.wat, telemetry/journal.wat, and 32 of the 66 recorded
-    // migrations) — written and never once invoked, because until arc 109's lexer walls
-    // landed the reader never failed on corpus text. `check_failed_cause` in `runtime.rs`
-    // ran the identical ladder and already disposed of it correctly; all three now go
-    // through the one `fault_with_cause` door.
-    let cause = decode_trusted_wire(&cause_edn, types, ctx)
-        .or_else(|_| {
-            wat_edn::parse_owned(&cause_edn)
-                .map_err(|_| ())
-                .and_then(|owned| edn_to_value_foreign(&owned, types, ctx).map_err(|_| ()))
-        })
-        .map(|inner| crate::runtime::fault_with_cause(message.to_string(), list_span.clone(), inner))
-        .unwrap_or_else(|_| {
-            // A FlatMessage whose own EDN will not decode is itself a defect; report the
-            // headline as a minimal TRUE record rather than smuggling the tree back in as prose.
-            Value::Aggregate(std::sync::Arc::new(
-                crate::value::value::AggregateValue::record(
-                    "wat::core::Fault".into(),
-                    crate::runtime::fault_names(),
-                    std::sync::Arc::new(vec![
-                        Value::String(std::sync::Arc::new(message.to_string())),
-                        crate::runtime::value_from_span(list_span.clone()),
-                        Value::Vec(std::sync::Arc::new(Vec::new())),
-                    ]),
-                ),
-            ))
-        });
+    let cause = crate::runtime::fault_value(message.to_string(), Some(list_span.clone()));
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
         type_path: type_path.into(),
         variant_name: "Malformed".into(),
@@ -299,10 +260,10 @@ fn tagged_read_outcome_malformed(
 
 fn read_json_outcome_malformed(
     message: &str,
-    sym: &SymbolTable,
+    _sym: &SymbolTable,
     list_span: &crate::span::Span,
 ) -> Value {
-    tagged_read_outcome_malformed(READ_JSON_OUTCOME_TYPE, "JsonReadError", message, sym, list_span)
+    tagged_read_outcome_malformed(READ_JSON_OUTCOME_TYPE, message, list_span)
 }
 
 /// `(:wat::edn::read-json s)` → `:wat::edn::ReadJsonOutcome`. Arc 278 Stone 1 (`wat --mcp`) —
@@ -384,17 +345,13 @@ pub fn eval_edn_read_foreign(
             Ok(v) => tagged_read_outcome_value(READ_FOREIGN_OUTCOME_TYPE, v),
             Err(e) => tagged_read_outcome_malformed(
                 READ_FOREIGN_OUTCOME_TYPE,
-                "ForeignReadError",
                 &e.to_string(),
-                sym,
                 list_span,
             ),
         },
         Err(e) => tagged_read_outcome_malformed(
             READ_FOREIGN_OUTCOME_TYPE,
-            "ForeignReadError",
             &format!("EDN parse error: {e}"),
-            sym,
             list_span,
         ),
     };
@@ -591,41 +548,29 @@ fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> V
     let cause_edn = wat_edn::write(&e.error_edn());
     let types = sym.types().map(|t| &**t);
     let ctx = sym.encoding_ctx().map(|c| &**c);
-    // Arc 109 — the decoded diagnostic rides as a CAUSE under a real `:wat::core::Fault`,
-    // never AS the returned value. This variant's cause field is DECLARED
-    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::wat__edn__ForeignRecord`, a
-    // self-describing dynamic bag that satisfies that surface NOWHERE — so returning it
-    // directly made the declared type a lie at the boundary, and every consumer calling
-    // `(:wat::core::Error/message __cause)` died with `UnknownFunction: ForeignRecord does
-    // not implement surface method message` instead of reporting the failure. 75 such call
-    // sites across 57 files (wat/fix.wat, lint.wat, service.wat, core.wat's
-    // string::interpolate, deporder.wat, telemetry/journal.wat, and 32 of the 66 recorded
-    // migrations) — written and never once invoked, because until arc 109's lexer walls
-    // landed the reader never failed on corpus text. `check_failed_cause` in `runtime.rs`
-    // ran the identical ladder and already disposed of it correctly; all three now go
-    // through the one `fault_with_cause` door.
-    let cause = decode_trusted_wire(&cause_edn, types, ctx)
-        .or_else(|_| {
-            wat_edn::parse_owned(&cause_edn)
-                .map_err(|_| ())
-                .and_then(|owned| edn_to_value_foreign(&owned, types, ctx).map_err(|_| ()))
-        })
-        .map(|inner| crate::runtime::fault_with_cause(e.message(), e.span.clone(), inner))
-        .unwrap_or_else(|_| {
-            // A parse error whose own EDN will not decode is itself a defect; report the headline
-            // as a minimal TRUE record rather than smuggling the tree back in as prose.
-            Value::Aggregate(std::sync::Arc::new(
-                crate::value::value::AggregateValue::record(
-                    "wat::core::Fault".into(),
-                    crate::runtime::fault_names(),
-                    std::sync::Arc::new(vec![
-                        Value::String(std::sync::Arc::new(e.message())),
-                        crate::runtime::value_from_span(e.span.clone()),
-                        Value::Vec(std::sync::Arc::new(Vec::new())),
-                    ]),
-                ),
-            ))
-        });
+    // Excursus 003 strike B1, item 5: STRICT decode only — `ParseError`'s taxonomy is a
+    // declared wat record (`wat/parse-errors.wat`, S3), so its tag is always registered.
+    // The decoded diagnostic BECOMES the cause directly: no `Fault` wrapper, no fabricated
+    // span.
+    let cause = match decode_trusted_wire(&cause_edn, types, ctx) {
+        Ok(inner) => inner,
+        // A parse error whose own EDN does not strict-decode is now a DEFECT (every
+        // `ParseErrorKind` tag is declared after S3) — report it honestly, with the
+        // parse error's REAL location, never a fabricated one.
+        Err(_) => Value::Aggregate(std::sync::Arc::new(
+            crate::value::value::AggregateValue::record(
+                "wat::core::Fault".into(),
+                crate::runtime::fault_names(),
+                std::sync::Arc::new(vec![
+                    Value::String(std::sync::Arc::new(format!(
+                        "{} — the diagnostic did not decode as a typed :wat::core::Error",
+                        e.message()
+                    ))),
+                    crate::runtime::value_from_span(e.location()),
+                ]),
+            ),
+        )),
+    };
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
         type_path: READ_OUTCOME_TYPE.into(),
         variant_name: "Malformed".into(),

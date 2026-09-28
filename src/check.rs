@@ -435,22 +435,33 @@ pub(crate) fn return_type_remedies_via(
 /// Field-level `via` helper for `NoMatchingClauseAtCallSite :attempted-clauses`.
 ///
 /// Converts `Vec<(usize, Vec<String>)>` to an EDN `Vector` of
-/// `{:arity N :param-types ["T" ...]}` maps — the same shape the hand-written
-/// `check_error_to_edn` produced. Used as `#[to_edn(via = crate::check::clause_attempts_to_edn)]`
-/// on the `attempted_clauses` field (the type has no `ToEdn` impl; `via` lifts the
+/// `#wat.check/AttemptedClause {:arity N :param-types ["T" ...]}` tagged records.
+/// Used as `#[to_edn(via = crate::check::clause_attempts_to_edn)]` on the
+/// `attempted_clauses` field (the type has no `ToEdn` impl; `via` lifts the
 /// constraint).
+///
+/// Excursus 003 strike B1, item 6: each attempt used to ride as a BARE, UNTAGGED
+/// `{:arity :param-types}` map — the one check kind left undeclared by the S1 sweep
+/// (`wat/check-errors.wat`'s STOP note). Now tagged as `:wat::check::AttemptedClause`,
+/// a name DISTINCT from `:wat::kernel::ClauseAttempt` (step 3a's runtime
+/// dispatch-failure attempt, which also carries a `failure-reason` — check time never
+/// evaluates real arguments against a clause, only compares a call site's static shape
+/// against each clause's declared shape, so it has no failure reason to carry).
 pub(crate) fn clause_attempts_to_edn(v: &[(usize, Vec<String>)]) -> wat_edn::OwnedValue {
     use crate::edn::contract::{edn_kw, ToEdn};
     wat_edn::OwnedValue::Vector(
         v.iter()
             .map(|(arity, param_types)| {
-                wat_edn::OwnedValue::Map(vec![
-                    (edn_kw("arity"), wat_edn::OwnedValue::Integer(*arity as i64)),
-                    (
-                        edn_kw("param-types"),
-                        wat_edn::OwnedValue::Vector(param_types.iter().map(|s| s.to_edn()).collect()),
-                    ),
-                ])
+                wat_edn::OwnedValue::Tagged(
+                    wat_edn::Tag::ns(crate::error_ns::CHECK, "AttemptedClause"),
+                    Box::new(wat_edn::OwnedValue::Map(vec![
+                        (edn_kw("arity"), wat_edn::OwnedValue::Integer(*arity as i64)),
+                        (
+                            edn_kw("param-types"),
+                            wat_edn::OwnedValue::Vector(param_types.iter().map(|s| s.to_edn()).collect()),
+                        ),
+                    ])),
+                )
             })
             .collect(),
     )

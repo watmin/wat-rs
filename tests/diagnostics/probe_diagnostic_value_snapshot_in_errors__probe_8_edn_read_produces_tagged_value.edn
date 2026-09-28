@@ -6,7 +6,6 @@
     :col 17
     :end #wat.core/Option.None {}
   }
-  :causes []
   :got {
     :type "wat::core::String"
     :rendered "\"not-a-callable\""

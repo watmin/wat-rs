@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/MalformedForm {
       :message "malformed :nonexistent form: keyword accessor: field \"nonexistent\" is not declared on :u::Plain (declared fields: x)"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :head ":nonexistent"
       :reason "keyword accessor: field \"nonexistent\" is not declared on :u::Plain (declared fields: x)"
       :remedies []

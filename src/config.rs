@@ -338,9 +338,6 @@ impl crate::edn::contract::WatError for ConfigError {
     fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
     }
-    fn causes(&self) -> wat_edn::OwnedValue {
-        wat_edn::OwnedValue::Vector(vec![])
-    }
     fn variant(&self) -> wat_edn::OwnedValue {
         use crate::edn::contract::ToEdn;
         crate::edn::contract::strip_span_from_tagged(self.to_edn())

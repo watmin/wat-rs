@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.resolve/UnresolvedReference {
             :message "unresolved reference `:wat::core::Option::Some` (call head — not a builtin, not a registered function)"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :path ":wat::core::Option::Some"
             :context "call head — not a builtin, not a registered function"
           }

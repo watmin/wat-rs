@@ -11,7 +11,7 @@
       }
     }
   }
-  :causes [
+  :errors [
     #wat.check/ArityMismatch {
       :message ":wat::core::HashMap: expected 2 argument(s); got 1"
       :location #wat.core/Span {
@@ -25,7 +25,6 @@
           }
         }
       }
-      :causes []
       :callee ":wat::core::HashMap"
       :expected 2
       :got 1

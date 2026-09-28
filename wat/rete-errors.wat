@@ -35,7 +35,7 @@
 (:wat::core::defrecord :wat::rete::ReteCheckErrors
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])])
+   errors <- (:wat::core::Vector :- [:wat::core::Error])])
 
 ;; Loads after `wat/core.wat` (`:wat::core::Error`/`Span`/`String`/`i64`/
 ;; `Vector`). See `src/load/stdlib.rs`.
@@ -47,7 +47,7 @@
 (:wat::core::defrecord :wat::rete::UnknownFactType
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String])
 
@@ -55,7 +55,7 @@
 (:wat::core::defrecord :wat::rete::MalformedClause
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    clause <- :wat::core::String])
@@ -65,7 +65,7 @@
 (:wat::core::defrecord :wat::rete::UnknownField
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    field <- :wat::core::String
@@ -76,7 +76,7 @@
 (:wat::core::defrecord :wat::rete::UnknownEnumVariant
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    enum-path <- :wat::core::String
@@ -89,7 +89,7 @@
 (:wat::core::defrecord :wat::rete::RhsArityMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    expected <- :wat::core::i64
@@ -100,7 +100,7 @@
 (:wat::core::defrecord :wat::rete::RhsUnresolvableOperand
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    operand <- :wat::core::String
@@ -110,7 +110,7 @@
 (:wat::core::defrecord :wat::rete::RhsOperandTypeMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    field <- :wat::core::String
@@ -121,7 +121,7 @@
 (:wat::core::defrecord :wat::rete::RhsMissingFields
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    missing <- (:wat::core::Vector :- [:wat::core::String])])
@@ -131,7 +131,7 @@
 (:wat::core::defrecord :wat::rete::RhsFieldTypeMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    field <- :wat::core::String
@@ -146,7 +146,7 @@
 (:wat::core::defrecord :wat::rete::RhsPositionalConstructionRetired
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    got <- :wat::core::i64])
@@ -156,7 +156,7 @@
 (:wat::core::defrecord :wat::rete::NonReteConstraint
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    head <- :wat::core::String
@@ -166,7 +166,7 @@
 (:wat::core::defrecord :wat::rete::ConstraintTypeMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    head <- :wat::core::String
@@ -179,7 +179,7 @@
 (:wat::core::defrecord :wat::rete::ConstraintTypeNotComparable
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    fact-type <- :wat::core::String
    head <- :wat::core::String
@@ -192,7 +192,7 @@
 (:wat::core::defrecord :wat::rete::FenceConstraintTypeMismatch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    head <- :wat::core::String
    operand <- :wat::core::String
@@ -203,7 +203,7 @@
 (:wat::core::defrecord :wat::rete::FenceConstraintTypeNotComparable
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    head <- :wat::core::String
    operand <- :wat::core::String
@@ -214,7 +214,7 @@
 (:wat::core::defrecord :wat::rete::FenceBinderShadowsReteVar
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    form <- :wat::core::String
    binder <- :wat::core::String])
@@ -223,7 +223,7 @@
 (:wat::core::defrecord :wat::rete::UnconsumedWrapperBind
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    var <- :wat::core::String
    fact-type <- :wat::core::String])
@@ -233,7 +233,7 @@
 (:wat::core::defrecord :wat::rete::EscapedWrapperBind
   [message <- :wat::core::String
    location <- :wat::core::Span
-   causes <- (:wat::core::Vector :- [:wat::core::Error])
+   
    rule <- :wat::core::String
    var <- :wat::core::String
    fact-type <- :wat::core::String])

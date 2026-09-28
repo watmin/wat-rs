@@ -8,7 +8,6 @@
       :col 2
       :end #wat.core/Option.None {}
     }
-    :causes []
     :name "my-macro"
   }
   :span #wat.core/Span {

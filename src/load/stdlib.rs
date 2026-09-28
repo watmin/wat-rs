@@ -82,11 +82,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/runtime-errors.wat",
         source: include_str!("../../wat/runtime-errors.wat"),
     },
-    // Excursus 003 sweep S1 — the 33 declared `:wat::check::<Kind>` records
-    // mirroring `CheckErrorKind` (one ruled exception, `NoMatchingClauseAtCallSite`
-    // — an untagged map on today's wire), plus the `CheckErrors` aggregate. After
-    // `wat/kernel/diagnostics.wat`: several records reference `:wat::kernel::Remedy`,
-    // declared there.
+    // Excursus 003 sweep S1 (+ strike B1 item 6) — the 34 declared
+    // `:wat::check::<Kind>` records mirroring `CheckErrorKind`
+    // (`NoMatchingClauseAtCallSite` was S1's ruled exception — an untagged map
+    // on the wire — until strike B1 tagged its attempts and declared it too),
+    // plus the `CheckErrors` aggregate and the `AttemptedClause` sub-value.
+    // After `wat/kernel/diagnostics.wat`: several records reference
+    // `:wat::kernel::Remedy`, declared there.
     WatSource {
         path: "wat/check-errors.wat",
         source: include_str!("../../wat/check-errors.wat"),
@@ -828,9 +830,6 @@ impl crate::edn::contract::WatError for StdlibError {
     }
     fn location(&self) -> crate::span::Span {
         crate::edn::contract::location_from_span(&self.span)
-    }
-    fn causes(&self) -> wat_edn::OwnedValue {
-        wat_edn::OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> wat_edn::OwnedValue {
         use crate::edn::contract::ToEdn;

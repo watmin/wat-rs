@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/UnknownField {
             :message "defrule `macb::r`: `:macb::Inner` has no field `:nope`; available fields: [n]"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "macb::r"
             :fact-type "macb::Inner"
             :field "nope"

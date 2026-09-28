@@ -14,7 +14,7 @@
             }
           }
         }
-        :causes [
+        :errors [
           #wat.rete/RhsPositionalConstructionRetired {
             :message "defrule `nwp::r`: `:then` insert nests a raw positional construction of `:nwp::Inner` with 2 argument(s) — positional construction at a bare aggregate name is retired; use kwargs (`:field val …`) or a single positional value"
             :location #wat.core/Span {
@@ -28,7 +28,6 @@
                 }
               }
             }
-            :causes []
             :rule "nwp::r"
             :fact-type "nwp::Inner"
             :got 2

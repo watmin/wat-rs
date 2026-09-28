@@ -9,7 +9,6 @@
           :col 46
           :end #wat.core/Option.None {}
         }
-        :causes []
         :op ":wat::core::HashMap/assoc"
         :expected "hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))"
         :got #wat.runtime/ValueSnapshot {

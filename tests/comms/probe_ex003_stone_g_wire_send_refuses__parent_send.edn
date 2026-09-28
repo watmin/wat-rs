@@ -11,7 +11,6 @@
       }
     }
   }
-  :causes []
   :head ":wat::kernel::send"
   :reason "a wire peer carries only pure data — the value sent (:g::Box) contains a :rust::cache::Lru, which is not pure and has no wire form. Send records, scalars, or pure enums over a wire; a handle stays in-locus (a thread peer carries any value)."
 }

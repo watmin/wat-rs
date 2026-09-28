@@ -66,9 +66,9 @@ fn first_tagged_error(edn: &str) -> (wat_edn::Tag, Vec<(wat_edn::OwnedValue, wat
             match *body {
                 OwnedValue::Map(m) => m
                     .into_iter()
-                    .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new("causes")))
+                    .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new("errors")))
                     .map(|(_, v)| v)
-                    .expect("the batch must carry :causes"),
+                    .expect("the batch must carry :errors"),
                 other => panic!("expected a map body; got {other:?}"),
             }
         }
