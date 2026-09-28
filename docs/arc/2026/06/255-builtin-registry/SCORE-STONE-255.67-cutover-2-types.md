@@ -394,3 +394,254 @@ attempted — mechanisms B and C need new recognizer code (not a denotation fix)
 needs either updated goldens or a judgment call on which fixtures a golden-sensitive test should
 exempt from the corpus conversion; both are calls for the builder, not a rider improvising past a
 STOP.
+
+## AMEND-2 — finish green (this agent)
+
+Commits: `01b488ea6` (B/A/C cure) and this SCORE append. Executed
+`AMEND-2-STONE-255.67-finish-green.md` against the 57-failure red left by `fd04778e4`.
+
+### Mechanism B — the two named recognizers, plus two more found by the same search
+
+- **`src/declare/parse.rs:773-776`, `try_parse_user_variadic_def_fn_form`'s return-type slot** —
+  was `WatAST::Keyword(k, _) => parse_type_keyword(k)?, _ => return Ok(None)`. A `wat.type/i64`
+  Symbol hit the `None` fallback, so the whole variadic def+fn form silently read as "not this
+  shape" and never registered (15 `variadic_define::*` failures — `UnresolvedReference` for
+  `:my::sum-of` etc). Routed through `parse_type_node` (accepts `Keyword` or `Symbol`), error
+  path converts `TypeError` → `RuntimeError` the same way `parse_type_keyword` did.
+- **`src/function/parse.rs:829-834`, `parse_defclause_form`'s shared `-> :T` detection** — same
+  Keyword-only match; a `wat.type/i64` shared return type went undetected, so `clause_offset`
+  stayed at 2 and the bare type Symbol was read as the first CLAUSE, refused as "got symbol" (8
+  `probe_arc237_stone2_defclause_substrate::*` failures — one shared fixture failing to load).
+  Same `parse_type_node` routing.
+- **Found by the search, same shape, routed the same way:**
+  - `src/declare/parse.rs:637`, `try_parse_variadic_def_fn_form` — the STDLIB-only sibling of the
+    first recognizer (`register_stdlib_defines`'s privileged path, `allow_reserved=true`).
+    Identical Keyword-only bug; not currently reachable by any corpus fixture (no stdlib
+    variadic-def+fn form happens to use a converted return type today) but fixed defensively —
+    it is the same recognizer class at the same registration phase (step 6, pre-`normalize_symbol_refs`).
+  - `src/function/parse.rs:~1279` (was `~1279`), `parse_extend_type_form`'s per-method `-> :T`
+    return-type slot inside an `extend-type`/`derive` impl body — matched `Keyword` and `List`
+    (the `(Head :- [T])` reference form) but had no `Symbol` arm; a bare `wat.type/i64` method
+    return type fell to the `_ => (body_items, nil)` wildcard, which reads NO annotation at all
+    and hands the whole `[-> wat.type/i64 body...]` back as the method BODY — `->` then evaluates
+    as an unbound-symbol reference at runtime. **This one is corpus-live** (every `extend-type`
+    method with an atomic converted return type, e.g. `wat/seq.wat`'s four `Seqable` `seq` impls
+    use the `(Head :- [T])` List form so they were unaffected, but other stdlib/`wat-tests` files
+    use the bare-symbol form) — see the self-correction below.
+  - `src/intrinsic/holon/atom.rs`, `eval_holon_from_holon` (`:wat::holon::from-holon`'s optional
+    3-arg `-> :T` HashMap-vs-HashSet disambiguation hint) — ran POST-normalize (eval time, not
+    registration), so a pre-normalize `Symbol` never reaches it; `normalize_type_slot`
+    (`src/resolve/normalize.rs`) converts it to a `WatAST::Keyword` first — but to the RAW
+    `:wat::type::HashMap` spelling (`ns_to_wat_path`, not K1's `canonical_type_key`), and the
+    site's own check was a raw `k.starts_with(":wat::core::HashMap")` — never denoted. A
+    `:wat::type::HashMap` keyword compared unequal to the `:wat::core::HashMap` prefix, so
+    `_hint_is_hashmap` silently read `false` for a well-formed hint. Not caught by
+    `probe_arc216_stone3_hashmap_roundtrip.rs`'s own assertions (an empty HashMap vs HashSet both
+    have length 0), so this was a live, silent misclassification, not a test failure. Routed
+    through `canonical_type_key` (K1's door), accepting both `Keyword` and `Symbol`. This
+    recognizer's fix RETIRED the ledger row `("src/intrinsic/holon/atom.rs",
+    "eval_holon_from_holon", 1, "Ax1")` in `tests/lint/keyword_heresy_ledger.rs` —
+    `LEDGER_TOTAL` 149 → 148 (the ledger's own gate, `the_heresy_ledger_matches_its_frozen_census`,
+    caught this and named the exact row; updated by hand per the gate's own instruction).
+  - **Checked and found already correct** (not a bug, no action): `src/macros/parse.rs`'s
+    `defmacro` return-type check (already widened, "old keyword-only check refused" per its own
+    comment); `src/types/surface.rs:429`'s method-member return type (already routed through
+    `parse_type_node`); `src/function/parse.rs:1059-1108`'s `extend-type` target/protocol-name
+    slots (already handle `Keyword`/`List`/`Symbol`); `src/check.rs`'s `parse_bracket_type_keyword`
+    (Keyword-only, used by `infer_persistentmap_constructor`/`infer_list_constructor`'s literal
+    `:- [K V]` VALUE-constructor bracket — genuinely reachable in principle, but the corpus has no
+    site using a hard-primitive type in that specific literal-constructor bracket position today,
+    grep-verified; theoretical, like K1's own `rekey_type_member_functions` note, left unfixed);
+    `src/declare/parse.rs:955-957`'s `parse_type_slot` (Keyword-only, but it is ALREADY a tracked,
+    cataloged row in the heresy ledger — `("src/declare/parse.rs", "parse_type_slot", 1, "Ax1")` —
+    so it is a known, accounted-for gap, not a silent one, and out of THIS stone's scope).
+
+**Self-correction, found by the floor, not by review:** the first edit to
+`parse_extend_type_form`'s method-return-type match REPLACED the pre-existing
+`node @ WatAST::List(_, _) =>` arm with the new `node @ WatAST::Symbol(_, _) =>` arm instead of
+adding the Symbol arm alongside it — deleting List-form return-type handling entirely. This
+passed every narrow/filtered nextest run (none of those runs touched an `extend-type` method
+using the `(Head :- [T])` List return form) and passed `cargo build`/`clippy` clean, but the
+**first full `scripts/floor.sh`** went RED at 54 failures — `UnboundSymbol {:name "->"}` at
+`wat/seq.wat:87/90/93` (the `PersistentVector`/`List`/`Stream` `Seqable` impls; `Vector`'s impl at
+line 84 also failed) and every test transitively depending on `Seqable`/`foldl`/`seq`
+(`deftest_wat_tests_core_core_seqable_*`, `*_seq_walkers_*`, `*_foldl_*`, the `Bigram`/`Trigram`/
+`Sequential`/`Ngram` holon deftests, `probe_stone118_3b_seqable_parametric_satisfaction::*`,
+`probe_stone_118_b2c_surface_arm_never_dispatches::*`, `map_indexed`, `seqable_to_stream`,
+`probe_arc118_2z_takewhile_lazy`, `probe_arc255_22_an_edge_declares_its_type_parameters`) — 53 of
+the 54, plus the unrelated, expected `keyword_heresy_ledger` ratchet trip (below). Per doctrine
+the red floor (`.floor/2026-09-28T06-37-21Z`, `Summary [ 376.710s] 6213 tests run: 6159 passed
+(20 slow), 54 failed, 24 skipped`) was **not** re-run; the ARM was read, the exact arm named
+(`node @ WatAST::List(_, _)` missing, `_` wildcard firing, `->` handed to the body as a literal
+call head), the diagnosis made from the panic's own file:line:col (`wat/seq.wat:90:15`, the `->`
+token), and the List arm restored ALONGSIDE the Symbol arm (both present now). Re-verified with a
+64-test targeted run (all pass), then a full re-floor (below) confirms only the one known STOP
+remains.
+
+### Mechanism C — cured, spelling duplicate confirmed (not new shapes)
+
+`src/rete/kernel/tests/where_tree_branch_differential.rs`'s `classify` function keys a `where-*`
+axis as UNIFORM by finding the literal substring
+`"defn :{ns}::row-count [] -> :wat::core::i64 "` in the FILE'S OWN TEXT (a raw string scan of the
+`.wat` source, not a parsed-AST comparison — the one site in this hunt that isn't AST-based at
+all). The corpus conversion rewrote every `where-*.wat`'s `row-count` return type to
+`-> wat.type/i64 ` (verified directly, e.g. `wat-scripts/perf/grid/where-boolean.wat:50`), so the
+marker never matched any of the 12 previously-uniform axes named in the ARM
+(`where-boolean`, `where-collection`, `where-control`, `where-inline-computed`,
+`where-inline-keyword`, `where-join-order`, `where-multivar`, `where-nesting`, `where-numeric`,
+`where-record`, `where-shapes`, `where-string`) — they fell through to `None` (non-uniform) and
+inflated `found_other` past `NON_UNIFORM`. Cured by trying both spellings for the marker (the raw
+scan's own "door", since there is no AST here for `parse_type_node`/`canonical_type_key` to act
+on). STOP-2 never fired — confirmed spelling duplicates, not genuinely new axis shapes: with the
+fix, `where_tree_branch_agrees_with_the_reference_filter` passes and, critically, its OWN
+correctness assertion (the tree-filter branch derives the identical fact multiset as the
+reference branch, on every one of the now-uniform axes) also passes — the 12 axes are not just
+"classified the same", they behave identically to before the corpus conversion.
+
+### Mechanism A — 32 of 33 goldens recaptured; 1 STOP (more than a position changed)
+
+All 33 confirmed individually (not just by panic-message shape) before touching anything: ran the
+33 tests RED first, then for each compared actual vs. the existing golden with a position-blind
+(digit-masked) diff — every one but `probe_arc283_1_rename_typearg::rename_reaches_type_arguments`
+showed identical message/kind/name/field text with only numeric `:col`/`:end.col` values (and, in
+one case, the fixture's own faithfully-converted `:node` spelling — see below) differing.
+
+**25 recaptured via `UPDATE_EDN=1` (the `assert_edn_matches_file!` capture path)** — ran the 25
+tests under `UPDATE_EDN=1`, which parses+validates `actual` as EDN (STOP-1 if it didn't) and
+overwrites the `.edn` golden verbatim; then `git diff` on every touched `.edn` reviewed by hand:
+
+| test | file | old → new position |
+|---|---|---|
+| `probe_hashmap_ctor_vector_symmetric::probe_p7_odd_pair_count_rejected` | `tests/collection/probe_hashmap_ctor_vector_symmetric__odd_pair_count.edn` | `:end.col` 28 → 25 |
+| `probe_arc242_stone2_value_position_doctrine::contract_03_keyword_type_in_body_rejected_with_remedy` | `tests/diagnostics/probe_arc242_stone2_value_position_doctrine__contract_03_keyword_type_in_body_rejected_with_remedy.edn` | `:col` 50 → 47, `:end.col` 65 → 62 |
+| `probe_diagnostic_value_snapshot_in_errors::probe_3_type_mismatch_renders_non_keyword_head` | `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors__probe_3_type_mismatch_renders_non_keyword_head.edn` | `:col` 76 → 73, `:end.col` 91 → 88 |
+| `probe_diagnostic_value_snapshot_in_errors::probe_4_type_mismatch_renders_non_vector_spread` | `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors__probe_4_type_mismatch_renders_non_vector_spread.edn` | `:col` 125 → 122, `:end.col` 127 → 124 |
+| `fn_signature::fn_body_type_mismatch_surfaces` | `tests/function/fn_signature__fn_body_type_mismatch_surfaces.edn` | `:col` 112 → 103, `:end.col` 113 → 104 |
+| `fn_signature::malformed_args_vector_clear_error` | `tests/function/fn_signature__malformed_args_vector_clear_error.edn` | `:col` 42 → 39, `:end.col` 43 → 40 |
+| `probe_arc209_macro_param_type_enforced::lying_macro_param_type_is_rejected_at_macro_def` | `tests/macros/probe_arc209_macro_param_type_enforced__lying_macro_param_type_is_rejected_at_macro_def.edn` | `:end.col` 56 → 53 |
+| `probe_arc258_stone2b_macro_error::contract_03_macro_error_surfaces_its_message` | `tests/macros/probe_arc258_stone2b_macro_error__contract_03_macro_error_surfaces_its_message.edn` | `:col` 50 → 47, `:end.col` 63 → 60 |
+| `probe_arc213_program_edn_roundtrip::t1_program_to_edn_is_plain_edn` | `tests/program/probe_arc213_program_edn_roundtrip__program_frame.edn` | many `:col`/`:end-col` positions shifted (a full-program AST roundtrip); ALSO three `:node` fields changed from `:wat.core/i64`/`:wat.core/nil` to `wat.type/i64`/`wat.type/nil` — judged in-scope (see note below), not a STOP |
+| `newtype::newtype_rejects_inner_type_at_arg_position` | `tests/types/newtype__newtype_rejects_inner_type_at_arg_position.edn` | `:col` 77 → 74, `:end.col` 82 → 79 |
+| `probe_arc234_stone3c_keyword_accessor::probe_3_unknown_field_on_record_errors` | `tests/types/probe_arc234_stone3c_keyword_accessor__probe3_unknown_field.edn` | `:col` 62 → 59, `:end.col` 74 → 71 |
+| `probe_arc251_type_the_polymorphic_accessor::record_monomorphic_lie_is_refused` | `tests/types/probe_arc251_type_the_polymorphic_accessor__record_mono_lie.edn` | `:col` 64 → 61, `:end.col` 70 → 67 |
+| `probe_arc251_type_the_polymorphic_accessor::record_parametric_lie_is_refused` | `tests/types/probe_arc251_type_the_polymorphic_accessor__record_param_lie.edn` | `:col` 86 → 80, `:end.col` 92 → 86 |
+| `probe_arc251_type_the_polymorphic_accessor::unknown_field_on_a_known_receiver_is_refused` | `tests/types/probe_arc251_type_the_polymorphic_accessor__unknown_field.edn` | `:col` 62 → 59, `:end.col` 74 → 71 |
+| `probe_arc251_type_the_polymorphic_accessor::variant_parametric_lie_is_refused` | `tests/types/probe_arc251_type_the_polymorphic_accessor__variant_param_lie.edn` | `:col` 91 → 85, `:end.col` 99 → 93 |
+| `probe_arc255_equality_domain_gate::equality_refuses_a_non_equatable_declared_type` | `tests/types/probe_arc255_equality_domain_gate__fn_operand_refused.edn` | `:end.col` 84 → 78 (also flat → pretty EDN formatting, cosmetic, data-equal) |
+| `probe_arc258_stone1_if_inference::contract_03_branch_mismatch_rejected_for_the_right_reason` | `tests/types/probe_arc258_stone1_if_inference__contract_03_branch_mismatch_rejected_for_the_right_reason.edn` | `:col` 79 → 76, `:end.col` 82 → 79 |
+| `tuple::legacy_tuple_lowercase_redirects_via_pattern2_poison` | `tests/types/tuple__legacy_tuple_lowercase_redirects_via_pattern2_poison.edn` | `:col` 110 → 98, `:end.col` 127 → 115 |
+| `wat_arc136_do_form::do_empty_form_is_malformed` | `tests/wat_lang/wat_arc136_do_form__do_empty_form_is_malformed.edn` | `:col` 54 → 51, `:end.col` 68 → 65 |
+| `wat_arc153_nil_rename::mixed_empty_list_body_with_nil_sig_now_rejected` | `tests/wat_lang/wat_arc153_nil_rename__paren_body_err.edn` | `:col` 61 → 58, `:end.col` 63 → 60 |
+| `wat_arc153_nil_rename::value_position_empty_list_now_rejected` | `tests/wat_lang/wat_arc153_nil_rename__paren_form_err.edn` | `:col` 60 → 57, `:end.col` 62 → 59 |
+| `wat_arc153_nil_rename::value_position_nil_against_i64_recipient_fires_type_mismatch` | `tests/wat_lang/wat_arc153_nil_rename__value_position_nil_against_i64_recipient_fires_type_mismatch.edn` | `:col` 51 → 48, `:end.col` 54 → 51 |
+| `wat_arc157_def::def_type_mismatch_via_registered_type` | `tests/wat_lang/wat_arc157_def__def_type_mismatch_via_registered_type.edn` | `:col` 65 → 62, `:end.col` 71 → 68 |
+| `wat_idempotent_redeclare::define_divergent_body_errors` | `tests/wat_lang/wat_idempotent_redeclare__define_divergent_body_errors.edn` | two `:end.col` fields (one per cause), 94 → 88 and 94 → 88 |
+| `wat_idempotent_redeclare::typealias_divergent_errors` | `tests/wat_lang/wat_idempotent_redeclare__typealias_divergent_errors.edn` | `:end.col` 52 → 49 |
+
+**Note on `probe_arc213_program_edn_roundtrip`:** unlike the other 24, this golden's diff also
+shows `:node` field VALUES changing (`:wat.core/i64` → `wat.type/i64`, `:wat.core/nil` →
+`wat.type/nil`). Judged in-scope, not a STOP: the test is a roundtrip of the FIXTURE'S OWN source
+(a `.wat`/`.wat.bad` fixture legitimately converted by this stone's codemod) back to EDN — the
+`:node` field is showing exactly what is now IN the fixture, which is the intended, correct effect
+of the conversion, not an unrelated golden's content being disturbed. Confirmed by: after
+recapture, `actual == golden` (the test passes cleanly; nothing needed forcing).
+
+**3 more recaptured by hand** (the macro used, `assert_edn_eq!(out, include_str!(...))`, has no
+`UPDATE_EDN` support — `run_check`'s exact `wat --check <fixture>` command reproduced directly,
+diffed against the existing golden to confirm position-only, then the golden file overwritten with
+the new `wat --check` output verbatim):
+
+| test | file | old → new position |
+|---|---|---|
+| `probe_arc255_register_variant_is_its_own_door::defn_then_variant_ctor_collide_at_check` | `tests/resolve/probe_arc255_register_variant_is_its_own_door__defn_then_variant.edn` | `:end.col` 61 → 58 |
+| `probe_arc255_register_variant_is_its_own_door::variant_ctor_then_defn_collide_at_check` | `tests/resolve/probe_arc255_register_variant_is_its_own_door__variant_then_defn.edn` | `:end.col` 61 → 58 |
+| `probe_arc255_register_variant_is_its_own_door::a_defn_with_a_dotted_name_is_still_refused_end_to_end` | `tests/resolve/probe_arc255_register_variant_is_its_own_door__dotted_defn.edn` | `:end.col` 61 → 58 |
+
+**4 more, same manual method, other file:**
+
+| test | file | old → new position |
+|---|---|---|
+| `probe_arc255_the_reserved_prefix_wall_is_not_the_blanket::a_user_defn_may_not_claim_a_wat_name` | `tests/resolve/probe_arc255_the_reserved_prefix_wall_is_not_the_blanket__defn_wat.edn` | `:end.col` 62 → 59 |
+| `probe_arc255_the_reserved_prefix_wall_is_not_the_blanket::a_user_defn_may_not_claim_a_rust_name` | `tests/resolve/probe_arc255_the_reserved_prefix_wall_is_not_the_blanket__defn_rust.edn` | `:end.col` 60 → 57 |
+| `probe_arc255_the_reserved_prefix_wall_is_not_the_blanket::a_user_defstruct_may_not_claim_a_wat_name` | `tests/resolve/probe_arc255_the_reserved_prefix_wall_is_not_the_blanket__defstruct_wat.edn` | `:end.col` 67 → 64 |
+| `probe_arc255_the_reserved_prefix_wall_is_not_the_blanket::a_user_typealias_may_not_claim_a_wat_name` | `tests/resolve/probe_arc255_the_reserved_prefix_wall_is_not_the_blanket__typealias_wat.edn` | `:end.col` 60 → 57 |
+
+25 + 3 + 4 = 32. Every recapture individually diff-reviewed before being trusted; none showed a
+message, kind, or name change — only the numeric position (and, for the one AST-roundtrip test,
+the fixture's own intended spelling reflected verbatim).
+
+### STOP-1 — `probe_arc283_1_rename_typearg::rename_reaches_type_arguments` — more than a position changed, not touched
+
+```
+thread 'probe_arc283_1_rename_typearg::rename_reaches_type_arguments' (4131304) panicked at /home/john/work/holon/wat-rs/tests/types/probe_arc283_1_rename_typearg.rs:25:5:
+assertion `left == right` failed
+  left: "(:wat::core::defn :u::f [xs <- (:wat::core::Vector :- [:t::New]) y <- :t::OldExtra] -> :t::New (:t::New/make xs))"
+ right: "(:wat::core::defn :u::f [xs <- (wat.type/Vector :- [:t::New]) y <- :t::OldExtra] -> :t::New (:t::New/make xs))"
+```
+
+This is NOT an EDN position golden — it's `assert_eq!` on a plain STRING, the output of
+`:wat::fix::rename-keyword-prefix` run over a raw string LITERAL embedded in
+`tests/types/probe_arc283_1_rename_typearg.wat` (`":t::Old"` → `":t::New"`, simulating a
+text-level rename, deliberately using the OLD `:wat::core::Vector` spelling inside a Rust STRING
+argument — opaque text, never touched by the type-position codemod, and correctly still
+`:wat::core::Vector` in `left`/actual). The golden file
+`tests/types/probe_arc283_1_rename_typearg__renamed.wat`, however, IS a `.wat` file matching the
+corpus glob, and the 2513-file conversion (`fd04778e4`) rewrote ITS OWN top-level AST content
+(`:wat::core::Vector` → `wat.type/Vector`, confirmed via `git show fd04778e4 -- <that path>`) —
+even though this file's actual JOB is to be the byte-exact STRING golden of the rename tool's
+output on unrelated text, not a type-checked program whose own annotations should track the
+`wat.type/` migration. The corpus conversion touching this file was collateral, not intentional:
+`right`/golden now disagrees with `left`/actual because the GOLDEN was mutated, not because the
+tool's behavior changed. This is squarely **STOP-1** ("a golden where more than a position
+changed") — the entire type spelling changed, not a byte offset, and unlike every other case
+above, `actual` here is NOT the corrected value to capture (capturing it would launder the
+codemod's collateral damage into a permanent, correct-looking golden). **Left untouched, still
+RED, reported per doctrine — a call for the builder**: either exempt this one golden file from
+future corpus-wide codemod runs (it is not "wat source" in the normal sense, it's comparison
+data), or restore its `:wat::core::Vector` spelling by hand with a note explaining why it is
+exempt.
+
+## Gates (AMEND-2, this agent)
+
+**`cargo clippy --release --all-targets -- -D warnings`**: clean, rc 0 (run twice — after the B/C
+fix and again after the final state).
+
+**`scripts/replay/census.sh --diff .census/2026-09-28T04-23-04Z.txt .census/2026-09-28T06-55-45Z.txt <owned>`**
+(owned = the union of `wat/**/*.wat` and the 2513-file "rest of corpus" list, same derivation as
+the prior agent's run): `census-diff: no STOP-8`, exit 0.
+
+**`scripts/replay/delta.sh`** (its own default 179-file canary + `to-faithful-clojure.wat`,
+unrelated to this stone's codemod):
+```
+  ORIG-CLEAN  160/179
+  CONV-CLEAN  158/179
+  NEW         2   (orig clean -> converted broken)
+  RECOVERY    0   (orig broken -> converted clean)
+
+NEW files:
+  wat-scripts/probes/arc-170/probe-c1-clean-surface.wat
+  wat/holon/Ngram.wat
+```
+RECOVERY 0. Identical to the prior agent's independently-verified run (same 2 NEW files, same
+root causes — a stdlib-vs-live-copy `DuplicateMacro` collision in the delta harness itself, and 5
+pre-existing type-check errors including `UnknownCallee :robe/work::kwargs-check` — neither has
+anything to do with `wat.type/`).
+
+**`scripts/floor.sh`, first run (after the B/C/A cures, before the self-correction below):**
+```
+Summary [ 376.710s] 6213 tests run: 6159 passed (20 slow), 54 failed, 24 skipped
+```
+`.floor/2026-09-28T06-37-21Z`, exit=100. Not re-run. 53 of the 54 traced to the
+`parse_extend_type_form` self-correction (above: the List arm was deleted, not added-alongside);
+the 54th (`keyword_heresy_ledger::the_heresy_ledger_matches_its_frozen_census`) is the ledger's
+own ratchet correctly firing on the `eval_holon_from_holon` cure (a row went from 1 occurrence to
+0 — "the good direction", per the gate's own message — requiring `LEDGER_TOTAL`/the row updated by
+hand, done above).
+
+**`scripts/floor.sh`, final run (after the self-correction and the ledger update):**
+```
+Summary [ 377.758s] 6213 tests run: 6212 passed (21 slow), 1 failed, 24 skipped
+```
+`.floor/2026-09-28T06-49-04Z`, exit=100. The one failure is the STOP-1 case above,
+`probe_arc283_1_rename_typearg::rename_reaches_type_arguments`, reported and left untouched per
+doctrine — every other test in the 6213-test suite is green, including all of B, C, and 32 of A.
