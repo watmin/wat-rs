@@ -1,0 +1,451 @@
+diff --git a/crates/wat-doc/src/lib.rs b/crates/wat-doc/src/lib.rs
+index 94588ff31..6817d7e28 100644
+--- a/crates/wat-doc/src/lib.rs
++++ b/crates/wat-doc/src/lib.rs
+@@ -456,6 +456,20 @@ fn type_token_is_expressible(token: &str) -> bool {
+     wat_reader::parse_one_with_file(token, "<wat-doc @arg/@ret type token>").is_ok()
+ }
+ 
++/// A type token may be a keyword, a `(…)` / `[…]` form, or a namespaced
++/// symbol (`wat.type/i64`, `wat.core/Option`, `u/Person`). A bare symbol
++/// (`Bytes`) stays refused.
++fn type_token_shape_ok(token: &str) -> bool {
++    token.starts_with(':')
++        || token.starts_with('(')
++        || token.starts_with('[')
++        || (token.contains('/')
++            && matches!(
++                wat_reader::parse_one_with_file(token, "<wat-doc type token>"),
++                Ok(wat_reader::WatAST::Symbol(_, _))
++            ))
++}
++
+ /// Parse an `@example`/`@example-norun` payload slice (the text left or right
+ /// of `#=>`) as a single, complete wat form — the SAME reader every other
+ /// verb's own source goes through (mirrors [`type_token_is_expressible`]'s
+@@ -638,7 +652,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
+                 // REFERENCE `(Head :- [args])`, or a fn type `[arg… :-> ret]`.
+                 // Those are still gated by the reader check just below; this
+                 // clause only rules out a BARE non-keyword symbol like `Bytes`.
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@arg".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::Bytes`); grammar is `@arg <name> <type> <desc>`",
+@@ -690,7 +704,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
+                 // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
+                 // still gated by the reader check just below; this clause
+                 // only rules out a BARE non-keyword symbol like `Bytes`.
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@ret".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
+@@ -1031,7 +1045,18 @@ fn enum_symbol_variant(v: &WatAST, wat_type_path: &str) -> Option<String> {
+     // variant. A converted axis value is the symbol `wat.runtime/Purity.Pure`,
+     // the same identity as `:wat::runtime::Purity.Pure`.
+     match v {
+-        WatAST::Keyword(k, _) => enum_symbol_leaf(k, wat_type_path),
++        WatAST::Keyword(k, _) => {
++            // `:wat.runtime/Purity.Pure` is the same axis value as
++            // `:wat::runtime::Purity.Pure`. The slash form carries no `::`.
++            let normalized = match k.strip_prefix(':').unwrap_or(k).split_once('/') {
++                Some((ns, name)) if !k.contains("::") => {
++                    // rune:lint(one-variant-separator, namespace) — clojure ns dots to `::`, same as ns_to_wat_path
++                    format!(":{}::{}", ns.replace('.', "::"), name)
++                }
++                _ => k.clone(),
++            };
++            enum_symbol_leaf(&normalized, wat_type_path)
++        }
+         WatAST::Symbol(id, _) if id.as_str().contains('/') => {
+             let ns = wat_reader::identifier::receiver(id.as_str());
+             let name = wat_reader::identifier::method(id.as_str());
+@@ -1486,7 +1511,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
+                 // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
+                 // still gated by the reader check just below; this clause
+                 // only rules out a BARE non-keyword symbol like `Bytes`.
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@arg".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::Bool`); grammar is `@arg <name> <type> <desc>`",
+@@ -1529,7 +1554,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
+                         why: "separator used in type position; grammar is `@ret <type> <desc>`",
+                     });
+                 }
+-                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
++                if !type_token_shape_ok(ty_token) {
+                     return Err(DocError::MalformedDirective {
+                         tag: "@ret".into(),
+                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
+diff --git a/crates/wat-macros/src/edn_doc.rs b/crates/wat-macros/src/edn_doc.rs
+index dbe26e84c..ff5c2269e 100644
+--- a/crates/wat-macros/src/edn_doc.rs
++++ b/crates/wat-macros/src/edn_doc.rs
+@@ -278,12 +278,21 @@ fn fqdn_of(ns: Option<&str>, name: &str) -> String {
+                     // it: this is the site the dot flip's corpus codemod could never reach,
+                     // because it lives in a `.rs` doc block rather than a `.wat` file. It was
+                     // runed `edn` for what the FUNCTION does while the LINE composes a variant.
+-                    return wat_reader::identifier::compose_variant(&format!(":{wat_ns}"), name);
++                    // `:wat.runtime/Purity.Pure`. `compose_variant` joins the variant
++                    // with `.`. The namespace stays dotted; a `::` namespace would
++                    // survive into the keyword.
++                    let (ns_dots, type_name) = ns.rsplit_once('.').unwrap_or(("", ns));
++                    let enum_path = if ns_dots.is_empty() {
++                        format!(":{type_name}")
++                    } else {
++                        format!(":{ns_dots}/{type_name}")
++                    };
++                    return wat_reader::identifier::compose_variant(&enum_path, name);
+                 }
+             }
+             // rune:lint(one-variant-separator, edn) — final reassembly of the translated wat
+             // FQDN for the plain (non-Type/method) case, completing the EDN→wat translation.
+-            format!(":{wat_ns}::{name}")
++            format!(":{ns}/{name}")
+         }
+         None => format!(":{name}"),
+     }
+@@ -541,7 +550,7 @@ mod tests {
+             parse_edn_doc_row(r#"#wat.doc/Row {:purity :wat.runtime.Purity/Pure}"#).expect("parses");
+         match ast {
+             WatAST::Map(pairs, _) => match &pairs[0].1 {
+-                WatAST::Keyword(k, _) => assert_eq!(k, ":wat::runtime::Purity.Pure"),
++                WatAST::Keyword(k, _) => assert_eq!(k, ":wat.runtime/Purity.Pure"),
+                 other => panic!("unexpected: {other:?}"),
+             },
+             other => panic!("expected a Map, got {other:?}"),
+diff --git a/src/check.rs b/src/check.rs
+index 7ea507c47..74c3ba26c 100644
+--- a/src/check.rs
++++ b/src/check.rs
+@@ -21494,6 +21494,12 @@ fn register_builtins(env: &mut CheckEnv) {
+         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+         type_param_bounds: vec![],
+         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
++    // 255.64 — the codemod asks the builtin registration which type keywords
++    // spell `wat.type/…`. Empty string means "not language-provided".
++    env.register(":wat::keyword::language-provided-spelling".into(), TypeScheme {
++        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
++        type_param_bounds: vec![],
++        ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
+     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
+     // Each looks up the calling thread's per-service channel handles
+     // from a thread-local cell and runs the mini-TCP block-on-
+diff --git a/src/edn/render.rs b/src/edn/render.rs
+index 4a4306d06..5992fdd12 100644
+--- a/src/edn/render.rs
++++ b/src/edn/render.rs
+@@ -1552,6 +1552,52 @@ pub fn eval_keyword_to_symbol(
+     ))
+ }
+ 
++/// `(wat.keyword/language-provided-spelling <keyword-node>)` → `wat.type/…`
++/// or `""`. The argument is evaluated, same as `to-symbol`: the codemod passes
++/// a node binding, not a keyword literal.
++pub fn eval_language_provided_spelling(
++    args: &[WatAST],
++    list_span: &crate::span::Span,
++    env: &Environment,
++    sym: &SymbolTable,
++) -> Result<crate::value::TrackedValue, RuntimeError> {
++    const OP: &str = ":wat::keyword::language-provided-spelling";
++    let v = require_one_arg(OP, args, env, sym, list_span)?;
++    let name = match &v {
++        Value::wat__WatAST(a) => match a.as_ref() {
++            WatAST::Keyword(s, _) => s.clone(),
++            WatAST::Symbol(id, _) => id.as_str().to_string(),
++            _ => {
++                return Err(RuntimeError::new(
++                    list_span.clone(),
++                    RuntimeErrorKind::MalformedForm {
++                        head: OP.into(),
++                        reason: "language-provided-spelling requires a Keyword or Symbol node".to_string(),
++                    },
++                ))
++            }
++        },
++        other => {
++            return Err(RuntimeError::new(
++                list_span.clone(),
++                RuntimeErrorKind::TypeMismatch {
++                    op: OP.into(),
++                    expected: ":wat::WatAST",
++                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
++                },
++            ))
++        }
++    };
++    let surface = crate::types::language_provided_surface(&name).unwrap_or_default();
++    Ok(crate::value::TrackedValue::new(
++        Value::String(std::sync::Arc::new(surface)),
++        crate::value::Provenance::RuntimeBuilt {
++            producer: OP,
++            call_span: list_span.clone(),
++        },
++    ))
++}
++
+ /// Arc 109 Stone ②-i — head-spelling mode for [`type_expr_to_clojure_form`]. Threaded through
+ /// the 4-way ladder (the `Path` arm and the `Parametric` head arm) so the SAME renderer serves
+ /// both spellings — a second copy is how the two spellings drift apart (DESIGN-STONE-2, "do not
+@@ -3693,8 +3739,18 @@ pub(crate) fn canonical_identity(s: &str) -> String {
+ pub(crate) fn type_denotation(s: &str) -> String {
+     let id = canonical_identity(s);
+     if let Some(tail) = id.strip_prefix(":wat::type::") {
+-        // rune:lint(one-variant-separator, namespace) — wat.type member → core denotation
+-        return format!(":wat::core::{tail}");
++        // Inverse of `language_provided_surface` for the builtin leaves whose
++        // canonical key is not `:wat::core::{tail}`. Core leaves (i64, Vector,
++        // …) take the default below. These three are the registration's
++        // non-core leaves that the surface still spells `wat.type/…`:
++        // `:wat::WatAST`, `:wat::time::Instant`, `:wat::time::Duration`.
++        // rune:lint(one-variant-separator, namespace) — wat.type member → its registered key
++        return match tail {
++            "AST" => ":wat::WatAST".to_string(),
++            "Instant" => ":wat::time::Instant".to_string(),
++            "Duration" => ":wat::time::Duration".to_string(),
++            _ => format!(":wat::core::{tail}"),
++        };
+     }
+     id
+ }
+diff --git a/src/intrinsic/keyword.rs b/src/intrinsic/keyword.rs
+index 4afcedd0d..2c9ac5053 100644
+--- a/src/intrinsic/keyword.rs
++++ b/src/intrinsic/keyword.rs
+@@ -203,3 +203,37 @@ pub(crate) fn eval_keyword_to_type_form_colon_home(
+     crate::edn::render::eval_keyword_to_type_form_colon(std::slice::from_ref(kw_node), span, env, sym)
+         .map_err(Into::into)
+ }
++
++/// `(wat.keyword/language-provided-spelling kw-node)` → the `wat.type/…`
++/// surface when `kw-node` names a language-provided type, else `""`.
++///
++/// The answer is `TypeEnv::classify` on `TypeEnv::with_builtins`: Builtin
++/// leaves in `wat::core` and `wat::time`, and `:wat::WatAST` → `wat.type/AST`.
++/// A declared type (`wat.core/Option`) and a subsystem builtin
++/// (`wat.holon/HolonAST`) return empty. The codemod does not carry its own list.
++///
++/// @added         1.0.0
++/// @Purity        Pure
++/// @Determinism   Deterministic
++/// @Totality      Total
++/// @ExpandTime    Legal
++/// @Category      Transform
++/// @arg     kw_node wat.type/AST a Keyword form node
++/// @ret     wat.type/String the surface spelling, or empty
++/// @example (wat.keyword/language-provided-spelling (wat.core/keyword-node ":wat::core::i64")) #=> "wat.type/i64"
++/// @example (wat.keyword/language-provided-spelling (wat.core/keyword-node ":wat::core::Option")) #=> ""
++#[wat_intrinsic(":wat::keyword::language-provided-spelling")]
++pub(crate) fn eval_keyword_language_provided_spelling(
++    kw_node: &WatAST,
++    _env: &Environment,
++    _sym: &SymbolTable,
++    span: &Span,
++) -> Result<TrackedValue, EvalBreak> {
++    crate::edn::render::eval_language_provided_spelling(
++        std::slice::from_ref(kw_node),
++        span,
++        _env,
++        _sym,
++    )
++    .map_err(Into::into)
++}
+diff --git a/src/macros/eval.rs b/src/macros/eval.rs
+index e13583525..3de490220 100644
+--- a/src/macros/eval.rs
++++ b/src/macros/eval.rs
+@@ -148,9 +148,31 @@ pub(super) fn macro_eval_pre_validated(
+ ///   - same unquote forms at depth > 1 → peel depth, recurse (still inside a
+ ///     nested quasiquote; E is data at this level)
+ ///   - everything else → recurse `validate_quasiquote_template` (template data)
++fn binder_token(node: &WatAST) -> bool {
++    match node {
++        WatAST::Keyword(k, _) => k == ":-",
++        WatAST::Symbol(id, _) => id.as_str() == ":-",
++        _ => false,
++    }
++}
++
++/// P1: `(Head :- […])` is a type, never a call. Three children, nothing after
++/// the bracket — a value constructor has more children and stays a call.
++fn is_type_form(items: &[WatAST]) -> bool {
++    items.len() == 3 && binder_token(&items[1]) && matches!(items[2], WatAST::Vector(_, _))
++}
++
+ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
+     match form {
+         WatAST::List(items, span) => {
++            // P1 — a type form is not a call. Recurse so a nested type is
++            // also a type. The head is not asked of the F5 gate.
++            if is_type_form(items) {
++                for child in items {
++                    validate_pure_total(child)?;
++                }
++                return Ok(());
++            }
+             // 255.10 — the head is a NAME, and this is the DEFAULT-DENY F5 gate. Reading
+             // only the keyword spelling meant a faithful-Clojure macro body dropped
+             // STRAIGHT THROUGH to the `None` arm below and was never checked against the
+diff --git a/src/macros/parse.rs b/src/macros/parse.rs
+index 53dc17429..ac93c5bdd 100644
+--- a/src/macros/parse.rs
++++ b/src/macros/parse.rs
+@@ -207,11 +207,19 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError>
+     // time, not a confusing failure (or silent wrong behaviour) at first expansion.
+     use crate::types::TypeExpr;
+     fn is_watast(ty: &TypeExpr) -> bool {
+-        matches!(ty, TypeExpr::Path(p) if p == ":wat::WatAST")
++        // `wat.type/AST` denotes `:wat::WatAST`. The stored path is whichever
++        // spelling parse kept; the door is the comparison.
++        matches!(ty, TypeExpr::Path(p) if p == ":wat::WatAST"
++            || crate::edn::render::type_denotation(p) == ":wat::WatAST")
+     }
+     fn is_watast_vec(ty: &TypeExpr) -> bool {
++        // `wat.type/Vector` is stored as head `wat::type::Vector` (parse does
++        // not denotate a parametric head). The door maps both heads to
++        // `:wat::core::Vector`.
+         matches!(ty, TypeExpr::Parametric { head, args }
+-            if head == "wat::core::Vector" && args.len() == 1 && is_watast(&args[0]))
++            if crate::edn::render::type_denotation(head) == ":wat::core::Vector"
++                && args.len() == 1
++                && is_watast(&args[0]))
+     }
+     for (ident, ty) in &spec.fixed_params {
+         if !is_watast(ty) {
+diff --git a/src/types.rs b/src/types.rs
+index 77433da3e..834676851 100644
+--- a/src/types.rs
++++ b/src/types.rs
+@@ -1011,6 +1011,33 @@ impl TypeEnv {
+         !matches!(self.classify(kw), TypeMembership::Unknown)
+     }
+ 
++    /// Flat `wat.type/` surface for a language-provided type: a builtin leaf
++    /// (this registry, `classify` == Builtin, no wat `TypeDef`) in the
++    /// `wat::core` or `wat::time` namespace, plus the syntax tree
++    /// `:wat::WatAST` which the surface spells `wat.type/AST`. Declared types
++    /// (`Option`, `Result`, every `defenum`) return `None` — they keep the
++    /// namespace that declared them. Subsystem builtins (`HolonAST`, `Peer`,
++    /// `Stream`) return `None` for the same reason: their namespace is the name.
++    /// `Tuple` is not in this registry (TABLE-STONE-Q) and returns `None`.
++    pub(crate) fn language_provided_surface_in(&self, name: &str) -> Option<String> {
++        let id = crate::edn::render::canonical_identity(name);
++        if !matches!(self.classify(&id), TypeMembership::Builtin) {
++            return None;
++        }
++        if id == ":wat::WatAST" {
++            return Some("wat.type/AST".to_string());
++        }
++        for prefix in [":wat::core::", ":wat::time::"] {
++            if let Some(tail) = id.strip_prefix(prefix) {
++                if tail.is_empty() || tail.contains(':') {
++                    return None;
++                }
++                return Some(format!("wat.type/{tail}"));
++            }
++        }
++        None
++    }
++
+     #[cfg(test)]
+     pub(crate) fn builtin_leaf_names(&self) -> impl Iterator<Item = &String> {
+         self.builtin_names.iter()
+@@ -1933,6 +1960,38 @@ pub(crate) fn generic_edge_matches<'e>(
+         .collect()
+ }
+ 
++/// Process-wide `TypeEnv::with_builtins` for the codemod. The set is the
++/// registration, built once per thread.
++pub(crate) fn language_provided_surface(name: &str) -> Option<String> {
++    use std::cell::{Cell, RefCell};
++    thread_local! {
++        static BUILDING: Cell<bool> = const { Cell::new(false) };
++        static BUILTINS: RefCell<Option<TypeEnv>> = const { RefCell::new(None) };
++    }
++    // `TypeEnv::with_builtins` parses declarations, and that parse asks this
++    // function. A re-entrant ask is "not yet" — the registry is not finished —
++    // rather than a second build.
++    if BUILDING.with(|c| c.get()) {
++        return None;
++    }
++    let cached = BUILTINS.with(|slot| slot.borrow().clone());
++    let env = if let Some(env) = cached {
++        env
++    } else {
++        BUILDING.with(|c| c.set(true));
++        let env = TypeEnv::with_builtins();
++        BUILDING.with(|c| c.set(false));
++        BUILTINS.with(|slot| {
++            let mut guard = slot.borrow_mut();
++            if guard.is_none() {
++                *guard = Some(env.clone());
++            }
++        });
++        env
++    };
++    env.language_provided_surface_in(name)
++}
++
+ fn bounds_same(a: &[Option<TypeExpr>], b: &[Option<TypeExpr>]) -> bool {
+     a.len() == b.len()
+         && a.iter().zip(b).all(|(x, y)| match (x, y) {
+@@ -6458,6 +6517,30 @@ pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<Typ
+ ///
+ /// Any other node variant → `TypeError::MalformedTypeExpr` with a
+ /// descriptive reason.
++const F1_WALL: bool = true;
++
++fn forbidden_language_type_symbol(spelling: &str) -> Option<String> {
++    if !F1_WALL {
++        return None;
++    }
++    let surface = language_provided_surface(spelling)?;
++    if spelling == surface {
++        None
++    } else {
++        Some(surface)
++    }
++}
++
++fn core_type_in_type_position(spelling: &str, surface: &str, span: &Span) -> TypeError {
++    TypeError::new(
++        span.clone(),
++        TypeErrorKind::MalformedTypeExpr {
++            raw: spelling.into(),
++            reason: format!("type position refuses {spelling}; write {surface}"),
++        },
++    )
++}
++
+ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
+     match node {
+         WatAST::Keyword(kw, span) => parse_type_expr_with_span(kw, span),
+@@ -6467,6 +6550,9 @@ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
+             // mapping — `ns_to_wat_path`, the same path `normalize_symbol_refs` uses —
+             // then parse. (Single source: do NOT reinvent the `a.b/c`→`:a::b::c` rule.)
+             let s = ident.as_str();
++            if let Some(surface) = forbidden_language_type_symbol(s) {
++                return Err(core_type_in_type_position(s, &surface, span));
++            }
+             let kw = if s.contains('/') {
+                 crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method())
+             } else {
+@@ -6579,11 +6665,14 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
+     // Mirrors the <> arm in parse_type_inner which stores `raw_head = s[..lt_index]`
+     // (the FQDN before `<`, no colon). We must produce the SAME string for unification.
+     let raw_head: String = match &items[0] {
+-        WatAST::Symbol(ident, _) => {
++        WatAST::Symbol(ident, span_head) => {
+             // Pre-normalize symbol `wat.type/Vector` → keyword FQDN via the ONE
+             // canonical mapping (`ns_to_wat_path`), then strip the leading `:` for the
+             // bare head-storage convention. (Single source — no reinvented `.`/`/` rule.)
+             let s = ident.as_str();
++            if let Some(surface) = forbidden_language_type_symbol(s) {
++                return Err(core_type_in_type_position(s, &surface, span_head));
++            }
+             if s.contains('/') {
+                 let kw = crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
+                 kw.strip_prefix(':').unwrap_or(&kw).to_string()
