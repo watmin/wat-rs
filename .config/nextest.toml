@@ -574,3 +574,22 @@ slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
 [[profile.slow.overrides]]
 filter = 'test(/^rete::reachability::reachability_shard_/)'
 slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+# ─── probe_ex003_hashability_looks_inside::no_rust_panic_face_reaches_the_user (excursus 003, 2026-09-28) ───
+# Spawns 25 `wat` processes. Measured 28.1–28.5s on every floor through 2026-09-28T01-33 (94% of
+# the 30s kill), then 29.3–29.6s after sweep S1, then 30.01s (killed) with S2. The rise is REAL, not
+# noise: each declared stdlib record adds ~0.8ms to every process start (hello-world, 6 samples
+# each, idle box: 615–676ms at 80517341f vs 682–717ms with S2's tree). That cost is surfaced as its
+# own finding in the excursus — this override does not dispose of it. Builder ruling for timing-bound
+# tests: raise the limit. warn 60s, kill 120s; one per profile (overrides do not inherit).
+[[profile.default.overrides]]
+filter = 'test(=probe_ex003_hashability_looks_inside::no_rust_panic_face_reaches_the_user)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+[[profile.ci.overrides]]
+filter = 'test(=probe_ex003_hashability_looks_inside::no_rust_panic_face_reaches_the_user)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
+
+[[profile.slow.overrides]]
+filter = 'test(=probe_ex003_hashability_looks_inside::no_rust_panic_face_reaches_the_user)'
+slow-timeout = { period = "60s", terminate-after = 2 }   # warn 60s, kill 120s
