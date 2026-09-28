@@ -1,0 +1,15 @@
+diff --git a/src/macros/parse.rs b/src/macros/parse.rs
+index 53dc17429..52a2a39f6 100644
+--- a/src/macros/parse.rs
++++ b/src/macros/parse.rs
+@@ -211,7 +211,9 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError>
+     }
+     fn is_watast_vec(ty: &TypeExpr) -> bool {
+         matches!(ty, TypeExpr::Parametric { head, args }
+-            if head == "wat::core::Vector" && args.len() == 1 && is_watast(&args[0]))
++            if (head == "wat::core::Vector" || head == "wat::type::Vector")
++                && args.len() == 1
++                && is_watast(&args[0]))
+     }
+     for (ident, ty) in &spec.fixed_params {
+         if !is_watast(ty) {
