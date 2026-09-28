@@ -247,3 +247,127 @@ fn str_val(s: &str) -> OwnedValue {
     OwnedValue::String(Cow::Owned(s.to_owned()))
 }
 
+// ─── Excursus 003 sweep S3 — the macro taxonomy's declaration gates ──────────
+//
+// G-list, G-strict (per the brief's per-strike gate list;
+// docs/excursus/2026/09/003-the-little-wat-findings/
+// BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md), the same
+// shape S1/S2 used.
+//
+// G-mirror (no golden moved) is a `git diff --stat -- '*.edn'` check, not a
+// Rust assertion — stated in the strike report, not here.
+#[cfg(test)]
+mod excursus_003_s3_gates {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use crate::edn::contract::WatError;
+    use crate::edn::render::decode_trusted_wire;
+    use crate::macros::error::{MacroError, MacroErrorKind};
+    use crate::runtime::{RuntimeError, RuntimeErrorKind};
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn s() -> Span {
+        Span::new(Arc::new("test.wat".to_string()), 1, 0)
+    }
+
+    /// One instance of every `MacroErrorKind` variant (16, measured against
+    /// `src/macros/error.rs:42`), paired with its Rust variant name — the
+    /// same name `error_edn()` tags it with on the wire (`#wat.macro/<Name>`).
+    fn all_variants() -> Vec<(&'static str, MacroErrorKind)> {
+        vec![
+            ("DuplicateMacro", MacroErrorKind::DuplicateMacro("my-macro".into())),
+            ("ReservedPrefix", MacroErrorKind::ReservedPrefix(":wat::my-thing".into())),
+            ("UnnamespacedName", MacroErrorKind::UnnamespacedName("x".into())),
+            ("DottedName", MacroErrorKind::DottedName(":user::x.y".into())),
+            ("MalformedDefmacro", MacroErrorKind::MalformedDefmacro { reason: "missing name".into() }),
+            ("ArityMismatch", MacroErrorKind::ArityMismatch { name: "my-macro".into(), expected: 2, got: 3 }),
+            ("ArityTooFew", MacroErrorKind::ArityTooFew { name: "my-macro".into(), minimum: 1, got: 0 }),
+            ("UnboundMacroParam", MacroErrorKind::UnboundMacroParam { name: "x".into() }),
+            ("SpliceNotSequence", MacroErrorKind::SpliceNotSequence { name: "items".into(), got: "String" }),
+            ("ExpansionDepthExceeded", MacroErrorKind::ExpansionDepthExceeded { limit: 64 }),
+            ("MalformedTemplate", MacroErrorKind::MalformedTemplate { reason: "unexpected form".into() }),
+            ("RefusedInMacro", MacroErrorKind::RefusedInMacro { head: ":wat::kernel::println".into() }),
+            ("ExpandOnlyOutsideMacro", MacroErrorKind::ExpandOnlyOutsideMacro { head: ":wat::kernel::internal-only".into() }),
+            ("ProgramBodyIntroducesName", MacroErrorKind::ProgramBodyIntroducesName {
+                macro_name: "my-loop".into(), binder: "i".into(),
+            }),
+            ("ProgramBodyEvalFailed", MacroErrorKind::ProgramBodyEvalFailed {
+                macro_name: "my-macro".into(),
+                cause: Box::new(MacroError {
+                    span: Span::new(Arc::new("inner.wat".to_string()), 3, 1),
+                    kind: MacroErrorKind::MalformedTemplate { reason: "bad form".into() },
+                }),
+            }),
+            ("MacroEvalRuntimeFailed", MacroErrorKind::MacroEvalRuntimeFailed {
+                cause: Box::new(RuntimeError::new(
+                    Span::new(Arc::new("rt.wat".to_string()), 7, 3),
+                    RuntimeErrorKind::UnboundSymbol("foo".into()),
+                )),
+            }),
+        ]
+    }
+
+    /// Scan `wat/macro-errors.wat`'s OWN source for every top-level
+    /// `(:wat::core::defrecord :wat::macro::<Name> ...)` form.
+    fn declared_macro_kind_names() -> BTreeSet<String> {
+        let src = include_str!("../../wat/macro-errors.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/macro-errors.wat")
+            .expect("wat/macro-errors.wat must parse");
+        let mut names = BTreeSet::new();
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defrecord" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            let Some(bare) = name.as_str().strip_prefix(":wat::macro::") else { continue };
+            names.insert(bare.to_string());
+        }
+        names
+    }
+
+    /// G-list — the declaration is the list. The set of tags `error_edn()`
+    /// produces for `all_variants()` must equal the set of `defrecord
+    /// :wat::macro::*` names in `wat/macro-errors.wat`.
+    ///
+    /// Mutation (recorded in the strike report): add a stray
+    /// `(:wat::core::defrecord :wat::macro::Bogus [])` to
+    /// `wat/macro-errors.wat` — RED (declared has an extra name `produced`
+    /// never names).
+    #[test]
+    fn g_list_declaration_is_the_list() {
+        let produced: BTreeSet<String> = all_variants().iter().map(|(name, _)| name.to_string()).collect();
+        let declared = declared_macro_kind_names();
+        assert_eq!(
+            produced, declared,
+            "declared `:wat::macro::<Kind>` records in wat/macro-errors.wat must equal the \
+             MacroErrorKind tags error_edn() produces"
+        );
+    }
+
+    /// G-strict — every declared kind decodes typed, including the two
+    /// nested-cause variants (`ProgramBodyEvalFailed`, self-referential to
+    /// this very taxonomy; `MacroEvalRuntimeFailed`, whose `RuntimeErrorKind`
+    /// cause was already fully declared in step 3a).
+    ///
+    /// Mutation (recorded in the strike report): comment out one
+    /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::macro::
+    /// ArityMismatch`) — RED, and the assertion message names `ArityMismatch`.
+    #[test]
+    fn g_strict_every_declared_kind_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        for (name, kind) in all_variants() {
+            let err = MacroError { span: s(), kind };
+            let wire = wat_edn::write(&err.error_edn());
+            let decoded = decode_trusted_wire(&wire, Some(&types), None);
+            assert!(
+                decoded.is_ok(),
+                "{name}: decode_trusted_wire(error_edn()) must succeed as a typed record; got {decoded:?}"
+            );
+        }
+    }
+}
+

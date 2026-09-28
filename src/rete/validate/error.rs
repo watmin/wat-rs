@@ -727,3 +727,183 @@ pub(crate) fn malformed(span: Span, rule_name: &str, fact_type: &str, clause: &W
         },
     }
 }
+
+// ─── Excursus 003 sweep S3 — the rete taxonomy's declaration gates ───────────
+//
+// G-list, G-strict (per the brief's per-strike gate list;
+// docs/excursus/2026/09/003-the-little-wat-findings/
+// BRIEF-shape-sweep-every-startup-error-is-a-declared-record.md), the same
+// shape S1/S2 used.
+//
+// G-mirror (no golden moved) is a `git diff --stat -- '*.edn'` check, not a
+// Rust assertion — stated in the strike report, not here.
+#[cfg(test)]
+mod excursus_003_s3_gates {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use super::{ReteCheckError, ReteCheckErrorKind, ReteCheckErrors};
+    use crate::edn::contract::WatError;
+    use crate::edn::render::decode_trusted_wire;
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn s() -> Span {
+        Span::new(Arc::new("test.wat".to_string()), 1, 0)
+    }
+
+    /// One instance of every `ReteCheckErrorKind` variant (18, measured
+    /// against `src/rete/validate/error.rs:23`), paired with its Rust variant
+    /// name — the same name `error_edn()` tags it with on the wire
+    /// (`#wat.rete/<Name>`).
+    fn all_variants() -> Vec<(&'static str, ReteCheckErrorKind)> {
+        vec![
+            ("UnknownFactType", ReteCheckErrorKind::UnknownFactType {
+                rule: "r1".into(), fact_type: "evt::Req".into(),
+            }),
+            ("MalformedClause", ReteCheckErrorKind::MalformedClause {
+                rule: "r1".into(), fact_type: "evt::Req".into(), clause: "(bogus)".into(),
+            }),
+            ("UnknownField", ReteCheckErrorKind::UnknownField {
+                rule: "r1".into(), fact_type: "evt::Req".into(), field: "ghost".into(),
+                available_fields: vec!["k".into(), "grade".into()],
+            }),
+            ("UnknownEnumVariant", ReteCheckErrorKind::UnknownEnumVariant {
+                rule: "r1".into(), fact_type: "evt::Req".into(), enum_path: "evt::G".into(),
+                variant: "Hii".into(), available_variants: vec!["Hi".into(), "Lo".into()],
+            }),
+            ("RhsArityMismatch", ReteCheckErrorKind::RhsArityMismatch {
+                rule: "r1".into(), fact_type: "evt::Req".into(), expected: 2, got: 1,
+            }),
+            ("RhsUnresolvableOperand", ReteCheckErrorKind::RhsUnresolvableOperand {
+                rule: "r1".into(), fact_type: "evt::Req".into(), operand: "(:wat::core::+ ?a 1)".into(),
+                accepted: vec!["a literal".into(), "a `?var`".into()],
+            }),
+            ("RhsOperandTypeMismatch", ReteCheckErrorKind::RhsOperandTypeMismatch {
+                rule: "r1".into(), fact_type: "evt::Req".into(), field: "label".into(),
+                declared: "String".into(), actual: "i64".into(),
+            }),
+            ("RhsMissingFields", ReteCheckErrorKind::RhsMissingFields {
+                rule: "r1".into(), fact_type: "evt::Req".into(), missing: vec!["k".into()],
+            }),
+            ("RhsFieldTypeMismatch", ReteCheckErrorKind::RhsFieldTypeMismatch {
+                rule: "r1".into(), fact_type: "evt::Req".into(), field: "label".into(),
+                field_type: "String".into(), field_rete_type: "string".into(),
+                operand: "?n".into(), operand_type: "i64".into(),
+            }),
+            ("RhsPositionalConstructionRetired", ReteCheckErrorKind::RhsPositionalConstructionRetired {
+                rule: "r1".into(), fact_type: "evt::Req".into(), got: 2,
+            }),
+            ("NonReteConstraint", ReteCheckErrorKind::NonReteConstraint {
+                rule: "r1".into(), fact_type: "evt::Req".into(),
+                head: ":wat::core::>".into(), twin: ":wat::rete::i64::>".into(),
+            }),
+            ("ConstraintTypeMismatch", ReteCheckErrorKind::ConstraintTypeMismatch {
+                rule: "r1".into(), fact_type: "evt::Req".into(),
+                head: ":wat::rete::i64::>".into(), field: "location".into(),
+                op_type: "i64".into(), field_type: "String".into(),
+            }),
+            ("ConstraintTypeNotComparable", ReteCheckErrorKind::ConstraintTypeNotComparable {
+                rule: "r1".into(), fact_type: "evt::Req".into(), head: ":wat::rete::record::=".into(),
+                operand: ":box".into(), field_type: "evt::Box".into(),
+            }),
+            ("FenceConstraintTypeMismatch", ReteCheckErrorKind::FenceConstraintTypeMismatch {
+                rule: "r1".into(), head: ":wat::rete::i64::>".into(), operand: "?n".into(),
+                op_type: "i64".into(), operand_type: "String".into(),
+            }),
+            ("FenceConstraintTypeNotComparable", ReteCheckErrorKind::FenceConstraintTypeNotComparable {
+                rule: "r1".into(), head: ":wat::rete::record::=".into(), operand: ":box".into(),
+                operand_type: "evt::Box".into(),
+            }),
+            ("FenceBinderShadowsReteVar", ReteCheckErrorKind::FenceBinderShadowsReteVar {
+                rule: "r1".into(), form: "let".into(), binder: "?k".into(),
+            }),
+            ("UnconsumedWrapperBind", ReteCheckErrorKind::UnconsumedWrapperBind {
+                rule: "r1".into(), var: "?s".into(), fact_type: "evt::Req".into(),
+            }),
+            ("EscapedWrapperBind", ReteCheckErrorKind::EscapedWrapperBind {
+                rule: "r1".into(), var: "?s".into(), fact_type: "evt::Req".into(),
+            }),
+        ]
+    }
+
+    /// Scan `wat/rete-errors.wat`'s OWN source for every top-level
+    /// `(:wat::core::defrecord :wat::rete::<Name> ...)` form, excluding the
+    /// `ReteCheckErrors` aggregate (not a `ReteCheckErrorKind` variant).
+    fn declared_rete_kind_names() -> BTreeSet<String> {
+        let src = include_str!("../../../wat/rete-errors.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/rete-errors.wat")
+            .expect("wat/rete-errors.wat must parse");
+        let mut names = BTreeSet::new();
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defrecord" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            let Some(bare) = name.as_str().strip_prefix(":wat::rete::") else { continue };
+            if bare == "ReteCheckErrors" {
+                continue;
+            }
+            names.insert(bare.to_string());
+        }
+        names
+    }
+
+    /// G-list — the declaration is the list. The set of tags `error_edn()`
+    /// produces for `all_variants()` must equal the set of `defrecord
+    /// :wat::rete::*` names in `wat/rete-errors.wat`.
+    ///
+    /// Mutation (recorded in the strike report): add a stray
+    /// `(:wat::core::defrecord :wat::rete::Bogus [])` to
+    /// `wat/rete-errors.wat` — RED (declared has an extra name `produced`
+    /// never names).
+    #[test]
+    fn g_list_declaration_is_the_list() {
+        let produced: BTreeSet<String> = all_variants().iter().map(|(name, _)| name.to_string()).collect();
+        let declared = declared_rete_kind_names();
+        assert_eq!(
+            produced, declared,
+            "declared `:wat::rete::<Kind>` records in wat/rete-errors.wat must equal the \
+             ReteCheckErrorKind tags error_edn() produces"
+        );
+    }
+
+    /// G-strict — every declared kind decodes typed. For every
+    /// `ReteCheckErrorKind` variant, `decode_trusted_wire(error_edn())` must
+    /// succeed as a typed record.
+    ///
+    /// Mutation (recorded in the strike report): comment out one
+    /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::rete::
+    /// UnknownFactType`) — RED, and the assertion message names
+    /// `UnknownFactType`.
+    #[test]
+    fn g_strict_every_declared_kind_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        for (name, kind) in all_variants() {
+            let err = ReteCheckError { span: s(), kind };
+            let wire = wat_edn::write(&err.error_edn());
+            let decoded = decode_trusted_wire(&wire, Some(&types), None);
+            assert!(
+                decoded.is_ok(),
+                "{name}: decode_trusted_wire(error_edn()) must succeed as a typed record; got {decoded:?}"
+            );
+        }
+    }
+
+    /// G-strict, the `ReteCheckErrors` aggregate — `#wat.rete/ReteCheckErrors
+    /// {...}` with two nested, fully-floored `ReteCheckError` items in
+    /// `:causes` must decode typed end to end.
+    #[test]
+    fn g_strict_rete_check_errors_aggregate_decodes_typed() {
+        let types = TypeEnv::with_builtins();
+        let errs = ReteCheckErrors(vec![
+            ReteCheckError { span: s(), kind: ReteCheckErrorKind::UnknownFactType { rule: "r1".into(), fact_type: "evt::Req".into() } },
+            ReteCheckError { span: s(), kind: ReteCheckErrorKind::UnconsumedWrapperBind { rule: "r2".into(), var: "?s".into(), fact_type: "evt::Req".into() } },
+        ]);
+        let wire = wat_edn::write(&errs.error_edn());
+        let decoded = decode_trusted_wire(&wire, Some(&types), None);
+        assert!(decoded.is_ok(), "ReteCheckErrors aggregate must decode typed; got {decoded:?}");
+    }
+}

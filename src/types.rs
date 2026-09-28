@@ -2663,6 +2663,68 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     ::wat_source_derive::wat_record_from!(env, "wat/stdlib-errors.wat", ":wat::stdlib::ParseFailed");
 
+    // ─── Excursus 003 sweep S3 — the ReteCheckErrorKind wat records ───────────
+    // Declared in `wat/rete-errors.wat`. All 18 `ReteCheckErrorKind` variants
+    // (`src/rete/validate/error.rs:23`) plus the `ReteCheckErrors` aggregate.
+
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::ReteCheckErrors");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::UnknownFactType");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::MalformedClause");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::UnknownField");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::UnknownEnumVariant");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::RhsArityMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::RhsUnresolvableOperand");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::RhsOperandTypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::RhsMissingFields");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::RhsFieldTypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::RhsPositionalConstructionRetired");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::NonReteConstraint");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::ConstraintTypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::ConstraintTypeNotComparable");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::FenceConstraintTypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::FenceConstraintTypeNotComparable");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::FenceBinderShadowsReteVar");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::UnconsumedWrapperBind");
+    ::wat_source_derive::wat_record_from!(env, "wat/rete-errors.wat", ":wat::rete::EscapedWrapperBind");
+
+    // ─── Excursus 003 sweep S3 — the MacroErrorKind wat records ───────────────
+    // Declared in `wat/macro-errors.wat`. All 16 `MacroErrorKind` variants
+    // (`src/macros/error.rs:42`).
+
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::DuplicateMacro");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ReservedPrefix");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::UnnamespacedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::DottedName");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::MalformedDefmacro");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ArityMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ArityTooFew");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::UnboundMacroParam");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::SpliceNotSequence");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ExpansionDepthExceeded");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::MalformedTemplate");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::RefusedInMacro");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ExpandOnlyOutsideMacro");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ProgramBodyIntroducesName");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ProgramBodyEvalFailed");
+    ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::MacroEvalRuntimeFailed");
+
+    // ─── Excursus 003 sweep S3 — the ParseErrorKind wat records ───────────────
+    // Declared in `wat/parse-errors.wat`. All 11 `ParseErrorKind` variants
+    // (`crates/wat-reader/src/parser.rs:37`). No `wat/lex-errors.wat` — see
+    // that file's header: `LexErrorKind` never produces its own wire tag.
+
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::Lex");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::UnexpectedRParen");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::UnclosedParen");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::UnexpectedRBracket");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::UnclosedBracket");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::UnexpectedRBrace");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::UnclosedBrace");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::MalformedBraceLiteral");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::TrailingContent");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::Empty");
+    ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::ForgedBinderNamespace");
+
     // (:wat::kernel::RecvOutcome :- [O]) — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
     // recv' RETURNED O and RAISED on close/crash — a raise unwinds past the reader

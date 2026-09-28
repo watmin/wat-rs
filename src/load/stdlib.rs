@@ -127,6 +127,33 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/stdlib-errors.wat",
         source: include_str!("../../wat/stdlib-errors.wat"),
     },
+    // Excursus 003 sweep S3 — the 18 declared `:wat::rete::<Kind>` records
+    // mirroring `ReteCheckErrorKind`, plus the `ReteCheckErrors` aggregate.
+    // After core.wat only (no nested types beyond the `:wat::core::Error`
+    // structural surface).
+    WatSource {
+        path: "wat/rete-errors.wat",
+        source: include_str!("../../wat/rete-errors.wat"),
+    },
+    // Excursus 003 sweep S3 — the 16 declared `:wat::macro::<Kind>` records
+    // mirroring `MacroErrorKind`. After core.wat (`:wat::core::Error`
+    // structural surface); `MacroEvalRuntimeFailed.cause` resolves against
+    // whatever concrete `:wat::runtime::<Kind>` tag is actually on the wire
+    // (already fully declared, step 3a) — no load-order dependency, since
+    // the field types the structural surface, not a nominal type.
+    WatSource {
+        path: "wat/macro-errors.wat",
+        source: include_str!("../../wat/macro-errors.wat"),
+    },
+    // Excursus 003 sweep S3 — the 11 declared `:wat::parse::<Kind>` records
+    // mirroring `ParseErrorKind`. After core.wat only. No `wat/lex-errors.wat`
+    // exists — measured (see `wat/parse-errors.wat`'s header): `LexErrorKind`
+    // never produces its own wire tag; a lex failure rides inside
+    // `:wat::parse::Lex.cause` as a flattened string.
+    WatSource {
+        path: "wat/parse-errors.wat",
+        source: include_str!("../../wat/parse-errors.wat"),
+    },
     // Arc 296 J — `:wat::edn::*` read/validate outcomes. After core.wat (`Error`).
     WatSource {
         path: "wat/edn.wat",
@@ -897,31 +924,27 @@ mod excursus_003_s2_gates {
         );
     }
 
-    /// G-strict — `ParseFailed` is declared (its OWN tag is registered —
-    /// checked directly via `TypeEnv::contains`, since the decode-based check
-    /// below cannot observe THIS registration on its own: decode fails either
-    /// way, see next paragraph), but its nested `cause: ParseError`
-    /// (`crates/wat-reader/src/parser.rs:37`) is S3's undeclared taxonomy.
-    /// `decode_trusted_wire` is all-or-nothing (any unresolved nested tag
-    /// fails the WHOLE decode with `UnknownTag`), so `ParseFailed` is
-    /// EXPECTED to stay foreign TODAY — asserted here so the exception is
-    /// proven real, not merely unexercised. Expected to flip to `is_ok()`
-    /// once S3 declares `:wat::parse::*` (see this file's
-    /// `wat/stdlib-errors.wat` header note; verified empirically during this
-    /// strike by temporarily stub-registering `:wat::parse::UnexpectedRParen`
-    /// and confirming decode then succeeds — reverted, not committed).
+    /// G-strict — `ParseFailed` decodes fully typed now that excursus 003
+    /// sweep S3 declared `:wat::parse::*` (`wat/parse-errors.wat`, all 11
+    /// `ParseErrorKind` variants): `cause: ParseError`
+    /// (`crates/wat-reader/src/parser.rs:37`) is no longer S3's undeclared
+    /// taxonomy. Was `g_strict_parse_failed_stays_foreign_pending_s3`
+    /// (`is_err()`) through S1/S2; this strike is exactly the flip that
+    /// test's own doc comment predicted.
     ///
     /// Mutation (recorded in the strike report): comment out
     /// `wat_record_from!(env, "wat/stdlib-errors.wat",
-    /// ":wat::stdlib::ParseFailed")` in `src/types.rs` — RED on the
-    /// `types.contains` assertion.
+    /// ":wat::stdlib::ParseFailed")` in `src/types.rs` — RED naming
+    /// `ParseFailed`. A second mutation (recorded in the strike report):
+    /// comment out `:wat::parse::UnexpectedRParen`'s `wat_record_from!` —
+    /// RED on this same test (the nested tag goes unresolved, and strict
+    /// decode is all-or-nothing).
     #[test]
-    fn g_strict_parse_failed_stays_foreign_pending_s3() {
+    fn g_strict_parse_failed_decodes_typed() {
         let types = TypeEnv::with_builtins();
         assert!(
             types.contains(":wat::stdlib::ParseFailed"), // rune:lint(loose-assert) — TypeEnv::contains is an exact registry membership lookup, not a substring/prefix/suffix string match; the lint's syntactic detector cannot see the receiver's type.
-            "ParseFailed's OWN record must be registered even though full strict decode \
-             cannot succeed yet (see this test's doc)"
+            "ParseFailed's OWN record must be registered"
         );
         let err = StdlibError::new(
             s(),
@@ -933,9 +956,8 @@ mod excursus_003_s2_gates {
         let wire = wat_edn::write(&err.error_edn());
         let decoded = decode_trusted_wire(&wire, Some(&types), None);
         assert!(
-            decoded.is_err(),
-            "ParseFailed: expected to remain foreign until S3 declares its nested taxonomy, \
-             but decode_trusted_wire succeeded — {decoded:?}"
+            decoded.is_ok(),
+            "ParseFailed must decode fully typed now that S3 declared :wat::parse::*; got {decoded:?}"
         );
     }
 }

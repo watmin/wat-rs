@@ -473,17 +473,16 @@ mod excursus_003_s2_gates {
         Span::new(Arc::new("test.wat".to_string()), 1, 0)
     }
 
-    /// The one ruled exception to full strict decode: `Parse`'s nested
-    /// `ParseError` (`crates/wat-reader/src/parser.rs:37`) is S3's taxonomy —
-    /// undeclared until S3 runs. `decode_trusted_wire` is all-or-nothing (any
-    /// unresolved nested tag fails the WHOLE decode with `UnknownTag`), so
-    /// `Parse`'s OWN tag being declared here does not make it decode typed
-    /// TODAY. This is NOT a G-list exception (the record IS declared, and
-    /// belongs in the declared set) — only a G-strict one, expected to flip
-    /// to `is_ok()` once S3 declares `:wat::parse::*` (see this file's
-    /// `wat/load-errors.wat` header note: "silently upgrades ... no change
-    /// needed here").
-    const G_STRICT_S3_PENDING: &[&str] = &["Parse"];
+    /// Excursus 003 sweep S3 CLOSES this exception: `Parse`'s nested
+    /// `ParseError` (`crates/wat-reader/src/parser.rs:37`) is now declared
+    /// (`wat/parse-errors.wat`, all 11 `ParseErrorKind` variants), so `Parse`
+    /// decodes fully typed like every other `LoadErrorKind` variant —
+    /// verified below in `g_strict_every_declared_kind_decodes_typed`, no
+    /// exception list needed any more. This constant is kept, now EMPTY, so
+    /// a future regression (S3's parse declaration going missing again)
+    /// reads as a plain G-strict RED naming `Parse`, not a silent pass
+    /// through a stale exception list.
+    const G_STRICT_S3_PENDING: &[&str] = &[];
 
     /// One instance of every `LoadErrorKind` variant (8, measured against
     /// `src/load/loader.rs:295`), paired with its Rust variant name — the
@@ -498,7 +497,9 @@ mod excursus_003_s2_gates {
             ("DuplicateLoad", LoadErrorKind::DuplicateLoad { path: "foo.wat".into() }),
             ("CycleDetected", LoadErrorKind::CycleDetected { cycle: vec!["a.wat".into(), "b.wat".into()] }),
             ("Fetch", LoadErrorKind::Fetch(LoadFetchError::NotFound("missing.wat".into()))),
-            // S3-pending — see `G_STRICT_S3_PENDING` above.
+            // Decodes fully typed since excursus 003 sweep S3 declared
+            // `:wat::parse::*` (`wat/parse-errors.wat`) — see
+            // `G_STRICT_S3_PENDING` above.
             ("Parse", LoadErrorKind::Parse {
                 path: "foo.wat".into(),
                 err: ParseError { span: Span::new(Arc::new("inner.wat".to_string()), 7, 3), kind: ParseErrorKind::UnexpectedRParen },
@@ -548,14 +549,18 @@ mod excursus_003_s2_gates {
         );
     }
 
-    /// G-strict — every declared kind decodes typed, EXCEPT the one named
-    /// `G_STRICT_S3_PENDING` exception (`Parse`, whose nested `ParseError` is
-    /// S3's undeclared taxonomy) — asserted to STILL fail today, proving the
-    /// exception is real and not merely unexercised.
+    /// G-strict — every declared kind decodes typed, `Parse` included now
+    /// that excursus 003 sweep S3 declared `:wat::parse::*`
+    /// (`wat/parse-errors.wat`) — `G_STRICT_S3_PENDING` is kept, now empty,
+    /// so a future regression reads as a plain named RED, not a silent pass.
     ///
     /// Mutation (recorded in the strike report): comment out one
     /// `wat_record_from!` line in `src/types.rs` (e.g. `:wat::load::
     /// DuplicateLoad`) — RED, and the assertion message names `DuplicateLoad`.
+    /// A second mutation (recorded in the strike report): comment out
+    /// `:wat::parse::UnexpectedRParen`'s `wat_record_from!` — RED, and the
+    /// assertion message names `Parse` (the OUTER kind, since strict decode
+    /// is all-or-nothing and the unresolved tag is nested).
     #[test]
     fn g_strict_every_declared_kind_decodes_typed() {
         let types = TypeEnv::with_builtins();
