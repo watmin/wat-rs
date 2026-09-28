@@ -100,11 +100,19 @@
   (:wat::core::contains? (:t2wt::target-names) name))
 
 ;; a binder/return/bound/fn-type marker: the keyword right after one of these is a type.
+;; `:-` is IN this set too (not just the head-of-bracket marker rule A checks for) — the
+;; kwargs-style binder/return annotation spells the SAME "has type" relation as `<-`/`->`
+;; with `:-` instead (measured: `tests/resolve/probe_arc251_stone4_annotation_arrow.wat`'s
+;; `[x :- :wat::core::i64] :- :wat::core::i64`, `tests/types/probe_arc255_66_position.wat`'s
+;; `[a :- :wat::core::i64 b :- wat.type/i64]`). Safe alongside rule (A)/(B): inside the
+;; `(Head :- [args])` idiom, the token right after `:-` is always the args VECTOR, never a
+;; bare keyword, so this addition is inert there and only activates for the kwargs shape.
 (:wat::core::defn :t2wt::marker-symbol? [name <- :wat::core::String] -> :wat::core::bool
   (:wat::core::if (:wat::core::= name "<-") true
     (:wat::core::if (:wat::core::= name "->") true
       (:wat::core::if (:wat::core::= name ":->") true
-        (:wat::core::= name ":<")))))
+        (:wat::core::if (:wat::core::= name ":<") true
+          (:wat::core::= name ":-"))))))
 
 ;; item-name — the ast-name of a symbol/keyword sibling; "" for anything else (never a marker,
 ;; never a target — an empty string can't collide with a real name).

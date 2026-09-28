@@ -7,8 +7,10 @@ spec [x <- wat.type/i64] :: POST-MARKER — the keyword immediately follows
 spec -> (wat.type/Vector :- [wat.type/i64]) :: HEAD-OF-BRACKET  — the keyword is immediately followed
 spec (:wat::core::extend-type wat.type/f64 :wat::core::Equatable) :: BARE CHILD OF `extend-type` / `derive`
 spec (:wat::core::typealias :probe::Alias wat.type/bool) :: LAST CHILD OF `typealias`
+spec (:wat::core::defn :probe::g [y :- wat.type/String] :- wat.type/String y) :: `:-` is IN this set too
 
 spec-before [x <- :wat::core::i64] :: one of the 24 hard primitives
 spec-before -> (:wat::core::Vector :- [:wat::core::i64]) :: one of the 24 hard primitives
 spec-before (:wat::core::extend-type :wat::core::f64 :wat::core::Equatable) :: one of the 24 hard primitives
 spec-before (:wat::core::typealias :probe::Alias :wat::core::bool) :: one of the 24 hard primitives
+spec-before (:wat::core::defn :probe::g [y :- :wat::core::String] :- :wat::core::String y) :: one of the 24 hard primitives

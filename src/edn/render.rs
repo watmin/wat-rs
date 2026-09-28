@@ -5261,6 +5261,29 @@ mod tests {
         );
     }
 
+    /// arc 255.67 — `:wat::WatAST` is the one `wat.type/` leaf whose internal key is NOT
+    /// `:wat::core::<tail>` (`type_denotation`'s own carve-out). Before this stone's Case 1b,
+    /// `type_expr_to_clojure_form`'s Path arm fell through to Case 3 (a generic `::`-namespaced
+    /// user type — `body` DOES contain `::` even though it isn't `wat::core::`-prefixed) and
+    /// rendered `wat/WatAST`: wrong namespace, wrong tail. Found by
+    /// `wat-scripts/fixes/types-to-wat-type.wat`'s own dry run converting
+    /// `(extend-type :wat::WatAST Equatable)` in `wat/class.wat`.
+    #[test]
+    fn ast_type_renders_to_wat_type_ast_not_a_generic_namespaced_symbol() {
+        let te = TypeExpr::Path(":wat::WatAST".to_string());
+        let clojure = type_expr_to_clojure_form(&te, TypeFormHeadMode::Clojure).expect("renders");
+        match clojure {
+            WatAST::Symbol(id, _) => assert_eq!(id.as_str(), "wat.type/AST"),
+            other => panic!("expected a Symbol, got {other:?}"),
+        }
+        // Colon mode round-trips the original spelling unchanged.
+        let colon = type_expr_to_clojure_form(&te, TypeFormHeadMode::Colon).expect("renders");
+        match colon {
+            WatAST::Keyword(k, _) => assert_eq!(k, ":wat::WatAST"),
+            other => panic!("expected a Keyword, got {other:?}"),
+        }
+    }
+
     /// A struct whose only field is named `"0"` is not a newtype. The writer
     /// still refuses that keyword.
     #[test]
