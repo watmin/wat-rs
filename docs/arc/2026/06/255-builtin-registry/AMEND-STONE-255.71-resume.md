@@ -16,10 +16,11 @@ left, and one added rule.
   `255-71-master.tsv` (**158 rows**: head, file, line, col, the typed form, a one-line reason). **19 sites have no row.**
   One helper reported that `255-71-table-tests.tsv` was clobbered and restored by hand: **verify it against the census**.
 
-## The added rule
+## Correction (2026-09-30, builder)
 
-**Do not spawn sub-agents, forks or parallel agents.** Do the work yourself, in one line of execution. (Fanning out is
-what spent the limit, and a sub-agent's work is outside the brief's reach.)
+An earlier draft of this amendment blamed the stop on the first agent fanning out helper agents, and added a rule against
+it. **That cause was wrong:** the weekly limit was nearly spent (about 2% left) before the stone began. The rule is
+withdrawn; executors operate as normal.
 
 ## Resume
 
