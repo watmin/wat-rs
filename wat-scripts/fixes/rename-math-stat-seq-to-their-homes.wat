@@ -174,7 +174,7 @@
          offset   (:wat::fix::fix-text-offset-of start lines)]
         (:wat::core::concat a
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-            (:wat::core::Tuple offset old-text new-text)))))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] offset old-text new-text)))))
     acc rows))
 
 (:wat::core::defn :hms::convert-one

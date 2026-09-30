@@ -27,7 +27,7 @@
 ;; (reclaim-ipc-prime-names.wat is the shape this mirrors).
 (:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
-    (:wat::core::Tuple ":wat::core::sort'" ":wat::core::sort$native")))
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::sort'" ":wat::core::sort$native")))
 
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String

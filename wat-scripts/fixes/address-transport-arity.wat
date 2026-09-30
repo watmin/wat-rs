@@ -165,7 +165,7 @@
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-              (:wat::core::Tuple off name-len new-name)))))
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off name-len new-name)))))
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
 
 (:wat::core::defn :user::migrate

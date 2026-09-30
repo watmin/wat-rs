@@ -92,7 +92,7 @@
             [s-binder (:wat::core::first param-ch)
              end      (:user::end-off s-binder lines)]
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-              (:wat::core::Tuple end "" " ctx"))))))))
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] end "" " ctx"))))))))
 
 ;; ── all edits for one defservice form's arms ───────────────────────────────────────────────
 (:wat::core::defn :user::arms-edits

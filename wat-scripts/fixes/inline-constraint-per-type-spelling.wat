@@ -65,9 +65,9 @@
 ;; ── the rename table — checker-derived for THIS worklist (see the warning above) ──────────────
 (:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
-    (:wat::core::Tuple ":wat::core::<" ":wat::rete::core::i64::<")
-    (:wat::core::Tuple ":wat::core::>" ":wat::rete::core::i64::>")
-    (:wat::core::Tuple ":wat::core::=" ":wat::rete::core::string::=")))
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::<" ":wat::rete::core::i64::<")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::>" ":wat::rete::core::i64::>")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::=" ":wat::rete::core::string::=")))
 
 (:wat::core::defn :user::rename-lookup
   [name  <- :wat::core::String
@@ -96,7 +96,7 @@
           (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                             old-len (:wat::core::ast-name node)]
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-              (:wat::core::Tuple off old-len new)))]
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len new)))]
         [:wat::core::Option.None {}
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])])
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))

@@ -33,7 +33,7 @@
   [off <- :wat::core::i64  old <- :wat::core::String  new <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple off old new)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 (:wat::core::defn :user::start-off
   [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]

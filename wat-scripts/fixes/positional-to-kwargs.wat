@@ -91,7 +91,7 @@
       (:wat::core::let [arg (:wat::core::Option/expect (:wat::core::get args i) "arg-edits arg")
                         off (:wat::fix::fix-text-offset-of (:wat::core::ast-span arg) lines)
                         kw  (:wat::string::concat ":" (:wat::core::Option/expect (:wat::core::get fields i) "arg-edits f") " ")]
-        (:wat::core::conj acc (:wat::core::Tuple off "" kw))))
+        (:wat::core::conj acc (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off "" kw))))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
     (:wat::core::range 0 (:wat::core::length args))))
 

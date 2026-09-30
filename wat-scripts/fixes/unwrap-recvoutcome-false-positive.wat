@@ -86,8 +86,8 @@
      gap1   (:wat::string::subs src s-end ia1-s)
      gap2   (:wat::string::subs src ian-e (:wat::i64::- node-e 1))]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple s-end gap1 " ")
-      (:wat::core::Tuple ian-e gap2 ""))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] s-end gap1 " ")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] ian-e gap2 ""))))
 
 (:wat::core::defn :user::node-edits
   [node <- :wat::WatAST  src <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]

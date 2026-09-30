@@ -248,7 +248,7 @@
   -> :wat::fix::Edit
   (:wat::core::let [off      (:wat::fix::node-start-offset node lines)
                     old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
-    (:wat::core::Tuple off old-text text)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text text)))
 
 (:wat::core::defn :user::q-call
   [fqdn <- :wat::core::String] -> :wat::core::String
@@ -327,7 +327,7 @@
       ;; ast-kind=="keyword"), so this is a RENAME, not a whole-list replace; NEVER
       ;; span text here (span-edit's own sanctioned use is for List nodes only).
       (:wat::core::Vector :- [:wat::fix::Edit]
-        (:wat::core::Tuple (:wat::fix::node-start-offset arg lines) (:wat::core::ast-name arg) (:user::q-call ty))))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-start-offset arg lines) (:wat::core::ast-name arg) (:user::q-call ty))))
     (:wat::core::if (:user::qbts? node)
       (:wat::core::let [ch (:wat::core::ast->children node)
                         sess (:wat::core::Option/expect
@@ -430,7 +430,7 @@
                                        (:wat::core::first forms) lines)
                                      off)]
                (:wat::core::Vector :- [:wat::fix::Edit]
-                 (:wat::core::Tuple at "" inserted))))
+                 (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] at "" inserted))))
          call-edits (:user::walk-seq-edits forms types src lines)
          all (:wat::core::concat ins-edits call-edits)]
         (:wat::fix::fix-text-apply src

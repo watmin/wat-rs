@@ -131,7 +131,7 @@
                     old-name (:wat::core::ast-name node)
                     new-text (:wat::core::write-forms (:wat::keyword::to-type-form node))]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple off old-name new-text))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-name new-text))))
 
 ;; (D) known BARE-type-taking form heads — a keyword sitting directly after these, with no
 ;; marker and no `:-` wrapper, is still a type: `(extend-type Child Target)`, `(derive Child

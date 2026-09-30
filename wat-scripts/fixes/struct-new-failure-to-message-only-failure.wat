@@ -73,7 +73,7 @@
      old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)
      msg-txt  (:wat::string::subs src (:user::start-off msg lines) (:user::end-off msg lines))]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple n0 old-text
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] n0 old-text
         (:wat::string::concat "(:wat::kernel::message-only-failure " msg-txt ")")))))
 
 ;; walk one node → its edits + descendants'. A matched struct-new-failure node does NOT recurse

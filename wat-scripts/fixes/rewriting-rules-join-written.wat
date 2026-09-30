@@ -27,7 +27,7 @@
   [off <- :wat::core::i64  old <- :wat::core::String  new <- :wat::core::String]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::Vector :- [:wat::fix::Edit]
-    (:wat::core::Tuple off old new)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 (:wat::core::defn :user::src-of
   [n     <- :wat::WatAST
@@ -109,7 +109,7 @@
      end   (:wat::core::if (:wat::core::< line n)
              (:wat::fix::fix-text-line-start (:wat::core::+ line 1) lines)
              (:wat::string::length src))]
-    (:wat::core::Tuple start (:wat::string::subs src start end))))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String] start (:wat::string::subs src start end))))
 
 (:wat::core::defn :user::written-text
   [named <- :wat::WatAST

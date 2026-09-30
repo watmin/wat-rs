@@ -429,14 +429,14 @@
       (:wat::core::match (:user::map-value-node m)
         [:wat::core::Option.Some {:value v}
           (:wat::core::Vector :- [:wat::fix::Edit]
-            (:wat::core::Tuple
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
               (:wat::fix::node-start-offset m lines)
               (:user::node-text m src lines)
               (:user::node-text v src lines)))]
         [:wat::core::Option.None {}
           ;; unit None: `(:wat::core::Option::None {})` → drop the map, leave `(:wat::core::Option::None)`
           (:wat::core::Vector :- [:wat::fix::Edit]
-            (:wat::core::Tuple
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
               (:wat::fix::node-start-offset m lines)
               (:user::node-text m src lines)
               ""))]))))
@@ -471,8 +471,8 @@
             (:wat::string::concat
               (:wat::core::Option/expect (:wat::core::get fields 0) "tagged f0")
               " "))
-     open-ed (:wat::core::Tuple (:wat::fix::node-start-offset first-arg lines) "" open)
-     close-ed (:wat::core::Tuple (:user::arg-end-offset last-arg lines) "" "}")
+     open-ed (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-start-offset first-arg lines) "" open)
+     close-ed (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::arg-end-offset last-arg lines) "" "}")
      mid (:wat::core::foldl
            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit]) i <- :wat::core::i64]
              -> (:wat::core::Vector :- [:wat::fix::Edit])
@@ -483,7 +483,7 @@
                   f   (:wat::core::Option/expect (:wat::core::get fields i) "tagged mid f")
                   ins (:wat::string::concat ":" (:wat::string::concat f " "))]
                  (:wat::core::conj acc
-                   (:wat::core::Tuple (:wat::fix::node-start-offset arg lines) "" ins)))))
+                   (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-start-offset arg lines) "" ins)))))
            (:wat::core::Vector :- [:wat::fix::Edit])
            (:wat::core::range 0 n))]
     (:wat::core::conj (:wat::core::conj mid open-ed) close-ed)))
@@ -524,7 +524,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::Vector :- [:wat::fix::Edit]
-    (:wat::core::Tuple (:wat::i64::- (:wat::fix::node-end-offset node lines) 1) "" " {}")))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::i64::- (:wat::fix::node-end-offset node lines) 1) "" " {}")))
 
 (:wat::core::defn :user::fields-for-head
   [head <- :wat::WatAST

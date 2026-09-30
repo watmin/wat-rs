@@ -117,7 +117,7 @@
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
       (:wat::core::match (:wat::fix::enum-fields-get fmap kw)
         [:wat::core::Option.Some {:value _}
-          (:wat::core::conj acc (:wat::core::Tuple kw (:user::to-dot kw)))]
+          (:wat::core::conj acc (wat.type/Tuple :- [wat.type/String wat.type/String] kw (:user::to-dot kw)))]
         [:wat::core::Option.None {}
           (:wat::core::do
             (:wat::core::if (:wat::fix::known-enum? fmap (:user::parent-path kw))

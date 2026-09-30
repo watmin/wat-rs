@@ -116,7 +116,7 @@
             (:user::node-text exp src lines)
             (:user::none-placeholder? act)
             (:user::none-placeholder? exp))]
-    (:wat::core::Tuple off old new)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 ;; Walk: a matching positional call emits ONE whole-node edit and does not
 ;; recurse (the replacement covers the list). Everything else recurses.

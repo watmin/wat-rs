@@ -123,7 +123,7 @@
                                  (:wat::string::concat ns
                                    (:wat::string::concat "::" bare)))]
           (:wat::core::concat
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (:wat::core::Tuple old new))
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new))
             (:user::rule-renames tl ns)))
         (:user::rule-renames tl ns)))))
 
@@ -227,7 +227,7 @@
                     ")"
                     lines1)
          ins-off  (:wat::fix::node-start-offset run-row lines1)
-         ins-edit (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple ins-off "" (:user::helper-defn-text ns)))
+         ins-edit (:wat::core::Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] ins-off "" (:user::helper-defn-text ns)))
          all-eds  (:wat::core::concat wrap-eds ins-edit)
          text2    (:wat::fix::fix-text-apply text1 (:wat::core::reverse (:wat::core::sort all-eds)))]
         text2))))

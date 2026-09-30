@@ -236,7 +236,7 @@
                          off     (:wat::fix::fix-text-offset-of span lines)
                          old-len nm]
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-          (:wat::core::Tuple off old-len text))))
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len text))))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
 
 (:wat::core::defn :user::node-edits

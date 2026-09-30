@@ -97,7 +97,7 @@
               (:wat::core::let [fch (:wat::core::ast->children fv)]
                 (:wat::core::if (:wat::core::= (:wat::core::length fch) 3)
                   (:wat::hashmap::assoc m tyname
-                    (:wat::core::Tuple
+                    (wat.type/Tuple :- [wat.type/String wat.type/String]
                       (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get fch 0) "fn"))
                       (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get fch 2) "ft"))))
                   m))
@@ -155,9 +155,9 @@
      h0   (:user::start-off head lines)]
     ;; old-text = (ast-name head) — the rule's own belief; NEVER span text (a rename).
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::core::defenum")
-      (:wat::core::Tuple (:user::end-off ty lines) "" " :wat::enum::Pure :Ok")
-      (:wat::core::Tuple (:user::end-off fv lines) ""
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] h0 (:wat::core::ast-name head) ":wat::core::defenum")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off ty lines) "" " :wat::enum::Pure :Ok")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off fv lines) ""
         " :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]"))))
 
 ;; op-Response construction is single-field: kwargs `(:T :field value)` (>=3 children) OR positional
@@ -179,10 +179,10 @@
          ;; separate name-based claim about that whitespace to diverge from it.
          gap-text (:wat::fix::fix-text-span-text (:wat::core::ast-span fkw) (:wat::core::ast-span val) lines src)]
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-          (:wat::core::Tuple (:user::end-off head lines) "" "::Ok")
-          (:wat::core::Tuple fs gap-text "")))
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off head lines) "" "::Ok")
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] fs gap-text "")))
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-        (:wat::core::Tuple (:user::end-off head lines) "" "::Ok")))))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off head lines) "" "::Ok")))))
 
 (:wat::core::defn :user::field-edits
   [ch <- (:wat::core::Vector :- [:wat::WatAST])  prefix <- :wat::core::String  field <- :wat::core::String
@@ -201,8 +201,8 @@
                       ""))))))]
     ;; old-text = (ast-name head) — the rule's own belief; NEVER span text (a rename).
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::core::match")
-      (:wat::core::Tuple (:user::end-off expr lines) "" arms))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] h0 (:wat::core::ast-name head) ":wat::core::match")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off expr lines) "" arms))))
 
 ;; walk one node → its edits + descendants'.
 (:wat::core::defn :user::node-edits

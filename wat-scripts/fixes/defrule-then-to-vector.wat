@@ -129,7 +129,7 @@
                  ;; about the inter-form whitespace exists to diverge from the span.
                  old-text   (:wat::fix::fix-text-span-text (:wat::core::ast-span first-fact) (:wat::core::ast-end-span last-fact) lines src)]
                 (:wat::core::Vector :- [:wat::fix::Edit]
-                  (:wat::core::Tuple first-off old-text
+                  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] first-off old-text
                     (:wat::string::concat "[" (:wat::string::concat joined "]"))))))))))
     (:wat::core::Vector :- [:wat::fix::Edit])))
 

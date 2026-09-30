@@ -48,7 +48,7 @@
   [off <- :wat::core::i64 old <- :wat::core::String new <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple off old new)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 ;; declares? — a top-level `(:wat::core::defstruct <nm> [])` form whose name is exactly `nm`.
 (:wat::core::defn :user::declares?

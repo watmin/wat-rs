@@ -75,15 +75,15 @@
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple (:user::start-off node lines) "" "(:wat::rete::factbag::items ")
-    (:wat::core::Tuple (:user::end-off node lines) "" ")")))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) "" "(:wat::rete::factbag::items ")
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) "" ")")))
 
 (:wat::core::defn :user::wrap-bag-edits
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple (:user::start-off node lines) "" "(:wat::rete::FactBag :items ")
-    (:wat::core::Tuple (:user::end-off node lines) "" ")")))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) "" "(:wat::rete::FactBag :items ")
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) "" ")")))
 
 ;; :facts value edits inside a Session ctor — wrap each value that is not already a bag form.
 (:wat::core::defn :user::session-facts-field-edits

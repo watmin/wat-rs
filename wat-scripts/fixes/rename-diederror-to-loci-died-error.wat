@@ -88,7 +88,7 @@
   (:wat::core::let [head (:wat::core::first (:wat::core::ast->children node))
                     h0   (:user::start-off head lines)]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::kernel::LociDiedError/message"))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] h0 (:wat::core::ast-name head) ":wat::kernel::LociDiedError/message"))))
 
 ;; node-edits — scope-threading walk. `lost-var` is the RecvOutcome::Lost-bound var currently in
 ;; scope (""=none). A Lost arm OVERRIDES the scope for its children (nested Lost arms shadow).

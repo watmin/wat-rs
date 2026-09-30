@@ -35,7 +35,7 @@
     (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                       nm  (:wat::core::ast-name node)]
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-        (:wat::core::Tuple off nm ":-")))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off nm ":-")))
     (:wat::fix::empty-edits)))
 
 (:wat::core::defn :user::node-edits

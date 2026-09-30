@@ -276,7 +276,7 @@
         (:wat::core::let [old (:wat::core::ast-name n)
                           new (:user::new-name-for n ns)]
           (:wat::core::concat
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (:wat::core::Tuple old new))
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new))
             (:user::collect-renames tl ns)))
         (:user::collect-renames tl ns)))))
 

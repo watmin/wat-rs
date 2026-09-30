@@ -136,7 +136,7 @@
              end       (:user::real-end-off ret-node lines)
              val       (:user::budget-for surface-name op-name)]
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-              (:wat::core::Tuple end "" (:wat::string::concat " :max-request-bytes " val)))))))
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] end "" (:wat::string::concat " :max-request-bytes " val)))))))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
 
 (:wat::core::defn :user::ops-edits

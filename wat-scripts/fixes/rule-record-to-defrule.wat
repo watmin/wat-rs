@@ -204,7 +204,7 @@
                         (:user::quasi-text conds-val lines src)
                         (:user::quasi-text wherec-val lines src)
                         (:user::quasi-text ins-val lines src))]
-          (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple off old-text new-text)))
+          (:wat::core::Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
         (:wat::core::if (:wat::core::= n 2)
           ;; Shape B — only where-c is local; conds/ins come from the file-level helpers.
           (:wat::core::let
@@ -219,7 +219,7 @@
                               " needs a file-level `::ins` helper but none was found")))
              new-text   (:user::build-defrule-text name-str cond-text
                           (:user::quasi-text wherec-val lines src) ins-text)]
-            (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple off old-text new-text)))
+            (:wat::core::Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
           ;; Neither shape — STOP. Never a silent skip, never a hand-fix.
           (:wat::kernel::assertion-failed! :message (:wat::string::concat "rule-record-to-defrule: unrecognized let-bindings arity "
               (:wat::string::concat (:wat::i64::to-string n)
@@ -254,7 +254,7 @@
        rcch      (:wat::core::ast->children rule-call)
        name-node (:wat::core::Option/expect (:wat::core::get rcch 2) "rule-rename: name-node")
        new       (:wat::string::concat ":" (:wat::core::ast-name name-node))]
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (:wat::core::Tuple old new)))
+      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new)))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])))
 
 (:wat::core::defn :user::collect-renames

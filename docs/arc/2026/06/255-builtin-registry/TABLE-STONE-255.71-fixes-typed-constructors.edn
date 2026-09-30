@@ -1,0 +1,2423 @@
+;; TABLE-STONE-255.71-fixes-typed-constructors.edn
+;;
+;; SIBLING to TABLE-STONE-255.71-typed-constructors.edn (AMEND-2's own licensed shape: "append
+;; them to the committed table (or a sibling table beside it, said in the SCORE)"). Covers the
+;; population the original 177-site corpus census never walked: `wat-scripts/fixes/**`'s own
+;; recorded codemods, live wat programs the loader gate type-checks like any other program.
+;;
+;; 338 rows, one per untyped-constructor call site found by a structural AST walk (the SAME
+;; `is-hit?` shape `wat-scripts/fixes/typed-constructors.wat`'s own census logic uses) over the
+;; 84 `wat-scripts/fixes/*.wat` files that `wat --check` flagged (measured directly, this resume;
+;; the AMEND's own "674 sites" figure double-counted each error — its `grep -c` pattern matched
+;; both the CheckError's `:message` and `:reason` fields for the SAME error, so 674 / 2 = 337
+;; unique flagged errors; this walk's own site enumeration found one further genuinely-untyped
+;; site the wall does not flag at all -- `response-record-to-enum.wat:100:21`, a `Tuple` ctor
+;; checked in an ALREADY-expected-type position via `check_tuple_constructor_against` rather than
+;; `infer_tuple_constructor`'s bracket-less branch, so it never reaches `untyped_constructor_error`
+;; -- typed anyway here for the same "every collection constructor has one shape" consistency the
+;; ruling states; 337 + 1 = 338).
+;;
+;; `line`/`col` key EACH ROW to the call's OWN span (its `(`) -- `typed-constructors.wat`'s own
+;; `c69::table-key` convention -- NOT the CheckError's reported span (which for many of these is
+;; the call's first ARG, per `untyped_constructor_span`'s documented fallback rule; the two do
+;; not coincide and are not meant to).
+;;
+;; `type` sourced via the STASH-DANCE: the wall's 4 `local_errors.push(untyped_constructor_error
+;; (...))` call sites in `src/check.rs` (lines 15692/15797/15965/16551, all inside a `None =>`
+;; arm that already "degrades gracefully" -- commenting the push out changes no other control
+;; flow) were commented out, `cargo build --release` rebuilt an old-checker binary, and
+;; `WAT_CHECK_TYPES=1 wat --check <file>` was run over all 84 files (every one type-checks clean
+;; with the wall lifted) to harvest the checker's own recorded type at each site's exact call
+;; span. The compact tuple notation `:(A,B)` `format_type_inner` renders (confirmed not directly
+;; reader-parseable, matching `typed-constructors.wat`'s own header note) was bridged BY HAND to
+;; the parseable `(:wat::core::Tuple :- [A B])` form, recursively, restoring the leading colon a
+;; namespaced leaf's compact rendering drops -- 10 distinct raw shapes covered all 337
+;; wall-recorded sites (verified: no site's raw type fell outside this set). The one site the
+;; type record never reached (`response-record-to-enum.wat:100:21`, a `defn` whose declared
+;; return type funnels the constructor's own expected type: the function's signature line 85-86
+;; is literally `(:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::
+;; String :wat::core::String])])`) was typed by reading the source directly.
+;;
+;; `kind` is always `:typed` here -- no STOP-1/legacy-shape/positive-control/removed rows arose in
+;; this population; every one of the 338 sites resolved to a concrete type via the stash-dance
+;; record or, for the one miss, the enclosing function's own declared signature.
+;;
+;; Applied by `wat-scripts/fixes/typed-constructors.wat`, same `.typed-constructors-table.edn`
+;; side-channel, same stash-dance-free apply pass (the wall's own build is what's restored before
+;; applying -- the codemod re-spells `:wat::core::X` primitives to `wat.type/X` at apply time, so
+;; this table's `:wat::core::`-spelled `type` strings are its INPUT convention, matching the
+;; sibling table's own documented convention).
+;;
+;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-255.71-the-untyped-constructor-wall.md
+;; AMEND: docs/arc/2026/06/255-builtin-registry/AMEND-2-STONE-255.71-the-wall-lands-green.md
+;; SCORE: docs/arc/2026/06/255-builtin-registry/SCORE-STONE-255.71-the-untyped-constructor-wall.md
+
+{:sites
+ [
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/address-transport-arity.wat"
+   :line 168
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/angle-brackets-to-binder.wat"
+   :line 239
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/assertion-failed-to-kwargs.wat"
+   :line 119
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/bare-symbol-shorthand-to-fqdn.wat"
+   :line 39
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/bare-symbol-shorthand-to-fqdn.wat"
+   :line 40
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/bare-symbol-shorthand-to-fqdn.wat"
+   :line 41
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/break-kind-string-to-enum.wat"
+   :line 33
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/caller-to-emitted-from.wat"
+   :line 84
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/caller-to-emitted-from.wat"
+   :line 106
+   :col 23
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/caller-to-emitted-from.wat"
+   :line 115
+   :col 31
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/connect-outcome-facts.wat"
+   :line 53
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/connect-outcome-facts.wat"
+   :line 69
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/connect-outcome-facts.wat"
+   :line 100
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/connect-outcome-facts.wat"
+   :line 117
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/declare-max-request-bytes.wat"
+   :line 139
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/defrule-then-to-vector.wat"
+   :line 132
+   :col 19
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/drop-deftest-prelude.wat"
+   :line 73
+   :col 17
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/drop-unconsumed-negation-bind.wat"
+   :line 114
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/drop-unconsumed-negation-bind.wat"
+   :line 118
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/drop-unconsumed-negation-bind.wat"
+   :line 119
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/edits-carry-the-old-text.wat"
+   :line 74
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/edits-carry-the-old-text.wat"
+   :line 97
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/edits-carry-the-old-text.wat"
+   :line 111
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/edits-carry-the-old-text.wat"
+   :line 202
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/eprintln-recv-arm-to-assertion-failed.wat"
+   :line 90
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/eprintln-recv-arm-to-assertion-failed.wat"
+   :line 91
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/face-underscore-bound-send-prime.wat"
+   :line 67
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/face-underscore-bound-send-prime.wat"
+   :line 68
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/fmt-head-fqdn-to-clojure.wat"
+   :line 24
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 239
+   :col 63
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::WatAST (:wat::core::Vector :- [:wat::core::String])])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 241
+   :col 63
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::WatAST (:wat::core::Vector :- [:wat::core::String])])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 257
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::WatAST :wat::WatAST])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 295
+   :col 90
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 300
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 348
+   :col 29
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 349
+   :col 54
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 352
+   :col 21
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/hoist-where-into-condition.wat"
+   :line 359
+   :col 48
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/inline-constraint-per-type-spelling.wat"
+   :line 68
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/inline-constraint-per-type-spelling.wat"
+   :line 69
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/inline-constraint-per-type-spelling.wat"
+   :line 70
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/inline-constraint-per-type-spelling.wat"
+   :line 99
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/kill-make-deftest.wat"
+   :line 77
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/locus-methods-on-the-waist.wat"
+   :line 54
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/locus-names-its-transport.wat"
+   :line 45
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/mandate-invocation-ctx-param.wat"
+   :line 95
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/mandate-request-malformed.wat"
+   :line 133
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/mandate-request-malformed.wat"
+   :line 200
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/mandatory-typed-quasiquote-residual.wat"
+   :line 182
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/mandatory-typed-quasiquote-residual.wat"
+   :line 186
+   :col 35
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 159
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 160
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 216
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 236
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 342
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 396
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 407
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat"
+   :line 485
+   :col 19
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/namespace-bare-top-level-names.wat"
+   :line 279
+   :col 101
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/namespace-defrule-names.wat"
+   :line 126
+   :col 101
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/namespace-defrule-names.wat"
+   :line 230
+   :col 60
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/node-kind-string-to-enum.wat"
+   :line 36
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 94
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 95
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 96
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 97
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 98
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 99
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 100
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 168
+   :col 27
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 387
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 396
+   :col 19
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 401
+   :col 23
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 403
+   :col 25
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 404
+   :col 25
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 412
+   :col 21
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 417
+   :col 25
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 427
+   :col 31
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 428
+   :col 31
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 433
+   :col 69
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 433
+   :col 95
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 434
+   :col 31
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 462
+   :col 29
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 466
+   :col 35
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 468
+   :col 37
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 469
+   :col 37
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 471
+   :col 35
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 472
+   :col 35
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 482
+   :col 23
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 487
+   :col 27
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 491
+   :col 29
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 492
+   :col 29
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 493
+   :col 19
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 494
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 495
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 517
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 522
+   :col 35
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 545
+   :col 17
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/one-param-spec.wat"
+   :line 588
+   :col 35
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/parametrics-take-a-type-vector.wat"
+   :line 187
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/positional-ctor-to-map.wat"
+   :line 432
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/positional-ctor-to-map.wat"
+   :line 439
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/positional-ctor-to-map.wat"
+   :line 474
+   :col 14
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/positional-ctor-to-map.wat"
+   :line 475
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/positional-ctor-to-map.wat"
+   :line 486
+   :col 20
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/positional-ctor-to-map.wat"
+   :line 527
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/positional-to-kwargs.wat"
+   :line 94
+   :col 31
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/query-answers-are-maps.wat"
+   :line 83
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/query-answers-are-maps.wat"
+   :line 89
+   :col 3
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/query-answers-are-maps.wat"
+   :line 155
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/read-string-to-outcome.wat"
+   :line 108
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/read-string-to-outcome.wat"
+   :line 110
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 46
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 47
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 48
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 50
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 51
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 52
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 53
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 54
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 55
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 56
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 57
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 59
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 60
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 61
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 62
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 63
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 65
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 66
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 67
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 68
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 70
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 71
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 72
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-ipc-prime-names.wat"
+   :line 73
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 42
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 43
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 44
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 46
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 47
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 48
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 49
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 50
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 51
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 52
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 53
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 54
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 55
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 56
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 57
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 58
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 59
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 60
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 61
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 62
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 63
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 64
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 65
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 66
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 67
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 69
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/reclaim-service-fixture-names.wat"
+   :line 70
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-core-bigint-rational-to-their-homes.wat"
+   :line 169
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-core-maps-to-their-homes.wat"
+   :line 146
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-core-numerics-to-their-homes.wat"
+   :line 163
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-core-set-and-list-to-their-homes.wat"
+   :line 186
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-core-string-to-string.wat"
+   :line 147
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-core-vectors-to-their-homes.wat"
+   :line 218
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-diederror-to-loci-died-error.wat"
+   :line 91
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-four-families-to-their-homes.wat"
+   :line 169
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-keyword-to-its-home.wat"
+   :line 140
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-math-stat-seq-to-their-homes.wat"
+   :line 177
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-rete-numerics-to-their-homes.wat"
+   :line 155
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-sort-prime-to-native.wat"
+   :line 30
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rename-string-verbs-to-their-home.wat"
+   :line 230
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/repoint-retired-heads-to-live-spellings.wat"
+   :line 93
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/repoint-retired-heads-to-live-spellings.wat"
+   :line 94
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/repoint-retired-heads-to-live-spellings.wat"
+   :line 178
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/repoint-retired-heads-to-live-spellings.wat"
+   :line 179
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 158
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 159
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 160
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 182
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 183
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 185
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 204
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 205
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 27
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 55
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 56
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 57
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 58
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 59
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 60
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 61
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 62
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 63
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 64
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 65
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 66
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 67
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 68
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 69
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 70
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 71
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 72
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 73
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 74
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 75
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 76
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 77
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 78
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 79
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 80
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 81
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 82
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 83
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 84
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 85
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 86
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 87
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 88
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 89
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 90
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 91
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 92
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 93
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 94
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 95
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 96
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 97
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 98
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat"
+   :line 99
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-bind-arrow-to-binder.wat"
+   :line 38
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/fixes/rete-truth-maintenance-probes/chain-fp.wat"
+   :line 32
+   :col 99
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/fixes/rete-truth-maintenance-probes/chain-spec.wat"
+   :line 32
+   :col 102
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/fixes/rete-truth-maintenance-probes/chain.wat"
+   :line 37
+   :col 105
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 141
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 142
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 143
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 144
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 145
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 146
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 147
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 148
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 149
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 150
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 153
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 154
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 158
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 159
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 160
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 161
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 162
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 163
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 164
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 165
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 166
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 167
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 170
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 171
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 172
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 173
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 174
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 175
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 176
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 177
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 178
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 179
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 180
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 181
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 182
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 183
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 184
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 185
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 186
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rete-where-per-type-spelling.wat"
+   :line 217
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rewriting-rules-join-written.wat"
+   :line 30
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rewriting-rules-join-written.wat"
+   :line 112
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rule-record-to-defrule.wat"
+   :line 207
+   :col 52
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rule-record-to-defrule.wat"
+   :line 222
+   :col 54
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/rule-record-to-defrule.wat"
+   :line 257
+   :col 95
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/send-outcome-facts.wat"
+   :line 59
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/send-outcome-facts.wat"
+   :line 76
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/send-outcome-facts.wat"
+   :line 134
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/send-outcome-facts.wat"
+   :line 156
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/stdin-frame-vocabulary.wat"
+   :line 63
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/stdin-frame-vocabulary.wat"
+   :line 66
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/stdin-frame-vocabulary.wat"
+   :line 68
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/stdin-frame-vocabulary.wat"
+   :line 70
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/stdin-frame-vocabulary.wat"
+   :line 72
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/strip-insert-rhs-marker.wat"
+   :line 51
+   :col 48
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/struct-new-failure-to-message-only-failure.wat"
+   :line 76
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/timer-prime-to-peer-prime.wat"
+   :line 82
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/to-faithful-clojure-net.wat"
+   :line 268
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/to-faithful-clojure-net.wat"
+   :line 286
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/to-faithful-clojure-net.wat"
+   :line 304
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/fixes/to-faithful-clojure-net.wat"
+   :line 320
+   :col 79
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/to-faithful-clojure-rete.wat"
+   :line 201
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/to-faithful-clojure-rete.wat"
+   :line 220
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/to-faithful-clojure-rete.wat"
+   :line 240
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/fixes/to-faithful-clojure-rete.wat"
+   :line 258
+   :col 79
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/transport-markers-to-family.wat"
+   :line 51
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/tuple-parens-to-binder.wat"
+   :line 198
+   :col 68
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/type-query-to-defquery.wat"
+   :line 251
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/type-query-to-defquery.wat"
+   :line 330
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/type-query-to-defquery.wat"
+   :line 433
+   :col 18
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/types-to-wat-type.wat"
+   :line 134
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/unignore-arc170-concurrency.wat"
+   :line 81
+   :col 9
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/unstamp-transport-wire.wat"
+   :line 156
+   :col 15
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/unwrap-recvoutcome-false-positive.wat"
+   :line 89
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/unwrap-recvoutcome-false-positive.wat"
+   :line 90
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/variant-separator-to-dot.wat"
+   :line 120
+   :col 33
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-client-method-match-in-recvoutcome.wat"
+   :line 100
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-client-method-match-in-recvoutcome.wat"
+   :line 102
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-compile-in-compileoutcome.wat"
+   :line 118
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-compile-in-compileoutcome.wat"
+   :line 120
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-connect-prime-in-connectoutcome.wat"
+   :line 104
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-connect-prime-in-connectoutcome.wat"
+   :line 106
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-fire-once-in-fireoutcome.wat"
+   :line 106
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-fire-once-in-fireoutcome.wat"
+   :line 108
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-fire-rules-explain-in-fireoutcome.wat"
+   :line 111
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-fire-rules-explain-in-fireoutcome.wat"
+   :line 113
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-fire-rules-in-fireoutcome.wat"
+   :line 110
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-fire-rules-in-fireoutcome.wat"
+   :line 112
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-insert-in-insertoutcome.wat"
+   :line 123
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-insert-in-insertoutcome.wat"
+   :line 125
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-nested-forms-recv-in-recvoutcome.wat"
+   :line 80
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-nested-forms-recv-in-recvoutcome.wat"
+   :line 82
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-nested-forms-sendoutcome-stopped.wat"
+   :line 55
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-overlay-in-fireoutcome.wat"
+   :line 145
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-overlay-in-fireoutcome.wat"
+   :line 147
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-session-facts-in-factbag.wat"
+   :line 78
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-session-facts-in-factbag.wat"
+   :line 79
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-session-facts-in-factbag.wat"
+   :line 85
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/wrap-session-facts-in-factbag.wat"
+   :line 86
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "type from the checker's own type record, harvested via the stash-dance (wall's 4 push sites commented out, rebuilt, WAT_CHECK_TYPES=1 wat --check), compact tuple notation bridged to the parseable bracket form"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/response-record-to-enum.wat"
+   :line 100
+   :col 21
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "not wall-flagged (checked via check_tuple_constructor_against against an already-known expected type); typed from the enclosing :user::add-record's own declared HashMap value type, (:wat::core::Tuple :- [:wat::core::String :wat::core::String]), lines 85-86 of this file"}
+ ]}

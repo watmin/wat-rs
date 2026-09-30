@@ -156,8 +156,8 @@
     [start (:wat::fix::node-start-offset arm lines)
      end   (:wat::fix::node-end-offset arm lines)]
     (:wat::core::Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple start "(" "[")
-      (:wat::core::Tuple (:wat::core::- end 1) ")" "]"))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] start "(" "[")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::core::- end 1) ")" "]"))))
 
 (:wat::core::defn :user::opener-of
   [node  <- :wat::WatAST
@@ -213,7 +213,7 @@
     (:wat::core::concat
       (:user::paren-flip-edits arm src lines)
       (:wat::core::Vector :- [:wat::fix::Edit]
-        (:wat::core::Tuple
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
           (:wat::fix::node-start-offset pattern lines)
           ptxt
           (:wat::string::concat ptxt " {}"))))))
@@ -233,7 +233,7 @@
     (:wat::core::concat
       (:user::paren-flip-edits arm src lines)
       (:wat::core::Vector :- [:wat::fix::Edit]
-        (:wat::core::Tuple
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
           (:wat::fix::node-start-offset pattern lines)
           (:user::node-text pattern src lines)
           (:wat::string::concat
@@ -339,7 +339,7 @@
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::variant-pattern-list? node src lines)
     (:wat::core::Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset node lines)
         (:user::node-text node src lines)
         (:wat::string::concat "["
@@ -393,7 +393,7 @@
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind pattern) "keyword")
       (:wat::core::concat flip
         (:wat::core::Vector :- [:wat::fix::Edit]
-          (:wat::core::Tuple
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
             (:wat::fix::node-start-offset pattern lines)
             (:user::node-text pattern src lines)
             (:wat::string::concat (:user::fq-unit (:wat::core::ast-name pattern)) " {}"))))
@@ -404,7 +404,7 @@
         (:wat::core::if (:wat::core::= (:wat::core::length binders) (:wat::core::length fields))
           (:wat::core::concat flip
             (:wat::core::Vector :- [:wat::fix::Edit]
-              (:wat::core::Tuple
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
                 (:wat::fix::node-start-offset pattern lines)
                 (:user::node-text pattern src lines)
                 (:wat::string::concat
@@ -482,7 +482,7 @@
               (:wat::core::if (:user::names-eq? fields (:user::map-key-names mapn))
                 (:user::nested-pattern-edits mapn fmap src lines)
                 (:wat::core::Vector :- [:wat::fix::Edit]
-                  (:wat::core::Tuple
+                  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
                     (:wat::fix::node-start-offset mapn lines)
                     (:user::node-text mapn src lines)
                     (:user::map-text fields vals src lines))))))]

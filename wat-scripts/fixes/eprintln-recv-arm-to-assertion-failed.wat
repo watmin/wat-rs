@@ -87,8 +87,8 @@
     ;; old-text = (ast-name head) — already verified by recv-arm-eprintln? to equal
     ;; ":wat::kernel::eprintln"; NEVER span text (a rename of a keyword leaf, STOP-1).
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::kernel::assertion-failed!")
-      (:wat::core::Tuple (:user::end-off arg lines) "" " :wat::core::None :wat::core::None"))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] h0 (:wat::core::ast-name head) ":wat::kernel::assertion-failed!")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off arg lines) "" " :wat::core::None :wat::core::None"))))
 
 ;; walk one node → its edits + descendants'.
 (:wat::core::defn :user::node-edits

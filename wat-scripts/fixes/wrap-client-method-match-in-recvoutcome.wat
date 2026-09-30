@@ -97,9 +97,9 @@
     [scrut    (:wat::core::Option/expect (:wat::core::get ch 1) "scrut")
      last-arm (:wat::core::Option/expect (:wat::core::get ch (:wat::core::- (:wat::core::length ch) 1)) "last")]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple (:user::end-off scrut lines) ""
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off scrut lines) ""
         " ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv")
-      (:wat::core::Tuple (:user::end-off last-arm lines) ""
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off last-arm lines) ""
         ")) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! \"recv': peer closed\" :wat::core::None :wat::core::None))"))))
 
 ;; walk one node → its edits + descendants'. (Recurse ALL kids incl. a wrapped match's inner arms —

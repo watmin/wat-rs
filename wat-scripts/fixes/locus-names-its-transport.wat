@@ -42,7 +42,7 @@
   [off <- :wat::core::i64 old <- :wat::core::String new <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple off old new)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 ;; leaf-named? — a symbol/keyword leaf whose ast-name is exactly `nm`.
 (:wat::core::defn :user::leaf-named?

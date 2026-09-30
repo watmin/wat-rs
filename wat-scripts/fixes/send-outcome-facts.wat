@@ -56,7 +56,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::Vector :- [:wat::fix::Edit]
-    (:wat::core::Tuple
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
       (:wat::fix::node-start-offset kw lines)
       (:user::slice src kw lines)
       ":HandleClosed")))
@@ -73,7 +73,7 @@
            (:wat::fix::node-end-offset vec lines))
      new ":Closed [cause <- :wat::kernel::Failure] :Failed [cause <- :wat::kernel::Failure]"]
     (:wat::core::Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset kw lines)
         old
         new))))
@@ -131,7 +131,7 @@
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::let [kw (:wat::core::first (:wat::core::ast->children arm))]
     (:wat::core::Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset kw lines)
         (:user::slice src kw lines)
         (:user::handle-closed-name (:user::arm-head arm))))))
@@ -153,7 +153,7 @@
      one (:user::fix-accessor (:wat::string::join closed-head (:wat::string::split text head)))
      two (:user::fix-accessor (:wat::string::join failed-head (:wat::string::split text head)))]
     (:wat::core::Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset arm lines)
         text
         (:wat::string::concat one (:wat::string::concat " " two))))))

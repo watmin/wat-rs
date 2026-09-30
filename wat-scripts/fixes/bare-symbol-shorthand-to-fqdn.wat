@@ -36,9 +36,9 @@
 ;; multi-row recorded migrations (rename-sort-prime-to-native.wat is the shape this mirrors).
 (:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
-    (:wat::core::Tuple "Some" ":wat::core::Some")
-    (:wat::core::Tuple "Ok"   ":wat::core::Ok")
-    (:wat::core::Tuple "Err"  ":wat::core::Err")))
+    (wat.type/Tuple :- [wat.type/String wat.type/String] "Some" ":wat::core::Some")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] "Ok"   ":wat::core::Ok")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] "Err"  ":wat::core::Err")))
 
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String

@@ -130,7 +130,7 @@
          fv (:wat::core::Option/expect (:wat::core::get ch (:wat::core::+ irtl 1)) "rtl fields")]
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-            (:wat::core::Tuple (:user::end-off fv lines) ""
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off fv lines) ""
               (:wat::string::concat "\n"
                 (:wat::string::concat (:user::spaces (:wat::core::- (:user::col-of kw) 1))
                   ":RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String]"))))
@@ -197,7 +197,7 @@
          head (:user::arm-head-kw arm)
          ind  (:wat::core::- (:user::col-of arm) 1)]
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-          (:wat::core::Tuple (:user::end-off arm lines) ""
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off arm lines) ""
             (:wat::string::concat "\n"
               (:wat::string::concat (:user::spaces ind)
                 (:wat::string::concat "((" (:wat::string::concat (:user::rtl->rm head)

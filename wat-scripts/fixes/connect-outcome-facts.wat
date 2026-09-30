@@ -50,7 +50,7 @@
   (:wat::core::let [name (:wat::fix::kw-name kw)]
     (:wat::core::if (:wat::core::= name ":Refused")
       (:wat::core::Vector :- [:wat::fix::Edit]
-        (:wat::core::Tuple
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
           (:wat::fix::node-start-offset kw lines)
           (:user::slice src kw lines)
           ":Closed"))
@@ -66,7 +66,7 @@
            one (:wat::string::concat ":Undialable" (:wat::string::concat gap fields))
            new (:wat::string::concat one (:wat::string::concat " :WrongPeer" (:wat::string::concat gap fields)))]
           (:wat::core::Vector :- [:wat::fix::Edit]
-            (:wat::core::Tuple ks old new)))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] ks old new)))
         (:user::no-edits)))))
 
 (:wat::core::defn :user::variant-edits
@@ -97,7 +97,7 @@
   (:wat::core::let
     [kw (:wat::core::first (:wat::core::ast->children arm))]
     (:wat::core::Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset kw lines)
         (:user::slice src kw lines)
         ":wat::kernel::ConnectOutcome.Closed"))))
@@ -114,7 +114,7 @@
      wrong (:wat::string::join ":wat::kernel::ConnectOutcome.WrongPeer"
              (:wat::string::split text ":wat::kernel::ConnectOutcome.Rejected"))]
     (:wat::core::Vector :- [:wat::fix::Edit]
-      (:wat::core::Tuple
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset arm lines)
         text
         (:wat::string::concat und (:wat::string::concat " " wrong))))))

@@ -74,7 +74,7 @@
                                  (:wat::core::ast-end-span node)
                                  lines src)]
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-        (:wat::core::Tuple off old-text "")))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text "")))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
 
 ;; scan — collect drop edits across every top-level form (ascending offset).

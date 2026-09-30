@@ -64,8 +64,8 @@
   [rhs <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple (:user::start-off rhs lines) "" "(:wat::core::match ")
-    (:wat::core::Tuple (:user::end-off rhs lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off rhs lines) "" "(:wat::core::match ")
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off rhs lines) ""
       " (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))")))
 
 ;; pair-edits — walk a let binding vector's children [name0 rhs0 name1 rhs1 …] two at a time

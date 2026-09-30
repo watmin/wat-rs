@@ -115,9 +115,9 @@
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple (:user::start-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) ""
       "(:wat::core::match ")
-    (:wat::core::Tuple (:user::end-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) ""
       " [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])")))
 
 ;; recurse a node's children WITHOUT wrapping the node's own top (idempotency suppression).

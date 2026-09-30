@@ -51,7 +51,7 @@
                       (:wat::core::= (:wat::core::ast-name node) old)
                       false)
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-        (:wat::core::Tuple (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
           (:wat::string::concat "\"" (:wat::string::concat old "\""))
           (:wat::string::concat "\"" (:wat::string::concat new "\""))))
       (:user::no-edits))))

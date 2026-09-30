@@ -142,9 +142,9 @@
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple (:user::start-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) ""
       "(:wat::core::match ")
-    (:wat::core::Tuple (:user::end-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) ""
       (:user::wrap-suffix node))))
 
 ;; recurse a node's children WITHOUT wrapping the node's own top (idempotency suppression).

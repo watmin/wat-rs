@@ -195,7 +195,7 @@
     (:wat::core::if (:user::has-top-level-comma? inner)
       (:wat::core::let [old-text (:wat::string::subs text i next-i)
                         new-text (:user::render-tuple old-text)]
-        (:user::scan text next-i len false (:wat::core::conj edits (:wat::core::Tuple i old-text new-text))))
+        (:user::scan text next-i len false (:wat::core::conj edits (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] i old-text new-text))))
       (:user::scan text next-i len false edits))))
 
 (:wat::core::defn :user::convert

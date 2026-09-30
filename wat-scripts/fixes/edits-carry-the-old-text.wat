@@ -71,7 +71,7 @@
   (:wat::core::if (:user::i64i64string-vec? n)
     (:wat::core::let [mid (:wat::core::nth (:wat::core::ast->children n) 1)]
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
-        (:wat::core::Tuple (:user::start-off mid lines) (:wat::string::length ":wat::core::i64") ":wat::core::String")))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/String] (:user::start-off mid lines) (:wat::string::length ":wat::core::i64") ":wat::core::String")))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
 ;; ── RULE 2: literal 0 (pure insert) → "" ─────────────────────────────────────
@@ -94,7 +94,7 @@
     (:wat::core::let [b (:wat::core::nth (:wat::core::ast->children n) 2)]
       (:wat::core::if (:user::zero-lit? b src lines)
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
-          (:wat::core::Tuple (:user::start-off b lines) 1 "\"\""))
+          (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/String] (:user::start-off b lines) 1 "\"\""))
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
@@ -108,7 +108,7 @@
         (:wat::core::let [subj      (:wat::core::nth (:wat::core::ast->children b) 1)
                           subj-text (:user::node-text subj src lines)]
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
-            (:wat::core::Tuple (:user::start-off b lines) (:wat::i64::- (:user::end-off b lines) (:user::start-off b lines)) subj-text)))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/String] (:user::start-off b lines) (:wat::i64::- (:user::end-off b lines) (:user::start-off b lines)) subj-text)))
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))
 
@@ -199,7 +199,7 @@
                           off       (:user::start-off val-node lines)
                           len       (:wat::i64::- (:user::end-off val-node lines) off)]
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
-            (:wat::core::Tuple off len subj-text)))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/String] off len subj-text)))
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]))
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])))

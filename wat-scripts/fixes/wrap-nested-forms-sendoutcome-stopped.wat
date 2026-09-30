@@ -52,7 +52,7 @@
   (:wat::core::let
     [last-arm (:wat::core::Option/expect (:wat::core::get ch (:wat::core::- (:wat::core::length ch) 1)) "last")]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple (:user::end-off last-arm lines) ""
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off last-arm lines) ""
         " [:wat::kernel::SendOutcome.Stopped {} nil]"))))
 
 (:wat::core::defn :user::node-edits

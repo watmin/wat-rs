@@ -81,7 +81,7 @@
       (:wat::core::if (:wat::core::= new-name name)
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-          (:wat::core::Tuple (:user::start-off n lines) name new-name))))
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off n lines) name new-name))))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
 
 ;; ── ctor :caller key/value edits — only ever called with a matched Log/LogRequest ctor's
@@ -103,7 +103,7 @@
           ;; replaced. NEVER span text (both rename a keyword leaf, STOP-1 territory).
           (:wat::core::let
             [ks       (:user::start-off k lines)
-             key-edit (:wat::core::Tuple ks (:wat::core::ast-name k) ":emitted-from")
+             key-edit (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] ks (:wat::core::ast-name k) ":emitted-from")
              nxt      (:wat::core::get ch (:wat::core::+ i 1))]
             (:wat::core::match nxt
               [:wat::core::Option.None {}
@@ -112,7 +112,7 @@
                 (:wat::core::if (:wat::core::= (:wat::core::ast-kind v) "keyword")
                   (:wat::core::let
                     [vs       (:user::start-off v lines)
-                     val-edit (:wat::core::Tuple vs (:wat::core::ast-name v) "(:wat::kernel::call-site)")]
+                     val-edit (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] vs (:wat::core::ast-name v) "(:wat::kernel::call-site)")]
                     (:wat::core::concat acc
                       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])] key-edit val-edit)))
                   (:wat::core::concat acc

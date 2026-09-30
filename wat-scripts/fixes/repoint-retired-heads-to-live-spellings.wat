@@ -90,8 +90,8 @@
      gap-off   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span head) lines)
      gap-text  (:wat::fix::fix-text-span-text (:wat::core::ast-end-span head) (:wat::core::ast-end-span arg) lines src)]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple head-off head-name ":wat::spawn::process")
-      (:wat::core::Tuple gap-off gap-text ""))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-off head-name ":wat::spawn::process")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] gap-off gap-text ""))))
 
 ;; process-grants-scan / process-grants-walk — recursive descent, same shape as
 ;; first-of-drop-scan/-walk (wat/fix.wat:1251/1268): a match emits its edits and does NOT also
@@ -175,8 +175,8 @@
      gap-off    (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span tuple-arg) lines)
      gap-text   (:wat::fix::fix-text-span-text (:wat::core::ast-end-span tuple-arg) (:wat::core::ast-end-span idx-arg) lines src)]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple head-off head-name ":wat::core::first")
-      (:wat::core::Tuple gap-off gap-text ""))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-off head-name ":wat::core::first")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] gap-off gap-text ""))))
 
 ;; tuple-get-zero-scan / tuple-get-zero-walk — recursive descent, same shape as
 ;; process-grants-scan/-walk above.

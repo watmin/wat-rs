@@ -236,9 +236,9 @@
             (:user::collect-hoist-targets (:wat::core::into [] (:wat::core::rest (:wat::core::ast->children it))))
             (:user::collect-hoist-targets tl)))
         ((:wat::core::= tag "plain")
-          (:wat::core::conj (:user::collect-hoist-targets tl) (:wat::core::Tuple it (:user::bound-vars-of-plain it))))
+          (:wat::core::conj (:user::collect-hoist-targets tl) (wat.type/Tuple :- [wat.type/AST (wat.type/Vector :- [wat.type/String])] it (:user::bound-vars-of-plain it))))
         ((:wat::core::= tag "factbind")
-          (:wat::core::conj (:user::collect-hoist-targets tl) (:wat::core::Tuple it (:user::bound-vars-of-factbind it))))
+          (:wat::core::conj (:user::collect-hoist-targets tl) (wat.type/Tuple :- [wat.type/AST (wat.type/Vector :- [wat.type/String])] it (:user::bound-vars-of-factbind it))))
         (:else (:user::collect-hoist-targets tl))))))
 
 ;; collect-where-sites — every `(:wat::rete::where <pred>)` reachable from `items`, recursing ONLY
@@ -254,7 +254,7 @@
         ((:wat::core::= tag "where")
           (:wat::core::concat
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::WatAST :wat::WatAST])]
-              (:wat::core::Tuple it (:wat::core::nth (:wat::core::ast->children it) 1)))
+              (wat.type/Tuple :- [wat.type/AST wat.type/AST] it (:wat::core::nth (:wat::core::ast->children it) 1)))
             (:user::collect-where-sites tl)))
         ((:wat::core::= tag "and")
           (:wat::core::concat
@@ -292,12 +292,12 @@
    off <- :wat::core::i64 text <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? acc)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] (:wat::core::Tuple off text))
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] (wat.type/Tuple :- [wat.type/i64 wat.type/String] off text))
     (:wat::core::let [h (:wat::core::first acc) tl (:wat::core::into [] (:wat::core::rest acc))]
       (:wat::core::if (:wat::core::= (:wat::core::first h) off)
         (:wat::core::concat
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])]
-            (:wat::core::Tuple off (:wat::string::concat (:wat::core::second h) text)))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String] off (:wat::string::concat (:wat::core::second h) text)))
           tl)
         (:wat::core::concat
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] h)
@@ -345,18 +345,18 @@
                              pred-end (:wat::fix::node-end-offset pred lines)
                              pred-text (:wat::string::subs src pred-start pred-end)
                              ins-off (:wat::i64::- (:wat::fix::node-end-offset target lines) 1)]
-                            (:wat::core::Tuple
-                              (:wat::core::conj dels (:wat::core::Tuple w-start (:wat::string::subs src w-start w-end) ""))
+                            (wat.type/Tuple :- [(wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])]
+                              (:wat::core::conj dels (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] w-start (:wat::string::subs src w-start w-end) ""))
                               (:user::merge-insert-into inss ins-off (:wat::string::concat " " pred-text))))
                           acc)))
-                    (:wat::core::Tuple (:wat::core::Vector :- [:wat::fix::Edit]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])]))
+                    (wat.type/Tuple :- [(wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])] (:wat::core::Vector :- [:wat::fix::Edit]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])]))
                     wheres)
            dels (:wat::core::first result)
            inss (:wat::core::second result)
            ins-edits (:wat::core::foldl
                        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit]) t <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])]
                          -> (:wat::core::Vector :- [:wat::fix::Edit])
-                         (:wat::core::conj acc (:wat::core::Tuple (:wat::core::first t) "" (:wat::core::second t))))
+                         (:wat::core::conj acc (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::core::first t) "" (:wat::core::second t))))
                        (:wat::core::Vector :- [:wat::fix::Edit])
                        inss)]
           (:wat::core::concat dels ins-edits))))])))

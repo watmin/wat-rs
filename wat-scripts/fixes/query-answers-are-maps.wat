@@ -80,13 +80,13 @@
   -> :wat::fix::Edit
   (:wat::core::let [off      (:wat::fix::node-start-offset node lines)
                     old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
-    (:wat::core::Tuple off old-text text)))
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text text)))
 
 (:wat::core::defn :user::insert-fact-bind
   [node  <- :wat::WatAST
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::fix::Edit
-  (:wat::core::Tuple
+  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
     (:wat::i64::+ (:wat::fix::node-start-offset node lines) 1)
     ""
     "?fact <- "))
@@ -152,7 +152,7 @@
             ;; immediately follows the opening paren; NEVER span text (this claims a SPECIFIC
             ;; literal, not "whatever's there").
             (:wat::core::Vector :- [:wat::fix::Edit]
-              (:wat::core::Tuple
+              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
                 (:wat::i64::+ (:wat::fix::node-start-offset c lines) 1)
                 "?fact <- "
                 ""))

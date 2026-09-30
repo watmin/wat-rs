@@ -198,7 +198,7 @@
         ;; faithful-clojure-net.wat's sibling comment for the full reasoning.
         (:wat::core::concat a
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-            (:wat::core::Tuple
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
               (:wat::core::Option/expect (:wat::map::get hc "?offset") "q-HeadConv: ?offset")
               old-name
               (:wat::core::ast-name (:wat::keyword::to-symbol (:wat::core::keyword-node old-name))))))))
@@ -217,7 +217,7 @@
       ;; old-text = ?name — see q-HeadConv's sibling comment above (arc 282).
       (:wat::core::concat a
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-          (:wat::core::Tuple
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
             (:wat::core::Option/expect (:wat::map::get ac "?offset") "q-ArrowConv: ?offset")
             (:wat::core::Option/expect (:wat::map::get ac "?name") "q-ArrowConv: ?name")
             ":-"))))
@@ -237,7 +237,7 @@
         ;; old-text = ?name directly (arc 282) — NEVER ?len.
         (:wat::core::concat a
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-            (:wat::core::Tuple
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
               (:wat::core::Option/expect (:wat::map::get tc "?offset") "q-TypeConv: ?offset")
               old-name
               (:wat::core::write-forms (:wat::keyword::to-type-form (:wat::core::keyword-node old-name))))))))
@@ -255,7 +255,7 @@
                     nodes   (:fix::collect-nodes-seq forms false lines)
                     ;; PURE rete: deduce the classification facts
                     rules   (:wat::rete::collect-rules :fix)
-                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
+                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
         ;; ⛔ HAND-FACED (arc 278) — `wat-scripts/fixes/*.wat` is excluded from the corpus
         ;; sweep, so a codemod that HAPPENS to drive rete pays for that exclusion by hand.
         [:wat::rete::CompileOutcome.Compiled {:session __session} __session]

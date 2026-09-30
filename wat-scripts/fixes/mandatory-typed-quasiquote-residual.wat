@@ -179,11 +179,11 @@
                       tl     (:wat::core::into [] (:wat::core::rest args))
                       open-e (:wat::core::if (:wat::core::= idx 0)
                                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-                                 (:wat::core::Tuple (:user::start-off h lines) "" ":- ["))
+                                 (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off h lines) "" ":- ["))
                                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
                       close-e (:wat::core::if (:wat::core::= idx (:wat::i64::- n 1))
                                 (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-                                  (:wat::core::Tuple (:user::end-off (:user::close-target h) lines) "" "]"))
+                                  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off (:user::close-target h) lines) "" "]"))
                                 (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
                       rest-e (:user::args-edits tl (:wat::i64::+ idx 1) n lines)]
       (:wat::core::concat open-e (:wat::core::concat close-e rest-e)))))

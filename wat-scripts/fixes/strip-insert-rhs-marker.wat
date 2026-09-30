@@ -48,7 +48,7 @@
        ;; node's OWN span (arc 282) — sanctioned: rhs-marker? already verified this node's
        ;; identity structurally (exact head + arity), and it is a List's own span.
        old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
-      (:wat::core::Vector :- [:wat::fix::Edit] (:wat::core::Tuple node-off old-text fact-text)))
+      (:wat::core::Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] node-off old-text fact-text)))
     (:wat::core::Vector :- [:wat::fix::Edit])))
 
 ;; walk-edits — deep walk: a rhs-marker node's OWN children are not further descended (its fact

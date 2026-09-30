@@ -108,9 +108,9 @@
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-    (:wat::core::Tuple (:user::start-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) ""
       "(:wat::core::match ")
-    (:wat::core::Tuple (:user::end-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) ""
       " [:wat::rete::FireOutcome.Fired {:value __explained} __explained] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message \"fire-rules-explain: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message \"fire-rules-explain: fixpoint round cap exceeded\")])")))
 
 ;; recurse a node's children WITHOUT wrapping the node's own top (idempotency suppression).

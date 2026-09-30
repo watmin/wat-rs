@@ -60,16 +60,16 @@
 (:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
     ;; compound — the actual lie, rewritten straight to its final form
-    (:wat::core::Tuple ":wat::kernel::StdIn::ReadLineResponse::Line" ":wat::kernel::StdIn::ReadFrameResponse::Frame")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::kernel::StdIn::ReadLineResponse::Line" ":wat::kernel::StdIn::ReadFrameResponse::Frame")
     ;; the enclosing response enum — catches ::Eof/::Stopped/::RequestTooLarge/::RequestMalformed
     ;; accessors and bare type refs (defenum head, -> annotations)
-    (:wat::core::Tuple ":wat::kernel::StdIn::ReadLineResponse"       ":wat::kernel::StdIn::ReadFrameResponse")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::kernel::StdIn::ReadLineResponse"       ":wat::kernel::StdIn::ReadFrameResponse")
     ;; the request record — bare type refs and the ::max-buffer-bytes accessor
-    (:wat::core::Tuple ":wat::kernel::StdIn::ReadLineRequest"        ":wat::kernel::StdIn::ReadFrameRequest")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::kernel::StdIn::ReadLineRequest"        ":wat::kernel::StdIn::ReadFrameRequest")
     ;; the op invocation keyword
-    (:wat::core::Tuple ":wat::kernel::StdIn/read-line"                ":wat::kernel::StdIn/read-frame")
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::kernel::StdIn/read-line"                ":wat::kernel::StdIn/read-frame")
     ;; the defenum's own bare variant declaration (structurally required — see header)
-    (:wat::core::Tuple ":Line"                                        ":Frame")))
+    (wat.type/Tuple :- [wat.type/String wat.type/String] ":Line"                                        ":Frame")))
 
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String

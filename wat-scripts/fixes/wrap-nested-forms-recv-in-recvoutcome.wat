@@ -77,9 +77,9 @@
     [scrut    (:wat::core::Option/expect (:wat::core::get ch 1) "scrut")
      last-arm (:wat::core::Option/expect (:wat::core::get ch (:wat::core::- (:wat::core::length ch) 1)) "last")]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple (:user::end-off scrut lines) ""
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off scrut lines) ""
         " [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv")
-      (:wat::core::Tuple (:user::end-off last-arm lines) ""
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off last-arm lines) ""
         ")] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message \"recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open\")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message \"recv': peer closed\")]"))))
 
 (:wat::core::defn :user::node-edits

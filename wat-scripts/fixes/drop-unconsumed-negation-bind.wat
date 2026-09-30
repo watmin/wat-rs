@@ -111,12 +111,12 @@
     (:wat::core::if (:wat::core::if (:wat::core::< end-off n)
                       (:wat::core::= (:wat::string::subs src end-off (:wat::i64::+ end-off 1)) " ")
                       false)
-      (:wat::core::Tuple off (:wat::string::concat body " ") "")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off (:wat::string::concat body " ") "")
       (:wat::core::if (:wat::core::if (:wat::core::> off 0)
                         (:wat::core::= (:wat::string::subs src (:wat::i64::- off 1) off) " ")
                         false)
-        (:wat::core::Tuple (:wat::i64::- off 1) (:wat::string::concat " " body) "")
-        (:wat::core::Tuple off body "")))))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::i64::- off 1) (:wat::string::concat " " body) "")
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off body "")))))
 
 (:wat::core::defn :user::site-edit
   [tree  <- :wat::WatAST
