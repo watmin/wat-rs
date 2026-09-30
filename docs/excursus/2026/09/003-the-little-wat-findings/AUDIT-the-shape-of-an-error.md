@@ -267,3 +267,10 @@ The floor is `{message location}`; 0 `:causes` in goldens, stdlib records, or Ru
 | B1 | `MacroExpansionFailed.cause` holds an interim `Fault`: a typed `cause` needs a `TypeEnv` that `RuntimeError::to_record` does not have on the peer-death paths | thread the type registry to `to_record`, or build the cause from the already-typed `MacroError` record |
 | B1 | `read-json` / `read-foreign` failures are `.to_string()`'d upstream (`eval_edn_read_json`/`_foreign`) before reaching `tagged_read_outcome_malformed`, whose tag (`JsonReadError`/`ForeignReadError`) is never a declared type — structure lost at the source | declare JSON/foreign read errors and carry them structured |
 | B1 | `fault_value(message, None)` still synthesizes a `<runtime>` file at line 0 (`src/runtime.rs:~11963`; 1 caller passes `None`) — the fabricated-location class B1 removed from the wrapper sites | the caller supplies a real span (the Rust raise site via `rust_caller_span!` at worst) and the `Option` goes |
+
+## RULING 2026-09-30 — the decoder hole first, then B2
+
+Builder: *"let's continue in the order you've expressed"*. Delivery: **T** (typed decode checks each
+field value against its declared type — the hole B1 found) → **B2** (dotted enum tags for sum types,
+a tagged lex error, `HashError` gains the floor, `fault_value`'s `<runtime>` synthesis goes) → C → D
+→ E → F → the stdlib-freeze excursus.
