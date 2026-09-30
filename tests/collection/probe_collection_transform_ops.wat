@@ -7,7 +7,7 @@
 
 ;; item1b: length of empty List
 (:wat::core::defn :t::item1b-list-len-empty [] -> wat.type/i64
-  (:wat::core::length (:wat::core::List)))
+  (:wat::core::length (wat.type/List :- [wat.type/i64])))
 
 ;; item1c: empty? on non-empty List
 (:wat::core::defn :t::item1c-list-empty-nonempty [] -> wat.type/bool
@@ -15,7 +15,7 @@
 
 ;; item1d: empty? on empty List
 (:wat::core::defn :t::item1d-list-empty-empty [] -> wat.type/bool
-  (:wat::core::empty? (:wat::core::List)))
+  (:wat::core::empty? (wat.type/List :- [wat.type/i64])))
 
 ;; item4a: zip happy path — length of zipped result
 (:wat::core::defn :t::item4a-zip-happy-len [] -> wat.type/i64

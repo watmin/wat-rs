@@ -1,0 +1,15 @@
+;; Arc 255 STONE 71 (THE WALL) — a macro's EXPANSION is checked like any other code. This
+;; template's own body writes an untyped `(:wat::core::Tuple ~a ~b)` (line 12 below) — the wall
+;; refuses it at EVERY use. MEASURED span (not the first draft's assumption): the error lands on
+;; the CALL SITE's own `1` literal (line 15, col 35) — the value substituted for `~a`, which is
+;; this Tuple call's own first argument, per `untyped_constructor_span`'s "prefer the call's
+;; first arg" rule (src/check.rs). It does not land on the template's own definition line (12)
+;; for this shape, because the first argument here IS the substitution, carrying the span it had
+;; where the CALLER wrote it. See `probe_stone255_71_template_untyped.rs`'s module doc comment.
+
+(:wat::core::defmacro :user::mk-pair
+  [a <- wat.type/AST b <- wat.type/AST] -> wat.type/AST
+  `(:wat::core::Tuple ~a ~b))
+
+(:wat::core::defn :user::use-pair [] -> wat.type/nil
+  (:wat::core::do (:user::mk-pair 1 2) nil))

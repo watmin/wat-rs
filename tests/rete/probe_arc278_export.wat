@@ -37,7 +37,7 @@
       (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:exp::seed s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:exp::q-Hit)))))
 
 (:wat::core::defn :user::empty-pv [] -> wat.type/PersistentVector
-  (:wat::core::PersistentVector))
+  (wat.type/PersistentVector :- [wat.type/i64]))
 
 (:wat::core::defn :user::cool-export [] -> :wat::rete::Export
   (:wat::rete::export

@@ -33,7 +33,7 @@
      _08 (:wat::kernel::println (:wat::string::concat "map::assoc          " (:wat::edn::write (:wat::map::assoc _m0 "b" 2))))
      _09 (:wat::kernel::println (:wat::string::concat "map::dissoc         " (:wat::edn::write (:wat::map::dissoc _m1 "a"))))
      _10 (:wat::kernel::println (:wat::string::concat "map::keys           " (:wat::edn::write (:wat::vec::length (:wat::map::keys _m1)))))
-     _11 (:wat::kernel::println (:wat::string::concat "map::values         " (:wat::edn::write (:wat::vec::length (:wat::map::values (:wat::core::PersistentMap))))))
+     _11 (:wat::kernel::println (:wat::string::concat "map::values         " (:wat::edn::write (:wat::vec::length (:wat::map::values (wat.type/PersistentMap :- [wat.type/String wat.type/i64]))))))
      ;; error paths — one type-mismatch, one arity-mismatch (via eval-ast! to bypass the checker).
      _12 (:wat::kernel::println (:wat::string::concat "map::length type-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::map::length 5))))))
      _13 (:wat::kernel::println (:wat::string::concat "map::length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::map::length _m1 _m1))))))
@@ -72,7 +72,7 @@
      _38 (:wat::kernel::println (:wat::string::concat "vec::length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vec::length _v1 _v1))))))
 
      ;; ── linkedlist (5) success paths ─────────────────────────────────────
-     _l0 (:wat::core::List)
+     _l0 (wat.type/List :- [wat.type/i64])
      _l1 (wat.type/List :- [wat.type/i64] 1 2 3)
      _39 (:wat::kernel::println (:wat::string::concat "linkedlist::length      " (:wat::edn::write (:wat::linkedlist::length _l1))))
      _40 (:wat::kernel::println (:wat::string::concat "linkedlist::empty? true " (:wat::edn::write (:wat::linkedlist::empty? _l0))))

@@ -33,7 +33,7 @@
                 (:wat::core::match (:wat::kernel::recv sp)
                   [:wat::kernel::RecvOutcome.Message {:msg addr}
                     (:wat::core::match (:wat::kernel::send sp
-                                         (:wat::core::Tuple (:user::outcome-name (:wat::kernel::connect addr)) addr))
+                                         (wat.type/Tuple :- [wat.type/String (:wat::kernel::Address :- [wat.type/i64 wat.type/i64])] (:user::outcome-name (:wat::kernel::connect addr)) addr))
                       [:wat::kernel::SendOutcome.Sent {} nil]
                       [:wat::kernel::SendOutcome.HandleClosed {} nil]
                       [:wat::kernel::SendOutcome.Stopped {} nil]

@@ -1,0 +1,1286 @@
+;; TABLE-STONE-255.71-typed-constructors.edn
+;;
+;; The committed, replayable decision table for arc 255 stone 71 (THE WALL — an untyped
+;; collection-constructor call is illegal). One row per site named by the pre-stone census
+;; (scratch/255-71-census-pre.tsv, 177 sites; not committed — ephemeral working data), keyed
+;; by (file, line, col) of the call's own span. `kind` is one of:
+;;   :typed              — converted by wat-scripts/fixes/typed-constructors.wat; `type` is the
+;;                         raw (Head :- [args]) fragment, in :wat::core:: keyword spelling (the
+;;                         codemod's own leaf-conversion door re-spells primitives to wat.type/X).
+;;   :stop1              — BRIEF's STOP-1: the element type is genuinely a design decision (a
+;;                         macro template variable substituted differently per call site, or a
+;;                         rule-dependent runtime binding). Left unconverted. Exactly 5 sites —
+;;                         at the brief's own "five or fewer" boundary, so this is not a STOP.
+;;   :legacy-shape       — NOT a genuinely untyped call: a pre-`:-`-marker positional-type-keyword
+;;                         shape (`(Head TypeKeyword items...)`, no `:-`), already illegal today
+;;                         via a DIFFERENT, pre-existing wall (arc 109 stone 3, Vector/HashSet/
+;;                         HashMap's own required-bracket check — `peel_param_spec`, src/types.rs)
+;;                         unrelated to and unaffected by this stone. The codemod's head-only
+;;                         point-splice cannot safely convert this shape (the stray type keyword
+;;                         would become a literal extra element). All 4 sites are inside `.wat.bad`
+;;                         fixtures, exempt from the wall-reach gate. Left untouched.
+;;   :positive-control   — typing it would destroy the ONE corpus site proving a specific renderer
+;;                         arm (format_type_inner's Var case). `.wat.bad`, gate-exempt. Left
+;;                         untouched.
+;;   :removed            — the census site no longer exists at this position: a prior edit (this
+;;                         stone's own) deleted the code there. No action; kept as a row so every
+;;                         pre-stone census site is accounted for exactly once.
+;;
+;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-255.71-the-untyped-constructor-wall.md
+;; AMEND: docs/arc/2026/06/255-builtin-registry/AMEND-STONE-255.71-resume.md
+;; SCORE: docs/arc/2026/06/255-builtin-registry/SCORE-STONE-255.71-the-untyped-constructor-wall.md
+
+{:sites
+ [
+  {:head ":wat::core::List"
+   :file "tests/collection/list.wat"
+   :line 11
+   :col 29
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty List; every sibling ctor in this file (:11/:17/:20 lines around) uses List :- [i64]"}
+  {:head ":wat::core::List"
+   :file "tests/collection/list.wat"
+   :line 17
+   :col 29
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty List; matches sibling typed List :- [i64] literals in the same file"}
+  {:head ":wat::core::List"
+   :file "tests/collection/list.wat"
+   :line 20
+   :col 29
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty List; matches sibling typed List :- [i64] literals in the same file"}
+  {:head ":wat::core::Tuple"
+   :file "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad"
+   :line 6
+   :col 8
+   :kind :typed
+   :type "(:wat::core::Tuple :- [[:wat::core::i64 :-> :wat::core::i64] :wat::core::String])"
+   :reason "Tuple(f, \"tag\"); f is (fn [x <- i64] -> i64 x) i.e. the fn-arrow bracket [i64 :-> i64] (bracket.wat's own convention for a 1-arg function type, e.g. wat/bracket.wat:34 `work-fn <- [I :-> O]`); \"tag\" is a String literal"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/collection/probe_arc278_0d_transform_dispatch_parity.wat.bad"
+   :line 10
+   :col 5
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal elements 1 2 3 folded by a String-only reducer — the deliberate element-type mismatch this fixture tests"}
+  {:head ":wat::core::List"
+   :file "tests/collection/probe_collection_transform_ops.wat"
+   :line 10
+   :col 23
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty List; sibling item1c/item1a in same file use List :- [i64] literals"}
+  {:head ":wat::core::List"
+   :file "tests/collection/probe_collection_transform_ops.wat"
+   :line 18
+   :col 23
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty List; sibling item1c uses List :- [i64] 1 2 3 literal"}
+  {:head ":wat::core::Tuple"
+   :file "tests/collection/wat_dispatch_e2_tuple.wat"
+   :line 7
+   :col 33
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "values 20, 22 are both integer literals"}
+  {:head ":wat::core::Tuple"
+   :file "tests/collection/wat_dispatch_e2_tuple.wat"
+   :line 14
+   :col 5
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::bool])"
+   :reason "values 1, \"row\", true — literal i64/String/bool"}
+  {:head ":wat::core::Vector"
+   :file "tests/function/probe_arc237_7b_conj_wrong_elem.wat.bad"
+   :line 6
+   :col 41
+   :kind :legacy-shape
+   :reason "`(:wat::core::Vector :wat::core::i64 1 2)` — the PRE-:-  positional-type-keyword shape, not a genuinely untyped call; `peel_param_spec` only recognizes a literal `:-` marker (src/types.rs:6102-6109), so this call already produces its OWN MalformedForm (\"first argument must be a `(Head :- [T])` type param-spec\", arc 109 stone 3) today, unrelated to and unaffected by this stone's wall (which only touches List/PersistentMap/PersistentVector/Tuple, never Vector). The codemod's head-only point-splice cannot safely convert this shape: it would leave the stray `:wat::core::i64` keyword sitting as a literal 4th Vector element, corrupting the fixture. `.wat.bad`, exempt from the wall-reach gate. Left untouched."}
+  {:head ":wat::core::Vector"
+   :file "tests/function/probe_arc237_7b_contains_wrong_elem.wat.bad"
+   :line 6
+   :col 26
+   :kind :legacy-shape
+   :reason "same shape and same reasoning as tests/function/probe_arc237_7b_conj_wrong_elem.wat.bad:6:41 — `(:wat::core::Vector :wat::core::i64 1 2 3)`, already illegal via arc 109's own required-bracket wall, codemod-incompatible (stray keyword would become a literal element), `.wat.bad` gate-exempt, left untouched"}
+  {:head "wat.type/PersistentVector"
+   :file "tests/function/probe_stone255_69_wat_type_scalar_dispatch.wat"
+   :line 22
+   :col 3
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "values 1 2 3 literal i64; return annotation on the enclosing defn already declares (wat.type/PersistentVector :- [wat.type/i64])"}
+  {:head "wat.type/List"
+   :file "tests/function/probe_stone255_70_constructor_brackets_through_the_door.wat"
+   :line 41
+   :col 3
+   :kind :removed
+   :reason "the site named by the pre-census no longer exists at this position: this stone's OWN earlier edit (see `git diff` on this file) deleted the bracket-less `:user::list-bracketless-still-runs` fn and replaced it with prose explaining the move; its replacement fixture is `tests/function/probe_stone255_71_list_bracketless_illegal.wat.bad` / `.rs`. No row to convert; moot."}
+  {:head ":wat::core::Tuple"
+   :file "tests/function/recursive_patterns_nonexhaustive.wat"
+   :line 6
+   :col 50
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "values 1, 2 literal i64"}
+  {:head ":wat::core::Tuple"
+   :file "tests/kernel/probe_arc255_29_thread_address_to_process.wat"
+   :line 36
+   :col 42
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])])"
+   :reason "(user::outcome-name ...) declares -> wat.type/String; addr is the peer's message type, declared (Address :- [i64 i64]) at the enclosing self-peer call (lines 30-32)"}
+  {:head ":wat::core::Tuple"
+   :file "tests/lint/probe_c19_nested_type_var_render.wat.bad"
+   :line 41
+   :col 3
+   :kind :positive-control
+   :reason "the outer Tuple wrapping both deliberately-unresolved literals (`[]` and `(:wat::core::List)`) at the same site as :41:25 above — same reasoning, same file, same test. Left untouched."}
+  {:head ":wat::core::List"
+   :file "tests/lint/probe_c19_nested_type_var_render.wat.bad"
+   :line 41
+   :col 25
+   :kind :positive-control
+   :reason "`(:wat::core::Tuple [] (:wat::core::List))` is the ONLY corpus site reaching `format_type_inner`'s Var arm (file's own header; `diagnostic_output_is_deterministic.rs`'s `the_nested_type_renderer_is_driven_and_renders_no_counter`, ~line 391) — the UNRESOLVED element type IS the point; typing this List destroys the only coverage of that renderer arm. The new wall's extra MalformedForm does not disturb the driving test: it greps the FIRST `:got \"...\"` field in the output, a key only `ReturnTypeMismatch` carries (`MalformedForm` has `reason`, not `got`), so the wall's error (if present) cannot be matched first. `.wat.bad`, gate-exempt. Left untouched."}
+  {:head ":wat::core::Tuple"
+   :file "tests/macros/probe_arc279b_subs_tuple_macro_eval.wat"
+   :line 30
+   :col 20
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "fold accumulator shape; seeded (Tuple \"\" 0) at line 32, kept is String (concat), nopen is i64 (i64::+)"}
+  {:head ":wat::core::Tuple"
+   :file "tests/macros/probe_arc279b_subs_tuple_macro_eval.wat"
+   :line 31
+   :col 20
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "same fold accumulator shape as :30 (the other if-branch)"}
+  {:head ":wat::core::Tuple"
+   :file "tests/macros/probe_arc279b_subs_tuple_macro_eval.wat"
+   :line 32
+   :col 14
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])"
+   :reason "the fold's seed value (\"\" 0) — String, i64"}
+  {:head ":wat::core::Tuple"
+   :file "tests/program/probe_arc170_edn_bridge_unspellable__lexemes.wat"
+   :line 16
+   :col 84
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "enclosing defn's own return annotation already declares (wat.type/Tuple :- [wat.type/i64 wat.type/String]); file is parse-only, never frozen, but the type is plain from the text"}
+  {:head ":wat::core::Vector"
+   :file "tests/resolve/probe_arc255_the_type_position_has_its_own_authority__bogus_in_return.wat"
+   :line 2
+   :col 72
+   :kind :typed
+   :type "(:wat::core::Vector :- [:wat::core::i64])"
+   :reason "empty Vector; harmless placeholder — the defn's return type resolution (the bogus :wat::type::Bogus name) aborts check before the body is ever reached, so this bracket cannot change the golden's error count (verified empirically: check dies with a single UnknownNamedType before infer descends into the body)"}
+  {:head ":wat::core::PersistentMap"
+   :file "tests/rete/probe_arc278_1a_data_model.wat"
+   :line 11
+   :col 10
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "empty PersistentMap; the Session record's alpha/beta/production-memory fields are declared as the bare unparameterized wat.type/PersistentMap (no :- constraint) in wat/rete.wat, so any concrete K/V type-checks; matched to this same file's own `net` map literal a few lines up (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record]) for consistency"}
+  {:head ":wat::core::PersistentMap"
+   :file "tests/rete/probe_arc278_1a_data_model.wat"
+   :line 21
+   :col 10
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "identical em binding in the sibling function :user::render-dag-of-session; same reasoning as :11:10"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_enum_variant_typo_bad.wat"
+   :line 34
+   :col 86
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "sole element is a query reference (:evt::q); matches the established (PersistentVector :- [:wat::rete::Query] (query-ref)) pattern used at tests/rete/probe_arc278_export.wat:45"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_enum_variant_typo_tagged.wat"
+   :line 33
+   :col 85
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "sole element is a query reference (:tg::q); same pattern as probe_arc278_enum_variant_typo_bad.wat"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_export.wat"
+   :line 40
+   :col 3
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "empty PersistentVector; enclosing defn's own return annotation is the bare unparameterized wat.type/PersistentVector (no element constraint) — any concrete element type-checks; i64 chosen as the corpus's default placeholder for a genuinely unconstrained empty collection"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_inline_constraint_cross_type.wat"
+   :line 24
+   :col 64
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "sole element (:probe::q-Hot) is a query reference; same established pattern"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_inline_constraint_untyped_equality.wat"
+   :line 25
+   :col 64
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "sole element (:probe::q-Hot) is a query reference; same established pattern"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_inline_constraint_untyped_ordering.wat"
+   :line 25
+   :col 64
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "sole element (:probe::q-Hot) is a query reference; same established pattern"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_query_type_safe_typo.wat.bad"
+   :line 16
+   :col 67
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::WatAST])"
+   :reason "the `:lhs` vector of `:wat::rete::Rule`; Rule's own defrecord (wat/rete.wat:48-51) declares `lhs <- (wat.type/PersistentVector :- [wat.type/AST])`; c1/c2 are `(:wat::core::quote ...)` pattern forms"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_query_type_safe_typo.wat.bad"
+   :line 16
+   :col 109
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::WatAST])"
+   :reason "the `:rhs` vector of `:wat::rete::Rule`; same field type as `:lhs` (wat/rete.wat:51); rhs1 is a `(:wat::core::quote ...)` pattern form"}
+  {:head ":wat::core::PersistentVector"
+   :file "tests/rete/probe_arc278_query_type_safe_typo.wat.bad"
+   :line 17
+   :col 33
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Rule])"
+   :reason "sole element `rule` is a `:wat::rete::Rule` record, passed to `:wat::rete::compile`; matches the established `(PersistentVector :- [:wat::rete::Rule] ...)` convention used for `compile-all`'s `rules` arg in the positive counterpart tests/rete/probe_arc278_query_type_safe.wat:23"}
+  {:head ":wat::core::Tuple"
+   :file "tests/services/probe_arc170_wrong_service_colocation.wat.bad"
+   :line 46
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])])"
+   :reason "`good` — elements are `Dialable/coord eh` then `Dialable/coord kvh`; `coord` returns `(:wat::kernel::Address :- [S R T])` (wat/capability.wat:51) instantiated per service; the 2-arg `(Address :- [Op Reply])` spelling matches this SAME file's own `dial-all` contract annotation and the corpus's other concrete Address instantiation (wat-tests/service-parametric-messages.wat:116). Element order (Echo, Kv) matches `good`'s own literal element order, which is exactly what must type-check against `dial-all`'s contract."}
+  {:head ":wat::core::Tuple"
+   :file "tests/services/probe_arc170_wrong_service_colocation.wat.bad"
+   :line 47
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply]) (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])])"
+   :reason "`bad` — elements are `Dialable/coord kvh` then `Dialable/coord eh`, i.e. SWAPPED order vs `good`; the bracket matches `bad`'s own literal (Kv, Echo) element order — the same order the checker would infer structurally with or without the bracket — so typing this changes nothing about the test's outcome: `bad` still mismatches `dial-all`'s (Echo, Kv)-ordered contract, which is the whole point of this fixture."}
+  {:head ":wat::core::Vector"
+   :file "tests/services/probe_arc278_struct_new_nature_wall.wat.bad"
+   :line 10
+   :col 7
+   :kind :legacy-shape
+   :reason "`(:wat::core::Vector :wat::kernel::Frame)` — the same pre-`:-` positional-type-keyword shape as the arc237_7b pair above (a single bare keyword arg, no elements, no `:-` marker); already illegal via arc 109's own required-bracket wall, unrelated to this stone. This file's OWN test (`struct_new_on_record_natured_failure_is_compile_error`) asserts a DIFFERENT, unrelated MalformedForm (`struct-new`'s nature wall, reason contains \"wat::kernel::Failure\" and \"record-natured\") is PRESENT among the errors — an extra Vector-bracket error alongside it does not affect that assertion. Codemod-incompatible shape, `.wat.bad` gate-exempt. Left untouched."}
+  {:head ":wat::core::Tuple"
+   :file "tests/types/probe_arc255_53_tuple_member_nested.wat.bad"
+   :line 8
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:u::In (:wat::core::Tuple :- [:u::In :u::Out])])"
+   :reason "outer Tuple: elements are `(:u::In :n 1)` (a `:u::In` record) and the nested Tuple at :8:46 (`(:u::In :n 1) (:u::Out :n 1)`, itself typed below)"}
+  {:head ":wat::core::Tuple"
+   :file "tests/types/probe_arc255_53_tuple_member_nested.wat.bad"
+   :line 8
+   :col 46
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:u::In :u::Out])"
+   :reason "nested Tuple inside the :8:13 outer Tuple: elements are `(:u::In :n 1)` and `(:u::Out :n 1)`, both single-field i64 records declared two lines up"}
+  {:head ":wat::core::Tuple"
+   :file "tests/types/probe_arc255_53_tuple_member_out.wat.bad"
+   :line 8
+   :col 13
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:u::In :u::Out])"
+   :reason "elements are `(:u::In :n 1)` and `(:u::Out :n 1)`, the same two record types declared at the top of this file (`:u::In [n <- i64]`, `:u::Out [n <- i64]`)"}
+  {:head ":wat::core::Vector"
+   :file "tests/types/probe_stone_118_b1a_neg.wat.bad"
+   :line 22
+   :col 51
+   :kind :legacy-shape
+   :reason "`(:wat::core::Vector :wat::core::String \"a\" \"b\")` — same pre-`:-` positional-type-keyword shape as the arc237_7b pair; already illegal today via arc 109's required-bracket wall (independent of this stone), and this file's own test (`concrete_surface_satisfaction_still_refuses_unrelated_family_and_swapped_args`) only asserts specific `TypeMismatch` errors are PRESENT among the error list — an extra Vector-bracket error does not disturb it. Codemod-incompatible shape (the stray `:wat::core::String` keyword would otherwise become a literal 3rd element), `.wat.bad` gate-exempt. Left untouched."}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/typed-constructors.wat"
+   :line 179
+   :col 7
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "SUPPLEMENTAL (not in the 177-site census; wat-scripts/fixes/** is gate-exempt, but the wall has no file exemption, so this codemod's OWN edit-tuple constructor — (offset, old-text, new-text) — must be typed to remain runnable once the wall lands, or every FUTURE codemod invocation fails to start)."}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/typed-constructors.wat"
+   :line 211
+   :col 3
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "SUPPLEMENTAL, same reasoning as :179:7 — `rebase-edit`'s own (i64, String, String) edit-tuple constructor."}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/fixes/typed-constructors.wat"
+   :line 280
+   :col 11
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])"
+   :reason "SUPPLEMENTAL, same reasoning as :179:7 — `build-edit`'s own (i64, String, String) edit-tuple constructor."}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-compound-upcast.wat"
+   :line 40
+   :col 31
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::keyword :wat::capability::Capability])"
+   :reason "the very next line's own ann-form ascribes this exact type: (wat.type/Tuple :- [wat.type/keyword :wat::capability::Capability])"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-generic-shipped.wat"
+   :line 32
+   :col 24
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :B])"
+   :reason "pool-runner's own `:- [A B]` signature: self <- (Peer :- [(Tuple :- [i64 A]) (Tuple :- [i64 B])]); `out` is sent back as the reply half, i.e. the 2nd (Tuple :- [i64 B]) shape"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-m1-dial-runner.wat"
+   :line 56
+   :col 103
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "values 0, \"a\" — literal i64, String"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-m1-dial-runner.wat"
+   :line 67
+   :col 103
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "values 1, \"b\" — literal i64, String"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-m1-phantom-d.wat"
+   :line 38
+   :col 79
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "values 0, 3 — literal i64, i64"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-nested-vector-of-tuples.wat"
+   :line 26
+   :col 28
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::keyword :wat::capability::Capability])"
+   :reason "feeds :probe::as-pairs, whose own param type is (Vector :- [(Tuple :- [keyword Capability])])"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-s3-process-runner.wat"
+   :line 53
+   :col 24
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "self <- (Peer :- [(Tuple :- [i64 i64]) (Tuple :- [i64 i64])]) — concrete (non-generic) pool-runner; `out` is the 2nd (reply) shape"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-s3b-astsplice.wat"
+   :line 75
+   :col 28
+   :kind :stop1
+   :reason "`~peer-node`'s type is built at RUN TIME via string-concat + :wat::core::keyword-node AST splicing (the whole point of this probe — \"derive-and-splice\"), never a static `:-` bracket annotation in the template text this stone can read a fixed type off of"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/probes/arc-170/probe-s3c-rendezvous.wat"
+   :line 65
+   :col 24
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "self <- (Peer :- [(Tuple :- [i64 i64]) (Tuple :- [i64 i64])]); work-fn <- Fn(i64)->i64; `out` is the 2nd (reply) shape"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 52
+   :col 101
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "inside quote, literal args 1,4"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 52
+   :col 125
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "inside quote, literal args 2,5"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 52
+   :col 149
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "inside quote, literal args 3,6"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 62
+   :col 47
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "inside quote, literal args 1,2,3"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 62
+   :col 72
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "inside quote, literal args 4,5,6"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 63
+   :col 101
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "inside quote, literal args 1,4"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 63
+   :col 125
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "inside quote, literal args 2,5"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 63
+   :col 149
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])"
+   :reason "inside quote, literal args 3,6"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 65
+   :col 50
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "inside quote, literal args 1,2,3,4"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-home-10-math-stat-seq-examples.wat"
+   :line 68
+   :col 53
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "inside quote, literal args 1,2,3"}
+  {:head ":wat::core::Vector"
+   :file "wat-scripts/scratch-pad/255-p6c-w6-arity-errors.wat"
+   :line 12
+   :col 80
+   :kind :typed
+   :type "(:wat::core::Vector :- [:wat::core::i64])"
+   :reason "inside quote (eval-ast! arity-error probe), literal args 1,2"}
+  {:head ":wat::core::Vector"
+   :file "wat-scripts/scratch-pad/255-p6c-w6-arity-errors.wat"
+   :line 18
+   :col 77
+   :kind :typed
+   :type "(:wat::core::Vector :- [:wat::core::i64])"
+   :reason "inside quote, literal args 1,2"}
+  {:head ":wat::core::Vector"
+   :file "wat-scripts/scratch-pad/255-p6c-w6-arity-errors.wat"
+   :line 21
+   :col 78
+   :kind :typed
+   :type "(:wat::core::Vector :- [:wat::core::i64])"
+   :reason "inside quote, literal args 1,2"}
+  {:head ":wat::core::Vector"
+   :file "wat-scripts/scratch-pad/255-p6c-w6-arity-errors.wat"
+   :line 27
+   :col 81
+   :kind :typed
+   :type "(:wat::core::Vector :- [:wat::core::i64])"
+   :reason "inside quote, literal args 1,2"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-e-i-both-map-spellings.wat"
+   :line 17
+   :col 49
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::keyword :wat::core::i64])"
+   :reason "empty map, matches this file's own pm0 (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :b 2) a few lines up"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-apply-lies-about-what-exists.wat"
+   :line 50
+   :col 53
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal args 1,2,3; matches the very next line's own explicit (wat.type/PersistentVector :- [wat.type/i64]) wrapper"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-apply-lies-about-what-exists.wat"
+   :line 51
+   :col 139
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "same literal args 1,2,3 inside the (Vector :- [(PersistentVector :- [i64])] ...) wrapper on the same line"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-i-vector-concat-value-door-panic.wat"
+   :line 29
+   :col 38
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal args 1,2,3"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-i-vector-concat-value-door-panic.wat"
+   :line 35
+   :col 38
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal args 1,2,3"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-i-vector-concat-value-door-panic.wat"
+   :line 35
+   :col 75
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal args 4,5"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-i-vector-concat-value-door-panic.wat"
+   :line 45
+   :col 20
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal args 1,2,3; matches the (wat.type/Vector :- [(wat.type/PersistentVector :- [wat.type/i64])]) wrapper two lines up"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 21
+   :col 112
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "empty; matches every sibling literal in this file, all (wat.type/PersistentVector :- [wat.type/i64] ...)"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 34
+   :col 156
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal arg 1"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 34
+   :col 189
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal arg 2"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 35
+   :col 156
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal arg 1"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 36
+   :col 154
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "empty"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 37
+   :col 153
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal arg 1"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 38
+   :col 162
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal arg 1"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 39
+   :col 156
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal arg 1"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/255-stone-o-iii-six-verbs-direct.wat"
+   :line 39
+   :col 189
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "literal arg 2"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 28
+   :col 34
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "assoc'd \"a\" 1 immediately below; matches the enclosing (Vector :- [(PersistentMap :- [String i64])]) wrapper"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 32
+   :col 16
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "empty; matches the enclosing (Vector :- [(PersistentMap :- [String i64])]) wrapper"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 35
+   :col 32
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "assoc'd \"a\" 1 immediately below"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 39
+   :col 32
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "assoc'd \"a\" 1 immediately below"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 43
+   :col 14
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "assoc'd \"a\" (Vector :- [i64] 1) immediately below, same String/i64 shape"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 47
+   :col 32
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "assoc'd \"a\" 1 immediately below"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 52
+   :col 34
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "assoc'd \"a\" 1 immediately below"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 56
+   :col 34
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "assoc'd \"a\" 1 immediately below"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 128
+   :col 16
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "literal args 1,2,3; enclosing wrapper is (Vector :- [(List :- [i64])])"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 132
+   :col 16
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty; same (List :- [i64]) wrapper"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 135
+   :col 14
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "literal args 1,2,3"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 139
+   :col 14
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "literal args 1,2,3"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat"
+   :line 143
+   :col 14
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "literal args 1,2,3"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-direct.wat"
+   :line 36
+   :col 134
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])"
+   :reason "empty; matches this file's own _m0/_m1 String/i64 maps used throughout"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-direct.wat"
+   :line 75
+   :col 10
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty _l0, compared against sibling _l1 (wat.type/List :- [wat.type/i64] 1 2 3) the next line"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/255-stone-o-iv-d-direct-calls.wat"
+   :line 14
+   :col 25
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty; matches sibling (wat.type/List :- [wat.type/i64] 1 2 3) two lines above"}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/arc109-tuple-bracket-reader.wat"
+   :line 56
+   :col 27
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "literal args 1,\"x\""}
+  {:head ":wat::core::Tuple"
+   :file "wat-scripts/scratch-pad/arc109-tuple-bracket-reader.wat"
+   :line 57
+   :col 33
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])"
+   :reason "literal args 2,\"y\""}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/probe-arc255-Eii-vectors-acceptance.wat"
+   :line 12
+   :col 14
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "empty pv-e; matches sibling pv0 (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) the line above"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/probe-arc278-rules-cross-the-wire.wat"
+   :line 95
+   :col 15
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "sole element (:wat::rete::make-query ...); this is compile-all's queries arg, matching the established (PersistentVector :- [:wat::rete::Query] ...) pattern"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-scripts/scratch-pad/probe-arc278-rules-ship-as-declared-payload.wat"
+   :line 94
+   :col 15
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "same shape as probe-arc278-rules-cross-the-wire.wat:95:15"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/probe-hashset-and-linkedlist-homes.wat"
+   :line 22
+   :col 54
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty; matches sibling (wat.type/List :- [wat.type/i64] 1 2 3) the next line"}
+  {:head ":wat::core::List"
+   :file "wat-scripts/scratch-pad/probe-hashset-and-linkedlist-homes.wat"
+   :line 24
+   :col 54
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty; same sibling pattern"}
+  {:head ":wat::core::Vector"
+   :file "wat-scripts/scratch-pad/probe-slice-one-registry-seam.wat"
+   :line 159
+   :col 70
+   :kind :typed
+   :type "(:wat::core::Vector :- [:wat::core::i64])"
+   :reason "inside quote, never checked or evaluated (:wat::rete::pure? inspects the AST structurally); literal args 255,0,16 default to i64 (Bytes/to-hex's own doc example uses explicit u8-wrapped values, not bare literals, so i64 is the faithful reading of THIS literal text)"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-tests/core/core-nth-differential.wat"
+   :line 82
+   :col 38
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "values 10 20 30 literal i64"}
+  {:head ":wat::core::List"
+   :file "wat-tests/core/core-nth-differential.wat"
+   :line 102
+   :col 38
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "values 10 20 30 literal i64"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-tests/core/core-nth.wat"
+   :line 79
+   :col 33
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "values 10 20 30 literal i64"}
+  {:head ":wat::core::List"
+   :file "wat-tests/core/core-nth.wat"
+   :line 99
+   :col 33
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "values 10 20 30 literal i64"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-tests/gen.wat"
+   :line 354
+   :col 3
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "`:wat-tests::gen::sbases`'s own return annotation already declares `(wat.type/PersistentVector :- [wat.type/i64])`; literal elements 3 3 3 3 4"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat-tests/gen.wat"
+   :line 837
+   :col 3
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "second `:wat-tests::gen::sbases` definition later in the same file, identical shape and reasoning as :354:3"}
+  {:head ":wat::core::List"
+   :file "wat-tests/holon/list-round-trip.wat"
+   :line 21
+   :col 9
+   :kind :typed
+   :type "(:wat::core::List :- [:wat::core::i64])"
+   :reason "empty List; sibling list-of-length case a few lines up uses (wat.type/List :- [wat.type/i64] 1 2 3)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/bracket.wat"
+   :line 235
+   :col 12
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :O])"
+   :reason "the enclosing fn's Peer type param declares this exact shape ((wat.type/Tuple :- [wat.type/i64 O]) is the reply message), and the lambda's own return annotation two lines up is literally (wat.type/Tuple :- [wat.type/i64 O])"}
+  {:head ":wat::core::Tuple"
+   :file "wat/bracket.wat"
+   :line 491
+   :col 26
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 ~ret-ty])"
+   :reason "CORRECTED (post-floor red, 3 tests) from a mislabel that assumed `dial-runner` was an ordinary function with a real checker-level `O` in scope, like its siblings at :235/:616/:747. It is not: `dial-runner` is emitted by a quasiquote template, and `~ret-ty` (the same template var `sp-out`, wat/bracket.wat:424, already uses for this exact `(Tuple :- [i64 X])` reply shape) is the correct substitution."}
+  {:head ":wat::core::Tuple"
+   :file "wat/bracket.wat"
+   :line 616
+   :col 56
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :I])"
+   :reason "collect-loop's own `:- [D I O]` signature types `items <- (Vector :- [I])`; cursor is i64, (nth items cursor) is I — matches PoolMsg's own :pair field shape (Tuple :- [i64 I])"}
+  {:head ":wat::core::Tuple"
+   :file "wat/bracket.wat"
+   :line 747
+   :col 98
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 :I])"
+   :reason "same collect-loop-family fn, same `:- [D I O]` generic signature; i is i64, (nth items i) is I"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1283
+   :col 32
+   :kind :typed
+   :type "(:wat::core::Tuple :- [~coords-kw ~grant-handles-ann])"
+   :reason "CORRECTED from an earlier STOP1 mislabel (see the CORRECTION note above this table's generator): `pair-ty`, computed the line above, is already exactly `(wat.type/Tuple :- [~coords-kw ~grant-handles-ann])`, and `kwargs-check-def`'s own `-> ~pair-ty` already declares this call's return type as that same shape — the template variables needed were already in scope two lines away."}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1852
+   :col 30
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "format-tokenizer state pair: (mode-tuple, state-tuple) — mode is (\"text\",\"none\"), state is (buf:String, segs:Vector<Tuple>); this whole function lives inside a macro template (only 7 type records exist for all of wat/core.wat under a trivial program — confirmed empirically via WAT_CHECK_TYPES — none between lines 1840-2030), so the type is read from the text, not the checker"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1853
+   :col 32
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair, both string literals (\"text\" \"none\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1854
+   :col 32
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (concat-result:String, segs:Vector<Tuple>)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1869
+   :col 50
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "a segs element (\"text\" buf) — both String"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1870
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "outer (mode-tuple, state-tuple) wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1871
+   :col 36
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair (\"name\" \"none\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1872
+   :col 36
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (c:String, segs-after:Vector<Tuple>)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1881
+   :col 32
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "outer wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1882
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair (\"text\" \"none\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1883
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (concat-result, segs)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1891
+   :col 32
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "outer wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1892
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair (\"text\" \"open\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1893
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (buf, segs)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1897
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "outer wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1898
+   :col 36
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair (\"text\" \"close\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1899
+   :col 36
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (buf, segs)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1900
+   :col 34
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "outer wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1901
+   :col 36
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair (\"text\" \"none\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1902
+   :col 36
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (concat buf c, segs)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1908
+   :col 28
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "outer wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1909
+   :col 30
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair (\"text\" \"none\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1910
+   :col 30
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (\"\", conj segs (slot entry))"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1911
+   :col 55
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "a segs element (\"slot\" buf) — both String"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1919
+   :col 30
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "outer wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1920
+   :col 32
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "inner mode/pending pair (\"name\" \"none\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1921
+   :col 32
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "inner state pair (concat buf c, segs)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1922
+   :col 20
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])])"
+   :reason "the fold's own seed value: outer wrap, same shape as :1852"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1923
+   :col 22
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "seed mode/pending pair (\"text\" \"none\")"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1924
+   :col 22
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::Tuple])])"
+   :reason "seed state pair (\"\", the already-typed empty (wat.type/Vector :- [wat.type/Tuple]) literal)"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1961
+   :col 47
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::String :wat::core::String])"
+   :reason "a segs element (\"text\" fin-buf) — both String"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 1981
+   :col 27
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST]) (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])])"
+   :reason "pass-2 fold accumulator (ps2:Vector<WatAST>, used2:HashMap<String,bool>) — matches the fold's own explicitly-typed seed at :2020"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 2017
+   :col 29
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST]) (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])])"
+   :reason "same pass-2 accumulator shape, the slot-segment branch"}
+  {:head ":wat::core::Tuple"
+   :file "wat/core.wat"
+   :line 2020
+   :col 21
+   :kind :typed
+   :type "(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST]) (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])])"
+   :reason "the pass-2 fold's own seed value — already explicitly spelled inline as (wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/gen.wat"
+   :line 707
+   :col 29
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::i64])"
+   :reason "`Bases` typealiases to (PersistentVector :- [i64]); `cards`' spliced elements are each `(Gen/card g)`, which returns wat.type/i64"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/query.wat"
+   :line 305
+   :col 33
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::Value])"
+   :reason "`into`'s seed for a fold whose inner `map` lambda returns wat.type/Value; matches the same PV<Value> shape as the sibling accumulator at :493"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/query.wat"
+   :line 313
+   :col 59
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::Value])"
+   :reason "query-read's `params` field is the bare unparameterized wat.type/PersistentMap; matched to this corpus's established params/bindings-map convention (String -> Value)"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/query.wat"
+   :line 324
+   :col 11
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::Value])"
+   :reason "the zero-deduction-types fallback for concat-chain, which otherwise concatenates PV<Value> query-call results (see :305) — must be the same element type"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/query.wat"
+   :line 416
+   :col 34
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Rule])"
+   :reason "feeds compile-all's `rules` param, declared (PersistentVector :- [:wat::rete::Rule]) in wat/rete/compile.wat"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/query.wat"
+   :line 417
+   :col 34
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::rete::Query])"
+   :reason "feeds compile-all's `queries` param, declared (PersistentVector :- [:wat::rete::Query]) in wat/rete/compile.wat"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/query.wat"
+   :line 493
+   :col 29
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::Value])"
+   :reason "the foldl's own seed; its accumulator param is explicitly typed two lines up as `~acc-sym <- (wat.type/PersistentVector :- [wat.type/Value])`"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/compile.wat"
+   :line 1177
+   :col 44
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "Session's `network` field is the bare unparameterized wat.type/PersistentMap (wat/rete.wat:200); any concrete K/V type-checks, matched to this file's own established memory-field convention"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/compile.wat"
+   :line 1184
+   :col 30
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "empty-pm seeds Session's alpha/beta/production/query-memory fields, all bare wat.type/PersistentMap; same convention as :1177"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/rete/oracle/accum-pass.wat"
+   :line 135
+   :col 34
+   :kind :stop1
+   :reason "custom-accumulator emission: the PersistentVector's elements are ~@vals, the query-variable bindings gathered by :wat::rete::acc::gather-vals across matching facts for a user-authored rule; the element type is genuinely rule-dependent (whichever field/value the rule's own accumulator var binds) and is not statically known to this emitting code — a design decision, not a read"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/accum-pass.wat"
+   :line 194
+   :col 7
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::Value])"
+   :reason "project-group-keys' fold seed; the fold assoc's String keys (k) to v, the value read out of Element/bindings (a bindings-shaped map, itself bare wat.type/PersistentMap — var-name -> bound Value)"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/explain.wat"
+   :line 48
+   :col 5
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::Record :wat::rete::Support])"
+   :reason "the fold's own body assoc's `derived` (a Record, from eval-insert) as key to a (:wat::rete::Support ...) value"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/explain.wat"
+   :line 75
+   :col 33
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::Value])"
+   :reason "`empty` seeds a bindings-shaped accumulator (comment says HAND-FACED, same class as the other memory/bindings empties in this file)"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/fire.wat"
+   :line 122
+   :col 5
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String (:wat::core::PersistentVector :- [:wat::core::PersistentMap])])"
+   :reason "collect-query-memory's outer fold seed: keyed by qname (String), value is `maps`, declared two lines up as (wat.type/PersistentVector :- [wat.type/PersistentMap])"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/rete/oracle/fire.wat"
+   :line 210
+   :col 5
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::Record])"
+   :reason "the fold's own fn param is `f <- wat.type/Record`, conj'd straight into the accumulator"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/rete/oracle/fire.wat"
+   :line 252
+   :col 5
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::Record])"
+   :reason "same fold shape as :210 — `f <- wat.type/Record`"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/rete/oracle/fire.wat"
+   :line 481
+   :col 33
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::Record])"
+   :reason "fire-stratified-loop's initial \"derived\" accumulator; matches the file's own Record-vector convention (same as :210/:252)"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/fire.wat"
+   :line 489
+   :col 47
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "Session's alpha-memory field, bare wat.type/PersistentMap; matched to the established memory-field convention"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/fire.wat"
+   :line 490
+   :col 46
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "Session's beta-memory field, same convention"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/fire.wat"
+   :line 494
+   :col 47
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "Session's query-memory field, same convention"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/fire.wat"
+   :line 505
+   :col 21
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "Session's alpha-memory field, same convention (second Session literal in this fn)"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/fire.wat"
+   :line 506
+   :col 20
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::i64 :wat::core::Record])"
+   :reason "Session's beta-memory field, same convention"}
+  {:head ":wat::core::PersistentVector"
+   :file "wat/rete/oracle/insert.wat"
+   :line 93
+   :col 29
+   :kind :typed
+   :type "(:wat::core::PersistentVector :- [:wat::core::Record])"
+   :reason "the fold this seeds declares its own accumulator param two lines below as (wat.type/PersistentVector :- [wat.type/Record]); `fact <- :T` is conj'd in first, so T must up-cast to Record here"}
+  {:head ":wat::core::Tuple"
+   :file "wat/rete/oracle/pass.wat"
+   :line 281
+   :col 36
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::Record :wat::core::i64])"
+   :reason "conj'd straight into Token/matches, whose field is declared (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/Record wat.type/i64])]) in wat/rete.wat:32"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/pass.wat"
+   :line 652
+   :col 21
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::Value])"
+   :reason "Token's :bindings field, bare wat.type/PersistentMap (wat/rete.wat:33) — a var-name -> bound Value map, matching the bindings convention established elsewhere"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/oracle/pass.wat"
+   :line 781
+   :col 31
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::Value])"
+   :reason "passed to :wat::rete::binding-extensions as a seed bindings map — same bindings convention"}
+  {:head ":wat::core::PersistentMap"
+   :file "wat/rete/syntax.wat"
+   :line 89
+   :col 37
+   :kind :typed
+   :type "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::Value])"
+   :reason "the initial `params` map spliced into query-params-form, matching :wat::rete::query-read's own bare wat.type/PersistentMap `params` param (wat/rete/syntax.wat:13) — a name -> bound-value map"}
+  {:head ":wat::core::Tuple"
+   :file "wat/service.wat"
+   :line 1633
+   :col 46
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 ~selectable-peer-ty])"
+   :reason "CORRECTED from an earlier STOP1 mislabel (see the CORRECTION note above). `selectable-entry-ty` (wat/service.wat:1346) is already exactly `(wat.type/Tuple :- [wat.type/i64 ~selectable-peer-ty])` — this file's own comment at this exact site says \"selectables' element is now (Tuple :- [i64 (Peer :- [R O])])\"; `-1` is the i64 sentinel slot, the `first`-extracted value is the peer slot."}
+  {:head ":wat::core::Tuple"
+   :file "wat/service.wat"
+   :line 1888
+   :col 74
+   :kind :typed
+   :type "(:wat::core::Tuple :- [:wat::core::i64 ~selectable-peer-ty])"
+   :reason "CORRECTED from an earlier STOP1 mislabel (see the CORRECTION note above). Same `selectable-entry-ty` shape as :1633 (wat/service.wat:1346); `peer` here is bound from `ServiceEvent.Connection`'s `:peer` field, this file's OWN `selectable-peer-ty` convention; `next-id` is the i64 sentinel/id slot."}
+ ]}

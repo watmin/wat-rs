@@ -1280,7 +1280,7 @@
          pair-ty      `(wat.type/Tuple :- [~coords-kw ~grant-handles-ann])
          kwargs-check-def (:wat::core::if mint-coords?
                             `(:wat::core::defn ~kwargs-check-kw :- [~@peer-tp-syms] [& ~capswapped-argvec] -> ~pair-ty
-                               (:wat::core::Tuple (~coords-prime-kw ~@coords-ctor-args) (~grant-handles-prime-kw ~@gh-ctor-args)))
+                               (wat.type/Tuple :- [(:wat::core::unquote coords-kw) (:wat::core::unquote grant-handles-ann)] (~coords-prime-kw ~@coords-ctor-args) (~grant-handles-prime-kw ~@gh-ctor-args)))
                             `(:wat::core::do nil))
          ;; ── <fqdn>::grant-worker / revoke-worker — unrolled typed grant|revoke over the
          ;; literal service-field list of ::GrantHandles. `handles-sym`/`pid-sym` are reused
@@ -1849,9 +1849,9 @@
                              (:wat::core::= c "{")
                              
                              ;; {{ → literal {
-                             (:wat::core::Tuple
-                               (:wat::core::Tuple "text" "none")
-                               (:wat::core::Tuple (:wat::string::concat buf "{") segs))
+                             (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                               (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
+                               (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf "{") segs))
                              (:wat::core::if
                                (:wat::core::= c "}")
                                
@@ -1866,10 +1866,10 @@
                                                
                                                segs
                                                (:wat::core::conj segs
-                                                 (:wat::core::Tuple "text" buf)))]
-                                 (:wat::core::Tuple
-                                   (:wat::core::Tuple "name" "none")
-                                   (:wat::core::Tuple c segs-after)))))
+                                                 (wat.type/Tuple :- [wat.type/String wat.type/String] "text" buf)))]
+                                 (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                                   (wat.type/Tuple :- [wat.type/String wat.type/String] "name" "none")
+                                   (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] c segs-after)))))
                            (:wat::core::if
                              (:wat::core::= pending "close")
                              
@@ -1878,9 +1878,9 @@
                                (:wat::core::= c "}")
                                
                                ;; }} → literal }
-                               (:wat::core::Tuple
-                                 (:wat::core::Tuple "text" "none")
-                                 (:wat::core::Tuple (:wat::string::concat buf "}") segs))
+                               (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                                 (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
+                                 (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf "}") segs))
                                ;; lone } → error
                                (:wat::core::macro-error
                                  "format: lone '}' in template — use '}}' for a literal brace"))
@@ -1888,27 +1888,27 @@
                              (:wat::core::if
                                (:wat::core::= c "{")
                                
-                               (:wat::core::Tuple
-                                 (:wat::core::Tuple "text" "open")
-                                 (:wat::core::Tuple buf segs))
+                               (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                                 (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "open")
+                                 (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] buf segs))
                                (:wat::core::if
                                  (:wat::core::= c "}")
                                  
-                                 (:wat::core::Tuple
-                                   (:wat::core::Tuple "text" "close")
-                                   (:wat::core::Tuple buf segs))
-                                 (:wat::core::Tuple
-                                   (:wat::core::Tuple "text" "none")
-                                   (:wat::core::Tuple (:wat::string::concat buf c) segs))))))
+                                 (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                                   (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "close")
+                                   (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] buf segs))
+                                 (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                                   (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
+                                   (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf c) segs))))))
                          ;; mode=="name" (pending always "none")
                          (:wat::core::if
                            (:wat::core::= c "}")
                            
                            ;; close placeholder: emit slot segment
-                           (:wat::core::Tuple
-                             (:wat::core::Tuple "text" "none")
-                             (:wat::core::Tuple ""
-                               (:wat::core::conj segs (:wat::core::Tuple "slot" buf))))
+                           (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                             (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
+                             (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] ""
+                               (:wat::core::conj segs (wat.type/Tuple :- [wat.type/String wat.type/String] "slot" buf))))
                            (:wat::core::if
                              (:wat::core::= c "{")
                              
@@ -1916,12 +1916,12 @@
                              (:wat::core::macro-error
                                "format: '{' inside placeholder name — unclosed '{'?")
                              ;; accumulate name char
-                             (:wat::core::Tuple
-                               (:wat::core::Tuple "name" "none")
-                               (:wat::core::Tuple (:wat::string::concat buf c) segs)))))))
-                   (:wat::core::Tuple
-                     (:wat::core::Tuple "text" "none")
-                     (:wat::core::Tuple "" (wat.type/Vector :- [wat.type/Tuple])))
+                             (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                               (wat.type/Tuple :- [wat.type/String wat.type/String] "name" "none")
+                               (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf c) segs)))))))
+                   (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
+                     (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
+                     (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] "" (wat.type/Vector :- [wat.type/Tuple])))
                    chars)
 
      ;; ── Finalization: inspect tok-state, error on bad endings ────────
@@ -1958,7 +1958,7 @@
                    (:wat::string::empty? fin-buf)
                    
                    fin-segs
-                   (:wat::core::conj fin-segs (:wat::core::Tuple "text" fin-buf)))
+                   (:wat::core::conj fin-segs (wat.type/Tuple :- [wat.type/String wat.type/String] "text" fin-buf)))
 
      ;; ── 4. Pass 2 — segments → pieces (Vector :- [WatAST]) + used-set ───
      ;; Helper: build a WatAST String-literal node from a text string.
@@ -1978,7 +1978,7 @@
                           (:wat::core::= kind "text")
                           
                           ;; text segment → String literal AST node
-                          (:wat::core::Tuple
+                          (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
                             (:wat::core::conj ps2
                               (:wat::core::first
                                 (:wat::core::ast->children
@@ -2014,10 +2014,10 @@
                              val-ast (:wat::core::Option/expect  
                                         (:wat::hashmap::get kwargs-map pay)
                                         "format: internal — kwargs-map get post-contains?")]
-                            (:wat::core::Tuple
+                            (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
                               (:wat::core::conj ps2 `(:wat::core::str ~val-ast))
                               (:wat::hashmap::assoc used2 pay true))))))
-                    (:wat::core::Tuple
+                    (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
                       (wat.type/Vector :- [wat.type/AST])
                       (wat.type/HashMap :- [wat.type/String wat.type/bool]))
                     segments)

@@ -119,7 +119,7 @@
                                      toks)]
             (:wat::map::assoc acc qname maps))
           acc)))
-    (:wat::core::PersistentMap)
+    (wat.type/PersistentMap :- [wat.type/String (wat.type/PersistentVector :- [wat.type/PersistentMap])])
     (:wat::rete::topological-node-ids network)))
 
 ;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
@@ -207,7 +207,7 @@
           (:wat::vector::conj a f))
         acc
         pv))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/Record])
     (:wat::map::values prod-mem)))
 
 ;; merge-facts — fold derived facts into the existing fact PV, conj-ing only new ones (dedup by value-equality).
@@ -249,7 +249,7 @@
       (:wat::core::if (:wat::vector::contains? supported f)
         (:wat::vector::conj acc f)
         acc))
-    (:wat::core::PersistentVector)
+    (wat.type/PersistentVector :- [wat.type/Record])
     facts))
 
 ;; fire-grow-fixpoint — the GROWING half: re-run the full match over a dedup-growing fact set
@@ -478,7 +478,7 @@
                     final-acc (:wat::rete::fire-stratified-loop
                                 rules final-ts 0 max-s
                                 facts
-                                (:wat::core::PersistentVector))
+                                (wat.type/PersistentVector :- [wat.type/Record]))
                     all-d     (:wat::rete::FireStratAcc/derived final-acc)
                     ;; pack derived facts into a production-memory structure the caller can query
                     fprod-m   (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/PersistentVector]) 0 all-d)
@@ -486,12 +486,12 @@
                     q-seed    (:wat::rete::Session
                                 :network (:wat::rete::Session/network session)
                                 :rules (:wat::rete::Session/rules   session)
-                                :alpha-memory (:wat::core::PersistentMap)
-                                :beta-memory (:wat::core::PersistentMap)
+                                :alpha-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
+                                :beta-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
                                 :production-memory fprod-m
                                 :facts (:wat::rete::FactBag :items closed)
                                 :next-id (:wat::rete::Session/next-id session)
-                                :query-memory (:wat::core::PersistentMap))
+                                :query-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record]))
                     ;; HAND-FACED, same reason as `fire-fixpoint` above.
                     q-fired   (:wat::core::match (:wat::rete::fire-once$oracle q-seed)
                                [:wat::rete::FireOutcome.Fired {:value __f} __f]
@@ -502,8 +502,8 @@
     (:wat::rete::Session
       :network (:wat::rete::Session/network session)
       :rules (:wat::rete::Session/rules   session)
-      :alpha-memory (:wat::core::PersistentMap)
-      :beta-memory (:wat::core::PersistentMap)
+      :alpha-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
+      :beta-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
       :production-memory fprod-m
       :facts (:wat::rete::FactBag :items closed)
       :next-id (:wat::rete::Session/next-id session)

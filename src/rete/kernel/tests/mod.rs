@@ -174,14 +174,14 @@ const DEPTH_SPLIT_WORLD: &str = "\
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))\n\
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]\n\
     (:wat::rete::Rule :name (:wat::i64::to-string k)\n\
-      :lhs (:wat::core::PersistentVector c1 c2)\n\
-      :rhs (:wat::core::PersistentVector t1 t2))))\n\
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2)\n\
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] t1 t2))))\n\
 \n\
 (:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
       (:wat::vector::conj acc (:dc::build-rule k)))\n\
-    (:wat::core::PersistentVector (:dc::build-rule 1))\n\
+    (wat.type/PersistentVector :- [:wat::rete::Rule] (:dc::build-rule 1))\n\
     (:wat::core::range 2 (:wat::i64::+ depth 1))))\n\
 \n\
 (:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session\n\

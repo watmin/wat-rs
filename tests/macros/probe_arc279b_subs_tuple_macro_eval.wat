@@ -27,9 +27,9 @@
                  (:wat::core::if
                    (:wat::core::= c "{")
                    
-                   (:wat::core::Tuple kept (:wat::i64::+ nopen 1))
-                   (:wat::core::Tuple (:wat::string::concat kept c) nopen))))
-             (:wat::core::Tuple "" 0)
+                   (wat.type/Tuple :- [wat.type/String wat.type/i64] kept (:wat::i64::+ nopen 1))
+                   (wat.type/Tuple :- [wat.type/String wat.type/i64] (:wat::string::concat kept c) nopen))))
+             (wat.type/Tuple :- [wat.type/String wat.type/i64] "" 0)
              chars)
      kept   (:wat::core::first final)
      nopen  (:wat::core::second final)

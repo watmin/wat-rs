@@ -351,7 +351,7 @@
 ;; ══ SAMPLING + SHRINKING LAWS ═══════════════════════════════════════════════
 
 (:wat::core::defn :wat-tests::gen::sbases [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector 3 3 3 3 4))
+  (wat.type/PersistentVector :- [wat.type/i64] 3 3 3 3 4))
 
 ;; ── L16 — gen-take CLAMPS. A prefix longer than the space must not invent
 ;; points; asking for 9999 of 324 yields 324, not 9999 with 9675 out-of-range
@@ -834,7 +834,7 @@
 ;; dial that exposed the leading-filter defect class — so "sample the first K
 ;; sequentially" would have tested depth 0 and nothing else.
 (:wat::core::defn :wat-tests::gen::sbases [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::PersistentVector 3 3 3 3 4))
+  (wat.type/PersistentVector :- [wat.type/i64] 3 3 3 3 4))
 
 (:wat::core::defn :wat-tests::gen::distinct-images [] -> wat.type/i64
   (:wat::core::length

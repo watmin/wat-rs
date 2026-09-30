@@ -1,0 +1,36 @@
+;; Arc 255 STONE 71 (THE WALL) — every collection constructor requires its own `:- [T…]` type
+;; bracket, whatever the head's spelling: `(wat.type/X :- [T…] items…)`, empty or not, for all
+;; seven heads (Vector, PersistentVector, HashMap, PersistentMap, HashSet, List, Tuple). Each defn
+;; below is one bracket-less call, one (head, spelling) pair; the checker must refuse every one of
+;; the 14, naming the offending head. `Vector`/`HashMap`/`HashSet` already enforced this (arc 109
+;; stone 3, THE WALL's first pass); `List`/`PersistentMap`/`PersistentVector`/`Tuple`'s bracket was
+;; optional until this stone (255.70 left it that way on purpose — STOP-2 — "the wall making the
+;; bracket MANDATORY is a later stone." This is that stone.
+
+;; ── Vector, both spellings ────────────────────────────────────────────────────────────────────
+(:wat::core::defn :user::vector-keyword [] -> wat.type/nil (:wat::core::do (:wat::core::Vector 1 2) nil))
+(:wat::core::defn :user::vector-symbol [] -> wat.type/nil (:wat::core::do (wat.type/Vector 1 2) nil))
+
+;; ── PersistentVector, both spellings ─────────────────────────────────────────────────────────
+(:wat::core::defn :user::persistentvector-keyword [] -> wat.type/nil (:wat::core::do (:wat::core::PersistentVector 1 2) nil))
+(:wat::core::defn :user::persistentvector-symbol [] -> wat.type/nil (:wat::core::do (wat.type/PersistentVector 1 2) nil))
+
+;; ── HashMap, both spellings ───────────────────────────────────────────────────────────────────
+(:wat::core::defn :user::hashmap-keyword [] -> wat.type/nil (:wat::core::do (:wat::core::HashMap 1 "a") nil))
+(:wat::core::defn :user::hashmap-symbol [] -> wat.type/nil (:wat::core::do (wat.type/HashMap 1 "a") nil))
+
+;; ── PersistentMap, both spellings ────────────────────────────────────────────────────────────
+(:wat::core::defn :user::persistentmap-keyword [] -> wat.type/nil (:wat::core::do (:wat::core::PersistentMap 1 "a") nil))
+(:wat::core::defn :user::persistentmap-symbol [] -> wat.type/nil (:wat::core::do (wat.type/PersistentMap 1 "a") nil))
+
+;; ── HashSet, both spellings ───────────────────────────────────────────────────────────────────
+(:wat::core::defn :user::hashset-keyword [] -> wat.type/nil (:wat::core::do (:wat::core::HashSet 1 2) nil))
+(:wat::core::defn :user::hashset-symbol [] -> wat.type/nil (:wat::core::do (wat.type/HashSet 1 2) nil))
+
+;; ── List, both spellings ──────────────────────────────────────────────────────────────────────
+(:wat::core::defn :user::list-keyword [] -> wat.type/nil (:wat::core::do (:wat::core::List 1 2) nil))
+(:wat::core::defn :user::list-symbol [] -> wat.type/nil (:wat::core::do (wat.type/List 1 2) nil))
+
+;; ── Tuple, both spellings ─────────────────────────────────────────────────────────────────────
+(:wat::core::defn :user::tuple-keyword [] -> wat.type/nil (:wat::core::do (:wat::core::Tuple 1 2) nil))
+(:wat::core::defn :user::tuple-symbol [] -> wat.type/nil (:wat::core::do (wat.type/Tuple 1 2) nil))

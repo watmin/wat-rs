@@ -23,5 +23,5 @@
   (:wat::core::let
     [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ;; direct Handle, no as-capability — Vector of Tuple ctor calls, both levels up-cast.
-     hs (:probe::as-pairs [(:wat::core::Tuple :echo eh)])]
+     hs (:probe::as-pairs [(wat.type/Tuple :- [wat.type/keyword :wat::capability::Capability] :echo eh)])]
     (:wat::kernel::println "nested-upcast: ok")))

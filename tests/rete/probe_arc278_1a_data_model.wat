@@ -8,7 +8,7 @@
     [n0 (:wat::rete::RootJoinNode :id 0 :children (wat.type/PersistentVector :- [wat.type/i64] 1))
      n1 (:wat::rete::ProductionNode :id 1 :rule-name "rule-1")
      net (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record]) 0 n0) 1 n1)
-     em  (:wat::core::PersistentMap)
+     em  (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
      ev  (wat.type/PersistentVector :- [:wat::rete::Rule])
      s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts (:wat::rete::FactBag :items ev) :next-id 2 :query-memory em)]
     (:wat::map::length (:wat::rete::Session/network s))))
@@ -18,7 +18,7 @@
     [n0 (:wat::rete::RootJoinNode :id 0 :children (wat.type/PersistentVector :- [wat.type/i64] 1))
      n1 (:wat::rete::ProductionNode :id 1 :rule-name "rule-1")
      net (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record]) 0 n0) 1 n1)
-     em  (:wat::core::PersistentMap)
+     em  (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
      ev  (wat.type/PersistentVector :- [:wat::rete::Rule])
      s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts (:wat::rete::FactBag :items ev) :next-id 2 :query-memory em)]
     (:wat::rete::render-dag s)))

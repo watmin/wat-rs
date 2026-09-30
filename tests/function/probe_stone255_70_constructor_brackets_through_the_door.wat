@@ -36,9 +36,13 @@
 (:wat::core::defn :user::list-typed-empty [] -> (wat.type/List :- [wat.type/i64])
   (wat.type/List :- [wat.type/i64]))
 
-;; ── `List` bracket-less still checks and runs (the wall is a later stone; STOP-2 guard) ──────
-(:wat::core::defn :user::list-bracketless-still-runs [] -> (wat.type/List :- [wat.type/i64])
-  (wat.type/List 1 2 3))
+;; `:user::list-bracketless-still-runs` (a bracket-less `(wat.type/List 1 2 3)`, the STOP-2
+;; regression guard this stone required — "the bracket stays optional") MOVED OUT arc 255 STONE
+;; 71 (THE WALL): a bracket-less `List` call is illegal now, and its presence here would break
+;; this whole file's freeze (Rust's `call_beside_value` panics on a freeze error, taking down
+;; every OTHER row in this file with it). Its replacement — proving the WALL refuses it, by
+;; name — lives at `tests/function/probe_stone255_71_list_bracketless_illegal.wat.bad` /
+;; `.rs`.
 
 ;; ── `List` with a COMPOUND element type — both fixes together ────────────────────────────────
 (:wat::core::defn :user::list-of-tuples [] -> (wat.type/List :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])])

@@ -19,4 +19,4 @@
 ;; door still reaches them through the SAME path (registry-membership guard,
 ;; not the old hand-listed match arm).
 (:wat::core::defn :user::vector-still-dispatches [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (wat.type/PersistentVector 1 2 3))
+  (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))

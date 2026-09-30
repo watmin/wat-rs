@@ -18,7 +18,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::empty-list
   
   (:wat::core::let
-    [xs (:wat::core::List)]
+    [xs (wat.type/List :- [wat.type/i64])]
     (:wat::test::assert-eq (:wat::linkedlist::empty? xs) true)))
 
 ;; ─── 3: List/empty? false ─────────────────────────────────────────────────

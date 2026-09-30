@@ -704,7 +704,7 @@
        (:wat::gen::fmap
          (:wat::core::fn [~cv <- :wat::gen::Coord] -> ~T
            (~ctor ~@args))
-         (:wat::gen::coords (:wat::core::PersistentVector ~@cards))))))
+         (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] ~@cards))))))
 
 ;; ── gen-lift2 / gen-lift3: apply an N-ary FUNCTION across N generators ───────
 ;;

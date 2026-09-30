@@ -191,7 +191,7 @@
         (:wat::core::match (:wat::map::get eb k)
           [:wat::core::Option.Some {:value v} (:wat::map::assoc acc k v)]
           [:wat::core::Option.None {} acc]))
-      (:wat::core::PersistentMap)
+      (wat.type/PersistentMap :- [wat.type/String wat.type/Value])
       keys)))
 
 ;; ─── accumulate-pass (Stone 8-a) ────────────────────────────────────────────

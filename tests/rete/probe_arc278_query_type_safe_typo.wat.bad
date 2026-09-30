@@ -13,8 +13,8 @@
     [c1    (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))
      c2    (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))
      rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
-     rule  (:wat::rete::Rule :name "weather::cold-and-windy" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
-     sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
+     rule  (:wat::rete::Rule :name "weather::cold-and-windy" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs1))
+     sess0 (:wat::rete::compile (wat.type/PersistentVector :- [:wat::rete::Rule] rule))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      fired (:wat::rete::fire-rules s2)]

@@ -5,4 +5,4 @@
 (:wat::core::extend-type :- [[Ts :< :u::Mark] :..] (wat.type/Tuple :- [Ts :..]) :u::Mark)
 (:wat::core::defn :u::take [m <- :u::Mark] -> wat.type/i64 1)
 (:wat::core::defn :user::refused [] -> wat.type/i64
-  (:u::take (:wat::core::Tuple (:u::In :n 1) (:u::Out :n 1))))
+  (:u::take (wat.type/Tuple :- [:u::In :u::Out] (:u::In :n 1) (:u::Out :n 1))))

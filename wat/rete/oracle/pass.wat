@@ -278,7 +278,7 @@
   (:wat::core::let [e-binds     (:wat::rete::Element/bindings el)
                     new-matches (:wat::vector::conj
                                    (:wat::rete::Token/matches tok)
-                                   (:wat::core::Tuple (:wat::rete::Element/fact el) alpha-id))
+                                   (wat.type/Tuple :- [wat.type/Record wat.type/i64] (:wat::rete::Element/fact el) alpha-id))
                     new-binds   (:wat::core::foldl
                                    (:wat::core::fn [bm <- wat.type/PersistentMap
                                                     k  <- wat.type/String]
@@ -649,7 +649,7 @@
         (wat.type/PersistentVector :- [:wat::rete::Token])
         (:wat::rete::Token
           :matches (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/Record wat.type/i64])])
-          :bindings (:wat::core::PersistentMap)))
+          :bindings (wat.type/PersistentMap :- [wat.type/String wat.type/Value])))
       (:wat::rete::tokens-from-parents beta-mem pids))))
 
 ;; any-fact-matches-under — oracle :not / :exists beta check.
@@ -778,7 +778,7 @@
                    (wat.type/PersistentVector :- [wat.type/PersistentMap])
                    els)
                  (:wat::rete::binding-extensions
-                   cond facts (:wat::core::PersistentMap)
+                   cond facts (wat.type/PersistentMap :- [wat.type/String wat.type/Value])
                    network alpha-mem))))
            (:wat::core::foldl
              (:wat::core::fn [bm  <- wat.type/PersistentMap

@@ -45,7 +45,7 @@
               sup
               toks))
           sup)))
-    (:wat::core::PersistentMap)
+    (wat.type/PersistentMap :- [wat.type/Record :wat::rete::Support])
     (:wat::rete::topological-node-ids network)))
 
 ;; fire-rules-explain$oracle — wat reference for explain. Same session as
@@ -72,7 +72,7 @@
                     derived     (:wat::rete::collect-derived
                                   (:wat::rete::Session/production-memory oracle-sess))
                     closed      (:wat::rete::merge-facts input derived)
-                    empty       (:wat::core::PersistentMap)
+                    empty       (wat.type/PersistentMap :- [wat.type/String wat.type/Value])
                     ;; ⛔ HAND-FACED, not codemod'd — arc 278 the fire-outcome wall. This is a
                     ;; STDLIB site with per-site semantics (the oracle's own replay), and the
                     ;; codemod is a wat program that cannot load while the stdlib is red, so the

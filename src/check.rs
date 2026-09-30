@@ -12976,6 +12976,53 @@ fn parse_param_spec_slot(
     }
 }
 
+/// Arc 255 Stone 71 (THE WALL) — the ruling: *"we make this illegal — this isn't legal and we
+/// enforce it — the heretics self identify."* Every collection constructor has ONE shape,
+/// `(wat.type/X :- [T…] items…)`, empty or not — `Vector`/`HashMap`/`HashSet` already require
+/// their `:-` bracket (arc 109 stone 3); this is the SAME error for the four heads whose bracket
+/// was still optional (`List`, `PersistentMap`, `PersistentVector`, `Tuple` — see each of their
+/// callers, just below). Reused rather than a new `CheckErrorKind` variant: `MalformedForm`
+/// already carries a free-text `reason`, so this says everything a dedicated variant would
+/// (the head, the fix) without a new arm to thread through every exhaustive match on
+/// `CheckErrorKind` elsewhere in the tree.
+///
+/// `span` is always the call's OWN erroring position — its first arg when there is one, else the
+/// whole call's `head_span` — never a synthesized span. That points an untyped constructor
+/// inside a macro's syntax-quote TEMPLATE at the real erroring node, "screaming where the macro
+/// is used" — but CORRECTED (measured, not assumed): this does NOT reliably land on the
+/// template's own DEFINITION line. When the call's first arg is itself a STATIC part of the
+/// template (never touched by an unquote), its span does stay pinned to where the template was
+/// written, so the error names the definition line. But when the first arg IS the
+/// unquote-substitution (the common shape, `(Head ~a ...)`), that arg's span is the span of
+/// whatever the CALLER wrote for `~a` — so the error lands at the USE site instead (measured on
+/// `tests/function/probe_stone255_71_template_untyped.wat.bad`: the span is the call's own `1`
+/// literal, not the template's `` `(:wat::core::Tuple ~a ~b)` `` line). Both outcomes satisfy the
+/// stone's requirement ("points at the call"); only the definition-line bonus is
+/// shape-dependent, matching the brief's own hedge ("if the span allows it").
+fn untyped_constructor_error(head_short: &str, span: Span) -> CheckError {
+    // rune:lint(one-variant-separator, type-path) — composes a namespaced TYPE keyword
+    // (":wat::core::List"), never an enum::variant pair; no enum involved.
+    let head = format!(":wat::core::{head_short}");
+    CheckError {
+        span,
+        kind: CheckErrorKind::MalformedForm {
+            head: head.clone(),
+            reason: format!(
+                "untyped `{head}` constructor call — every `{head_short}` needs its own type \
+                 bracket, whatever the head's spelling; write `(wat.type/{head_short} :- [T…] …)`"
+            ),
+            remedies: vec![],
+        },
+    }
+}
+
+/// The span for [`untyped_constructor_error`]: the call's first arg (points AT the call's own
+/// content) if there is one, else the whole call's `head_span` (an empty call has nothing else
+/// to point at).
+fn untyped_constructor_span(args: &[WatAST], head_span: &Span) -> Span {
+    args.first().map(|a| a.span().clone()).unwrap_or_else(|| head_span.clone())
+}
+
 /// Type-check `(:wat::core::HashSet :- [T] x1 x2 ...)`. The ONLY legal
 /// param-spec spelling (Arc 109 stone 3, THE WALL) is the `:-`-marked
 /// bracket, peeled via `peel_param_spec`; remaining args are elements, each
@@ -13088,8 +13135,8 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
         let bracket = crate::parse_one!("[(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]")
             .expect("parse the param-spec bracket");
-        let one = crate::parse_one!("(:wat::core::Tuple 1 2)").expect("parse element 1");
-        let two = crate::parse_one!("(:wat::core::Tuple 3 4)").expect("parse element 2");
+        let one = crate::parse_one!("(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64] 1 2)").expect("parse element 1");
+        let two = crate::parse_one!("(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64] 3 4)").expect("parse element 2");
         let args = vec![marker, bracket, one, two];
         let result: CheckResult<TypeExpr> = infer_list_constructor(
             &args,
@@ -15638,7 +15685,13 @@ fn infer_persistentmap_constructor(
                 (Some((k_t, v_t)), rest)
             }
         }
-        None => (None, args),
+        None => {
+            // Arc 255 Stone 71 (THE WALL) — a bracket-less `PersistentMap` call is illegal now;
+            // still degrades gracefully below (K/V stay free vars, inferred from the first pair)
+            // so a real element-type error isn't swallowed by this one.
+            local_errors.push(untyped_constructor_error("PersistentMap", untyped_constructor_span(args, head_span)));
+            (None, args)
+        }
     };
     // Arity must be even (alternating k/v pairs); zero is valid (empty PersistentMap,
     // including a declared-but-empty `(PersistentMap [K V])`).
@@ -15717,8 +15770,7 @@ fn infer_persistentmap_constructor(
 /// for why `unwrap_type_param_bracket`'s splice is bypassed here.
 fn infer_persistentvector_constructor(
     args: &[WatAST],
-    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `arg.span()`, more precise than the coarse head span
-
+    head_span: &Span, // Arc 255 Stone 71 (THE WALL) — now used: the untyped-constructor error's fallback span for an empty, bracket-less call.
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -15739,7 +15791,12 @@ fn infer_persistentvector_constructor(
                 (Some(t), rest)
             }
         }
-        None => (None, args),
+        None => {
+            // Arc 255 Stone 71 (THE WALL) — a bracket-less `PersistentVector` call is illegal
+            // now; still degrades gracefully below so a real element-type error isn't swallowed.
+            local_errors.push(untyped_constructor_error("PersistentVector", untyped_constructor_span(args, head_span)));
+            (None, args)
+        }
     };
     // Bracket-less: T is a free type variable — inferred from the first element
     // (if any), then unified against the rest. An empty ctor produces
@@ -15902,6 +15959,10 @@ fn infer_tuple_constructor(
             None => CheckResult::errs(local_errors),
         };
     }
+    // Arc 255 Stone 71 (THE WALL) — a bracket-less `Tuple` call is illegal now, the same as its
+    // six siblings; still falls through to the existing elementwise inference below so a real
+    // per-position type error isn't swallowed by this one.
+    local_errors.push(untyped_constructor_error("Tuple", untyped_constructor_span(args, head_span)));
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::Tuple".into(),
@@ -16462,8 +16523,7 @@ fn check_compound_against_expected(
 /// unchanged from before this stone — T is a fresh variable, elements unify against it.
 fn infer_linked_list_constructor(
     args: &[WatAST],
-    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `arg.span()`, more precise than the coarse head span
-
+    head_span: &Span, // Arc 255 Stone 71 (THE WALL) — now used: the untyped-constructor error's fallback span for an empty, bracket-less call.
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -16484,7 +16544,13 @@ fn infer_linked_list_constructor(
                 (Some(t), rest)
             }
         }
-        None => (None, args),
+        None => {
+            // Arc 255 Stone 71 (THE WALL) — `List`'s bracket was optional since 255.70; it is
+            // REQUIRED now, the same as its six siblings. A bracket-less call is illegal; still
+            // degrades gracefully below so a real element-type error isn't swallowed.
+            local_errors.push(untyped_constructor_error("List", untyped_constructor_span(args, head_span)));
+            (None, args)
+        }
     };
     let elem_ty = declared_t.clone().unwrap_or_else(|| fresh.fresh());
     for (i, arg) in values.iter().enumerate() {

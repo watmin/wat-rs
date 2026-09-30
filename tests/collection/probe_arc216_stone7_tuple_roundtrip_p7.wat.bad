@@ -3,5 +3,5 @@
 (:wat::core::defn :user::compute [] -> wat.type/nil
   (:wat::core::let
     [f (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
-     t (:wat::core::Tuple f "tag")]
+     t (wat.type/Tuple :- [[wat.type/i64 :-> wat.type/i64] wat.type/String] f "tag")]
     (:wat::holon::to-holon t)))

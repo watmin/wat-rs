@@ -90,7 +90,7 @@
         (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])
                          f   <- :T] -> (wat.type/PersistentVector :- [wat.type/Record])
           (:wat::vector::conj acc f))
-        (:wat::vector::conj (:wat::core::PersistentVector) fact)
+        (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/Record]) fact)
         rest))))
 
 ;; retract — stage a fact removal from Session.facts, by value equality. Zero activation.

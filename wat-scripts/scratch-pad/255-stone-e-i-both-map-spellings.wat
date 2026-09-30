@@ -14,7 +14,7 @@
       (:wat::test::assert-eq (:wat::hashmap::length hm1) 1)
       (:wat::test::assert-eq (:wat::map::length pm1) 2)
       (:wat::test::assert-eq (:wat::hashmap::empty? hm0) true)
-      (:wat::test::assert-eq (:wat::map::empty? (:wat::core::PersistentMap)) true)
+      (:wat::test::assert-eq (:wat::map::empty? (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64])) true)
       (:wat::test::assert-eq (:wat::hashmap::contains-key? hm1 :a) true)
       (:wat::test::assert-eq (:wat::map::contains-key? pm1 :a) true)
       (:wat::test::assert-eq (:wat::hashmap::get hm1 :a) (:wat::core::Option.Some {:value 1}))

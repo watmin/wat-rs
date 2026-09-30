@@ -49,7 +49,7 @@
      ;; seq — Vector input (the doc examples)
      _10 (:probe::check "seq/zip vector"
            (:wat::core::quote (:wat::seq::zip (wat.type/Vector :- [wat.type/i64] 1 2 3) (wat.type/Vector :- [wat.type/i64] 4 5 6)))
-           (:wat::core::quote (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])] (:wat::core::Tuple 1 4) (:wat::core::Tuple 2 5) (:wat::core::Tuple 3 6))))
+           (:wat::core::quote (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])] (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 4) (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 2 5) (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 3 6))))
      _11 (:probe::check "seq/window vector"
            (:wat::core::quote (:wat::seq::window (wat.type/Vector :- [wat.type/i64] 1 2 3 4) 2))
            (:wat::core::quote (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 1 2) (wat.type/Vector :- [wat.type/i64] 2 3) (wat.type/Vector :- [wat.type/i64] 3 4))))
@@ -59,13 +59,13 @@
 
      ;; seq — List input (row 2: Seqable survives the carve)
      _13 (:probe::check "seq/zip list"
-           (:wat::core::quote (:wat::seq::zip (:wat::core::List 1 2 3) (:wat::core::List 4 5 6)))
-           (:wat::core::quote (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])] (:wat::core::Tuple 1 4) (:wat::core::Tuple 2 5) (:wat::core::Tuple 3 6))))
+           (:wat::core::quote (:wat::seq::zip (wat.type/List :- [wat.type/i64] 1 2 3) (wat.type/List :- [wat.type/i64] 4 5 6)))
+           (:wat::core::quote (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])] (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 4) (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 2 5) (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 3 6))))
      _14 (:probe::check "seq/window list"
-           (:wat::core::quote (:wat::seq::window (:wat::core::List 1 2 3 4) 2))
+           (:wat::core::quote (:wat::seq::window (wat.type/List :- [wat.type/i64] 1 2 3 4) 2))
            (:wat::core::quote (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 1 2) (wat.type/Vector :- [wat.type/i64] 2 3) (wat.type/Vector :- [wat.type/i64] 3 4))))
      _15 (:probe::check "seq/remove-at list"
-           (:wat::core::quote (:wat::seq::remove-at (:wat::core::List 1 2 3) 1))
+           (:wat::core::quote (:wat::seq::remove-at (wat.type/List :- [wat.type/i64] 1 2 3) 1))
            (:wat::core::quote (wat.type/Vector :- [wat.type/i64] 1 3)))
     ]
     nil))

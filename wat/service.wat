@@ -1630,7 +1630,7 @@
                           arm-fn        `(:wat::core::fn [~arm-acc-sym <- ~selectable-entry-vec-ty  ~arm-alarm-sym <- ~alarm-o-ty]
                                              -> ~selectable-entry-vec-ty
                                            (:wat::core::conj ~arm-acc-sym
-                                             (:wat::core::Tuple -1
+                                             (wat.type/Tuple :- [wat.type/i64 (:wat::core::unquote selectable-peer-ty)] -1
                                                (:wat::core::first
                                                  (:wat::core::conj (wat.type/Vector :- [~selectable-peer-ty])
                                                    (:wat::kernel::after
@@ -1885,7 +1885,7 @@
                        ;; mint THIS connection's id = the current next-id (pre-increment);
                        ;; pair it with the peer so it travels together from birth (STOP-2);
                        ;; the recursive call's OWN next-id is next-id+1, for the NEXT connect.
-                       (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::i64::+ next-id 1) state)]
+                       (~serve-name self l (:wat::core::conj selectables (wat.type/Tuple :- [wat.type/i64 (:wat::core::unquote selectable-peer-ty)] next-id peer)) (:wat::i64::+ next-id 1) state)]
                      [:wat::spawn::ServiceEvent.Admin {:msg admin-msg}
                        (:wat::core::match admin-msg 
                          ;; arc 278 the send'-outcome wall — the owner's `recv'` (the `/stop`

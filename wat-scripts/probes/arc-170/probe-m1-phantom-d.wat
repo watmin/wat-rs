@@ -35,7 +35,7 @@
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [sp <- (:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (:probe::PoolMsg :- [wat.type/nil wat.type/i64])])] -> wat.type/nil
            (:probe::serve sp)))
-     _  (:wat::core::match (:wat::kernel::send w (:probe::PoolMsg.Work {:pair (:wat::core::Tuple 0 3)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
+     _  (:wat::core::match (:wat::kernel::send w (:probe::PoolMsg.Work {:pair (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 0 3)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      r0 (:wat::kernel::recv w)
      r  (:wat::core::match r0
           [:wat::kernel::RecvOutcome.Message {:msg m} m]

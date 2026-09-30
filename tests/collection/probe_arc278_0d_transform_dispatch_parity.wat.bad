@@ -7,5 +7,5 @@
     (:wat::core::fn [acc <- wat.type/String x <- wat.type/String] -> wat.type/String
       (:wat::string::concat acc x))
     ""
-    (:wat::core::PersistentVector 1 2 3)))
+    (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))
 

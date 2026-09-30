@@ -302,7 +302,7 @@
          (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) lit <- wat.type/AST]
            -> (wat.type/Vector :- [wat.type/AST])
            (:wat::core::conj acc
-             `(:wat::core::into (:wat::core::PersistentVector)
+             `(:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
                 (:wat::core::map
                   (:wat::core::fn [~pmap-sym <- wat.type/PersistentMap] -> wat.type/Value
                     (:wat::core::Option/expect
@@ -310,7 +310,7 @@
                       "sift-rules: ?fact"))
                   ;; `query` is a macro. This AST is spliced from an outer macro and is
                   ;; not re-expanded; emit the expansion (`query-read` + empty params).
-                  (:wat::rete::query-read ~fired-sym ~lit (:wat::core::PersistentMap))))))
+                  (:wat::rete::query-read ~fired-sym ~lit (wat.type/PersistentMap :- [wat.type/String wat.type/Value]))))))
          (wat.type/Vector :- [wat.type/AST])
          query-lits)
 
@@ -321,7 +321,7 @@
      ;; Zero deduction types (theoretically possible) folds to an empty PersistentVector literal.
      concat-chain
        (:wat::core::if (:wat::core::= (:wat::core::length query-calls) 0)
-         `(:wat::core::PersistentVector)
+         `(wat.type/PersistentVector :- [wat.type/Value])
          (:wat::core::foldl
            (:wat::core::fn [acc <- wat.type/AST qc <- wat.type/AST] -> wat.type/AST
              `(:wat::core::concat ~acc ~qc))
@@ -413,8 +413,8 @@
                    ;; service that would then serve queries against a session it never got.
                    :template (:wat::core::match
                                (:wat::rete::compile-all
-                                 (:wat::core::PersistentVector ~@rule-lits)
-                                 (:wat::core::PersistentVector ~@query-lits))
+                                 (wat.type/PersistentVector :- [:wat::rete::Rule] ~@rule-lits)
+                                 (wat.type/PersistentVector :- [:wat::rete::Query] ~@query-lits))
                                [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
                                [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
                                  (:wat::kernel::assertion-failed! :message "sift: the declared rule set may not terminate")])))
@@ -490,7 +490,7 @@
                                                 [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __st}
                                                   (:wat::kernel::assertion-failed! :message "sift: fixpoint round cap exceeded")])]
                                   ~concat-chain)))
-                            (:wat::core::PersistentVector)
+                            (wat.type/PersistentVector :- [wat.type/Value])
                             logs)
                           :cursor next-cur})
                         (~resp-fat-kw

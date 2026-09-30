@@ -1,0 +1,13 @@
+;; Arc 255 STONE 71 (THE WALL) — negative fixture. Every collection constructor now requires its
+;; own `:- [T…]` type bracket, `List` included (255.70 left `List`'s bracket OPTIONAL on purpose,
+;; STOP-2: "the wall making the bracket MANDATORY is a later stone" — this is that stone). A
+;; bracket-less `(wat.type/List 1 2 3)` — the exact shape
+;; `tests/function/probe_stone255_70_constructor_brackets_through_the_door.wat`'s own
+;; `list-bracketless-still-runs` regression guard proved legal under 255.70 — is illegal now.
+;; Moved here (rather than left in that file) because a freeze failure anywhere in a `.wat`
+;; fixture used by `call_beside_value` takes down every OTHER row beside it in the same file.
+
+(:wat::core::defn :user::main [] -> wat.type/nil
+  (:wat::core::do
+    (wat.type/List 1 2 3)
+    nil))

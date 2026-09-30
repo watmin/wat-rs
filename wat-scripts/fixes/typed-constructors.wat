@@ -176,7 +176,7 @@
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-      (:wat::core::Tuple off (:wat::core::ast-name node) new-text))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off (:wat::core::ast-name node) new-text))))
 
 ;; collect-edits / collect-edits-seq — every keyword leaf under a type-fragment node is a type
 ;; position (no marker/position threading needed, unlike `types-to-wat-type.wat`'s corpus-wide
@@ -208,7 +208,7 @@
   [edit  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
    base  <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
-  (:wat::core::Tuple
+  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
     (:wat::core::- (:wat::core::first edit) base)
     (:wat::core::second edit)
     (:wat::core::third edit)))
@@ -277,7 +277,7 @@
          off       (:wat::fix::fix-text-offset-of (:wat::core::ast-span head) lines)
          old-text  (:wat::core::ast-name head)]
         (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-          (:wat::core::Tuple off old-text new-text)))
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
       ;; reader-synthesized head (source text != ast-name) — never edit it.
       (:wat::fix::empty-edits))))
 

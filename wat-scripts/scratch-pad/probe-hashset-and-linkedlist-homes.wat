@@ -19,9 +19,9 @@
     (:wat::test::assert-eq (:wat::hashset::contains? (:wat::hashset::conj (wat.type/HashSet :- [wat.type/i64]) 7) 7) true)
 
     ;; ── List (LinkedList) ────────────────────────────────────────────────
-    (:wat::test::assert-eq (:wat::linkedlist::length (:wat::core::List)) 0)
+    (:wat::test::assert-eq (:wat::linkedlist::length (wat.type/List :- [wat.type/i64])) 0)
     (:wat::test::assert-eq (:wat::linkedlist::length (wat.type/List :- [wat.type/i64] 1 2 3)) 3)
-    (:wat::test::assert-eq (:wat::linkedlist::empty? (:wat::core::List)) true)
+    (:wat::test::assert-eq (:wat::linkedlist::empty? (wat.type/List :- [wat.type/i64])) true)
     (:wat::test::assert-eq (:wat::linkedlist::empty? (wat.type/List :- [wat.type/i64] 1)) false)
     (:wat::test::assert-eq (:wat::linkedlist::contains? (wat.type/List :- [wat.type/i64] 1 2 3) 2) true)
     (:wat::test::assert-eq (:wat::linkedlist::contains? (wat.type/List :- [wat.type/i64] 1 2 3) 9) false)

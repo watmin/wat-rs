@@ -232,7 +232,7 @@
      (:wat::core::fn [m <- (:wat::bracket::PoolMsg :- [D I])] -> (wat.type/Tuple :- [wat.type/i64 O])
        (:wat::core::match m
          [:wat::bracket::PoolMsg.Work {:pair pair}
-           (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
+           (wat.type/Tuple :- [wat.type/i64 :O] (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
          [:wat::bracket::PoolMsg.Setup {:deps _deps}
            (:wat::kernel::assertion-failed! :message "bracket thread runner: unexpected PoolMsg::Setup (plain thread pool — no kwargs tail)")])))))
 
@@ -488,7 +488,7 @@
                 [:wat::bracket::PoolMsg.Work {:pair pair}
                   (:wat::core::let
                     [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
-                     out (:wat::core::Tuple (:wat::core::first pair)
+                     out (wat.type/Tuple :- [wat.type/i64 ~ret-ty] (:wat::core::first pair)
                            (:wat::core::apply  :user::bracket::work-fn (:wat::core::second pair) [k]))]
                     ;; arc 278 the send'-outcome wall — face all three arms; a dead parent
                     ;; surfaces via the next recv', so every arm proceeds to recurse.
@@ -613,7 +613,7 @@
                         (:wat::core::match (:wat::kernel::send
                                               (:wat::core::nth peers peer-pos)
                                               (:wat::bracket::PoolMsg.Work
-                                                {:pair (:wat::core::Tuple cursor (:wat::core::nth items cursor))}))
+                                                {:pair (wat.type/Tuple :- [wat.type/i64 :I] cursor (:wat::core::nth items cursor))}))
                           [:wat::kernel::SendOutcome.Sent {}   (:wat::core::+ cursor 1)]
                           [:wat::kernel::SendOutcome.Stopped {} (:wat::core::+ cursor 1)]  ;; arc 278 #73 — same: this loop's select' arm faces the stop
                           [:wat::kernel::SendOutcome.HandleClosed {} (:wat::core::+ cursor 1)]   ;; surfaces via this loop's own select' arm
@@ -744,7 +744,7 @@
                       setup-carrier)
                   ;; arc 278 the send'-outcome wall — the initial per-worker item primer. A dead
                   ;; runner surfaces via collect-loop's own select' arm; face all three explicitly.
-                  _ (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg.Work {:pair (:wat::core::Tuple i (:wat::core::nth items i))}))
+                  _ (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg.Work {:pair (wat.type/Tuple :- [wat.type/i64 :I] i (:wat::core::nth items i))}))
                       [:wat::kernel::SendOutcome.Sent {}   nil]
                       [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
                       [:wat::kernel::SendOutcome.HandleClosed {} nil]   ;; surfaces via collect-loop's select' arm

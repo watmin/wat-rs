@@ -86,7 +86,7 @@
    & rest  <- (wat.type/Vector :- [wat.type/AST])]
   -> wat.type/AST
   `(:wat::rete::query-read ~session ~q
-     (:wat::rete::query-params-form (:wat::core::PersistentMap) ~@rest)))
+     (:wat::rete::query-params-form (wat.type/PersistentMap :- [wat.type/String wat.type/Value]) ~@rest)))
 
 ;; ─── cond — rete's OWN macro, expanding into rete's `if` ──────────────────
 ;;

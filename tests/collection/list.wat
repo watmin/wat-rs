@@ -8,16 +8,16 @@
   (:wat::linkedlist::length (wat.type/List :- [wat.type/i64] 1 2)))
 
 (:wat::core::defn :list::empty-q-of-empty [] -> wat.type/bool
-  (:wat::linkedlist::empty? (:wat::core::List)))
+  (:wat::linkedlist::empty? (wat.type/List :- [wat.type/i64])))
 
 (:wat::core::defn :list::length-3 [] -> wat.type/i64
   (:wat::linkedlist::length (wat.type/List :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :list::length-0 [] -> wat.type/i64
-  (:wat::linkedlist::length (:wat::core::List)))
+  (:wat::linkedlist::length (wat.type/List :- [wat.type/i64])))
 
 (:wat::core::defn :list::empty-q-true [] -> wat.type/bool
-  (:wat::linkedlist::empty? (:wat::core::List)))
+  (:wat::linkedlist::empty? (wat.type/List :- [wat.type/i64])))
 
 (:wat::core::defn :list::empty-q-false [] -> wat.type/bool
   (:wat::linkedlist::empty? (wat.type/List :- [wat.type/i64] 1)))

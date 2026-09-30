@@ -1174,14 +1174,14 @@
    queries <- (wat.type/PersistentVector :- [:wat::rete::Query])]
   -> :wat::rete::CompileOutcome
   (:wat::core::let [init-state (:wat::rete::CompileState
-                                  :network (:wat::core::PersistentMap)
+                                  :network (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
                                   :next-id 0
                                   :dedup (wat.type/HashMap :- [wat.type/String wat.type/i64]))
                     after-rules (:wat::core::foldl :wat::rete::compile-rule init-state rules)
                     final-state (:wat::core::foldl :wat::rete::compile-query after-rules queries)
                     network  (:wat::rete::CompileState/network final-state)
                     next-id  (:wat::rete::CompileState/next-id final-state)
-                    empty-pm (:wat::core::PersistentMap)]
+                    empty-pm (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])]
     ;; Intern the rust InternedNetwork under the network identity so first fire-rules HIT
     ;; (`DESIGN-STONE-arm-at-compile`). Session bytes unchanged.
     (:wat::rete::arm-session

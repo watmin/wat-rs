@@ -48,15 +48,11 @@ fn list_typed_empty_is_the_empty_list() {
     }
 }
 
-#[test]
-fn list_bracketless_still_runs() {
-    match call_beside_value(file!(), ":user::list-bracketless-still-runs") {
-        Ok(Value::wat__core__List(l)) => {
-            assert_eq!(l.len(), 3, "bracket-less (wat.type/List 1 2 3) must still run (STOP-2: the bracket stays optional)");
-        }
-        other => panic!("(wat.type/List 1 2 3) must still run; got {other:?}"),
-    }
-}
+// `list_bracketless_still_runs` MOVED OUT arc 255 STONE 71 (THE WALL): a bracket-less `List`
+// call is illegal now (255.70's STOP-2 guarantee — "the bracket stays optional" — was scoped to
+// its OWN stone; the wall is the later stone that guarantee named). Its replacement, proving the
+// wall refuses it by name, is
+// `tests/function/probe_stone255_71_list_bracketless_illegal.rs`.
 
 #[test]
 fn list_of_tuples_compound_element_type_runs() {

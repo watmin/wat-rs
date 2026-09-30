@@ -91,7 +91,7 @@
           (:wat::core::match (:wat::rete::insert
             (:wat::core::match (:wat::rete::compile-all
               (:wat::rete::collect-rules :usr)
-              (:wat::core::PersistentVector
+              (wat.type/PersistentVector :- [:wat::rete::Query]
                 (:wat::rete::make-query "usr::Hot"
                   (:wat::core::quote [])
                   (:wat::core::quote [(:usr::Hot)])))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

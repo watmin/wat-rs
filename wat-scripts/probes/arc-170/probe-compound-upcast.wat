@@ -37,7 +37,7 @@
     [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ;; Tuple — ann-form site: (:wat::core::Tuple :echo eh) ascribed to
      ;; :(wat::core::keyword,wat::capability::Capability); eh up-casts Handle -> Capability.
-     pr (:wat::core::ann-form (:wat::core::Tuple :echo eh)
+     pr (:wat::core::ann-form (wat.type/Tuple :- [wat.type/keyword :wat::capability::Capability] :echo eh)
           (wat.type/Tuple :- [wat.type/keyword :wat::capability::Capability]))
      ;; Map — call-arg site: {:echo eh} against as-map's (HashMap :- [keyword Capability]) param.
      mp (:probe::as-map {:echo eh})

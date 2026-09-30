@@ -29,7 +29,7 @@
                -> wat.type/nil
                (:wat::core::let
                  [pair (:wat::kernel::recv self)
-                  out  (:wat::core::Tuple (:wat::core::first pair)
+                  out  (wat.type/Tuple :- [wat.type/i64 :B] (:wat::core::first pair)
                                           (:bracket::__work (:wat::core::second pair)))
                   _    (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                  (:bracket::pool-runner self)))

@@ -79,7 +79,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println
-               (:wat::core::nth-spec (:wat::core::PersistentVector 10 20 30) 99)))))
+               (:wat::core::nth-spec (wat.type/PersistentVector :- [wat.type/i64] 10 20 30) 99)))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome.Message {:msg _m}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
@@ -99,7 +99,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::kernel::println
-               (:wat::core::nth-spec (:wat::core::List 10 20 30) 99)))))
+               (:wat::core::nth-spec (wat.type/List :- [wat.type/i64] 10 20 30) 99)))))
      msg (:wat::core::match (:wat::kernel::recv p)
            [:wat::kernel::RecvOutcome.Message {:msg _m}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]

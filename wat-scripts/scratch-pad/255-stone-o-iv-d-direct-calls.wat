@@ -11,7 +11,7 @@
     (:wat::kernel::println (:wat::string::concat "core::List 1 2 3: "
       (:wat::edn::write (wat.type/List :- [wat.type/i64] 1 2 3))))
     (:wat::kernel::println (:wat::string::concat "core::List (empty): "
-      (:wat::edn::write (:wat::core::List))))
+      (:wat::edn::write (wat.type/List :- [wat.type/i64]))))
     (:wat::kernel::println (:wat::string::concat "math::pi: "
       (:wat::edn::write (:wat::math::pi))))
     (:wat::kernel::println (:wat::string::concat "uuid::nil: "

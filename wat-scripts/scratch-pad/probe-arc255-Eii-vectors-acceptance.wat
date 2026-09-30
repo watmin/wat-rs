@@ -9,7 +9,7 @@
   (:wat::core::let
     ;; ── PersistentVector, 6 verbs: concat, conj, contains?, empty?, get, length ──────────
     [pv0     (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)
-     pv-e    (:wat::core::PersistentVector)
+     pv-e    (wat.type/PersistentVector :- [wat.type/i64])
      pv1     (:wat::vector::conj pv0 4)
      pv2     (:wat::vector::concat pv0 (wat.type/PersistentVector :- [wat.type/i64] 4 5))]
     (:wat::core::do
