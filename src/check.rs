@@ -1598,11 +1598,20 @@ fn caller_matches_prefix_list(caller_fqdn: &str, prefixes: &[String]) -> bool {
 /// runtime is the honest fallback for unresolved generics.
 ///
 /// Arc 109 BRIEF-key-eligibility-wall — widened from private to `pub(crate)` so
-/// `Value::all_key_eligibility()`'s gate
-/// (`check::tests::every_interior_mutable_variant_is_rejected_as_a_key`, below — in-crate
-/// because an external `tests/` integration test cannot see a `pub(crate)` item) can bind
-/// the checker's verdict to `Value::key_eligibility()`'s classification. Still crate-internal —
-/// not `pub` — per the brief's explicit scope limit.
+/// `Value::all_key_eligibility()`'s gate (`check::tests::
+/// is_atomizable_still_rejects_every_interior_mutable_or_opaque_handle_variant`, below —
+/// in-crate because an external `tests/` integration test cannot see a `pub(crate)` item) can
+/// confirm `is_atomizable` (still `to-holon`/`leaf`'s own door) never admits a variant whose
+/// `Hash` arm is `unreachable!()`. Still crate-internal — not `pub` — per the brief's explicit
+/// scope limit.
+///
+/// AMEND-255.74 D3 — `is_atomizable` is **no longer** the key-eligibility door
+/// (`Value::key_eligibility()` is bound to `:< :wat::core::Equatable` instead, via
+/// `require_class`/`key_eligible_or_error`; see `check::tests::
+/// every_key_eligibility_row_agrees_with_equatable`). This predicate stays exactly what it
+/// was before that amendment — *"can be encoded as a holon atom"* — a narrower, different
+/// property that refuses real data (`u8`, `bigint`, a `PersistentVector`, …) `to-holon` simply
+/// has no encoding for yet.
 pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
     match ty {
         TypeExpr::Path(p) => matches!(
@@ -1693,18 +1702,44 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
 }
 
 /// Stone 255.74 — the ONE door through which the checker refuses a set-element
-/// or map-key type that is not key-eligible (`is_atomizable`), wherever the
-/// checker learns that type: the `HashSet`/`HashMap`/`PersistentMap`
-/// constructors, the `#{}`/`{}` literals (bottom-up and expected-type-directed),
-/// and `conj`/`assoc` when they resolve a fresh element/key type from their
-/// argument. Mirrors the record-subtype carve-out `to-holon`/`leaf` already
-/// apply (`:3960-3963` above): a Record subtype is atomizable via its
-/// `holon_form` even though `is_atomizable` only knows the exact root names.
+/// or map-key type that is not key-eligible, wherever the checker learns that
+/// type: the `HashSet`/`HashMap`/`PersistentMap` constructors, the `#{}`/`{}`
+/// literals (bottom-up and expected-type-directed), and `conj`/`assoc` when
+/// they resolve a fresh element/key type from their argument.
+///
+/// **AMEND-255.74 D3 (builder ruling):** the door is `:< :wat::core::Equatable`
+/// (`wat/class.wat`), asked via `require_class` — the SAME predicate `=`
+/// already asks (`infer_equality`, see its `require_class(op, …, ":wat::core::Equatable", …)`
+/// calls). The brief that drew this stone named `is_atomizable` as the door;
+/// that predicate answers *"can be encoded as a holon atom"*, a different
+/// property, and it refused real data (`u8`, `bigint`, `rational`, `Instant`,
+/// `(Option :- [i64])`, `(PersistentVector :- [i64])` were all refused by
+/// `--check` while the runtime hashed every one of them — measured on the
+/// pre-amendment commit). `require_class` already carries record membership
+/// (records are `:< Equatable` via `wat/class.wat`'s `Record` edge, Q1), so no
+/// separate carve-out is needed here any more.
 ///
 /// `container` names the offending construct for the diagnostic (e.g.
 /// `":wat::core::HashSet"`, `"{…} map literal"`); `position` names the slot
 /// (`"element type"` / `"key type"`). `ty` must already be `apply_subst`'d.
-/// Returns `None` when `ty` is key-eligible.
+/// Returns `None` when `ty` is Equatable.
+///
+/// An unresolved type VARIABLE (a fresh inference var — an empty `#{}`/`{}`
+/// literal before any element fixes it, or a `conj`/`assoc` target still
+/// unbound) is NOT refused here: `require_class` would refuse it immediately
+/// ("unresolved"), but it may still be bound by something later in this
+/// form/function. Deferred via the pending-bound path the checker already has
+/// for `[T :< X]` (Stone 255.51-53's `enforce_type_bounds`/
+/// `flush_pending_bounds`, already called once per function body and once per
+/// top-level form — no new wiring needed), refused only if it is STILL
+/// unresolved when that flush runs (`BoundUnresolved`), or resolves to a
+/// non-Equatable type (`BoundNotSatisfied`) — the ruling's own "Refuse" word.
+///
+/// A DECLARED generic type parameter (a bare name like `T`, not a fresh
+/// `Var`) is a different case entirely, and needs no special handling here:
+/// `require_class` -> `assignable` already consults `env.bound_of("T")`, so a
+/// `[T :< Equatable]`-bounded parameter passes immediately and an unbounded
+/// one is refused immediately, by name, same as any other concrete type.
 pub(crate) fn key_eligible_or_error(
     ty: &TypeExpr,
     container: &str,
@@ -1712,20 +1747,22 @@ pub(crate) fn key_eligible_or_error(
     span: &Span,
     env: &CheckEnv,
 ) -> Option<CheckError> {
-    let is_record_subtype = matches!(ty, TypeExpr::Path(p)
-        if crate::types::is_subtype(p, ":wat::core::Record", env.types())
-            || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
-    if is_record_subtype || is_atomizable(ty) {
+    if let TypeExpr::Var(id) = ty {
+        env.record_pending_bound(crate::check::env::PendingBound {
+            var: *id,
+            letter: position.to_string(),
+            bound: TypeExpr::Path(":wat::core::Equatable".to_string()),
+            span: span.clone(),
+        });
         return None;
     }
-    Some(CheckError {
-        span: span.clone(),
-        kind: CheckErrorKind::TypeMismatch {
-            callee: container.to_string(),
-            param: position.to_string(),
-            expected: "key-eligible type (is_atomizable)".to_string(),
-            got: format_type(ty),
+    let err = require_class(container, span, ty, ":wat::core::Equatable", env)?;
+    Some(match err.kind {
+        CheckErrorKind::TypeMismatch { callee, expected, got, .. } => CheckError {
+            span: err.span,
+            kind: CheckErrorKind::TypeMismatch { callee, param: position.to_string(), expected, got },
         },
+        other => CheckError { span: err.span, kind: other },
     })
 }
 
@@ -13097,8 +13134,15 @@ fn infer_hashset_constructor(
         return CheckResult::partial_with(ty, local_errors);
     }
     let mut t_span: Span = head_span.clone();
+    // Stone 255.74 AMEND D3 — only a REAL `:- [T]` bracket gives `t_ty` an element type the
+    // key-door wall should judge; see `infer_hashmap_constructor`'s identical guard for the
+    // measured failure mode (a bracket-less call whose fallback leaves `t_ty` an unresolved
+    // var that nothing later unifies would otherwise pick up a redundant BoundUnresolved on
+    // top of this function's own MalformedForm).
+    let mut bracket_declared = false;
     let (t_ty, rest): (TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
         (Some(inner), rest) if inner.len() == 1 => {
+            bracket_declared = true;
             t_span = inner[0].span().clone();
             (parse_param_spec_slot(":wat::core::HashSet", &inner[0], fresh, &mut local_errors), rest)
         }
@@ -13133,8 +13177,10 @@ fn infer_hashset_constructor(
     }
     // Stone 255.74 — the ONE door: a HashSet's declared element type must be key-eligible.
     let resolved_t = apply_subst(&t_ty, subst);
-    if let Some(err) = key_eligible_or_error(&resolved_t, ":wat::core::HashSet", "element type", &t_span, env) {
-        local_errors.push(err);
+    if bracket_declared {
+        if let Some(err) = key_eligible_or_error(&resolved_t, ":wat::core::HashSet", "element type", &t_span, env) {
+            local_errors.push(err);
+        }
     }
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashSet".into(),
@@ -13160,8 +13206,18 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
     use crate::types::{TypeEnv, TypeExpr};
     use std::collections::HashMap;
 
+    /// AMEND-255.74 D3 — the key door moved from `is_atomizable` (a pure syntactic predicate,
+    /// needing no type registry) to `:< :wat::core::Equatable` (`require_class`, which
+    /// consults `wat/class.wat`'s registered `extend-type` edges via `env.types()`). The three
+    /// `infer_hashset_constructor` rows below went red the moment this landed: a bare
+    /// `TypeEnv::new()` has NONE of those edges registered, so even `:wat::core::i64` fails
+    /// `require_class`. Clone the real stdlib snapshot instead — the same one
+    /// `check::tests::stdlib_loaded()` uses — so `is_subtype`/`assignable` see the actual
+    /// `Equatable` membership graph. Harmless for the sibling `infer_list_constructor` rows
+    /// (Vector's own constructor was never walled; they don't call `require_class` at all).
     fn env_and_types() -> TypeEnv {
-        TypeEnv::new()
+        let (_sym, _macros, stdlib_types) = crate::freeze::env::stdlib_snapshot();
+        stdlib_types.clone()
     }
 
     /// Row 1 — `vec` (`:wat::core::Vector`'s check-time inference) takes a `:-`-marked
@@ -15614,8 +15670,19 @@ fn infer_hashmap_constructor(
     // rejected — `peel_param_spec` requires the literal `:-` marker, so
     // neither shape reaches `parse_param_spec_slot`.
     let mut k_span: Span = head_span.clone();
+    // Stone 255.74 AMEND D3 — only a REAL `:- [K V]` bracket gives `k_ty` a key the key-door
+    // wall should judge. The bracket-less fallback below (`(None, _)`) already reports its
+    // own MalformedForm AND drops `args[0]`/`args[1]` from `pairs` entirely (pre-existing
+    // 255.71 quirk, out of this amendment's scope) — for a 2-arg bracket-less call that leaves
+    // `k_ty` a fresh var NOTHING ever unifies, so the wall would register a pending bound that
+    // is still unresolved when this function's own flush runs, duplicating the MalformedForm
+    // with a redundant BoundUnresolved (measured: `probe_stone255_71_the_wall`'s `hashmap-
+    // keyword`/`hashmap-symbol` rows, 14 -> 16 errors). Same guard as
+    // `infer_persistentmap_constructor`'s `declared.is_some()`.
+    let mut bracket_declared = false;
     let (k_ty, v_ty, pairs): (TypeExpr, TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
         (Some(inner), rest) if inner.len() == 2 => {
+            bracket_declared = true;
             k_span = inner[0].span().clone();
             let k = crate::types::expand_alias(
                 &parse_param_spec_slot(":wat::core::HashMap", &inner[0], fresh, &mut local_errors),
@@ -15682,8 +15749,10 @@ fn infer_hashmap_constructor(
     // Stone 255.74 — the ONE door: a HashMap's declared KEY type must be
     // key-eligible (the VALUE type is unconstrained — only keys get hashed).
     let resolved_k = apply_subst(&k_ty, subst);
-    if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::core::HashMap", "key type", &k_span, env) {
-        local_errors.push(err);
+    if bracket_declared {
+        if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::core::HashMap", "key type", &k_span, env) {
+            local_errors.push(err);
+        }
     }
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashMap".into(),
@@ -25821,23 +25890,29 @@ pub(crate) mod tests {
         );
     }
 
-    // ─── Arc 109 BRIEF-key-eligibility-wall — the gate ─────────────────────────
+    // ─── Arc 109 BRIEF-key-eligibility-wall, NARROWED by AMEND-255.74 D3 ───────────────────
     //
-    // Binds `Value::key_eligibility()`'s classification (read off the `Hash`/`PartialEq`
-    // ground truth) to `is_atomizable`'s verdict (the checker's actual static gate). For
-    // EVERY variant — including the ones that cannot be constructed at this layer
-    // (`Function`/`ThreadOwnedCell` have no public constructor outside wat eval, arc 216's
-    // Probe 10 skip) — the checker's verdict must agree with the declared eligibility.
-    // No `Value` instance is ever constructed: `is_atomizable` answers on a type-name path,
-    // which is exactly why this gate succeeds where Probe 10 could not (see
-    // `probe_arc216_stone5a_value_hash.rs`'s probe_10 skip note).
+    // Pre-amendment, this gate bound `Value::key_eligibility()`'s FULL classification to
+    // `is_atomizable`'s verdict (the key door, at the time). D3 moved the key door to
+    // `:< :wat::core::Equatable` (see `every_key_eligibility_row_agrees_with_equatable`,
+    // below) — `is_atomizable` reverted to being ONLY `to-holon`/`leaf`'s door, a narrower,
+    // different property ("can be encoded as a holon atom") that several genuinely-Equatable
+    // data types (`u8`, `bigint`, `rational`, …) fail and are NOT expected to pass. Asserting
+    // full agreement here is therefore the wrong claim now (it was driven red by exactly those
+    // reclassified rows the moment D3 landed — measured, not theorized).
+    //
+    // What SURVIVES: `to-holon` would still try to encode an interior-mutable or
+    // pointer-identity opaque handle as a holon atom, with whatever undefined behavior that
+    // implies, if `is_atomizable` ever regressed to accept one. That half of the original
+    // claim is real and independent of which door is "the" key door, so it stays a gate on
+    // `is_atomizable` by itself.
     //
     // Lives here (an in-crate `#[cfg(test)]`, not `tests/value/`) because `is_atomizable`
     // is `pub(crate)` per the brief's explicit scope limit ("do not make it `pub`") — an
     // external integration test cannot see a `pub(crate)` item.
     #[test]
-    fn every_interior_mutable_variant_is_rejected_as_a_key() {
-        use crate::value::{KeyEligibility, Value};
+    fn is_atomizable_still_rejects_every_interior_mutable_or_opaque_handle_variant() {
+        use crate::value::{KeyEligibility, NotAKeyReason, Value};
 
         let table = Value::all_key_eligibility();
         assert!(
@@ -25845,23 +25920,90 @@ pub(crate) mod tests {
             "expected at least one gate probe per Value variant (46), got {}",
             table.len()
         );
+        let mut checked = 0;
         for (ty, eligibility) in table {
-            let checker_accepts = is_atomizable(&ty);
+            let KeyEligibility::NeverAKey(reason @ (NotAKeyReason::InteriorMutable | NotAKeyReason::OpaqueHandle)) = eligibility else {
+                continue;
+            };
+            checked += 1;
+            assert!(
+                !is_atomizable(&ty),
+                "{ty:?} is NeverAKey({reason:?}) — a real Hash-panic risk — but is_atomizable \
+                 ACCEPTS it; to-holon would try to encode it as a holon atom. If this is \
+                 InteriorMutable, that is the stranded-key bug clippy's mutable_key_type exists \
+                 to prevent, and it is now reachable"
+            );
+        }
+        assert!(
+            checked >= 13,
+            "expected at least the 13 pre-255.74 opaque-handle/interior-mutable rows to be \
+             probed here, got {checked} — a row was reclassified away from InteriorMutable/ \
+             OpaqueHandle without this gate noticing, or the table shrank"
+        );
+    }
+
+    // ─── AMEND-255.74 D3 — the key door is Equatable, not is_atomizable ────────────────────
+    //
+    // Binds `Value::key_eligibility()`'s classification to `require_class(ty, Equatable)` —
+    // the SAME predicate `key_eligible_or_error` (the nine checker-visible construction/
+    // literal/verb sites) and `=` (`infer_equality`) both ask — so the static door and the
+    // runtime guard's leaf classification cannot drift from EACH OTHER, independently of
+    // whichever door either one used to ask (`is_atomizable`, pre-amendment).
+    //
+    // Measured BEFORE this amendment's reclassification (`zzz_diag_equatable_table`, since
+    // removed — its findings are now this test): `u8`, `bigint`, `rational`, `Instant`,
+    // `Duration`, `:wat::holon::Vector`, `(Option :- [T])`, `(Result :- [T E])`,
+    // `(PersistentVector :- [T])`, and `(List :- [T])` were all `NeverAKey(ExcludedByDesign)`
+    // ("is_atomizable doesn't admit it") while ALL ARE `:< :wat::core::Equatable`
+    // (`wat/class.wat`) — nine real disagreements, all cured by reclassifying those rows to
+    // `Hashable` above (plus, for `Option`/`Result`/`List`, swapping their gate probe from a
+    // bare `Path` — not itself Equatable, only the APPLIED form is, via `wat/class.wat`'s
+    // conditional `extend-type` — to a representative parametric form, the same convention
+    // `Vector`/`HashSet`/`HashMap`/`Tuple` already use). `PersistentMap` is the one
+    // `ExcludedByDesign` row that stays `NeverAKey` under EITHER door: `wat/class.wat`'s own
+    // comment states "PersistentMap is not a member" of Equatable, by design, independent of
+    // any checker-predicate gap. `Struct`/`Enum`/`ForeignRecord`/`ForeignVariant` stay
+    // `NeverAKey(ExcludedByDesign)` too — none is `:< Equatable` (a Pure enum IS, but this
+    // row's probe is deliberately the generic/non-Pure representative; see the row's own
+    // comment in `src/value/value.rs`).
+    #[test]
+    fn every_key_eligibility_row_agrees_with_equatable() {
+        use crate::value::{KeyEligibility, Value};
+        let (_stdlib_sym, _stdlib_macros, stdlib_types) = stdlib_loaded();
+        let env = CheckEnv::with_builtins_and_types(stdlib_types);
+        let table = Value::all_key_eligibility();
+        assert!(
+            table.len() >= 46,
+            "expected at least one gate probe per Value variant (46), got {}",
+            table.len()
+        );
+        for (ty, eligibility) in table {
+            let equatable = require_class(
+                "<key_eligibility() vs Equatable gate>",
+                &crate::rust_caller_span!(),
+                &ty,
+                ":wat::core::Equatable",
+                &env,
+            ).is_none();
             match eligibility {
                 KeyEligibility::Hashable => assert!(
-                    checker_accepts,
-                    "{ty:?} is declared Hashable but is_atomizable REJECTS it — a value the \
-                     checker will not admit as a key is classified as one"
+                    equatable,
+                    "{ty:?} is declared Hashable (the runtime guard admits it as a leaf, no \
+                     further recursion) but is NOT `:< :wat::core::Equatable` — the runtime \
+                     guard would admit a type the static door (key_eligible_or_error) refuses"
                 ),
                 KeyEligibility::NeverAKey(reason) => assert!(
-                    !checker_accepts,
-                    "{ty:?} is declared NeverAKey({reason:?}) but is_atomizable ACCEPTS it. \
-                     If this is InteriorMutable, that is the stranded-key bug clippy's \
-                     mutable_key_type exists to prevent, and it is now reachable"
+                    !equatable,
+                    "{ty:?} is declared NeverAKey({reason:?}) but IS `:< :wat::core::Equatable` \
+                     — the static door would admit a type the runtime guard hard-rejects \
+                     (InteriorMutable/OpaqueHandle) or never recurses into expecting it to be \
+                     excluded (ExcludedByDesign); reclassify the row or add the missing \
+                     `wat/class.wat` edge, whichever is true"
                 ),
             }
         }
     }
+
 
     // ─── Arc 278 #56 (S5) STOP-1 — the unrouted Form is LOUD ─────────────────────────
 

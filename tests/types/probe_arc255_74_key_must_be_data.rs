@@ -1,13 +1,23 @@
-//! Arc 255 Stone 255.74 — a set element / map key must be data (key-eligible), refused by
-//! the checker, through ONE door (`is_atomizable`, `src/check.rs`).
+//! Arc 255 Stone 255.74 — a set element / map key must be data, refused by the checker,
+//! through ONE door.
+//!
+//! **AMEND-255.74 D3 (builder ruling):** the door is `:< :wat::core::Equatable`
+//! (`wat/class.wat`), asked via `require_class` — the SAME predicate `=` already asks. The
+//! original brief named `is_atomizable` as the door; that predicate answers *"can be encoded
+//! as a holon atom"*, a different property, and it refused real data (`u8`, `bigint`,
+//! `rational`, `Instant`, `(Option :- [i64])`, `(PersistentVector :- [i64])` were all refused
+//! by `--check` while the runtime hashed every one of them, pre-amendment). `is_atomizable`
+//! stays exactly what it was — `to-holon`/`leaf`'s own door — just no longer tied to
+//! key-eligibility.
 //!
 //! 255.73's census found `wat-scripts/probes/arc-170/probe-compound-upcast.wat` reaching a
 //! Rust `unreachable!()` — a service HANDLE (a `RustOpaque` at runtime) accepted as a
 //! `HashSet` element by the checker, panicking `impl Hash for Value` at run time. Measured,
-//! `is_atomizable` had exactly ONE caller (`to-holon`/`leaf`) — building a `HashSet`, a
-//! `HashMap`/`PersistentMap` key, a `#{}`/`{}` literal, `conj`, or `assoc` never consulted it.
+//! the key door had exactly ONE caller (`to-holon`/`leaf`, and it was the wrong door) —
+//! building a `HashSet`, a `HashMap`/`PersistentMap` key, a `#{}`/`{}` literal, `conj`, or
+//! `assoc` never consulted any class membership at all.
 //!
-//! This file drives EVERY site Stone 255.74 wired `is_atomizable` into (one row per site, a
+//! This file drives EVERY site Stone 255.74 wired the key door into (one row per site, a
 //! `.wat` fixture per row — `tests/types/probe_arc255_74_key_must_be_data__<case>.wat`):
 //!
 //! | fixture                              | site (`src/check.rs` unless noted)              |
@@ -32,15 +42,20 @@
 //! | `arc-255/probe-255.74-a-key-must-be-data-deep.wat.bad`              | `infer_hashset_constructor` (deep: `Vector<fn>` element) |
 //! | `arc-255/probe-255.74-set-of-capability.wat.bad`                    | `check_set_literal_against` (expected elem; extracted from `probe-compound-upcast.wat`'s retired Set case) |
 //!
-//! Acceptance rows (`acceptance.wat`) prove key-eligible types are UNAFFECTED: i64, String,
-//! keyword, a record, a vector of i64, and a tuple all still build and RUN as HashSet elements
-//! / HashMap keys. `control.wat` is the harness sanity bar (no HashSet/Map at all).
+//! Acceptance rows (`acceptance.wat`) prove key-eligible types still build and RUN as HashSet
+//! elements / HashMap keys: i64, f64, String, keyword, a record, a Pure enum, a vector of i64,
+//! and a tuple (already admitted pre-amendment, by EITHER door) — AND the nine types D3's own
+//! measurement named as newly-admitted (`u8`, `bigint`, `rational`, `Instant`,
+//! `(Option :- [i64])`, `(PersistentVector :- [i64])`), refused pre-amendment,
+//! `is_atomizable`-only. `control.wat` is the harness sanity bar (no HashSet/Map at all).
+//! `generic_bounded.wat`/`generic_unbounded.wat` prove a generic function building
+//! `(HashSet :- [T])` checks with `[T :< Equatable]` and is refused (naming `T`) without it.
 //!
 //! EVERY BAR IS THE CONTROL, RUN IN THE SAME TEST — never a hand-written exit code alone: each
 //! refusal row also asserts the error names BOTH the offending type and the key-eligibility
-//! wall's own message, via an exact substring COUNT (`.matches(needle).count()`, never
-//! `.contains()` inside an assert — `no_loose_string_assert`'s own remedy), so a row cannot
-//! pass by accident on an unrelated error.
+//! wall's own message, via a substring COUNT (`.matches(needle).count()`, never `.contains()`
+//! inside an assert — `no_loose_string_assert`'s own remedy), so a row cannot pass by accident
+//! on an unrelated error.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -73,7 +88,13 @@ fn needle_count(hay: &str, needle: &str) -> usize {
     hay.matches(needle).count()
 }
 
-const WALL_MESSAGE: &str = "key-eligible type (is_atomizable)";
+// AMEND-255.74 D3 — the key door is `:< :wat::core::Equatable` (require_class), not
+// is_atomizable. Every refusal below names the class, whether as a plain TypeMismatch
+// ("expects :wat::core::Equatable") or (for a conditional extend-type edge whose bound
+// failed, e.g. `(Vector :- [T :< Equatable])`) a MembershipBound ("is not a
+// :wat::core::Equatable" / "bounded by :wat::core::Equatable") — both spellings contain this
+// substring.
+const WALL_MESSAGE: &str = ":wat::core::Equatable";
 
 /// The bar. GREEN at HEAD and must stay green — if this fails, nothing below means anything.
 #[test]
@@ -117,7 +138,7 @@ fn key_eligible_types_still_check_and_run_clean() {
     );
 }
 
-/// One row per checker-side site Stone 255.74 wired `is_atomizable` into. Each fixture's
+/// One row per checker-side site Stone 255.74 wired the key door into. Each fixture's
 /// offending element/key is the Fn type `[:wat::core::i64 :-> :wat::core::i64]` (`:probe::inc`
 /// used as a first-class value) — chosen uniformly so one assertion shape covers every row.
 fn assert_fn_key_refused(case: &str) {
@@ -212,7 +233,9 @@ fn hashset_vector_of_fn_deep_wat_bad_is_refused() {
     assert!(
         needle_count(&hay, ":wat::core::Vector :- [[:wat::core::i64 :-> :wat::core::i64]])") >= 1,
         "the diagnostic must name the NESTED Vector<Fn> type, not just \"Fn\" — proving the \
-         wall recurses through is_atomizable's Vector arm: {hay}"
+         wall recurses through wat/class.wat's conditional `(Vector :- [T :< Equatable]) :< \
+         Equatable` edge (surfaced as a MembershipBound naming T, not a plain TypeMismatch, \
+         when the edge matches but T's bound fails): {hay}"
     );
 }
 
@@ -228,4 +251,37 @@ fn set_of_capability_wat_bad_is_refused() {
     assert!(needle_count(&hay, WALL_MESSAGE) >= 1, "{hay}");
     assert!(needle_count(&hay, ":wat::capability::Capability") >= 1, "{hay}");
     assert!(needle_count(&hay, "…} set literal") >= 1, "must name the set-literal call-arg path: {hay}");
+}
+
+// ─── AMEND-255.74 D3 item 2 — a generic function keying a HashSet by its OWN type parameter ──
+
+#[test]
+fn generic_function_with_equatable_bound_checks() {
+    let (code, hay) = check("tests/types/probe_arc255_74_key_must_be_data__generic_bounded.wat");
+    assert_eq!(
+        code,
+        Some(0),
+        "(defn singleton :- [[T :< Equatable]] [x <- :T] -> (HashSet :- [:T]) …) must check \
+         clean — require_class -> assignable consults env.bound_of(\"T\") for a declared, \
+         bounded type parameter: {hay}"
+    );
+}
+
+#[test]
+fn generic_function_without_equatable_bound_is_refused_naming_t() {
+    let (code, hay) = check("tests/types/probe_arc255_74_key_must_be_data__generic_unbounded.wat");
+    assert_ne!(
+        code,
+        Some(0),
+        "the same function with the [T :< Equatable] bound dropped must be refused: {hay}"
+    );
+    assert!(needle_count(&hay, WALL_MESSAGE) >= 1, "{hay}");
+    assert_eq!(
+        needle_count(&hay, "got \":T\""),
+        1,
+        "the diagnostic must name the unbounded parameter BY NAME (\"T\"), not a resolved \
+         type — proving this is the declared-type-parameter path (env.bound_of(\"T\") finds \
+         nothing), not the fresh-inference-variable path (BoundUnresolved/BoundNotSatisfied): \
+         {hay}"
+    );
 }

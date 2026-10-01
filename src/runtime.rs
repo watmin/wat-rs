@@ -6750,52 +6750,60 @@ pub(crate) fn dispatch_substrate_impl(
 // Stone 216.5b — runtime hashability guard.
 // Called by `eval_hashset_ctor` and `hashset_conj_inner` BEFORE `HashSet::insert`
 // so that a user-visible `TypeMismatch` is returned instead of an `unreachable!()`
-// panic. The `is_atomizable` check-time predicate (src/check.rs) is the static
-// guarantee; this guard is the runtime defence-in-depth for values the checker
-// never saw — `eval-ast!`-built values, and a generic `:T` instantiated at
-// runtime to a type the checker only verified abstractly (is_atomizable treats
-// an unresolved type var conservatively as `true`).
+// panic. The static key-eligibility door (`key_eligible_or_error`/`require_class`,
+// `:< :wat::core::Equatable` — AMEND-255.74 D3) is the static guarantee; this guard
+// is the runtime defence-in-depth for values the checker never saw —
+// `eval-ast!`-built values, and a generic `:T` instantiated at runtime to a type
+// the checker only verified abstractly via an unresolved inference variable.
 /// Stone 255.74 — deep runtime hashability guard, rewritten to classify every
-/// LEAF from `Value::key_eligibility()` (`src/value/value.rs:1341`, the
-/// exhaustive per-variant classifier gate-tested against `is_atomizable` by
-/// `every_interior_mutable_variant_is_rejected_as_a_key`) instead of hand-rolling
-/// a second list that can (and had — `wat__stream__Stream` was missing) drift
-/// from `impl Hash for Value`'s own `unreachable!()` arms.
+/// LEAF from `Value::key_eligibility()` (`src/value/value.rs:1341`, the exhaustive
+/// per-variant classifier — gate-tested against `:< :wat::core::Equatable`, the
+/// static key door since AMEND-255.74 D3, by
+/// `check::tests::every_key_eligibility_row_agrees_with_equatable`) instead of
+/// hand-rolling a second list that can (and had — `wat__stream__Stream` was
+/// missing) drift from `impl Hash for Value`'s own `unreachable!()` arms.
 ///
-/// **This guard answers a narrower question than `is_atomizable`: "will
-/// `Hash::hash` panic?", not "is this checker-admissible as a key type?".**
-/// `key_eligibility()`'s `NeverAKey` carries a reason (`NotAKeyReason`,
-/// `src/value/value.rs:1246`), and only two of its three reasons are an actual
-/// panic risk:
+/// **This guard answers a narrower question than the static key door: "will
+/// `Hash::hash` panic?", not "is this type `:< Equatable`?".** `key_eligibility()`'s
+/// `NeverAKey` carries a reason (`NotAKeyReason`, `src/value/value.rs:1246`), and
+/// only two of its three reasons are an actual panic risk:
 /// - `InteriorMutable` / `OpaqueHandle` — the `Hash` arm IS `unreachable!()`
 ///   (or pointer-identity, equally unsafe to treat as structural). These
 ///   REJECT here, at any depth.
-/// - `ExcludedByDesign` — "the `Hash` arm is real/structural, but
-///   `is_atomizable` does not admit it" (its own doc, `:1261-1265`): covers
-///   `PersistentMap`/`PersistentVector`/`Option`/`Result`/`Enum`/
-///   `ForeignRecord`/`ForeignVariant`/`u8`. This is a STATIC-ADMISSION policy
-///   gap, not a safety one — rejecting it here regressed a real capability
+/// - `ExcludedByDesign` — "the `Hash` arm is real/structural, but the variant is
+///   not `:< Equatable`" (its own doc at `src/value/value.rs`): after
+///   AMEND-255.74 D3's reclassification this covers only `PersistentMap`
+///   (`wat/class.wat`'s own comment: "not a member"), `:wat::core::Struct`,
+///   generic `Enum` (a `:wat::enum::Pure`-declared one IS `:< Equatable`, but
+///   this Value-level classifier has no instance purity to read — see its own
+///   row comment), and the two foreign/dynamic variants. This is a
+///   static-admission policy gap, not a safety one — rejecting it here
+///   REGRESSED a real capability
 ///   (`value::pmap::tests::a_map_used_as_a_key_is_found_across_arms`: a
 ///   `PersistentMap` nested as a key inside another `PersistentMap`, proven
-///   safe by `PMap`'s own `Hash` impl) the very first time this function was
-///   wired to `key_eligibility()` uniformly. So `ExcludedByDesign` does NOT
-///   reject by itself — but it IS still a RECURSIVE container for five of its
-///   eight variants (`PersistentMap`, `PersistentVector`, `Option`, `Result`,
-///   `Enum`, `ForeignRecord`, `ForeignVariant` all wrap further `Value`s, and
-///   `impl Hash for Value` recurses into every one of them, same as `Tuple`/
-///   `HashSet`/`HashMap`), so this walk recurses into those too — closing a
-///   LATENT gap the pre-255.74 guard also had (an `Option` wrapping a fn was
-///   never on its hand-rolled reject list either, and `Value::Option`'s own
-///   `Hash` arm — `Some(v) => v.hash(state)` — would have hit the fn's
-///   `unreachable!()` exactly the same way the Vector-of-fn probe did).
+///   safe by `PMap`'s own `Hash` impl) the first time this function was wired
+///   to `key_eligibility()` uniformly, before D3 even existed. So
+///   `ExcludedByDesign` does NOT reject by itself — but it IS still a
+///   RECURSIVE container for `PersistentMap`/`Enum`/`ForeignRecord`/
+///   `ForeignVariant` (all wrap further `Value`s, and `impl Hash for Value`
+///   recurses into every one of them, same as `Tuple`/`HashSet`/`HashMap`), so
+///   this walk recurses into those too — closing a LATENT gap the pre-255.74
+///   guard also had (an `Option` wrapping a fn was never on its hand-rolled
+///   reject list either, and `Value::Option`'s own `Hash` arm —
+///   `Some(v) => v.hash(state)` — would have hit the fn's `unreachable!()`
+///   exactly the same way the Vector-of-fn probe did; `Option`/`Result`/
+///   `PersistentVector` are `Hashable` post-D3, so they fall to the same
+///   recursive arms below as `Tuple`/`HashSet`/`HashMap` for the identical
+///   reason — a `Hashable` OUTER verdict is necessary but not sufficient).
 ///
-/// A `Hashable` outer verdict is ALSO necessary-but-not-sufficient for the
-/// five recursively-atomizable-per-`is_atomizable` shapes (`HashSet`,
-/// `HashMap`, `Vector`/`Vec`, `Tuple`, `Record`/`HolonRecord`): `key_eligibility()`
-/// answers `Hashable` for them UNCONDITIONALLY (mirroring `is_atomizable`'s own
-/// recursive `Parametric`/`Tuple` arms, `src/check.rs`, which likewise only
-/// admit them when every element/field type is itself atomizable) — so this
-/// walk recurses into their contents too (`probe-255.74-a-key-must-be-data-deep.wat.bad`'s
+/// A `Hashable` outer verdict is necessary-but-not-sufficient for every
+/// recursively-Equatable shape (`HashSet`, `HashMap`, `Vector`/`Vec`, `Tuple`,
+/// `Record`/`HolonRecord`, `List`, `Option`, `Result`, `PersistentVector`):
+/// `key_eligibility()` answers `Hashable` for them UNCONDITIONALLY (mirroring
+/// `wat/class.wat`'s own conditional `extend-type` edges for these — e.g.
+/// `(Option :- [T :< Equatable]) :< Equatable` — which likewise only admit them
+/// when every element/field type is itself Equatable) — so this walk recurses
+/// into their contents too (`probe-255.74-a-key-must-be-data-deep.wat.bad`'s
 /// `(Vector :- [FnType])` set element is exactly this gap), before `Hash::hash`
 /// ever reaches an `unreachable!()` arm.
 ///

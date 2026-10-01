@@ -577,7 +577,7 @@
 ;; once per distinct value found, so a stream of N all-distinct elements costs O(n^2), not O(n).
 ;; Traded deliberately for staying at ONE clause with no new param — flagged, not hidden, per the
 ;; same complexity-honesty this file's own `stream->pvec`/`seqable->stream` history demands.
-(:wat::core::defn :wat::core::distinct-walk :- [T]
+(:wat::core::defn :wat::core::distinct-walk :- [[T :< :wat::core::Equatable]]
   [seen <- (wat.type/HashSet :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
@@ -588,7 +588,7 @@
             (:wat::core::distinct-walk (:wat::core::conj seen value) rest)))]
       [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
 
-(:wat::core::defn :wat::core::distinct :- [T]
+(:wat::core::defn :wat::core::distinct :- [[T :< :wat::core::Equatable]]
   [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::core::distinct-walk (wat.type/HashSet :- [:T]) (:wat::core::Seqable/seq coll)))
 

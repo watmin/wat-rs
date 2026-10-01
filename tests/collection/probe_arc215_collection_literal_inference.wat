@@ -38,12 +38,16 @@
       [:wat::core::Option.None {} -1])))
 
 ;; probe 6: empty {} length 0
+;; AMEND-255.74 D3 — an empty {} literal's key type is a fresh inference variable; nothing
+;; else in this function ever fixes it (`length` doesn't propagate a key/element constraint),
+;; so it is refused as unresolved (BoundUnresolved) unless pinned. `ann-form` pins it while
+;; keeping the `{}` LITERAL syntax this probe exists to exercise.
 (:wat::core::defn :t::p6-empty-map-len [] -> wat.type/i64
-  (:wat::core::length {}))
+  (:wat::core::length (:wat::core::ann-form {} (wat.type/HashMap :- [wat.type/keyword wat.type/i64]))))
 
-;; probe 7: empty #{} length 0
+;; probe 7: empty #{} length 0 — same AMEND-255.74 D3 note as probe 6, for the element type.
 (:wat::core::defn :t::p7-empty-set-len [] -> wat.type/i64
-  (:wat::core::length #{}))
+  (:wat::core::length (:wat::core::ann-form #{} (wat.type/HashSet :- [wat.type/i64]))))
 
 ;; probe 8a: single element #{42} length 1
 (:wat::core::defn :t::p8a-single-set-len [] -> wat.type/i64

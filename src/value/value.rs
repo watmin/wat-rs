@@ -1268,11 +1268,25 @@ pub enum NotAKeyReason {
     /// intentionally pointer-based regardless of what its closed environment holds).
     OpaqueHandle,
     /// Structurally hashable in principle — the `Hash` arm is real, not `unreachable!()` —
-    /// but `is_atomizable` does not admit it. Covers both "deliberately excluded"
-    /// (arc 216 Stone 7's Tuple sibling `wat__core__List`, kept off the list on purpose per
-    /// its own doc comment) and types with no `Parametric` arm in `is_atomizable`
-    /// (`PersistentMap` / `PersistentVector` — unlike `HashMap`/`HashSet`/`Vector`, which
-    /// share the mechanism).
+    /// but the variant is not `:< :wat::core::Equatable` (`wat/class.wat`, the key-eligibility
+    /// door since Stone 255.74's D3 amendment; `is_atomizable` is a DIFFERENT predicate —
+    /// "can be encoded as a holon atom" — and is no longer what this reason cites, after it
+    /// was measured narrowing the language: `u8`, `bigint`, `rational`, `Instant`,
+    /// `(Option :- [T])`, `(Result :- [T E])`, `(PersistentVector :- [T])`, `(List :- [T])`,
+    /// and `:wat::holon::Vector` are ALL `:< Equatable` (`wat/class.wat`) and were
+    /// RECLASSIFIED to `Hashable` by that amendment; see git history for the pre-amendment
+    /// `is_atomizable`-keyed membership of this variant). What remains here is excluded by
+    /// Equatable itself, not by a checker-predicate gap:
+    /// - `:wat::core::Struct` — mixes code+data; never a class member.
+    /// - `PersistentMap` — `wat/class.wat`'s own comment: "PersistentMap is not a member"
+    ///   (unlike `HashMap`/`HashSet`/`PersistentVector`, which are unconditional members).
+    /// - `Enum` — only a `:wat::enum::Pure`-declared enum is `:< Equatable`; this row's probe
+    ///   is the generic/non-Pure representative (the checker sees a SPECIFIC enum's type and
+    ///   correctly admits a Pure one via its own `:< Equatable` edge — this Value-level
+    ///   classifier has no instance-level purity to read, so it stays conservative for all
+    ///   `Value::Enum`, safe because `value_is_hashable` also recurses into its fields).
+    /// - `ForeignRecord` / `ForeignVariant` — dynamic/foreign, never registered against any
+    ///   class.
     ExcludedByDesign,
 }
 
@@ -1619,15 +1633,20 @@ value_key_eligibility_table! {
         gate: [ TypeExpr::Path(":wat::stream::Stream".to_string()) ]
     },
 
-    // ── NeverAKey(ExcludedByDesign): Hash arm is real/structural, but is_atomizable ────
-    // ── does not currently admit it ────────────────────────────────────────────────────
+    // ── Hashable (Stone 255.74 D3 — Equatable, not is_atomizable, is the door): every one
+    // ── of these IS `:< :wat::core::Equatable` (`wat/class.wat`), even though `is_atomizable`
+    // ── never admitted it. Pre-amendment these sat in NeverAKey(ExcludedByDesign); the
+    // ── amendment measured the checker refusing a map key of each of these while the runtime
+    // ── hashed all of them anyway — reclassified here to close that gap. ───────────────────
     Value::u8(_) => {
         type_name: "wat::core::u8",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::core::u8".to_string()) ]
     },
-    // is_atomizable has no Parametric arm for either PersistentMap or PersistentVector
-    // (unlike HashMap/HashSet/Vector) — rejected regardless of element type.
+    // `wat/class.wat`'s own comment: "PersistentMap is not a member" (unlike
+    // HashMap/HashSet/PersistentVector, which are unconditional Equatable members) — the one
+    // row in this cluster that stays NeverAKey under EITHER door, by design, not by a
+    // checker-predicate gap.
     Value::wat__core__PersistentMap(_) => {
         type_name: "wat::core::PersistentMap",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
@@ -1641,32 +1660,61 @@ value_key_eligibility_table! {
             } => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign)
         ]
     },
+    // Unconditional Equatable member (`wat/class.wat`); recursively atomizable-shaped probe
+    // (representative Equatable inner type), same convention as Vector/HashSet/HashMap/Tuple.
     Value::wat__core__PersistentVector(_) => {
         type_name: "wat::core::PersistentVector",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        key_eligibility: KeyEligibility::Hashable,
         gate: [
             TypeExpr::Parametric {
                 head: "wat::core::PersistentVector".to_string(),
                 args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
-            } => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign)
+            }
         ]
     },
+    // `(Option :- [T :< Equatable]) :< Equatable` (`wat/class.wat`) — a representative
+    // PARAMETRIC probe is load-bearing here: the bare `Path(":wat::core::Option")` this row
+    // used pre-amendment is NOT itself Equatable (no unconditional edge), only the applied
+    // form is, via the conditional extend-type.
     Value::Option(_) => {
         type_name: "wat::core::Option",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
-        gate: [ TypeExpr::Path(":wat::core::Option".to_string()) ]
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::Option".to_string(),
+                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+            }
+        ]
     },
+    // `(Result :- [T E :< Equatable]) :< Equatable` (`wat/class.wat`) — same bare-vs-applied
+    // distinction as Option above.
     Value::Result(_) => {
         type_name: "wat::core::Result",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
-        gate: [ TypeExpr::Path(":wat::core::Result".to_string()) ]
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::Result".to_string(),
+                args: vec![
+                    TypeExpr::Path(":wat::core::i64".to_string()),
+                    TypeExpr::Path(":wat::core::i64".to_string()),
+                ],
+            }
+        ]
     },
+    // Only a `:wat::enum::Pure`-declared enum is `:< Equatable` (`wat/class.wat`); this row's
+    // bare-path probe stands in for the generic/non-Pure case, which is correctly NOT
+    // Equatable. The checker sees a SPECIFIC enum's registered type and admits a Pure one
+    // through its own edge; this Value-level classifier has no instance purity to read, so it
+    // stays conservative for every `Value::Enum` (safe: `value_is_hashable` also recurses into
+    // its fields, so a Pure enum with all-Equatable fields is still accepted by the runtime
+    // guard even though this blanket classification calls the VARIANT NeverAKey).
     Value::Enum(_) => {
         type_name: "wat::core::Enum",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [ TypeExpr::Path(":wat::core::Enum".to_string()) ]
     },
-    // Arc 278 Stone A — foreign dynamic values report their own kind.
+    // Arc 278 Stone A — foreign dynamic values report their own kind. Never registered
+    // against any class (dynamic/untyped at the checker); not a member of Equatable.
     Value::ForeignRecord(_) => {
         type_name: "wat::edn::ForeignRecord",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
@@ -1679,39 +1727,43 @@ value_key_eligibility_table! {
     },
     Value::Vector(_) => {
         type_name: "wat::holon::Vector",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::holon::Vector".to_string()) ]
     },
     Value::Instant(_) => {
         type_name: "wat::time::Instant",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::time::Instant".to_string()) ]
     },
     Value::Duration(_) => {
         type_name: "wat::time::Duration",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::time::Duration".to_string()) ]
     },
-    // Arc 300 stone B — representation-only; not in is_atomizable.
+    // Arc 300 stone B — representation-only; not in is_atomizable, but `:< Equatable`.
     Value::wat__core__Rational(_) => {
         type_name: "wat::core::rational",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::core::rational".to_string()) ]
     },
-    // Arc 300 stone C1 — full arithmetic type; still not in is_atomizable.
+    // Arc 300 stone C1 — full arithmetic type; not in is_atomizable, but `:< Equatable`.
     Value::wat__core__BigInt(_) => {
         type_name: "wat::core::bigint",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
+        key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::core::bigint".to_string()) ]
     },
-    // Arc 220 Stone 220.4 — List hashes exactly like Vec (hash_sequence, real, recursive)
-    // but is deliberately excluded from is_atomizable (own doc comment: "not in
-    // is_atomizable") — the EDN-spec cross-type equality with Vec doesn't extend to
-    // checker admission.
+    // Arc 220 Stone 220.4 — List hashes exactly like Vec (hash_sequence, real, recursive).
+    // `(List :- [T :< Equatable]) :< Equatable` (`wat/class.wat`) — same bare-vs-applied
+    // distinction as Option/Result above: the representative probe must be PARAMETRIC.
     Value::wat__core__List(_) => {
         type_name: "wat::core::List",
-        key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
-        gate: [ TypeExpr::Path(":wat::core::List".to_string()) ]
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::List".to_string(),
+                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+            }
+        ]
     },
 }
 

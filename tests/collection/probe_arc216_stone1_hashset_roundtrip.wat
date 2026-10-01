@@ -23,9 +23,14 @@
     (:wat::hashset::contains? s 2)))
 
 ;; p3: empty set round-trip length 0
+;; AMEND-255.74 D3 — an empty #{} literal's element type is a fresh inference variable;
+;; `to-holon`'s own is_atomizable check conservatively admits an unresolved Var without
+;; constraining it, so nothing in this function ever fixes the type, and it is refused as
+;; unresolved (BoundUnresolved) unless pinned. `ann-form` pins it while keeping the `#{}`
+;; LITERAL syntax this probe exists to exercise.
 (:wat::core::defn :t::p3-empty-rt-len [] -> wat.type/i64
   (:wat::core::let
-    [h (:wat::holon::to-holon #{})
+    [h (:wat::holon::to-holon (:wat::core::ann-form #{} (wat.type/HashSet :- [wat.type/i64])))
      s (:wat::holon::from-holon h)]
     (:wat::hashset::length s)))
 

@@ -2,8 +2,12 @@
 ;; Arc 214 P2 — {...} map literal in expression position.
 
 ;; probe 1: empty {} length 0
+;; AMEND-255.74 D3 — an empty {} literal's key type is a fresh inference variable; nothing
+;; else in this function ever fixes it (`length` doesn't propagate a key constraint), so it
+;; is refused as unresolved (BoundUnresolved) unless pinned. `ann-form` pins it while keeping
+;; the `{}` LITERAL syntax this probe exists to exercise.
 (:wat::core::defn :t::p1-empty-len [] -> wat.type/i64
-  (:wat::core::length {}))
+  (:wat::core::length (:wat::core::ann-form {} (wat.type/HashMap :- [wat.type/keyword wat.type/i64]))))
 
 ;; probe 2a: single pair {foo 42} length 1
 (:wat::core::defn :t::p2a-single-len [] -> wat.type/i64
