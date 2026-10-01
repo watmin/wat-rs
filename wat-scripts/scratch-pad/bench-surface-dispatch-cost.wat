@@ -44,7 +44,7 @@
 ;; arms compute the same value. No recalibration inside the run.
 
 ;; COST PROBE — what does ONE surface dispatch cost vs a direct call?
-(:wat::core::defsurface :bench::Shaped :nature :wat::core::Struct
+(:wat::core::defsurface :bench::Shaped :nature wat.type/Struct
   :features [(val [self <- :bench::Shaped] -> wat.type/i64)])
 
 (:wat::core::extend-type wat.type/Vector :bench::Shaped

@@ -9,7 +9,7 @@
 ;;
 ;; CLAIM: (drive (Doubler) 21) == 42.
 
-(:wat::core::defsurface :probe::Runner :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Runner :nature wat.type/Struct
   :features [(run [self <- :probe::Runner  n <- wat.type/i64] -> wat.type/i64)])
 
 (:wat::core::defstruct :probe::Doubler [])

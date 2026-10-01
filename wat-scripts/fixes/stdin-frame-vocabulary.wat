@@ -57,8 +57,8 @@
 ;;     | ./target/release/wat ./wat-scripts/fixes/stdin-frame-vocabulary.wat
 
 ;; The migration as DATA — one line per pair, most-specific first (see ORDER above).
-(:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+(:wat::core::defn :user::renames [] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])]
     ;; compound — the actual lie, rewritten straight to its final form
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::kernel::StdIn::ReadLineResponse::Line" ":wat::kernel::StdIn::ReadFrameResponse::Frame")
     ;; the enclosing response enum — catches ::Eof/::Stopped/::RequestTooLarge/::RequestMalformed
@@ -72,11 +72,11 @@
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":Line"                                        ":Frame")))
 
 (:wat::core::defn :user::migrate
-  [src <- :wat::core::String] -> :wat::core::String
+  [src <- wat.type/String] -> wat.type/String
   (:wat::core::let [kw-migrated
                      (:wat::core::foldl
-                       (:wat::core::fn [acc <- :wat::core::String
-                                        pr  <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])] -> :wat::core::String
+                       (:wat::core::fn [acc <- wat.type/String
+                                        pr  <- (wat.type/Tuple :- [wat.type/String wat.type/String])] -> wat.type/String
                          (:wat::fix::rename-keyword-prefix (:wat::core::first pr) (:wat::core::second pr) acc))
                        src
                        (:user::renames))]
@@ -85,7 +85,7 @@
     (:wat::fix::rename-symbol-exact "read-line" "read-frame" kw-migrated)))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -94,6 +94,6 @@
           (:user::migrate (:wat::io::read-file path)))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

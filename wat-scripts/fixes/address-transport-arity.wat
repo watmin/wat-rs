@@ -21,13 +21,13 @@
 
 ;; One char of s at index i (i in [0, length)).
 (:wat::core::defn :user::ch
-  [s <- :wat::core::String i <- :wat::core::i64] -> :wat::core::String
+  [s <- wat.type/String i <- wat.type/i64] -> wat.type/String
   (:wat::string::subs s i (:wat::core::+ i 1)))
 
 ;; Left-valid for an UNCOLONED embed: preceded by "<" "," " " or "(".
 ;; A leading ":" is NOT left-valid — that is the colon-form of the same name.
 (:wat::core::defn :user::embed-left-ok?
-  [name <- :wat::core::String i <- :wat::core::i64] -> :wat::core::bool
+  [name <- wat.type/String i <- wat.type/i64] -> wat.type/bool
   (:wat::core::if (:wat::core::< i 1)
     false
     (:wat::core::let [prev (:user::ch name (:wat::core::- i 1))]
@@ -38,7 +38,7 @@
 
 ;; Does `name` contain `pref` starting at i?
 (:wat::core::defn :user::at-prefix?
-  [name <- :wat::core::String i <- :wat::core::i64 pref <- :wat::core::String] -> :wat::core::bool
+  [name <- wat.type/String i <- wat.type/i64 pref <- wat.type/String] -> wat.type/bool
   (:wat::core::let [end (:wat::core::+ i (:wat::string::length pref))
                     nlen (:wat::string::length name)]
     (:wat::core::if (:wat::core::> end nlen)
@@ -49,8 +49,8 @@
 ;; Tracks `<>` and `()` so tuple / nested parametric commas stay inner.
 ;; Returns the index of the matching `>`, or name-len if unbalanced.
 (:wat::core::defn :user::matching-gt
-  [name <- :wat::core::String open <- :wat::core::i64 i <- :wat::core::i64 depth <- :wat::core::i64]
-  -> :wat::core::i64
+  [name <- wat.type/String open <- wat.type/i64 i <- wat.type/i64 depth <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::let [nlen (:wat::string::length name)]
     (:wat::core::if (:wat::core::>= i nlen)
       nlen
@@ -70,8 +70,8 @@
 
 ;; Count top-level commas in name[open+1 .. close) — depth 0 relative to that span.
 (:wat::core::defn :user::count-commas
-  [name <- :wat::core::String i <- :wat::core::i64 close <- :wat::core::i64 depth <- :wat::core::i64 acc <- :wat::core::i64]
-  -> :wat::core::i64
+  [name <- wat.type/String i <- wat.type/i64 close <- wat.type/i64 depth <- wat.type/i64 acc <- wat.type/i64]
+  -> wat.type/i64
   (:wat::core::if (:wat::core::>= i close)
     acc
     (:wat::core::let [c (:user::ch name i)]
@@ -91,7 +91,7 @@
 
 ;; Top-level type-arg arity of the `<…>` whose `<` sits at `open`. Empty → 0.
 (:wat::core::defn :user::type-arity
-  [name <- :wat::core::String open <- :wat::core::i64 close <- :wat::core::i64] -> :wat::core::i64
+  [name <- wat.type/String open <- wat.type/i64 close <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::>= (:wat::core::+ open 1) close)
     0
     (:wat::core::+ 1 (:user::count-commas name (:wat::core::+ open 1) close 0 0))))
@@ -99,7 +99,7 @@
 ;; Match length at i, or 0 if no Address/Bound `<` starts here.
 ;; Prefers the colon form; uncoloned only when left-valid (embed).
 (:wat::core::defn :user::match-len
-  [name <- :wat::core::String i <- :wat::core::i64] -> :wat::core::i64
+  [name <- wat.type/String i <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:user::at-prefix? name i ":wat::kernel::Address<")
     (:wat::string::length ":wat::kernel::Address<")
     (:wat::core::if (:user::at-prefix? name i ":wat::spawn::Bound<")
@@ -117,7 +117,7 @@
 ;; Rewrite every 2-arg Address/Bound occurrence in `name`. Tail-recursive.
 ;; i is the current index; acc accumulates the output.
 (:wat::core::defn :user::rewrite-name
-  [name <- :wat::core::String i <- :wat::core::i64 acc <- :wat::core::String] -> :wat::core::String
+  [name <- wat.type/String i <- wat.type/i64 acc <- wat.type/String] -> wat.type/String
   (:wat::core::let [nlen (:wat::string::length name)]
     (:wat::core::if (:wat::core::>= i nlen)
       acc
@@ -138,11 +138,11 @@
 
 ;; Walk a vector of nodes, concating arity-append edits.
 (:wat::core::defn :user::arity-edits-walk
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
@@ -152,9 +152,9 @@
 ;; Keyword leaf → whole-token replace when the rewritten name differs.
 ;; Structural nodes recurse. Non-keyword leaves are untouched.
 (:wat::core::defn :user::arity-edits
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::arity-edits-walk (:wat::core::ast->children node) lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
@@ -162,14 +162,14 @@
                         name-len name
                         new-name (:user::rewrite-name name 0 "")]
         (:wat::core::if (:wat::core::= new-name name)
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off name-len new-name)))))
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
 (:wat::core::defn :user::migrate
-  [src <- :wat::core::String] -> :wat::core::String
+  [src <- wat.type/String] -> wat.type/String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
@@ -178,7 +178,7 @@
     (:wat::fix::fix-text-apply src rev-edits)))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -187,6 +187,6 @@
           (:user::migrate (:wat::io::read-file path)))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

@@ -34,7 +34,7 @@
 ;; Dry-run on a /tmp copy and `diff` before touching the corpus.
 
 (:wat::core::defn :user::migrate
-  [src <- :wat::core::String] -> :wat::core::String
+  [src <- wat.type/String] -> wat.type/String
   ;; Innermost applies first. Oracle names, then fire-once (unprimed oracle),
   ;; then native primes drop their `'`.
   ;;
@@ -58,7 +58,7 @@
                         src))))))))))))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -68,7 +68,7 @@
         (:wat::kernel::println (:wat::string::concat "[oracle-sigil] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

@@ -75,7 +75,7 @@
 
 ;; bind-clause-var — `(?v <- :field)` (bare field keyword, no "::"): the var name, or "" if this
 ;; clause is not that shape. Mirrors the `Bind` arm of `classify_rete_clause`.
-(:wat::core::defn :user::bind-clause-var [c <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::bind-clause-var [c <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind c) "list")
     (:wat::core::let [ch (:wat::core::ast->children c)]
       (:wat::core::if (:wat::core::= (:wat::core::length ch) 3)
@@ -100,7 +100,7 @@
 ;; top-shape-tag — one of "where"/"not"/"exists"/"or"/"and"/"factbind"/"accumulate"/"plain"/"other".
 ;; Mirrors classify_rete_clause's top-level dispatch, restricted to what hoist-target/where-site
 ;; collection needs to know.
-(:wat::core::defn :user::top-shape-tag [node <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::top-shape-tag [node <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -140,58 +140,58 @@
 ;; bound-vars-of-plain / bound-vars-of-factbind — every `?var` a candidate hoist-target condition
 ;; binds. "plain": every inline bind-clause among its OWN clauses. "factbind": the fact-bind var
 ;; itself, plus every inline bind-clause. Mirrors `plain_pattern_bound_vars`.
-(:wat::core::defn :user::bound-vars-of-plain [node <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::bound-vars-of-plain [node <- wat.type/AST] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::let [ch (:wat::core::ast->children node)
                     clauses (:wat::core::into [] (:wat::core::rest ch))]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) c <- :wat::WatAST]
-        -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) c <- wat.type/AST]
+        -> (wat.type/Vector :- [wat.type/String])
         (:wat::core::let [v (:user::bind-clause-var c)]
           (:wat::core::if (:wat::core::= v "") acc (:wat::core::conj acc v))))
-      (:wat::core::Vector :- [:wat::core::String])
+      (wat.type/Vector :- [wat.type/String])
       clauses)))
 
-(:wat::core::defn :user::bound-vars-of-factbind [node <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::bound-vars-of-factbind [node <- wat.type/AST] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::let [ch (:wat::core::ast->children node)
                     head-var (:wat::core::ast-name (:wat::core::first ch))
                     clauses (:wat::core::into [] (:wat::core::drop ch 3))]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) c <- :wat::WatAST]
-        -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) c <- wat.type/AST]
+        -> (wat.type/Vector :- [wat.type/String])
         (:wat::core::let [v (:user::bind-clause-var c)]
           (:wat::core::if (:wat::core::= v "") acc (:wat::core::conj acc v))))
-      (:wat::core::conj (:wat::core::Vector :- [:wat::core::String]) head-var)
+      (:wat::core::conj (wat.type/Vector :- [wat.type/String]) head-var)
       clauses)))
 
 ;; var-occurrences — every `?`-prefixed symbol reachable under `node` (predicate expressions have
 ;; no rete-specific shape left to respect once we're inside them: a var occurrence is a var
 ;; occurrence anywhere in the tree). Self-recursive only.
-(:wat::core::defn :user::var-occurrences [node <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::var-occurrences [node <- wat.type/AST] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
     (:wat::core::if (:wat::string::starts-with? (:wat::core::ast-name node) "?")
-      (:wat::core::Vector :- [:wat::core::String] (:wat::core::ast-name node))
-      (:wat::core::Vector :- [:wat::core::String]))
+      (wat.type/Vector :- [wat.type/String] (:wat::core::ast-name node))
+      (wat.type/Vector :- [wat.type/String]))
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) c <- :wat::WatAST]
-          -> (:wat::core::Vector :- [:wat::core::String])
+        (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) c <- wat.type/AST]
+          -> (wat.type/Vector :- [wat.type/String])
           (:wat::core::concat acc (:user::var-occurrences c)))
-        (:wat::core::Vector :- [:wat::core::String])
+        (wat.type/Vector :- [wat.type/String])
         (:wat::core::into [] (:wat::core::ast->children node)))
-      (:wat::core::Vector :- [:wat::core::String]))))
+      (wat.type/Vector :- [wat.type/String]))))
 
-(:wat::core::defn :user::dedup [items <- (:wat::core::Vector :- [:wat::core::String])] -> (:wat::core::Vector :- [:wat::core::String])
+(:wat::core::defn :user::dedup [items <- (wat.type/Vector :- [wat.type/String])] -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) x <- :wat::core::String]
-      -> (:wat::core::Vector :- [:wat::core::String])
+    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) x <- wat.type/String]
+      -> (wat.type/Vector :- [wat.type/String])
       (:wat::core::if (:wat::core::contains? acc x) acc (:wat::core::conj acc x)))
-    (:wat::core::Vector :- [:wat::core::String])
+    (wat.type/Vector :- [wat.type/String])
     items))
 
-(:wat::core::defn :user::subset? [small <- (:wat::core::Vector :- [:wat::core::String]) big <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::bool
+(:wat::core::defn :user::subset? [small <- (wat.type/Vector :- [wat.type/String]) big <- (wat.type/Vector :- [wat.type/String])] -> wat.type/bool
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool x <- :wat::core::String]
-      -> :wat::core::bool
+    (:wat::core::fn [acc <- wat.type/bool x <- wat.type/String]
+      -> wat.type/bool
       (:wat::core::if acc (:wat::core::contains? big x) false))
     true
     small))
@@ -206,13 +206,13 @@
 ;; its leading indentation and the newline before it — while never touching anything forward of
 ;; the node (no symmetric forward-trim): that asymmetry is what keeps two adjacent hoisted
 ;; `where`s' deletion spans exactly abutting, never overlapping — see the file-level comment.
-(:wat::core::defn :user::ws-char? [c <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::ws-char? [c <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= c " ") true
     (:wat::core::if (:wat::core::= c "\t") true
       (:wat::core::if (:wat::core::= c "\n") true
         (:wat::core::= c "\r")))))
 
-(:wat::core::defn :user::backward-trim [src <- :wat::core::String pos <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :user::backward-trim [src <- wat.type/String pos <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::core::<= pos 0)
     0
     (:wat::core::let [c (:wat::string::subs src (:wat::i64::- pos 1) pos)]
@@ -224,9 +224,9 @@
 
 ;; collect-hoist-targets — every "plain"/"factbind" condition reachable from `items`, recursing
 ;; ONLY through "and". Never descends into where/not/exists/or/accumulate/other.
-(:wat::core::defn :user::collect-hoist-targets [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::WatAST (:wat::core::Vector :- [:wat::core::String])])])
+(:wat::core::defn :user::collect-hoist-targets [items <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/AST (wat.type/Vector :- [wat.type/String])])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::WatAST (:wat::core::Vector :- [:wat::core::String])])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/AST (wat.type/Vector :- [wat.type/String])])])
     (:wat::core::let [it (:wat::core::first items)
                       tl (:wat::core::into [] (:wat::core::rest items))
                       tag (:user::top-shape-tag it)]
@@ -244,16 +244,16 @@
 ;; collect-where-sites — every `(:wat::rete::where <pred>)` reachable from `items`, recursing ONLY
 ;; through "and" (same scope rule as collect-hoist-targets — a `where` inside `:or`/`:not`/
 ;; `:exists`/an accumulate is never even visited, so it can never be offered a hoist).
-(:wat::core::defn :user::collect-where-sites [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::WatAST :wat::WatAST])])
+(:wat::core::defn :user::collect-where-sites [items <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/AST wat.type/AST])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::WatAST :wat::WatAST])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/AST wat.type/AST])])
     (:wat::core::let [it (:wat::core::first items)
                       tl (:wat::core::into [] (:wat::core::rest items))
                       tag (:user::top-shape-tag it)]
       (:wat::core::cond
         ((:wat::core::= tag "where")
           (:wat::core::concat
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::WatAST :wat::WatAST])]
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/AST wat.type/AST])]
               (wat.type/Tuple :- [wat.type/AST wat.type/AST] it (:wat::core::nth (:wat::core::ast->children it) 1)))
             (:user::collect-where-sites tl)))
         ((:wat::core::= tag "and")
@@ -265,7 +265,7 @@
 ;; find-when-vector — the vector immediately after a `:when` keyword among `ch` (a defrule's /
 ;; defquery's own children). None if this form carries no `:when` (malformed, or not one of ours —
 ;; the caller already gated on the head keyword).
-(:wat::core::defn :user::find-when-vector-at [ch <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Option :- [:wat::WatAST])
+(:wat::core::defn :user::find-when-vector-at [ch <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (:wat::core::Option :- [wat.type/AST])
   (:wat::core::if (:wat::core::>= (:wat::i64::+ i 1) (:wat::core::length ch))
     (:wat::core::Option.None {})
     (:wat::core::let [c (:wat::core::Option/expect (:wat::core::get ch i) "find-when-vector-at c")]
@@ -274,7 +274,7 @@
         (:wat::core::Option.Some {:value (:wat::core::Option/expect (:wat::core::get ch (:wat::i64::+ i 1)) "find-when-vector-at next")})
         (:user::find-when-vector-at ch (:wat::i64::+ i 1))))))
 
-(:wat::core::defn :user::find-when-vector [ch <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Option :- [:wat::WatAST])
+(:wat::core::defn :user::find-when-vector [ch <- (wat.type/Vector :- [wat.type/AST])] -> (:wat::core::Option :- [wat.type/AST])
   (:user::find-when-vector-at ch 0))
 
 ;; ── edits ────────────────────────────────────────────────────────────────────────────────────
@@ -288,51 +288,51 @@
 ;; per target, in encounter (source) order, is what keeps the appended clauses in declaration
 ;; order instead of an accidental reversal.
 (:wat::core::defn :user::merge-insert-into
-  [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])
-   off <- :wat::core::i64 text <- :wat::core::String]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])
+  [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])
+   off <- wat.type/i64 text <- wat.type/String]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])
   (:wat::core::if (:wat::core::empty? acc)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] (wat.type/Tuple :- [wat.type/i64 wat.type/String] off text))
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])] (wat.type/Tuple :- [wat.type/i64 wat.type/String] off text))
     (:wat::core::let [h (:wat::core::first acc) tl (:wat::core::into [] (:wat::core::rest acc))]
       (:wat::core::if (:wat::core::= (:wat::core::first h) off)
         (:wat::core::concat
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])]
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String] off (:wat::string::concat (:wat::core::second h) text)))
           tl)
         (:wat::core::concat
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] h)
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])] h)
           (:user::merge-insert-into tl off text))))))
 
 ;; rule-form-edits — every hoist edit for ONE defrule/defquery form's `:when` vector. Deletions
 ;; are independent per `where` (each has its own unique span); insertions are MERGED per target
 ;; (via merge-insert-into) so N `where`s landing on the same condition become one insert with N
 ;; clauses appended in source order, not N separately-ordered inserts.
-(:wat::core::defn :user::rule-form-edits [node <- :wat::WatAST src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])] -> (:wat::core::Vector :- [:wat::fix::Edit])
+(:wat::core::defn :user::rule-form-edits [node <- wat.type/AST src <- wat.type/String lines <- (wat.type/Vector :- [wat.type/String])] -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let [ch (:wat::core::into [] (:wat::core::ast->children node))
                     wvopt (:user::find-when-vector ch)]
     (:wat::core::match wvopt
-      [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::fix::Edit])]
+      [:wat::core::Option.None {} (wat.type/Vector :- [:wat::fix::Edit])]
       [:wat::core::Option.Some {:value wv}
         (:wat::core::let
           [items (:wat::core::into [] (:wat::core::ast->children wv))
            targets (:user::collect-hoist-targets items)]
         (:wat::core::if (:wat::core::< (:wat::core::length targets) 2)
-          (:wat::core::Vector :- [:wat::fix::Edit])
+          (wat.type/Vector :- [:wat::fix::Edit])
         (:wat::core::let
           [wheres (:user::collect-where-sites items)
            result (:wat::core::foldl
                     (:wat::core::fn
-                      [acc <- (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::fix::Edit]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])])
-                       ws  <- (:wat::core::Tuple :- [:wat::WatAST :wat::WatAST])]
-                      -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::fix::Edit]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])])
+                      [acc <- (wat.type/Tuple :- [(wat.type/Vector :- [:wat::fix::Edit]) (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])])
+                       ws  <- (wat.type/Tuple :- [wat.type/AST wat.type/AST])]
+                      -> (wat.type/Tuple :- [(wat.type/Vector :- [:wat::fix::Edit]) (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])])
                       (:wat::core::let
                         [w (:wat::core::first ws) pred (:wat::core::second ws)
                          vars (:user::dedup (:user::var-occurrences pred))
                          matches (:wat::core::foldl
-                                   (:wat::core::fn [macc <- (:wat::core::Vector :- [:wat::WatAST]) t <- (:wat::core::Tuple :- [:wat::WatAST (:wat::core::Vector :- [:wat::core::String])])]
-                                     -> (:wat::core::Vector :- [:wat::WatAST])
+                                   (:wat::core::fn [macc <- (wat.type/Vector :- [wat.type/AST]) t <- (wat.type/Tuple :- [wat.type/AST (wat.type/Vector :- [wat.type/String])])]
+                                     -> (wat.type/Vector :- [wat.type/AST])
                                      (:wat::core::if (:user::subset? vars (:wat::core::second t)) (:wat::core::conj macc (:wat::core::first t)) macc))
-                                   (:wat::core::Vector :- [:wat::WatAST]) targets)
+                                   (wat.type/Vector :- [wat.type/AST]) targets)
                          dels (:wat::core::first acc)
                          inss (:wat::core::second acc)]
                         (:wat::core::if (:wat::core::= (:wat::core::length matches) 1)
@@ -349,53 +349,53 @@
                               (:wat::core::conj dels (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] w-start (:wat::string::subs src w-start w-end) ""))
                               (:user::merge-insert-into inss ins-off (:wat::string::concat " " pred-text))))
                           acc)))
-                    (wat.type/Tuple :- [(wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])] (:wat::core::Vector :- [:wat::fix::Edit]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])]))
+                    (wat.type/Tuple :- [(wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])])] (wat.type/Vector :- [:wat::fix::Edit]) (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])]))
                     wheres)
            dels (:wat::core::first result)
            inss (:wat::core::second result)
            ins-edits (:wat::core::foldl
-                       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit]) t <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])]
-                         -> (:wat::core::Vector :- [:wat::fix::Edit])
+                       (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::fix::Edit]) t <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])]
+                         -> (wat.type/Vector :- [:wat::fix::Edit])
                          (:wat::core::conj acc (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::core::first t) "" (:wat::core::second t))))
-                       (:wat::core::Vector :- [:wat::fix::Edit])
+                       (wat.type/Vector :- [:wat::fix::Edit])
                        inss)]
           (:wat::core::concat dels ins-edits))))])))
 
 ;; walk-node — every defrule/defquery form's edits, anywhere in the tree (a rule may sit inside a
 ;; `:rules […]` vector passed to a macro, not only at top level — this is a pure text-span splice,
 ;; so where a rule form SITS syntactically makes no difference to the transform).
-(:wat::core::defn :user::walk-node [node <- :wat::WatAST src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])] -> (:wat::core::Vector :- [:wat::fix::Edit])
+(:wat::core::defn :user::walk-node [node <- wat.type/AST src <- wat.type/String lines <- (wat.type/Vector :- [wat.type/String])] -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [hn (:wat::fix::head-name node)
                       this (:wat::core::if (:wat::core::if (:wat::core::= hn ":wat::rete::defrule") true (:wat::core::= hn ":wat::rete::defquery"))
                              (:user::rule-form-edits node src lines)
-                             (:wat::core::Vector :- [:wat::fix::Edit]))]
+                             (wat.type/Vector :- [:wat::fix::Edit]))]
       (:wat::core::concat this
         (:wat::core::foldl
-          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit]) c <- :wat::WatAST]
-            -> (:wat::core::Vector :- [:wat::fix::Edit])
+          (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::fix::Edit]) c <- wat.type/AST]
+            -> (wat.type/Vector :- [:wat::fix::Edit])
             (:wat::core::concat acc (:user::walk-node c src lines)))
-          (:wat::core::Vector :- [:wat::fix::Edit])
+          (wat.type/Vector :- [:wat::fix::Edit])
           (:wat::core::into [] (:wat::core::ast->children node)))))
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::foldl
-        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit]) c <- :wat::WatAST]
-          -> (:wat::core::Vector :- [:wat::fix::Edit])
+        (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::fix::Edit]) c <- wat.type/AST]
+          -> (wat.type/Vector :- [:wat::fix::Edit])
           (:wat::core::concat acc (:user::walk-node c src lines)))
-        (:wat::core::Vector :- [:wat::fix::Edit])
+        (wat.type/Vector :- [:wat::fix::Edit])
         (:wat::core::into [] (:wat::core::ast->children node)))
-      (:wat::core::Vector :- [:wat::fix::Edit]))))
+      (wat.type/Vector :- [:wat::fix::Edit]))))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let [lines (:wat::string::split src "\n")
                     tree (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms (:wat::core::into [] (:wat::core::ast->children tree))
                     edits (:wat::core::foldl
-                            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit]) f <- :wat::WatAST]
-                              -> (:wat::core::Vector :- [:wat::fix::Edit])
+                            (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::fix::Edit]) f <- wat.type/AST]
+                              -> (wat.type/Vector :- [:wat::fix::Edit])
                               (:wat::core::concat acc (:user::walk-node f src lines)))
-                            (:wat::core::Vector :- [:wat::fix::Edit])
+                            (wat.type/Vector :- [:wat::fix::Edit])
                             forms)
                     ;; high-offset-first so a low insert/delete never shifts a pending higher one.
                     rev (:wat::core::reverse (:wat::core::sort edits))]
@@ -403,7 +403,7 @@
 
 ;; ── driver: one path per line on stdin (EDN vector of strings) ─────────────────────────────────
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -413,6 +413,6 @@
         (:wat::kernel::println (:wat::string::concat "[hoisted] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

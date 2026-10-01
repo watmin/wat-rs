@@ -99,7 +99,7 @@
 ;; arg list). A substring check is exact here because `wat.type/` cannot appear in any correct
 ;; Colon-mode output.
 (:wat::core::defn :user::safe-colon-rendering?
-  [rendered <- :wat::core::String] -> :wat::core::bool
+  [rendered <- wat.type/String] -> wat.type/bool
   (:wat::core::not (:wat::string::contains? rendered "wat.type/")))
 
 ;; declarator-head-keyword? — node is a keyword leaf whose full name (":wat::core::defn" etc.)
@@ -113,10 +113,10 @@
 ;; below renders it as a REFERENCE (parens kept), same as any other unlisted head — never
 ;; silently as a binder.
 (:wat::core::defn :user::declarator-head-keyword?
-  [node <- :wat::WatAST] -> :wat::core::bool
+  [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::contains?
-      (:wat::core::HashSet :- [:wat::type::Infer]
+      (wat.type/HashSet :- [:wat::type::Infer]
         ":wat::core::defn"
         ":wat::core::defenum"
         ":wat::core::defsurface"
@@ -150,7 +150,7 @@
 ;; ever isn't application-shaped here, that is this stone's own invariant breaking, not a
 ;; corpus shape to paper over — STOP via assertion-failed! rather than emit a guess.
 (:wat::core::defn :user::strip-outer-parens
-  [rendered <- :wat::core::String] -> :wat::core::String
+  [rendered <- wat.type/String] -> wat.type/String
   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::string::subs rendered 0 1) "(")
                     (:wat::string::ends-with? rendered ")")
                     false)
@@ -167,10 +167,10 @@
 ;; not a reference — so its rendering gets the outer parens stripped (:user::strip-outer-parens)
 ;; instead of the reference form's wrapping `(...)`.
 (:wat::core::defn :user::leaf-edits
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])
-   prev-decl-head? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])
+   prev-decl-head? <- wat.type/bool]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
                     (:wat::fix::type-shaped-keyword? node)
                     false)
@@ -183,19 +183,19 @@
                           text    (:wat::core::if prev-decl-head?
                                     (:user::strip-outer-parens rendered)
                                     rendered)]
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len text)))
-        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
+        (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
 ;; node-edits — structural nodes recurse (via seq-edits, fresh at index 0 of THEIR OWN
 ;; children); leaves go to leaf-edits, carrying whatever prev-decl-head? seq-edits computed
 ;; for this position in the PARENT's child list.
 (:wat::core::defn :user::node-edits
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])
-   prev-decl-head? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])
+   prev-decl-head? <- wat.type/bool]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines true false)
     (:user::leaf-edits node lines prev-decl-head?)))
@@ -211,13 +211,13 @@
 ;; the immediately preceding sibling WAS an index-0 declarator-head keyword. leaf-edits reads
 ;; `prev-decl-head?` to choose the binder rendering over the reference one.
 (:wat::core::defn :user::seq-edits
-  [items           <- (:wat::core::Vector :- [:wat::WatAST])
-   lines           <- (:wat::core::Vector :- [:wat::core::String])
-   is-first?       <- :wat::core::bool
-   prev-decl-head? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items           <- (wat.type/Vector :- [wat.type/AST])
+   lines           <- (wat.type/Vector :- [wat.type/String])
+   is-first?       <- wat.type/bool
+   prev-decl-head? <- wat.type/bool]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::let [h               (:wat::core::first items)
                       this-decl-head? (:wat::core::if is-first? (:user::declarator-head-keyword? h) false)]
       (:wat::core::concat
@@ -228,8 +228,8 @@
 ;; (ascending offset), reverses to right-to-left, splices the ORIGINAL text via
 ;; :wat::fix::fix-text-apply so comments and formatting between edited tokens survive.
 (:wat::core::defn :user::convert
-  [src <- :wat::core::String]
-  -> :wat::core::String
+  [src <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
@@ -239,7 +239,7 @@
 
 ;; ── file/stdin harness — identical shape to every recorded migration ────────────────────
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -249,6 +249,6 @@
         (:wat::kernel::println (:wat::string::concat "[parametrics-take-a-type-vector] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

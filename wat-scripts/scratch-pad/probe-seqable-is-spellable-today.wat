@@ -22,7 +22,7 @@
 ;; DISCONFIRMING PROBE — can `Seqable` be spelled in wat TODAY?
 ;; Mirrors tests/types/probe_arc293_acceptance_demo.wat exactly, renamed.
 (:wat::core::defsurface :sq::Seqable
-  :nature :wat::core::Struct
+  :nature wat.type/Struct
   :features [(as-vec [self <- :sq::Seqable] -> (wat.type/Vector :- [wat.type/i64]))])
 
 (:wat::core::extend-type wat.type/Vector :sq::Seqable

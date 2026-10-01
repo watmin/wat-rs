@@ -10,3 +10,5 @@
 (:wat::core::defn :probe::g [y :- wat.type/String] :- wat.type/String y)
 
 (:wat::core::if (:wat::core::= (:wat::core::type-of x) :wat::core::i64) 1 2)
+
+(:wat::core::defsurface :probe::Store :nature wat.type/Struct :features [])

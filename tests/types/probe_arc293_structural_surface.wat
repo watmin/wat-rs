@@ -4,7 +4,7 @@
 ;; RED at HEAD: defsurface is unknown; :geo::Shape does not resolve.
 
 (:wat::core::defsurface :geo::Shape
-  :nature :wat::core::Struct
+  :nature wat.type/Struct
   :features [color <- wat.type/String])
 
 (:wat::core::defstruct :geo::Circle

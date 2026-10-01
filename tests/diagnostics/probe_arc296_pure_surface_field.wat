@@ -9,7 +9,7 @@
 ;; :probe::E has :nature :wat::core::Record → is_pure → the (Vector :- [E]) field is allowed.
 
 (:wat::core::defsurface :probe::E
-  :nature :wat::core::Record
+  :nature wat.type/Record
   :features [message <- wat.type/String
              causes  <- (wat.type/Vector :- [:probe::E])])
 

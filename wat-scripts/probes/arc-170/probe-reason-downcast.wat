@@ -7,7 +7,7 @@
 ;; dispatches to the concrete defclause arm and recovers the field.
 
 ;; the error-context surface — no members, so a record joins it only by extend-type (B1).
-(:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
+(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
 
 (:wat::core::defrecord :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
 (:wat::core::defrecord :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])

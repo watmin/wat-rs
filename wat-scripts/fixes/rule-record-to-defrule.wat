@@ -59,26 +59,26 @@
 
 ;; ── node-text: verbatim source substring for a node's span ─────────────────────────────────
 (:wat::core::defn :user::node-text
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])
-   src   <- :wat::core::String]
-  -> :wat::core::String
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])
+   src   <- wat.type/String]
+  -> wat.type/String
   (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
 ;; quasi-text — node is `(:wat::core::quasiquote FORM)`; returns FORM's verbatim source text.
 (:wat::core::defn :user::quasi-text
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])
-   src   <- :wat::core::String]
-  -> :wat::core::String
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])
+   src   <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let [ch   (:wat::core::ast->children node)
                     form (:wat::core::Option/expect (:wat::core::get ch 1) "quasi-text: form")]
     (:user::node-text form lines src)))
 
 ;; ends-with? — s ends with suf (bare string compare; suf shorter-or-equal-length required).
-(:wat::core::defn :user::ends-with? [s <- :wat::core::String suf <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::ends-with? [s <- wat.type/String suf <- wat.type/String] -> wat.type/bool
   (:wat::core::let [ls   (:wat::string::length s)
                     lsuf (:wat::string::length suf)]
     (:wat::core::if (:wat::core::< ls lsuf)
@@ -88,7 +88,7 @@
 ;; ── rule-defn? — a top-level `(:wat::core::defn NAME [] -> :wat::rete::Rule BODY)` form.
 ;; Gated on rettype ONLY (":wat::rete::Rule"); the conds/ins helpers return :wat::WatAST and are
 ;; never mistaken for a rule-defn.
-(:wat::core::defn :user::rule-defn? [f <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::rule-defn? [f <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind f) "list")
     (:wat::core::let [ch (:wat::core::ast->children f)]
       (:wat::core::if (:wat::core::= (:wat::core::length ch) 6)
@@ -104,7 +104,7 @@
 
 ;; helper-defn? — a top-level `(:wat::core::defn NAME [] -> :wat::WatAST BODY)` whose NAME ends
 ;; with `suffix` (e.g. "::conds" / "::ins") — the Shape-B hoisted-condition/insert helper.
-(:wat::core::defn :user::helper-defn? [f <- :wat::WatAST suffix <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::helper-defn? [f <- wat.type/AST suffix <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind f) "list")
     (:wat::core::let [ch (:wat::core::ast->children f)]
       (:wat::core::if (:wat::core::= (:wat::core::length ch) 6)
@@ -126,9 +126,9 @@
 ;; find-helper — first top-level form matching helper-defn? for `suffix`; None if absent
 ;; (Shape-A-only files have neither `::conds` nor `::ins` helpers).
 (:wat::core::defn :user::find-helper
-  [forms  <- (:wat::core::Vector :- [:wat::WatAST])
-   suffix <- :wat::core::String]
-  -> (:wat::core::Option :- [:wat::WatAST])
+  [forms  <- (wat.type/Vector :- [wat.type/AST])
+   suffix <- wat.type/String]
+  -> (:wat::core::Option :- [wat.type/AST])
   (:wat::core::if (:wat::core::empty? forms)
     :wat::core::Option.None
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
@@ -139,11 +139,11 @@
 ;; helper-text-opt — the verbatim FORM text inside a helper's `(quasiquote FORM)` body, if the
 ;; helper exists in this file.
 (:wat::core::defn :user::helper-text-opt
-  [forms  <- (:wat::core::Vector :- [:wat::WatAST])
-   lines  <- (:wat::core::Vector :- [:wat::core::String])
-   src    <- :wat::core::String
-   suffix <- :wat::core::String]
-  -> (:wat::core::Option :- [:wat::core::String])
+  [forms  <- (wat.type/Vector :- [wat.type/AST])
+   lines  <- (wat.type/Vector :- [wat.type/String])
+   src    <- wat.type/String
+   suffix <- wat.type/String]
+  -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::match (:user::find-helper forms suffix)
     [:wat::core::Option.Some {:value h}
       (:wat::core::let [ch   (:wat::core::ast->children h)
@@ -153,11 +153,11 @@
 
 ;; build-defrule-text — the replacement source text for one migrated rule.
 (:wat::core::defn :user::build-defrule-text
-  [name-str  <- :wat::core::String
-   cond-text <- :wat::core::String
-   where-text <- :wat::core::String
-   ins-text  <- :wat::core::String]
-  -> :wat::core::String
+  [name-str  <- wat.type/String
+   cond-text <- wat.type/String
+   where-text <- wat.type/String
+   ins-text  <- wat.type/String]
+  -> wat.type/String
   (:wat::string::concat
     (:wat::string::concat "(:wat::rete::defrule :" name-str)
     (:wat::string::concat "\n  :when\n  ["
@@ -171,12 +171,12 @@
 ;; STOPS (assertion-failed!) on a bindings arity other than 2 (Shape B) / 6 (Shape A) — a shape the
 ;; survey did not find, never silently skipped and never hand-fixed.
 (:wat::core::defn :user::rule-edit
-  [f              <- :wat::WatAST
-   lines          <- (:wat::core::Vector :- [:wat::core::String])
-   src            <- :wat::core::String
-   conds-text-opt <- (:wat::core::Option :- [:wat::core::String])
-   ins-text-opt   <- (:wat::core::Option :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [f              <- wat.type/AST
+   lines          <- (wat.type/Vector :- [wat.type/String])
+   src            <- wat.type/String
+   conds-text-opt <- (:wat::core::Option :- [wat.type/String])
+   ins-text-opt   <- (:wat::core::Option :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::rule-defn? f)
     (:wat::core::let
       [ch        (:wat::core::ast->children f)
@@ -204,7 +204,7 @@
                         (:user::quasi-text conds-val lines src)
                         (:user::quasi-text wherec-val lines src)
                         (:user::quasi-text ins-val lines src))]
-          (:wat::core::Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
+          (wat.type/Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
         (:wat::core::if (:wat::core::= n 2)
           ;; Shape B — only where-c is local; conds/ins come from the file-level helpers.
           (:wat::core::let
@@ -219,30 +219,30 @@
                               " needs a file-level `::ins` helper but none was found")))
              new-text   (:user::build-defrule-text name-str cond-text
                           (:user::quasi-text wherec-val lines src) ins-text)]
-            (:wat::core::Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
+            (wat.type/Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
           ;; Neither shape — STOP. Never a silent skip, never a hand-fix.
           (:wat::kernel::assertion-failed! :message (:wat::string::concat "rule-record-to-defrule: unrecognized let-bindings arity "
               (:wat::string::concat (:wat::i64::to-string n)
                 (:wat::string::concat " in rule " name-str)))))))
-    (:wat::core::Vector :- [:wat::fix::Edit])))
+    (wat.type/Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::collect-edits
-  [forms          <- (:wat::core::Vector :- [:wat::WatAST])
-   lines          <- (:wat::core::Vector :- [:wat::core::String])
-   src            <- :wat::core::String
-   conds-text-opt <- (:wat::core::Option :- [:wat::core::String])
-   ins-text-opt   <- (:wat::core::Option :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [forms          <- (wat.type/Vector :- [wat.type/AST])
+   lines          <- (wat.type/Vector :- [wat.type/String])
+   src            <- wat.type/String
+   conds-text-opt <- (:wat::core::Option :- [wat.type/String])
+   ins-text-opt   <- (:wat::core::Option :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :- [:wat::fix::Edit])
+    (wat.type/Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::rule-edit (:wat::core::first forms) lines src conds-text-opt ins-text-opt)
       (:user::collect-edits (:wat::core::rest forms) lines src conds-text-opt ins-text-opt))))
 
 ;; ── renames: build-rules' `(:ns::rule-NAME)` call site -> `(:NAME)` ─────────────────────────
 (:wat::core::defn :user::rule-rename
-  [f <- :wat::WatAST]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+  [f <- wat.type/AST]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
   (:wat::core::if (:user::rule-defn? f)
     (:wat::core::let
       [ch        (:wat::core::ast->children f)
@@ -254,22 +254,22 @@
        rcch      (:wat::core::ast->children rule-call)
        name-node (:wat::core::Option/expect (:wat::core::get rcch 2) "rule-rename: name-node")
        new       (:wat::string::concat ":" (:wat::core::ast-name name-node))]
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new)))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])))
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new)))
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])))
 
 (:wat::core::defn :user::collect-renames
-  [forms <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+  [forms <- (wat.type/Vector :- [wat.type/AST])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
     (:wat::core::concat
       (:user::rule-rename (:wat::core::first forms))
       (:user::collect-renames (:wat::core::rest forms)))))
 
 (:wat::core::defn :user::apply-renames
-  [text    <- :wat::core::String
-   renames <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
-  -> :wat::core::String
+  [text    <- wat.type/String
+   renames <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
+  -> wat.type/String
   (:wat::core::if (:wat::core::empty? renames)
     text
     (:wat::core::let [p   (:wat::core::first renames)
@@ -278,7 +278,7 @@
       (:user::apply-renames (:wat::fix::rename-keyword-exact old new text) (:wat::core::rest renames)))))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines          (:wat::string::split src "\n")
      tree           (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
@@ -292,7 +292,7 @@
     text2))
 
 ;; ── driver: rewrite each path given on stdin (a JSON array of strings) ──────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [p (:wat::core::first paths)]
@@ -301,6 +301,6 @@
         (:wat::kernel::println (:wat::string::concat "[defrule] " p))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

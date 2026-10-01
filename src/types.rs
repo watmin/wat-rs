@@ -630,8 +630,25 @@ impl Nature {
     /// Strict inverse of `root_keyword` — the single canonical keyword→nature map.
     /// Called by both the surface `:nature` parser and `parse_aggregate`.
     /// Returns `None` for anything that is not a nature-root symbol.
+    ///
+    /// Stone 255.79 (4a) — was `canonical_identity`, which normalizes spelling variants
+    /// WITHIN a namespace (`:wat.core/Struct` / `wat.core/Struct` / `:wat::core::Struct` all
+    /// alike) but does NOT fold the `wat.type/` member spelling to its registered
+    /// `wat::core` key — exactly the "one side normalized, the other not" class CLAUDE.md
+    /// names (a `format!`/`split`/`==` on names, not the type system): converting a
+    /// `defsurface`'s `:nature :wat::core::Struct` to `:nature wat.type/Struct` (rule F) made
+    /// `canonical_identity("wat.type/Struct")` answer `":wat::type::Struct"`, which matches
+    /// none of the arms below, so every `:nature wat.type/Struct|Record` surface rotted
+    /// (`wat-scripts/scratch-pad/probe-home-8-examples.wat`, `…/probe-seqable-is-spellable-
+    /// today.wat`, measured via `every_wat_scripts_file_loads`). `type_denotation` is the
+    /// SAME door `src/edn/render.rs`'s own doc comment calls the canonical `wat.type/` →
+    /// `wat::core` map (and the one `C1`/stone-2's `type_denotation` ruling already names) —
+    /// swapping to it here costs nothing on the four existing arms (none of them is a
+    /// `wat.type/` member, so `type_denotation` agrees with `canonical_identity` on every
+    /// input it used to accept) and additionally accepts the `wat.type/Struct`/`wat.type/
+    /// Record` spelling this stone's codemod now writes.
     pub fn from_root_keyword(kw: &str) -> Option<Nature> {
-        match crate::edn::render::canonical_identity(kw).as_str() {
+        match crate::edn::render::type_denotation(kw).as_str() {
             ":wat::core::Struct" => Some(Nature::Struct),
             ":wat::core::Record" => Some(Nature::Record),
             ":wat::holon::Record" => Some(Nature::HolonRecord),

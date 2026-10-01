@@ -255,7 +255,7 @@
 ;; Its implementors' edges bind them. Thread and Process each extend it.
 ;; They do not derive Peer. A new locus joins with one extend-type.
 ;; `:features` stays, empty: the declarator requires the clause.
-(:wat::core::defsurface :wat::spawn::Spawned :- [S R] :nature :wat::core::Struct
+(:wat::core::defsurface :wat::spawn::Spawned :- [S R] :nature wat.type/Struct
   :features [])
 
 (:wat::core::extend-type :- [S R]
@@ -406,7 +406,7 @@
 ;; applies; a future process impl ships forms that apply the same keyword.
 ;; serve's shape: (serve self-peer listener clients next-id state) -> nil. (arc 278 the call
 ;; context added `next-id`, the monotonic conn-id counter, as the 4th positional arg.)
-(:wat::core::defsurface :wat::spawn::Locus :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :wat::spawn::Locus :- [T] :nature wat.type/Struct
   ;; arc 291 3a-ii-β: Lu = the lineage UP type (LineageUp); Sh = the ship/admin DOWN type.
   ;; The returned Launched carries the lineage peer as (Peer' :- [Sh Lu]).
   :features

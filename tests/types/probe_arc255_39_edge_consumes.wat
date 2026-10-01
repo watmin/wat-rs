@@ -4,7 +4,7 @@
 (:wat::core::defstruct :probe::Holder :- [S R]
   [sent <- :S
    recv <- :R])
-(:wat::core::defsurface :probe::Owner :- [S R] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Owner :- [S R] :nature wat.type/Struct
   :features [])
 (:wat::core::extend-type :- [S R]
   (:probe::Holder :- [S R])

@@ -10,7 +10,7 @@
 ;; accepting :g::Boom as a valid (Vector :- [:g::E]) element.
 
 (:wat::core::defsurface :g::E
-  :nature :wat::core::Record
+  :nature wat.type/Record
   :features [msg <- wat.type/String])
 
 (:wat::core::defrecord :g::Boom

@@ -24,7 +24,7 @@
 ;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting `NoMatchingClause` naming
 ;; `:probe::describe` and `MongoReason`.
 
-(:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
+(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
 
 (:wat::core::defrecord :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
 (:wat::core::defrecord :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])

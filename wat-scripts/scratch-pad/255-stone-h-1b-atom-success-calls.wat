@@ -54,7 +54,7 @@
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)
                                   " message=" (:wat::core::EvalError/message e)))])
     (:wat::kernel::println "── :wat::holon::to-record ──")
-    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- wat.type/i64]) (:wat::core::defsurface :probe::Planar :nature :wat::core::Struct :features [x <- wat.type/i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar))))
+    (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- wat.type/i64]) (:wat::core::defsurface :probe::Planar :nature wat.type/Struct :features [x <- wat.type/i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar))))
       [:wat::core::Result.Ok {:value _} (:wat::kernel::println "OK")]
       [:wat::core::Result.Err {:error e}
         (:wat::kernel::println (:wat::string::concat "ERR kind=" (:wat::core::EvalError/kind e)

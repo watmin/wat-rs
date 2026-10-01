@@ -26,17 +26,17 @@
 ;;   printf '["pathA" "pathB" …]\n' | ./target/release/wat ./wat-scripts/fixes/strip-insert-rhs-marker.wat
 
 ;; rhs-marker? — a List `(:wat::rete::insert <fact>)`: exact head + exactly 2 children.
-(:wat::core::defn :user::rhs-marker? [f <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::rhs-marker? [f <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::fix::calls-to? f ":wat::rete::insert")
     (:wat::core::= (:wat::core::count (:wat::core::ast->children f)) 2)
     false))
 
 ;; node-edit — 0-or-1 replacement edit stripping ONE rhs-marker node down to its fact-form text.
 (:wat::core::defn :user::node-edit
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::rhs-marker? node)
     (:wat::core::let
       [fact (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children node) 1) "node-edit: unreachable")
@@ -48,37 +48,37 @@
        ;; node's OWN span (arc 282) — sanctioned: rhs-marker? already verified this node's
        ;; identity structurally (exact head + arity), and it is a List's own span.
        old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
-      (:wat::core::Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] node-off old-text fact-text)))
-    (:wat::core::Vector :- [:wat::fix::Edit])))
+      (wat.type/Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] node-off old-text fact-text)))
+    (wat.type/Vector :- [:wat::fix::Edit])))
 
 ;; walk-edits — deep walk: a rhs-marker node's OWN children are not further descended (its fact
 ;; form cannot itself contain another rhs-marker in this corpus, and even if it did, the outer
 ;; strip already reveals it for a subsequent run — never true in practice, but harmless either
 ;; way since a second run is proven idempotent below).
 (:wat::core::defn :user::walk-edits
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let [this (:user::node-edit node src lines)]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::walk-seq-edits (:wat::core::ast->children node) src lines))
       this)))
 
 (:wat::core::defn :user::walk-seq-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [:wat::fix::Edit])
+    (wat.type/Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::walk-edits (:wat::core::first items) src lines)
       (:user::walk-seq-edits (:wat::core::rest items) src lines))))
 
 ;; ── per-file migrate ────────────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
@@ -89,7 +89,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
 
 ;; ── driver: rewrite each path given on stdin (a JSON/EDN array of strings) ────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -98,7 +98,7 @@
         (:wat::kernel::println (:wat::string::concat "[strip-insert-rhs-marker] " path))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln)
                             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                             [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]

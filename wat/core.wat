@@ -2228,7 +2228,7 @@
 ;; top of this file; :wat::kernel::Location is a Rust builtin registered before
 ;; any stdlib wat loads — all three dependencies are satisfied here.
 (:wat::core::defsurface :wat::core::Error
-  :nature :wat::core::Record
+  :nature wat.type/Record
   :features [message  <- wat.type/String
              location <- :wat::kernel::Location
              causes   <- (wat.type/Vector :- [:wat::core::Error])])

@@ -8,11 +8,11 @@
 (:wat::core::defrecord :geo::Circle [color <- wat.type/String  radius <- wat.type/f64])
 
 ;; `:nature` + `:features` (nature is now mandatory)
-(:wat::core::defsurface :geo::Colored :nature :wat::core::Struct :features [color <- wat.type/String])
+(:wat::core::defsurface :geo::Colored :nature wat.type/Struct :features [color <- wat.type/String])
 
 ;; `:nature` + `:features` — the two parallel constraint clauses
 (:wat::core::defsurface :geo::PortableColored
-  :nature :wat::core::Record
+  :nature wat.type/Record
   :features [color <- wat.type/String])
 
 (:wat::core::defn :geo::name-of [c <- :geo::Colored] -> wat.type/String

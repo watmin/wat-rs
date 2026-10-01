@@ -45,7 +45,7 @@
 
 ;; arc170-ignore? — a List whose head keyword is `:wat::test::ignore` AND whose string
 ;; argument names the arc-170 concurrency suppression.
-(:wat::core::defn :user::arc170-ignore? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::arc170-ignore? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::count ch) 2)
@@ -67,33 +67,33 @@
 ;; children), the deletion's subject genuinely IS the span, and a List's span can never
 ;; diverge from its literal text the way a reader-synthesized keyword sigil can.
 (:wat::core::defn :user::form-edits
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:user::arc170-ignore? node)
     (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                       old-text (:wat::fix::fix-text-span-text
                                  (:wat::core::ast-span node)
                                  (:wat::core::ast-end-span node)
                                  lines src)]
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
         (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text "")))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
 ;; scan — collect edits across every top-level form (ascending offset order).
 (:wat::core::defn :user::scan
-  [forms <- (:wat::core::Vector :- [:wat::WatAST])
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [forms <- (wat.type/Vector :- [wat.type/AST])
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::concat
       (:user::form-edits (:wat::core::first forms) src lines)
       (:user::scan (:wat::core::rest forms) src lines))))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
@@ -101,7 +101,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -110,5 +110,5 @@
         (:wat::kernel::println (:wat::string::concat "[unignore] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

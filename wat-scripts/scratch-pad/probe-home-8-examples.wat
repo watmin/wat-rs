@@ -5,7 +5,7 @@
 ;; Not a permanent fixture.
 
 (:wat::core::defstruct :probe::Pt [x <- wat.type/i64])
-(:wat::core::defsurface :probe::Planar :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Planar :nature wat.type/Struct
   :features [x <- wat.type/i64])
 
 (:wat::core::defn :user::main [] -> wat.type/nil

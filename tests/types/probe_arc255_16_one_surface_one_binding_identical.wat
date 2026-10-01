@@ -1,7 +1,7 @@
 ;; Stone 255.16 — a type binds a parametric surface once (arc 255).
 (:wat::core::defrecord :probe::Shared [a <- wat.type/i64])
 (:wat::core::defrecord :probe::Wire [b <- wat.type/String])
-(:wat::core::defsurface :probe::Loc :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Loc :- [T] :nature wat.type/Struct
   :features [(transport [self <- (:probe::Loc :- [T])] -> :T)])
 (:wat::core::defrecord :probe::Both [q <- wat.type/i64])
 ;; LEGAL — the IDENTICAL binding re-registered (bodied, then bodiless) is not a second binding.

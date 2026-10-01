@@ -112,7 +112,7 @@
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new" :value ":wat::core::char")))])
 
-(:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :fhc))
 
 ;; ── the applier's own query — field-destructured, NOT wat-grep's whole-record q-match,
@@ -130,7 +130,7 @@
 ;; must already be concretely typed before it gets there. An explicit-signature wrapper does
 ;; that: the call site's argument is checked against this fn's declared param type first.
 (:wat::core::defn :fhc::second-capture
-  [captures <- (:wat::core::PersistentVector :- [:wat::grep::Capture])]
+  [captures <- (wat.type/PersistentVector :- [:wat::grep::Capture])]
   -> :wat::grep::Capture
   (:wat::core::second captures))
 
@@ -140,7 +140,7 @@
 ;; against itself. Typed the same way second-capture is, for the same INFER-vs-checking-mode
 ;; reason (PersistentMap/get's value type needs a concrete argument type to force it).
 (:wat::core::defn :fhc::first-capture
-  [captures <- (:wat::core::PersistentVector :- [:wat::grep::Capture])]
+  [captures <- (wat.type/PersistentVector :- [:wat::grep::Capture])]
   -> :wat::grep::Capture
   (:wat::core::first captures))
 
@@ -148,14 +148,14 @@
 ;; `?captures` is (old, new) in that fixed order (this file's own :then above). old-text is the
 ;; FIRST capture's value — the rule's belief — never a slice of src at `offset`.
 (:wat::core::defn :fhc::edits-of
-  [rows  <- :wat::core::PersistentVector
-   lines <- (:wat::core::Vector :- [:wat::core::String])
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [rows  <- wat.type/PersistentVector
+   lines <- (wat.type/Vector :- [wat.type/String])
+   acc   <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [a   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-                     row <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [a   <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     row <- wat.type/PersistentMap]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::let
         [line     (:wat::core::Option/expect (:wat::map::get row "?line")     "q-match: ?line")
          col      (:wat::core::Option/expect (:wat::map::get row "?col")      "q-match: ?col")
@@ -165,7 +165,7 @@
          start    {:line line     :col col}
          offset   (:wat::fix::fix-text-offset-of start lines)]
         (:wat::core::concat a
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] offset old-text new-text)))))
     acc rows))
 
@@ -173,8 +173,8 @@
 ;; wat/grep.wat's run-one, but applies edits instead of printing matches).
 (:wat::core::defn :fhc::convert-one
   [overlay <- :wat::rete::Overlay
-   path    <- :wat::core::String]
-  -> :wat::core::nil
+   path    <- wat.type/String]
+  -> wat.type/nil
   (:wat::core::let
     [src     (:wat::io::read-file path)
      lines   (:wat::string::split src "\n")
@@ -187,14 +187,14 @@
                [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
                  (:wat::kernel::assertion-failed! :message "codemod: fixpoint round cap exceeded")])
      rows    (:wat::rete::query fired (:fhc::q-match))
-     empty-e (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+     empty-e (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
      edits   (:fhc::edits-of rows lines empty-e)
      ;; ★ SORT DESCENDING BY OFFSET — fix-text-apply splices right-to-left; rete returns query
      ;; results in NETWORK order, not source order.
      sorted  (:wat::core::sort
-               (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
-                                b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-                 -> :wat::core::bool
+               (:wat::core::fn [a <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+                                b <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
+                 -> wat.type/bool
                  (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
                edits)
      out     (:wat::fix::fix-text-apply src sorted)]
@@ -204,15 +204,15 @@
 
 (:wat::core::defn :fhc::convert-each
   [overlay <- :wat::rete::Overlay
-   paths   <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::nil
+   paths   <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do
       (:fhc::convert-one overlay (:wat::core::first paths))
       (:fhc::convert-each overlay (:wat::core::rest paths)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
@@ -221,6 +221,6 @@
              [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:wat::rete::with-overlay (:wat::rete::collect-rules :fhc)
-      (:wat::core::PersistentVector :- [:wat::rete::Query] (:fhc::q-match))
-      (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::nil
+      (wat.type/PersistentVector :- [:wat::rete::Query] (:fhc::q-match))
+      (:wat::core::fn [overlay <- :wat::rete::Overlay] -> wat.type/nil
         (:fhc::convert-each overlay paths)))))

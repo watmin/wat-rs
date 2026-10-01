@@ -10,7 +10,7 @@
 ;; `:<T>/name` (a field auto-accessor or a method). Isolated to a record here (no extend/Vector).
 
 (:wat::core::defsurface :t::Colored
-  :nature :wat::core::Struct
+  :nature wat.type/Struct
   :features [color <- wat.type/String])
 
 (:wat::core::defrecord :t::Ball [color <- wat.type/String  radius <- wat.type/f64])

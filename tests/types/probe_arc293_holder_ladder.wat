@@ -9,8 +9,8 @@
 ;; core RECORD is rejected by a `:nature :Struct` surface and a HOLON by a `:nature :Record` surface.
 ;; GREEN after K1a: `agg_nature.rank() >= req.rank()` (Struct -1 < Record 0 < HolonRecord +1).
 
-(:wat::core::defsurface :lad::Named   :nature :wat::core::Struct  :features [name <- wat.type/String])
-(:wat::core::defsurface :lad::Stamped :nature :wat::core::Record  :features [at   <- wat.type/i64])
+(:wat::core::defsurface :lad::Named   :nature wat.type/Struct  :features [name <- wat.type/String])
+(:wat::core::defsurface :lad::Stamped :nature wat.type/Record  :features [at   <- wat.type/i64])
 
 (:wat::core::defrecord  :lad::Person [name <- wat.type/String])   ; core record
 (:wat::holon::defrecord :lad::Event  [at   <- wat.type/i64])      ; holon record

@@ -47,16 +47,29 @@
 ;;       :wat::core::i64)`, a bare body with no wrapping bracket. Unlike (D), typealias's
 ;;       child right after the head is the NAME being declared (never a type) — only the LAST
 ;;       child (the body) is eligible.
+;;   (F) NATURE-VALUE — added stone 255.79 (4a), a follow-up to stone 2's recorded residue
+;;       ("`:nature :wat::core::Struct` — a type position the rules missed", 79 sites at the
+;;       time). The keyword immediately follows (previous sibling) the bare keyword `:nature`
+;;       in a `defsurface`'s `:nature <type>` clause: `(defsurface :probe::Store :nature
+;;       :wat::core::Struct …)` (measured corpus-wide at this stone's draw: 89 sites, 55
+;;       `:nature :wat::core::Struct` + 34 `:nature :wat::core::Record`). `:nature` itself has
+;;       no wrapping bracket and no `<-`/`->`/`:->`/`:<` before its value, so (C) alone cannot
+;;       see it — this rule reads the same way, by previous-sibling identity, over the one
+;;       extra keyword `:nature`. A `:nature` value outside the 24 (`:wat::kernel::Peer`, a
+;;       service surface) is already excluded by `target-name?`, so this rule adds no false
+;;       positive: it only ever fires on a genuine target keyword.
 ;;
 ;; This covers every position the brief names (after `<-`/`->`; a `:-` type bracket; a `:->`
 ;; fn-type bracket; a `typealias` body; `extend-type`'s child/target; `derive`'s type args; a
-;; record/struct/newtype field type; an enum variant's payload; a bound `[T :< X]`) — (A)/(B)/(C)
-;; from the grammar alone, (D)/(E) added once the dry-run diff showed the bare, unwrapped corpus
+;; record/struct/newtype field type; an enum variant's payload; a bound `[T :< X]`; a
+;; `defsurface`'s `:nature` value) — (A)/(B)/(C) from the grammar alone, (D)/(E)/(F) added once
+;; the dry-run diff (and, for (F), the stone 2 residue table) showed the bare, unwrapped corpus
 ;; shape (A)/(B)/(C) could not see. A keyword used as DATA never sits adjacent to one of these
-;; markers, inside one of these two form heads, or as a typealias's last child (a map key's
-;; parent is a Map; a `type-of` argument's preceding sibling is a call head, never one of the
-;; markers or `extend-type`/`derive`/`typealias`), so the exclusion the brief asks for ("Not when
-;; it is a keyword VALUE") still falls out of the same checks rather than needing a separate one.
+;; markers, inside one of these two form heads, right after `:nature`, or as a typealias's last
+;; child (a map key's parent is a Map; a `type-of` argument's preceding sibling is a call head,
+;; never one of the markers or `extend-type`/`derive`/`typealias`/`:nature`), so the exclusion
+;; the brief asks for ("Not when it is a keyword VALUE") still falls out of the same checks
+;; rather than needing a separate one.
 ;;
 ;; ══ WHY A PLAIN WALK, NOT wat/grep.wat's RETE FACT BASE ══════════════════════════════════════
 ;; A first attempt modeled this on `to-faithful-clojure-net.wat`'s offset-identity `:fix::Node`
@@ -86,8 +99,8 @@
 ;; finds nothing to convert.
 
 ;; the 24 exact FQDN spellings (WatAST included) this codemod may touch.
-(:wat::core::defn :t2wt::target-names [] -> (:wat::core::HashSet :- [:wat::core::String])
-  (:wat::core::HashSet :- [:wat::core::String]
+(:wat::core::defn :t2wt::target-names [] -> (wat.type/HashSet :- [wat.type/String])
+  (wat.type/HashSet :- [wat.type/String]
     ":wat::core::i64" ":wat::core::f64" ":wat::core::u8" ":wat::core::bigint"
     ":wat::core::rational" ":wat::core::char" ":wat::core::String" ":wat::core::bool"
     ":wat::core::keyword" ":wat::core::nil" ":wat::core::Value" ":wat::core::Never"
@@ -96,7 +109,7 @@
     ":wat::core::PersistentVector" ":wat::core::PersistentMap" ":wat::core::Bytes"
     ":wat::WatAST"))
 
-(:wat::core::defn :t2wt::target-name? [name <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :t2wt::target-name? [name <- wat.type/String] -> wat.type/bool
   (:wat::core::contains? (:t2wt::target-names) name))
 
 ;; a binder/return/bound/fn-type marker: the keyword right after one of these is a type.
@@ -107,7 +120,7 @@
 ;; `[a :- :wat::core::i64 b :- wat.type/i64]`). Safe alongside rule (A)/(B): inside the
 ;; `(Head :- [args])` idiom, the token right after `:-` is always the args VECTOR, never a
 ;; bare keyword, so this addition is inert there and only activates for the kwargs shape.
-(:wat::core::defn :t2wt::marker-symbol? [name <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :t2wt::marker-symbol? [name <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= name "<-") true
     (:wat::core::if (:wat::core::= name "->") true
       (:wat::core::if (:wat::core::= name ":->") true
@@ -116,7 +129,7 @@
 
 ;; item-name — the ast-name of a symbol/keyword sibling; "" for anything else (never a marker,
 ;; never a target — an empty string can't collide with a real name).
-(:wat::core::defn :t2wt::item-name [n <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :t2wt::item-name [n <- wat.type/AST] -> wat.type/String
   (:wat::core::let [k (:wat::core::ast-kind n)]
     (:wat::core::if (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "symbol"))
       (:wat::core::ast-name n)
@@ -124,13 +137,13 @@
 
 ;; conv-edit — the one-element edit Vector converting a genuine target-keyword leaf.
 (:wat::core::defn :t2wt::conv-edit
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                     old-name (:wat::core::ast-name node)
                     new-text (:wat::core::write-forms (:wat::keyword::to-type-form node))]
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-name new-text))))
 
 ;; (D) known BARE-type-taking form heads — a keyword sitting directly after these, with no
@@ -138,7 +151,7 @@
 ;; Parent)` both take a bare type in EVERY non-head position (measured: `wat/class.wat`'s 20+
 ;; `(extend-type :wat::core::i64 :wat::core::Equatable)`-shaped leaf-Equatable/Orderable rows —
 ;; a bare, unwrapped, marker-free monomorphic type is real corpus shape, not a hypothetical).
-(:wat::core::defn :t2wt::all-children-are-types-form? [head-name <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :t2wt::all-children-are-types-form? [head-name <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= head-name ":wat::core::extend-type") true
     (:wat::core::= head-name ":wat::core::derive")))
 
@@ -146,8 +159,18 @@
 ;; the head) is the name being DECLARED, never a type, so it must NOT ride rule (D)'s uniform
 ;; eligibility. Measured: `(typealias :my::Coord :wat::core::i64)` — a bare, unwrapped body is
 ;; real corpus shape (10+ hits), not hypothetical.
-(:wat::core::defn :t2wt::only-last-child-is-type-form? [head-name <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :t2wt::only-last-child-is-type-form? [head-name <- wat.type/String] -> wat.type/bool
   (:wat::core::= head-name ":wat::core::typealias"))
+
+;; (F) NATURE-VALUE — stone 255.79's added rule. A keyword whose immediately preceding sibling
+;; is the bare keyword `:nature` (a `defsurface`'s `:nature <type>` clause) is a type position,
+;; exactly as `:- :->` etc. are for rule (C) — but `:nature` is not one of those markers, so it
+;; needs its own check. `target-name?` already excludes any `:nature` value outside the 24
+;; (`:wat::kernel::Peer`), so this predicate only needs to ask "was my previous sibling exactly
+;; `:nature`" — it can never fire on a bare data keyword, since a data keyword's previous
+;; sibling is never the literal token `:nature`.
+(:wat::core::defn :t2wt::nature-value? [name <- wat.type/String] -> wat.type/bool
+  (:wat::core::= name ":nature"))
 
 ;; node-edits — one node's contribution: recurse if structural (this node becomes an
 ;; args-vector for ITS OWN children iff `prev-name` — OUR OWN preceding sibling in the
@@ -155,16 +178,17 @@
 ;; genuine target AND (A) next sibling is `:-`, OR (B) `in-args?`, OR (C) `prev-name` is a
 ;; marker, OR (D)/(E) `last-eligible?` (the enclosing form is `typealias` and this IS its last
 ;; child, or the enclosing form is `extend-type`/`derive` — which `in-args?` already covers,
-;; since the whole child sequence is flagged, so (D) needs no separate leaf-side check).
+;; since the whole child sequence is flagged, so (D) needs no separate leaf-side check), OR
+;; (F) `prev-name` is exactly `:nature`.
 (:wat::core::defn :t2wt::node-edits
-  [node          <- :wat::WatAST
-   in-args?      <- :wat::core::bool
-   last-eligible? <- :wat::core::bool
-   prev-name     <- :wat::core::String
-   next-name     <- :wat::core::String
-   lines         <- (:wat::core::Vector :- [:wat::core::String])
-   src           <- :wat::core::String]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node          <- wat.type/AST
+   in-args?      <- wat.type/bool
+   last-eligible? <- wat.type/bool
+   prev-name     <- wat.type/String
+   next-name     <- wat.type/String
+   lines         <- (wat.type/Vector :- [wat.type/String])
+   src           <- wat.type/String]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [ch          (:wat::core::ast->children node)
                       head-name   (:wat::core::if (:wat::core::empty? ch) "" (:t2wt::item-name (:wat::core::first ch)))
@@ -184,7 +208,9 @@
                 (:t2wt::conv-edit node lines)
                 (:wat::core::if last-eligible?
                   (:t2wt::conv-edit node lines)
-                  (:wat::fix::empty-edits)))))
+                  (:wat::core::if (:t2wt::nature-value? prev-name)
+                    (:t2wt::conv-edit node lines)
+                    (:wat::fix::empty-edits))))))
           ;; reader-synthesized (span text ≠ ast-name) — never convert.
           (:wat::fix::empty-edits))
         (:wat::fix::empty-edits))
@@ -195,13 +221,13 @@
 ;; that ONLY the final item in this sequence gets the (E) eligibility; `prev-name` threads
 ;; left-to-right within it, starting at "" (no marker before the first item).
 (:wat::core::defn :t2wt::walk-seq
-  [items      <- (:wat::core::Vector :- [:wat::WatAST])
-   in-args?   <- :wat::core::bool
-   only-last? <- :wat::core::bool
-   prev-name  <- :wat::core::String
-   lines      <- (:wat::core::Vector :- [:wat::core::String])
-   src        <- :wat::core::String]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items      <- (wat.type/Vector :- [wat.type/AST])
+   in-args?   <- wat.type/bool
+   only-last? <- wat.type/bool
+   prev-name  <- wat.type/String
+   lines      <- (wat.type/Vector :- [wat.type/String])
+   src        <- wat.type/String]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::fix::empty-edits)
     (:wat::core::let [h            (:wat::core::first items)
@@ -218,8 +244,8 @@
 
 ;; convert — one file's source text, fully converted.
 (:wat::core::defn :t2wt::convert
-  [src <- :wat::core::String]
-  -> :wat::core::String
+  [src <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let
     [lines  (:wat::string::split src "\n")
      tree   (:wat::core::match (:wat::core::read-string src)
@@ -230,16 +256,16 @@
      ;; top-level forms are never in-args and have no preceding sibling.
      edits  (:t2wt::walk-seq forms false false "" lines src)
      sorted (:wat::core::sort
-              (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
-                               b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-                -> :wat::core::bool
+              (:wat::core::fn [a <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+                               b <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
+                -> wat.type/bool
                 (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
               edits)]
     (:wat::fix::fix-text-apply src sorted)))
 
 ;; ══ DRIVE — read → convert → write, per path ═════════════════════════════════════════════════
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -248,7 +274,7 @@
         (:wat::kernel::println (:wat::string::concat "[types-to-wat-type] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

@@ -22,10 +22,10 @@
 
 ;; ── subst-all — replace EVERY occurrence of `old` with `new` in `s` (raw, no boundary check) ──
 (:wat::core::defn :user::subst-walk
-  [s <- :wat::core::String  old <- :wat::core::String  new <- :wat::core::String
-   old-len <- :wat::core::i64  s-len <- :wat::core::i64
-   i <- :wat::core::i64  acc <- :wat::core::String]
-  -> :wat::core::String
+  [s <- wat.type/String  old <- wat.type/String  new <- wat.type/String
+   old-len <- wat.type/i64  s-len <- wat.type/i64
+   i <- wat.type/i64  acc <- wat.type/String]
+  -> wat.type/String
   (:wat::core::if (:wat::core::>= i s-len)
     acc
     (:wat::core::if (:wat::core::> (:wat::core::+ i old-len) s-len)
@@ -39,50 +39,50 @@
         (:user::subst-emit-char s old new old-len s-len i acc)))))
 
 (:wat::core::defn :user::subst-emit-char
-  [s <- :wat::core::String  old <- :wat::core::String  new <- :wat::core::String
-   old-len <- :wat::core::i64  s-len <- :wat::core::i64
-   i <- :wat::core::i64  acc <- :wat::core::String]
-  -> :wat::core::String
+  [s <- wat.type/String  old <- wat.type/String  new <- wat.type/String
+   old-len <- wat.type/i64  s-len <- wat.type/i64
+   i <- wat.type/i64  acc <- wat.type/String]
+  -> wat.type/String
   (:user::subst-walk s old new old-len s-len
     (:wat::core::+ i 1)
     (:wat::string::concat acc (:wat::string::subs s i (:wat::core::+ i 1)))))
 
 (:wat::core::defn :user::subst-all
-  [s <- :wat::core::String  old <- :wat::core::String  new <- :wat::core::String]
-  -> :wat::core::String
+  [s <- wat.type/String  old <- wat.type/String  new <- wat.type/String]
+  -> wat.type/String
   (:user::subst-walk s old new
     (:wat::string::length old) (:wat::string::length s) 0 ""))
 
 ;; ── the token rewrite: :wat::kernel::Timer'< → :wat::kernel::Peer'<wat::core::nil, ──────────
-(:wat::core::defn :user::rewrite-name [name <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::rewrite-name [name <- wat.type/String] -> wat.type/String
   (:user::subst-all name "wat::kernel::Timer'<" "wat::kernel::Peer'<wat::core::nil,"))
 
 ;; ── leaf-edit collection: for every keyword whose name changes, emit a whole-token edit ──────
 (:wat::core::defn :user::edits-walk
-  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::concat
       (:user::edits (:wat::core::first items) lines)
       (:user::edits-walk (:wat::core::rest items) lines))))
 
 (:wat::core::defn :user::edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::edits-walk (:wat::core::ast->children node) lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
       (:wat::core::let [name     (:wat::core::ast-name node)
                         new-name (:user::rewrite-name name)]
         (:wat::core::if (:wat::core::= new-name name)
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off name new-name)))))
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
@@ -91,7 +91,7 @@
     (:wat::fix::fix-text-apply src rev-edits)))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -100,5 +100,5 @@
         (:wat::kernel::println (:wat::string::concat "[timer->peer] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

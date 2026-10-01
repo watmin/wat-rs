@@ -16,32 +16,32 @@
 ;; a node's enclosure — a sum type, matched (NOT a magic sentinel). Root = top-level form.
 (:wat::core::defenum :fix::Parent :wat::enum::Pure
   :Root
-  :Enclosed [id <- :wat::core::i64  head <- :wat::core::String])
+  :Enclosed [id <- wat.type/i64  head <- wat.type/String])
 
 (:wat::core::defrecord :fix::Node
-  [kind      <- :wat::core::String
-   name      <- :wat::core::String
-   offset    <- :wat::core::i64
-   len       <- :wat::core::i64
-   span-len  <- :wat::core::i64
+  [kind      <- wat.type/String
+   name      <- wat.type/String
+   offset    <- wat.type/i64
+   len       <- wat.type/i64
+   span-len  <- wat.type/i64
    parent    <- :fix::Parent
-   child-idx <- :wat::core::i64])
+   child-idx <- wat.type/i64])
 
 ;; ══ INTERMEDIATE (activation-gate) FACTS — carry only the offset identity ════
-(:wat::core::defrecord :fix::Keyword       [offset <- :wat::core::i64])
-(:wat::core::defrecord :fix::Symbol        [offset <- :wat::core::i64])
-(:wat::core::defrecord :fix::Genuine       [offset <- :wat::core::i64])
-(:wat::core::defrecord :fix::Namespaced    [offset <- :wat::core::i64])
-(:wat::core::defrecord :fix::TypeShaped    [offset <- :wat::core::i64])
-(:wat::core::defrecord :fix::TypeCandidate [offset <- :wat::core::i64])
-(:wat::core::defrecord :fix::Arrow         [offset <- :wat::core::i64])
-(:wat::core::defrecord :fix::PostArrow     [offset <- :wat::core::i64])
+(:wat::core::defrecord :fix::Keyword       [offset <- wat.type/i64])
+(:wat::core::defrecord :fix::Symbol        [offset <- wat.type/i64])
+(:wat::core::defrecord :fix::Genuine       [offset <- wat.type/i64])
+(:wat::core::defrecord :fix::Namespaced    [offset <- wat.type/i64])
+(:wat::core::defrecord :fix::TypeShaped    [offset <- wat.type/i64])
+(:wat::core::defrecord :fix::TypeCandidate [offset <- wat.type/i64])
+(:wat::core::defrecord :fix::Arrow         [offset <- wat.type/i64])
+(:wat::core::defrecord :fix::PostArrow     [offset <- wat.type/i64])
 
 ;; ══ TERMINAL FACTS — carry the edit payload (the drive queries these) ════════
-(:wat::core::defrecord :fix::HeadConv  [offset <- :wat::core::i64  len <- :wat::core::i64  name <- :wat::core::String])
-(:wat::core::defrecord :fix::TypeConv  [offset <- :wat::core::i64  len <- :wat::core::i64  name <- :wat::core::String])
+(:wat::core::defrecord :fix::HeadConv  [offset <- wat.type/i64  len <- wat.type/i64  name <- wat.type/String])
+(:wat::core::defrecord :fix::TypeConv  [offset <- wat.type/i64  len <- wat.type/i64  name <- wat.type/String])
 ;; arc 282: carries `name` too — the arrow's OWN text ("<-" or "->"), the old-text claim.
-(:wat::core::defrecord :fix::ArrowConv [offset <- :wat::core::i64  len <- :wat::core::i64  name <- :wat::core::String])
+(:wat::core::defrecord :fix::ArrowConv [offset <- wat.type/i64  len <- wat.type/i64  name <- wat.type/String])
 
 ;; ══ LAYER 1 · TOKEN TYPING ══════════════════════════════════════════════════
 ;; G1 keyword?
@@ -192,23 +192,23 @@
 
 ;; ══ THE OBSERVATION WALK — emit :fix::Node facts (pure; zero classification) ══
 (:wat::core::defn :fix::walk-seq
-  [items  <- (:wat::core::Vector :- [:wat::WatAST])
+  [items  <- (wat.type/Vector :- [wat.type/AST])
    parent <- :fix::Parent
-   idx    <- :wat::core::i64
-   lines  <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:fix::Node])
+   idx    <- wat.type/i64
+   lines  <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:fix::Node])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [:fix::Node])
+    (wat.type/Vector :- [:fix::Node])
     (:wat::core::concat
       (:fix::walk-node (:wat::core::first items) parent idx lines)
       (:fix::walk-seq (:wat::core::rest items) parent (:wat::core::+ idx 1) lines))))
 
 (:wat::core::defn :fix::walk-node
-  [node      <- :wat::WatAST
+  [node      <- wat.type/AST
    parent    <- :fix::Parent
-   child-idx <- :wat::core::i64
-   lines     <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:fix::Node])
+   child-idx <- wat.type/i64
+   lines     <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:fix::Node])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [my-id (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                       ch    (:wat::core::ast->children node)
@@ -228,13 +228,13 @@
                                  (:wat::core::ast-span node)
                                  (:wat::core::ast-end-span node)
                                  lines)]
-          (:wat::core::Vector :- [:fix::Node]
+          (wat.type/Vector :- [:fix::Node]
             (:fix::Node :kind kind :name name :offset off :len len :span-len slen :parent parent :child-idx child-idx)))
-        (:wat::core::Vector :- [:fix::Node])))))
+        (wat.type/Vector :- [:fix::Node])))))
 
 ;; stage the facts: fold insert over the Node vector
 (:wat::core::defn :fix::insert-nodes
-  [session <- :wat::rete::Session  nodes <- (:wat::core::Vector :- [:fix::Node])]
+  [session <- :wat::rete::Session  nodes <- (wat.type/Vector :- [:fix::Node])]
   -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  n <- :fix::Node] -> :wat::rete::Session
@@ -250,13 +250,13 @@
 
 ;; ══ QUERY OUT + ACTION — the transform lives HERE (outside rete) ═════════════
 (:wat::core::defn :fix::head-edits
-  [convs <- :wat::core::PersistentVector
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [convs <- wat.type/PersistentVector
+   acc   <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-                     hc <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [a  <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     hc <- wat.type/PersistentMap]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::let [old-name (:wat::core::Option/expect (:wat::map::get hc "?name") "q-HeadConv: ?name")]
         ;; old-text = ?name directly — the belief this node's fact-emission already recorded
         ;; (arc 282), NEVER ?len (a length; g3-genuine's OWN gate already establishes
@@ -264,7 +264,7 @@
         ;; independent information from the SAME source that built new-text below, not a
         ;; slice of the span computed at apply-time).
         (:wat::core::concat a
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
               (:wat::core::Option/expect (:wat::map::get hc "?offset") "q-HeadConv: ?offset")
               old-name
@@ -272,17 +272,17 @@
     acc convs))
 
 (:wat::core::defn :fix::arrow-edits
-  [convs <- :wat::core::PersistentVector
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [convs <- wat.type/PersistentVector
+   acc   <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-                     ac <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [a  <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     ac <- wat.type/PersistentMap]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       ;; old-text = ?name — the arrow's own text ("<-" or "->"), captured in :fix::Node and
       ;; threaded through Arrow -> ArrowConv (arc 282); NEVER ?len.
       (:wat::core::concat a
-        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+        (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
           (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
             (:wat::core::Option/expect (:wat::map::get ac "?offset") "q-ArrowConv: ?offset")
             (:wat::core::Option/expect (:wat::map::get ac "?name") "q-ArrowConv: ?name")
@@ -290,17 +290,17 @@
     acc convs))
 
 (:wat::core::defn :fix::type-edits
-  [convs <- :wat::core::PersistentVector
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [convs <- wat.type/PersistentVector
+   acc   <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-                     tc <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [a  <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     tc <- wat.type/PersistentMap]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::let [old-name (:wat::core::Option/expect (:wat::map::get tc "?name") "q-TypeConv: ?name")]
         ;; old-text = ?name directly — see head-edits' comment above (arc 282).
         (:wat::core::concat a
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
               (:wat::core::Option/expect (:wat::map::get tc "?offset") "q-TypeConv: ?offset")
               old-name
@@ -309,8 +309,8 @@
 
 ;; ══ CONVERT — walk → fire the network → query out → edit → batch-apply ══════
 (:wat::core::defn :fix::convert
-  [src <- :wat::core::String]
-  -> :wat::core::String
+  [src <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let [lines   (:wat::string::split src "\n")
                     tree    (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms   (:wat::core::ast->children tree)
@@ -325,21 +325,21 @@
           (:wat::kernel::assertion-failed! :message "to-faithful-clojure: the rule set may not terminate")])
                     staged  (:fix::insert-nodes session nodes)
                     fired   (:wat::rete::fire-fixpoint staged)
-                    empty-e (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+                    empty-e (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
                     e1      (:fix::head-edits  (:wat::rete::query fired (:fix::q-HeadConv))  empty-e)
                     e2      (:fix::arrow-edits (:wat::rete::query fired (:fix::q-ArrowConv)) e1)
                     e3      (:fix::type-edits  (:wat::rete::query fired (:fix::q-TypeConv))  e2)
                     sorted  (:wat::core::sort
-                              (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
-                                               b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-                                -> :wat::core::bool
+                              (:wat::core::fn [a <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+                                               b <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
+                                -> wat.type/bool
                                 (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
                               e3)]
     (:wat::fix::fix-text-apply src sorted)))
 
 ;; ══ DRIVE — read → convert → write, per path ════════════════════════════════
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -348,5 +348,5 @@
         (:wat::kernel::println (:wat::string::concat "[to-faithful-clojure-net] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

@@ -11,13 +11,13 @@
 ;; over the merged field list, and each spliced field gets its own `:Rec/field` accessor.
 
 ;; a Scope-shaped surface: attributes only (namespace, uuid, time-ns).
-(:wat::core::defsurface :probe::Scope :nature :wat::core::Record
+(:wat::core::defsurface :probe::Scope :nature wat.type/Record
   :features [namespace <- wat.type/String
              uuid      <- wat.type/String
              time-ns   <- wat.type/i64])
 
 ;; a second surface, to prove MULTIPLE splices merge (a record satisfying both).
-(:wat::core::defsurface :probe::Named :nature :wat::core::Record
+(:wat::core::defsurface :probe::Named :nature wat.type/Record
   :features [name <- wat.type/String])
 
 ;; a record that splices BOTH surfaces' attributes, then adds its own field.

@@ -43,20 +43,20 @@
 ;;   printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/wrap-insert-in-insertoutcome.wat
 
 ;; ── helpers (mirror wrap-connect-prime-in-connectoutcome.wat) ─────────────────
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::start-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::ast-name n) ""))
 
 ;; head-kw-name — a list's head keyword name (child[0]); "" if not a list / empty / non-keyword head.
-(:wat::core::defn :user::head-kw-name [node <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::head-kw-name [node <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch) "" (:user::kw-name (:wat::core::first ch))))
@@ -68,7 +68,7 @@
 ;; `:wat::rete::insert-all` and of both `$oracle` twins, so a `starts-with?` matcher would wrap
 ;; `insert-all` once as itself and once as `insert`, producing a double wrap whose inner arm
 ;; yields a Session to an outer match expecting an outcome. All four are listed instead.
-(:wat::core::defn :user::insert-call? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::insert-call? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [h (:user::head-kw-name node)]
     (:wat::core::if (:wat::core::= h ":wat::rete::insert")
       true
@@ -84,7 +84,7 @@
 
 ;; arm-head-name — an arm is `(pattern body…)`; if pattern (child[0]) is a list, return its head
 ;; keyword name; else "" (a bare/`_` pattern has no head keyword).
-(:wat::core::defn :user::arm-head-name [arm <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::arm-head-name [arm <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "vector")
     (:wat::core::let [ch (:wat::core::ast->children arm)]
       (:wat::core::if (:wat::core::empty? ch) "" (:user::kw-name (:wat::core::first ch))))
@@ -92,9 +92,9 @@
 
 ;; any-arm-head-contains? — does any arm (children[2..]) have a pattern head keyword containing `needle`?
 (:wat::core::defn :user::any-arm-head-contains?
-  [arms <- (:wat::core::Vector :- [:wat::WatAST])  needle <- :wat::core::String] -> :wat::core::bool
+  [arms <- (wat.type/Vector :- [wat.type/AST])  needle <- wat.type/String] -> wat.type/bool
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
+    (:wat::core::fn [acc <- wat.type/bool  arm <- wat.type/AST] -> wat.type/bool
       (:wat::core::if acc true
         (:wat::string::contains? (:user::arm-head-name arm) needle)))
     false arms))
@@ -102,7 +102,7 @@
 ;; already-facing-insert-match? — a `:wat::core::match` whose scrutinee (child[1]) is an insert
 ;; call AND which already carries an `InsertOutcome::` arm (the shape THIS codemod emits). Its
 ;; scrutinee's top-wrap must be suppressed on re-run (idempotency).
-(:wat::core::defn :user::already-facing-insert-match? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::already-facing-insert-match? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:user::head-kw-name node) ":wat::core::match")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
@@ -117,9 +117,9 @@
 
 ;; ── EDIT: two span inserts wrapping the insert call node ─────────────────────
 (:wat::core::defn :user::wrap-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) ""
       "(:wat::core::match ")
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) ""
@@ -127,21 +127,21 @@
 
 ;; recurse a node's children WITHOUT wrapping the node's own top (idempotency suppression).
 (:wat::core::defn :user::node-edits-no-top
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
 ;; walk one node → its edit (if an insert call) + descendants'. For an already-facing
 ;; InsertOutcome match, the scrutinee (child[1]) is recursed WITHOUT re-wrapping its top.
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::let
     [this (:wat::core::if (:user::insert-call? node)
             (:user::wrap-edits node lines)
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))]
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
     (:wat::core::if (:user::already-facing-insert-match? node)
       ;; suppress the scrutinee's top-wrap; recurse everything else normally.
       (:wat::core::let
@@ -157,17 +157,17 @@
         this))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it <- wat.type/AST]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
@@ -176,7 +176,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -185,5 +185,5 @@
         (:wat::kernel::println (:wat::string::concat "[wrap-insertoutcome] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

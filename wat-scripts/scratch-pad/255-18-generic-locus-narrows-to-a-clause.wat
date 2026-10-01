@@ -24,7 +24,7 @@
 ;; `(Locus :- [T])` today: that is a checker/API decision, not a declaration.
 (:wat::core::defstruct :probe::Sh [])
 (:wat::core::defstruct :probe::Wi [])
-(:wat::core::defsurface :probe::Loc :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Loc :- [T] :nature wat.type/Struct
   :features [(tag [self <- (:probe::Loc :- [T])] -> wat.type/i64)])
 (:wat::core::defrecord :probe::Th [x <- wat.type/i64])
 (:wat::core::extend-type :probe::Th (:probe::Loc :- [:probe::Sh]) (tag [self] 1))

@@ -73,7 +73,7 @@
 ;; ─── the error vocabulary — recovery-axis records over Reason ──────────────────────────────────
 ;; `Reason` has no members. A record satisfies it only by a declared extend-type edge
 ;; (stone 255.48, ruling B1). Width subtyping does not apply to an empty member list.
-(:wat::core::defsurface :wat::query::Reason :nature :wat::core::Record :features [])
+(:wat::core::defsurface :wat::query::Reason :nature wat.type/Record :features [])
 
 (:wat::core::defrecord :wat::query::Transient  [reason <- :wat::query::Reason]) ;; retry — momentarily unavailable
 (:wat::core::defrecord :wat::query::Constraint [reason <- :wat::query::Reason]) ;; surface — schema/uniqueness violation

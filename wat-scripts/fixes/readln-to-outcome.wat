@@ -50,7 +50,7 @@
 ;; has to be, because the substrate flip is live and the old form no longer type-checks. Running the
 ;; codemod over the corpus INCLUDING this file is a no-op on it.
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::fix::wrap-calls-in-match src
     ":wat::kernel::readln"
     "ReadlnOutcome::"
@@ -58,7 +58,7 @@
     " ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! \"readln: end of input\" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! \"readln: stop requested\" :wat::core::None :wat::core::None)))"))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let
@@ -71,7 +71,7 @@
           (:wat::io::write-file path out))
         (:user::apply-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln )
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

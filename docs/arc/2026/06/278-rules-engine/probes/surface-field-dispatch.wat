@@ -15,7 +15,7 @@
 ;; wearing a declaration. `docs_wat_loads_or_declares_why_not` now walks this directory.
 
 ;; a methods-bearing surface (the "Store")
-(:wat::core::defsurface :probe::Store :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Store :nature wat.type/Struct
   :features [(put [self <- :probe::Store  x <- wat.type/i64] -> wat.type/i64)])
 
 ;; a concrete satisfier (a struct — impure, like a real connection holding a resource)

@@ -4,7 +4,7 @@
 ;; container (`<Type>/<method>` is global, and wat/seq.wat already registers `Vector/seq` …), so
 ;; this is the same surface under another name — `:t22::Elems`, method `elems` — not a second
 ;; binding of `:wat::core::Seqable`.
-(:wat::core::defsurface :t22::Elems :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :t22::Elems :- [T] :nature wat.type/Struct
   :features [(elems [self <- (:t22::Elems :- [T])] -> (:wat::stream::Stream :- [T]))])
 
 (:wat::core::extend-type :- [Elem] (wat.type/Vector :- [Elem]) (:t22::Elems :- [Elem])

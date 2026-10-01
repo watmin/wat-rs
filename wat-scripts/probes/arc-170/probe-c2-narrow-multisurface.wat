@@ -4,9 +4,9 @@
 ;; clean → bug is specific to the AUTO-EMITTED service Handle
 ;; CLAIM: (Pair2/fst m) == 42 — a record satisfying BOTH a mono and a parametric surface still
 ;; dispatches the parametric one correctly.
-(:wat::core::defsurface :probe::Flat :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Flat :nature wat.type/Struct
   :features [(tag [self <- :probe::Flat] -> wat.type/String)])
-(:wat::core::defsurface :probe::Pair2 :- [A B] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Pair2 :- [A B] :nature wat.type/Struct
   :features [(fst [self <- (:probe::Pair2 :- [A B])] -> :A)])
 (:wat::core::defrecord :probe::Multi [i <- wat.type/i64  s <- wat.type/String])
 (:wat::core::extend-type :probe::Multi :probe::Flat

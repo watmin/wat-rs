@@ -1,5 +1,5 @@
-(:wat::core::defsurface :u::Mark :nature :wat::core::Record :features [])
-(:wat::core::defsurface :u::Any :nature :wat::core::Record :features [])
+(:wat::core::defsurface :u::Mark :nature wat.type/Record :features [])
+(:wat::core::defsurface :u::Any :nature wat.type/Record :features [])
 (:wat::core::defrecord :u::In  [n <- wat.type/i64])
 (:wat::core::defrecord :u::Out [n <- wat.type/i64])
 (:wat::core::extend-type :u::In :u::Mark)

@@ -74,7 +74,7 @@
 ;; twin has died. B2 collapses each verb to ONE clause over `(Seqable :- [T])` walking with
 ;; `:wat::stream::next`, and deletes the twins and `seqable->stream` in the same motion — a name
 ;; dies in the stone that removes its last caller.
-(:wat::core::defsurface :wat::core::Seqable :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :wat::core::Seqable :- [T] :nature wat.type/Struct
   :features [(seq [self <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T]))])
 
 ;; The four impls. Each delegates to the native normaliser, which already steps its source BY

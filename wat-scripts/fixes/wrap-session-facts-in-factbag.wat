@@ -18,34 +18,34 @@
 ;; Usage:
 ;;   printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/wrap-session-facts-in-factbag.wat
 
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::start-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::ast-name n) ""))
 
-(:wat::core::defn :user::head-kw-name [node <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::head-kw-name [node <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch) "" (:user::kw-name (:wat::core::first ch))))
     ""))
 
-(:wat::core::defn :user::session-facts-call? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::session-facts-call? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::= (:user::head-kw-name node) ":wat::rete::Session/facts"))
 
-(:wat::core::defn :user::items-call? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::items-call? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::= (:user::head-kw-name node) ":wat::rete::factbag::items"))
 
-(:wat::core::defn :user::session-ctor? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::session-ctor? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::= (:user::head-kw-name node) ":wat::rete::Session"))
 
-(:wat::core::defn :user::factbag-form? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::factbag-form? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [h (:user::head-kw-name node)]
     (:wat::core::if (:wat::core::= h ":wat::rete::FactBag")
       true
@@ -63,7 +63,7 @@
                   true
                   (:wat::core::= h ":wat::rete::factbag::remove-one"))))))))))
 
-(:wat::core::defn :user::already-items-wrapped? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::already-items-wrapped? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:user::items-call? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
@@ -72,28 +72,28 @@
     false))
 
 (:wat::core::defn :user::wrap-items-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) "" "(:wat::rete::factbag::items ")
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) "" ")")))
 
 (:wat::core::defn :user::wrap-bag-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) "" "(:wat::rete::FactBag :items ")
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) "" ")")))
 
 ;; :facts value edits inside a Session ctor — wrap each value that is not already a bag form.
 (:wat::core::defn :user::session-facts-field-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::let [ch (:wat::core::ast->children node)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-                       i   <- :wat::core::i64]
-        -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+      (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                       i   <- wat.type/i64]
+        -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
         (:wat::core::if (:wat::i64::< i (:wat::i64::- (:wat::core::length ch) 1))
           (:wat::core::let [k (:wat::core::Option/expect (:wat::core::get ch i) "k")
                             v (:wat::core::Option/expect (:wat::core::get ch (:wat::i64::+ i 1)) "v")]
@@ -103,27 +103,27 @@
                 (:wat::core::concat acc (:user::wrap-bag-edits v lines)))
               acc))
           acc))
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::range 0 (:wat::core::length ch)))))
 
 (:wat::core::defn :user::node-edits-no-top
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::let
     [this (:wat::core::concat
             (:wat::core::if (:user::session-facts-call? node)
               (:user::wrap-items-edits node lines)
-              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+              (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
             (:wat::core::if (:user::session-ctor? node)
               (:user::session-facts-field-edits node lines)
-              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))]
+              (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))]
     (:wat::core::if (:user::already-items-wrapped? node)
       (:wat::core::let
         [ch    (:wat::core::ast->children node)
@@ -137,16 +137,16 @@
         this))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it <- wat.type/AST]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     items))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
@@ -154,7 +154,7 @@
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
 
-(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -163,6 +163,6 @@
         (:wat::kernel::println (:wat::string::concat "[wrap-factbag] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

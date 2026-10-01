@@ -5,7 +5,7 @@
 ;; CLAIM: describe(reason) == "sqlite 2067" — an open-surface-typed arg narrows to a concrete-
 ;; satisfier clause, dispatched by the value's runtime class, with no surface clause or fallback.
 
-(:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
+(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
 (:wat::core::defrecord  :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
 (:wat::core::defrecord  :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])
 (:wat::core::extend-type :probe::SqliteReason :probe::Reason)

@@ -22,7 +22,7 @@
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo :satisfies :probe::Echo :durable [] :ephemeral []
   :impls [(echo [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
-(:wat::core::defsurface :probe::TypedCapability :- [S R] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::TypedCapability :- [S R] :nature wat.type/Struct
   :features
   [(coord  [self <- (:probe::TypedCapability :- [S R])] -> (:wat::kernel::Address :- [S R]))
    (grant  [self <- (:probe::TypedCapability :- [S R])  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)

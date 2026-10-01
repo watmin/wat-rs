@@ -90,31 +90,31 @@
 
 ;; ── the definitional heads the wall polices — a top-level form headed by one of these has
 ;; its NAME at child[1] ─────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::def-heads [] -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::Vector :- [:wat::core::String]
+(:wat::core::defn :user::def-heads [] -> (wat.type/Vector :- [wat.type/String])
+  (wat.type/Vector :- [wat.type/String]
     ":wat::core::def" ":wat::core::defn" ":wat::core::defrecord" ":wat::holon::defrecord"
     ":wat::core::defstruct" ":wat::core::defenum" ":wat::core::defsurface"
     ":wat::core::defclause" ":wat::rete::defrule" ":wat::service::defservice"
     ":wat::test::deftest" ":wat::core::typealias" ":wat::core::defmacro"))
 
-(:wat::core::defn :user::def-head? [h <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::def-head? [h <- wat.type/String] -> wat.type/bool
   (:wat::fix::str-in? h (:user::def-heads)))
 
 ;; splice-head? — a `let`/`do` wrapper whose BODY freeze SPLICES into the enclosing program
 ;; (arc157's let-splice / do-splice). `if`/`fn`/`defn` bodies are runtime-only — never
 ;; recursed. (`:wat::core::forms` is handled SEPARATELY, below — it is not a splice.)
-(:wat::core::defn :user::splice-head? [h <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::splice-head? [h <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= h ":wat::core::let") true (:wat::core::= h ":wat::core::do")))
 
 ;; splice-body — the wrapper's child forms that stand in for top-level forms: `let` drops
 ;; its head + bindings-vector (child[0..1]); `do` drops just its head (child[0]).
-(:wat::core::defn :user::splice-body [f <- :wat::WatAST h <- :wat::core::String] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::splice-body [f <- wat.type/AST h <- wat.type/String] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::if (:wat::core::= h ":wat::core::let")
     (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children f) 2))
     (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children f) 1))))
 
 ;; name-node-of — a def-form's NAME node (child[1]).
-(:wat::core::defn :user::name-node-of [f <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defn :user::name-node-of [f <- wat.type/AST] -> wat.type/AST
   (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "name-node-of: child[1]"))
 
 ;; ── `(:wat::core::forms …)` — a SECOND top level, found by a POSITION-INDEPENDENT deep
@@ -132,57 +132,57 @@
 ;; `:counter/dispatch` inside the same block fired `#wat.runtime/UnnamespacedName` at
 ;; `wat-tests/counter-actor-proof-process.wat:213:19` — the first pass's splice-only
 ;; recursion could not reach it.
-(:wat::core::defn :user::forms-call? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::forms-call? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::= (:wat::fix::head-name node) ":wat::core::forms"))
 
-(:wat::core::defn :user::deep-find-forms-blocks [node <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::deep-find-forms-blocks [node <- wat.type/AST] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::let [here (:wat::core::if (:user::forms-call? node)
-                            (:wat::core::Vector :- [:wat::WatAST] node)
-                            (:wat::core::Vector :- [:wat::WatAST]))]
+                            (wat.type/Vector :- [wat.type/AST] node)
+                            (wat.type/Vector :- [wat.type/AST]))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat here (:user::deep-find-forms-blocks-seq (:wat::core::ast->children node)))
       here)))
 
-(:wat::core::defn :user::deep-find-forms-blocks-seq [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::deep-find-forms-blocks-seq [items <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [:wat::WatAST])
+    (wat.type/Vector :- [wat.type/AST])
     (:wat::core::concat
       (:user::deep-find-forms-blocks (:wat::core::first items))
       (:user::deep-find-forms-blocks-seq (:wat::core::rest items)))))
 
 ;; forms-block-body — a `(:wat::core::forms f1 f2 …)` node's payload forms (drop the head;
 ;; no bindings vector to skip, unlike `let`).
-(:wat::core::defn :user::forms-block-body [fb <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::forms-block-body [fb <- wat.type/AST] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children fb) 1)))
 
 ;; collect-def-names-shallow — every def-form NAME node directly reachable from `items`,
 ;; recursing through let/do splice bodies only (never through if/fn/defn bodies, never
 ;; deep-searching for `forms` — that is the caller's job). Order-preserving.
-(:wat::core::defn :user::collect-def-names-shallow [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::collect-def-names-shallow [items <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [:wat::WatAST])
+    (wat.type/Vector :- [wat.type/AST])
     (:wat::core::let [f (:wat::core::first items) tl (:wat::core::rest items)
                       h (:wat::fix::head-name f)]
       (:wat::core::concat
         (:wat::core::if (:user::def-head? h)
           (:wat::core::let [nn (:user::name-node-of f)]
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind nn) "keyword")
-              (:wat::core::Vector :- [:wat::WatAST] nn)
-              (:wat::core::Vector :- [:wat::WatAST])))
+              (wat.type/Vector :- [wat.type/AST] nn)
+              (wat.type/Vector :- [wat.type/AST])))
           (:wat::core::if (:user::splice-head? h)
             (:user::collect-def-names-shallow (:user::splice-body f h))
-            (:wat::core::Vector :- [:wat::WatAST])))
+            (wat.type/Vector :- [wat.type/AST])))
         (:user::collect-def-names-shallow tl)))))
 
 ;; names-in-forms-blocks — every def-form NAME node inside every `forms`-block found ANYWHERE
 ;; (any depth, any position) in `forms`, applying the same shallow (+ let/do splice) walk to
 ;; each block's own body. A `forms` block nested inside another is reached too: the deep
 ;; search already recurses through the outer block's children before returning.
-(:wat::core::defn :user::names-in-forms-blocks [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::names-in-forms-blocks [forms <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) fb <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
+    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) fb <- wat.type/AST] -> (wat.type/Vector :- [wat.type/AST])
       (:wat::core::concat acc (:user::collect-def-names-shallow (:user::forms-block-body fb))))
-    (:wat::core::Vector :- [:wat::WatAST])
+    (wat.type/Vector :- [wat.type/AST])
     (:user::deep-find-forms-blocks-seq forms)))
 
 ;; collect-def-names — the file-level entry point: names at the literal top level (+ let/do
@@ -190,22 +190,22 @@
 ;; independent — see above). Order between the two groups does not matter for `resolve-ns`
 ;; today (no discovered file's first namespaced name lives only inside a `forms` block), but
 ;; keeping the shallow walk first keeps the common case's derivation reading top-to-bottom.
-(:wat::core::defn :user::collect-def-names [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
+(:wat::core::defn :user::collect-def-names [forms <- (wat.type/Vector :- [wat.type/AST])] -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::concat
     (:user::collect-def-names-shallow forms)
     (:user::names-in-forms-blocks forms)))
 
 ;; ── classifying a collected name ─────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::already-ns? [nn <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::already-ns? [nn <- wat.type/AST] -> wat.type/bool
   (:wat::string::contains? (:wat::core::ast-name nn) "::"))
 
-(:wat::core::defn :user::needs-fix? [nn <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::needs-fix? [nn <- wat.type/AST] -> wat.type/bool
   (:wat::core::not (:user::already-ns? nn)))
 
-(:wat::core::defn :user::any-needs-fix? [names <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
+(:wat::core::defn :user::any-needs-fix? [names <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool n <- :wat::WatAST] -> :wat::core::bool
+    (:wat::core::fn [acc <- wat.type/bool n <- wat.type/AST] -> wat.type/bool
       (:wat::core::if acc true (:user::needs-fix? n)))
     false
     names))
@@ -213,7 +213,7 @@
 ;; ── deriving / minting the file's namespace ──────────────────────────────────────────────
 
 ;; find-ns — the FIRST already-namespaced collected name donates its leading segment.
-(:wat::core::defn :user::find-ns [names <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Option :- [:wat::core::String])
+(:wat::core::defn :user::find-ns [names <- (wat.type/Vector :- [wat.type/AST])] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::if (:wat::core::empty? names)
     :wat::core::Option.None
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
@@ -224,11 +224,11 @@
         (:user::find-ns tl)))))
 
 ;; basename — the path's final "/"-segment (the filename with extension).
-(:wat::core::defn :user::basename [path <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::basename [path <- wat.type/String] -> wat.type/String
   (:wat::core::Option/expect (:wat::core::last (:wat::string::split path "/")) "basename: split always >= 1"))
 
 ;; strip-wat-ext — drop a trailing ".wat.bad" or ".wat" (checked longest-first).
-(:wat::core::defn :user::strip-wat-ext [base <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::strip-wat-ext [base <- wat.type/String] -> wat.type/String
   (:wat::core::if (:wat::string::ends-with? base ".wat.bad")
     (:wat::string::subs base 0 (:wat::i64::- (:wat::string::length base) 8))
     (:wat::core::if (:wat::string::ends-with? base ".wat")
@@ -237,12 +237,12 @@
 
 ;; mint-ns — PER FILE, from the file's OWN basename stem, "_" -> "-". Never shared: a file
 ;; with no namespaced name at all gets a namespace that belongs to it alone.
-(:wat::core::defn :user::mint-ns [path <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::mint-ns [path <- wat.type/String] -> wat.type/String
   (:wat::string::join "-" (:wat::string::split (:user::strip-wat-ext (:user::basename path)) "_")))
 
 ;; resolve-ns — derive from the file's own first namespaced name; mint from its basename
 ;; only when the file has none at all.
-(:wat::core::defn :user::resolve-ns [names <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::resolve-ns [names <- (wat.type/Vector :- [wat.type/AST]) path <- wat.type/String] -> wat.type/String
   (:wat::core::match (:user::find-ns names)
     [:wat::core::Option.Some {:value ns} ns]
     [:wat::core::Option.None {} (:user::mint-ns path)]))
@@ -251,14 +251,14 @@
 
 ;; swap-slash — ":rw/try" -> ":rw::try" (swap the FIRST "/" for "::"; a name with more than
 ;; one "/" keeps the rest joined by "/", so only the first separator is reinterpreted).
-(:wat::core::defn :user::swap-slash [nm <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::swap-slash [nm <- wat.type/String] -> wat.type/String
   (:wat::core::let [segs (:wat::string::split nm "/")
                     seg0 (:wat::core::first segs)
                     tail (:wat::core::rest segs)]
     (:wat::string::concat seg0 (:wat::string::concat "::" (:wat::string::join "/" tail)))))
 
 ;; new-name-for — the fixed spelling for a name already known to need-fix.
-(:wat::core::defn :user::new-name-for [nn <- :wat::WatAST ns <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::new-name-for [nn <- wat.type/AST ns <- wat.type/String] -> wat.type/String
   (:wat::core::let [nm (:wat::core::ast-name nn)]
     (:wat::core::if (:wat::string::contains? nm "/")
       (:user::swap-slash nm)
@@ -267,26 +267,26 @@
 
 ;; collect-renames — (old,new) pairs for every collected name that needs fixing.
 (:wat::core::defn :user::collect-renames
-  [names <- (:wat::core::Vector :- [:wat::WatAST]) ns <- :wat::core::String]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+  [names <- (wat.type/Vector :- [wat.type/AST]) ns <- wat.type/String]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? names)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
       (:wat::core::if (:user::needs-fix? n)
         (:wat::core::let [old (:wat::core::ast-name n)
                           new (:user::new-name-for n ns)]
           (:wat::core::concat
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new))
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new))
             (:user::collect-renames tl ns)))
         (:user::collect-renames tl ns)))))
 
 ;; apply-renames — a fold over the (old,new) Vector, never a nested staircase (24t's lesson).
 (:wat::core::defn :user::apply-renames
-  [text    <- :wat::core::String
-   renames <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
-  -> :wat::core::String
+  [text    <- wat.type/String
+   renames <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
+  -> wat.type/String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String p <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])] -> :wat::core::String
+    (:wat::core::fn [acc <- wat.type/String p <- (wat.type/Tuple :- [wat.type/String wat.type/String])] -> wat.type/String
       (:wat::fix::rename-keyword-exact (:wat::core::first p) (:wat::core::second p) acc))
     text
     renames))
@@ -300,7 +300,7 @@
 ;; file byte-identical rather than raising: it is out of this codemod's scope by
 ;; construction (a parse failure predates any question of namespacing), and forcing it
 ;; through would either crash or, worse, "fix" a file that must stay unparseable.
-(:wat::core::defn :user::migrate [src <- :wat::core::String path <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String path <- wat.type/String] -> wat.type/String
   (:wat::core::match (:wat::core::read-string src)
     [:wat::core::ReadOutcome.Malformed {:cause __cause} src]
     [:wat::core::ReadOutcome.Forms {:forms tree0}
@@ -315,7 +315,7 @@
             (:user::apply-renames src renames))))]))
 
 ;; ── driver: rewrite each path given on stdin (a JSON array of strings) ──────────────────
-(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [p (:wat::core::first paths)]
@@ -324,6 +324,6 @@
         (:wat::kernel::println (:wat::string::concat "[namespace-bare-top-level-names] " p))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

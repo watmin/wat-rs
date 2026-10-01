@@ -72,7 +72,7 @@
 ;; namespace (facility), uuid (correlation id), tags (dimensions), time-ns (event time).
 ;; Spliced into Metric/Log via `~@:wat::telemetry'::Scope`.
 (:wat::core::defsurface :wat::telemetry::Scope
-  :nature :wat::core::Record
+  :nature wat.type/Record
   :features [namespace <- wat.type/String
              uuid      <- wat.uuid/UUID
              tags      <- :wat::telemetry::Tags

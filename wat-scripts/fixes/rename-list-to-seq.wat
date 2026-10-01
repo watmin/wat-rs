@@ -17,7 +17,7 @@
 ;; Idempotent: re-running yields zero changes (the old prefix is gone).
 
 (:wat::core::defn :user::migrate
-  [src <- :wat::core::String] -> :wat::core::String
+  [src <- wat.type/String] -> wat.type/String
   ;; NB: no trailing "::" — the prefix must end on a boundary char. ":wat::list"
   ;; matches ":wat::list::reduce" (next char "::" is non-ident); ":wat::list::"
   ;; would land the boundary on "r" (ident) and never match. "list" vs a sibling
@@ -25,7 +25,7 @@
   (:wat::fix::rename-keyword-prefix ":wat::list" ":wat::seq" src))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -35,6 +35,6 @@
         (:wat::kernel::println (:wat::string::concat "[renamed] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

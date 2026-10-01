@@ -15,13 +15,13 @@
 ;;   printf '["pathA" "pathB"]\n' | ./target/release/wat wat-scripts/fixes/query-answers-are-maps.wat
 
 (:wat::core::defn :user::quoted?
-  [node <- :wat::WatAST] -> :wat::core::bool
+  [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::fix::calls-to? node ":wat::core::quote")
     true
     (:wat::fix::calls-to? node ":wat::core::quasiquote")))
 
 (:wat::core::defn :user::user-type-kw?
-  [node <- :wat::WatAST] -> :wat::core::bool
+  [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::let [nm (:wat::core::ast-name node)]
       (:wat::core::if (:wat::string::contains? nm "::")
@@ -30,7 +30,7 @@
     false))
 
 (:wat::core::defn :user::plain-type-cond?
-  [node <- :wat::WatAST] -> :wat::core::bool
+  [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::= (:wat::core::length ch) 1)
@@ -41,7 +41,7 @@
 ;; `(?fact <- :Type …extra)` — we over-wrapped a field pattern. Strip the
 ;; shared binder so two conditions do not join on the same `?fact`.
 (:wat::core::defn :user::overwrapped?
-  [node <- :wat::WatAST] -> :wat::core::bool
+  [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)
                       n  (:wat::core::length ch)]
@@ -60,10 +60,10 @@
     false))
 
 (:wat::core::defn :user::node-text
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::String
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/String
   (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
@@ -73,18 +73,18 @@
 ;; identity (e.g. calls-to? ":wat::core::fn") before calling this, and it is a List's
 ;; own span — never a reader-synthesized leaf's — being replaced wholesale.
 (:wat::core::defn :user::span-edit
-  [node  <- :wat::WatAST
-   text  <- :wat::core::String
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  [node  <- wat.type/AST
+   text  <- wat.type/String
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
   -> :wat::fix::Edit
   (:wat::core::let [off      (:wat::fix::node-start-offset node lines)
                     old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text text)))
 
 (:wat::core::defn :user::insert-fact-bind
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
   -> :wat::fix::Edit
   (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
     (:wat::i64::+ (:wat::fix::node-start-offset node lines) 1)
@@ -92,23 +92,23 @@
     "?fact <- "))
 
 (:wat::core::defn :user::when-edits
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::fix::calls-to? node ":wat::rete::defquery")
     (:wat::core::let [ch (:wat::core::ast->children node)
                       n  (:wat::core::length ch)]
       (:user::when-edits-scan ch 0 n lines))
-    (:wat::core::Vector :- [:wat::fix::Edit])))
+    (wat.type/Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::when-edits-scan
-  [ch    <- (:wat::core::Vector :- [:wat::WatAST])
-   i     <- :wat::core::i64
-   n     <- :wat::core::i64
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [ch    <- (wat.type/Vector :- [wat.type/AST])
+   i     <- wat.type/i64
+   n     <- wat.type/i64
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::i64::>= i n)
-    (:wat::core::Vector :- [:wat::fix::Edit])
+    (wat.type/Vector :- [:wat::fix::Edit])
     (:wat::core::let [kid (:wat::core::Option/expect
                             (:wat::core::get ch i)
                             "when-edits-scan")]
@@ -122,45 +122,45 @@
               (:wat::core::get ch (:wat::i64::+ i 1))
               "when-edits-scan: vec")
             lines)
-          (:wat::core::Vector :- [:wat::fix::Edit]))
+          (wat.type/Vector :- [:wat::fix::Edit]))
         (:user::when-edits-scan ch (:wat::i64::+ i 1) n lines)))))
 
 (:wat::core::defn :user::when-vec-edits
-  [vec   <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [vec   <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind vec) "vector")
     (:user::when-vec-scan (:wat::core::ast->children vec) 0
       (:wat::core::length (:wat::core::ast->children vec)) lines)
-    (:wat::core::Vector :- [:wat::fix::Edit])))
+    (wat.type/Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::when-vec-scan
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   i     <- :wat::core::i64
-   n     <- :wat::core::i64
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   i     <- wat.type/i64
+   n     <- wat.type/i64
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::i64::>= i n)
-    (:wat::core::Vector :- [:wat::fix::Edit])
+    (wat.type/Vector :- [:wat::fix::Edit])
     (:wat::core::let [c (:wat::core::Option/expect (:wat::core::get items i) "when-vec-scan")]
       (:wat::core::concat
         (:wat::core::if (:user::plain-type-cond? c)
-          (:wat::core::Vector :- [:wat::fix::Edit] (:user::insert-fact-bind c lines))
+          (wat.type/Vector :- [:wat::fix::Edit] (:user::insert-fact-bind c lines))
           (:wat::core::if (:user::overwrapped? c)
             ;; old-text = the literal "?fact <- " (9 chars) — overwrapped? already verified
             ;; c's shape is `(?fact <- :Type …)`, so this is exactly what the rule believes
             ;; immediately follows the opening paren; NEVER span text (this claims a SPECIFIC
             ;; literal, not "whatever's there").
-            (:wat::core::Vector :- [:wat::fix::Edit]
+            (wat.type/Vector :- [:wat::fix::Edit]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
                 (:wat::i64::+ (:wat::fix::node-start-offset c lines) 1)
                 "?fact <- "
                 ""))
-            (:wat::core::Vector :- [:wat::fix::Edit])))
+            (wat.type/Vector :- [:wat::fix::Edit])))
         (:user::when-vec-scan items (:wat::i64::+ i 1) n lines)))))
 
 (:wat::core::defn :user::record-item-name
-  [params <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
+  [params <- wat.type/AST] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind params) "vector")
     (:wat::core::let [pch (:wat::core::ast->children params)
                       pn  (:wat::core::length pch)]
@@ -181,11 +181,11 @@
     :wat::core::Option.None))
 
 (:wat::core::defn :user::rewrite-fn-text
-  [fn-node <- :wat::WatAST
-   src     <- :wat::core::String
-   lines   <- (:wat::core::Vector :- [:wat::core::String])
-   item    <- :wat::core::String]
-  -> :wat::core::String
+  [fn-node <- wat.type/AST
+   src     <- wat.type/String
+   lines   <- (wat.type/Vector :- [wat.type/String])
+   item    <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let [ch (:wat::core::ast->children fn-node)
                     n  (:wat::core::length ch)
                     body (:wat::core::Option/expect
@@ -223,10 +223,10 @@
             (:wat::string::concat body-t "))")))))))
 
 (:wat::core::defn :user::hof-fn-edits
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if
     (:wat::core::if (:wat::fix::calls-to? node ":wat::core::map")
       true
@@ -235,7 +235,7 @@
         (:wat::fix::calls-to? node ":wat::core::foldl")))
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::i64::< (:wat::core::length ch) 2)
-        (:wat::core::Vector :- [:wat::fix::Edit])
+        (wat.type/Vector :- [:wat::fix::Edit])
         (:wat::core::let [fn-node (:wat::core::Option/expect
                                     (:wat::core::get ch 1)
                                     "hof-fn-edits: fn")]
@@ -245,21 +245,21 @@
                                        "hof-fn-edits: params")]
               (:wat::core::match (:user::record-item-name params)
                 [:wat::core::Option.Some {:value nm}
-                 (:wat::core::Vector :- [:wat::fix::Edit]
+                 (wat.type/Vector :- [:wat::fix::Edit]
                    (:user::span-edit fn-node
                      (:user::rewrite-fn-text fn-node src lines nm)
                      src lines))]
-                [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::fix::Edit])]))
-            (:wat::core::Vector :- [:wat::fix::Edit])))))
-    (:wat::core::Vector :- [:wat::fix::Edit])))
+                [:wat::core::Option.None {} (wat.type/Vector :- [:wat::fix::Edit])]))
+            (wat.type/Vector :- [:wat::fix::Edit])))))
+    (wat.type/Vector :- [:wat::fix::Edit])))
 
 (:wat::core::defn :user::walk-edits
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::quoted? node)
-    (:wat::core::Vector :- [:wat::fix::Edit])
+    (wat.type/Vector :- [:wat::fix::Edit])
     (:wat::core::let [this (:wat::core::concat
                              (:user::when-edits node lines)
                              (:user::hof-fn-edits node src lines))]
@@ -269,18 +269,18 @@
         this))))
 
 (:wat::core::defn :user::walk-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [:wat::fix::Edit])
+    (wat.type/Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::walk-edits (:wat::core::first items) src lines)
       (:user::walk-seq (:wat::core::into [] (:wat::core::rest items)) src lines))))
 
 (:wat::core::defn :user::migrate
-  [src <- :wat::core::String] -> :wat::core::String
+  [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
@@ -295,7 +295,7 @@
         (:wat::core::reverse (:wat::core::sort edits))))))
 
 (:wat::core::defn :user::rewrite-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)
@@ -309,7 +309,7 @@
             path))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::rewrite-each
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

@@ -45,7 +45,7 @@
 ;;   [4] keyword :wat::core::nil      (return type)
 ;;   [5] nil literal                  (the body)
 ;; No other forms are matched — real bodies, non-nil return types, non-empty params, all safe.
-(:wat::core::defn :user::useless-main? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::useless-main? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -102,7 +102,7 @@
 ;; top-level-defn? — true iff node is a list whose head keyword is :wat::core::defn.
 ;; Used to count total top-level defns so a useless main that is the SOLE defn (the
 ;; arc-170 "main-AS-SUBJECT" fixture) is never stripped.
-(:wat::core::defn :user::top-level-defn? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::top-level-defn? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -115,8 +115,8 @@
 
 ;; ── Report one match: [useless-main] path:line name ──────────────────────────────────
 (:wat::core::defn :user::report-match
-  [path  <- :wat::core::String
-   match <- :wat::WatAST] -> :wat::core::nil
+  [path  <- wat.type/String
+   match <- wat.type/AST] -> wat.type/nil
   (:wat::core::let [span (:wat::core::ast-span match)
                     line (:wat::core::Option/expect
                            (:wat::hashmap::get span :line)
@@ -128,8 +128,8 @@
 
 ;; ── Report all matches for a file ────────────────────────────────────────────────────
 (:wat::core::defn :user::report-matches
-  [path    <- :wat::core::String
-   matches <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::nil
+  [path    <- wat.type/String
+   matches <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? matches)
     nil
     (:wat::core::do
@@ -142,7 +142,7 @@
 ;; explicit set is the escape hatch for a MULTI-defn fixture whose main is still the
 ;; test's subject (the guard alone would strip it). Empty today — no such fixture found;
 ;; kept as the documented extension point per the disposition doctrine.
-(:wat::core::defn :user::skip-file? [path <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::skip-file? [path <- wat.type/String] -> wat.type/bool
   false)
 
 ;; ── Per-file: report matches + GUARDED strip + write back if changed ─────────────────
@@ -151,7 +151,7 @@
 ;; file is a main-AS-SUBJECT fixture (arc-170 main-contract tests), not dead weight. Only
 ;; strip when at least one OTHER (non-useless-main) top-level defn remains:
 ;;     keep = (total top-level defns) − (useless-main matches);  strip only if keep >= 1.
-(:wat::core::defn :user::process-file [path <- :wat::core::String] -> :wat::core::nil
+(:wat::core::defn :user::process-file [path <- wat.type/String] -> wat.type/nil
   (:wat::core::if (:user::skip-file? path)
     nil
     (:wat::core::let [src         (:wat::io::read-file path)
@@ -175,13 +175,13 @@
 
 ;; ── Walk all paths from the stdin EDN vector ─────────────────────────────────────────
 (:wat::core::defn :user::process-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do
       (:user::process-file (:wat::core::first paths))
       (:user::process-each (:wat::core::rest paths)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::process-each
     (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

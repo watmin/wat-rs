@@ -17,18 +17,18 @@
 ;;     | ./target/release/wat ./wat-scripts/fixes/restore-verbatim-literals-after-the-fold.wat
 
 (:wat::core::defn :user::empty-edits []
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
 (:wat::core::defn :user::one-edit
-  [off <- :wat::core::i64  old <- :wat::core::String  new <- :wat::core::String]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+  [off <- wat.type/i64  old <- wat.type/String  new <- wat.type/String]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 (:wat::core::defn :user::start-off
-  [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+  [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
 ;; THE TABLE — 45 (folded → verbatim) pairs, zipped from `git show 0b5742cc7` on the five
@@ -50,8 +50,8 @@
 ;; rune:lint(rete-name-unminted) :wat::rete::core::String/contains? — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
 ;; rune:lint(rete-name-unminted) :wat::rete::core::String/empty? — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
 (:wat::core::defn :user::pairs []
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/String wat.type/String] "wat.core.Uuid/" ":wat::core::Uuid/")
     (wat.type/Tuple :- [wat.type/String wat.type/String] "wat.core.List/of" ":wat::core::List/of")
     (wat.type/Tuple :- [wat.type/String wat.type/String] "wat.core/List" ":wat::core::List")
@@ -98,17 +98,17 @@
     (wat.type/Tuple :- [wat.type/String wat.type/String] "wat.std.list/remove-at" ":wat::std::list::remove-at")
     (wat.type/Tuple :- [wat.type/String wat.type/String] "wat.seq/remove-at" ":wat::seq::remove-at")))
 
-(:wat::core::defn :user::no-verbatim [] -> (:wat::core::Option :- [:wat::core::String])
+(:wat::core::defn :user::no-verbatim [] -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::Option.None {}))
 
 (:wat::core::defn :user::lookup
-  [folded <- :wat::core::String
-   pairs  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
-  -> (:wat::core::Option :- [:wat::core::String])
+  [folded <- wat.type/String
+   pairs  <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
+  -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Option :- [:wat::core::String])
-                     p   <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
-      -> (:wat::core::Option :- [:wat::core::String])
+    (:wat::core::fn [acc <- (:wat::core::Option :- [wat.type/String])
+                     p   <- (wat.type/Tuple :- [wat.type/String wat.type/String])]
+      -> (:wat::core::Option :- [wat.type/String])
       (:wat::core::match acc
         [:wat::core::Option.Some {:value __v} acc]
         [:wat::core::Option.None {}
@@ -119,9 +119,9 @@
     pairs))
 
 (:wat::core::defn :user::string-edit
-  [n     <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [n     <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "string")
     (:wat::core::match (:user::lookup (:wat::core::ast-name n) (:user::pairs))
       [:wat::core::Option.None {} (:user::empty-edits)]
@@ -133,29 +133,29 @@
     (:user::empty-edits)))
 
 (:wat::core::defn :user::node-edits
-  [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-                       c   <- :wat::WatAST]
-        -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+      (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                       c   <- wat.type/AST]
+        -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
         (:wat::core::concat acc (:user::node-edits c lines)))
       (:user::string-edit node lines)
       (:wat::core::ast->children node))
     (:user::string-edit node lines)))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::match (:wat::core::read-string src)
     [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::let
         [lines (:wat::string::split src "\n")
          kids  (:wat::core::ast->children forms)
          eds   (:wat::core::foldl
-                 (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-                                  n   <- :wat::WatAST]
-                   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+                 (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                                  n   <- wat.type/AST]
+                   -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
                    (:wat::core::concat acc (:user::node-edits n lines)))
                  (:user::empty-edits)
                  kids)
@@ -165,9 +165,9 @@
       (:wat::kernel::assertion-failed! :message (:wat::core::Error/message cause))]))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])
-   n     <- :wat::core::i64]
-  -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])
+   n     <- wat.type/i64]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     (:wat::kernel::println
       (:wat::string::interpolate "CHANGED={n}" :n (:wat::i64::to-string n)))
@@ -185,7 +185,7 @@
         (:user::apply-each (:wat::core::rest paths)
           (:wat::core::if hit? (:wat::i64::+ n 1) n))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome.Datum {:v d} d]

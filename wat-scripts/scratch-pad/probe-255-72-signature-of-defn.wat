@@ -8,9 +8,9 @@
 ;; printing the resulting type AST's source text.
 
 (:wat::core::defn :w::sum-of-squares
-  [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64
+  [xs <- (wat.type/PersistentVector :- [wat.type/i64])] -> wat.type/i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+    (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
       (:wat::i64::+ acc (:wat::i64::* x x)))
     0 xs))
 

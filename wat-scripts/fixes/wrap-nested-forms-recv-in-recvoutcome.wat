@@ -20,37 +20,37 @@
 ;; Usage:
 ;;   printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/wrap-nested-forms-recv-in-recvoutcome.wat
 
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::start-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::ast-name n) ""))
 
 ;; Arm is a vector `[:Head …]` or a list `(pattern body…)`.
-(:wat::core::defn :user::arm-head-name [arm <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::arm-head-name [arm <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "vector")
     (:wat::core::let [ch (:wat::core::ast->children arm)]
       (:wat::core::if (:wat::core::empty? ch) "" (:user::kw-name (:wat::core::first ch))))
     (:wat::fix::arm-head-name arm)))
 
 (:wat::core::defn :user::any-arm-head-contains?
-  [arms <- (:wat::core::Vector :- [:wat::WatAST])  needle <- :wat::core::String] -> :wat::core::bool
+  [arms <- (wat.type/Vector :- [wat.type/AST])  needle <- wat.type/String] -> wat.type/bool
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
+    (:wat::core::fn [acc <- wat.type/bool  arm <- wat.type/AST] -> wat.type/bool
       (:wat::core::if acc true
         (:wat::string::contains? (:user::arm-head-name arm) needle)))
     false arms))
 
-(:wat::core::defn :user::scrut-is-recv? [scrut <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::scrut-is-recv? [scrut <- wat.type/AST] -> wat.type/bool
   (:wat::core::= (:wat::fix::head-name scrut) ":wat::kernel::recv"))
 
-(:wat::core::defn :user::message-match? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::message-match? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::fix::head-name node) ":wat::core::match")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
@@ -71,40 +71,40 @@
     false))
 
 (:wat::core::defn :user::wrap-edits
-  [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [ch <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::let
     [scrut    (:wat::core::Option/expect (:wat::core::get ch 1) "scrut")
      last-arm (:wat::core::Option/expect (:wat::core::get ch (:wat::core::- (:wat::core::length ch) 1)) "last")]
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off scrut lines) ""
         " [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv")
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off last-arm lines) ""
         ")] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message \"recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open\")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message \"recv': peer closed\")]"))))
 
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])  in-forms <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])  in-forms <- wat.type/bool]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::let
     [in-forms (:wat::core::or in-forms (:wat::core::= (:wat::fix::head-name node) ":wat::core::forms"))
      this (:wat::core::if (:wat::core::if in-forms (:user::message-match? node) false)
             (:user::wrap-edits (:wat::core::ast->children node) lines)
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))]
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines in-forms))
       this)))
 
 (:wat::core::defn :user::seq-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])  in-forms <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])  in-forms <- wat.type/bool]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it <- wat.type/AST]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::concat acc (:user::node-edits it lines in-forms)))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     items))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
@@ -112,7 +112,7 @@
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
 
-(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -121,7 +121,7 @@
         (:wat::kernel::println (:wat::string::concat "[wrap-nested-recv] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each (:wat::core::match (:wat::kernel::readln)
     [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
     [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]

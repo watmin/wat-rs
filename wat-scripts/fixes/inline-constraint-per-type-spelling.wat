@@ -63,16 +63,16 @@
 ;; rune:lint(rete-name-unminted) :wat::rete::core::i64::> — this table's own recorded target at authoring time, superseded by the later i64/f64/string rehome; not re-pointed, see the block above.
 ;; rune:lint(rete-name-unminted) :wat::rete::core::string::= — this table's own recorded target at authoring time, superseded by the later i64/f64/string rehome; not re-pointed, see the block above.
 ;; ── the rename table — checker-derived for THIS worklist (see the warning above) ──────────────
-(:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+(:wat::core::defn :user::rename-table [] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::<" ":wat::rete::core::i64::<")
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::>" ":wat::rete::core::i64::>")
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::=" ":wat::rete::core::string::=")))
 
 (:wat::core::defn :user::rename-lookup
-  [name  <- :wat::core::String
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
-  -> (:wat::core::Option :- [:wat::core::String])
+  [name  <- wat.type/String
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
+  -> (:wat::core::Option :- [wat.type/String])
   (:wat::core::if (:wat::core::empty? table)
     :wat::core::Option.None
     (:wat::core::let [pair (:wat::core::first table)
@@ -84,10 +84,10 @@
 
 ;; ── inside a defrule: the table is LIVE ───────────────────────────────────────────────────────
 (:wat::core::defn :user::inside-rule-edits
-  [node  <- :wat::WatAST
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::inside-rule-edits-walk (:wat::core::ast->children node) table lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
@@ -95,19 +95,19 @@
         [:wat::core::Option.Some {:value new}
           (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                             old-len (:wat::core::ast-name node)]
-            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len new)))]
         [:wat::core::Option.None {}
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])])
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
+          (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])])
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
 (:wat::core::defn :user::inside-rule-edits-walk
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::concat
       (:user::inside-rule-edits (:wat::core::first items) table lines)
       (:user::inside-rule-edits-walk (:wat::core::rest items) table lines))))
@@ -120,9 +120,9 @@
 ;; A gate that knew only `defrule` migrated one site in probe-sift-body-direct.wat and left its
 ;; sibling, which the re-census reported. The fire is the worklist, including the codemod's own.
 (:wat::core::defn :user::defrule-list?
-  [node <- :wat::WatAST
-   ch   <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::core::bool
+  [node <- wat.type/AST
+   ch   <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::if (:wat::core::empty? ch)
       false
@@ -136,31 +136,31 @@
 
 ;; ── outside a defrule: walk, but the table never applies ──────────────────────────────────────
 (:wat::core::defn :user::outer-edits
-  [node  <- :wat::WatAST
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:user::defrule-list? node ch)
         (:user::inside-rule-edits-walk ch table lines)
         (:user::outer-edits-walk ch table lines)))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
 (:wat::core::defn :user::outer-edits-walk
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::concat
       (:user::outer-edits (:wat::core::first items) table lines)
       (:user::outer-edits-walk (:wat::core::rest items) table lines))))
 
 (:wat::core::defn :user::migrate
-  [src <- :wat::core::String]
-  -> :wat::core::String
+  [src <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
@@ -170,8 +170,8 @@
     (:wat::fix::fix-text-apply src rev-edits)))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -181,6 +181,6 @@
         (:wat::kernel::println (:wat::string::concat "[inline-constraint-per-type-spelling] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

@@ -6,7 +6,7 @@
 
 (:wat::core::defstruct :probe::Counter [n <- wat.type/i64])
 
-(:wat::core::defsurface :probe::Bumper :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Bumper :nature wat.type/Struct
   :features [(bump [self <- :probe::Bumper] -> wat.type/i64)])
 
 (:wat::core::extend-type :probe::Counter :probe::Bumper

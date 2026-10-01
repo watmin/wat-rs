@@ -26,19 +26,19 @@
 ;;   printf '["pathA" "pathB" …]\n' | cargo wat ./wat-scripts/fixes/rename-diederror-to-loci-died-error.wat
 
 ;; ── small helpers (mirrors eprintln-recv-arm-to-assertion-failed.wat) ──────────────
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::start-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::i64
+(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::ast-name n) ""))
 
-(:wat::core::defn :user::sym-name [n <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::sym-name [n <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "symbol")
     (:wat::core::ast-name n) ""))
 
@@ -46,7 +46,7 @@
 ;; i.e. a list whose FIRST child is a list `(:wat::kernel::RecvOutcome::Lost <sym>)` — return
 ;; <sym>'s name; else "". Keys on the EXACT `RecvOutcome::Lost` keyword, so a `ServiceEvent::Lost`
 ;; arm (different keyword, two bindings) is NOT a match.
-(:wat::core::defn :user::lost-arm-var [node <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::lost-arm-var [node <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -65,7 +65,7 @@
 ;; fm-call-on? — `node` is a call `(:wat::kernel::Failure/message VAR)` whose arg symbol name
 ;; EQUALS `var` (and `var` is non-empty). This is the surgical discriminator: it renames ONLY the
 ;; Lost-cause accessor, never a genuine `(Failure/message f)`.
-(:wat::core::defn :user::fm-call-on? [node <- :wat::WatAST  var <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::fm-call-on? [node <- wat.type/AST  var <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= var "")
     false
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
@@ -80,45 +80,45 @@
 ;; fm-head-edit — rename the `:wat::kernel::Failure/message` HEAD keyword token of `node` to
 ;; `:wat::kernel::LociDiedError/message` (whole-token span replace; the arg is untouched).
 (:wat::core::defn :user::fm-head-edit
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   ;; old-text = (ast-name head) — the rule's own belief, already verified by fm-call-on? to
   ;; equal ":wat::kernel::Failure/message"; NEVER span text (this is a rename of a keyword
   ;; leaf, STOP-1 territory).
   (:wat::core::let [head (:wat::core::first (:wat::core::ast->children node))
                     h0   (:user::start-off head lines)]
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] h0 (:wat::core::ast-name head) ":wat::kernel::LociDiedError/message"))))
 
 ;; node-edits — scope-threading walk. `lost-var` is the RecvOutcome::Lost-bound var currently in
 ;; scope (""=none). A Lost arm OVERRIDES the scope for its children (nested Lost arms shadow).
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lost-var <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node <- wat.type/AST  lost-var <- wat.type/String  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::let
     [this-var (:user::lost-arm-var node)
      scope    (:wat::core::if (:wat::core::= this-var "") lost-var this-var)
      this     (:wat::core::if (:user::fm-call-on? node lost-var)
                 (:user::fm-head-edit node lines)
-                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))]
+                (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) scope lines))
       this)))
 
 (:wat::core::defn :user::seq-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])  lost-var <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])  lost-var <- wat.type/String  lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it <- wat.type/AST]
+      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
       (:wat::core::concat acc (:user::node-edits it lost-var lines)))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 ;; Pass 1+2: prefix rename Thread/ProcessDiedError -> LociDiedError (rides rename-keyword-prefix).
 ;; Pass 3:  scoped Failure/message -> LociDiedError/message within RecvOutcome::Lost arms.
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [src1  (:wat::fix::rename-keyword-prefix ":wat::kernel::ThreadDiedError" ":wat::kernel::LociDiedError" src)
      src2  (:wat::fix::rename-keyword-prefix ":wat::kernel::ProcessDiedError" ":wat::kernel::LociDiedError" src1)
@@ -129,7 +129,7 @@
     (:wat::fix::fix-text-apply src2 rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -138,5 +138,5 @@
         (:wat::kernel::println (:wat::string::concat "[diederror->loci-died-error] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

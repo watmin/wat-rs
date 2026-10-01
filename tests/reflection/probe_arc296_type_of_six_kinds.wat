@@ -27,7 +27,7 @@
 (:wat::core::typeunion :probe::Num [:wat::core::i64 :wat::core::f64])
 
 (:wat::core::defsurface :probe::Surf
-  :nature :wat::core::Record
+  :nature wat.type/Record
   :features [message <- wat.type/String])
 
 (:wat::core::defn :user::print-kind [info <- :wat::runtime::TypeInfo] -> wat.type/nil

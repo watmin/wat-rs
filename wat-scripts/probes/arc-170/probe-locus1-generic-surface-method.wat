@@ -5,7 +5,7 @@
 ;; Mirrors tests/types/probe_arc232_generic_method.wat but on a defsurface, not a defprotocol.
 ;; CLAIM: (nth (Maker/make (Dup) 5) 0) == 5.
 
-(:wat::core::defsurface :probe::Maker :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Maker :nature wat.type/Struct
   :features [(make :- [T] [self <- :probe::Maker  x <- :T] -> (wat.type/Vector :- [T]))])
 
 (:wat::core::defstruct :probe::Dup [])

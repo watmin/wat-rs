@@ -51,12 +51,12 @@
 ;; literal-replace — substring replace via split+join (no dedicated string::replace primitive
 ;; exists in wat core). `old` must be non-empty (string::split rejects an empty separator).
 (:wat::core::defn :user::literal-replace
-  [src <- :wat::core::String  old <- :wat::core::String  new <- :wat::core::String] -> :wat::core::String
+  [src <- wat.type/String  old <- wat.type/String  new <- wat.type/String] -> wat.type/String
   (:wat::string::join new (:wat::string::split src old)))
 
 (:wat::core::defn :user::migrate-field
-  [src <- :wat::core::String  bare-old <- :wat::core::String  bare-new <- :wat::core::String]
-  -> :wat::core::String
+  [src <- wat.type/String  bare-old <- wat.type/String  bare-new <- wat.type/String]
+  -> wat.type/String
   (:wat::core::let
     [kw-old  (:wat::string::concat ":" bare-old)
      kw-new  (:wat::string::concat ":" bare-new)
@@ -68,7 +68,7 @@
      s4      (:user::literal-replace s3 bare-old bare-new)]
     s4))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [s1 (:user::migrate-field src "wat.started-at" "started-at")
      s2 (:user::migrate-field s1  "wat.peer-started-at" "peer-started-at")
@@ -80,7 +80,7 @@
     s7))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -90,6 +90,6 @@
         (:wat::kernel::println (:wat::string::concat "[env-dot-drop] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

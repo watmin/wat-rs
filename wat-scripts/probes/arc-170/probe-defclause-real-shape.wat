@@ -6,7 +6,7 @@
 ;; CLAIM: describe(the Reason unpacked from PutResult.Constraint's own field) == "sqlite 2067" —
 ;; defclause already handles a value typed by an agnostic field's declared (not literal) type.
 
-(:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
+(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
 (:wat::core::defrecord  :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
 (:wat::core::defrecord  :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])
 (:wat::core::extend-type :probe::SqliteReason :probe::Reason)

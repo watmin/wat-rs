@@ -8,8 +8,8 @@
 ;; :nature is mandatory on defsurface. Struct is the nature that does not
 ;; register this surface under :wat::core::Record.
 
-(:wat::core::defsurface :wat::core::Orderable :nature :wat::core::Struct :features [])
-(:wat::core::defsurface :wat::core::Equatable :nature :wat::core::Struct :features [])
+(:wat::core::defsurface :wat::core::Orderable :nature wat.type/Struct :features [])
+(:wat::core::defsurface :wat::core::Equatable :nature wat.type/Struct :features [])
 
 ;; ── Orderable leaves. The predicate's leaf arms, plus bigint and rational
 ;; (the runtime orders them; the predicate does not). ────────────────────────

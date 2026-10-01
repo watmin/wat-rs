@@ -28,7 +28,7 @@
 ;; manual tail; the load-bearing wat CODE is this rewrite.
 
 (:wat::core::defn :user::migrate
-  [src <- :wat::core::String] -> :wat::core::String
+  [src <- wat.type/String] -> wat.type/String
   (:wat::fix::rename-keyword-prefix ":wat::kernel::StdOut'" ":wat::kernel::StdOut"
     (:wat::fix::rename-keyword-prefix ":wat::kernel::StdErr'" ":wat::kernel::StdErr"
       (:wat::fix::rename-keyword-prefix ":wat::kernel::StdIn'" ":wat::kernel::StdIn"
@@ -38,7 +38,7 @@
               src)))))))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -48,6 +48,6 @@
         (:wat::kernel::println (:wat::string::concat "[reclaimed] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

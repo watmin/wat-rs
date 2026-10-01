@@ -12,7 +12,7 @@
 
 ;; The surface mixes a FIELD member (color) and a METHOD member (area).
 (:wat::core::defsurface :t::Shape
-  :nature :wat::core::Struct
+  :nature wat.type/Struct
   :features [color <- wat.type/String
    (area [self <- :t::Shape] -> wat.type/f64)])
 

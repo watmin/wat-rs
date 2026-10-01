@@ -6,7 +6,7 @@
 ;; located ReturnTypeMismatch at startup, and the runtime value itself is asserted to be i64(42).
 ;; Driven via `invoke_user_main` (not a `parse_one!`-string) so this test inlines no wat.
 
-(:wat::core::defsurface :probe::Holds :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Holds :- [T] :nature wat.type/Struct
   :features
   [(get [self <- (:probe::Holds :- [T])] -> :T)])
 

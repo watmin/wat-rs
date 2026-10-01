@@ -20,15 +20,15 @@
 ;;   printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/assertion-failed-to-kwargs.wat
 
 (:wat::core::defn :user::node-text
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::String
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/String
   (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
-(:wat::core::defn :user::head-spelling [node <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::head-spelling [node <- wat.type/AST] -> wat.type/String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -39,13 +39,13 @@
             ""))))
     ""))
 
-(:wat::core::defn :user::assertion-failed-call? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::assertion-failed-call? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [h (:user::head-spelling node)]
     (:wat::core::or
       (:wat::core::= h ":wat::kernel::assertion-failed!")
       (:wat::core::= h "wat.kernel/assertion-failed!"))))
 
-(:wat::core::defn :user::none-placeholder? [n <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::none-placeholder? [n <- wat.type/AST] -> wat.type/bool
   (:wat::core::let [k (:wat::core::ast-kind n)]
     (:wat::core::if (:wat::core::= k "keyword")
       (:wat::core::let [nm (:wat::core::ast-name n)]
@@ -59,7 +59,7 @@
         false))))
 
 ;; 3 positional args, first not a keyword (kwargs already start with :message etc.).
-(:wat::core::defn :user::positional-call? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::positional-call? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:user::assertion-failed-call? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::= (:wat::core::length ch) 4)
@@ -70,13 +70,13 @@
     false))
 
 (:wat::core::defn :user::rewrite-text
-  [head-text <- :wat::core::String
-   msg-text  <- :wat::core::String
-   act-text  <- :wat::core::String
-   exp-text  <- :wat::core::String
-   drop-act  <- :wat::core::bool
-   drop-exp  <- :wat::core::bool]
-  -> :wat::core::String
+  [head-text <- wat.type/String
+   msg-text  <- wat.type/String
+   act-text  <- wat.type/String
+   exp-text  <- wat.type/String
+   drop-act  <- wat.type/bool
+   drop-exp  <- wat.type/bool]
+  -> wat.type/String
   (:wat::core::let [base (:wat::string::concat "("
                          (:wat::string::concat head-text
                            (:wat::string::concat " :message " msg-text)))]
@@ -97,10 +97,10 @@
                 (:wat::string::concat exp-text ")")))))))))
 
 (:wat::core::defn :user::call-edit
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
   (:wat::core::let
     [ch   (:wat::core::ast->children node)
      head (:wat::core::Option/expect (:wat::core::get ch 0) "call-edit head")
@@ -121,29 +121,29 @@
 ;; Walk: a matching positional call emits ONE whole-node edit and does not
 ;; recurse (the replacement covers the list). Everything else recurses.
 (:wat::core::defn :user::edits
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:user::positional-call? node)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (:user::call-edit node src lines))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::edits-seq (:wat::core::ast->children node) src lines)
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
+      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
 (:wat::core::defn :user::edits-seq
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     (:wat::core::concat
       (:user::edits (:wat::core::first items) src lines)
       (:user::edits-seq (:wat::core::into [] (:wat::core::rest items)) src lines))))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
@@ -155,8 +155,8 @@
     (:wat::fix::fix-text-apply src rev)))
 
 (:wat::core::defn :user::rewrite-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -169,7 +169,7 @@
           (:wat::kernel::println (:wat::string::concat "[assertion-kwargs] " path))
           (:user::rewrite-each (:wat::core::rest paths)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

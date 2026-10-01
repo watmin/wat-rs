@@ -1,7 +1,7 @@
 ;; 255.46 — extend-type as written TODAY: a hello world, checked with `wat --check`.
 ;; A featureless surface (a class with no methods), one concrete member, one generic member.
 
-(:wat::core::defsurface :hello::Orderable :nature :wat::core::Struct
+(:wat::core::defsurface :hello::Orderable :nature wat.type/Struct
   :features [])
 
 (:wat::core::defrecord :hello::Point [x <- wat.type/i64])

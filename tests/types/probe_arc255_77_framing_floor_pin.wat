@@ -16,7 +16,7 @@
 (:wat::core::defrecord :probe::FFFloorUuid [v <- wat.uuid/UUID])
 (:wat::core::defrecord :probe::FFFloorBool [v <- wat.type/bool])
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:wat::kernel::println (:wat::telemetry::framing-floor-of :probe::FFFloorI64))
     (:wat::kernel::println (:wat::telemetry::framing-floor-of :probe::FFFloorF64))

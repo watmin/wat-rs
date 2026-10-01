@@ -36,26 +36,26 @@
 ;; ── predicates ───────────────────────────────────────────────────────────────────────────────
 
 ;; defrule-form? — a List whose head keyword is EXACTLY :wat::rete::defrule.
-(:wat::core::defn :user::defrule-form? [f <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::defrule-form? [f <- wat.type/AST] -> wat.type/bool
   (:wat::fix::calls-to? f ":wat::rete::defrule"))
 
 ;; insert-wrapped? — a List `(:wat::rete::insert <fact>)`: exact head + exactly 2 children.
-(:wat::core::defn :user::insert-wrapped? [f <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :user::insert-wrapped? [f <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::fix::calls-to? f ":wat::rete::insert")
     (:wat::core::= (:wat::core::count (:wat::core::ast->children f)) 2)
     false))
 
 ;; all-insert-wrapped? — every then-form is insert-wrapped (STOP-2's check).
-(:wat::core::defn :user::all-insert-wrapped? [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
+(:wat::core::defn :user::all-insert-wrapped? [forms <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool f <- :wat::WatAST] -> :wat::core::bool
+    (:wat::core::fn [acc <- wat.type/bool f <- wat.type/AST] -> wat.type/bool
       (:wat::core::if acc (:user::insert-wrapped? f) false))
     true
     forms))
 
 ;; then-already-vector? — the post-:then payload is a single Vector node (post-migration shape).
 (:wat::core::defn :user::then-already-vector?
-  [then-forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
+  [then-forms <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::count then-forms) 1)
     (:wat::core::=
       (:wat::core::ast-kind (:wat::core::Option/expect (:wat::core::get then-forms 0) "then-already-vector?: unreachable"))
@@ -68,8 +68,8 @@
 ;; sliced verbatim from `src` by span — never re-rendered, so field order/spacing/literal
 ;; formatting inside the fact-form survive byte-identical.
 (:wat::core::defn :user::fact-text
-  [f <- :wat::WatAST src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::String
+  [f <- wat.type/AST src <- wat.type/String lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/String
   (:wat::core::let
     [fact (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "fact-text: unreachable (insert-wrapped? already checked)")
      off  (:wat::fix::node-start-offset fact lines)
@@ -77,16 +77,16 @@
     (:wat::string::subs src off end)))
 
 (:wat::core::defn :user::fact-texts
-  [forms <- (:wat::core::Vector :- [:wat::WatAST]) src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::core::String])
+  [forms <- (wat.type/Vector :- [wat.type/AST]) src <- wat.type/String lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [wat.type/String])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :- [:wat::core::String])
+    (wat.type/Vector :- [wat.type/String])
     (:wat::core::concat
-      (:wat::core::Vector :- [:wat::core::String] (:user::fact-text (:wat::core::first forms) src lines))
+      (wat.type/Vector :- [wat.type/String] (:user::fact-text (:wat::core::first forms) src lines))
       (:user::fact-texts (:wat::core::rest forms) src lines))))
 
 ;; join-with-space — left-to-right join; no trailing/leading space.
-(:wat::core::defn :user::join-with-space [xs <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
+(:wat::core::defn :user::join-with-space [xs <- (wat.type/Vector :- [wat.type/String])] -> wat.type/String
   (:wat::core::if (:wat::core::empty? xs)
     ""
     (:wat::core::let [h (:wat::core::first xs) tl (:wat::core::rest xs)]
@@ -99,10 +99,10 @@
 ;; defrule-edits — 0-or-1 replacement edit for one defrule form's :then payload.
 ;; rch layout: [0 head-sym, 1 name, 2 :when-kw, 3 when-vec, 4 :then-kw, 5.. then-forms…].
 (:wat::core::defn :user::defrule-edits
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::defrule-form? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::count ch) 6)
@@ -112,7 +112,7 @@
         (:wat::kernel::assertion-failed! :message (:wat::string::concat "defrule-then-to-vector: :then has no forms in " (:wat::core::write-forms node)))
         (:wat::core::let [then-forms (:wat::core::into [] (:wat::core::drop ch 5))]
           (:wat::core::if (:user::then-already-vector? then-forms)
-            (:wat::core::Vector :- [:wat::fix::Edit]) ;; idempotent no-op — already migrated
+            (wat.type/Vector :- [:wat::fix::Edit]) ;; idempotent no-op — already migrated
             (:wat::core::if (:wat::core::not (:user::all-insert-wrapped? then-forms))
               (:wat::kernel::assertion-failed! :message (:wat::string::concat
                   "defrule-then-to-vector: STOP-2 — a :then entry is not a plain (:wat::rete::insert <fact>) form in "
@@ -128,37 +128,37 @@
                  ;; (join with spaces, wrap in "[...]"), not a rename; no name-based claim
                  ;; about the inter-form whitespace exists to diverge from the span.
                  old-text   (:wat::fix::fix-text-span-text (:wat::core::ast-span first-fact) (:wat::core::ast-end-span last-fact) lines src)]
-                (:wat::core::Vector :- [:wat::fix::Edit]
+                (wat.type/Vector :- [:wat::fix::Edit]
                   (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] first-off old-text
                     (:wat::string::concat "[" (:wat::string::concat joined "]"))))))))))
-    (:wat::core::Vector :- [:wat::fix::Edit])))
+    (wat.type/Vector :- [:wat::fix::Edit])))
 
 ;; ── deep walk (defrule forms may be nested inside a data literal, not just top-level) ─────────
 
 (:wat::core::defn :user::walk-edits
-  [node  <- :wat::WatAST
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node  <- wat.type/AST
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let [this (:user::defrule-edits node src lines)]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::walk-seq-edits (:wat::core::ast->children node) src lines))
       this)))
 
 (:wat::core::defn :user::walk-seq-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   src   <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [:wat::fix::Edit])
+    (wat.type/Vector :- [:wat::fix::Edit])
     (:wat::core::concat
       (:user::walk-edits (:wat::core::first items) src lines)
       (:user::walk-seq-edits (:wat::core::rest items) src lines))))
 
 ;; ── per-file migrate ────────────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
@@ -169,7 +169,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
 
 ;; ── driver: rewrite each path given on stdin (a JSON/EDN array of strings) ────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -178,7 +178,7 @@
         (:wat::kernel::println (:wat::string::concat "[defrule-then-to-vector] " path))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln)
                             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
                             [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]

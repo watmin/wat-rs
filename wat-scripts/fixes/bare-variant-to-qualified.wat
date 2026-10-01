@@ -14,7 +14,7 @@
 ;; Patterns AND constructions: a keyword leaf is a keyword leaf.
 ;; printf '[...paths...]\n' | ./target/release/wat ./wat-scripts/fixes/bare-variant-to-qualified.wat
 
-(:wat::core::defn :user::rename-five [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::rename-five [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [s1 (:wat::fix::rename-keyword-exact ":wat::core::Some" ":wat::core::Option::Some" src)
      s2 (:wat::fix::rename-keyword-exact ":wat::core::None" ":wat::core::Option::None" s1)
@@ -22,7 +22,7 @@
      s4 (:wat::fix::rename-keyword-exact ":wat::core::Err" ":wat::core::Result::Err" s3)]
     (:wat::fix::rename-keyword-exact ":None" ":wat::core::Option::None" s4)))
 
-(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -31,7 +31,7 @@
         (:wat::kernel::println (:wat::string::concat "[bare-variant] " path))
         (:user::rewrite-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]

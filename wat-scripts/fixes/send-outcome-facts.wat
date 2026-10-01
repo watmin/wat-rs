@@ -26,20 +26,20 @@
 ;;   printf '["pathA" "pathB"]\n' | ./target/release/wat ./wat-scripts/fixes/send-outcome-facts.wat
 
 (:wat::core::defn :user::no-edits []
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
-  (:wat::core::Vector :- [:wat::fix::Edit]))
+  -> (wat.type/Vector :- [:wat::fix::Edit])
+  (wat.type/Vector :- [:wat::fix::Edit]))
 
 (:wat::core::defn :user::slice
-  [src <- :wat::core::String
-   node <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::String
+  [src <- wat.type/String
+   node <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/String
   (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
 (:wat::core::defn :user::send-defenum?
-  [node <- :wat::WatAST] -> :wat::core::bool
+  [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::fix::calls-to? node ":wat::core::defenum")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
@@ -51,38 +51,38 @@
     false))
 
 (:wat::core::defn :user::unit-closed-edit
-  [kw <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
-  (:wat::core::Vector :- [:wat::fix::Edit]
+  [kw <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
+  (wat.type/Vector :- [:wat::fix::Edit]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
       (:wat::fix::node-start-offset kw lines)
       (:user::slice src kw lines)
       ":HandleClosed")))
 
 (:wat::core::defn :user::lost-variant-edit
-  [kw <- :wat::WatAST
-   vec <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [kw <- wat.type/AST
+   vec <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let
     [old (:wat::string::subs src
            (:wat::fix::node-start-offset kw lines)
            (:wat::fix::node-end-offset vec lines))
      new ":Closed [cause <- :wat::kernel::Failure] :Failed [cause <- :wat::kernel::Failure]"]
-    (:wat::core::Vector :- [:wat::fix::Edit]
+    (wat.type/Vector :- [:wat::fix::Edit]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset kw lines)
         old
         new))))
 
 (:wat::core::defn :user::variant-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
     (:user::no-edits)
     (:wat::core::let [h (:wat::core::first items)
@@ -107,7 +107,7 @@
                 (:user::variant-edits tl src lines)))))
         (:user::variant-edits tl src lines)))))
 
-(:wat::core::defn :user::arm-head [arm <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::arm-head [arm <- wat.type/AST] -> wat.type/String
   (:wat::core::let [k (:wat::core::ast-kind arm)]
     (:wat::core::if (:wat::core::or (:wat::core::= k "list") (:wat::core::= k "vector"))
       (:wat::core::let [ch (:wat::core::ast->children arm)]
@@ -121,30 +121,30 @@
               (:wat::fix::kw-name pat)))))
       "")))
 
-(:wat::core::defn :user::handle-closed-name [head <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::handle-closed-name [head <- wat.type/String] -> wat.type/String
   (:wat::string::join ".HandleClosed" (:wat::string::split head ".Closed")))
 
 (:wat::core::defn :user::closed-arm-edit
-  [arm <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arm <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let [kw (:wat::core::first (:wat::core::ast->children arm))]
-    (:wat::core::Vector :- [:wat::fix::Edit]
+    (wat.type/Vector :- [:wat::fix::Edit]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset kw lines)
         (:user::slice src kw lines)
         (:user::handle-closed-name (:user::arm-head arm))))))
 
-(:wat::core::defn :user::fix-accessor [text <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::fix-accessor [text <- wat.type/String] -> wat.type/String
   (:wat::string::join ":wat::kernel::Failure/message"
     (:wat::string::split text ":wat::kernel::LociDiedError/message")))
 
 (:wat::core::defn :user::lost-arm-edit
-  [arm <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arm <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let
     [text (:user::slice src arm lines)
      head (:user::arm-head arm)
@@ -152,37 +152,37 @@
      failed-head (:wat::string::join ".Failed" (:wat::string::split head ".Lost"))
      one (:user::fix-accessor (:wat::string::join closed-head (:wat::string::split text head)))
      two (:user::fix-accessor (:wat::string::join failed-head (:wat::string::split text head)))]
-    (:wat::core::Vector :- [:wat::fix::Edit]
+    (wat.type/Vector :- [:wat::fix::Edit]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset arm lines)
         text
         (:wat::string::concat one (:wat::string::concat " " two))))))
 
-(:wat::core::defn :user::is-closed-head [head <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::is-closed-head [head <- wat.type/String] -> wat.type/bool
   (:wat::core::or
     (:wat::core::= head ":wat::kernel::SendOutcome.Closed")
     (:wat::core::= head ":wat::kernel::TrySendOutcome.Closed")))
 
-(:wat::core::defn :user::is-lost-head [head <- :wat::core::String] -> :wat::core::bool
+(:wat::core::defn :user::is-lost-head [head <- wat.type/String] -> wat.type/bool
   (:wat::core::or
     (:wat::core::= head ":wat::kernel::SendOutcome.Lost")
     (:wat::core::= head ":wat::kernel::TrySendOutcome.Lost")))
 
 (:wat::core::defn :user::nullary-arm?
-  [arm <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::bool
+  [arm <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/bool
   (:wat::core::let [ch (:wat::core::ast->children arm)]
     (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
       false
       (:wat::core::= (:user::slice src (:wat::core::nth ch 1) lines) "{}"))))
 
 (:wat::core::defn :user::arm-edit
-  [arm <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arm <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let [head (:user::arm-head arm)]
     (:wat::core::if (:wat::core::if (:user::is-closed-head head)
                       (:user::nullary-arm? arm src lines)
@@ -193,10 +193,10 @@
         (:user::no-edits)))))
 
 (:wat::core::defn :user::walk
-  [node <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::send-defenum? node)
     (:wat::core::let [ch (:wat::core::ast->children node)
                       start (:wat::fix::defenum-variant-start ch)
@@ -214,10 +214,10 @@
         (:user::no-edits)))))
 
 (:wat::core::defn :user::arm-walk
-  [arms <- (:wat::core::Vector :- [:wat::WatAST])
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arms <- (wat.type/Vector :- [wat.type/AST])
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? arms)
     (:user::no-edits)
     (:wat::core::let [arm (:wat::core::first arms)
@@ -231,17 +231,17 @@
           (:user::arm-walk (:wat::core::rest arms) src lines))))))
 
 (:wat::core::defn :user::walk-list
-  [nodes <- (:wat::core::Vector :- [:wat::WatAST])
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [nodes <- (wat.type/Vector :- [wat.type/AST])
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? nodes)
     (:user::no-edits)
     (:wat::core::concat
       (:user::walk (:wat::core::first nodes) src lines)
       (:user::walk-list (:wat::core::rest nodes) src lines))))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
@@ -252,7 +252,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse edits))))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -262,7 +262,7 @@
         (:wat::kernel::println (:wat::string::concat "[send-outcome-facts] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome.Datum {:v paths} paths]

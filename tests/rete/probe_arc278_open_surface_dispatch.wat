@@ -26,7 +26,7 @@
 ;; can't live in a fixture that must load; see
 ;; `probe_arc278_open_surface_dispatch_ambiguous.wat.bad` for that witness.
 
-(:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
+(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
 
 (:wat::core::defrecord :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
 (:wat::core::defrecord :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])

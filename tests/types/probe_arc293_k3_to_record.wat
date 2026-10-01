@@ -15,7 +15,7 @@
 
 (:wat::core::defstruct :k3::Pt [x <- wat.type/i64  y <- wat.type/i64])
 
-(:wat::core::defsurface :k3::Planar :nature :wat::core::Struct
+(:wat::core::defsurface :k3::Planar :nature wat.type/Struct
   :features [x <- wat.type/i64  y <- wat.type/i64])
 
 (:wat::core::defn :k3::demo [] -> wat.type/i64

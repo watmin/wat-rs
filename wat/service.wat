@@ -122,7 +122,7 @@
 ;; asserts something false for two of the three kinds. The structure made a good name wrong; the
 ;; name follows the structure.
 (:wat::core::defsurface :wat::service::InvocationCore
-  :nature :wat::core::Record
+  :nature wat.type/Record
   :features [namespace     <- wat.type/keyword   ;; the service's own fqdn — compile-time literal
              operation     <- wat.type/String    ;; the op arm's own name — compile-time literal
              invocation-id <- wat.uuid/UUID      ;; minted by THIS service, per dispatch

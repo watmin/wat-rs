@@ -20,20 +20,20 @@
 ;;   printf '["pathA" "pathB"]\n' | ./target/release/wat ./wat-scripts/fixes/connect-outcome-facts.wat
 
 (:wat::core::defn :user::no-edits []
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
-  (:wat::core::Vector :- [:wat::fix::Edit]))
+  -> (wat.type/Vector :- [:wat::fix::Edit])
+  (wat.type/Vector :- [:wat::fix::Edit]))
 
 (:wat::core::defn :user::slice
-  [src <- :wat::core::String
-   node <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::String
+  [src <- wat.type/String
+   node <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> wat.type/String
   (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
 (:wat::core::defn :user::connect-defenum?
-  [node <- :wat::WatAST] -> :wat::core::bool
+  [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::fix::calls-to? node ":wat::core::defenum")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
@@ -42,14 +42,14 @@
     false))
 
 (:wat::core::defn :user::variant-edit
-  [kw <- :wat::WatAST
-   vec <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [kw <- wat.type/AST
+   vec <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let [name (:wat::fix::kw-name kw)]
     (:wat::core::if (:wat::core::= name ":Refused")
-      (:wat::core::Vector :- [:wat::fix::Edit]
+      (wat.type/Vector :- [:wat::fix::Edit]
         (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
           (:wat::fix::node-start-offset kw lines)
           (:user::slice src kw lines)
@@ -65,15 +65,15 @@
            old (:wat::string::subs src ks ve)
            one (:wat::string::concat ":Undialable" (:wat::string::concat gap fields))
            new (:wat::string::concat one (:wat::string::concat " :WrongPeer" (:wat::string::concat gap fields)))]
-          (:wat::core::Vector :- [:wat::fix::Edit]
+          (wat.type/Vector :- [:wat::fix::Edit]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] ks old new)))
         (:user::no-edits)))))
 
 (:wat::core::defn :user::variant-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [items <- (wat.type/Vector :- [wat.type/AST])
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
     (:user::no-edits)
     (:wat::core::let [h (:wat::core::first items)
@@ -89,37 +89,37 @@
         (:user::variant-edits tl src lines)))))
 
 (:wat::core::defn :user::refused-edit
-  [arm <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arm <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   ;; A match arm is a vector: [keyword map body…]. The head keyword is child 0.
   (:wat::core::let
     [kw (:wat::core::first (:wat::core::ast->children arm))]
-    (:wat::core::Vector :- [:wat::fix::Edit]
+    (wat.type/Vector :- [:wat::fix::Edit]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset kw lines)
         (:user::slice src kw lines)
         ":wat::kernel::ConnectOutcome.Closed"))))
 
 (:wat::core::defn :user::rejected-edit
-  [arm <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arm <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let
     [text (:user::slice src arm lines)
      und  (:wat::string::join ":wat::kernel::ConnectOutcome.Undialable"
             (:wat::string::split text ":wat::kernel::ConnectOutcome.Rejected"))
      wrong (:wat::string::join ":wat::kernel::ConnectOutcome.WrongPeer"
              (:wat::string::split text ":wat::kernel::ConnectOutcome.Rejected"))]
-    (:wat::core::Vector :- [:wat::fix::Edit]
+    (wat.type/Vector :- [:wat::fix::Edit]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
         (:wat::fix::node-start-offset arm lines)
         text
         (:wat::string::concat und (:wat::string::concat " " wrong))))))
 
-(:wat::core::defn :user::arm-head [arm <- :wat::WatAST] -> :wat::core::String
+(:wat::core::defn :user::arm-head [arm <- wat.type/AST] -> wat.type/String
   (:wat::core::let [k (:wat::core::ast-kind arm)]
     (:wat::core::if (:wat::core::or (:wat::core::= k "list") (:wat::core::= k "vector"))
       (:wat::core::let [ch (:wat::core::ast->children arm)]
@@ -134,10 +134,10 @@
       "")))
 
 (:wat::core::defn :user::arm-edit
-  [arm <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arm <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::let [head (:user::arm-head arm)]
     (:wat::core::if (:wat::core::= head ":wat::kernel::ConnectOutcome.Refused")
       (:user::refused-edit arm src lines)
@@ -146,10 +146,10 @@
         (:user::no-edits)))))
 
 (:wat::core::defn :user::walk
-  [node <- :wat::WatAST
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [node <- wat.type/AST
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::connect-defenum? node)
     (:wat::core::let [ch (:wat::core::ast->children node)
                       start (:wat::fix::defenum-variant-start ch)
@@ -167,10 +167,10 @@
         (:user::no-edits)))))
 
 (:wat::core::defn :user::arm-walk
-  [arms <- (:wat::core::Vector :- [:wat::WatAST])
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [arms <- (wat.type/Vector :- [wat.type/AST])
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? arms)
     (:user::no-edits)
     (:wat::core::let [arm (:wat::core::first arms)
@@ -186,17 +186,17 @@
           (:user::arm-walk (:wat::core::rest arms) src lines))))))
 
 (:wat::core::defn :user::walk-list
-  [nodes <- (:wat::core::Vector :- [:wat::WatAST])
-   src <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  [nodes <- (wat.type/Vector :- [wat.type/AST])
+   src <- wat.type/String
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? nodes)
     (:user::no-edits)
     (:wat::core::concat
       (:user::walk (:wat::core::first nodes) src lines)
       (:user::walk-list (:wat::core::rest nodes) src lines))))
 
-(:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
@@ -207,7 +207,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse edits))))
 
 (:wat::core::defn :user::apply-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
+  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]
@@ -217,7 +217,7 @@
         (:wat::kernel::println (:wat::string::concat "[connect-outcome-facts] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln)
       [:wat::kernel::ReadlnOutcome.Datum {:v paths} paths]
