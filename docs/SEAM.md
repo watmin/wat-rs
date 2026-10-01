@@ -25,7 +25,9 @@ git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # t
 Release floor at `4969e1907`: **6235 passed / 24 skipped**, clippy 0, census 202 non-zero of 2268, ledger **148**, ignores 18.
 ⚠ **Landed after this stamp:** 255.73 (`9a54f673c`) and 255.74 (a key must be data, D3: `:< Equatable`; `2ffcdfa3e`),
 floor **6257**/6257 at `2ffcdfa3e`; then 255.75 (E3: every probe runs, one test per probe; `82af2f167`), floor
-**6337**/6337; then 255.76 (every probe asserts its claim; `e266c8e1a`), floor **6336**/6336. Next: cutover stone 3.
+**6337**/6337; then 255.76 (every probe asserts its claim; `e266c8e1a`), floor **6336**/6336; then cutover stone 3
+(255.77, `:wat::core::Uuid` → `wat.uuid/UUID`) and 255.78 (T1: the floor never reads a clock), floor **6349**/6349 at
+`f12c10995`, heresy ledger **149**. Next: cutover stone 4 (C1 for primitives, deletes the T-door).
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
@@ -108,6 +110,9 @@ T-door) · 5 function and form heads · 6 printers and goldens · 7 the `::` wal
   drifted invariant, cured by 255.74). Ruled E3; done by 255.75 + 255.76.
 - `ann-form` (ascription, ruled out) entered executor work twice on 2026-10-01; 46 uses remain. A ratchet is offered
   (`WEIGH-STONE-255.76-…` § Open).
+- A hang watchdog `elapsed < 2s` (`tests/process/doomed_child_boot_ack_does_not_hang.rs:87`) is rune-exempted from the
+  clock wall pending a ruling (`WEIGH-STONE-255.78-…`). Printer finding for stone 6: `type_expr_to_clojure_form` invents
+  `wat.type/X` for any `wat::core::X` (`WEIGH-STONE-255.77-…`).
 - Rete's internal indexes hash `Value`s with neither key guard (`WEIGH-STONE-255.74-…` § Open finding).
 
 ### Merge hazards
