@@ -1,7 +1,11 @@
 ;; probe-s3b-extract.wat — verify extraction of the concrete arg/return type keywords
 ;; off the fn-forms output, and building the tuple-type keyword strings.
-;; CLAIM: the hoisted fn-forms def's arg type and return type are both the keyword node
-;; ":wat::core::i64" — ast-kind == "keyword" and ast-name == ":wat::core::i64" for each.
+;; CLAIM: the hoisted fn-forms def's arg-type node and return-type node are both exactly the
+;; keyword node `:wat::core::i64`. `wat.type/AST` is Equatable (`wat/class.wat`) and PartialEq
+;; on `WatAST` compares structure, skipping span (`crates/wat-reader/src/ast.rs`) — so this is
+;; asserted as AST-NODE equality against a node built by `:wat::core::keyword-node`, never as a
+;; pair of ast-kind/ast-name STRING comparisons standing in for the node (coordinator correction,
+;; 255.76 weigh: "measuring strings is anti-wat"). The kind/name prints stay for a human reader.
 (:wat::core::defn :my::double [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::* n 2))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
@@ -18,16 +22,11 @@
      ;; arg-ch = [n-sym, <--sym, argtype-kw]
      arg-ty   (:wat::core::Option/expect (:wat::core::last arg-ch) "no argty")
      ret-ty   (:wat::core::nth fn-ch 3)
-     arg-kind (:wat::core::ast-kind arg-ty)
-     arg-name (:wat::core::ast-name arg-ty)
-     ret-kind (:wat::core::ast-kind ret-ty)
-     ret-name (:wat::core::ast-name ret-ty)]
+     expected (:wat::core::keyword-node ":wat::core::i64")]
     (:wat::core::do
-      (:wat::test::assert-eq arg-kind "keyword")
-      (:wat::test::assert-eq arg-name ":wat::core::i64")
-      (:wat::test::assert-eq ret-kind "keyword")
-      (:wat::test::assert-eq ret-name ":wat::core::i64")
-      (:wat::kernel::println (:wat::string::concat "arg-kind=" arg-kind))
-      (:wat::kernel::println (:wat::string::concat "arg-name=" arg-name))
-      (:wat::kernel::println (:wat::string::concat "ret-kind=" ret-kind))
-      (:wat::kernel::println (:wat::string::concat "ret-name=" ret-name)))))
+      (:wat::test::assert-eq arg-ty expected)
+      (:wat::test::assert-eq ret-ty expected)
+      (:wat::kernel::println (:wat::string::concat "arg-kind=" (:wat::core::ast-kind arg-ty)))
+      (:wat::kernel::println (:wat::string::concat "arg-name=" (:wat::core::ast-name arg-ty)))
+      (:wat::kernel::println (:wat::string::concat "ret-kind=" (:wat::core::ast-kind ret-ty)))
+      (:wat::kernel::println (:wat::string::concat "ret-name=" (:wat::core::ast-name ret-ty))))))

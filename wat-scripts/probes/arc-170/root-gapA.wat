@@ -2,9 +2,13 @@
 ;; CLAIM (measured): fn-forms on the hand-written fn (hf) and on the kwargs $impl (kf) both
 ;; ship exactly 5 forms (the macro + structtype registrations needed are identical in count —
 ;; fn-forms ships the full currently-registered macro/struct set, not a precise per-fn
-;; dependency closure), and each one's LAST form is the correct target def — ast-name on the
-;; def's name node is ":test::hand" for hf and ":test::work" for kf. No gap: both paths name
-;; the right function; "ROOT Gap A" resolves negative (no divergence between the two shippers).
+;; dependency closure), and each one's LAST form is the correct target def — its name NODE is
+;; the keyword `:test::hand` for hf and `:test::work` for kf. No gap: both paths name the right
+;; function; "ROOT Gap A" resolves negative (no divergence between the two shippers).
+;; Asserted as AST-NODE equality (`wat.type/AST` extends Equatable; `WatAST`'s PartialEq
+;; compares structure, skipping span) against a node built by `:wat::core::keyword-node`, never
+;; by extracting the node's name via `ast-name` and comparing that STRING (coordinator
+;; correction, 255.76 weigh: "measuring strings is anti-wat").
 (:wat::core::defstruct :probe::Bag [n <- wat.type/String])
 (:wat::core::defn :probe::hand
   [item <- wat.type/String  bag <- :probe::Bag] -> wat.type/String
@@ -22,11 +26,11 @@
      _  (:wat::kernel::println "work impl: ok")
      hf-last    (:wat::core::Option/expect (:wat::core::last hf) "no last")
      kf-last    (:wat::core::Option/expect (:wat::core::last kf) "no last")
-     hf-name    (:wat::core::ast-name (:wat::core::nth (:wat::core::ast->children hf-last) 1))
-     kf-name    (:wat::core::ast-name (:wat::core::nth (:wat::core::ast->children kf-last) 1))]
+     hf-name-node (:wat::core::nth (:wat::core::ast->children hf-last) 1)
+     kf-name-node (:wat::core::nth (:wat::core::ast->children kf-last) 1)]
     (:wat::core::do
       (:wat::test::assert-eq (:wat::core::length hf) 5)
       (:wat::test::assert-eq (:wat::core::length kf) 5)
-      (:wat::test::assert-eq hf-name ":test::hand")
-      (:wat::test::assert-eq kf-name ":test::work")
+      (:wat::test::assert-eq hf-name-node (:wat::core::keyword-node ":test::hand"))
+      (:wat::test::assert-eq kf-name-node (:wat::core::keyword-node ":test::work"))
       (:wat::kernel::println "both ok"))))

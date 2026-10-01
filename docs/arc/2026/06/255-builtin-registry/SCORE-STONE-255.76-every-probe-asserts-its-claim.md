@@ -161,3 +161,110 @@ No stray mutation leftovers — matches the 38 edited files (39 named probes min
 ## STOPs triggered
 
 None. See §2.
+
+## 7. Coordinator corrections (weigh pass, before accept) — strings standing in for data
+
+**The builder's ruling: data equality, never strings** ("measuring strings is anti-wat"); the
+brief itself said "never on a printed or rendered string". Six of the §2 assertions compared a
+STRING that stood in for a richer data value the API actually exposes — `ast-kind`/`ast-name`
+extract a String FROM an AST node, but the node itself (`wat.type/AST`) is Equatable
+(`wat/class.wat:64`), and `WatAST`'s `PartialEq` compares structure and explicitly SKIPS span
+(`crates/wat-reader/src/ast.rs:52-56`) — so a parsed node and a synthetic one of the same shape
+compare equal regardless of provenance. Comparing the whole node is both MORE precise (it also
+pins the node's kind, not just its name) and the actual data under test, not a rendering of it.
+Fixed six files; re-verified each still runs clean, then re-ran the full `every_probe_runs` gate.
+
+1. **`probe-edn.wat`** — `(assert-eq rendered "[2 4 6]")` compared a rendering. Now asserts the
+   round trip as DATA: `(:wat::core::ann-form (:wat::edn::read rendered) (Vector :- [i64]))`
+   equals the ORIGINAL vector (`assert-eq roundtripped original`). Still tests the renderer, by
+   what it means (a render that corrupted data would fail to round-trip), never by its text.
+2. **`probe-fnforms-shape.wat`** — `(assert-eq rt "wat::core::i64")`. `return-type-of` IS
+   String-typed by API (`@ret :wat::core::String`, `src/reflect/verbs.rs:403`) — there is no
+   non-string value to extract. Per the correction's own instruction, said so in the header and
+   compared what the string DENOTES instead of a hand-typed literal: `(:wat::core::type
+   (work-fn 5))` uses the SAME colon-free FQDN convention the doc calls "directly comparable",
+   so `rt == denoted` checks two INDEPENDENTLY computed live values agree (return-type-of's
+   static declaration vs. the real runtime type of an actual produced value), never a literal I
+   chose.
+3. **`probe-s3b-extract.wat`** — four string asserts (`arg-kind`/`arg-name`/`ret-kind`/`ret-name`)
+   collapsed to TWO AST-node-equality asserts: `(assert-eq arg-ty (keyword-node
+   ":wat::core::i64"))` and the same for `ret-ty`. The kind/name prints stay for a human reader.
+4. **`probe-strikeB-fields.wat`** — previously asserted only `(length types) 2`, reasoning field
+   types were pid-shaped/unpinnable. Corrected: field types ARE deterministic (not like a pid),
+   and `field-types-of` returns actual `wat::WatAST` nodes (`src/check.rs` comment: "rendered to
+   the canonical wat.type/ WatAST form … plain-EDN, decomposable, reparseable"), not opaque
+   descriptors. Now asserts each field's type NODE exactly, built via `:wat::core::read-string`
+   parsing the SAME source spelling `field-types-of` itself emits (`(wat.kernel/Peer :- [...])`,
+   `wat.type/i64`) and compared by AST equality — a stronger, fully-pinned claim, not a shape
+   exception.
+5. **`probe-type-splice.wat`** — converted the four `ast-kind`/`ast-name` string asserts to two
+   AST-node-equality asserts against `(keyword-node ":I")`. Also added the header paragraph the
+   correction required: this probe PINS A KNOWN GAP (no generic substitution into `forms`
+   quotes today); if that ever lands, these assertions go red by DESIGN, and that red is the
+   signal to come rewrite the probe's expected node and CLAIM line, never to widen or delete it.
+6. **`root-gapA.wat`** — `hf-name`/`kf-name` asserted `ast-name`'s STRING output
+   (`":test::hand"`/`":test::work"`) — a rendering of the node's name, same defect class as #3,
+   not caught by the original drafting because it slipped in disguised as a plain identifier
+   comparison. Converted to AST-node equality against `(keyword-node ":test::hand")` /
+   `(keyword-node ":test::work")` directly on the un-rendered name node.
+
+**Item 5 — grepped the other 32 `assert` probes** (the 33 total minus `probe-edn.wat`, already
+covered above) for any remaining `assert-eq` whose expected side is a string literal:
+
+| probe | string literal | classification |
+|---|---|---|
+| `probe-defclause-open-arg.wat:29` | `"sqlite 2067"` | **KEEP** — `d` is `describe`'s own return value, the probe's computed business data, not a rendering of something else (same class the correction names: `"sqlite 2067"`/`"even"`) |
+| `probe-defclause-real-shape.wat:35` | `"sqlite 2067"` | **KEEP** — same: `d` is `describe`'s own computed String return |
+| `probe-fnforms-shape.wat:13` | `"wat::core::i64"` | **CONVERTED** — #2 above |
+| `probe-mod-in-macro.wat:22` | `"even"` | **KEEP** — the macro's own literal quoted return value IS the computed data under test (the coordinator's own named example) |
+| `probe-mod-in-macro.wat:23` | `"odd"` | **KEEP** — same |
+| `probe-s3b-extract.wat:26-29` | `"keyword"`, `":wat::core::i64"` ×2 | **CONVERTED** — #3 above |
+| `probe-type-splice.wat:24-27` | `"keyword"`, `":I"` ×2 | **CONVERTED** — #5 above |
+| `root-gapA.wat:30-31` | `":test::hand"`, `":test::work"` | **CONVERTED** — #6 above (found during this grep, not named by the coordinator's own list — same defect class as #3) |
+
+No other `assert-eq` among the 33 `assert` probes compares against a string literal.
+`probe-strikeB-fields.wat` had no string-literal `assert-eq` (its prior defect was a
+length-only assertion, not a string) — covered as #4 for the same underlying "string/shape
+standing in for richer data" reasoning.
+
+**Mutation proof — one converted AST assertion** (`probe-type-splice.wat`, `expected (keyword-node
+":I")` → `(keyword-node ":J")`):
+```
+FAIL [   0.387s] (1/1) wat::process every_probe_runs::probe_wat_scripts_probes_arc_170_probe_type_splice
+thread '...' panicked at .../every_probe_runs.rs:41:5:
+assertion `left == right` failed: wat-scripts/probes/arc-170/probe-type-splice.wat must run
+clean (exit 0) — ruling E3 ...
+stderr:
+#wat.kernel/AssertionFailure {:thread "main" :message "assert-eq failed" ... :actual "<WatAST>"
+:expected "<WatAST>" ...}
+  left: Some(2)
+ right: Some(0)
+```
+(`<WatAST>` is the AST node's `show` rendering — confirms the comparison fired on the actual
+node, not a string field.) Restored (`expected (keyword-node ":I")`), re-ran:
+`Summary [ 0.380s] 1 test run: 1 passed, 6359 skipped`. `git diff --stat` after restoration
+showed exactly the 6 corrected files, no stray mutation leftovers.
+
+**Targeted gate, re-run after all six corrections** (`cargo nextest run --release -E
+'test(/every_probe_runs/)'`, foreground):
+```
+Summary [   4.299s] 69 tests run: 69 passed, 6291 skipped
+```
+
+Per the coordinator's instruction, `scripts/floor.sh` and `clippy` were NOT re-run in this
+pass — the coordinator runs those when weighing.
+
+### Files touched (this correction pass)
+
+- `wat-scripts/probes/arc-170/probe-edn.wat` — round-trip data assertion, replacing the
+  rendered-string comparison.
+- `wat-scripts/probes/arc-170/probe-fnforms-shape.wat` — `return-type-of` compared against
+  `(:wat::core::type (work-fn 5))`, not a hand-typed literal; header explains the String-by-API
+  constraint.
+- `wat-scripts/probes/arc-170/probe-s3b-extract.wat` — 4 string asserts → 2 AST-node asserts.
+- `wat-scripts/probes/arc-170/probe-strikeB-fields.wat` — length-only assertion replaced with
+  exact AST-node equality per field type, via `read-string`-parsed expected nodes.
+- `wat-scripts/probes/arc-170/probe-type-splice.wat` — 4 string asserts → 2 AST-node asserts;
+  header gained the "pins a known gap, rewrite on red" paragraph.
+- `wat-scripts/probes/arc-170/root-gapA.wat` — 2 string asserts → 2 AST-node asserts.
+- This file (§7 appended).
