@@ -31,6 +31,7 @@
 
 use std::path::{Path, PathBuf};
 
+use wat::embedded_wat::extract_literal_spans;
 use wat::parser::parse_one_with_file;
 use wat::WatAST;
 
@@ -94,192 +95,18 @@ fn is_inline_wat_form(literal_content: &str) -> bool {
     )
 }
 
-/// A single decoded escape from a Rust string literal, plus how many source chars it consumed
-/// (so the caller can advance its cursor past the escape sequence).
-fn decode_escape(chars: &[char], backslash_at: usize) -> (Option<char>, usize) {
-    let n = chars.len();
-    let Some(&kind) = chars.get(backslash_at + 1) else {
-        return (None, 1);
-    };
-    match kind {
-        'n' => (Some('\n'), 2),
-        't' => (Some('\t'), 2),
-        'r' => (Some('\r'), 2),
-        '\\' => (Some('\\'), 2),
-        '\'' => (Some('\''), 2),
-        '"' => (Some('"'), 2),
-        '0' => (Some('\0'), 2),
-        'x' => {
-            let start = backslash_at + 2;
-            let mut end = start;
-            while end < n && end < start + 2 && chars[end].is_ascii_hexdigit() {
-                end += 1;
-            }
-            let hex: String = chars[start..end].iter().collect();
-            let ch = u8::from_str_radix(&hex, 16).ok().map(|v| v as char);
-            (ch, end - backslash_at)
-        }
-        'u' => {
-            if chars.get(backslash_at + 2) != Some(&'{') {
-                return (None, 2);
-            }
-            let start = backslash_at + 3;
-            let mut end = start;
-            while end < n && chars[end] != '}' {
-                end += 1;
-            }
-            let hex: String = chars[start..end].iter().collect();
-            let consumed = if end < n { end + 1 - backslash_at } else { end - backslash_at };
-            let ch = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32);
-            (ch, consumed)
-        }
-        // Line continuation: `\` immediately followed by a newline elides the newline and any
-        // leading whitespace on the next line — no character is emitted.
-        '\n' => {
-            let mut end = backslash_at + 2;
-            while end < n && (chars[end] == ' ' || chars[end] == '\t' || chars[end] == '\n' || chars[end] == '\r') {
-                end += 1;
-            }
-            (None, end - backslash_at)
-        }
-        other => (Some(other), 2),
-    }
-}
-
 /// Extract the CONTENT of every string literal (`"…"` with escapes/line-continuation, and
 /// `r#"…"#` raw strings of any hash-count) in a chunk of Rust source, skipping `//` line comments
 /// and `/* … */` block comments (Rust block comments nest — this walk tracks depth). Char literals
 /// (`'x'`, `'"'`, `'\''`) are recognized and skipped whole so an embedded quote character inside one
 /// can't be mistaken for the start of a string; bare lifetimes (`'a`) are left untouched.
+///
+/// Arc 255 stone 255.80 (X2): this is now a thin wrapper over the shared extractor
+/// (`wat::embedded_wat::extract_literal_spans`) the codemod-reach driver also uses — same name,
+/// same signature, same behavior, so this file's own unit tests needed no change.
 fn extract_string_literals(src: &str) -> Vec<String> {
     let chars: Vec<char> = src.chars().collect();
-    let n = chars.len();
-    let mut out = Vec::new();
-    let mut i = 0;
-
-    while i < n {
-        let c = chars[i];
-
-        // `//` line comment.
-        if c == '/' && chars.get(i + 1) == Some(&'/') {
-            while i < n && chars[i] != '\n' {
-                i += 1;
-            }
-            continue;
-        }
-
-        // `/* … */` block comment — nests.
-        if c == '/' && chars.get(i + 1) == Some(&'*') {
-            i += 2;
-            let mut depth = 1usize;
-            while i < n && depth > 0 {
-                if chars[i] == '/' && chars.get(i + 1) == Some(&'*') {
-                    depth += 1;
-                    i += 2;
-                } else if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
-                    depth -= 1;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-            }
-            continue;
-        }
-
-        // Raw string: `r"…"`, `r#"…"#`, `r##"…"##`, … — the head-count of `#` must match on close.
-        if c == 'r' || c == 'R' {
-            let mut j = i + 1;
-            let mut hashes = 0usize;
-            while chars.get(j) == Some(&'#') {
-                hashes += 1;
-                j += 1;
-            }
-            if chars.get(j) == Some(&'"') {
-                let content_start = j + 1;
-                let mut k = content_start;
-                let mut closed_at = None;
-                while k < n {
-                    if chars[k] == '"' {
-                        let mut m = k + 1;
-                        let mut h = 0usize;
-                        while h < hashes && chars.get(m) == Some(&'#') {
-                            h += 1;
-                            m += 1;
-                        }
-                        if h == hashes {
-                            closed_at = Some((k, m));
-                            break;
-                        }
-                    }
-                    k += 1;
-                }
-                match closed_at {
-                    Some((close_start, resume)) => {
-                        out.push(chars[content_start..close_start].iter().collect());
-                        i = resume;
-                    }
-                    None => {
-                        // Unterminated raw string — no more literals to find in this file.
-                        i = n;
-                    }
-                }
-                continue;
-            }
-            // `r`/`R` not followed by a raw-string opener (an identifier, `r#ident`, etc.) — fall
-            // through and let the char be scanned normally below.
-        }
-
-        // Char literal: `'x'`, `'\n'`, `'"'`, `'\''`, `'\u{2764}'`, … Distinguished from a bare
-        // lifetime (`'a`, `'static`) by actually closing with a matching `'`.
-        if c == '\'' {
-            if chars.get(i + 1) == Some(&'\\') {
-                let (_, consumed) = decode_escape(&chars, i + 1);
-                let after = i + 1 + consumed;
-                if chars.get(after) == Some(&'\'') {
-                    i = after + 1;
-                    continue;
-                }
-                // Not actually a closed char literal (e.g. a lifetime that happens to precede a
-                // backslash elsewhere) — treat the quote as ordinary and move on one char.
-            } else if chars.get(i + 2) == Some(&'\'') {
-                i += 3;
-                continue;
-            }
-            // Bare lifetime (`'a`, `'de`, `'static`) — not a literal; leave the identifier for
-            // normal scanning.
-            i += 1;
-            continue;
-        }
-
-        // Regular string literal.
-        if c == '"' {
-            i += 1;
-            let mut content = String::new();
-            while i < n {
-                let cc = chars[i];
-                if cc == '"' {
-                    i += 1;
-                    break;
-                }
-                if cc == '\\' {
-                    let (decoded, consumed) = decode_escape(&chars, i);
-                    if let Some(ch) = decoded {
-                        content.push(ch);
-                    }
-                    i += consumed;
-                    continue;
-                }
-                content.push(cc);
-                i += 1;
-            }
-            out.push(content);
-            continue;
-        }
-
-        i += 1;
-    }
-
-    out
+    extract_literal_spans(&chars).into_iter().map(|span| span.decoded).collect()
 }
 
 #[cfg(test)]

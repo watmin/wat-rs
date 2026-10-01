@@ -72,6 +72,8 @@ pub mod ast;
 pub mod check;
 pub mod closure_extract;
 pub(crate) mod collection;
+pub mod codemod_driver;
+pub mod embedded_wat;
 pub(crate) mod declare;
 pub(crate) mod numeric;
 pub(crate) mod option;
