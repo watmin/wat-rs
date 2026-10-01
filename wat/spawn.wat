@@ -185,6 +185,18 @@
 ;;                  the originating client and KEEPS SERVING (does NOT evict — distinct
 ;;                  from :Lost). Emitted by the process/socket tier poll' (the only
 ;;                  tier that decodes a wire; thread peers pass Values in-process).
+;;   :RequestMalformed — excursus 003 strike T3. peers[idx] sent a frame whose outer tag
+;;                  IDENTIFIES a known op, but the op's own request body does not match its
+;;                  declared shape (an undeclared key, a wrong field type, …) — strict decode
+;;                  refused it for SHAPE, not for being unreadable. `op` names the surface
+;;                  op's variant (e.g. "Put"); `path`/`expected`/`got` are the identical
+;;                  triple `:wat::edn::validate` would produce for the same value (ONE shared
+;;                  rendering — `src/edn/render.rs`'s `edn_to_typed_value`, re-walked against
+;;                  the untyped request body since the decoded `req` never existed). The serve
+;;                  loop replies the OP'S OWN `:RequestMalformed` (the same contract
+;;                  `shape-guarded`'s post-decode `:wat::edn::validate` guard already builds —
+;;                  reused, never rebuilt) and KEEPS SERVING, exactly like :Malformed. Emitted
+;;                  ONLY by the process/socket tier poll' (the only tier that decodes a wire).
 ;;
 ;; Type params: I = the type the server SENDS to peers (peer's recv type);
 ;;              O = the type the server RECEIVES from peers (peer's send type);
@@ -200,6 +212,9 @@
   :Closed     [idx   <- :wat::core::i64]
   :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]
   :Malformed  [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
+  :RequestMalformed [idx <- :wat::core::i64  op <- :wat::core::String
+                     path <- (:wat::core::Vector :- [:wat::core::String])
+                     expected <- :wat::core::String  got <- :wat::core::String]  ;; excursus 003 strike T3: a known op's request body fails its own shape — reply that op's :RequestMalformed + keep serving
   :Rejected   [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])   ;; arc 278 Stone 1a: over-FOO (400-class) — reply cause (non-blocking) + EVICT + keep serving
 
 ;; ── (PoolMsg :- [D I]) — the universal pool wire message (arc 170 M1-pool) ──

@@ -10612,6 +10612,12 @@ pub(crate) fn no_field_names() -> Arc<Vec<String>> {
     "Malformed"
 );
 ::wat_source_derive::wat_enum_field_names_from!(
+    SERVICE_EVENT_REQUEST_MALFORMED_FIELDS,
+    "wat/spawn.wat",
+    ":wat::spawn::ServiceEvent",
+    "RequestMalformed"
+);
+::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_REJECTED_FIELDS,
     "wat/spawn.wat",
     ":wat::spawn::ServiceEvent",
@@ -10678,6 +10684,9 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
         }
         (":wat::spawn::ServiceEvent", "Malformed") => {
             return crate::value::value::names_arc_from_static(SERVICE_EVENT_MALFORMED_FIELDS)
+        }
+        (":wat::spawn::ServiceEvent", "RequestMalformed") => {
+            return crate::value::value::names_arc_from_static(SERVICE_EVENT_REQUEST_MALFORMED_FIELDS)
         }
         (":wat::spawn::ServiceEvent", "Rejected") => {
             return crate::value::value::names_arc_from_static(SERVICE_EVENT_REJECTED_FIELDS)

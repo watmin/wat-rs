@@ -27,6 +27,7 @@
     [:wat::spawn::ServiceEvent.Closed {:idx _i} "Closed"]
     [:wat::spawn::ServiceEvent.Lost {:idx _i :cause _c} "Lost"]
     [:wat::spawn::ServiceEvent.Malformed {:idx _i :cause _c} "Malformed"]
+    [:wat::spawn::ServiceEvent.RequestMalformed {:idx _i :op _op :path _path :expected _expected :got _got} "RequestMalformed"]
     [:wat::spawn::ServiceEvent.Rejected {:idx _i :cause _c} "Rejected"]
     [:wat::spawn::ServiceEvent.Shutdown {} "Shutdown"]
     [:wat::spawn::ServiceEvent.Connection {:peer _p} "Connection"]

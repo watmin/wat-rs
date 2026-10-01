@@ -29,6 +29,7 @@
       [:wat::spawn::ServiceEvent.Closed {:idx _idx} :no-tick]
       [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} :no-tick]
       [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} :no-tick]  ;; arc 278 — unreachable for a timer
+      [:wat::spawn::ServiceEvent.RequestMalformed {:idx _idx :op _op :path _path :expected _expected :got _got} :no-tick]  ;; excursus 003 T3 — unreachable for a timer
       [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} :no-tick]   ;; arc 278 Stone 1a — unreachable for a timer
       [:wat::spawn::ServiceEvent.Shutdown {} :no-tick]
       [:wat::spawn::ServiceEvent.Connection {:peer _peer} :no-tick]

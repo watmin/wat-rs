@@ -635,6 +635,14 @@
           (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
               "bracket collect-loop: runner {idx} sent an undecodable result: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause)))]
+        ;; Excursus 003 strike T3 — a bracket runner is never a `defservice` op dispatch (its
+        ;; wire is the fixed internal `PoolMsg` protocol, not a surface's `Op`), so this event
+        ;; can never actually arrive here — mirror :Malformed — raise LOUD (never a `_`
+        ;; wildcard that would re-hide a should-never-happen).
+        [:wat::spawn::ServiceEvent.RequestMalformed {:idx idx :op _op :path _path :expected _expected :got _got}
+          (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
+              "bracket collect-loop: runner {idx} sent a RequestMalformed event (unreachable: no op surface here)"
+              :idx idx))]
         ;; arc 278 Stone 1a — a pool runner sent an OVER-FOO (over-budget) frame. A bracket
         ;; runner speaks a fixed (i64,O) protocol; an oversized result is a should-never-happen.
         ;; Mirror :Malformed — raise LOUD with the reason (never a `_` wildcard that re-hides it).

@@ -1462,12 +1462,20 @@
      ;; variant unhandled → non-exhaustive match → compile error (no coverage check to write).
      ;; Hygiene: `req` in the pattern comes from ~req-binder (the impl's own binder, unquoted →
      ;; Unquote node → checker skips); let-bindings [s state] built via with-children → ~-spliced.
-     serve-op-arms (:wat::core::foldl
-                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
+     ;; Excursus 003 strike T3 — the accumulator is now a 2-Tuple [serve-op-arms rm-serve-arms]:
+     ;; the SAME per-op pass that builds each op's Message-dispatch arm ALSO builds, for surface
+     ;; (non-internal) ops only, that op's `ServiceEvent.RequestMalformed` dispatch arm (keyed by
+     ;; the op's own `variant-pascal` STRING — matched as a plain string-literal pattern against
+     ;; the event's `op` field) — in the SAME scope `reply-variant-kw`/`rm-ctor-kw` are already
+     ;; bound in, below, reusing them rather than re-deriving a second time.
+     serve-op-arms-tuple (:wat::core::foldl
+                     (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST]) (:wat::core::Vector :- [:wat::WatAST])])
                                       clause <- :wat::WatAST]
-                       -> (:wat::core::Vector :- [:wat::WatAST])
+                       -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::WatAST]) (:wat::core::Vector :- [:wat::WatAST])])
                        (:wat::core::let
-                         [ch            (:wat::core::ast->children clause)
+                         [ops-acc       (:wat::core::first acc)
+                          rm-acc        (:wat::core::second acc)
+                          ch            (:wat::core::ast->children clause)
                           op-node       (:wat::core::first ch)
                           op-str        (:wat::core::ast-name op-node)
                           is-internal   (:wat::string::starts-with? op-str "-")
@@ -1616,7 +1624,11 @@
                            ;; No req-binder, no #16.2 guard, no reply variant. On fire → REMOVE the
                            ;; one-shot timer's idx, then arm any re-arms. Reply/Stop/ReplyAndArm are
                            ;; meaningless (no client) → a located assertion (never silently dropped).
-                           (:wat::core::conj acc
+                           ;; Not on the surface (STOP-2-A) → contributes nothing to rm-acc either:
+                           ;; a client can never name an internal op, so it can never be the op a
+                           ;; RequestMalformed event names.
+                           (:wat::core::Tuple
+                            (:wat::core::conj ops-acc
                              `[~op-variant-kw {}
                                 (:wat::core::match (:wat::core::let ~let-bindings ~body) 
                                   [:wat::service::Outcome.NoReply {:state new-state}
@@ -1632,6 +1644,7 @@
                                     (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::Stop, but an internal op has no client to reply to")]
                                   [:wat::service::Outcome.ReplyAndArm {:state new-state :reply resp :arms arms}
                                     (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)")])])
+                            rm-acc)
                            ;; ── SURFACE op arm (3-param [s ctx req], ctx : Invocation) ─────────────
                            ;; #16.2 budget guard; wraps the op's reply variant; KEEPS its idx (a
                            ;; client persists even on a NoReply cast). …AndArm folds new timers in.
@@ -1815,11 +1828,34 @@
                                                    [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
                                                    [:wat::kernel::SendOutcome.Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
                                                    [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])
-                                                 ~shape-guarded))]
-                             (:wat::core::conj acc
-                               `[~op-variant-kw {:req ~req-binder} ~guarded-arm])))))
-                     (:wat::core::Vector :- [:wat::WatAST])
+                                                 ~shape-guarded))
+                              ;; Excursus 003 strike T3 Target §2 — this op's OWN
+                              ;; `ServiceEvent.RequestMalformed` dispatch arm, keyed by this op's
+                              ;; `variant-pascal` STRING (a string-literal match pattern — the event's
+                              ;; `op` field is a `:wat::core::String`, never a keyword, so an ordinary
+                              ;; scalar-equality pattern applies, no enum-tag machinery needed). The
+                              ;; reply is built from the SAME `reply-variant-kw`/`rm-ctor-kw` literals
+                              ;; `shape-guarded`'s OWN Invalid arm (just above) already uses — reused,
+                              ;; never rebuilt (brief Target §2: "that is the same constructor the
+                              ;; validate arm already uses"). `rm-path`/`rm-expected`/`rm-got` are free
+                              ;; references into the OUTER `ServiceEvent.RequestMalformed` pattern
+                              ;; destructure (`serve-body`, below) — same convention as `idx`/`state`
+                              ;; threaded bare through every other arm in this file.
+                              rm-send-arm   `[~variant-pascal
+                                               (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
+                                                   (~reply-variant-kw {:resp (~rm-ctor-kw {:path rm-path :expected rm-expected :got rm-got})}))
+                                                 [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
+                                                 [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                                                 [:wat::kernel::SendOutcome.Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
+                                                 [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])]]
+                             (:wat::core::Tuple
+                              (:wat::core::conj ops-acc
+                               `[~op-variant-kw {:req ~req-binder} ~guarded-arm])
+                              (:wat::core::conj rm-acc rm-send-arm))))))
+                     (:wat::core::Tuple (:wat::core::Vector :- [:wat::WatAST]) (:wat::core::Vector :- [:wat::WatAST]))
                      impl-clauses)
+     serve-op-arms (:wat::core::first serve-op-arms-tuple)
+     rm-serve-arms (:wat::core::second serve-op-arms-tuple)
 
      ;; ── serve params argvec ───────────────────────────────────────────────────────
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
@@ -1965,6 +2001,24 @@
                          [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
                          [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
                          [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])]
+                     ;; Excursus 003 strike T3 — a client sent a frame whose outer tag names a
+                     ;; KNOWN op, but that op's own request body fails its own declared shape (an
+                     ;; undeclared key, a wrong field type — strict decode refused it for SHAPE,
+                     ;; not for being unreadable). The peer is STILL ALIVE (same doctrine as
+                     ;; :Malformed); reply THAT OP'S OWN `:RequestMalformed`, built by the SAME
+                     ;; per-op `rm-serve-arms` dispatch `shape-guarded`'s post-decode
+                     ;; `:wat::edn::validate` guard already uses (Target §2: reuse, never rebuild).
+                     ;; `rm-op` is dispatched as a plain STRING equality match (each op's own arm
+                     ;; is keyed on its `variant-pascal` spelling, e.g. "Put") — the trailing `_`
+                     ;; is unreachable for any op this service actually declares (Rust only ever
+                     ;; names an op this service's own Op enum carries), located rather than
+                     ;; silently swallowed if that invariant is ever wrong.
+                     [:wat::spawn::ServiceEvent.RequestMalformed {:idx idx :op rm-op :path rm-path :expected rm-expected :got rm-got}
+                       (:wat::core::match rm-op
+                         ~@rm-serve-arms
+                         [_ (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
+                             "defservice serve: RequestMalformed names an op this service does not serve: {rm-op}"
+                             :rm-op rm-op))])]
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
                      ;; client (reply `Reply::Failed[cause]` — its generated method raises with the

@@ -21,6 +21,7 @@
     [:wat::spawn::ServiceEvent.Closed {:idx _idx} nil]
     [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} nil]
     [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} nil]  ;; arc 278 — unreachable for a timer
+    [:wat::spawn::ServiceEvent.RequestMalformed {:idx _idx :op _op :path _path :expected _expected :got _got} nil]  ;; excursus 003 T3 — unreachable for a timer
     [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} nil]   ;; arc 278 Stone 1a — unreachable for a timer
     [:wat::spawn::ServiceEvent.Shutdown {} nil]
     [:wat::spawn::ServiceEvent.Connection {:peer _peer} nil]
@@ -64,6 +65,7 @@
       [:wat::spawn::ServiceEvent.Closed {:idx _idx} :none]
       [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} :none]
       [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} :none]  ;; arc 278 — unreachable for a timer
+      [:wat::spawn::ServiceEvent.RequestMalformed {:idx _idx :op _op :path _path :expected _expected :got _got} :none]  ;; excursus 003 T3 — unreachable for a timer
       [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} :none]   ;; arc 278 Stone 1a — unreachable for a timer
       [:wat::spawn::ServiceEvent.Shutdown {} :none]
       [:wat::spawn::ServiceEvent.Connection {:peer _peer} :none]

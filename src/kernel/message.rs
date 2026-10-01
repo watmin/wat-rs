@@ -1416,29 +1416,23 @@ pub(crate) fn eval_peer_select_prime(
     }
 }
 
-/// Excursus 003 strike T2 — decode one client wire frame into the `ServiceEvent` value
-/// `poll'`'s two client-message arms (the main arm and the re-poll retry) both build. STRICT
-/// `decode_trusted_wire` first (T's B1 fix — unconditional everywhere else); on a SHAPE-class
-/// refusal (`EdnReadErrorKind::is_shape_defect`) ONE lenient retry
-/// (`decode_trusted_wire_lenient`), so the per-op `:wat::edn::validate` guard (wat/service.wat's
-/// `shape-guarded`) still gets to run and reply the contractual `:RequestMalformed` — see
-/// `decode_trusted_wire_lenient`'s own doc for why this is the honest "reuse that construction,
-/// don't build a second one" (Target §2). A non-shape refusal (an unparseable frame, an
-/// unknown/unsupported tag — the message never identifies any op at all) is NOT retried: there
-/// is no `req-binder` to validate because there is no op, so it goes straight to
-/// `ServiceEvent::Malformed` with the STRUCTURED cause (Target §1 — `EdnReadError::to_record`,
-/// never `message_only_failure(format!(...))`'s flattened prose).
+/// Excursus 003 strike T2 + T3 — decode one client wire frame into the `ServiceEvent` value
+/// `poll'`'s two client-message arms (the main arm and the re-poll retry) both build. ONE DECODE
+/// DOOR (T3 Target §1): `decode_trusted_wire` — unconditionally strict, everywhere — is the only
+/// decode. On a SHAPE-class refusal (`EdnReadErrorKind::is_shape_defect`), the outer tag still
+/// PARSED (only typed reconstruction failed), so the op is in hand:
+/// `crate::edn::render::shape_defect_request_malformed` re-walks the untyped `:req` sub-tree
+/// against the op's own declared request type — the SAME walker `:wat::edn::validate` calls — to
+/// build `ServiceEvent::RequestMalformed`'s `(path, expected, got)` (Target §2/§3: one shared
+/// formatter, the contract's rendering). A non-shape refusal (an unparseable frame, an
+/// unknown/unsupported tag — the message never identifies any op at all), or a shape refusal
+/// whose op cannot be resolved, goes straight to `ServiceEvent::Malformed` with the STRUCTURED
+/// cause (Target §1 — `EdnReadError::to_record`, never `message_only_failure(format!(...))`'s
+/// flattened prose).
 fn decode_client_message_event(peer_idx: i64, wire_str: &str, sym: &SymbolTable, event_type: &str) -> Value {
     let types = sym.types().map(|a| a.as_ref());
     let ctx = sym.encoding_ctx().map(|a| a.as_ref());
-    let decoded = match crate::edn::render::decode_trusted_wire(wire_str, types, ctx) {
-        Ok(msg) => Ok(msg),
-        Err(e) if e.kind.is_shape_defect() => {
-            crate::edn::render::decode_trusted_wire_lenient(wire_str, types, ctx).map_err(|_lenient_err| e)
-        }
-        Err(e) => Err(e),
-    };
-    match decoded {
+    match crate::edn::render::decode_trusted_wire(wire_str, types, ctx) {
         // ServiceEvent::Message [idx <- i64  msg <- Value]
         Ok(msg) => Value::Enum(Arc::new(EnumValue {
             type_path: event_type.into(),
@@ -1446,6 +1440,36 @@ fn decode_client_message_event(peer_idx: i64, wire_str: &str, sym: &SymbolTable,
             names: builtin_enum_variant_names(event_type, "Message"),
             fields: vec![Value::i64(peer_idx), msg],
         })),
+        Err(e) if e.kind.is_shape_defect() => {
+            match types.and_then(|t| crate::edn::render::shape_defect_request_malformed(wire_str, t, ctx)) {
+                // ServiceEvent::RequestMalformed [idx <- i64  op <- String  path <- Vector<String>  expected <- String  got <- String]
+                Some((op, coerce_err)) => Value::Enum(Arc::new(EnumValue {
+                    type_path: event_type.into(),
+                    variant_name: "RequestMalformed".into(),
+                    names: builtin_enum_variant_names(event_type, "RequestMalformed"),
+                    fields: vec![
+                        Value::i64(peer_idx),
+                        Value::String(Arc::new(op)),
+                        Value::Vec(Arc::new(
+                            wat_reader::identifier::dot_path_segments(&coerce_err.path)
+                                .into_iter()
+                                .map(|seg| Value::String(Arc::new(seg.to_string())))
+                                .collect(),
+                        )),
+                        Value::String(Arc::new(coerce_err.expected)),
+                        Value::String(Arc::new(coerce_err.got)),
+                    ],
+                })),
+                // The op couldn't be resolved (shouldn't happen for a genuine shape defect, but
+                // this is the honest fallback, not a panic) — generic Malformed, structured cause.
+                None => Value::Enum(Arc::new(EnumValue {
+                    type_path: event_type.into(),
+                    variant_name: "Malformed".into(),
+                    names: builtin_enum_variant_names(event_type, "Malformed"),
+                    fields: vec![Value::i64(peer_idx), crate::runtime::edn_read_error_failure(&e)],
+                })),
+            }
+        }
         // ServiceEvent::Malformed [idx <- i64  cause <- Failure]
         Err(e) => Value::Enum(Arc::new(EnumValue {
             type_path: event_type.into(),
@@ -2191,10 +2215,9 @@ mod excursus_003_t2_gates {
     //! client's socket would carry, never a hand-typed literal and never an in-process Value
     //! handed to the server directly.
     use super::*;
-    use crate::edn::render::{decode_trusted_wire, edn_to_typed_value, value_to_wire_edn_string};
+    use crate::edn::render::{decode_trusted_wire, value_to_wire_edn_string};
     use crate::freeze::{startup_from_source, FrozenWorld};
     use crate::load::loader::InMemoryLoader;
-    use crate::types::TypeExpr;
     use crate::value::value::AggregateValue;
 
     const SURFACE_SRC: &str = r#"
@@ -2218,7 +2241,7 @@ mod excursus_003_t2_gates {
      (:wat::service::Outcome.Reply {:state s :reply (:t::edn2::Bag::PutResponse.Ok {:n 0})}))])
 "#;
 
-    fn frozen_world() -> FrozenWorld {
+    pub(super) fn frozen_world() -> FrozenWorld {
         startup_from_source(
             SURFACE_SRC,
             Some(concat!(file!(), ":", line!())),
@@ -2229,7 +2252,7 @@ mod excursus_003_t2_gates {
 
     /// A wrongly-shaped `Op::Put{req: PutRequest{items: [1,2,3]}}`, serialized through the REAL
     /// writer. `items` is declared `Vector<String>`; this hands it integers.
-    fn malformed_put_wire(types: &crate::types::TypeEnv) -> String {
+    pub(super) fn malformed_put_wire(types: &crate::types::TypeEnv) -> String {
         let bad_items = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2), Value::i64(3)]));
         let bad_req = Value::Aggregate(Arc::new(AggregateValue::record(
             "t::edn2::Bag::PutRequest".to_string(),
@@ -2273,48 +2296,14 @@ mod excursus_003_t2_gates {
         }
     }
 
-    /// GT2b — the contract fires. The lenient retry (inside `decode_client_message_event`)
-    /// restores a bindable `req`, and running the EXACT construction `:wat::edn::validate`
-    /// reuses (`edn_to_typed_value`, `src/runtime.rs`'s `eval_edn_validate`) against it
-    /// reproduces the contracted `:RequestMalformed` payload — the same
-    /// `path=[.items.[0]] expected=:wat::core::i64/:wat::core::String got=Integer/…` shape
-    /// `wat-tests/service-request-malformed.wat` pins.
-    /// Mutation: delete the `Err(e) if e.kind.is_shape_defect() => decode_trusted_wire_lenient(…)`
-    /// arm in `decode_client_message_event` (fall straight to `Err(e) => Err(e)`). RED —
-    /// `decode_client_message_event` then returns `ServiceEvent::Malformed`, never `Message`,
-    /// so there is no `req` left to validate at all.
-    #[test]
-    fn gt2b_lenient_retry_restores_the_requestmalformed_contract() {
-        let w = frozen_world();
-        let wire = malformed_put_wire(&w.types);
-        let event = decode_client_message_event(7, &wire, &w.symbols, ":wat::spawn::ServiceEvent");
-        let (idx, op_value) = match &event {
-            Value::Enum(e) if e.variant_name == "Message" => (e.fields[0].clone(), e.fields[1].clone()),
-            Value::Enum(e) => panic!(
-                "expected ServiceEvent::Message (the lenient retry must restore a bindable req); \
-                 got ServiceEvent::{}",
-                e.variant_name
-            ),
-            other => panic!("expected Value::Enum(ServiceEvent), got {other:?}"),
-        };
-        assert_eq!(idx, Value::i64(7));
-        let req = match op_value {
-            Value::Enum(ref e) => {
-                assert_eq!(e.variant_name, "Put");
-                e.fields[0].clone()
-            }
-            other => panic!("expected Value::Enum(Op.Put), got {other:?}"),
-        };
-        let req_edn = value_to_wire_edn_string(&req, Some(&w.types))
-            .expect("the wire encoder must render the decoded req");
-        let parsed = wat_edn::parse_owned(req_edn.as_str()).expect("the writer's own output must re-parse");
-        let target = TypeExpr::Path(":t::edn2::Bag::PutRequest".to_string());
-        let mismatch = edn_to_typed_value(&target, &parsed, &w.symbols)
-            .expect_err("the wrong-typed items field must still be refused by validate");
-        assert_eq!(mismatch.path, ".items.[0]");
-        assert_eq!(mismatch.expected, ":wat::core::String");
-        assert_eq!(mismatch.got, "Integer");
-    }
+    // GT2b RETIRED by strike T3 (RULING 2026-10-01): it asserted the LENIENT RETRY
+    // (`decode_trusted_wire_lenient`) restored a bindable `req` so `ServiceEvent::Message` fired
+    // — exactly the hole T3 closes (Strike T's undeclared-key wall was reopened by that retry).
+    // T3 deletes the lenient door outright: the SAME wire this test built now yields
+    // `ServiceEvent::RequestMalformed` directly (never `Message`), proven below by
+    // `excursus_003_t3_gates::gt3b_wrong_field_type_gives_the_contract`, which reuses
+    // `malformed_put_wire` and asserts the `(path, expected, got)` triple against the live
+    // `:wat::edn::validate` door instead of a lenient-decode round-trip.
 
     /// GT2c — a non-shape failure (an unknown tag — the message never identifies any op) stays
     /// the generic `ServiceEvent::Malformed`, never retried (there is no `req` to validate
@@ -2349,6 +2338,305 @@ mod excursus_003_t2_gates {
             other => panic!(
                 "expected ServiceEvent::Malformed (an unknown op must never be retried, since \
                  there is no req to validate), got {other:?}"
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod excursus_003_t3_gates {
+    //! Excursus 003 strike T3 — GT3a/GT3b/GT3c/GT3d, mutation-proven in RELEASE.
+    //!
+    //! Reuses `excursus_003_t2_gates::{frozen_world, malformed_put_wire}` (the identical tiny
+    //! `Bag` surface+service) — one fixture, two strikes' worth of gates over it.
+    use super::excursus_003_t2_gates::{frozen_world, malformed_put_wire};
+    use super::*;
+    use crate::ast::WatAST;
+    use crate::edn::render::{decode_trusted_wire, edn_to_typed_value};
+    use crate::types::TypeExpr;
+    use crate::value::{Function, FunctionBody};
+
+    /// GT3a — an undeclared key on the wire (the orchestrator's exact probe quoted in the
+    /// brief: valid `items`, plus a stray `:stray 1`) is refused as `RequestMalformed`, not
+    /// silently laundered into `Message` by a lenient retry.
+    /// Mutation: restore a lenient retry (reinstate `decode_trusted_wire_lenient` and the
+    /// `Err(e) if e.kind.is_shape_defect() => decode_trusted_wire_lenient(...)` arm inside
+    /// `decode_client_message_event`). RED — the stray key gets silently dropped by the
+    /// lenient re-decode and the event reverts to `ServiceEvent::Message`, exactly the hole
+    /// this strike closes (driven and confirmed during this strike's own verification).
+    #[test]
+    fn gt3a_undeclared_key_is_refused_on_the_wire() {
+        let w = frozen_world();
+        let wire = r#"#t.edn2.Bag/Op.Put {:req #t.edn2.Bag/PutRequest {:items ["a"] :stray 1}}"#;
+        let event = decode_client_message_event(9, wire, &w.symbols, ":wat::spawn::ServiceEvent");
+        match &event {
+            Value::Enum(e) if e.variant_name == "RequestMalformed" => {
+                assert_eq!(e.fields[0], Value::i64(9), "idx must round-trip");
+                assert_eq!(e.fields[1], Value::String(Arc::new("Put".to_string())), "op must name the variant");
+                match &e.fields[2] {
+                    Value::Vec(segs) => assert!(segs.is_empty(), "the unknown-field refusal has no sub-path: {segs:?}"),
+                    other => panic!("expected path Vector, got {other:?}"),
+                }
+                assert_eq!(e.fields[3], Value::String(Arc::new(":t::edn2::Bag::PutRequest".to_string())));
+                assert_eq!(e.fields[4], Value::String(Arc::new("unknown field :stray".to_string())));
+            }
+            Value::Enum(e) => panic!(
+                "expected ServiceEvent::RequestMalformed (the undeclared key must be refused, \
+                 not laundered by a lenient retry); got ServiceEvent::{}",
+                e.variant_name
+            ),
+            other => panic!("expected Value::Enum(ServiceEvent), got {other:?}"),
+        }
+    }
+
+    /// GT3b — a wrong field type gives the SAME contract `:wat::edn::validate` would. Two
+    /// INDEPENDENT computations over the SAME malformed wire: (1) the production door
+    /// (`decode_client_message_event` → `shape_defect_request_malformed`) and (2) this test's
+    /// own direct call to `edn_to_typed_value` (the identical walker `:wat::edn::validate`
+    /// calls) against the `:req` sub-tree parsed out of the SAME wire bytes — both calling the
+    /// ONE shared formatter (`edn_to_typed_value_inner`), never a hand-converted string.
+    /// Mutation: inside `shape_defect_request_malformed`, replace the
+    /// `edn_to_typed_value_inner(req_ty, req_edn, ...)` call with a hand-rolled rendering (e.g.
+    /// T's own `Mismatch`-style `got`/`path` convention). RED — this test's independently
+    /// computed `(path, expected, got)` stops matching the production door's.
+    #[test]
+    fn gt3b_wrong_field_type_gives_the_contract() {
+        let w = frozen_world();
+        let wire = malformed_put_wire(&w.types);
+
+        // (1) the production door.
+        let event = decode_client_message_event(7, &wire, &w.symbols, ":wat::spawn::ServiceEvent");
+        let (op, path, expected, got) = match &event {
+            Value::Enum(e) if e.variant_name == "RequestMalformed" => {
+                let op = match &e.fields[1] {
+                    Value::String(s) => s.as_str().to_string(),
+                    other => panic!("expected op String, got {other:?}"),
+                };
+                let path: Vec<String> = match &e.fields[2] {
+                    Value::Vec(segs) => segs
+                        .iter()
+                        .map(|v| match v {
+                            Value::String(s) => s.as_str().to_string(),
+                            other => panic!("expected path segment String, got {other:?}"),
+                        })
+                        .collect(),
+                    other => panic!("expected path Vector, got {other:?}"),
+                };
+                let expected = match &e.fields[3] {
+                    Value::String(s) => s.as_str().to_string(),
+                    other => panic!("expected expected String, got {other:?}"),
+                };
+                let got = match &e.fields[4] {
+                    Value::String(s) => s.as_str().to_string(),
+                    other => panic!("expected got String, got {other:?}"),
+                };
+                (op, path, expected, got)
+            }
+            other => panic!("expected ServiceEvent::RequestMalformed, got {other:?}"),
+        };
+        assert_eq!(op, "Put");
+
+        // (2) the independent validate-door computation: parse the SAME wire, pull the raw
+        // `:req` sub-tree, and walk it against the declared PutRequest type directly.
+        let parsed = wat_edn::parse_owned(&wire).expect("the real writer's own output must re-parse");
+        let req_edn = match &parsed {
+            wat_edn::Value::Tagged(_, body) => match body.as_ref() {
+                wat_edn::Value::Map(entries) => entries
+                    .iter()
+                    .find_map(|(k, v)| match k {
+                        wat_edn::Value::Keyword(kw) if kw.name() == "req" => Some(v),
+                        _ => None,
+                    })
+                    .expect(":req key must be present"),
+                other => panic!("expected Tagged-body Map, got {other:?}"),
+            },
+            other => panic!("expected Tagged, got {other:?}"),
+        };
+        let target = TypeExpr::Path(":t::edn2::Bag::PutRequest".to_string());
+        let mismatch = edn_to_typed_value(&target, req_edn, &w.symbols)
+            .expect_err("the wrong-typed items field must still be refused by validate");
+
+        assert_eq!(path, wat_reader::identifier::dot_path_segments(&mismatch.path));
+        assert_eq!(expected, mismatch.expected);
+        assert_eq!(got, mismatch.got);
+    }
+
+    /// GT3c — the codegen replies `:RequestMalformed`.
+    ///
+    /// **The door, measured, not assumed.** `ServiceEvent::RequestMalformed` is built ONLY by
+    /// `decode_client_message_event` on a SHAPE-class refusal from the process-tier socket
+    /// decode (`eval_poll_prime`'s client-peer arm, `src/kernel/message.rs`) — the thread tier
+    /// passes `Value`s through crossbeam VERBATIM and never decodes a wire at all (this file's
+    /// own doc, `wat/spawn.wat`'s `ServiceEvent` doc). Reaching it honestly therefore requires
+    /// a REAL spawned process-tier `defservice`'s ACCEPTED socket connection, fed genuinely
+    /// malformed BYTES from outside wat's typed layer (the checker refuses constructing a
+    /// wrong-shaped request value in wat at all — T's own measurement). T2 measured this exact
+    /// gap and did not mint it: "a Rust-level helper reaching a real spawned `defservice`'s
+    /// accepted socket from outside wat — new kernel/test surface this strike does not mint
+    /// without the builder's sign-off" (`wat-tests/service-request-malformed.wat`'s retired-probe
+    /// comment). This strike's own scope fence lists the SAME gap OUT: "a raw-socket test door
+    /// (still missing, flagged by T2)". Confirmed independently here: no Rust or wat-level test
+    /// surface in this tree reaches a spawned defservice's accepted connection's raw fd, and the
+    /// thread tier structurally cannot produce this event (no decode occurs on it at all).
+    ///
+    /// **So: no honest in-process door reaches the REAL `poll'`-triggered serve loop with a
+    /// genuinely malformed frame.** This gate instead runs the REAL macro expansion
+    /// (`startup_from_source`, the exact pipeline a production `defservice` goes through) and
+    /// extracts the GENERATED `:t::edn2::bag-svc::serve` function's own AST — never a hand
+    /// copy — to assert STRUCTURALLY that the `Put` op's `ServiceEvent.RequestMalformed`
+    /// dispatch arm sends that op's OWN `:RequestMalformed` built from the reply-variant /
+    /// RequestMalformed-variant constructors (the SAME ones `shape-guarded`'s pre-existing
+    /// `:wat::edn::validate` Invalid arm already uses), never the generic `Reply::Failed`.
+    /// Mutation: in `wat/service.wat`'s `rm-send-arm` template, replace
+    /// `(~rm-ctor-kw {:path rm-path :expected rm-expected :got rm-got})` with
+    /// `(~reply-failed-kw {:cause ...})` (the brief's own named mutation: "send the event to the
+    /// generic Reply::Failed arm"). RED — the extracted AST's `:resp` construction no longer
+    /// names a `.RequestMalformed`-suffixed ctor with `path`/`expected`/`got` fields.
+    #[test]
+    fn gt3c_codegen_replies_requestmalformed() {
+        let w = frozen_world();
+        let serve_fn: std::sync::Arc<Function> = w
+            .symbols
+            .functions_iter()
+            .find(|(name, _)| name.as_str() == ":t::edn2::bag-svc::serve")
+            .unwrap_or_else(|| panic!("the generated serve fn must be registered"))
+            .1
+            .clone();
+        let FunctionBody::Wat(body) = &serve_fn.body else {
+            panic!("serve's body must be a wat AST, not a native stub");
+        };
+
+        let rm_arm = find_bracket_arm_by_keyword_head(body, ":wat::spawn::ServiceEvent.RequestMalformed")
+            .unwrap_or_else(|| panic!("serve's top-level match must carry a RequestMalformed arm"));
+        let put_arm = find_bracket_arm_by_string(rm_arm, "Put")
+            .unwrap_or_else(|| panic!("the RequestMalformed op-dispatch must carry a \"Put\" arm"));
+        let WatAST::List(put_items, _) = put_arm else {
+            panic!("the \"Put\" arm's body must be a (match (send ...) ...) List, got {put_arm:?}");
+        };
+        let send_call = put_items.get(1).unwrap_or_else(|| panic!("match form has no scrutinee: {put_arm:?}"));
+        let WatAST::List(send_items, _) = send_call else {
+            panic!("the match scrutinee must be a (send ...) call, got {send_call:?}");
+        };
+        assert!(
+            matches!(&send_items[0], WatAST::Keyword(k, _) if k == ":wat::kernel::send"),
+            "expected a (:wat::kernel::send ...) call, got {send_items:?}"
+        );
+        let reply_call = send_items.get(2).unwrap_or_else(|| panic!("send call has no reply arg: {send_items:?}"));
+        let WatAST::List(reply_items, _) = reply_call else {
+            panic!("the reply must be a constructor call, got {reply_call:?}");
+        };
+        let reply_kw = match &reply_items[0] {
+            WatAST::Keyword(k, _) => k.clone(),
+            other => panic!("expected the reply ctor's keyword head, got {other:?}"),
+        };
+        // Exact, not loose: `compose-variant`'s own rendering (`wat_reader::identifier::
+        // compose_variant`) is `<ns>.<Variant>`, byte-identical — derivable, not guessed.
+        assert_eq!(reply_kw, ":t::edn2::Bag::Reply.Put", "expected the Put reply variant exactly");
+        let WatAST::Map(reply_fields, _) = &reply_items[1] else {
+            panic!("expected the reply ctor's {{:resp ...}} map, got {:?}", reply_items[1]);
+        };
+        let resp_val = reply_fields
+            .iter()
+            .find_map(|(k, v)| matches!(k, WatAST::Keyword(kk, _) if kk == ":resp").then_some(v))
+            .unwrap_or_else(|| panic!("reply ctor map has no :resp key: {reply_fields:?}"));
+        let WatAST::List(rm_items, _) = resp_val else {
+            panic!(":resp value must be a constructor call, got {resp_val:?}");
+        };
+        let rm_kw = match &rm_items[0] {
+            WatAST::Keyword(k, _) => k.clone(),
+            other => panic!("expected the :resp ctor's keyword head, got {other:?}"),
+        };
+        assert_eq!(
+            rm_kw, ":t::edn2::Bag::PutResponse.RequestMalformed",
+            "the Put op's RequestMalformed event must reply THAT op's own :RequestMalformed \
+             variant (reusing shape-guarded's ctor) — got {rm_kw}, which looks like the generic \
+             Reply::Failed collapse the mutation names"
+        );
+        let WatAST::Map(rm_fields, _) = &rm_items[1] else {
+            panic!("expected the RequestMalformed ctor's field map, got {:?}", rm_items[1]);
+        };
+        let field_names: Vec<String> = rm_fields
+            .iter()
+            .filter_map(|(k, _)| match k {
+                WatAST::Keyword(kk, _) => Some(kk.clone()),
+                _ => None,
+            })
+            .collect();
+        for expected_field in [":path", ":expected", ":got"] {
+            assert!(
+                field_names.iter().any(|f| f == expected_field),
+                "RequestMalformed ctor must carry {expected_field}, got fields {field_names:?}"
+            );
+        }
+    }
+
+    /// Structural AST search: the first match arm (inside `match_form`, a
+    /// `(:wat::core::match scrutinee arm...)` List) whose pattern is headed by the keyword
+    /// `head` — either a bare unit-variant keyword or a `(keyword {...})` tagged-variant
+    /// pattern. Returns that arm's BODY (never the pattern).
+    fn find_bracket_arm_by_keyword_head<'a>(match_form: &'a WatAST, head: &str) -> Option<&'a WatAST> {
+        let WatAST::List(items, _) = match_form else { return None };
+        items.iter().skip(2).find_map(|arm| {
+            let WatAST::Vector(parts, _) = arm else { return None };
+            // A tagged-variant pattern with a field-destructure map is a 3-element arm vector
+            // `[Keyword {field-map} body]` (the map IS part of the pattern); a unit/bare-keyword
+            // pattern with no destructure is 2 elements `[Keyword body]`.
+            match parts.as_slice() {
+                [WatAST::Keyword(k, _), WatAST::Map(_, _), body] if k == head => Some(body),
+                [WatAST::Keyword(k, _), body] if k == head => Some(body),
+                _ => None,
+            }
+        })
+    }
+
+    /// Structural AST search: the first match arm whose pattern is the STRING LITERAL `s` —
+    /// `rm-serve-arms`' own per-op dispatch convention (service.wat).
+    fn find_bracket_arm_by_string<'a>(match_form: &'a WatAST, s: &str) -> Option<&'a WatAST> {
+        let WatAST::List(items, _) = match_form else { return None };
+        items.iter().skip(2).find_map(|arm| {
+            let WatAST::Vector(parts, _) = arm else { return None };
+            if parts.len() != 2 {
+                return None;
+            }
+            matches!(&parts[0], WatAST::StringLit(lit, _) if lit == s).then_some(&parts[1])
+        })
+    }
+
+    /// GT3d — one door. A grep proves nothing (it cannot see whether two decode sites share an
+    /// implementation or merely look similar); this drives it: the GENERAL untrusted door
+    /// (`read_edn`) and the TRUSTED wire door (`decode_trusted_wire`) are handed the IDENTICAL
+    /// malformed bytes and must refuse with the IDENTICAL structured kind — proof they share
+    /// the ONE `reconstruct_*` family (`allow_caps` is the only difference between the two
+    /// doors now; strictness is no longer a second axis). T's GT1 (`value_conforms`'s own
+    /// pinned arms, `src/edn/render.rs`) and T2's GT2a/GT2c (this file, just above) run
+    /// unmodified in the SAME floor — their continued green is this gate's other half.
+    /// Mutation: reintroduce a `strict: bool` parameter on `reconstruct_record` defaulting
+    /// `read_edn`'s call to lenient while leaving `decode_trusted_wire`'s strict (a literal
+    /// restoration of the two-door split). RED — the two doors' refusals diverge (one refuses,
+    /// one silently accepts).
+    #[test]
+    fn gt3d_one_door_general_and_trusted_decode_agree() {
+        let w = frozen_world();
+        let wire = malformed_put_wire(&w.types);
+
+        let trusted_err = decode_trusted_wire(&wire, Some(&w.types), w.symbols.encoding_ctx().map(|a| a.as_ref()))
+            .expect_err("the trusted door must refuse the wrong-typed items field");
+        let general_err = crate::edn::render::read_edn(&wire, Some(&w.types), w.symbols.encoding_ctx().map(|a| a.as_ref()))
+            .expect_err("the general untrusted door must refuse the IDENTICAL value — one decode door, not two");
+
+        match (&trusted_err.kind, &general_err.kind) {
+            (
+                crate::edn::render::EdnReadErrorKind::FieldTypeMismatch { type_path: tp1, field: f1, expected: e1, got: g1 },
+                crate::edn::render::EdnReadErrorKind::FieldTypeMismatch { type_path: tp2, field: f2, expected: e2, got: g2 },
+            ) => {
+                assert_eq!(tp1, tp2);
+                assert_eq!(f1, f2);
+                assert_eq!(e1, e2);
+                assert_eq!(g1, g2);
+            }
+            other => panic!(
+                "expected both doors to refuse with the IDENTICAL FieldTypeMismatch — one shared \
+                 reconstruct_* family, not two decoders; got {other:?}"
             ),
         }
     }

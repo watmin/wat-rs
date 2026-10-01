@@ -13,6 +13,7 @@
       (:wat::core::format "Lost: {m}" :m (:wat::kernel::Failure/message c))]
     [:wat::spawn::ServiceEvent.Malformed {:idx _i :cause c}
       (:wat::core::format "Malformed: {m}" :m (:wat::edn::write c))]
+    [:wat::spawn::ServiceEvent.RequestMalformed {:idx _i :op _op :path _path :expected _expected :got _got} "RequestMalformed"]
     [:wat::spawn::ServiceEvent.Rejected {:idx _i :cause _c} "Rejected"]
     [:wat::spawn::ServiceEvent.Shutdown {} "Shutdown"]
     [:wat::spawn::ServiceEvent.Connection {:peer _p} "Connection"]

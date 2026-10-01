@@ -74,6 +74,8 @@
       (:probe-retag::serve-thread self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
     [:wat::spawn::ServiceEvent.Malformed {:idx idx :cause _cause}
       (:probe-retag::serve-thread self l selectables saw-tick client-idx)]
+    [:wat::spawn::ServiceEvent.RequestMalformed {:idx idx :op _op :path _path :expected _expected :got _got}
+      (:probe-retag::serve-thread self l selectables saw-tick client-idx)]
     [:wat::spawn::ServiceEvent.Rejected {:idx idx :cause _cause}
       (:probe-retag::serve-thread self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
     [:wat::spawn::ServiceEvent.Admin {:msg _m}
@@ -148,6 +150,8 @@
                   [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
                     (:probe-retag::serve-proc self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
                   [:wat::spawn::ServiceEvent.Malformed {:idx idx :cause _cause}
+                    (:probe-retag::serve-proc self l selectables saw-tick client-idx)]
+                  [:wat::spawn::ServiceEvent.RequestMalformed {:idx idx :op _op :path _path :expected _expected :got _got}
                     (:probe-retag::serve-proc self l selectables saw-tick client-idx)]
                   [:wat::spawn::ServiceEvent.Rejected {:idx idx :cause _cause}
                     (:probe-retag::serve-proc self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]

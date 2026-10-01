@@ -52,11 +52,11 @@
         :symbol ":wat::core::Fn"
         :span #wat.core/Span {
           :file "wat/spawn.wat"
-          :line 348
+          :line 363
           :col 5
           :end #wat.core/Option.Some {
             :value #wat.core/Pos {
-              :line 348
+              :line 363
               :col 124
             }
           }
@@ -67,7 +67,7 @@
         :symbol "<rust>"
         :span #wat.core/Span {
           :file "src/numeric/arith.rs"
-          :line 0
+          :line 93
           :col 9
           :end #wat.core/Option.None {}
         }

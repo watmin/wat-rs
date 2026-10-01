@@ -73,6 +73,7 @@
     [:wat::spawn::ServiceEvent.Closed {:idx _i} nil]
     [:wat::spawn::ServiceEvent.Lost {:idx _i :cause _c} nil]
     [:wat::spawn::ServiceEvent.Malformed {:idx _i :cause _c} nil]
+    [:wat::spawn::ServiceEvent.RequestMalformed {:idx _i :op _op :path _path :expected _expected :got _got} nil]
     [:wat::spawn::ServiceEvent.Rejected {:idx _i :cause _c} nil]
     [:wat::spawn::ServiceEvent.Shutdown {} nil]
     [:wat::spawn::ServiceEvent.Connection {:peer _p} nil]

@@ -46,6 +46,7 @@
     [:wat::spawn::ServiceEvent.Closed {:idx _idx} buf]
     [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _c} buf]
     [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _c} buf]
+    [:wat::spawn::ServiceEvent.RequestMalformed {:idx _idx :op _op :path _path :expected _expected :got _got} buf]
     [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _c} buf]
     [:wat::spawn::ServiceEvent.Shutdown {} buf]
     [:wat::spawn::ServiceEvent.Connection {:peer _p} buf]
