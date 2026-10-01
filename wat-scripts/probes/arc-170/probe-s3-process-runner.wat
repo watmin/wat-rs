@@ -7,6 +7,11 @@
 ;; defservice pins its Process' through (Launched :- [S R])). Index-carrying (idx,value) pairs.
 ;;
 ;; EXPECT "6 10".
+;;
+;; DISPOSITION (255.75) — repair: `bracket::pool-runner` bare-bound `(recv self)` as `pair`
+;; instead of matching the `RecvOutcome`, and its `send` match was missing
+;; `SendOutcome.Stopped` — the same defect class 255.73's `probe-s3b-astsplice.wat` site-2
+;; repaired. Repaired the same way. Also now asserts its own claim.
 
 ;; typed drain: the param pins the Process' I/O (parent sends (idx,I), recvs (idx,O)); I=O=i64.
 (:wat::core::defn :probe::drain
@@ -33,10 +38,13 @@
             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
           [:wat::kernel::RecvOutcome.Closed {}
             (:wat::kernel::assertion-failed! :message "recv': w closed unexpectedly")])]
-    (:wat::kernel::println
-      (:wat::string::concat
-        (:wat::i64::to-string (:wat::core::second a))
-        (:wat::string::concat " " (:wat::i64::to-string (:wat::core::second b)))))))
+    (:wat::core::do
+      (:wat::kernel::println
+        (:wat::string::concat
+          (:wat::i64::to-string (:wat::core::second a))
+          (:wat::string::concat " " (:wat::i64::to-string (:wat::core::second b)))))
+      (:wat::test::assert-eq (:wat::core::second a) 6)
+      (:wat::test::assert-eq (:wat::core::second b) 10))))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
@@ -48,12 +56,17 @@
              (:wat::core::defn :bracket::pool-runner
                [self <- (:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (wat.type/Tuple :- [wat.type/i64 wat.type/i64])])]
                -> wat.type/nil
-               (:wat::core::let
-                 [pair (:wat::kernel::recv self)
-                  out  (wat.type/Tuple :- [wat.type/i64 wat.type/i64] (:wat::core::first pair)
-                                          (:bracket::__work (:wat::core::second pair)))
-                  _    (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-                 (:bracket::pool-runner self)))
+               (:wat::core::match (:wat::kernel::recv self)
+                 [:wat::kernel::RecvOutcome.Message {:msg pair}
+                   (:wat::core::let
+                     [out (wat.type/Tuple :- [wat.type/i64 wat.type/i64] (:wat::core::first pair)
+                                            (:bracket::__work (:wat::core::second pair)))
+                      _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
+                     (:bracket::pool-runner self))]
+                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
+                   (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+                 [:wat::kernel::RecvOutcome.Stopped {} nil]
+                 [:wat::kernel::RecvOutcome.Closed {} nil]))
              (:wat::core::defn :user::main [] -> wat.type/nil
                (:bracket::pool-runner
                  (:wat::program::self-peer (wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (wat.type/Tuple :- [wat.type/i64 wat.type/i64])))))))]

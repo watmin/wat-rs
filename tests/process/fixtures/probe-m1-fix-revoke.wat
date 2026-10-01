@@ -6,6 +6,22 @@
 ;; dies, so compute raises — the discriminating twin of probe-m1-fix-norevoke.wat.
 ;;
 ;; EXPECT: a raise, `recv': peer closed` — and no "NOREVOKE-REACHED-END" print.
+;;
+;; DISPOSITION (255.75) — negative, by design: the raise IS the proof (revoke is load-bearing —
+;; its discriminating twin, `probe-m1-fix-norevoke.wat`, stays a plain `.wat` and prints
+;; "NOREVOKE-REACHED-END: echo:hi" clean, per `DESIGN-STONE-M1-TEETH-revoke-refusal.md`'s "the
+;; vacuity trap" section). a plain `.wat` (AMEND: this file starts up clean — `startup_from_file` succeeds, the
+;; failure is runtime-only — and `tests/lint/every_wat_bad_fixture_actually_fails.rs` forbids
+;; `.wat.bad` for a startup-clean file; per that gate's remedy #1, moved out of
+;; `wat-scripts/probes/` to `tests/process/fixtures/` instead, so the "every probe runs, exit
+;; 0" gate does not require it), driven by
+;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting the raised message is either
+;; `recv': peer closed` (the documented bounce path) OR the kernel's own `LociDiedError::Disconnected`
+;; ("disconnected" — measured once, full-floor concurrent load only, never in isolation: the
+;; unmatched `echo'/revoke` call below raises directly if the echo service's own control channel
+;; disconnects first under heavy process-spawn pressure, before the documented path is reached —
+;; both are non-regression failures, see that test's own AMEND comment), and that
+;; "NOREVOKE-REACHED-END" never prints either way.
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages

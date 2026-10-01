@@ -6,6 +6,20 @@
 ;; Pre-strike this fails on EXACTLY ":wat::kernel::peer-pid is undefined" — everything
 ;; around it (start the services, connect' → peers) is already green, so the whole
 ;; strike is "define :wat::kernel::peer-pid". EXPECT (post-strike): "(Some <pid>)" then ":None".
+;;
+;; DISPOSITION (255.75) — negative, stale claim: `DESIGN-STONE-CAP-2-BRACKET-GRANTS.md`'s own
+;; "GROUNDED FINDING (strike A, 2026-07-09)" settled this differently — `peer-pid` is for
+;; SPAWN-derived peers only (`Process'`/`Thread'`); a unified `Peer'` from `connect'` (what `pc`
+;; below is) gets "an honest error", not `(Some pid)`. This probe dials via `connect'`, so its
+;; EXPECT above is the question the grounded finding already answered NO to — the positive case
+;; (spawn-derived) is covered by `wat-scripts/probes/arc-170/probe-cap2-spawnrunner-pid.wat`
+;; (already green, untouched). a plain `.wat` (AMEND: this file starts up clean — `startup_from_file` succeeds, the
+;; failure is runtime-only — and `tests/lint/every_wat_bad_fixture_actually_fails.rs` forbids
+;; `.wat.bad` for a startup-clean file; per that gate's remedy #1, moved out of
+;; `wat-scripts/probes/` to `tests/process/fixtures/` instead, so the "every probe runs, exit
+;; 0" gate does not require it), driven by
+;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting the TypeMismatch names
+;; `:wat::kernel::peer-pid` and the expected-peer union type.
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages

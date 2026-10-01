@@ -6,6 +6,21 @@
 ;; defns, this streams "6 10". If the child is a fresh universe, it fails "unknown :probe::dbl".
 ;;
 ;; This decides the bracket's not-shared delivery: reference-by-name (inherit) vs ship-source.
+;;
+;; DISPOSITION (255.75) — negative, and decisive: today's measured answer IS the second branch —
+;; the child is a fresh universe; it fails `UnresolvedReferences` naming `:probe::dbl`.
+;;
+;; AMEND: this file starts up clean (`startup_from_file` succeeds — the UnresolvedReferences only
+;; surfaces once the CHILD process itself starts, not the parent file), so
+;; `tests/lint/every_wat_bad_fixture_actually_fails.rs` forbids `.wat.bad`; moved out of
+;; `wat-scripts/probes/` to `tests/process/fixtures/` as a plain `.wat` instead, driven by
+;; `tests/process/probe_arc255_75_negative_probes.rs::child_inherits_defns_is_refused`, which
+;; asserts that error. The `rune:lint(nested-program, expected)` comment right below is load-bearing
+;; for `tests/lint/nested_program_starts.rs`'s OWN gate (measured directly: deleting it turns that
+;; gate RED — "1 nested program(s) failed child startup" — on this exact form; restoring it turns
+;; that gate green again), even though the test name it carries,
+;; `deftest_wat_tests_process_child_is_fresh_universe`, is not a test anywhere in this tree
+;; (grepped) — left exactly as committed, not touched by this stone.
 
 ;; defined in the PARENT universe only
 (:wat::core::defn :probe::dbl [x <- wat.type/i64] -> wat.type/i64

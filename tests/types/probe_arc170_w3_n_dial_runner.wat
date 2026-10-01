@@ -5,6 +5,15 @@
 ;; C1's process-dial-runner :- [S R I O] (bracket.wat:82) is SINGLE-peer. This hand-writes
 ;; the N=2 generalization and asks the checker to type it. If it freezes clean, the
 ;; runtime is "generalize the codegen"; if it fails, the error names the exact gap.
+;;
+;; DISPOSITION (255.75) — fragment, moved: this file has no `:user::main` BY DESIGN (header
+;; line 1, "freeze-only (--check), no fork") — it is a `--check`-only type-composition fixture,
+;; never a runnable program, so it cannot satisfy the "every probe runs (exit 0 via `wat <path>`)"
+;; gate and does not belong under `wat-scripts/probes/`. `--check` is clean today (confirmed:
+;; `./target/release/wat --check` rc 0), so the claim holds ("the runtime is 'generalize the
+;; codegen'"). Moved here beside its new consumer,
+;; `tests/types/probe_arc170_w3_n_dial_runner_checks_clean.rs`, which runs `wat --check` on it and
+;; asserts rc 0.
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages

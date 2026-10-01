@@ -372,7 +372,9 @@
   ;; emitted as source (the baked single-peer `process-dial-runner` can't carry a variadic
   ;; type-param list — a (Tuple :- [(Address :- [S1 R1]) …]) carrier is concretely-typed PER CALL, so the
   ;; runner recv-ing it must be too; shape proven at
-  ;; wat-scripts/probes/arc-170/w3-n-dial-runner.wat). N=1 is not special-cased — it is the
+  ;; tests/types/probe_arc170_w3_n_dial_runner.wat — moved out of wat-scripts/probes/ by Stone
+  ;; 255.75, "fragment" disposition: it has no :user::main by design, --check-only). N=1 is not
+  ;; special-cased — it is the
   ;; ground case of the same fold (a 1-element Tuple carrier/ctx).
   ([work-fn <- wat.type/keyword] -> (wat.type/Vector :- [wat.type/AST])
     (:wat::core::let

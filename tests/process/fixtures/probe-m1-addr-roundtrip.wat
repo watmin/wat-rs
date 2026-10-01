@@ -7,6 +7,19 @@
 ;;
 ;; EXPECT (green):  a "wire:" line showing #wat.kernel/Address #wat.kernel/SocketAddressWire {...}
 ;;                  then  "result: echo:roundtrip"
+;;
+;; DISPOSITION (255.75) — negative, and the assumption was disconfirmed: `:wat::edn::read`
+;; refuses to reconstruct the `#wat.kernel/Address` tag from parsed data — the error names the
+;; policy itself: "capability tags reconstruct only off the trusted peer wire, never from parsed
+;; data". That is a deliberate security wall (a capability address is not a value you can forge by
+;; parsing text claiming to be one), not rot. a plain `.wat` (AMEND: this file starts up clean — `startup_from_file` succeeds, the
+;; failure is runtime-only — and `tests/lint/every_wat_bad_fixture_actually_fails.rs` forbids
+;; `.wat.bad` for a startup-clean file; per that gate's remedy #1, moved out of
+;; `wat-scripts/probes/` to `tests/process/fixtures/` instead, so the "every probe runs, exit
+;; 0" gate does not require it), driven by
+;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting the MalformedForm names
+;; "unsupported substrate tag", "Address", and "capability tags reconstruct only off the trusted
+;; peer wire".
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages

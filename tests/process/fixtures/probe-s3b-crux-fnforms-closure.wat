@@ -7,6 +7,21 @@
 ;; can't be reified, this RED-reports the exact gap (S1's ImpureCapture/portability boundary) before S3b.
 ;;
 ;; EXPECT "6 10".
+;;
+;; DISPOSITION (255.75) — negative, and the header's "EXPECT" above is STALE:
+;; `docs/arc/2026/06/259-forced-hand/NOTE-S3b-blockers-and-resolution.md` ("Why raw, not `wf`")
+;; names this exact probe RED BY DESIGN — "disconfirming probe … RED, proved it": `fn-forms`
+;; (closure_extract slice-1) cannot reify a closure that captures a fn value
+;; (`closure_extract.rs:2025`, a deliberate slice-1 limit, same bucket as `fn`/`Stream`), which is
+;; why S3b ships the RAW work-fn via `fn-forms` and index-wraps separately on the process side
+;; (`probe-s3-process-runner.wat`, green standalone) instead of `fn-forms`-ing the index-wrapping
+;; closure this probe builds. a plain `.wat` (AMEND: this file starts up clean — `startup_from_file` succeeds, the
+;; failure is runtime-only — and `tests/lint/every_wat_bad_fixture_actually_fails.rs` forbids
+;; `.wat.bad` for a startup-clean file; per that gate's remedy #1, moved out of
+;; `wat-scripts/probes/` to `tests/process/fixtures/` instead, so the "every probe runs, exit
+;; 0" gate does not require it), driven by
+;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting the error names
+;; "closure-extract" and "not implemented" for a captured `wat::core::fn`.
 
 ;; parent-side drain: pins the Process' I/O (parent sends (idx,i64), recvs (idx,i64))
 (:wat::core::defn :probe::drain
