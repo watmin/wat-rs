@@ -80,11 +80,11 @@ fn concrete_instantiation_accepts_all_four() {
 /// Negative — the swap-gate: `(Vector :- [String])` is not a `(Seqable :- [i64])`.
 #[test]
 fn a_wrong_element_type_is_refused() {
-    refused_at_check("wrong_element", "(wat.type/Vector :- [wat.type/String])");
+    refused_at_check("wrong_element", "(:wat::core::Vector :- [:wat::core::String])");
 }
 
 /// Negative — a family with no edge to the surface offers nothing.
 #[test]
 fn a_family_with_no_edge_is_refused() {
-    refused_at_check("no_edge", "(wat.type/HashMap :- [wat.type/String wat.type/i64])");
+    refused_at_check("no_edge", "(:wat::core::HashMap :- [:wat::core::String :wat::core::i64])");
 }

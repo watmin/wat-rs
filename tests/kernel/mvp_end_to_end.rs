@@ -84,7 +84,7 @@ fn bind_vs_bundle_of_same_atoms_differ() {
     )
     .unwrap();
     let v_bundle = eval_algebra_source(
-        r#"(:wat::holon::Bundle (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::Atom "a") (:wat::holon::Atom "b")))"#,
+        r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Atom "a") (:wat::holon::Atom "b")))"#,
         &vm,
         &se,
     )

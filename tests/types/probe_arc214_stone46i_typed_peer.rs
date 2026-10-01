@@ -104,7 +104,7 @@ fn probe_4_wrong_scalar_return_annotation_rejected() {
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":user::mk-wrong"
             && expected == ":wat::core::i64"
-            && got == "(:wat::kernel::Thread :- [wat.type/i64 wat.type/i64])"
+            && got == "(:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])"
     );
 }
 
@@ -122,7 +122,7 @@ fn probe_5_cross_tier_annotation_rejected() {
     wat::assert_startup_error!(result, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":user::mk-cross"
-            && expected == "(:wat::kernel::Process :- [wat.type/i64 wat.type/i64])"
-            && got == "(:wat::kernel::Thread :- [wat.type/i64 wat.type/i64])"
+            && expected == "(:wat::kernel::Process :- [:wat::core::i64 :wat::core::i64])"
+            && got == "(:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])"
     );
 }

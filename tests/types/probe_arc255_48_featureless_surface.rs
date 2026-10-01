@@ -49,7 +49,7 @@ fn a_featureless_parametric_surface_refuses_an_undeclared_record() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":probe::take"
             && param == "#1"
-            && expected == "(:probe::Tag :- [wat.type/i64 wat.type/i64])"
+            && expected == "(:probe::Tag :- [:wat::core::i64 :wat::core::i64])"
             && got == ":probe::Box"
     );
 }

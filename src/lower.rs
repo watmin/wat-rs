@@ -406,7 +406,7 @@ mod tests {
         // directly, bypassing the checker, but it should still exercise a
         // form a user could actually write).
         let ast = crate::parse_one!(
-            r#"(:wat::holon::Bundle (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
+            r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();

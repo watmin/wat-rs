@@ -53,8 +53,8 @@ fn wire_is_not_a_declared_letter() {
 fn a_type_one_argument_short_is_not_the_full_one() {
     refused(
         "record_short",
-        "(:probe::R :- [wat.type/i64])",
-        "(:probe::R :- [wat.type/i64 :wat::kernel::Transport.Wire])",
+        "(:probe::R :- [:wat::core::i64])",
+        "(:probe::R :- [:wat::core::i64 :wat::kernel::Transport.Wire])",
     );
 }
 
@@ -62,7 +62,7 @@ fn a_type_one_argument_short_is_not_the_full_one() {
 fn a_type_one_transport_argument_long_is_not_the_short_one() {
     refused(
         "record_long",
-        "(:probe::R :- [wat.type/i64 :wat::kernel::Transport.Shared])",
-        "(:probe::R :- [wat.type/i64])",
+        "(:probe::R :- [:wat::core::i64 :wat::kernel::Transport.Shared])",
+        "(:probe::R :- [:wat::core::i64])",
     );
 }

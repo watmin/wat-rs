@@ -411,8 +411,9 @@ mod tests {
         let s = "{{literal}} {real}";
         let out = replace_placeholders_preserving_len(s);
         assert_eq!(out.chars().count(), s.chars().count());
-        assert!(out.starts_with("{{literal}}"));
-        assert!(!out[11..].contains('{'));
+        // `{{literal}}` (the format! literal-brace escape) survives untouched; `{real}` (a
+        // genuine placeholder) becomes a same-length `x`-run.
+        assert_eq!(out, "{{literal}} xxxxxx");
     }
 
     #[test]

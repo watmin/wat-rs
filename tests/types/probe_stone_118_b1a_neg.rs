@@ -36,12 +36,12 @@ fn concrete_surface_satisfaction_still_refuses_unrelated_family_and_swapped_args
     // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == "(:wat::core::Seqable :- [wat.type/i64])"
-            && got == "(wat.type/HashSet :- [wat.type/i64])");
+            if expected == "(:wat::core::Seqable :- [:wat::core::i64])"
+            && got == "(:wat::core::HashSet :- [:wat::core::i64])");
 
     // NEG-2 — the swap-gate. The family DOES extend Seqable; only arg unification refuses this.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == "(:wat::core::Seqable :- [wat.type/i64])"
-            && got == "(wat.type/Vector :- [wat.type/String])");
+            if expected == "(:wat::core::Seqable :- [:wat::core::i64])"
+            && got == "(:wat::core::Vector :- [:wat::core::String])");
 }

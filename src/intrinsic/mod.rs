@@ -2659,7 +2659,7 @@ mod tests {
             crate::types::TypeExpr::Tuple(items) if !items.is_empty() => {
                 let items_str: Vec<String> =
                     items.iter().map(typeexpr_to_type_arg_string).collect();
-                format!("(wat.type/Tuple :- [{}])", items_str.join(" "))
+                format!("(:wat::core::Tuple :- [{}])", items_str.join(" "))
             }
             crate::types::TypeExpr::Fn { args, ret } => {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();

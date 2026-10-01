@@ -105,7 +105,7 @@ fn arc255_24_start_impl_claim_of_the_other_transport_is_refused() {
     // rune:lint(no-inlined-wat) — golden COMPARISON text for a ReturnTypeMismatch's rendered
     // `expected`/`got` fields, never a wat world/driver; nothing builds or runs a program from it.
     let handle = |t: &str| {
-        format!("(:probe::pair-svc::Handle :- [wat.type/String wat.type/i64 {t}])")
+        format!("(:probe::pair-svc::Handle :- [:wat::core::String :wat::core::i64 {t}])")
     };
     for (func, claimed, actual) in [
         (":probe::thread-claimed-wire", ":wat::kernel::Transport.Wire", ":wat::kernel::Transport.Shared"),

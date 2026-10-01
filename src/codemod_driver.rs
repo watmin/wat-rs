@@ -448,9 +448,16 @@ mod probe_255_80 {
         // escapes), and is now post-conversion (wat.type/AST, not :wat::WatAST).
         let raw_slice: String = raw_chars[span.raw_quote_start..span.raw_quote_end].iter().collect();
         assert!(raw_slice.contains('\\'), "probe literal must still contain a raw backslash (escape/continuation)");
+        // rune:lint(loose-assert) — targeted presence check on a large real production literal
+        // (the macro's whole format! template body, unrelated to this stone); asserting the
+        // entire literal verbatim would couple this regression test to future unrelated edits
+        // of aggregate_kwargs_companion_source's wording.
         assert!(span.decoded.contains("wat.type/AST"), "probe literal must carry the now-converted type spelling");
+        // rune:lint(loose-assert) — same targeted-presence reason as above.
         assert!(span.decoded.contains("wat.type/Vector"));
+        // rune:lint(loose-assert) — same targeted-absence reason as above.
         assert!(!span.decoded.contains(":wat::WatAST"), "the old type-position spelling must be gone");
+        // rune:lint(loose-assert) — same targeted-absence reason as above.
         assert!(!span.decoded.contains(":wat::core::Vector"), "the old type-position spelling must be gone");
 
         let old_ph = replace_placeholders_preserving_len(&span.decoded);
@@ -494,8 +501,10 @@ fn make_form() -> &'static str {
             .expect("first apply must succeed");
         assert!(first.changed, "the fixture's two type-position i64 sites must convert");
         assert_eq!(first.total_refused, 0);
-        assert!(first.new_src.contains("wat.type/i64"));
-        assert!(!first.new_src.contains(":wat::core::i64"));
+        assert_eq!(
+            first.new_src,
+            "\nfn make_form() -> &'static str {\n    \"(:wat::core::defn :my::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))\"\n}\n"
+        );
 
         let second = apply_codemod_to_rust_source(&wat_binary(), &types_to_wat_type(), &first.new_src)
             .expect("second apply must succeed");
