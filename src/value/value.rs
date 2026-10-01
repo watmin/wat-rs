@@ -572,20 +572,24 @@ where
 /// use `Arc::ptr_eq` where identity is pointer-based (opaque handles, ML types, IO
 /// handles); the cross-variant arm returns `false`.
 ///
-/// ## Variant classification (per the `is_atomizable` predicate in `src/check.rs`)
+/// ## Variant classification (per `Value::key_eligibility()`, `src/value/value.rs`, gated
+/// against `:< :wat::core::Equatable` — `wat/class.wat`, Stone 255.74's D3 amendment; NOT
+/// `is_atomizable`, a different predicate — "can be encoded as a holon atom" — that this
+/// classification no longer tracks)
 ///
-/// **Atomizable** (may appear as HashSet elements / HashMap keys):
-/// `bool`, `i64`, `f64`, `String`, `wat__core__keyword`, `holon__HolonAST`,
-/// `wat__WatAST`, `wat__core__Uuid`, `wat__core__Char`, `Aggregate` (Record/HolonRecord),
-/// `Unit` (`:wat::core::nil`), `Vec` (recursive),
-/// `wat__std__HashSet` (recursive), `wat__std__HashMap` (recursive),
-/// `Tuple` (iff all element types atomizable).
+/// **`Hashable`** (may appear as HashSet elements / HashMap keys): `bool`, `i64`, `f64`, `u8`,
+/// `bigint`, `rational`, `String`, `wat__core__keyword`, `holon__HolonAST`, `wat__WatAST`,
+/// `wat__core__Uuid`, `wat__core__Char`, `Instant`, `Duration`, `Vector` (holon::Vector),
+/// `Aggregate` (Record/HolonRecord), `Unit` (`:wat::core::nil`), `Vec` / `wat__core__List` /
+/// `wat__std__HashSet` / `wat__std__HashMap` / `wat__core__PersistentVector` / `Option` /
+/// `Result` (recursive — iff every element/field type is itself `:< Equatable`), `Tuple`
+/// (iff all element types are).
 ///
-/// **Structurally-equal but NOT atomizable** (natural equality; not predicate-admitted):
-/// `u8`, `Option`, `Result`, `Aggregate(Struct)`, `Enum`, `Vector` (holon::Vector),
-/// `Instant`, `Duration`, `wat__core__List` (not in `is_atomizable`).
+/// **`NeverAKey`** (structurally equal via natural/honest `Hash`, but not `:< Equatable`):
+/// `Aggregate(Struct)`, `Enum`, `wat__core__PersistentMap` (`wat/class.wat`'s own comment:
+/// "not a member"), `ForeignRecord`, `ForeignVariant`.
 ///
-/// **Opaque handles** (pointer equality; not atomizable; never in HashSet/HashMap keys):
+/// **Opaque handles** (pointer equality; never `:< Equatable`; never in HashSet/HashMap keys):
 /// `wat__core__fn`, `wat__core__clauses` (pointer-equality like fn),
 /// `wat__kernel__Sender`, `wat__kernel__Receiver`,
 /// `wat__kernel__HandlePool`, `wat__kernel__ChildHandle`,
@@ -735,19 +739,24 @@ impl Eq for Value {}
 /// - `HashMap`: collect (key_hash, val_hash) pairs as `(u64,u64)`, sort by key_hash,
 ///   hash the sorted list. Map semantics: {a→1, b→2} == {b→2, a→1} → same hash.
 ///
-/// **Non-atomizable variants → `unreachable!()`** with predicate-citation message.
-/// The `is_atomizable` predicate at `src/check.rs` is the static guarantee that
-/// only atomizable Values reach hashing contexts (HashSet/HashMap key positions).
-/// If this panic ever fires, the predicate has drifted from the Hash impl.
+/// **`NeverAKey(InteriorMutable | OpaqueHandle)` variants → `unreachable!()`** with
+/// predicate-citation message. The static key door (`key_eligible_or_error`/`require_class`,
+/// `:< :wat::core::Equatable` — Stone 255.74 D3) plus the deep runtime guard
+/// (`value_is_hashable`, `src/runtime.rs`) are the guarantee that only these two reasons'
+/// variants ever reach hashing contexts (HashSet/HashMap key positions) through a guarded
+/// call site. If this panic ever fires, one of those two layers has drifted from this Hash
+/// impl — see `check::tests::every_key_eligibility_row_agrees_with_equatable`.
 ///
-/// **Structural-but-not-atomizable variants** (`u8`, `Unit`, `Tuple`, `Option`,
-/// `Result`, `Aggregate(Struct)`, `Enum`, `Vector`, `Instant`, `Duration`) receive structural
-/// Hash impls rather than `unreachable!()`. Per STOP-4: these variants ARE reachable
-/// in Rust code (e.g., as HashMap values or as elements of an outer Tuple) and have
-/// well-defined structural hash semantics. They are NOT currently atomizable (not in
-/// the `is_atomizable` predicate), but their hash implementations are honest. If the
-/// predicate is later extended to admit them, the Hash impl is already
-/// correct.
+/// **Structural-but-`NeverAKey(ExcludedByDesign)` variants** (`Unit`, `Aggregate(Struct)`,
+/// `Enum`, `wat__core__PersistentMap`, `ForeignRecord`, `ForeignVariant`) receive structural
+/// Hash impls rather than `unreachable!()`. Per STOP-4: these variants ARE reachable in Rust
+/// code (e.g., as HashMap values or as elements of an outer Tuple) and have well-defined
+/// structural hash semantics; they are simply not `:< :wat::core::Equatable` (`wat/class.wat`)
+/// — `PersistentMap` by that class's own design ("not a member"), the rest because they mix
+/// code+data or carry no class registration at all. `u8`, `Tuple`, `Option`, `Result`,
+/// `Vector` (holon::Vector), `Instant`, and `Duration` are NOT in this bucket any more (Stone
+/// 255.74 D3 reclassified them `Hashable` — they ARE `:< Equatable`; their Hash impls needed
+/// no change, only the classification was stale).
 impl std::hash::Hash for Value {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // Arc 220 Stone 220.4 — sequence types (Vec + List) skip the
@@ -1244,11 +1253,14 @@ pub struct ForeignVariantValue {
 /// that assigns this per variant, and `all_key_eligibility()`, the gate-testable table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyEligibility {
-    /// Pure data. May be a key; `is_atomizable` MUST accept this variant's checker-facing
-    /// type.
+    /// Pure data. May be a key; this variant's checker-facing type MUST be
+    /// `:< :wat::core::Equatable` (`wat/class.wat`) — the key door since Stone 255.74's D3
+    /// amendment (`key_eligible_or_error`/`require_class`, `src/check.rs`). Gate-tested by
+    /// `check::tests::every_key_eligibility_row_agrees_with_equatable`.
     Hashable,
     /// Never a key. Its `Hash` arm is `unreachable!()` (or, for the recursive containers,
-    /// its checker type is rejected) and `is_atomizable` MUST reject it.
+    /// its checker type is rejected) and this variant's checker-facing type must NOT be
+    /// `:< :wat::core::Equatable`.
     NeverAKey(NotAKeyReason),
 }
 
@@ -1324,18 +1336,21 @@ macro_rules! ke_gate_entries {
 /// - `key_eligibility` — the classification, read off the `Hash`/`PartialEq` ground truth.
 /// - `gate` — one or more `(TypeExpr, KeyEligibility)` checker-probe pairs. Almost always a
 ///   single pair mirroring `type_name`/`key_eligibility` (with the type spelled as the
-///   `:`-prefixed path `is_atomizable` actually matches against — see `TypeExpr::Path`'s own
-///   doc comment: paths are ALWAYS written with the leading colon in this codebase). Three
+///   `:`-prefixed path the checker actually matches against — see `TypeExpr::Path`'s own
+///   doc comment: paths are ALWAYS written with the leading colon in this codebase). A few
 ///   rows need more than a literal echo:
 ///   - `Aggregate` contributes TWO probes (`Struct` and `Record`) because its eligibility is
 ///     runtime-nature-dependent, not fixed per variant.
-///   - `Vec` / `wat__std__HashSet` / `wat__std__HashMap` / `Tuple` are recursively
-///     atomizable — `is_atomizable` only accepts them via `TypeExpr::Parametric` /
-///     `TypeExpr::Tuple` with an atomizable element, never via a bare `Path` — so their
-///     probes use a representative atomizable inner type (`:wat::core::i64`).
-///   - `wat__core__PersistentMap` / `wat__core__PersistentVector` probe with the SAME
-///     `Parametric` shape to prove the checker rejects them regardless (no arm for either
-///     head in `is_atomizable`, unlike their `HashMap`/`Vector` siblings).
+///   - `Vec` / `wat__std__HashSet` / `wat__std__HashMap` / `Tuple` / `wat__core__List` /
+///     `wat__core__PersistentVector` / `Option` / `Result` are recursively `:< Equatable`
+///     (Stone 255.74 D3; `wat/class.wat`'s conditional `extend-type` edges, e.g.
+///     `(Option :- [T :< Equatable]) :< Equatable`) — a bare `Path` never matches a
+///     CONDITIONAL edge, only the applied `Parametric` form does — so their probes use a
+///     representative Equatable inner type (`:wat::core::i64`), never a bare path.
+///   - `wat__core__PersistentMap` probes with the SAME `Parametric` shape to prove the
+///     checker rejects it regardless of element type (`wat/class.wat`'s own comment:
+///     "PersistentMap is not a member" of `Equatable` — unlike its `HashMap`/
+///     `PersistentVector` siblings, which are unconditional members).
 ///   - `RustOpaque`'s `type_name` is a per-instance `&'static str` (`inner.type_path`), not a
 ///     fixed literal — its probe uses a representative placeholder path, since every
 ///     `:rust::*` opaque type is uniformly rejected regardless of which one it names.
@@ -1369,9 +1384,12 @@ macro_rules! value_key_eligibility_table {
 
             /// The gate-testable table: for every `Value` variant (and, where eligibility is
             /// runtime-nature-dependent — `Aggregate` — every distinct sub-case), a
-            /// checker-facing `TypeExpr` paired with the eligibility `is_atomizable` MUST
-            /// agree with. A function, not a `const`/`static` — `TypeExpr::Path` owns a
-            /// `String`, which is not const-constructible.
+            /// checker-facing `TypeExpr` paired with the eligibility membership in
+            /// `:< :wat::core::Equatable` (`wat/class.wat`, via `require_class`) MUST agree
+            /// with (Stone 255.74 D3; `is_atomizable` is a different predicate — "can be
+            /// encoded as a holon atom" — and is no longer what this table is gated against).
+            /// A function, not a `const`/`static` — `TypeExpr::Path` owns a `String`, which is
+            /// not const-constructible.
             pub fn all_key_eligibility() -> Vec<(TypeExpr, KeyEligibility)> {
                 // `.concat()` over per-row vecs rather than `Vec::new()` + `push` — the
                 // init-then-push form is what `clippy::vec_init_then_push` names, and this
@@ -1385,7 +1403,7 @@ macro_rules! value_key_eligibility_table {
 }
 
 value_key_eligibility_table! {
-    // ── Hashable: pure data, is_atomizable MUST accept ─────────────────────
+    // ── Hashable: pure data, MUST be `:< :wat::core::Equatable` (Stone 255.74 D3) ──────────
     Value::bool(_) => {
         type_name: "wat::core::bool",
         key_eligibility: KeyEligibility::Hashable,

@@ -37,17 +37,25 @@
       [:wat::core::Option.Some {:value inner-map} (:wat::core::length inner-map)]
       [:wat::core::Option.None {} -1])))
 
-;; probe 6: empty {} length 0
-;; AMEND-255.74 D3 — an empty {} literal's key type is a fresh inference variable; nothing
-;; else in this function ever fixes it (`length` doesn't propagate a key/element constraint),
-;; so it is refused as unresolved (BoundUnresolved) unless pinned. `ann-form` pins it while
-;; keeping the `{}` LITERAL syntax this probe exists to exercise.
-(:wat::core::defn :t::p6-empty-map-len [] -> wat.type/i64
-  (:wat::core::length (:wat::core::ann-form {} (wat.type/HashMap :- [wat.type/keyword wat.type/i64]))))
+;; AMEND-255.74 D3 — an empty {}/#{} literal's key/element type is a fresh inference variable;
+;; nothing else in probes 6/7 below ever fixed it (`length` doesn't propagate a key/element
+;; constraint), so it was refused as unresolved (BoundUnresolved). `ann-form` ascription was
+;; tried and ruled out by the builder — types are headers on function definitions; a dynamic
+;; value's type is pinned by a TYPED CONSUMER, not an ascription (arc 258 retired ann-form as a
+;; crutch for exactly this). These two small typed consumers are that pin; each probe below
+;; still calls them with the bare `{}`/`#{}` LITERAL at the call site.
+(:wat::core::defn :t::map-len [m <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])] -> wat.type/i64
+  (:wat::core::length m))
+(:wat::core::defn :t::set-len [s <- (wat.type/HashSet :- [wat.type/i64])] -> wat.type/i64
+  (:wat::core::length s))
 
-;; probe 7: empty #{} length 0 — same AMEND-255.74 D3 note as probe 6, for the element type.
+;; probe 6: empty {} length 0
+(:wat::core::defn :t::p6-empty-map-len [] -> wat.type/i64
+  (:t::map-len {}))
+
+;; probe 7: empty #{} length 0
 (:wat::core::defn :t::p7-empty-set-len [] -> wat.type/i64
-  (:wat::core::length (:wat::core::ann-form #{} (wat.type/HashSet :- [wat.type/i64]))))
+  (:t::set-len #{}))
 
 ;; probe 8a: single element #{42} length 1
 (:wat::core::defn :t::p8a-single-set-len [] -> wat.type/i64

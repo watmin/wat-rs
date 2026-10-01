@@ -25,12 +25,18 @@
 ;; p3: empty set round-trip length 0
 ;; AMEND-255.74 D3 — an empty #{} literal's element type is a fresh inference variable;
 ;; `to-holon`'s own is_atomizable check conservatively admits an unresolved Var without
-;; constraining it, so nothing in this function ever fixes the type, and it is refused as
-;; unresolved (BoundUnresolved) unless pinned. `ann-form` pins it while keeping the `#{}`
-;; LITERAL syntax this probe exists to exercise.
+;; constraining it, so nothing in this function ever fixed the type, and it was refused as
+;; unresolved (BoundUnresolved). `ann-form` ascription was tried and ruled out by the builder —
+;; types are headers on function definitions; a dynamic value's type is pinned by a TYPED
+;; CONSUMER, not an ascription (arc 258 retired ann-form as a crutch for exactly this). This
+;; small typed consumer (taking the set, returning its holon) is that pin; the probe below
+;; still calls it with the bare `#{}` LITERAL at the call site.
+(:wat::core::defn :t::set-to-holon [s <- (wat.type/HashSet :- [wat.type/i64])] -> :wat::holon::HolonAST
+  (:wat::holon::to-holon s))
+
 (:wat::core::defn :t::p3-empty-rt-len [] -> wat.type/i64
   (:wat::core::let
-    [h (:wat::holon::to-holon (:wat::core::ann-form #{} (wat.type/HashSet :- [wat.type/i64])))
+    [h (:t::set-to-holon #{})
      s (:wat::holon::from-holon h)]
     (:wat::hashset::length s)))
 

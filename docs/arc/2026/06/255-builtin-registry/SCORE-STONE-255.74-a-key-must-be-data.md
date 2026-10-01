@@ -344,10 +344,19 @@ change, in four shapes:
    ```
    call_beside_value: fixture beside ".../probe_arc215_collection_literal_inference.rs" failed to freeze: #wat.check/CheckErrors {:message "2 type-check errors" … #wat.check/BoundUnresolved {:message ":t::p6-empty-map-len: type parameter key type bounded by :wat::core::Equatable is still unresolved" … } #wat.check/BoundUnresolved {:message ":t::p7-empty-set-len: type parameter element type bounded by :wat::core::Equatable is still unresolved" …}]}
    ```
-   Cured: pinned each offending empty literal's type with `:wat::core::ann-form` (`{}`/`#{}`
-   syntax kept — only the TYPE is pinned, not the literal form each probe exists to exercise) —
-   3 sites total (`probe_arc215_collection_literal_inference.wat` p6/p7,
-   `probe_arc216_stone1_hashset_roundtrip.wat` p3, `probe_brace_map_literal.wat` p1).
+   First cure (reverted, builder correction): pinned each offending empty literal's type with
+   `:wat::core::ann-form`. **Wrong** — ascription, which the builder ruled out: types are
+   headers on function definitions; a dynamic value's type is pinned by a TYPED CONSUMER, not
+   an ascription (arc 258 retired `ann-form` as a crutch for exactly this). Recured: a small
+   `defn` in each fixture whose PARAMETER header carries the concrete type (e.g. `(:wat::core::defn
+   :t::map-len [m <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])] -> wat.type/i64
+   (:wat::core::length m))`), called with the bare `{}`/`#{}` literal at the call site — the
+   literal syntax each probe exercises stays there; only the resolving mechanism moved from an
+   expression-level ascription to a function-header type. 3 sites, 4 pins total
+   (`probe_arc215_collection_literal_inference.wat` p6/p7 share one `map-len`/`set-len` pair,
+   `probe_arc216_stone1_hashset_roundtrip.wat` p3 gets its own `set-to-holon` consumer — taking
+   the set, returning its holon, per the builder's own example shape —
+   `probe_brace_map_literal.wat` p1 gets its own `map-len`).
 3. **`probe_stone255_71_the_wall::exactly_fourteen_errors_one_per_bracketless_call`** — `left: 16,
    right: 14`. Root cause: `infer_hashmap_constructor`'s bracket-less fallback
    (`(None, _) => … (fresh.fresh(), fresh.fresh(), &args[2..])`) drops BOTH leading args as if
@@ -392,3 +401,50 @@ Neither fired.
 section was measured in this session (two full floor runs, `--check` on hand-built throwaway
 fixtures before committing any corpus/test-fixture edit, the mutation-proof, the census diff) —
 none carried over unverified from the base stone's own report.
+
+---
+
+# CORRECTIONS (coordinator, post-D3)
+
+1. **`ann-form` reverted, replaced with a typed consumer.** §5 item 2's four pins
+   (`probe_arc215_collection_literal_inference.wat` p6/p7, `probe_arc216_stone1_hashset_roundtrip.wat`
+   p3, `probe_brace_map_literal.wat` p1) were ascription — ruled out by the builder: types are
+   headers on function definitions; a dynamic value's type is pinned by a TYPED CONSUMER (arc
+   258 retired `ann-form` as a crutch for exactly this). Each pin is now a small `defn` in the
+   same fixture whose parameter header carries the type (`map-len`/`set-len` in two files,
+   `set-to-holon` — taking the set, returning its holon — in the third), called with the bare
+   `{}`/`#{}` literal at the call site. §5 item 2's own text is updated in place to describe
+   both the wrong first cure and the correction. No other `ann-form` was added or touched (the
+   two PRE-EXISTING, legitimate `ann-form` sites in §1's table — the expected-type-directed
+   `check_map_literal_against`/`check_set_literal_against` call-arg/ann-form path itself — are
+   unrelated and untouched).
+2. **Stale `is_atomizable` doc claims, `src/value/value.rs`.** `KeyEligibility::Hashable`'s and
+   `::NeverAKey`'s own doc comments (`:1247`, `:1251` pre-correction) said "`is_atomizable` MUST
+   accept/reject" — now say `:< :wat::core::Equatable`. Swept the rest of that enum's
+   neighborhood and `all_key_eligibility()`'s own doc for the same claim and found it recurring
+   in four more places, all corrected: `all_key_eligibility()`'s doc ("paired with the
+   eligibility `is_atomizable` MUST agree with" → Equatable); the `value_key_eligibility_table!`
+   macro's probe-shape rationale (named `is_atomizable`'s `Parametric`/bare-`Path` distinction
+   as the reason `Option`/`Result`/`List`/`PersistentVector` need a parametric probe — rewritten
+   to name `wat/class.wat`'s conditional `extend-type` edges instead, and to drop
+   `PersistentVector` from the "needs the special per-probe form" list, since D3 already
+   simplified its gate back to the default form); `impl PartialEq for Value`'s and `impl Hash
+   for Value`'s own top-level "variant classification" doc blocks (both still listed `u8`,
+   `Option`, `Result`, `Vector`, `Instant`, `Duration`, `wat__core__List` as "NOT atomizable" /
+   "not predicate-admitted" — the exact stale claim, now corrected to the current `Hashable`/
+   `NeverAKey` split). Left untouched (checked, not stale): the 14 `unreachable!()` panic-message
+   string literals citing `is_atomizable` by name (`:907-986`) — each is still a true statement
+   about `is_atomizable` specifically (unchanged, still rejects every variant it names), and the
+   surrounding explanatory comment block (already rewritten in the base amendment work) gives
+   the accurate two-layer story; and two row-level historical-mechanism comments (`Vec`/`Tuple`,
+   explaining why their probe is parametric by citing `is_atomizable`'s own `Parametric`/`Tuple`
+   arm as shape-precedent) — still factually true of `is_atomizable` itself, not a claim about
+   what the key-eligibility gate checks today.
+
+## Corrections gates
+
+| what | how | result (verbatim) |
+|---|---|---|
+| targeted tests (52: the 3 re-fixed `.wat` files' probes, `arc255_74`, the two D3 gate tests) | `cargo nextest run --release -E '…'` | `52 tests run: 52 passed, 6229 skipped` |
+| clippy | `cargo clippy --release --all-targets -- -D warnings` | `Finished \`release\` profile [optimized] target(s) in 12.07s` — rc 0, zero warnings |
+| release floor | `scripts/floor.sh`, one run, foreground | `.floor/2026-10-01T05-26-16Z` — `Summary [ 386.735s] 6257 tests run: 6257 passed (27 slow), 24 skipped` — no `ARM.txt` |
