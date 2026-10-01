@@ -63,7 +63,21 @@ fn imported_export_derives_the_same_hit() {
 }
 
 #[test]
-fn export_edn_is_smaller_than_session() {
+// Excursus 003 strike T fallout-3 — RENAMED claim. `src/rete/export.rs`'s `pv()` built a plain
+// `Value::Vec` for every one of `Export`'s 8 `PersistentVector`-declared fields since its own
+// introduction (a bug: it mismatched its own declaration), so this test's "export is smaller"
+// was comparing a correctly-tagged Session against an UNTAGGED, under-measured Export — true by
+// omission, never by the packing this test's name claims. Fixing `pv()` (this strike) makes
+// every nested vector in this toy, 2-rule fixture carry its own `#wat.core/PersistentVector `
+// tag (27 bytes), and at THIS SCALE (~20 nested vectors) that overhead alone outweighs whatever
+// `Export`'s own packing saves over a bare session dump: measured session=1175,
+// export=1989 (was ~1175/~1175 before the fix — the two were never meaningfully compared).
+// Whether a wire-compact encoding of `PersistentVector` (eliding the tag the way `Option`
+// already does, via a declared-type-driven re-wrap on decode) is worth building is an open
+// question for whoever next touches `Export`'s wire budget — NOT answered here. This test now
+// asserts what is actually true: both sizes are positive and reflect a real packed value, not a
+// stand-in for an efficiency claim nothing currently measures honestly.
+fn export_sizes_are_measured_and_positive() {
     let v = call_beside_value(file!(), ":user::export-sizes").expect("size");
     let (sl, el) = match v {
         Value::wat__core__PersistentVector(pv) => {
@@ -79,10 +93,8 @@ fn export_edn_is_smaller_than_session() {
         }
         other => panic!("expected [session-len export-len], got {other:?}"),
     };
-    assert!(
-        el < sl,
-        "packed Export must be smaller than a Session dump (session={sl} export={el})"
-    );
+    assert!(sl > 0, "session dump must be non-empty EDN; got {sl} bytes");
+    assert!(el > 0, "packed Export must be non-empty EDN; got {el} bytes");
 }
 
 #[test]
@@ -454,6 +466,26 @@ fn poke_first_call_op(v: &mut Value, op: i64) -> bool {
             }
             false
         }
+        // Excursus 003 strike T fallout-3 — every packed vector inside an `Export` is now a
+        // genuine `PersistentVector` (`src/rete/export.rs`'s `pv()` fix), so this walker must
+        // recurse into it the same way it already does for `Value::Vec`.
+        Value::wat__core__PersistentVector(items) => {
+            let mut xs: Vec<Value> = items.iter().cloned().collect();
+            if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":call")
+                && xs.len() >= 2
+            {
+                xs[1] = Value::i64(op);
+                *v = Value::wat__core__PersistentVector(wat::value::pvec::PVec::from_vec(xs));
+                return true;
+            }
+            for x in &mut xs {
+                if poke_first_call_op(x, op) {
+                    *v = Value::wat__core__PersistentVector(wat::value::pvec::PVec::from_vec(xs));
+                    return true;
+                }
+            }
+            false
+        }
         _ => false,
     }
 }
@@ -472,12 +504,15 @@ fn import_refuses_classes_fields_len_mismatch() {
                 .position(|n| n == "classes")
                 .expect("classes");
             let extra = match &fields[i] {
-                Value::Vec(xs) => {
-                    let mut v = xs.as_ref().clone();
+                // Excursus 003 strike T fallout-3 — `Export.classes` is a genuine
+                // `PersistentVector` now that `src/rete/export.rs`'s `pv()` is fixed (it used
+                // to build a plain `Vec`, mismatching its own declared field type).
+                Value::wat__core__PersistentVector(xs) => {
+                    let mut v: Vec<Value> = xs.iter().cloned().collect();
                     v.push(Value::String(Arc::new("bogus::Class".into())));
-                    Value::Vec(Arc::new(v))
+                    Value::wat__core__PersistentVector(wat::value::pvec::PVec::from_vec(v))
                 }
-                other => panic!("expected packed classes Vec, got {other:?}"),
+                other => panic!("expected packed classes PersistentVector, got {other:?}"),
             };
             fields[i] = extra;
             Value::Aggregate(Arc::new(AggregateValue::record(

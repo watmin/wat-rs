@@ -1805,6 +1805,44 @@ pub enum EdnReadErrorKind {
         type_path: String,
         variant: String,
     },
+    /// Excursus 003 strike T — a declared field's decoded VALUE does not conform to its
+    /// declared type (`value_conforms` refused it). This is the hole B1 found: before this
+    /// variant existed, `reconstruct_struct`/`reconstruct_record` decoded each field with
+    /// `edn_to_value_caps` and NO expected type, so an untagged map landed as a generic
+    /// `HashMap` in a record-typed field and nothing noticed. `field` names the path to the
+    /// failing position — the declared field, plus any element/sub-field the checker
+    /// recursed into (`Mismatch::at`'s `.[i]` / `.name` accumulation, mirroring
+    /// `EdnCoerceError.path`'s own convention just above).
+    FieldTypeMismatch {
+        type_path: String,
+        field: String,
+        expected: String,
+        got: String,
+    },
+    /// Excursus 003 strike T — the tagged map named a key the declaration does not carry.
+    /// `reconstruct_struct`/`reconstruct_record` used to build `by_key` from every entry and
+    /// read only the declared fields, so a stray key decoded cleanly and silently vanished
+    /// (Consequence 2 in the strike-T brief). Searched for a deliberate forward-compatibility
+    /// tolerance before adding this (none found — see the strike's report); this is a refusal,
+    /// not a drop.
+    UnknownField {
+        type_path: String,
+        key: String,
+    },
+    /// Excursus 003 strike T, fallout-1 ruling — a declared field names a type this `TypeEnv`
+    /// has NEVER HEARD OF (`TypeEnv::contains` is `false`, not merely `get` being `None` for a
+    /// genuine builtin leaf). The first cut of this strike treated "unregistered" as "pass, we
+    /// cannot verify" — overruled: that is a silent pass holding two different facts ("the type
+    /// does not exist" and "nobody checked"), the exact hole this strike exists to close. A
+    /// live decode's `TypeEnv` is the running program's own registry, and the checker already
+    /// refuses to freeze a program naming an unresolved type — so a declared field type that
+    /// does not resolve HERE is a declaration bug (a typo, a retired type still named, a
+    /// forward-declared type never actually registered), not a shape mismatch on the data.
+    UndeclaredFieldType {
+        type_path: String,
+        field: String,
+        ty: String,
+    },
     /// Catch-all — the EDN value couldn't be coerced to a wat
     /// Value for the listed structural reason (e.g. unsupported
     /// `wat_edn::Value` variant like Symbol or BigInt, or a
@@ -1843,6 +1881,19 @@ impl std::fmt::Display for EdnReadErrorKind {
                 f,
                 "enum {type_path} has no variant named {variant}"
             ),
+            Self::FieldTypeMismatch { type_path, field, expected, got } => write!(
+                f,
+                "{type_path}{field} declared as {expected}, but the decoded value is {got}"
+            ),
+            Self::UnknownField { type_path, key } => write!(
+                f,
+                "{type_path} has no declared field named {key}, but the wire map carries one"
+            ),
+            Self::UndeclaredFieldType { type_path, field, ty } => write!(
+                f,
+                "{type_path}{field} is declared as {ty}, but this type registry has never heard \
+                 of {ty} — a declaration bug, not a shape mismatch on the data"
+            ),
             Self::Other(s) => {
                 write!(f, "{s}")
             }
@@ -1855,6 +1906,138 @@ impl std::fmt::Display for EdnReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let prefix = span_prefix(&self.span);
         write!(f, "{}{}", prefix, self.kind)
+    }
+}
+
+impl EdnReadErrorKind {
+    /// Excursus 003 strike T2 Target §2 — is this refusal about a request-position VALUE's
+    /// SHAPE (a field type, an unknown field, an undeclared field's type, a missing declared
+    /// field) as opposed to the message never identifying any declared type at all (an
+    /// unparseable frame, an unknown/unsupported tag, no type registry)? Shape-class refusals
+    /// get the one-shot lenient re-decode (`decode_trusted_wire_lenient`) so the per-op
+    /// `:wat::edn::validate` guard still gets its say and replies the contractual
+    /// `:RequestMalformed`; everything else stays the generic `ServiceEvent::Malformed` →
+    /// `Reply::Failed`, since there is no op to validate against in the first place.
+    pub(crate) fn is_shape_defect(&self) -> bool {
+        matches!(
+            self,
+            Self::FieldTypeMismatch { .. }
+                | Self::UnknownField { .. }
+                | Self::UndeclaredFieldType { .. }
+                | Self::UnknownStructField { .. }
+        )
+    }
+}
+
+// ─── EdnReadError::to_record — the `:wat::edn::<Kind>` wat records (strike T2 Target §1) ───
+//
+// Field names are sourced from `wat/edn.wat` itself via `wat_field_names_from!` — never
+// hand-typed — exactly `src/value/runtime_records.rs`'s `RuntimeError::to_record` pattern for
+// `RuntimeErrorKind`. `to_record`'s match is exhaustive with no `_` arm: a new
+// `EdnReadErrorKind` variant with no arm here fails to compile.
+
+::wat_source_derive::wat_field_names_from!(EDN_UNKNOWN_TAG_FIELDS, "wat/edn.wat", ":wat::edn::UnknownTag");
+::wat_source_derive::wat_field_names_from!(EDN_UNSUPPORTED_TAG_FIELDS, "wat/edn.wat", ":wat::edn::UnsupportedTag");
+::wat_source_derive::wat_field_names_from!(EDN_NO_TYPE_REGISTRY_FIELDS, "wat/edn.wat", ":wat::edn::NoTypeRegistry");
+::wat_source_derive::wat_field_names_from!(EDN_UNKNOWN_STRUCT_FIELD_FIELDS, "wat/edn.wat", ":wat::edn::UnknownStructField");
+::wat_source_derive::wat_field_names_from!(EDN_ENUM_VARIANT_NOT_FOUND_FIELDS, "wat/edn.wat", ":wat::edn::EnumVariantNotFound");
+::wat_source_derive::wat_field_names_from!(EDN_FIELD_TYPE_MISMATCH_FIELDS, "wat/edn.wat", ":wat::edn::FieldTypeMismatch");
+::wat_source_derive::wat_field_names_from!(EDN_UNKNOWN_FIELD_FIELDS, "wat/edn.wat", ":wat::edn::UnknownField");
+::wat_source_derive::wat_field_names_from!(EDN_UNDECLARED_FIELD_TYPE_FIELDS, "wat/edn.wat", ":wat::edn::UndeclaredFieldType");
+::wat_source_derive::wat_field_names_from!(EDN_READ_ERROR_FIELDS, "wat/edn.wat", ":wat::edn::ReadError");
+
+/// Shared boilerplate: cache one of the `const`s above as an `Arc<Vec<String>>`, the shape
+/// `AggregateValue::record` wants. Mirrors `src/value/runtime_records.rs`'s `record_names_fn!`
+/// macro (not reused directly — that macro is private to its own module and this is nine
+/// one-off accessors, not worth a cross-module macro export for).
+macro_rules! edn_names_fn {
+    ($fn_name:ident, $const_name:ident) => {
+        fn $fn_name() -> Arc<Vec<String>> {
+            static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+            N.get_or_init(|| crate::value::value::names_arc_from_static($const_name)).clone()
+        }
+    };
+}
+edn_names_fn!(edn_unknown_tag_names, EDN_UNKNOWN_TAG_FIELDS);
+edn_names_fn!(edn_unsupported_tag_names, EDN_UNSUPPORTED_TAG_FIELDS);
+edn_names_fn!(edn_no_type_registry_names, EDN_NO_TYPE_REGISTRY_FIELDS);
+edn_names_fn!(edn_unknown_struct_field_names, EDN_UNKNOWN_STRUCT_FIELD_FIELDS);
+edn_names_fn!(edn_enum_variant_not_found_names, EDN_ENUM_VARIANT_NOT_FOUND_FIELDS);
+edn_names_fn!(edn_field_type_mismatch_names, EDN_FIELD_TYPE_MISMATCH_FIELDS);
+edn_names_fn!(edn_unknown_field_names, EDN_UNKNOWN_FIELD_FIELDS);
+edn_names_fn!(edn_undeclared_field_type_names, EDN_UNDECLARED_FIELD_TYPE_FIELDS);
+edn_names_fn!(edn_read_error_names, EDN_READ_ERROR_FIELDS);
+
+impl EdnReadError {
+    /// Excursus 003 strike T2 Target §1 — convert this error into a value of its declared
+    /// `:wat::edn::<Kind>` record (`wat/edn.wat`), for a caller (`src/kernel/message.rs`) that
+    /// wants `Failure.error` to carry the real shape instead of
+    /// `message_only_failure(format!("{e}"))`'s flattened prose. `message` is this kind's own
+    /// `Display` rendering (span-free, already a well-formed one-line summary); `location` is
+    /// the raising site's own span (never a client-attributable wire position — EDN decode
+    /// walks an already-parsed tree with no source span of its own, `crate::rust_caller_span!()`
+    /// at every raise site).
+    pub(crate) fn to_record(&self) -> Value {
+        let floor_message = Value::String(Arc::new(self.kind.to_string()));
+        let floor_location = crate::runtime::value_from_span(self.span.clone());
+        match &self.kind {
+            EdnReadErrorKind::UnknownTag { ns, name, body_shape } => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::UnknownTag".to_string(),
+                edn_unknown_tag_names(),
+                Arc::new(vec![
+                    floor_message, floor_location,
+                    Value::String(Arc::new(ns.clone())),
+                    Value::String(Arc::new(name.clone())),
+                    Value::String(Arc::new((*body_shape).to_string())),
+                ]),
+            ))),
+            EdnReadErrorKind::UnsupportedTag(tag) => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::UnsupportedTag".to_string(),
+                edn_unsupported_tag_names(),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(tag.clone()))]),
+            ))),
+            EdnReadErrorKind::NoTypeRegistry => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::NoTypeRegistry".to_string(),
+                edn_no_type_registry_names(),
+                Arc::new(vec![floor_message, floor_location]),
+            ))),
+            EdnReadErrorKind::UnknownStructField { type_path, key } => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::UnknownStructField".to_string(),
+                edn_unknown_struct_field_names(),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(type_path.clone())), Value::String(Arc::new(key.clone()))]),
+            ))),
+            EdnReadErrorKind::EnumVariantNotFound { type_path, variant } => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::EnumVariantNotFound".to_string(),
+                edn_enum_variant_not_found_names(),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(type_path.clone())), Value::String(Arc::new(variant.clone()))]),
+            ))),
+            EdnReadErrorKind::FieldTypeMismatch { type_path, field, expected, got } => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::FieldTypeMismatch".to_string(),
+                edn_field_type_mismatch_names(),
+                Arc::new(vec![
+                    floor_message, floor_location,
+                    Value::String(Arc::new(type_path.clone())),
+                    Value::String(Arc::new(field.clone())),
+                    Value::String(Arc::new(expected.clone())),
+                    Value::String(Arc::new(got.clone())),
+                ]),
+            ))),
+            EdnReadErrorKind::UnknownField { type_path, key } => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::UnknownField".to_string(),
+                edn_unknown_field_names(),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(type_path.clone())), Value::String(Arc::new(key.clone()))]),
+            ))),
+            EdnReadErrorKind::UndeclaredFieldType { type_path, field, ty } => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::UndeclaredFieldType".to_string(),
+                edn_undeclared_field_type_names(),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(type_path.clone())), Value::String(Arc::new(field.clone())), Value::String(Arc::new(ty.clone()))]),
+            ))),
+            EdnReadErrorKind::Other(detail) => Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::edn::ReadError".to_string(),
+                edn_read_error_names(),
+                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(detail.clone()))]),
+            ))),
+        }
     }
 }
 
@@ -1902,11 +2085,31 @@ fn read_edn_caps(
     allow_caps: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
+    read_edn_caps_strict(s, types, allow_caps, true, ctx)
+}
+
+/// Excursus 003 strike T2 Target §2 — [`read_edn_caps`]'s sibling with the `strict` mode
+/// exposed. `strict=false` is the EXACT pre-T behaviour (`value_conforms`/
+/// `refuse_unknown_fields` skipped inside every `reconstruct_*`): the ONLY caller allowed to
+/// pass `false` is [`decode_trusted_wire_lenient`], the one-shot fallback a service's recv'/poll'
+/// boundary retries with when the STRICT pass refuses with a shape-class
+/// [`EdnReadErrorKind`] — restoring `req-binder` enough for the per-op `:wat::edn::validate` /
+/// `:RequestMalformed` guard (`wat/service.wat`) to run exactly as arc 278 built it. Every other
+/// caller (`read_edn_caps` above, `read_edn`, `edn_to_value`, the two foreign/json doors) stays
+/// pinned to `strict=true` — this does NOT reopen the B1 hole generally, only at the one
+/// already-defended service-message channel.
+fn read_edn_caps_strict(
+    s: &str,
+    types: Option<&crate::types::TypeEnv>,
+    allow_caps: bool,
+    strict: bool,
+    ctx: Option<&crate::value::EncodingCtx>,
+) -> Result<Value, EdnReadError> {
     let edn = wat_edn::parse_owned(s)
         // arc 138: no span — read_edn operates on a raw &str with no WatAST trace
         .map_err(|e| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")) })?;
     // Trusted peer wire is a KNOWN-types channel — never foreign-mode.
-    edn_to_value_caps(&edn, types, allow_caps, false, ctx)
+    edn_to_value_caps(&edn, types, allow_caps, false, strict, ctx)
 }
 
 // ─── EDN value-framing (pipe wire protocol) ─────────────────────────────────
@@ -2195,7 +2398,7 @@ pub fn edn_to_value(
     // tags. Object-capability rule: a capability is obtained only by being handed it on a trusted
     // channel, NEVER forged from parsed data. The trusted peer wire opts in via the `_caps` worker
     // with `allow_caps = true` (see `read_edn_caps` / `edn_string_to_value_trusted`).
-    edn_to_value_caps(edn, types, false, false, ctx)
+    edn_to_value_caps(edn, types, false, false, true, ctx)
 }
 
 /// Arc 278 Stone A — the DATA-MODE decode entry (`:wat::edn::read-foreign`).
@@ -2211,7 +2414,7 @@ pub fn edn_to_value_foreign(
     types: Option<&crate::types::TypeEnv>,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
-    edn_to_value_caps(edn, types, /*allow_caps*/ false, /*foreign*/ true, ctx)
+    edn_to_value_caps(edn, types, /*allow_caps*/ false, /*foreign*/ true, /*strict*/ true, ctx)
 }
 
 #[allow(clippy::mutable_key_type)]
@@ -2220,6 +2423,7 @@ fn edn_to_value_caps(
     types: Option<&crate::types::TypeEnv>,
     allow_caps: bool,
     foreign: bool,
+    strict: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
@@ -2254,14 +2458,14 @@ fn edn_to_value_caps(
         Edn::List(items) => {
             let walked: std::collections::LinkedList<Value> = items
                 .iter()
-                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, ctx))
+                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, strict, ctx))
                 .collect::<Result<_, _>>()?;
             Ok(Value::wat__core__List(Arc::new(walked)))
         }
         Edn::Vector(items) => {
             let walked: Vec<Value> = items
                 .iter()
-                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, ctx))
+                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, strict, ctx))
                 .collect::<Result<_, _>>()?;
             Ok(Value::Vec(Arc::new(walked)))
         }
@@ -2273,8 +2477,8 @@ fn edn_to_value_caps(
             let mut backing: std::collections::HashMap<Value, Value> =
                 std::collections::HashMap::with_capacity(entries.len());
             for (k, v) in entries {
-                let k_val = edn_to_value_caps(k, types, allow_caps, foreign, ctx)?;
-                let v_val = edn_to_value_caps(v, types, allow_caps, foreign, ctx)?;
+                let k_val = edn_to_value_caps(k, types, allow_caps, foreign, strict, ctx)?;
+                let v_val = edn_to_value_caps(v, types, allow_caps, foreign, strict, ctx)?;
                 if !crate::runtime::value_is_key_hashable(&k_val) {
                     return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable map key: {}", k_val.type_name())) });
                 }
@@ -2287,7 +2491,7 @@ fn edn_to_value_caps(
             // Value: Hash + Eq (Stone 216.5a) makes this work natively.
             let mut backing = std::collections::HashSet::with_capacity(items.len());
             for x in items {
-                let v_val = edn_to_value_caps(x, types, allow_caps, foreign, ctx)?;
+                let v_val = edn_to_value_caps(x, types, allow_caps, foreign, strict, ctx)?;
                 backing.insert(v_val);
             }
             Ok(Value::wat__core__HashSet(Arc::new(backing)))
@@ -2297,7 +2501,7 @@ fn edn_to_value_caps(
         // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::core::Uuid`.
         // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::wat__time__Instant(*t)` pattern.
         Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
-        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps, foreign, ctx),
+        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps, foreign, strict, ctx),
     }
 }
 
@@ -3026,6 +3230,23 @@ fn coerce_struct_path(
             });
         }
     };
+    // Excursus 003 strike T ruling 4 — `coerce_struct_path` had the SAME undeclared-key gap
+    // `reconstruct_struct`/`reconstruct_record` did (`by_key` built from every entry, only
+    // declared fields ever read back out of it) — this is the `:wat::edn::validate` /
+    // request-sanitization door, so an unrefused stray key here was a second, independent hole
+    // in the exact wall this strike's fallout census found racing strict decode. One checker,
+    // every door.
+    for (k, _) in entries {
+        if let Edn::Keyword(kw) = k {
+            if !def.fields.iter().any(|(fname, _)| fname == kw.name()) {
+                return Err(EdnCoerceError {
+                    expected: type_path.to_string(),
+                    got: format!("unknown field :{}", kw.name()),
+                    path: String::new(),
+                });
+            }
+        }
+    }
     // Build keyword-name → value lookup.
     let mut by_key: std::collections::HashMap<String, &wat_edn::OwnedValue> =
         std::collections::HashMap::with_capacity(entries.len());
@@ -3369,6 +3590,7 @@ fn tagged_to_value(
     types: Option<&crate::types::TypeEnv>,
     allow_caps: bool,
     foreign: bool,
+    strict: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
@@ -3434,20 +3656,20 @@ fn tagged_to_value(
     }
     if ns == "wat.core" && name == "Option.Some" {
         let inner = variant_map_field(ns, name, body, "value", |b| {
-            edn_to_value_caps(b, types, allow_caps, foreign, ctx)
+            edn_to_value_caps(b, types, allow_caps, foreign, strict, ctx)
         })?;
         return Ok(Value::Option(Arc::new(Some(inner))));
     }
     // Arc 296 H-2 — `#wat.core/Result.Ok {:value v}` / `#wat.core/Result.Err {:error e}`.
     if ns == "wat.core" && name == "Result.Ok" {
         let inner = variant_map_field(ns, name, body, "value", |b| {
-            edn_to_value_caps(b, types, allow_caps, foreign, ctx)
+            edn_to_value_caps(b, types, allow_caps, foreign, strict, ctx)
         })?;
         return Ok(Value::Result(Arc::new(Ok(inner))));
     }
     if ns == "wat.core" && name == "Result.Err" {
         let inner = variant_map_field(ns, name, body, "error", |b| {
-            edn_to_value_caps(b, types, allow_caps, foreign, ctx)
+            edn_to_value_caps(b, types, allow_caps, foreign, strict, ctx)
         })?;
         return Ok(Value::Result(Arc::new(Err(inner))));
     }
@@ -3465,8 +3687,8 @@ fn tagged_to_value(
         };
         let mut pairs: Vec<(Value, Value)> = Vec::new();
         for (k, v) in entries {
-            let k_val = edn_to_value_caps(k, types, allow_caps, foreign, ctx)?;
-            let v_val = edn_to_value_caps(v, types, allow_caps, foreign, ctx)?;
+            let k_val = edn_to_value_caps(k, types, allow_caps, foreign, strict, ctx)?;
+            let v_val = edn_to_value_caps(v, types, allow_caps, foreign, strict, ctx)?;
             if !crate::runtime::value_is_key_hashable(&k_val) {
                 return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable PersistentMap key: {}", k_val.type_name())) });
             }
@@ -3488,7 +3710,7 @@ fn tagged_to_value(
         };
         let mut acc = Vec::with_capacity(items.len());
         for item in items {
-            acc.push(edn_to_value_caps(item, types, allow_caps, foreign, ctx)?);
+            acc.push(edn_to_value_caps(item, types, allow_caps, foreign, strict, ctx)?);
         }
         return Ok(Value::wat__core__PersistentVector(
             crate::value::pvec::PVec::from_vec(acc),
@@ -3523,7 +3745,7 @@ fn tagged_to_value(
     // (untyped) path, not only the narrow `:wat::holon::HolonAST` typed-coercion arm
     // (`edn_derive_holon`) — a struct field carrying a data holon needs to re-lift here too.
     if ns == "wat" && name == "holon" {
-        let inner = edn_to_value_caps(body, types, allow_caps, foreign, ctx)?;
+        let inner = edn_to_value_caps(body, types, allow_caps, foreign, strict, ctx)?;
         return Ok(Value::wat__holon__HolonAST(Arc::new(decode_holon_data_tag(inner)?)));
     }
 
@@ -3540,7 +3762,7 @@ fn tagged_to_value(
     // all here — it fell through every arm below to the generic `other => UnknownTag` catch-all.
     let newtype_path = ns_to_wat_path(ns, name);
     if let Some(crate::types::TypeDef::Newtype(n)) = types.get(&newtype_path) {
-        let inner = edn_to_value_caps(body, Some(types), allow_caps, foreign, ctx)?;
+        let inner = edn_to_value_caps(body, Some(types), allow_caps, foreign, strict, ctx)?;
         let inner = rewrap_option_field(&n.inner, inner);
         let class = newtype_path.trim_start_matches(':').to_string();
         return Ok(Value::Aggregate(Arc::new(AggregateValue::newtype(class, inner))));
@@ -3570,18 +3792,19 @@ fn tagged_to_value(
                     types,
                     allow_caps,
                     foreign,
+                    strict,
                     ctx,
                 )
             } else {
                 let path = ns_to_wat_path(ns, name);
                 match types.get(&path) {
                     Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::HolonRecord => {
-                        reconstruct_holon_record(ns, name, entries, types, allow_caps, foreign, ctx)
+                        reconstruct_holon_record(ns, name, entries, types, allow_caps, foreign, strict, ctx)
                     }
                     Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
-                        reconstruct_record(ns, name, entries, types, allow_caps, foreign, ctx)
+                        reconstruct_record(ns, name, entries, types, allow_caps, foreign, strict, ctx)
                     }
-                    _ => reconstruct_struct(ns, name, entries, types, allow_caps, foreign, ctx),
+                    _ => reconstruct_struct(ns, name, entries, types, allow_caps, foreign, strict, ctx),
                 }
             }
         }
@@ -3866,6 +4089,33 @@ mod restriction_entry_match_tests {
     }
 }
 
+/// Excursus 003 strike T Target §3 — refuse a wire map key the declaration does not name.
+/// Shared by `reconstruct_struct` and `reconstruct_record` (identical `by_key` shape in both —
+/// see the strike's report for the forward-compatibility search that preceded adding this).
+/// Excursus 003 strike T Target §3 (widened by ruling 4) — refuse a wire map key the
+/// declaration does not name. Takes the raw `entries` slice (not a pre-built `by_key` map) so
+/// it serves every door with this shape: `reconstruct_struct`, `reconstruct_record`,
+/// `reconstruct_holon_record` (all three already build a `by_key` for their own field lookups;
+/// this walks `entries` directly instead of borrowing theirs, so one function serves all four
+/// including `reconstruct_enum_tagged`, which never builds a `by_key` at all).
+fn refuse_unknown_fields(
+    entries: &[(OwnedValue, OwnedValue)],
+    fields: &[(String, crate::types::TypeExpr)],
+    type_path: &str,
+) -> Result<(), EdnReadError> {
+    for (k, _) in entries {
+        let OwnedValue::Keyword(kw) = k else { continue };
+        let key = kw.name();
+        if !fields.iter().any(|(fname, _)| fname == key) {
+            return Err(EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::UnknownField { type_path: type_path.to_string(), key: key.to_string() },
+            });
+        }
+    }
+    Ok(())
+}
+
 fn reconstruct_struct(
     ns: &str,
     name: &str,
@@ -3873,6 +4123,7 @@ fn reconstruct_struct(
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
+    strict: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
@@ -3900,6 +4151,14 @@ fn reconstruct_struct(
             by_key.insert(kw.name().to_string(), v);
         }
     }
+    // Excursus 003 strike T Target §3 — a key the declaration does not name is refused, not
+    // silently dropped. Excursus 003 strike T2 — gated on `strict`: `strict=false` is
+    // `decode_trusted_wire_lenient`'s one-shot fallback, restoring the EXACT pre-strike-T
+    // decode so a service's per-op `:wat::edn::validate` guard (which does its OWN, equally
+    // unconditional shape check) still gets a `req` to run against — see that fn's doc.
+    if strict {
+        refuse_unknown_fields(entries, &def.fields, &path)?;
+    }
     // Walk declared fields in declaration order; build positional
     // field values that StructValue expects.
     //
@@ -3918,8 +4177,16 @@ fn reconstruct_struct(
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownStructField { type_path: path.clone(), key: fname.clone() } }
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
-        let wrapped = rewrap_option_field(fty, inner);
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, strict, ctx)?;
+        let wrapped = rewrap_tuple_field(fty, rewrap_option_field(fty, inner));
+        // Excursus 003 strike T Target §2 — check the decoded VALUE against its declaration,
+        // after the Option re-wrap (so an Option field's shape is checked as declared, not as
+        // its unwrapped wire form). Excursus 003 strike T2 — gated on `strict` (see the
+        // `refuse_unknown_fields` call above for why).
+        if strict {
+            value_conforms(&wrapped, fty, types)
+                .map_err(|m| EdnReadError { span: crate::rust_caller_span!(), kind: m.into_kind(&path, fname) })?;
+        }
         fields.push(wrapped);
     }
     Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
@@ -3940,6 +4207,7 @@ fn reconstruct_record(
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
+    strict: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
@@ -3972,6 +4240,12 @@ fn reconstruct_record(
             by_key.insert(kw.name().to_string(), v);
         }
     }
+    // Excursus 003 strike T Target §3 — a key the declaration does not name is refused, not
+    // silently dropped. Excursus 003 strike T2 — gated on `strict` (see `reconstruct_struct`'s
+    // identical call for why).
+    if strict {
+        refuse_unknown_fields(entries, &def.fields, &path)?;
+    }
     // Walk declared fields in declaration order.
     let mut fields: Vec<Value> = Vec::with_capacity(def.fields.len());
     for (fname, fty) in def.fields.iter() {
@@ -3982,9 +4256,15 @@ fn reconstruct_record(
                 key: fname.clone(),
             },
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, strict, ctx)?;
         // Apply Option-rewrapping when the field is Option<T>.
-        let wrapped = rewrap_option_field(fty, inner);
+        let wrapped = rewrap_tuple_field(fty, rewrap_option_field(fty, inner));
+        // Excursus 003 strike T Target §2 — check the decoded VALUE against its declaration,
+        // after the Option re-wrap. Excursus 003 strike T2 — gated on `strict`.
+        if strict {
+            value_conforms(&wrapped, fty, types)
+                .map_err(|m| EdnReadError { span: crate::rust_caller_span!(), kind: m.into_kind(&path, fname) })?;
+        }
         fields.push(wrapped);
     }
     // class stored without leading ':'; path has it — strip.
@@ -4017,6 +4297,7 @@ fn reconstruct_holon_record(
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
+    strict: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
@@ -4047,6 +4328,13 @@ fn reconstruct_holon_record(
             by_key.insert(kw.name().to_string(), v);
         }
     }
+    // Excursus 003 strike T ruling 4 — the SAME hole closes here: `reconstruct_holon_record`
+    // mirrors `reconstruct_record`'s `by_key`/field-walk exactly (its own doc says so), so it
+    // carried the identical gap. One checker, every door. Excursus 003 strike T2 — gated on
+    // `strict` (see `reconstruct_struct`'s identical call for why).
+    if strict {
+        refuse_unknown_fields(entries, &def.fields, &path)?;
+    }
     // Walk declared fields in declaration order.
     let mut field_names: Vec<String> = Vec::with_capacity(def.fields.len());
     let mut fields: Vec<Value> = Vec::with_capacity(def.fields.len());
@@ -4058,8 +4346,12 @@ fn reconstruct_holon_record(
                 key: fname.clone(),
             },
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, ctx)?;
-        let wrapped = rewrap_option_field(fty, inner);
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign, strict, ctx)?;
+        let wrapped = rewrap_tuple_field(fty, rewrap_option_field(fty, inner));
+        if strict {
+            value_conforms(&wrapped, fty, types)
+                .map_err(|m| EdnReadError { span: crate::rust_caller_span!(), kind: m.into_kind(&path, fname) })?;
+        }
         field_names.push(fname.clone());
         fields.push(wrapped);
     }
@@ -4113,6 +4405,427 @@ fn rewrap_option_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
     }
 }
 
+/// Excursus 003 strike T fallout — `rewrap_option_field`'s sibling, for the SAME reason:
+/// `Value::Tuple` has NO distinguishing wire tag at all — EDN has no tuple literal, so
+/// `value_to_edn_with` renders a tuple as a plain bracket `Vector` (this module's own doc table:
+/// "Tuple | Vector (no tuple distinction in EDN)"), byte-identical to an actual `Vector` field's
+/// wire form. Without this, a declared `(T,U)` field ALWAYS decodes as `Value::Vec` (never
+/// `Value::Tuple`), and `value_conforms`'s tuple arm refuses it outright — driven by
+/// `wat/bracket.wat`'s `PoolMsg::Work.pair` (a `(:wat::core::Tuple :- [i64 I])`) the moment this
+/// strike's checking reached `reconstruct_enum_tagged`. NOT a wire defect (there is no tag to
+/// lose) and NOT a declaration bug — the identical "the writer's wire form is ambiguous, so the
+/// reader rewraps by declared type" shape `rewrap_option_field` already has, one struct-shape
+/// over. Shallow, same as `rewrap_option_field`: converts the TOP-level `Vec` into a `Tuple`
+/// without recursing into element shapes (element correctness is `value_conforms`'s job, run
+/// immediately after this at every call site).
+fn rewrap_tuple_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
+    match (fty, &v) {
+        (crate::types::TypeExpr::Tuple(_), Value::Vec(items)) => Value::Tuple(Arc::new(items.as_ref().clone())),
+        _ => v,
+    }
+}
+
+// ─── Excursus 003 strike T — value_conforms, the field-shape checker ───────
+//
+// The hole this closes: `reconstruct_struct`/`reconstruct_record` decode each field with
+// `edn_to_value_caps(fv, …)` — NO expected type — then use `fty` only to re-wrap an `Option`.
+// An untagged map in a record-typed field decodes as a generic `HashMap`; a string decodes
+// where an `i64` is declared. Nothing noticed. `value_conforms` is the missing check, run on
+// the ALREADY-DECODED `Value` (post `edn_to_value_caps`, post `rewrap_option_field`).
+//
+// ⚠ **This is deliberately a SECOND function from `crate::function::subsume::value_matches_type_by_name`,
+// not a shared one — the brief's own "one door" instruction asks for the reason to be named when
+// dispatch and decode differ, so here it is.** `value_matches_type_by_name` answers "which
+// defclause arm should THIS value dispatch to" and is conservative-permissive BY CONTRACT: bare
+// type-vars, fn/tuple/var types, and any container shape the seq-container registry does not
+// specialize all fall through to `true` — because the type CHECKER already gated which calls are
+// legal, so the runtime matcher only needs to pick among clauses the checker already proved
+// reachable. `value_conforms` runs at the OPPOSITE trust boundary: the value arrived over the
+// wire (or from `read-foreign`/`read-json`), the checker never saw it, and "permissive" is
+// precisely the bug B1 found. It recurses into EVERY element of every collection, EVERY field of
+// a structural surface, and refuses anything the dispatch matcher would have waved through. The
+// two DO share the one piece that means the same thing in both places —
+// `crate::function::subsume::val_type_path`, the canonical Value → primitive-path mapping — via
+// the `pub(crate)` widening on that function; sharing more would mean bending one of the two
+// contracts above to fit the other.
+//
+// Separately — Excursus 003 strike T's report flags a THIRD, pre-existing decoder that already
+// does deep recursive field-type checking: `edn_to_typed_value_inner` (this file, used by
+// `:wat::edn::validate` / the arc-278 request-sanitization wall) walks the WIRE `OwnedValue`
+// directly against a declared `TypeExpr` and refuses a shape mismatch at any depth — everything
+// `value_conforms` does, one layer earlier (wire, not decoded `Value`), and via its sibling
+// `coerce_struct_path` it has the IDENTICAL undeclared-key hole this strike closes here. See the
+// strike's report for why this strike does not reroute `reconstruct_struct`/`reconstruct_record`
+// through it (blast radius: `allow_caps`/foreign-mode support, a different error type, and a
+// wire-vs-decoded-Value input contract) — that reconciliation is named as a finding, not built.
+
+/// Excursus 003 strike T — names the point of failure inside a [`value_conforms`] check.
+/// `path` accumulates field/element segments as the recursion unwinds, in the SAME convention
+/// [`EdnCoerceError`]'s `path` already uses (`.at`, just above `edn_to_typed_value_inner`):
+/// segments are prepended, so the final string reads outer-to-inner (`".[2].name"`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Mismatch {
+    pub path: String,
+    pub expected: String,
+    pub got: String,
+    /// Excursus 003 strike T fallout-1 ruling — `true` iff this `Mismatch` is NOT a shape
+    /// defect on the data but a declaration bug: the declared type named in `expected` has no
+    /// membership in this `TypeEnv` at all (`TypeEnv::contains` is `false`, not merely `get`
+    /// answering `None` for a genuine builtin leaf). The reconstructors translate this into
+    /// `EdnReadErrorKind::UndeclaredFieldType` instead of `FieldTypeMismatch`; `got` is empty
+    /// for this variant (there is no decoded shape to compare against — the type doesn't exist).
+    pub undeclared: bool,
+}
+
+impl Mismatch {
+    fn leaf(expected: impl Into<String>, got: impl Into<String>) -> Self {
+        Mismatch { path: String::new(), expected: expected.into(), got: got.into(), undeclared: false }
+    }
+    /// A declared type this registry has never heard of — see the `undeclared` field doc.
+    fn undeclared_type(ty: impl Into<String>) -> Self {
+        Mismatch { path: String::new(), expected: ty.into(), got: String::new(), undeclared: true }
+    }
+    /// Prepend a path segment as the error propagates out of a recursive call — mirrors
+    /// `EdnCoerceError::at` exactly (same convention, same reason: build the path from the
+    /// leaf back up). Pass `".name"` for a field/surface-member, `".[i]"` for an element.
+    fn at(mut self, segment: &str) -> Self {
+        self.path = format!("{segment}{}", self.path);
+        self
+    }
+    /// Translate into the `EdnReadErrorKind` a reconstructor raises — the ONE place that
+    /// decides `FieldTypeMismatch` vs `UndeclaredFieldType`, shared by every door this strike
+    /// wires `value_conforms` into (`reconstruct_struct`, `reconstruct_record`,
+    /// `reconstruct_holon_record`, `reconstruct_enum_tagged`).
+    fn into_kind(self, type_path: &str, field_prefix: &str) -> EdnReadErrorKind {
+        let field = format!("{field_prefix}{}", self.path);
+        if self.undeclared {
+            EdnReadErrorKind::UndeclaredFieldType { type_path: type_path.to_string(), field, ty: self.expected }
+        } else {
+            EdnReadErrorKind::FieldTypeMismatch {
+                type_path: type_path.to_string(),
+                field,
+                expected: self.expected,
+                got: self.got,
+            }
+        }
+    }
+}
+
+/// A short, human-readable name for a decoded `Value`'s actual shape — the `got` half of a
+/// [`Mismatch`]. Prefers the CONCRETE identity (a record's class, an enum's variant path) over
+/// `val_type_path`'s coarse dispatch-oriented answer (`"<struct>"` / `":wat::core::Record"` for
+/// every aggregate alike) — a decode refusal should name what actually arrived.
+fn describe_value(value: &Value) -> String {
+    match value {
+        Value::Aggregate(a) => format!(":{}", a.class),
+        Value::Enum(e) => wat_reader::identifier::compose_variant(&e.type_path, &e.variant_name),
+        Value::wat__edn__ForeignRecord(r) => format!(":{} (foreign, unregistered tag)", r.class),
+        Value::wat__edn__ForeignVariant(v) => {
+            format!(":{}.{} (foreign, unregistered tag)", v.enum_class, v.variant)
+        }
+        other => crate::function::subsume::val_type_path(other).to_string(),
+    }
+}
+
+/// Excursus 003 strike T — does `value` conform to the declared `ty`? The checker Target §1
+/// asks for: primitives; `Option`/`Vector`/`HashMap`/`HashSet`/tuples/the persistent
+/// collections (recursively on element types); a named aggregate (class matches, respecting
+/// the nature/subtype edges `types.rs` registers — reuses [`crate::types::is_subtype`], the
+/// SAME walk the checker's own `assignable` consults); a named enum (the value is that enum's
+/// variant); a structural surface (the value's record carries the surface's fields, each
+/// conforming); `:wat::core::Value` (accepts anything); a type variable (accepts anything — no
+/// concrete instantiation is threaded to a decode call today, so there is nothing narrower to
+/// check; documented here rather than silently dropped, per Target §1's own instruction).
+///
+/// Nested aggregates are NOT re-walked field-by-field here when checking the "named aggregate
+/// path" arm: a nested `#ns/Name {…}` was already decoded THROUGH `reconstruct_struct` /
+/// `reconstruct_record`, which (as of this strike) already ran this exact check on every one of
+/// ITS OWN fields. Re-checking here would just repeat that work; what this arm still needs to
+/// catch is the B1 shape of bug — the field came back as the WRONG kind of `Value` entirely
+/// (e.g. a `HashMap` where the tag was missing), which the nominal class check below catches.
+pub(crate) fn value_conforms(
+    value: &Value,
+    ty: &crate::types::TypeExpr,
+    types: &crate::types::TypeEnv,
+) -> Result<(), Mismatch> {
+    use crate::types::{TypeDef, TypeExpr};
+    match ty {
+        TypeExpr::Path(p) => {
+            let denoted = crate::types::denoted_type_path(p);
+            // `:wat::core::Value` is the universal top (arc 278 R7) — accepts anything.
+            if denoted == ":wat::core::Value" {
+                return Ok(());
+            }
+            // A bare type variable (`:T`/`:K`) — same shape test the checker itself uses
+            // (`declare::parse::is_type_var_path`, mirrored here to avoid a cross-module
+            // dependency on the parser for one boolean; see also `value_matches_type_by_name`'s
+            // identical inline test).
+            let bare = denoted.strip_prefix(':').unwrap_or(&denoted);
+            let is_type_var = !bare.contains("::") // rune:lint(one-variant-separator, namespace) — tests whether `bare` is namespace-qualified at all (a type-var path never is); not an enum/variant decomposition
+                && !bare.contains('.')
+                && bare.chars().find(|c| c.is_alphabetic()).is_some_and(|c| c.is_uppercase());
+            if is_type_var {
+                return Ok(());
+            }
+            match types.get(&denoted) {
+                Some(TypeDef::Aggregate(_)) => conforms_to_aggregate(value, &denoted, types),
+                Some(TypeDef::Newtype(_)) => conforms_to_aggregate(value, &denoted, types),
+                Some(TypeDef::Enum(_)) => conforms_to_enum(value, &denoted),
+                Some(TypeDef::Surface(surf)) => conforms_to_surface(value, surf, types),
+                Some(TypeDef::Alias(a)) => value_conforms(value, &a.expr, types),
+                Some(TypeDef::Union(u)) => {
+                    if u.members.iter().any(|m| value_conforms(value, m, types).is_ok()) {
+                        Ok(())
+                    } else {
+                        Err(Mismatch::leaf(format!("one of {denoted}'s members"), describe_value(value)))
+                    }
+                }
+                // No registered STRUCTURE — but `get` stays `None` for two genuinely different
+                // reasons: a real builtin leaf (`TypeEnv::contains` is `true` —
+                // i64/bool/String/keyword/a container head/…, membership without structure BY
+                // DESIGN, `stone_255b_row4_get_stays_none_for_builtin_leaf`), or a name this
+                // registry has NEVER HEARD OF at all (`contains` is `false` too).
+                //
+                // Excursus 003 strike T fallout-1 — RULED, 2026-09-30: the first cut of this
+                // checker treated the second case as "cannot verify, so accept" (a `TypeEnv`
+                // this incomplete only ever arose from a deliberately partial test registry, so
+                // nothing was being hidden in production). Overruled — that accept is a silent
+                // pass holding two different facts ("the type does not exist" and "nobody
+                // checked"), exactly the hole this strike exists to close. `:wat::core::Error`
+                // is now registered in `TypeEnv::with_builtins()` itself (`register_builtin_types`,
+                // hand `TypeDef::Surface` literal, drift-gated by
+                // `types::tests::builtin_error_surface_matches_its_wat_declaration`), so this arm
+                // is now a genuine declaration bug wherever it fires — refuse it.
+                None if types.contains(&denoted) => conforms_to_primitive(value, &denoted),
+                None => Err(Mismatch::undeclared_type(denoted)),
+            }
+        }
+        TypeExpr::Parametric { head, args } => conforms_to_parametric(value, head, args, types),
+        TypeExpr::Tuple(elems) => conforms_to_tuple(value, elems, types),
+        // Fn / Var: permissive, mirroring `value_matches_type_by_name`'s own defensive
+        // fallback for these two shapes — a decoded field is never legitimately one of these
+        // (no EDN form for a function; `Var` is a checker-internal unification variable that
+        // never appears in a stored declaration), so there is nothing sharper to check.
+        TypeExpr::Fn { .. } | TypeExpr::Var(_) => Ok(()),
+    }
+}
+
+/// The "named aggregate path" arm — nominal, not structural: `value` must be an aggregate whose
+/// class is `declared` or a registered subtype of it (nature-root / surface-extend edges).
+fn conforms_to_aggregate(
+    value: &Value,
+    declared: &str,
+    types: &crate::types::TypeEnv,
+) -> Result<(), Mismatch> {
+    match value {
+        Value::Aggregate(a) => {
+            let class_path = format!(":{}", a.class);
+            if crate::types::is_subtype(&class_path, declared, types) {
+                Ok(())
+            } else {
+                Err(Mismatch::leaf(declared.to_string(), class_path))
+            }
+        }
+        other => Err(Mismatch::leaf(declared.to_string(), describe_value(other))),
+    }
+}
+
+/// The "named enum" arm — `value` must be `Value::Enum` of exactly this enum's declared path
+/// (denotation-normalized; enums carry no subtype edges of their own the way aggregates do).
+fn conforms_to_enum(value: &Value, declared: &str) -> Result<(), Mismatch> {
+    match value {
+        Value::Enum(e) => {
+            let vpath = crate::types::denoted_type_path(&e.type_path);
+            if vpath == crate::types::denoted_type_path(declared) {
+                Ok(())
+            } else {
+                Err(Mismatch::leaf(declared.to_string(), vpath))
+            }
+        }
+        other => Err(Mismatch::leaf(declared.to_string(), describe_value(other))),
+    }
+}
+
+/// The "surface" arm — structural: `value` must be a record/struct that carries every
+/// `SurfaceMember::Field` the surface declares, each conforming to its member type. Method
+/// members are not checkable against a runtime value's data (there is no body to call here)
+/// and are skipped — the checker's own `assignable` already gates method satisfaction at
+/// `extend-type` time; this arm only re-verifies what a decoded VALUE can attest to.
+fn conforms_to_surface(
+    value: &Value,
+    surf: &crate::types::SurfaceDef,
+    types: &crate::types::TypeEnv,
+) -> Result<(), Mismatch> {
+    match value {
+        Value::Aggregate(a) => {
+            for member in &surf.members {
+                if let crate::types::SurfaceMember::Field { name, ty } = member {
+                    match a.names.iter().position(|n| n == name) {
+                        Some(idx) => {
+                            value_conforms(&a.fields[idx], ty, types)
+                                .map_err(|m| m.at(&format!(".{name}")))?;
+                        }
+                        None => {
+                            return Err(Mismatch::leaf(
+                                format!("{} (surface field `{name}`)", surf.name),
+                                format!("{} has no field `{name}`", describe_value(value)),
+                            ));
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        other => Err(Mismatch::leaf(surf.name.clone(), describe_value(other))),
+    }
+}
+
+/// The primitive arm — `declared` has no registered `TypeDef` (a builtin leaf: `i64`, `bool`,
+/// `String`, `keyword`, `char`, `Uuid`, `rational`, `bigint`, `nil`, `fn`, `WatAST`, …). Compares
+/// through the SAME canonical mapping `value_matches_type_by_name` uses for its own primitive
+/// arm (`val_type_path`, plus the denotation door for the `wat.type/*` vs `wat.core/*` spelling).
+fn conforms_to_primitive(value: &Value, declared: &str) -> Result<(), Mismatch> {
+    let val_type = crate::function::subsume::val_type_path(value);
+    if declared == val_type
+        || crate::types::denoted_type_path(declared) == crate::types::denoted_type_path(val_type)
+    {
+        Ok(())
+    } else {
+        Err(Mismatch::leaf(declared.to_string(), describe_value(value)))
+    }
+}
+
+/// Recurse into every element of a sequence-shaped collection against its declared element
+/// type. `None` element type (a malformed declaration — a bare `Vector` with no type arg
+/// never parses, but defensive) skips the check rather than fabricating one.
+fn check_seq<'a>(
+    items: impl Iterator<Item = &'a Value>,
+    elem_ty: Option<&crate::types::TypeExpr>,
+    types: &crate::types::TypeEnv,
+) -> Result<(), Mismatch> {
+    let Some(t) = elem_ty else { return Ok(()) };
+    for (i, elem) in items.enumerate() {
+        value_conforms(elem, t, types).map_err(|m| m.at(&format!(".[{i}]")))?;
+    }
+    Ok(())
+}
+
+/// The `Option`/`Vector`/`HashMap`/`HashSet`/persistent-collection arms, plus `Result` (not
+/// named in Target §1's list, but the identical B1 shape of hole — see the strike's report) —
+/// and, for any OTHER parametric head, the same nominal fallback the bare-Path arm uses
+/// (`conforms_to_aggregate`/`conforms_to_surface`/`conforms_to_enum`), WITHOUT recursing into
+/// type args: no concrete instantiation reaches a decode call today (mirrors the type-variable
+/// carve-out in [`value_conforms`] — documented, not silently dropped).
+fn conforms_to_parametric(
+    value: &Value,
+    head: &str,
+    args: &[crate::types::TypeExpr],
+    types: &crate::types::TypeEnv,
+) -> Result<(), Mismatch> {
+    use crate::types::TypeDef;
+    let fqdn = crate::types::parametric_head_fqdn(head);
+    match crate::types::denoted_type_path(&fqdn).as_str() {
+        ":wat::core::Option" => match value {
+            Value::Option(o) => match (o.as_ref(), args.first()) {
+                (None, _) => Ok(()),
+                (Some(inner), Some(t)) => value_conforms(inner, t, types).map_err(|m| m.at(".Some")),
+                (Some(_), None) => Ok(()),
+            },
+            other => Err(Mismatch::leaf(":wat::core::Option".to_string(), describe_value(other))),
+        },
+        ":wat::core::Result" => match value {
+            Value::Result(r) => match r.as_ref() {
+                Ok(v) => match args.first() {
+                    Some(t) => value_conforms(v, t, types).map_err(|m| m.at(".Ok")),
+                    None => Ok(()),
+                },
+                Err(e) => match args.get(1) {
+                    Some(t) => value_conforms(e, t, types).map_err(|m| m.at(".Err")),
+                    None => Ok(()),
+                },
+            },
+            other => Err(Mismatch::leaf(":wat::core::Result".to_string(), describe_value(other))),
+        },
+        ":wat::core::Vector" => match value {
+            Value::Vec(v) => check_seq(v.iter(), args.first(), types),
+            other => Err(Mismatch::leaf(":wat::core::Vector".to_string(), describe_value(other))),
+        },
+        ":wat::core::List" => match value {
+            Value::wat__core__List(v) => check_seq(v.iter(), args.first(), types),
+            other => Err(Mismatch::leaf(":wat::core::List".to_string(), describe_value(other))),
+        },
+        ":wat::core::PersistentVector" => match value {
+            Value::wat__core__PersistentVector(v) => check_seq(v.iter(), args.first(), types),
+            other => {
+                Err(Mismatch::leaf(":wat::core::PersistentVector".to_string(), describe_value(other)))
+            }
+        },
+        ":wat::core::HashSet" => match value {
+            Value::wat__core__HashSet(s) => check_seq(s.iter(), args.first(), types),
+            other => Err(Mismatch::leaf(":wat::core::HashSet".to_string(), describe_value(other))),
+        },
+        ":wat::core::HashMap" => match value {
+            Value::wat__core__HashMap(m) => {
+                for (k, v) in m.iter() {
+                    if let Some(kt) = args.first() {
+                        value_conforms(k, kt, types).map_err(|mm| mm.at(".<key>"))?;
+                    }
+                    if let Some(vt) = args.get(1) {
+                        value_conforms(v, vt, types).map_err(|mm| mm.at(".<value>"))?;
+                    }
+                }
+                Ok(())
+            }
+            other => Err(Mismatch::leaf(":wat::core::HashMap".to_string(), describe_value(other))),
+        },
+        ":wat::core::PersistentMap" => match value {
+            Value::wat__core__PersistentMap(m) => {
+                for (k, v) in m.iter() {
+                    if let Some(kt) = args.first() {
+                        value_conforms(k, kt, types).map_err(|mm| mm.at(".<key>"))?;
+                    }
+                    if let Some(vt) = args.get(1) {
+                        value_conforms(v, vt, types).map_err(|mm| mm.at(".<value>"))?;
+                    }
+                }
+                Ok(())
+            }
+            other => Err(Mismatch::leaf(":wat::core::PersistentMap".to_string(), describe_value(other))),
+        },
+        _ => match types.get(&fqdn) {
+            Some(TypeDef::Aggregate(_)) => conforms_to_aggregate(value, &fqdn, types),
+            Some(TypeDef::Surface(surf)) => conforms_to_surface(value, surf, types),
+            Some(TypeDef::Enum(_)) => conforms_to_enum(value, &fqdn),
+            // An unspecialized parametric head this checker does not know how to open
+            // (e.g. `:wat::stream::Stream<T>`) — permissive, matching the `Fn`/`Var` fallback.
+            _ => Ok(()),
+        },
+    }
+}
+
+/// The tuple arm — arity must match; each position recurses against its declared type.
+fn conforms_to_tuple(
+    value: &Value,
+    elems: &[crate::types::TypeExpr],
+    types: &crate::types::TypeEnv,
+) -> Result<(), Mismatch> {
+    match value {
+        Value::Tuple(vs) => {
+            if vs.len() != elems.len() {
+                return Err(Mismatch::leaf(
+                    format!("a {}-tuple", elems.len()),
+                    format!("a {}-tuple", vs.len()),
+                ));
+            }
+            for (i, (v, t)) in vs.iter().zip(elems).enumerate() {
+                value_conforms(v, t, types).map_err(|m| m.at(&format!(".[{i}]")))?;
+            }
+            Ok(())
+        }
+        other => Err(Mismatch::leaf(format!("a {}-tuple", elems.len()), describe_value(other))),
+    }
+}
+
 /// Arc 296 H-2 — a variant tag, already split on the NAME half's dot.
 ///
 /// `#wat.core/Option.Some {…}` is `ns` = `wat.core`, `enum_leaf` = `Option`, `variant` = `Some`.
@@ -4133,6 +4846,7 @@ fn reconstruct_enum_tagged(
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
+    strict: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
     let VariantTag { ns, enum_leaf, variant: variant_name } = tag;
@@ -4185,6 +4899,13 @@ fn reconstruct_enum_tagged(
         }
         crate::types::EnumVariant::Unit(_) => crate::runtime::no_field_names(),
     };
+    // Excursus 003 strike T ruling 4 — the SAME hole closes here: a variant's fields rode the
+    // same `edn_to_value_caps`-with-no-expected-type, every-key-silently-accepted pattern as
+    // the struct/record decoders. One checker, every door. Excursus 003 strike T2 — gated on
+    // `strict` (see `reconstruct_struct`'s identical call for why).
+    if strict {
+        refuse_unknown_fields(entries, declared_fields, &path)?;
+    }
     let mut fields: Vec<Value> = Vec::with_capacity(declared_fields.len());
     for (fname, fty) in declared_fields {
         let item = map_keyword_field(entries, fname).ok_or_else(|| EdnReadError {
@@ -4194,8 +4915,15 @@ fn reconstruct_enum_tagged(
                 "variant `{path}.{variant_name}` missing map key :{fname}"
             )),
         })?;
-        let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign, ctx)?;
-        fields.push(rewrap_option_field(fty, inner));
+        let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign, strict, ctx)?;
+        let wrapped = rewrap_tuple_field(fty, rewrap_option_field(fty, inner));
+        if strict {
+            value_conforms(&wrapped, fty, types).map_err(|m| EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: m.into_kind(&path, &format!("{variant_name}.{fname}")),
+            })?;
+        }
+        fields.push(wrapped);
     }
     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
         type_path: path,
@@ -4238,7 +4966,7 @@ fn build_foreign_record(
                 });
             }
         };
-        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true, ctx)?;
+        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true, /*strict*/ true, ctx)?;
         fields.push((key, val));
     }
     Ok(Value::wat__edn__ForeignRecord(Arc::new(ForeignRecordValue { class, fields })))
@@ -4272,7 +5000,7 @@ fn build_foreign_variant(
                 });
             }
         };
-        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true, ctx)?;
+        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true, /*strict*/ true, ctx)?;
         names.push(key);
         fields.push(val);
     }
@@ -4387,6 +5115,38 @@ pub(crate) fn decode_trusted_wire(
     // makes the reachable struct-on-wire case structurally unrepresentable. The
     // untyped pprintln path is a trust-boundary concern outside our scope.
     Ok(v)
+}
+
+/// Excursus 003 strike T2 Target §2 — [`decode_trusted_wire`]'s LENIENT sibling: identical
+/// trust posture (capability tags still reconstruct — `allow_caps=true` — this is still the
+/// one audited trusted-wire door, not a second one), but `strict=false` skips
+/// `value_conforms`/`refuse_unknown_fields` inside every `reconstruct_*`, i.e. the EXACT
+/// pre-strike-T decode a service's `req` field always got.
+///
+/// The ONLY caller is `src/kernel/message.rs`'s client-message decode arms, and ONLY as a
+/// one-shot RETRY after the STRICT [`decode_trusted_wire`] has already refused with a
+/// shape-class [`EdnReadErrorKind`] (`is_shape_defect`). Why retry at all, rather than decode
+/// leniently FIRST: T's strict decode is the real fix for the B1 hole (every OTHER consumer of
+/// `decode_trusted_wire` — and every field not on the service dispatch path — stays strict,
+/// unconditionally); this lenient door exists for exactly one reason, named in
+/// DESIGN-request-malformed-input-sanitization.md and wat/service.wat's `shape-guarded`: the
+/// per-op dispatch arm ALREADY carries an unconditional, UNRELATED `:wat::edn::validate` guard
+/// against the op's declared `<Op>Request` record, placed there (arc 278) so it covers BOTH
+/// the process tier AND the thread tier (which never decodes at all) from the SAME generated
+/// site. Before strike T, that guard was the ONLY shape check on the process tier, and it is
+/// still the ONLY shape check on the thread tier today. Strict decode made it (very likely)
+/// unreachable on the process tier by refusing earlier than it — this lenient retry restores
+/// EXACTLY the Value shape the guard was built to catch, so one op's malformed field still gets
+/// a named `:RequestMalformed` reply (the contract arc 278 ruled), instead of the service's
+/// process-tier dispatch never reaching the op's own guard at all. A non-shape refusal (an
+/// unparseable frame, an unknown tag — the whole message never identifies any op) is NOT
+/// retried: there is no `req-binder` to validate because there is no op.
+pub(crate) fn decode_trusted_wire_lenient(
+    s: &str,
+    types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
+) -> Result<Value, EdnReadError> {
+    read_edn_caps_strict(s, types, true, false, ctx)
 }
 
 #[cfg(test)]
@@ -6030,6 +6790,426 @@ mod tests {
              non-numeric (fabricating one would silently erase this type's identity on the \
              wire)"
         );
+    }
+}
+
+// ─── Excursus 003 strike T — GT1/GT2 gates ─────────────────────────────────
+//
+// GT1: one case per `value_conforms` checker arm (primitive, collection element, named
+// record, enum variant, surface, Option), each refused with `FieldTypeMismatch` naming the
+// path. Each arm's mutation (recorded in the strike report, not re-encoded here as a
+// standing `#[cfg]`): comment the arm's dispatch out / make its helper return `Ok(())`
+// unconditionally — RED on that arm's own test, driven under `cargo nextest run --release`.
+//
+// GT2: an undeclared key is refused (`UnknownField`). Mutation (recorded in the strike
+// report): comment out the `refuse_unknown_fields` call in `reconstruct_struct` — RED.
+//
+// Fixtures are built directly against the `TypeEnv`/`Value` APIs (register a handful of
+// `:user::t::*` test-only declarations) rather than freezing a wat program — `value_conforms`
+// takes an already-decoded `Value` and a `TypeExpr`, so there is no wire-shaped "real path" to
+// walk for the CHECKER itself; GT2 (below) drives the real `read_edn` door instead, since that
+// IS the wire-shaped path Target §2/§3 wire the checker into.
+#[cfg(test)]
+mod excursus_003_t_gates {
+    use super::*;
+    use crate::types::{
+        AggregateDef, EnumDef, EnumVariant, Nature, Purity, SurfaceDef, SurfaceMember, TypeDef, TypeEnv, TypeExpr,
+    };
+    use crate::value::value::AggregateValue;
+    use std::sync::Arc;
+
+    /// A `TypeEnv` carrying a handful of `:user::t::*` test-only declarations exercising every
+    /// `value_conforms` arm: `Widget`/`Gadget` (two plain records, same field count, different
+    /// field names — a genuine class mismatch, not merely "not an aggregate"), `Color` (an
+    /// enum), `Named` (a surface requiring field `n <- i64`, satisfied by `Widget`, not by
+    /// `Gadget`).
+    fn env_with_test_types() -> TypeEnv {
+        let mut env = TypeEnv::with_builtins();
+        env.register(TypeDef::Aggregate(AggregateDef {
+            name: ":user::t::Widget".into(),
+            type_params: vec![],
+            fields: vec![("n".into(), TypeExpr::Path(":wat::core::i64".into()))],
+            nature: Nature::Record,
+            restrictions: None,
+        }))
+        .expect("register Widget");
+        env.register(TypeDef::Aggregate(AggregateDef {
+            name: ":user::t::Gadget".into(),
+            type_params: vec![],
+            fields: vec![("m".into(), TypeExpr::Path(":wat::core::i64".into()))],
+            nature: Nature::Record,
+            restrictions: None,
+        }))
+        .expect("register Gadget");
+        env.register(TypeDef::Enum(EnumDef {
+            name: ":user::t::Color".into(),
+            type_params: vec![],
+            purity: Purity::Pure,
+            variants: vec![EnumVariant::Unit("Red".into()), EnumVariant::Unit("Blue".into())],
+        }))
+        .expect("register Color");
+        env.register(TypeDef::Surface(SurfaceDef {
+            name: ":user::t::Named".into(),
+            type_params: vec![],
+            members: vec![SurfaceMember::Field { name: "n".into(), ty: TypeExpr::Path(":wat::core::i64".into()) }],
+            nature: Some(Nature::Record),
+        }))
+        .expect("register Named");
+        // Ruling 4 — an enum with a Tagged (field-carrying) variant, for the "same hole in
+        // reconstruct_enum_tagged" arm.
+        env.register(TypeDef::Enum(EnumDef {
+            name: ":user::t::Shape".into(),
+            type_params: vec![],
+            purity: Purity::Pure,
+            variants: vec![EnumVariant::Tagged {
+                name: "Circle".into(),
+                fields: vec![("r".into(), TypeExpr::Path(":wat::core::i64".into()))],
+            }],
+        }))
+        .expect("register Shape");
+        // Fallout (mid-strike) — a record with a Tuple-typed field, for the
+        // "Vec-vs-Tuple has no wire tag, needs a rewrap" arm.
+        env.register(TypeDef::Aggregate(AggregateDef {
+            name: ":user::t::TupleBox".into(),
+            type_params: vec![],
+            fields: vec![(
+                "pair".into(),
+                TypeExpr::Tuple(vec![
+                    TypeExpr::Path(":wat::core::i64".into()),
+                    TypeExpr::Path(":wat::core::String".into()),
+                ]),
+            )],
+            nature: Nature::Record,
+            restrictions: None,
+        }))
+        .expect("register TupleBox");
+        // Ruling 4 — a HolonRecord-nature aggregate, for the "same hole in
+        // reconstruct_holon_record" arm.
+        env.register(TypeDef::Aggregate(AggregateDef {
+            name: ":user::t::HoloWidget".into(),
+            type_params: vec![],
+            fields: vec![("n".into(), TypeExpr::Path(":wat::core::i64".into()))],
+            nature: Nature::HolonRecord,
+            restrictions: None,
+        }))
+        .expect("register HoloWidget");
+        env
+    }
+
+    /// A minimal `EncodingCtx` for decoding a `HolonRecord`-nature value — `reconstruct_holon_record`
+    /// derives the hologram from it (arc 294.g: never read off the wire).
+    fn test_encoding_ctx() -> crate::value::EncodingCtx {
+        let cfg = crate::config::Config {
+            capacity_mode: crate::config::CapacityMode::Error,
+            global_seed: 42,
+            dim_count: crate::config::DEFAULT_DIM_COUNT,
+            max_fire_rounds: crate::config::DEFAULT_MAX_FIRE_ROUNDS,
+            max_session_bytes: crate::config::DEFAULT_MAX_SESSION_BYTES,
+            presence_sigma_ast: None,
+            coincident_sigma_ast: None,
+            redef_allowed: false,
+            eval_redef_allowed: false,
+        };
+        crate::value::EncodingCtx::from_config(&cfg)
+    }
+
+    fn widget(n: i64) -> Value {
+        Value::Aggregate(Arc::new(AggregateValue::record(
+            "user::t::Widget".into(),
+            Arc::new(vec!["n".to_string()]),
+            Arc::new(vec![Value::i64(n)]),
+        )))
+    }
+
+    fn gadget(m: i64) -> Value {
+        Value::Aggregate(Arc::new(AggregateValue::record(
+            "user::t::Gadget".into(),
+            Arc::new(vec!["m".to_string()]),
+            Arc::new(vec![Value::i64(m)]),
+        )))
+    }
+
+    /// GT1 arm 1 — primitive. A `String` does not conform to `:wat::core::i64`.
+    /// Mutation: make `conforms_to_primitive` always `Ok(())` — RED (this test IS the arm).
+    #[test]
+    fn gt1_primitive_arm_refuses_wrong_shape() {
+        let env = env_with_test_types();
+        let m = value_conforms(
+            &Value::String(Arc::new("x".to_string())),
+            &TypeExpr::Path(":wat::core::i64".into()),
+            &env,
+        )
+        .expect_err("a String must not conform to i64");
+        assert_eq!(m.path, "");
+        assert_eq!(m.expected, ":wat::core::i64");
+        assert_eq!(m.got, ":wat::core::String");
+    }
+
+    /// GT1 arm 2 — collection element. `Vector<i64>` refuses a `String` at index 1, naming the
+    /// path. Mutation: make `check_seq` always `Ok(())` — RED.
+    #[test]
+    fn gt1_collection_element_arm_refuses_wrong_shape() {
+        let env = env_with_test_types();
+        let ty = TypeExpr::Parametric {
+            head: "wat::core::Vector".into(),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+        };
+        let v = Value::Vec(Arc::new(vec![Value::i64(1), Value::String(Arc::new("bad".to_string()))]));
+        let m = value_conforms(&v, &ty, &env).expect_err("element [1] is a String, not i64");
+        assert_eq!(m.path, ".[1]", "must name the failing element's position");
+        assert_eq!(m.expected, ":wat::core::i64");
+        assert_eq!(m.got, ":wat::core::String");
+    }
+
+    /// GT1 arm 3 — named record (nominal, not structural). A `Gadget` does not conform to
+    /// `Widget` — same shape (one i64 field), different class, no subtype edge. Mutation: make
+    /// `conforms_to_aggregate` always `Ok(())` — RED.
+    #[test]
+    fn gt1_named_record_arm_refuses_wrong_class() {
+        let env = env_with_test_types();
+        let m = value_conforms(&gadget(1), &TypeExpr::Path(":user::t::Widget".into()), &env)
+            .expect_err("a Gadget must not conform to Widget — different class, same shape");
+        assert_eq!(m.path, "");
+        assert_eq!(m.expected, ":user::t::Widget");
+        assert_eq!(m.got, ":user::t::Gadget");
+    }
+
+    /// GT1 arm 4 — enum variant. A plain `i64` is not a `Color` enum value at all. Mutation:
+    /// make `conforms_to_enum` always `Ok(())` — RED.
+    #[test]
+    fn gt1_enum_variant_arm_refuses_non_enum_value() {
+        let env = env_with_test_types();
+        let m = value_conforms(&Value::i64(1), &TypeExpr::Path(":user::t::Color".into()), &env)
+            .expect_err("an i64 must not conform to an enum type");
+        assert_eq!(m.path, "");
+        assert_eq!(m.expected, ":user::t::Color");
+        assert_eq!(m.got, ":wat::core::i64");
+    }
+
+    /// GT1 arm 5 — surface (structural). A `Gadget` (field `m`) does not structurally satisfy
+    /// `Named` (requires field `n`); a `Widget` (field `n`) does. Mutation: make
+    /// `conforms_to_surface` always `Ok(())` — RED.
+    #[test]
+    fn gt1_surface_arm_refuses_a_record_missing_the_required_field() {
+        let env = env_with_test_types();
+        assert!(
+            value_conforms(&widget(1), &TypeExpr::Path(":user::t::Named".into()), &env).is_ok(),
+            "a Widget (has field `n`) must structurally satisfy Named"
+        );
+        let m = value_conforms(&gadget(1), &TypeExpr::Path(":user::t::Named".into()), &env)
+            .expect_err("a Gadget (field `m`, not `n`) must not satisfy Named");
+        assert_eq!(m.path, "");
+    }
+
+    /// GT1 arm 6 — `Option`. `Option<i64>` refuses a `Some(String)`. Mutation: make the
+    /// `Option` arm inside `conforms_to_parametric` always `Ok(())` — RED.
+    #[test]
+    fn gt1_option_arm_refuses_wrong_inner_shape() {
+        let env = env_with_test_types();
+        let ty = TypeExpr::Parametric {
+            head: "wat::core::Option".into(),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+        };
+        let v = Value::Option(Arc::new(Some(Value::String(Arc::new("bad".to_string())))));
+        let m = value_conforms(&v, &ty, &env).expect_err("Some(String) must not conform to Option<i64>");
+        assert_eq!(m.path, ".Some");
+        assert_eq!(m.expected, ":wat::core::i64");
+        assert_eq!(m.got, ":wat::core::String");
+        // None always conforms, regardless of the inner type — nothing to check.
+        assert!(value_conforms(&Value::Option(Arc::new(None)), &ty, &env).is_ok());
+    }
+
+    /// GT2 — an undeclared key is refused, through the REAL wire door (`read_edn`), not a
+    /// direct call to the private `reconstruct_struct`. Mutation: comment out the
+    /// `refuse_unknown_fields` call in `reconstruct_struct` — RED.
+    #[test]
+    fn gt2_undeclared_key_is_refused() {
+        let env = env_with_test_types();
+        let err = read_edn("#user.t/Widget {:n 1 :stray 2}", Some(&env), None)
+            .expect_err("a stray undeclared key must be refused, not silently dropped");
+        match err.kind {
+            EdnReadErrorKind::UnknownField { type_path, key } => {
+                assert_eq!(type_path, ":user::t::Widget");
+                assert_eq!(key, "stray");
+            }
+            other => panic!("expected UnknownField, got {other:?}"),
+        }
+    }
+
+    /// GT2 sibling — the SAME record, no stray key, still decodes (the refusal is precise,
+    /// not a blanket rejection of every map with more than one entry).
+    #[test]
+    fn gt2_a_fully_declared_map_still_decodes() {
+        let env = env_with_test_types();
+        let decoded = read_edn("#user.t/Widget {:n 1}", Some(&env), None)
+            .expect("a map naming only declared keys must still decode");
+        assert_eq!(decoded, widget(1));
+    }
+
+    /// Ruling 1 — a declared field type this registry has NEVER HEARD OF (no membership, no
+    /// structure) is a REFUSAL (`UndeclaredFieldType`), not a silent pass. Mutation: in
+    /// `value_conforms`'s `TypeExpr::Path` arm, change `None => Err(Mismatch::undeclared_type(denoted))`
+    /// back to `None => Ok(())` — RED.
+    #[test]
+    fn gt1_undeclared_type_arm_refuses_rather_than_pass() {
+        let env = env_with_test_types();
+        let m = value_conforms(&Value::i64(1), &TypeExpr::Path(":user::t::Ghost".into()), &env)
+            .expect_err("a field typed as a name this registry never registered must be refused");
+        assert!(m.undeclared, "must be flagged undeclared, not a shape mismatch");
+        assert_eq!(m.expected, ":user::t::Ghost");
+    }
+
+    /// Ruling 1, through the real door — `read_edn` surfaces `UndeclaredFieldType` naming the
+    /// declaring type, the field, and the undeclared type path.
+    #[test]
+    fn gt1_undeclared_type_surfaces_through_read_edn() {
+        let mut env = env_with_test_types();
+        env.register(TypeDef::Aggregate(AggregateDef {
+            name: ":user::t::Haunted".into(),
+            type_params: vec![],
+            fields: vec![("ghost".into(), TypeExpr::Path(":user::t::Ghost".into()))],
+            nature: Nature::Record,
+            restrictions: None,
+        }))
+        .expect("register Haunted");
+        let err = read_edn("#user.t/Haunted {:ghost 1}", Some(&env), None)
+            .expect_err("a field declared at an unregistered type must be refused");
+        match err.kind {
+            EdnReadErrorKind::UndeclaredFieldType { type_path, field, ty } => {
+                assert_eq!(type_path, ":user::t::Haunted");
+                assert_eq!(field, "ghost");
+                assert_eq!(ty, ":user::t::Ghost");
+            }
+            other => panic!("expected UndeclaredFieldType, got {other:?}"),
+        }
+    }
+
+    /// Ruling 4 — `reconstruct_enum_tagged`'s variant fields now go through the SAME checker.
+    /// Mutation: comment out the `value_conforms` call in `reconstruct_enum_tagged`'s field
+    /// loop — RED.
+    #[test]
+    fn ruling4_enum_variant_field_is_checked() {
+        let env = env_with_test_types();
+        let err = read_edn("#user.t/Shape.Circle {:r \"bad\"}", Some(&env), None)
+            .expect_err("Circle.r is declared i64; a String must be refused");
+        match err.kind {
+            EdnReadErrorKind::FieldTypeMismatch { type_path, field, expected, got } => {
+                assert_eq!(type_path, ":user::t::Shape");
+                assert_eq!(field, "Circle.r");
+                assert_eq!(expected, ":wat::core::i64");
+                assert_eq!(got, ":wat::core::String");
+            }
+            other => panic!("expected FieldTypeMismatch, got {other:?}"),
+        }
+        // A well-shaped Circle still decodes.
+        assert!(read_edn("#user.t/Shape.Circle {:r 1}", Some(&env), None).is_ok());
+    }
+
+    /// Ruling 4 — an undeclared key inside a variant's own map is refused too. Mutation:
+    /// comment out the `refuse_unknown_fields` call in `reconstruct_enum_tagged` — RED.
+    #[test]
+    fn ruling4_enum_variant_undeclared_key_is_refused() {
+        let env = env_with_test_types();
+        let err = read_edn("#user.t/Shape.Circle {:r 1 :stray 2}", Some(&env), None)
+            .expect_err("a stray key inside a variant's map must be refused");
+        match err.kind {
+            EdnReadErrorKind::UnknownField { type_path, key } => {
+                assert_eq!(type_path, ":user::t::Shape");
+                assert_eq!(key, "stray");
+            }
+            other => panic!("expected UnknownField, got {other:?}"),
+        }
+    }
+
+    /// Ruling 4 — `reconstruct_holon_record`'s fields now go through the SAME checker.
+    /// Mutation: comment out the `value_conforms` call in `reconstruct_holon_record`'s field
+    /// loop — RED.
+    #[test]
+    fn ruling4_holon_record_field_is_checked() {
+        let env = env_with_test_types();
+        let ctx = test_encoding_ctx();
+        let err = read_edn("#user.t/HoloWidget {:n \"bad\"}", Some(&env), Some(&ctx))
+            .expect_err("HoloWidget.n is declared i64; a String must be refused");
+        match err.kind {
+            EdnReadErrorKind::FieldTypeMismatch { type_path, field, expected, got } => {
+                assert_eq!(type_path, ":user::t::HoloWidget");
+                assert_eq!(field, "n");
+                assert_eq!(expected, ":wat::core::i64");
+                assert_eq!(got, ":wat::core::String");
+            }
+            other => panic!("expected FieldTypeMismatch, got {other:?}"),
+        }
+        assert!(read_edn("#user.t/HoloWidget {:n 1}", Some(&env), Some(&ctx)).is_ok());
+    }
+
+    /// Ruling 4 — an undeclared key on a holon record is refused too. Mutation: comment out
+    /// the `refuse_unknown_fields` call in `reconstruct_holon_record` — RED.
+    #[test]
+    fn ruling4_holon_record_undeclared_key_is_refused() {
+        let env = env_with_test_types();
+        let ctx = test_encoding_ctx();
+        let err = read_edn("#user.t/HoloWidget {:n 1 :stray 2}", Some(&env), Some(&ctx))
+            .expect_err("a stray key on a holon record must be refused");
+        match err.kind {
+            EdnReadErrorKind::UnknownField { type_path, key } => {
+                assert_eq!(type_path, ":user::t::HoloWidget");
+                assert_eq!(key, "stray");
+            }
+            other => panic!("expected UnknownField, got {other:?}"),
+        }
+    }
+
+    /// Ruling 4 — `coerce_struct_path` (the `:wat::edn::validate` / request-sanitization door,
+    /// `edn_to_typed_value`'s struct arm) had the SAME undeclared-key gap. Mutation: comment
+    /// out the undeclared-key scan this strike added at the top of `coerce_struct_path` — RED.
+    #[test]
+    fn ruling4_coerce_struct_path_undeclared_key_is_refused() {
+        let mut sym = SymbolTable::default();
+        sym.set_types(Arc::new(env_with_test_types()));
+        let edn = wat_edn::parse_owned("#user.t/Widget {:n 1 :stray 2}").expect("parse EDN test input");
+        let target = TypeExpr::Path(":user::t::Widget".into());
+        let err = edn_to_typed_value(&target, &edn, &sym)
+            .expect_err("a stray key must be refused through the typed-coerce door too");
+        assert_eq!(err.got, "unknown field :stray", "the refusal must name the offending key exactly");
+        // The same record with only the declared key still coerces.
+        let good = wat_edn::parse_owned("#user.t/Widget {:n 1}").expect("parse EDN test input");
+        assert!(edn_to_typed_value(&target, &good, &sym).is_ok());
+    }
+
+    /// Fallout (mid-strike), found and fixed while weighing the floor: a tuple-typed field has
+    /// NO distinguishing wire tag (EDN has no tuple literal; the writer renders a `Value::Tuple`
+    /// as a plain bracket `Vector`, byte-identical to an actual `Vector` field), so EVERY
+    /// tuple-typed field decoded as `Value::Vec` and `value_conforms`'s tuple arm refused it
+    /// outright — driven by `wat/bracket.wat`'s `PoolMsg::Work.pair` the moment ruling 4's
+    /// `reconstruct_enum_tagged` wiring reached it. `rewrap_tuple_field` closes it, mirroring
+    /// `rewrap_option_field`. Mutation: comment out the `rewrap_tuple_field` call at any of its
+    /// four call sites — RED (the field decodes as `Value::Vec`, `value_conforms`'s tuple arm
+    /// refuses it as `FieldTypeMismatch`).
+    #[test]
+    fn fallout_tuple_field_rewraps_from_the_wires_bare_vector() {
+        let env = env_with_test_types();
+        let decoded = read_edn("#user.t/TupleBox {:pair [1 \"a\"]}", Some(&env), None)
+            .expect("a tuple-typed field's bare wire vector must rewrap and conform");
+        match decoded {
+            Value::Aggregate(a) => match &a.fields[0] {
+                Value::Tuple(items) => {
+                    assert_eq!(items.as_ref(), &vec![Value::i64(1), Value::String(Arc::new("a".to_string()))]);
+                }
+                other => panic!("expected Value::Tuple after rewrap, got {other:?}"),
+            },
+            other => panic!("expected Value::Aggregate, got {other:?}"),
+        }
+        // A genuinely wrong-shaped element is still refused (the rewrap does not launder shape).
+        let err = read_edn("#user.t/TupleBox {:pair [1 2]}", Some(&env), None)
+            .expect_err("element [1] is declared String; an i64 must be refused");
+        match err.kind {
+            EdnReadErrorKind::FieldTypeMismatch { field, expected, got, .. } => {
+                assert_eq!(field, "pair.[1]");
+                assert_eq!(expected, ":wat::core::String");
+                assert_eq!(got, ":wat::core::i64");
+            }
+            other => panic!("expected FieldTypeMismatch, got {other:?}"),
+        }
     }
 }
 

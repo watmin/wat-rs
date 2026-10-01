@@ -12190,6 +12190,23 @@ pub(crate) fn message_only_failure(message: String) -> Value {
     )
 }
 
+/// Excursus 003 strike T2 Target §1 — build a `:wat::kernel::Failure` whose `error` field is
+/// the DECLARED `:wat::edn::<Kind>` record an [`crate::edn::render::EdnReadError`] names
+/// (`EdnReadError::to_record`), not a synthesized `:wat::core::Fault` prose string. Sibling of
+/// `message_only_failure` just above — SAME assembly point (`failure_record`), SAME empty
+/// frames (a decode failure at `recv'`/`poll'` has no wat call stack of its own to snapshot —
+/// it happens entirely inside the Rust decode, before any wat frame for THIS message exists).
+/// The one caller is `src/kernel/message.rs`'s client-message decode arms, replacing the prior
+/// `message_only_failure(format!("... decode failed: {}", e))` that flattened the read error's
+/// real shape into a sentence.
+pub(crate) fn edn_read_error_failure(e: &crate::edn::render::EdnReadError) -> Value {
+    failure_record(
+        e.to_record(),                         // error (the real EdnReadErrorKind record)
+        Value::Vec(Arc::new(Vec::new())),      // frames
+        0,                                     // frames-elided: no frames captured at all
+    )
+}
+
 /// Excursus 003 step 3b (BRIEF-envelope-step-3b, item 2's "FlatMessage, or a plain
 /// Rust message" branch) — build a `:wat::kernel::Failure` for a failure that has NO
 /// structured error of its own to preserve: `SendError::Failed`'s io-error reason, a

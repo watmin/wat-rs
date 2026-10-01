@@ -78,3 +78,97 @@
 (:wat::core::defenum :wat::edn::Validation :wat::enum::Pure
   :Valid
   :Invalid [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+
+;; ─── EdnReadErrorKind, as declared wat records (excursus 003 strike T2) ──────────────────
+;;
+;; `src/edn/render.rs`'s `EdnReadErrorKind` — every reason `decode_trusted_wire` can refuse a
+;; wire frame — mirrored here one record per variant, exactly `wat/runtime-errors.wat`'s step-3a
+;; pattern for `RuntimeErrorKind`: the `:wat::core::Error` floor (`message`/`location`) first, so
+;; every one of these structurally satisfies `:wat::core::Error`, then the kind's own data
+;; fields, named exactly as the Rust variant's fields (never hand-retyped on the Rust side —
+;; `EdnReadError::to_record`, `src/edn/render.rs`, sources every field NAME from these forms via
+;; `wat_field_names_from!`). `message` is the kind's own `Display` rendering (span-free);
+;; `location` is the raising site's `:wat::core::Span` (`EdnReadError::span`,
+;; `crate::rust_caller_span!()` at every raise site — never a client-attributable position, since
+;; EDN decode walks an already-parsed tree with no source span of its own).
+;;
+;; T2's target: a decode failure at a service's recv'/poll' boundary (`src/kernel/message.rs`)
+;; carries one of these as `Failure.error` (via `EdnReadError::to_record`), replacing the
+;; `message_only_failure(format!(...))` prose T2 found flattening the read error there. The
+;; shape-class kinds (`FieldTypeMismatch`/`UnknownField`/`UndeclaredFieldType`/
+;; `UnknownStructField`) ALSO get a one-shot lenient re-decode (`decode_trusted_wire_lenient`) so
+;; the per-op `:wat::edn::validate`/`:RequestMalformed` guard (`wat/service.wat`) still gets its
+;; contractual say; everything else (an unparseable frame, an unknown/unsupported tag, no type
+;; registry) stays the generic `ServiceEvent::Malformed` → `Reply::Failed[cause]`, now structured.
+;;
+;; `NoTypeRegistry` is measured UNREACHABLE at the one call site this strike wires (a running
+;; service's `SymbolTable` always carries a `TypeEnv` — see the strike's report) but is declared
+;; anyway: `EdnReadError::to_record`'s match is exhaustive, no `_` arm, so a future caller that
+;; CAN reach it (hitting `decode_trusted_wire`/`read_edn_caps` with `types=None`) still gets a
+;; structured record, not a compile-time gap papered over with a wildcard.
+
+(:wat::core::defrecord :wat::edn::UnknownTag
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+;; The unresolved `#ns/Name` tag's two halves, plus what the wire body's own shape was
+;; ("Map"/"Vector"/"Nil"/…) — lets a caller tell "no such type" from "wrong body for this type".
+   ns <- :wat::core::String
+   name <- :wat::core::String
+   body-shape <- :wat::core::String])
+
+(:wat::core::defrecord :wat::edn::UnsupportedTag
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+;; The whole offending tag text (reserved-substrate-tag family the bridge doesn't understand).
+   tag <- :wat::core::String])
+
+(:wat::core::defrecord :wat::edn::NoTypeRegistry
+  [message <- :wat::core::String
+   location <- :wat::core::Span])
+
+(:wat::core::defrecord :wat::edn::UnknownStructField
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+;; The declared struct that was missing one of ITS OWN declared fields on the wire map.
+   type-path <- :wat::core::String
+   key <- :wat::core::String])
+
+(:wat::core::defrecord :wat::edn::EnumVariantNotFound
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+;; The declared enum, and the variant name the wire named that it does not carry.
+   type-path <- :wat::core::String
+   variant <- :wat::core::String])
+
+;; Strike T's own `FieldTypeMismatch`/`UnknownField`/`UndeclaredFieldType` — the shape-class
+;; trio `value_conforms`/`refuse_unknown_fields` raise (B1's hole). `field`/`key` are dot-paths
+;; (`"items.[0]"`), the SAME convention `EdnCoerceError.path` and `Mismatch.path` already use.
+(:wat::core::defrecord :wat::edn::FieldTypeMismatch
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+   type-path <- :wat::core::String
+   field <- :wat::core::String
+   expected <- :wat::core::String
+   got <- :wat::core::String])
+
+(:wat::core::defrecord :wat::edn::UnknownField
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+   type-path <- :wat::core::String
+   key <- :wat::core::String])
+
+(:wat::core::defrecord :wat::edn::UndeclaredFieldType
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+   type-path <- :wat::core::String
+   field <- :wat::core::String
+   ty <- :wat::core::String])
+
+;; The `Other(String)` catch-all (an unparseable frame, an unsupported `wat_edn::Value` variant
+;; like `Symbol`/`BigInt`, a non-hashable map key, …) — `detail` carries the SAME string the
+;; `Other` variant already wraps, so nothing is lost going from prose to structure; `message` is
+;; the identical text (there is no further structure to split it into).
+(:wat::core::defrecord :wat::edn::ReadError
+  [message <- :wat::core::String
+   location <- :wat::core::Span
+   detail <- :wat::core::String])

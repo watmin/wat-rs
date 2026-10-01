@@ -51,7 +51,11 @@ mod eval;
 mod infer;
 mod metadata;
 mod parse;
-mod subsume;
+// Excursus 003 strike T — `pub(crate)` (was private) so `src/edn/render.rs`'s decode-time
+// `value_conforms` can reach `subsume::val_type_path`, the one piece of dispatch's matcher
+// that decode needs verbatim (the primitive Value -> canonical type-path mapping). Nothing
+// else in `subsume` widens: its two functions stay `pub(in crate::function)`.
+pub(crate) mod subsume;
 
 /// The canonical form head for all `:wat::core::fn` error messages.
 /// Declared once; all sub-modules reference this constant so the literal

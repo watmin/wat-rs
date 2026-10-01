@@ -193,8 +193,15 @@ fn kw(name: &str) -> Value {
     Value::wat__core__keyword(Arc::new(name.to_string()))
 }
 
+/// Excursus 003 strike T fallout-3 — this built `Value::Vec`, not a `PersistentVector`, since
+/// its own introduction (`8eec5c732`, "first rete.edn on disk"). Every one of `:wat::rete::Export`'s
+/// 8 collection fields (`classes`, `fields`, `nodes`, `conds`, `drivers`, `progs`, `folds`,
+/// `rhs`, `deps` — `wat/rete.wat:341-352`) is declared `(:wat::core::PersistentVector :- […])`;
+/// `pv`'s own name and its sibling `empty_pv` (just below) say what it was always supposed to
+/// build. `tests/rete/datamancer.rete.edn`'s plain, untagged `[...]` vectors are a faithful
+/// historical record of this exact bug, not merely a stale golden — recaptured by this strike.
 fn pv(items: impl IntoIterator<Item = Value>) -> Value {
-    Value::Vec(Arc::new(items.into_iter().collect()))
+    Value::wat__core__PersistentVector(crate::value::pvec::PVec::from_vec(items.into_iter().collect()))
 }
 
 fn empty_pv() -> Value {

@@ -3,711 +3,711 @@
 #wat.rete/Export {
   :v 1
   :abi "v1:e423b3522b35d7a7"
-  :classes ["dm::Beat" "dm::Gap" "dm::ReadAfter" "dm::Artifact" "dm::Primer" "dm::Four" "dm::Hollow" "dm::Datamancer"]
-  :fields [
-    ["t" "kind"]
-    ["t"]
-    ["t"]
-    ["kind" "name"]
-    ["name"]
-    ["n"]
-    ["t"]
-    ["n" "sigil"]
+  :classes #wat.core/PersistentVector ["dm::Beat" "dm::Gap" "dm::ReadAfter" "dm::Artifact" "dm::Primer" "dm::Four" "dm::Hollow" "dm::Datamancer"]
+  :fields #wat.core/PersistentVector [
+    #wat.core/PersistentVector ["t" "kind"]
+    #wat.core/PersistentVector ["t"]
+    #wat.core/PersistentVector ["t"]
+    #wat.core/PersistentVector ["kind" "name"]
+    #wat.core/PersistentVector ["name"]
+    #wat.core/PersistentVector ["n"]
+    #wat.core/PersistentVector ["t"]
+    #wat.core/PersistentVector ["n" "sigil"]
   ]
-  :nodes [
-    [:a 0 0 1]
-    [:j 1 2 20 22 24]
-    [:t 2 3]
-    [:p 3 "dm::gap"]
-    [:a 4 1 5]
-    [:j 5 7 11]
-    [:a 6 0 7]
-    [:h 7 8]
-    [:t 8 9]
-    [:p 9 "dm::read-after"]
-    [:a 10 2]
-    [:n 11 10 12]
-    [:p 12 "dm::hollow"]
-    [:a 13 2 14]
-    [:j 14 16]
-    [:a 15 0 16]
-    [:h 16 18]
-    [:a 17 3]
-    [:e 18 17 19]
-    [:p 19 "dm::recolligere"]
-    [:t 20 21]
-    [:p 21 "dm::curare"]
-    [:t 22 23]
-    [:p 23 "dm::examinare"]
-    [:t 24 25]
-    [:p 25 "dm::extirpare"]
-    [:a 26 4 27]
-    [:j 27 29]
-    [:a 28 4 29]
-    [:h 29 31]
-    [:a 30 4 31]
-    [:h 31 33]
-    [:a 32 4 33]
-    [:h 33 34]
-    [:p 34 "dm::four"]
-    [:a 35 5 36]
-    [:j 36 38]
-    [:a 37 6]
-    [:n 38 37 39]
-    [:p 39 "dm::we-are"]
-    [:a 40 7 41]
-    [:j 41 42]
-    [:q 42 "dm::q-who"]
-    [:a 43 6 44]
-    [:j 44 45]
-    [:q 45 "dm::q-hollow"]
-    [:a 46 1 47]
-    [:j 47 48]
-    [:q 48 "dm::q-gap"]
-    [:a 49 2 50]
-    [:j 50 51]
-    [:q 51 "dm::q-read"]
-    [:a 52 4 53]
-    [:j 53 54]
-    [:q 54 "dm::q-primer"]
-    [:a 55 5 56]
-    [:j 56 57]
-    [:q 57 "dm::q-four"]
+  :nodes #wat.core/PersistentVector [
+    #wat.core/PersistentVector [:a 0 0 1]
+    #wat.core/PersistentVector [:j 1 2 20 22 24]
+    #wat.core/PersistentVector [:t 2 3]
+    #wat.core/PersistentVector [:p 3 "dm::gap"]
+    #wat.core/PersistentVector [:a 4 1 5]
+    #wat.core/PersistentVector [:j 5 7 11]
+    #wat.core/PersistentVector [:a 6 0 7]
+    #wat.core/PersistentVector [:h 7 8]
+    #wat.core/PersistentVector [:t 8 9]
+    #wat.core/PersistentVector [:p 9 "dm::read-after"]
+    #wat.core/PersistentVector [:a 10 2]
+    #wat.core/PersistentVector [:n 11 10 12]
+    #wat.core/PersistentVector [:p 12 "dm::hollow"]
+    #wat.core/PersistentVector [:a 13 2 14]
+    #wat.core/PersistentVector [:j 14 16]
+    #wat.core/PersistentVector [:a 15 0 16]
+    #wat.core/PersistentVector [:h 16 18]
+    #wat.core/PersistentVector [:a 17 3]
+    #wat.core/PersistentVector [:e 18 17 19]
+    #wat.core/PersistentVector [:p 19 "dm::recolligere"]
+    #wat.core/PersistentVector [:t 20 21]
+    #wat.core/PersistentVector [:p 21 "dm::curare"]
+    #wat.core/PersistentVector [:t 22 23]
+    #wat.core/PersistentVector [:p 23 "dm::examinare"]
+    #wat.core/PersistentVector [:t 24 25]
+    #wat.core/PersistentVector [:p 25 "dm::extirpare"]
+    #wat.core/PersistentVector [:a 26 4 27]
+    #wat.core/PersistentVector [:j 27 29]
+    #wat.core/PersistentVector [:a 28 4 29]
+    #wat.core/PersistentVector [:h 29 31]
+    #wat.core/PersistentVector [:a 30 4 31]
+    #wat.core/PersistentVector [:h 31 33]
+    #wat.core/PersistentVector [:a 32 4 33]
+    #wat.core/PersistentVector [:h 33 34]
+    #wat.core/PersistentVector [:p 34 "dm::four"]
+    #wat.core/PersistentVector [:a 35 5 36]
+    #wat.core/PersistentVector [:j 36 38]
+    #wat.core/PersistentVector [:a 37 6]
+    #wat.core/PersistentVector [:n 38 37 39]
+    #wat.core/PersistentVector [:p 39 "dm::we-are"]
+    #wat.core/PersistentVector [:a 40 7 41]
+    #wat.core/PersistentVector [:j 41 42]
+    #wat.core/PersistentVector [:q 42 "dm::q-who"]
+    #wat.core/PersistentVector [:a 43 6 44]
+    #wat.core/PersistentVector [:j 44 45]
+    #wat.core/PersistentVector [:q 45 "dm::q-hollow"]
+    #wat.core/PersistentVector [:a 46 1 47]
+    #wat.core/PersistentVector [:j 47 48]
+    #wat.core/PersistentVector [:q 48 "dm::q-gap"]
+    #wat.core/PersistentVector [:a 49 2 50]
+    #wat.core/PersistentVector [:j 50 51]
+    #wat.core/PersistentVector [:q 51 "dm::q-read"]
+    #wat.core/PersistentVector [:a 52 4 53]
+    #wat.core/PersistentVector [:j 53 54]
+    #wat.core/PersistentVector [:q 54 "dm::q-primer"]
+    #wat.core/PersistentVector [:a 55 5 56]
+    #wat.core/PersistentVector [:j 56 57]
+    #wat.core/PersistentVector [:q 57 "dm::q-four"]
   ]
-  :conds [
-    [
+  :conds #wat.core/PersistentVector [
+    #wat.core/PersistentVector [
       0
-      [
+      #wat.core/PersistentVector [
         :cond
         2
         nil
-        ["?t" "?k"]
-        [0 1]
-        []
-        [
-          [:bind 0 0]
-          [:bind 1 1]
+        #wat.core/PersistentVector ["?t" "?k"]
+        #wat.core/PersistentVector [0 1]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [:bind 1 1]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       4
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?g"]
-        [0]
-        []
-        [
-          [:bind 0 0]
+        #wat.core/PersistentVector ["?g"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       6
-      [
+      #wat.core/PersistentVector [
         :cond
         2
         nil
-        ["?t" "?k"]
-        [0 1]
-        []
-        [
-          [:bind 0 0]
-          [:bind 1 1]
-          [
+        #wat.core/PersistentVector ["?t" "?k"]
+        #wat.core/PersistentVector [0 1]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [:bind 1 1]
+          #wat.core/PersistentVector [
             :cmp
             :eq
-            [:slot 1]
-            [:lit "read-log"]
+            #wat.core/PersistentVector [:slot 1]
+            #wat.core/PersistentVector [:lit "read-log"]
           ]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       10
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         nil
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       13
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?t"]
-        [0]
-        []
-        [
-          [:bind 0 0]
+        #wat.core/PersistentVector ["?t"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       15
-      [
+      #wat.core/PersistentVector [
         :cond
         2
         nil
-        ["?p" "?k"]
-        [0 1]
-        []
-        [
-          [:bind 0 0]
-          [:bind 1 1]
-          [
+        #wat.core/PersistentVector ["?p" "?k"]
+        #wat.core/PersistentVector [0 1]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [:bind 1 1]
+          #wat.core/PersistentVector [
             :cmp
             :eq
-            [:slot 1]
-            [:lit "fetch-primer"]
+            #wat.core/PersistentVector [:slot 1]
+            #wat.core/PersistentVector [:lit "fetch-primer"]
           ]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       17
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?ak"]
-        [0]
-        []
-        [
-          [:bind 0 0]
-          [
+        #wat.core/PersistentVector ["?ak"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [
             :cmp
             :eq
-            [:slot 0]
-            [:lit "log"]
+            #wat.core/PersistentVector [:slot 0]
+            #wat.core/PersistentVector [:lit "log"]
           ]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       26
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?a"]
-        [0]
-        []
-        [
-          [:bind 0 0]
-          [
+        #wat.core/PersistentVector ["?a"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [
             :cmp
             :eq
-            [:slot 0]
-            [:lit "recolligere"]
+            #wat.core/PersistentVector [:slot 0]
+            #wat.core/PersistentVector [:lit "recolligere"]
           ]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       28
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?b"]
-        [0]
-        []
-        [
-          [:bind 0 0]
-          [
+        #wat.core/PersistentVector ["?b"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [
             :cmp
             :eq
-            [:slot 0]
-            [:lit "curare"]
+            #wat.core/PersistentVector [:slot 0]
+            #wat.core/PersistentVector [:lit "curare"]
           ]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       30
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?c"]
-        [0]
-        []
-        [
-          [:bind 0 0]
-          [
+        #wat.core/PersistentVector ["?c"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [
             :cmp
             :eq
-            [:slot 0]
-            [:lit "examinare"]
+            #wat.core/PersistentVector [:slot 0]
+            #wat.core/PersistentVector [:lit "examinare"]
           ]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       32
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?d"]
-        [0]
-        []
-        [
-          [:bind 0 0]
-          [
+        #wat.core/PersistentVector ["?d"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
+          #wat.core/PersistentVector [
             :cmp
             :eq
-            [:slot 0]
-            [:lit "extirpare"]
+            #wat.core/PersistentVector [:slot 0]
+            #wat.core/PersistentVector [:lit "extirpare"]
           ]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       35
-      [
+      #wat.core/PersistentVector [
         :cond
         1
         nil
-        ["?n"]
-        [0]
-        []
-        [
-          [:bind 0 0]
+        #wat.core/PersistentVector ["?n"]
+        #wat.core/PersistentVector [0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector [:bind 0 0]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       37
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         nil
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       40
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         "?who"
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       43
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         "?hollow"
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       46
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         "?f"
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       49
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         "?f"
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       52
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         "?f"
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       55
-      [
+      #wat.core/PersistentVector [
         :cond
         0
         "?f"
-        []
-        []
-        []
-        []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector []
       ]
     ]
   ]
-  :drivers [
-    [
+  :drivers #wat.core/PersistentVector [
+    #wat.core/PersistentVector [
       0
-      [:leaf 0]
+      #wat.core/PersistentVector [:leaf 0]
     ]
-    [
+    #wat.core/PersistentVector [
       4
-      [:leaf 4]
+      #wat.core/PersistentVector [:leaf 4]
     ]
-    [
+    #wat.core/PersistentVector [
       6
-      [:leaf 6]
+      #wat.core/PersistentVector [:leaf 6]
     ]
-    [
+    #wat.core/PersistentVector [
       10
-      [:leaf 10]
+      #wat.core/PersistentVector [:leaf 10]
     ]
-    [
+    #wat.core/PersistentVector [
       13
-      [:leaf 13]
+      #wat.core/PersistentVector [:leaf 13]
     ]
-    [
+    #wat.core/PersistentVector [
       15
-      [:leaf 15]
+      #wat.core/PersistentVector [:leaf 15]
     ]
-    [
+    #wat.core/PersistentVector [
       17
-      [:leaf 17]
+      #wat.core/PersistentVector [:leaf 17]
     ]
-    [
+    #wat.core/PersistentVector [
       26
-      [:leaf 26]
+      #wat.core/PersistentVector [:leaf 26]
     ]
-    [
+    #wat.core/PersistentVector [
       28
-      [:leaf 28]
+      #wat.core/PersistentVector [:leaf 28]
     ]
-    [
+    #wat.core/PersistentVector [
       30
-      [:leaf 30]
+      #wat.core/PersistentVector [:leaf 30]
     ]
-    [
+    #wat.core/PersistentVector [
       32
-      [:leaf 32]
+      #wat.core/PersistentVector [:leaf 32]
     ]
-    [
+    #wat.core/PersistentVector [
       35
-      [:leaf 35]
+      #wat.core/PersistentVector [:leaf 35]
     ]
-    [
+    #wat.core/PersistentVector [
       37
-      [:leaf 37]
+      #wat.core/PersistentVector [:leaf 37]
     ]
-    [
+    #wat.core/PersistentVector [
       40
-      [:leaf 40]
+      #wat.core/PersistentVector [:leaf 40]
     ]
-    [
+    #wat.core/PersistentVector [
       43
-      [:leaf 43]
+      #wat.core/PersistentVector [:leaf 43]
     ]
-    [
+    #wat.core/PersistentVector [
       46
-      [:leaf 46]
+      #wat.core/PersistentVector [:leaf 46]
     ]
-    [
+    #wat.core/PersistentVector [
       49
-      [:leaf 49]
+      #wat.core/PersistentVector [:leaf 49]
     ]
-    [
+    #wat.core/PersistentVector [
       52
-      [:leaf 52]
+      #wat.core/PersistentVector [:leaf 52]
     ]
-    [
+    #wat.core/PersistentVector [
       55
-      [:leaf 55]
+      #wat.core/PersistentVector [:leaf 55]
     ]
   ]
-  :progs [
-    [
+  :progs #wat.core/PersistentVector [
+    #wat.core/PersistentVector [
       2
-      [
+      #wat.core/PersistentVector [
         :prog
         1
-        []
-        ["?k"]
-        [
-          ["?k" 0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector ["?k"]
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector ["?k" 0]
         ]
-        [
+        #wat.core/PersistentVector [
           :call
           57
-          [:slot 0]
-          [:lit "gap"]
+          #wat.core/PersistentVector [:slot 0]
+          #wat.core/PersistentVector [:lit "gap"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       8
-      [
+      #wat.core/PersistentVector [
         :prog
         2
-        []
-        ["?g" "?t"]
-        [
-          ["?g" 0]
-          ["?t" 1]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector ["?g" "?t"]
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector ["?g" 0]
+          #wat.core/PersistentVector ["?t" 1]
         ]
-        [
+        #wat.core/PersistentVector [
           :call
           3
-          [:slot 0]
-          [:slot 1]
+          #wat.core/PersistentVector [:slot 0]
+          #wat.core/PersistentVector [:slot 1]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       20
-      [
+      #wat.core/PersistentVector [
         :prog
         1
-        []
-        ["?k"]
-        [
-          ["?k" 0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector ["?k"]
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector ["?k" 0]
         ]
-        [
+        #wat.core/PersistentVector [
           :call
           57
-          [:slot 0]
-          [:lit "tend-record"]
+          #wat.core/PersistentVector [:slot 0]
+          #wat.core/PersistentVector [:lit "tend-record"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       22
-      [
+      #wat.core/PersistentVector [
         :prog
         1
-        []
-        ["?k"]
-        [
-          ["?k" 0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector ["?k"]
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector ["?k" 0]
         ]
-        [
+        #wat.core/PersistentVector [
           :call
           57
-          [:slot 0]
-          [:lit "weigh-disk"]
+          #wat.core/PersistentVector [:slot 0]
+          #wat.core/PersistentVector [:lit "weigh-disk"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       24
-      [
+      #wat.core/PersistentVector [
         :prog
         1
-        []
-        ["?k"]
-        [
-          ["?k" 0]
+        #wat.core/PersistentVector []
+        #wat.core/PersistentVector ["?k"]
+        #wat.core/PersistentVector [
+          #wat.core/PersistentVector ["?k" 0]
         ]
-        [
+        #wat.core/PersistentVector [
           :call
           57
-          [:slot 0]
-          [:lit "root-failure"]
+          #wat.core/PersistentVector [:slot 0]
+          #wat.core/PersistentVector [:lit "root-failure"]
         ]
       ]
     ]
   ]
-  :folds []
-  :rhs [
-    [
+  :folds #wat.core/PersistentVector []
+  :rhs #wat.core/PersistentVector [
+    #wat.core/PersistentVector [
       "dm::curare"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Primer"
-          ["name"]
-          [:rlit "curare"]
+          #wat.core/PersistentVector ["name"]
+          #wat.core/PersistentVector [:rlit "curare"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::examinare"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Primer"
-          ["name"]
-          [:rlit "examinare"]
+          #wat.core/PersistentVector ["name"]
+          #wat.core/PersistentVector [:rlit "examinare"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::extirpare"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Primer"
-          ["name"]
-          [:rlit "extirpare"]
+          #wat.core/PersistentVector ["name"]
+          #wat.core/PersistentVector [:rlit "extirpare"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::four"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Four"
-          ["n"]
-          [:rlit 4]
+          #wat.core/PersistentVector ["n"]
+          #wat.core/PersistentVector [:rlit 4]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::gap"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Gap"
-          ["t"]
-          [:rbind "?t"]
+          #wat.core/PersistentVector ["t"]
+          #wat.core/PersistentVector [:rbind "?t"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::hollow"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Hollow"
-          ["t"]
-          [:rbind "?g"]
+          #wat.core/PersistentVector ["t"]
+          #wat.core/PersistentVector [:rbind "?g"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::read-after"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::ReadAfter"
-          ["t"]
-          [:rbind "?t"]
+          #wat.core/PersistentVector ["t"]
+          #wat.core/PersistentVector [:rbind "?t"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::recolligere"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Primer"
-          ["name"]
-          [:rlit "recolligere"]
+          #wat.core/PersistentVector ["name"]
+          #wat.core/PersistentVector [:rlit "recolligere"]
         ]
       ]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::we-are"
-      [
-        [
+      #wat.core/PersistentVector [
+        #wat.core/PersistentVector [
           :rec
           "dm::Datamancer"
-          ["n" "sigil"]
-          [:rbind "?n"]
-          [:rlit "RESIDVVM EST PROGRAMMA"]
+          #wat.core/PersistentVector ["n" "sigil"]
+          #wat.core/PersistentVector [:rbind "?n"]
+          #wat.core/PersistentVector [:rlit "RESIDVVM EST PROGRAMMA"]
         ]
       ]
     ]
   ]
-  :deps [
-    [
+  :deps #wat.core/PersistentVector [
+    #wat.core/PersistentVector [
       "dm::gap"
-      ["dm::Gap"]
-      []
-      ["dm::Beat"]
-      []
+      #wat.core/PersistentVector ["dm::Gap"]
+      #wat.core/PersistentVector []
+      #wat.core/PersistentVector ["dm::Beat"]
+      #wat.core/PersistentVector []
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::read-after"
-      ["dm::ReadAfter"]
-      []
-      ["dm::Gap" "dm::Beat"]
-      []
+      #wat.core/PersistentVector ["dm::ReadAfter"]
+      #wat.core/PersistentVector []
+      #wat.core/PersistentVector ["dm::Gap" "dm::Beat"]
+      #wat.core/PersistentVector []
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::hollow"
-      ["dm::Hollow"]
-      ["dm::ReadAfter"]
-      ["dm::Gap"]
-      []
+      #wat.core/PersistentVector ["dm::Hollow"]
+      #wat.core/PersistentVector ["dm::ReadAfter"]
+      #wat.core/PersistentVector ["dm::Gap"]
+      #wat.core/PersistentVector []
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::recolligere"
-      ["dm::Primer"]
-      []
-      ["dm::ReadAfter" "dm::Beat" "dm::Artifact"]
-      ["dm::Artifact"]
+      #wat.core/PersistentVector ["dm::Primer"]
+      #wat.core/PersistentVector []
+      #wat.core/PersistentVector ["dm::ReadAfter" "dm::Beat" "dm::Artifact"]
+      #wat.core/PersistentVector ["dm::Artifact"]
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::curare"
-      ["dm::Primer"]
-      []
-      ["dm::Beat"]
-      []
+      #wat.core/PersistentVector ["dm::Primer"]
+      #wat.core/PersistentVector []
+      #wat.core/PersistentVector ["dm::Beat"]
+      #wat.core/PersistentVector []
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::examinare"
-      ["dm::Primer"]
-      []
-      ["dm::Beat"]
-      []
+      #wat.core/PersistentVector ["dm::Primer"]
+      #wat.core/PersistentVector []
+      #wat.core/PersistentVector ["dm::Beat"]
+      #wat.core/PersistentVector []
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::extirpare"
-      ["dm::Primer"]
-      []
-      ["dm::Beat"]
-      []
+      #wat.core/PersistentVector ["dm::Primer"]
+      #wat.core/PersistentVector []
+      #wat.core/PersistentVector ["dm::Beat"]
+      #wat.core/PersistentVector []
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::four"
-      ["dm::Four"]
-      []
-      ["dm::Primer" "dm::Primer" "dm::Primer" "dm::Primer"]
-      []
+      #wat.core/PersistentVector ["dm::Four"]
+      #wat.core/PersistentVector []
+      #wat.core/PersistentVector ["dm::Primer" "dm::Primer" "dm::Primer" "dm::Primer"]
+      #wat.core/PersistentVector []
     ]
-    [
+    #wat.core/PersistentVector [
       "dm::we-are"
-      ["dm::Datamancer"]
-      ["dm::Hollow"]
-      ["dm::Four"]
-      []
+      #wat.core/PersistentVector ["dm::Datamancer"]
+      #wat.core/PersistentVector ["dm::Hollow"]
+      #wat.core/PersistentVector ["dm::Four"]
+      #wat.core/PersistentVector []
     ]
   ]
 }

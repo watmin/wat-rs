@@ -172,14 +172,25 @@
               (:wat-tests::PCache::GetRequest
                 :probes (:wat::core::Vector :- [:wat::core::String] "alpha" "beta")
                 :limit  7)))
-     ;; (2) THE CONCRETE FIELD IS STILL ENFORCED — a wrong-typed `limit` under the correct tag
-     ;;     is REFUSED by the request-shape wall, on both tiers. This is what stops the
-     ;;     type-param opacity below from being indistinguishable from "the wall gave up on
-     ;;     parametric messages": the wall is live, it walked past `probes` and bit on `limit`.
-     bad  (:wat-tests::pcache/label
-            (:wat-tests::pcache-svc/get c
-              (:wat::edn::read
-                "#wat-tests.PCache/GetRequest {:probes [\"alpha\" \"beta\"] :limit \"seven\"}")))
+     ;; (2) THE CONCRETE FIELD IS STILL ENFORCED — RETIRED here, excursus 003 strike T2, measured
+     ;;     (not assumed): this probe built its wrong-typed `limit` with
+     ;;     `(:wat::edn::read "#wat-tests.PCache/GetRequest {... :limit \"seven\"}")`, an
+     ;;     IN-PROCESS decode through the SAME `reconstruct_record`/`value_conforms` door strike
+     ;;     T made strict everywhere, so it now refuses at construction, on BOTH tiers, before
+     ;;     `pcache/run` ever reaches `pcache-svc/get` — driven: `cargo nextest run --release -p
+     ;;     wat -E 'test(parametric_messages_round_trip)'` at the pre-T2 tree raised `malformed
+     ;;     :wat::edn::read form: ... :wat-tests::PCache::GetRequest.limit declared as
+     ;;     :wat::core::i64, but the decoded value is :wat::core::String` at this line, on both
+     ;;     deftests. Same finding as `service-request-malformed.wat`'s retired `bad` probe: no
+     ;;     other honest wat-level door builds a wrong-typed concrete field anymore (the checker
+     ;;     refuses it statically at any ordinary constructor call), and no raw-frame test door
+     ;;     exists to put the bytes on an established process-tier connection without new
+     ;;     kernel/test surface — see that file's retirement comment and the strike's report.
+     ;;     The SERVER-SIDE contract (the wall is live, `:RequestMalformed` names the exact
+     ;;     `path`/`expected`/`got`) is proven instead by
+     ;;     `kernel::message::excursus_003_t2_gates::{gt2a,gt2b,gt2c}`
+     ;;     (`src/kernel/message.rs`), which build the malformed wire bytes directly in Rust.
+     ;;
      ;; (3) THE TYPE-PARAM POSITION IS OPAQUE — and this is the honest, measured limit of the
      ;;     guarantee, not a claim in a comment. `probes` is declared `(Vector :- [K])`; here it
      ;;     arrives holding INTEGERS while the client that sent it is typed at K=String. The
@@ -195,16 +206,14 @@
                 (:wat::edn::read
                   "#wat-tests.PCache/GetRequest {:probes [1 2] :limit 7}")))
      _    (:wat-tests::pcache-svc/stop h)]
-    (:wat::string::concat good
-      (:wat::string::concat " | " (:wat::string::concat bad
-        (:wat::string::concat " | " opaque))))))
+    (:wat::string::concat good (:wat::string::concat " | " opaque))))
 
 ;; ── thread tier ─────────────────────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::parametric-messages-round-trip-on-thread
 
   (:wat::test::assert-eq
     (:wat-tests::pcache/run (:wat::spawn::thread))
-    "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/:wat::core::i64/String | [1 2]|33|7"))
+    "[\"alpha\" \"beta\"]|33|7 | [1 2]|33|7"))
 
 ;; ── process tier ────────────────────────────────────────────────────────────────────────────
 ;; The SAME expectation, one token apart — tier-generality is the requirement, not a bonus. This
@@ -218,4 +227,4 @@
 
   (:wat::test::assert-eq
     (:wat-tests::pcache/run (:wat::spawn::process))
-    "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/:wat::core::i64/String | [1 2]|33|7"))
+    "[\"alpha\" \"beta\"]|33|7 | [1 2]|33|7"))

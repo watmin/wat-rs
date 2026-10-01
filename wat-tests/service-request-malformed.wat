@@ -100,32 +100,59 @@
     [:wat::kernel::ConnectOutcome.Failed {:cause c}
       (:wat::kernel::assertion-failed! :message "victim: connect FAILED — the service is GONE (the DoS is back)")]))
 
-;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.
-;; The victim's `connect'` happens AFTER the malformed frame — that dial is the assertion.
+;; Excursus 003 strike T2 — the attacker-BAD probe RETIRED, both tiers, measured (not assumed):
+;;
+;; `bad` was built with `(:wat::edn::read "#wat-tests.MalBag/PutRequest {:items [1 2 3]}")` — an
+;; IN-PROCESS decode, same door on every tier. Strike T's strict decode (`value_conforms`,
+;; `src/edn/render.rs`) is NOT special-cased to `decode_trusted_wire`; `:wat::edn::read` goes
+;; through the identical `reconstruct_record`/`reconstruct_struct` family, so this line now
+;; REFUSES at construction, on BOTH tiers, before `mal/run` ever reaches `dial`/`try` — driven:
+;; `cargo nextest run --release -p wat -E 'test(request_malformed)'` at the pre-T2 tree raised
+;; `malformed :wat::edn::read form: ... :wat-tests::MalBag::PutRequest.items.[0] declared as
+;; :wat::core::String, but the decoded value is :wat::core::i64` at THIS line, on both deftests.
+;;
+;; T's own brief measured the THREAD tier alone as unbuildable ("no wat path can build a
+;; wrong-typed request value" — the thread tier has no wire to attack in the first place, so it
+;; was never going to survive strict decode regardless of tier). T2 measured further: the SAME is
+;; now true of the PROCESS tier, because there is no OTHER honest way left to construct a
+;; wrong-shaped `PutRequest` in wat — the checker refuses it statically at any ordinary
+;; constructor call (`:wat-tests::MalBag::PutRequest :items <wrong-typed-value>` does not
+;; type-check), and the one runtime decode door (`:wat::edn::read`) is exactly what strict decode
+;; now forbids using as a substitute. A raw-socket test (writing the malformed frame directly to
+;; an established process-tier connection's fd, bypassing wat's typed layer entirely — the shape
+;; `tests/comms/probe_arc278_over_budget_recovers.rs`'s `sender.raw_fds()[0]` takes for the
+;; comms layer in isolation) would need either the connected peer's raw fd exposed to wat (it is
+;; not — T's own finding) or a Rust-level test helper that reaches a REAL spawned `defservice`'s
+;; accepted socket from outside wat — new kernel/test surface this strike does not mint without
+;; the builder's sign-off (see the strike's report).
+;;
+;; The SERVER-SIDE contract T2 exists to restore IS proven, just not from here:
+;; `src/kernel/message.rs`'s `kernel::message::excursus_003_t2_gates::{gt2a,gt2b,gt2c}` build the
+;; malformed WIRE BYTES directly (the real writer, `value_to_wire_edn_string`, handed a `Value`
+;; the Rust-level test built with the raw `AggregateValue`/`EnumValue` constructors — never a
+;; wat-level `:wat::edn::read` and never an in-process `Value` handed to the server), feed them
+;; through the REAL `decode_trusted_wire` → `decode_client_message_event` → `:wat::edn::validate`
+;; path, and assert the exact `:RequestMalformed` shape this file's retired assertion used to
+;; pin. The probes below keep what is STILL true: the service serves a well-formed request, and
+;; keeps serving a second client afterward.
 (:wat::core::defn :wat-tests::mal/run
   [locus <- :wat::spawn::Locus] -> :wat::core::String
   (:wat::core::let
     [h    (:wat-tests::mal-bag/start :locus locus :record (:wat-tests::mal-bag::Record :n 0))
      good (:wat-tests::MalBag::PutRequest :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
-     ;; the attacker's frame: correct TAG, wrong-typed BODY
-     bad  (:wat::edn::read "#wat-tests.MalBag/PutRequest {:items [1 2 3]}")
      a    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))
      r1   (:wat-tests::mal/try a good)
-     r2   (:wat-tests::mal/try a bad)
-     ;; a SECOND, INNOCENT client connects AFTER the malformed frame
      b    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))
-     r3   (:wat-tests::mal/try b good)
+     r2   (:wat-tests::mal/try b good)
      _    (:wat-tests::mal-bag/stop h)]
-    (:wat::string::concat r1
-      (:wat::string::concat " | " (:wat::string::concat r2
-        (:wat::string::concat " | " r3))))))
+    (:wat::string::concat r1 (:wat::string::concat " | " r2))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::request-malformed-on-thread
 
   (:wat::test::assert-eq
     (:wat-tests::mal/run (:wat::spawn::thread))
-    "Ok | Malformed[\"items\" \"[0]\"]/:wat::core::String/Integer | Ok"))
+    "Ok | Ok"))
 
 ;; ── process tier ─────────────────────────────────────────────────────────────────────────
 ;; The SAME expectation, one token apart. Tier-generality is the requirement: a Rust-side
@@ -135,4 +162,4 @@
 
   (:wat::test::assert-eq
     (:wat-tests::mal/run (:wat::spawn::process))
-    "Ok | Malformed[\"items\" \"[0]\"]/:wat::core::String/Integer | Ok"))
+    "Ok | Ok"))

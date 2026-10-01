@@ -223,7 +223,14 @@ pub(in crate::function) fn value_matches_type_by_name(
 }
 
 /// Map a runtime `Value` to its canonical type-keyword path for defclause dispatch.
-pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
+///
+/// Excursus 003 strike T — widened from `pub(in crate::function)` to `pub(crate)` so
+/// `src/edn/render.rs`'s `value_conforms` (the typed-decode field checker) can share this
+/// exact primitive-path mapping instead of re-deriving a second one. This is the ONE piece
+/// dispatch and decode agree on byte-for-byte; everything else in this file (subsumption,
+/// permissive container/surface fallbacks) is deliberately coarser than decode needs — see
+/// `value_conforms`'s module doc for why the two stay separate functions.
+pub(crate) fn val_type_path(val: &Value) -> &'static str {
     match val {
         Value::i64(_) => ":wat::core::i64",
         Value::u8(_) => ":wat::core::u8",

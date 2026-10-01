@@ -1416,6 +1416,46 @@ pub(crate) fn eval_peer_select_prime(
     }
 }
 
+/// Excursus 003 strike T2 — decode one client wire frame into the `ServiceEvent` value
+/// `poll'`'s two client-message arms (the main arm and the re-poll retry) both build. STRICT
+/// `decode_trusted_wire` first (T's B1 fix — unconditional everywhere else); on a SHAPE-class
+/// refusal (`EdnReadErrorKind::is_shape_defect`) ONE lenient retry
+/// (`decode_trusted_wire_lenient`), so the per-op `:wat::edn::validate` guard (wat/service.wat's
+/// `shape-guarded`) still gets to run and reply the contractual `:RequestMalformed` — see
+/// `decode_trusted_wire_lenient`'s own doc for why this is the honest "reuse that construction,
+/// don't build a second one" (Target §2). A non-shape refusal (an unparseable frame, an
+/// unknown/unsupported tag — the message never identifies any op at all) is NOT retried: there
+/// is no `req-binder` to validate because there is no op, so it goes straight to
+/// `ServiceEvent::Malformed` with the STRUCTURED cause (Target §1 — `EdnReadError::to_record`,
+/// never `message_only_failure(format!(...))`'s flattened prose).
+fn decode_client_message_event(peer_idx: i64, wire_str: &str, sym: &SymbolTable, event_type: &str) -> Value {
+    let types = sym.types().map(|a| a.as_ref());
+    let ctx = sym.encoding_ctx().map(|a| a.as_ref());
+    let decoded = match crate::edn::render::decode_trusted_wire(wire_str, types, ctx) {
+        Ok(msg) => Ok(msg),
+        Err(e) if e.kind.is_shape_defect() => {
+            crate::edn::render::decode_trusted_wire_lenient(wire_str, types, ctx).map_err(|_lenient_err| e)
+        }
+        Err(e) => Err(e),
+    };
+    match decoded {
+        // ServiceEvent::Message [idx <- i64  msg <- Value]
+        Ok(msg) => Value::Enum(Arc::new(EnumValue {
+            type_path: event_type.into(),
+            variant_name: "Message".into(),
+            names: builtin_enum_variant_names(event_type, "Message"),
+            fields: vec![Value::i64(peer_idx), msg],
+        })),
+        // ServiceEvent::Malformed [idx <- i64  cause <- Failure]
+        Err(e) => Value::Enum(Arc::new(EnumValue {
+            type_path: event_type.into(),
+            variant_name: "Malformed".into(),
+            names: builtin_enum_variant_names(event_type, "Malformed"),
+            fields: vec![Value::i64(peer_idx), crate::runtime::edn_read_error_failure(&e)],
+        })),
+    }
+}
+
 pub(crate) fn eval_poll_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -1889,33 +1929,11 @@ pub(crate) fn eval_poll_prime(
                                 // old `?` here was the DoS: one bad message killed the whole
                                 // service, and its reason vanished on the EPIPE'd err pipe).
                                 // The serve loop replies the cause to THIS client (Reply::Failed)
-                                // and keeps serving — the peer is ALIVE.
-                                match crate::edn::render::decode_trusted_wire(
-                                    wire_str,
-                                    sym.types().map(|a| a.as_ref()),
-                                    sym.encoding_ctx().map(|a| a.as_ref()),
-                                ) {
-                                    // ServiceEvent::Message [idx <- i64  msg <- Value]
-                                    Ok(msg) => Value::Enum(Arc::new(EnumValue {
-                                        type_path: SELECT_EVENT_TYPE.into(),
-                                        variant_name: "Message".into(),
-                                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                                        fields: vec![Value::i64(peer_idx), msg],
-                                    })),
-                                    // ServiceEvent::Malformed [idx <- i64  cause <- Failure]
-                                    Err(e) => Value::Enum(Arc::new(EnumValue {
-                                        type_path: SELECT_EVENT_TYPE.into(),
-                                        variant_name: "Malformed".into(),
-                                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
-                                        fields: vec![
-                                            Value::i64(peer_idx),
-                                            message_only_failure(format!(
-                                                "poll (process tier): client message decode failed: {}",
-                                                e
-                                            )),
-                                        ],
-                                    })),
-                                }
+                                // and keeps serving — the peer is ALIVE. Excursus 003 strike T2 —
+                                // `decode_client_message_event` is the one door for this (the
+                                // structured cause + the shape-defect lenient-retry-for-
+                                // :RequestMalformed, Targets §1/§2); see its own doc.
+                                decode_client_message_event(peer_idx, wire_str, sym, SELECT_EVENT_TYPE)
                             }
                             // Arc 278 Stone 1a — over-FOO is a 400-class CLIENT error, NOT a
                             // 500-class internal crash. A frame exceeding THIS service's declared
@@ -2097,33 +2115,11 @@ pub(crate) fn eval_poll_prime(
                                                             // message we cannot decode is NOT
                                                             // service-fatal: return Malformed{idx,cause}
                                                             // instead of raising (mirrors the main
-                                                            // client arm above).
-                                                            match crate::edn::render::decode_trusted_wire(
-                                                                ws2,
-                                                                sym.types().map(|a| a.as_ref()),
-                                                                sym.encoding_ctx().map(|a| a.as_ref()),
-                                                            ) {
-                                                                Ok(msg2) => Value::Enum(Arc::new(EnumValue {
-                                                                    type_path: SELECT_EVENT_TYPE
-                                                                        .into(),
-                                                                    variant_name: "Message".into(),
-                                                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                                                                    fields: vec![
-                                                                        Value::i64(pidx),
-                                                                        msg2,
-                                                                    ],
-                                                                })),
-                                                                Err(e) => Value::Enum(Arc::new(EnumValue {
-                                                                    type_path: SELECT_EVENT_TYPE
-                                                                        .into(),
-                                                                    variant_name: "Malformed".into(),
-                                                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
-                                                                    fields: vec![
-                                                                        Value::i64(pidx),
-                                                                        message_only_failure(format!("poll (process tier re-poll): client message decode failed: {}", e)),
-                                                                    ],
-                                                                })),
-                                                            }
+                                                            // client arm above). Excursus 003 strike
+                                                            // T2 — `decode_client_message_event` is
+                                                            // the one door (structured cause +
+                                                            // shape-defect lenient retry); see its doc.
+                                                            decode_client_message_event(pidx, ws2, sym, SELECT_EVENT_TYPE)
                                                         }
                                                         // Arc 278 Stone 1a — over-FOO → Rejected
                                                         // here too (parity with the main client
@@ -2177,6 +2173,183 @@ pub(crate) fn eval_poll_prime(
                 }
             };
             Ok(event_value)
+        }
+    }
+}
+
+#[cfg(test)]
+mod excursus_003_t2_gates {
+    //! Excursus 003 strike T2 — GT2a/GT2b/GT2c, mutation-proven in RELEASE.
+    //!
+    //! Builds a REAL frozen world (a tiny `defsurface`/`defservice`, via `startup_from_source` —
+    //! the SAME macro-expansion path a production `defservice` goes through), then constructs
+    //! the malformed WIRE BYTES directly in Rust — never through a wat-level `:wat::edn::read`,
+    //! which strict decode now refuses by design (see the strike's report for the raw-frame-door
+    //! finding this sidesteps). The wrongly-shaped `Value` is built with the raw
+    //! `AggregateValue`/`EnumValue` constructors (Rust is not bound by the wat type checker) and
+    //! serialized with the REAL writer (`value_to_edn_with`) — exactly the bytes a malicious
+    //! client's socket would carry, never a hand-typed literal and never an in-process Value
+    //! handed to the server directly.
+    use super::*;
+    use crate::edn::render::{decode_trusted_wire, edn_to_typed_value, value_to_wire_edn_string};
+    use crate::freeze::{startup_from_source, FrozenWorld};
+    use crate::load::loader::InMemoryLoader;
+    use crate::types::TypeExpr;
+    use crate::value::value::AggregateValue;
+
+    const SURFACE_SRC: &str = r#"
+(:wat::core::defsurface :t::edn2::Bag :nature :wat::kernel::Peer
+  :messages
+  [(:wat::core::defrecord :t::edn2::Bag::PutRequest [items <- (:wat::core::Vector :- [:wat::core::String])])
+   (:wat::core::defenum :t::edn2::Bag::PutResponse :wat::enum::Pure
+     :Ok               [n <- :wat::core::i64]
+     :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
+  :features
+  [(put [self <- :t::edn2::Bag  req <- :t::edn2::Bag::PutRequest]
+     -> :t::edn2::Bag::PutResponse :max-request-bytes 4096)])
+
+(:wat::service::defservice :t::edn2::bag-svc
+  :satisfies :t::edn2::Bag
+  :durable   [n <- :wat::core::i64]
+  :ephemeral []
+  :impls
+  [(put [s ctx req]
+     (:wat::service::Outcome.Reply {:state s :reply (:t::edn2::Bag::PutResponse.Ok {:n 0})}))])
+"#;
+
+    fn frozen_world() -> FrozenWorld {
+        startup_from_source(
+            SURFACE_SRC,
+            Some(concat!(file!(), ":", line!())),
+            Arc::new(InMemoryLoader::new()),
+        )
+        .expect("the tiny Bag surface+service must freeze cleanly")
+    }
+
+    /// A wrongly-shaped `Op::Put{req: PutRequest{items: [1,2,3]}}`, serialized through the REAL
+    /// writer. `items` is declared `Vector<String>`; this hands it integers.
+    fn malformed_put_wire(types: &crate::types::TypeEnv) -> String {
+        let bad_items = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2), Value::i64(3)]));
+        let bad_req = Value::Aggregate(Arc::new(AggregateValue::record(
+            "t::edn2::Bag::PutRequest".to_string(),
+            Arc::new(vec!["items".to_string()]),
+            Arc::new(vec![bad_items]),
+        )));
+        let bad_op = Value::Enum(Arc::new(EnumValue {
+            type_path: ":t::edn2::Bag::Op".to_string(),
+            variant_name: "Put".to_string(),
+            names: Arc::new(vec!["req".to_string()]),
+            fields: vec![bad_req],
+        }));
+        value_to_wire_edn_string(&bad_op, Some(types))
+            .expect("the wire encoder must render a Value it was handed")
+            .into_string()
+    }
+
+    /// GT2a — the decode cause is STRUCTURED. The malformed frame's strict decode fails with
+    /// `FieldTypeMismatch`, classified a shape defect, and `.to_record()` is the declared
+    /// `:wat::edn::FieldTypeMismatch` record — not a stringified Fault.
+    /// Mutation: in `EdnReadError::to_record`, change the `FieldTypeMismatch` arm to build a
+    /// `wat::edn::ReadError` (or any other class) instead. RED.
+    #[test]
+    fn gt2a_decode_cause_is_structured_not_prose() {
+        let w = frozen_world();
+        let wire = malformed_put_wire(&w.types);
+        let err = decode_trusted_wire(&wire, Some(&w.types), w.symbols.encoding_ctx().map(|a| a.as_ref()))
+            .expect_err("a wrong-typed items field must be strictly refused");
+        assert!(
+            err.kind.is_shape_defect(),
+            "a FieldTypeMismatch must be classified a shape defect; got {:?}",
+            err.kind
+        );
+        match err.to_record() {
+            Value::Aggregate(a) => assert_eq!(
+                a.class.as_ref(),
+                "wat::edn::FieldTypeMismatch",
+                "the structured cause must be the declared wat record, never a Fault/prose"
+            ),
+            other => panic!("expected Value::Aggregate(FieldTypeMismatch), got {other:?}"),
+        }
+    }
+
+    /// GT2b — the contract fires. The lenient retry (inside `decode_client_message_event`)
+    /// restores a bindable `req`, and running the EXACT construction `:wat::edn::validate`
+    /// reuses (`edn_to_typed_value`, `src/runtime.rs`'s `eval_edn_validate`) against it
+    /// reproduces the contracted `:RequestMalformed` payload — the same
+    /// `path=[.items.[0]] expected=:wat::core::i64/:wat::core::String got=Integer/…` shape
+    /// `wat-tests/service-request-malformed.wat` pins.
+    /// Mutation: delete the `Err(e) if e.kind.is_shape_defect() => decode_trusted_wire_lenient(…)`
+    /// arm in `decode_client_message_event` (fall straight to `Err(e) => Err(e)`). RED —
+    /// `decode_client_message_event` then returns `ServiceEvent::Malformed`, never `Message`,
+    /// so there is no `req` left to validate at all.
+    #[test]
+    fn gt2b_lenient_retry_restores_the_requestmalformed_contract() {
+        let w = frozen_world();
+        let wire = malformed_put_wire(&w.types);
+        let event = decode_client_message_event(7, &wire, &w.symbols, ":wat::spawn::ServiceEvent");
+        let (idx, op_value) = match &event {
+            Value::Enum(e) if e.variant_name == "Message" => (e.fields[0].clone(), e.fields[1].clone()),
+            Value::Enum(e) => panic!(
+                "expected ServiceEvent::Message (the lenient retry must restore a bindable req); \
+                 got ServiceEvent::{}",
+                e.variant_name
+            ),
+            other => panic!("expected Value::Enum(ServiceEvent), got {other:?}"),
+        };
+        assert_eq!(idx, Value::i64(7));
+        let req = match op_value {
+            Value::Enum(ref e) => {
+                assert_eq!(e.variant_name, "Put");
+                e.fields[0].clone()
+            }
+            other => panic!("expected Value::Enum(Op.Put), got {other:?}"),
+        };
+        let req_edn = value_to_wire_edn_string(&req, Some(&w.types))
+            .expect("the wire encoder must render the decoded req");
+        let parsed = wat_edn::parse_owned(req_edn.as_str()).expect("the writer's own output must re-parse");
+        let target = TypeExpr::Path(":t::edn2::Bag::PutRequest".to_string());
+        let mismatch = edn_to_typed_value(&target, &parsed, &w.symbols)
+            .expect_err("the wrong-typed items field must still be refused by validate");
+        assert_eq!(mismatch.path, ".items.[0]");
+        assert_eq!(mismatch.expected, ":wat::core::String");
+        assert_eq!(mismatch.got, "Integer");
+    }
+
+    /// GT2c — a non-shape failure (an unknown tag — the message never identifies any op) stays
+    /// the generic `ServiceEvent::Malformed`, never retried (there is no `req` to validate
+    /// because there is no op), and its cause is STILL structured (Target §1 covers EVERY decode
+    /// failure, not only the shape-class ones `is_shape_defect` singles out for the retry).
+    /// Mutation: in `decode_client_message_event`'s `Err(e) =>` arm, build
+    /// `crate::runtime::message_only_failure(format!("{e}"))` instead of
+    /// `crate::runtime::edn_read_error_failure(&e)`. RED — the cause reverts to a `wat::core::
+    /// Fault` carrying flattened prose, exactly the regression Target §1 exists to catch.
+    #[test]
+    fn gt2c_non_shape_failure_stays_generic_malformed_with_structured_cause() {
+        let w = frozen_world();
+        let wire = "#t.edn2.Bag/Op.NoSuchOp {:req {:items []}}".to_string();
+        let event = decode_client_message_event(3, &wire, &w.symbols, ":wat::spawn::ServiceEvent");
+        match event {
+            Value::Enum(e) if e.variant_name == "Malformed" => {
+                assert_eq!(e.fields[0], Value::i64(3));
+                match &e.fields[1] {
+                    Value::Aggregate(failure) => match &failure.fields[0] {
+                        // `Op` IS a registered enum — only the variant name `NoSuchOp` is
+                        // unregistered — so this is `EnumVariantNotFound`, not `UnknownTag`.
+                        Value::Aggregate(err_rec) => assert_eq!(
+                            err_rec.class.as_ref(),
+                            "wat::edn::EnumVariantNotFound",
+                            "a non-shape refusal's cause must still be a structured :wat::edn:: record"
+                        ),
+                        other => panic!("expected Failure.error to be a structured Aggregate, got {other:?}"),
+                    },
+                    other => panic!("expected ServiceEvent::Malformed.cause to be a Failure Aggregate, got {other:?}"),
+                }
+            }
+            other => panic!(
+                "expected ServiceEvent::Malformed (an unknown op must never be retried, since \
+                 there is no req to validate), got {other:?}"
+            ),
         }
     }
 }

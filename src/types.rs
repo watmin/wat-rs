@@ -1379,6 +1379,30 @@ impl TypeEnv {
             }
             return;
         }
+        // Excursus 003 strike T fallout-1 — mirrors the Aggregate arm just above, for a
+        // builtin `:nature :wat::core::Record` surface. `register_validated`'s own closure
+        // (types.rs, "the string-wrap annihilation" comment) adds exactly this edge for a
+        // PARSED `defsurface`; `register_builtin` had no equivalent, so a hand-registered
+        // Record-natured surface (`:wat::core::Error`, `register_builtin_types`) landed with
+        // no `<: :wat::core::Record` edge at all — a record accessor (param `:wat::core::Record`)
+        // then rejected a surface-typed value at CHECK TIME (e.g.
+        // `(:wat::core::Fault/message (:wat::kernel::Failure/error f))`, where `Failure/error`
+        // yields `:wat::core::Error`), driven and confirmed by
+        // `probe_arc278_failure_carries_structured_error` / `wat_arc113_raise_round_trip` going
+        // RED the moment this surface was hand-registered without it. Holon-natured surfaces
+        // are deliberately excluded (same nature-ladder reasoning `register_validated` states).
+        if let TypeDef::Surface(surf) = &def {
+            if surf.nature == Some(Nature::Record) {
+                let root = Nature::Record.root_keyword();
+                let child = name.clone();
+                self.types.insert(name, def);
+                if child != root {
+                    self.register_subtype(&child, root, crate::rust_caller_span!())
+                        .expect("builtin surface subtype edge must not cycle");
+                }
+                return;
+            }
+        }
         self.types.insert(name, def);
     }
 
@@ -2325,6 +2349,50 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `src/runtime.rs`) only WRITES it, which needs no registration at all (the generic
     // `Value::Aggregate` encoder derives the tag from `class` directly).
     ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::Fault");
+
+    // :wat::core::Error — excursus 003 strike T fallout-1 ruling. Hand-registered, NOT via a
+    // `wat_source_derive` sibling: `wat_record_from!`/`wat_alias_register_from!`/
+    // `wat_enum_register_from!` cover `defrecord`/`typealias`/`defenum` respectively; none of
+    // the three reads a `defsurface` (`SurfaceDef` has no derive-from-wat door at all today).
+    // Writing a fourth proc-macro for one surface is out of this strike's scope, so this is
+    // THE NARROWEST HONEST registration: a hand `TypeDef::Surface` literal, mirroring
+    // `wat/core.wat`'s `(:wat::core::defsurface :wat::core::Error :nature :wat::core::Record
+    // :features [message <- :wat::core::String location <- :wat::core::Span])` field-for-field.
+    // Drift is NOT silent: `types::tests::builtin_error_surface_matches_its_wat_declaration`
+    // parses the real `.wat` form and asserts this literal still agrees with it, field name and
+    // type, so a change to the surface's own declaration reddens the floor instead of rotting
+    // unnoticed. Without this, `TypeEnv::with_builtins()` had NO structure for
+    // `:wat::core::Error` at all (membership AND structure both absent — not even a
+    // `register_builtin_leaf`), which is exactly the shape `value_conforms` could not tell
+    // apart from "a genuine builtin leaf" before this ruling.
+    env.register_builtin(TypeDef::Surface(SurfaceDef {
+        name: ":wat::core::Error".into(),
+        type_params: vec![],
+        members: vec![
+            SurfaceMember::Field { name: "message".into(), ty: TypeExpr::Path(":wat::core::String".into()) },
+            SurfaceMember::Field { name: "location".into(), ty: TypeExpr::Path(":wat::core::Span".into()) },
+        ],
+        nature: Some(Nature::Record),
+    }));
+
+    // :wat::edn::<Kind> — excursus 003 strike T2. `EdnReadErrorKind`'s variants (`src/edn/
+    // render.rs`), declared in `wat/edn.wat` and registered here exactly like the
+    // `:wat::runtime::<Kind>` run just below (ordinary `defrecord`s — `wat_record_from!` reads
+    // the wat form directly, no hand `TypeDef::Aggregate` literal needed the way `:wat::core::Error`
+    // did, since these are records, not a surface). Each one's `nature` is `Record` by
+    // `defrecord`'s own default, so `register_validated`'s existing Record→`:wat::core::Record`
+    // subtype edge applies automatically — no `:wat::core::Error` fallout-1-style manual edge
+    // needed here (that was a `defsurface`-only gap). `EdnReadError::to_record`
+    // (`src/edn/render.rs`) is the only consumer today.
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::UnknownTag");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::UnsupportedTag");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::NoTypeRegistry");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::UnknownStructField");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::EnumVariantNotFound");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::FieldTypeMismatch");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::UnknownField");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::UndeclaredFieldType");
+    ::wat_source_derive::wat_record_from!(env, "wat/edn.wat", ":wat::edn::ReadError");
 
     // The narrower three-field "a location" record that once lived here — RETIRED, excursus
     // 003 envelope step 1 (D1). Every use site now carries `:wat::core::Span` instead (the
@@ -8214,6 +8282,86 @@ mod tests {
             env.get(":wat::core::i64"),
             None,
             "get must stay None — a builtin leaf has membership, not structure"
+        );
+    }
+
+    /// Excursus 003 strike T fallout-1 ruling — `register_builtin_types`'s hand `TypeDef::Surface`
+    /// literal for `:wat::core::Error` has no `wat_source_derive` sibling to generate it (none of
+    /// the three macros reads `defsurface`), so DRIFT between the literal and `wat/core.wat`'s own
+    /// declaration would otherwise rot silently. This test is the drift gate: it parses the real
+    /// `.wat` form with the substrate's own reader (never a hand-rolled scan) and asserts the
+    /// hand literal still names the same fields, in the same order, at the same types.
+    #[test]
+    fn builtin_error_surface_matches_its_wat_declaration() {
+        let src = include_str!("../wat/core.wat");
+        let forms = wat_reader::parse_all_with_file(src, "wat/core.wat").expect("wat/core.wat must parse");
+        let mut found: Option<Vec<(String, String)>> = None;
+        for form in &forms {
+            let wat_reader::WatAST::List(items, _) = form else { continue };
+            let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+            if head.as_str() != ":wat::core::defsurface" {
+                continue;
+            }
+            let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
+            if name.as_str() != ":wat::core::Error" {
+                continue;
+            }
+            // Scan the kwargs tail for `:features [name <- :Type …]` — the same
+            // Symbol/Symbol-or-Keyword/Keyword triple grammar `wat_record_from!` walks for a
+            // `defrecord`'s field vector (`crates/wat-source-derive/src/lib.rs`).
+            let mut fields = Vec::new();
+            for pair in items[2..].windows(2) {
+                let (wat_reader::WatAST::Keyword(k, _), wat_reader::WatAST::Vector(members, _)) =
+                    (&pair[0], &pair[1])
+                else {
+                    continue;
+                };
+                if k.as_str() != ":features" {
+                    continue;
+                }
+                let mut i = 0usize;
+                while i < members.len() {
+                    let wat_reader::WatAST::Symbol(fname, _) = &members[i] else {
+                        panic!(":wat::core::Error :features: expected a field name Symbol at index {i}, got {:?}", members[i]);
+                    };
+                    let ty_text = match members.get(i + 2) {
+                        Some(wat_reader::WatAST::Keyword(ty, _)) => ty.as_str().to_string(),
+                        other => panic!(
+                            ":wat::core::Error :features: field `{}` is not a `name <- :Type` triple (got {other:?})",
+                            fname.as_str()
+                        ),
+                    };
+                    fields.push((fname.as_str().to_string(), ty_text));
+                    i += 3;
+                }
+            }
+            found = Some(fields);
+            break;
+        }
+        let declared = found.expect("(:wat::core::defsurface :wat::core::Error …) must exist in wat/core.wat");
+
+        // Compare against the LIVE registration (`register_builtin_types`'s hand literal), not
+        // a hardcoded expectation in this test — a hardcoded vec would drift from the Rust
+        // literal exactly the way this test exists to catch, undetected.
+        let env = TypeEnv::with_builtins();
+        let Some(TypeDef::Surface(surf)) = env.get(":wat::core::Error") else {
+            panic!(":wat::core::Error must be registered as a TypeDef::Surface in TypeEnv::with_builtins()");
+        };
+        let registered: Vec<(String, String)> = surf
+            .members
+            .iter()
+            .map(|m| match m {
+                SurfaceMember::Field { name, ty } => (name.clone(), crate::check::format_type(ty)),
+                SurfaceMember::Method { name, .. } => panic!(
+                    "register_builtin_types's :wat::core::Error literal carries an unexpected Method member `{name}`"
+                ),
+            })
+            .collect();
+
+        assert_eq!(
+            registered, declared,
+            "register_builtin_types's hand-registered :wat::core::Error surface has drifted from \
+             wat/core.wat's own declaration — update the hand literal in register_builtin_types to match"
         );
     }
 
