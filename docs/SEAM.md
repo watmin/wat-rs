@@ -25,7 +25,7 @@ git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # t
 Release floor at `4969e1907`: **6235 passed / 24 skipped**, clippy 0, census 202 non-zero of 2268, ledger **148**, ignores 18.
 ⚠ **Landed after this stamp:** 255.73 (`9a54f673c`) and 255.74 (a key must be data, D3: `:< Equatable`; `2ffcdfa3e`),
 floor **6257**/6257 at `2ffcdfa3e`; then 255.75 (E3: every probe runs, one test per probe; `82af2f167`), floor
-**6337**/6337. Next, by the builder's order: 255.76 (assertions for the probes that only print), then cutover stone 3.
+**6337**/6337; then 255.76 (every probe asserts its claim; `e266c8e1a`), floor **6336**/6336. Next: cutover stone 3.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
@@ -105,7 +105,9 @@ T-door) · 5 function and form heads · 6 printers and goldens · 7 the `::` wal
   which corrupt data silently (integers past `i64` become floats; non-ASCII keywords are byte-corrupted).
 - `where_tree_branch_differential`'s `classify()` reads `.wat` as raw text; it has been patched for spelling twice.
 - The probe census (`WEIGH-STONE-255.73-…`): 82 of 83 probes are run by nothing; 21 crash today (one a Rust panic naming a
-  drifted invariant, cured by 255.74). Ruled E3; 255.75 landed the gate. Owed: 255.76, the print-only probes.
+  drifted invariant, cured by 255.74). Ruled E3; done by 255.75 + 255.76.
+- `ann-form` (ascription, ruled out) entered executor work twice on 2026-10-01; 46 uses remain. A ratchet is offered
+  (`WEIGH-STONE-255.76-…` § Open).
 - Rete's internal indexes hash `Value`s with neither key guard (`WEIGH-STONE-255.74-…` § Open finding).
 
 ### Merge hazards
