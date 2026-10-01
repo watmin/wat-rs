@@ -140,11 +140,11 @@ fn driver_defn(namespaces: &std::collections::BTreeSet<String>) -> String {
     let mut calls = String::new();
     for ns in namespaces {
         calls.push_str(&format!(
-            "    (:wat::rete::compile-all (:wat::rete::collect-rules :{ns}) (:wat::core::PersistentVector))\n"
+            "    (:wat::rete::compile-all (:wat::rete::collect-rules :{ns}) (:wat::core::PersistentVector :- [:wat::rete::Query]))\n"
         ));
     }
     format!(
-        "\n(:wat::core::defn :census::run [] -> (:wat::core::PersistentVector :- [:wat::rete::CompileOutcome])\n  (:wat::core::PersistentVector\n{calls}))\n"
+        "\n(:wat::core::defn :census::run [] -> (:wat::core::PersistentVector :- [:wat::rete::CompileOutcome])\n  (:wat::core::PersistentVector :- [:wat::rete::CompileOutcome]\n{calls}))\n"
     )
 }
 

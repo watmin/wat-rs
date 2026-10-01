@@ -336,8 +336,8 @@ const SCOPED_WORK_WORLD: &str = "\
      c2   (:wat::core::quote (:sw::Wind (?loc :- :location)))\n\
      rhs  (:wat::core::quote (:sw::Match ?loc))\n\
      rule (:wat::rete::Rule :name \"temp-and-wind\"\n\
-            :lhs (:wat::core::PersistentVector c1 c2)\n\
-            :rhs (:wat::core::PersistentVector rhs))]\n\
+            :lhs (:wat::core::PersistentVector :- [:wat::WatAST] c1 c2)\n\
+            :rhs (:wat::core::PersistentVector :- [:wat::WatAST] rhs))]\n\
     (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)))\n\
 \n\
 (:wat::core::defn :sw::the-queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])\n\

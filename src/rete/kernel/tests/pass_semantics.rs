@@ -663,8 +663,8 @@ const D7_ERASURE_WORLD: &str = r#"
   [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])] -> :wat::rete::Session
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all
-           (:wat::core::PersistentVector (:d7c::r-box) (:d7c::r-plain))
-           (:wat::core::PersistentVector (:d7c::q)))
+           (:wat::core::PersistentVector :- [:wat::rete::Rule] (:d7c::r-box) (:d7c::r-plain))
+           (:wat::core::PersistentVector :- [:wat::rete::Query] (:d7c::q)))
            [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
            [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
              (:wat::kernel::assertion-failed! :message "compile")])
@@ -681,7 +681,7 @@ const D7_ERASURE_WORLD: &str = r#"
 
 ;; Every fact of every class packs: both classes must take the occupancy batch.
 (:wat::core::defn :d7c::all-uniform [] -> :wat::rete::Session
-  (:d7c::fire (:wat::core::PersistentVector
+  (:d7c::fire (:wat::core::PersistentVector :- [:wat::core::Record]
     (:d7c::as-record (:d7c::Box :k 0 :v 100))
     (:d7c::as-record (:d7c::Box :k 1 :v 150))
     (:d7c::as-record (:d7c::Box :k 2 :v 200))
@@ -691,7 +691,7 @@ const D7_ERASURE_WORLD: &str = r#"
 ;; `Box` is MIXED (one String filler) and must forfeit the batch for all three of its facts;
 ;; `Plain` is untouched and must keep it.
 (:wat::core::defn :d7c::box-mixed [] -> :wat::rete::Session
-  (:d7c::fire (:wat::core::PersistentVector
+  (:d7c::fire (:wat::core::PersistentVector :- [:wat::core::Record]
     (:d7c::as-record (:d7c::Box :k 0 :v 100))
     (:d7c::as-record (:d7c::Box :k 1 :v "not-an-i64"))
     (:d7c::as-record (:d7c::Box :k 2 :v 200))

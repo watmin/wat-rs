@@ -1,5 +1,5 @@
 #wat.check/CheckErrors {
-  :message "1 type-check error"
+  :message "2 type-check errors"
   :location nil
   :causes []
   :errors [
@@ -29,6 +29,24 @@
           :note "rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); the `:(T,U,V)` type spelling is ALSO retired (arc 109 \"the comma dies in the reader\") — use `(:wat::core::Tuple :- [T U V])`"
         }
       ]
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::Tuple form: untyped `:wat::core::Tuple` constructor call — every `Tuple` needs its own type bracket, whatever the head's spelling; write `(wat.type/Tuple :- [T…] …)`"
+      :location #wat.core/Span {
+        :file "tests/types/tuple_legacy_lowercase.wat.bad"
+        :line 2
+        :col 116
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 2
+            :col 117
+          }
+        }
+      }
+      :causes []
+      :head ":wat::core::Tuple"
+      :reason "untyped `:wat::core::Tuple` constructor call — every `Tuple` needs its own type bracket, whatever the head's spelling; write `(wat.type/Tuple :- [T…] …)`"
+      :remedies []
     }
   ]
 }

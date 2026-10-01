@@ -20221,7 +20221,7 @@ mod tests {
                steps
                 (:my::test::step-count
                   (:wat::core::quote (:my::test::sum-to 3 0)) 0)]
-              (:wat::core::Tuple sum steps))
+              (:wat::core::Tuple :- [:wat::WatAST :wat::core::i64] sum steps))
             "#,
             step_to_terminal_prelude()
         );

@@ -55,7 +55,7 @@ const SUM: &str = "(:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64]
                      (:wat::i64::+ acc x))";
 const DBL: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))";
 const GT1: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1))";
-const L123: &str = "(:wat::core::List 1 2 3)";
+const L123: &str = "(:wat::core::List :- [:wat::core::i64] 1 2 3)";
 const MAIN: &str = "";
 
 // ── Checker parity: all 8 ops type-check over a List (parametric AND bare param) ──
@@ -146,7 +146,7 @@ fn list_reverse_order() {
 fn list_concat_nxm() {
     // N×M: two DISTINCT lists (1 2 3)+(4 5) → (1 2 3 4 5). Exact combined sum 15 and length 5
     // (a cross-product would give 6 elements / sum 45).
-    let cat = format!("(:wat::core::concat {L123} (:wat::core::List 4 5))");
+    let cat = format!("(:wat::core::concat {L123} (:wat::core::List :- [:wat::core::i64] 4 5))");
     expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 {cat})"), 15);
     expect_i64(MAIN, &format!("(:wat::core::length {cat})"), 5);
 }

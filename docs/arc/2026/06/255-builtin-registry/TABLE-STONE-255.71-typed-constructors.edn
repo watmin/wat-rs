@@ -263,15 +263,15 @@
    :line 46
    :col 11
    :kind :typed
-   :type "(:wat::core::Tuple :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])])"
-   :reason "`good` — elements are `Dialable/coord eh` then `Dialable/coord kvh`; `coord` returns `(:wat::kernel::Address :- [S R T])` (wat/capability.wat:51) instantiated per service; the 2-arg `(Address :- [Op Reply])` spelling matches this SAME file's own `dial-all` contract annotation and the corpus's other concrete Address instantiation (wat-tests/service-parametric-messages.wat:116). Element order (Echo, Kv) matches `good`'s own literal element order, which is exactly what must type-check against `dial-all`'s contract."}
+   :type "(:wat::core::Tuple :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire]) (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply :wat::kernel::Transport.Wire])])"
+   :reason "CORRECTED (255.71 resume, arc170 wrong-service floor red) — the original row's 2-arg `(Address :- [Op Reply])` spelling was wrong: `coord` returns `(:wat::kernel::Address :- [S R T])` (wat/capability.wat:51) with T bound to the process handle's OWN transport, `:wat::kernel::Transport.Wire` (Stone 255.21 C-b1b — see this same test module's sibling `wrong_service_coord_is_compile_error`, whose OWN golden `got` string already carries the Wire slot on this exact call). The 2-arg spelling made `good` freeze at a type `dial-all`'s 2-arg-declared contract could structurally accept only by accident, and masked the fixture's true field-ordered contract — `swapped_colocation_tuple_is_compile_error` passed at 255.70 (unbracketed, naturally inferred WITH Wire) and only broke once this stone's bracket forced the wrong, Wire-less shape onto the call. `good` — elements are `Dialable/coord eh` then `Dialable/coord kvh`, in that order."}
   {:head ":wat::core::Tuple"
    :file "tests/services/probe_arc170_wrong_service_colocation.wat.bad"
    :line 47
    :col 11
    :kind :typed
-   :type "(:wat::core::Tuple :- [(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply]) (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])])"
-   :reason "`bad` — elements are `Dialable/coord kvh` then `Dialable/coord eh`, i.e. SWAPPED order vs `good`; the bracket matches `bad`'s own literal (Kv, Echo) element order — the same order the checker would infer structurally with or without the bracket — so typing this changes nothing about the test's outcome: `bad` still mismatches `dial-all`'s (Echo, Kv)-ordered contract, which is the whole point of this fixture."}
+   :type "(:wat::core::Tuple :- [(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply :wat::kernel::Transport.Wire]) (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire])])"
+   :reason "CORRECTED (255.71 resume, same fix as the sibling `good` row above, same reason: coord's real return carries the Wire slot). `bad` — elements are `Dialable/coord kvh` then `Dialable/coord eh`, i.e. SWAPPED order vs `good`; `bad` still mismatches `dial-all`'s (Echo, Kv)-ordered contract, which is the whole point of this fixture — the Wire slot is orthogonal to the swap this fixture tests, but it must be present for `good` to type-check at all against coord's real return shape."}
   {:head ":wat::core::Vector"
    :file "tests/services/probe_arc278_struct_new_nature_wall.wat.bad"
    :line 10

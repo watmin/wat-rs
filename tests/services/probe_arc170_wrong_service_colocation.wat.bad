@@ -43,8 +43,8 @@
   (:wat::core::let
     [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      kvh  (:probe::kv/start   :locus (:wat::spawn::process) :record (:probe::kv::Record))
-     good (wat.type/Tuple :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])] (:wat::capability::Dialable/coord eh)  (:wat::capability::Dialable/coord kvh))
-     bad  (wat.type/Tuple :- [(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply]) (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])] (:wat::capability::Dialable/coord kvh) (:wat::capability::Dialable/coord eh))
+     good (wat.type/Tuple :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire]) (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply :wat::kernel::Transport.Wire])] (:wat::capability::Dialable/coord eh)  (:wat::capability::Dialable/coord kvh))
+     bad  (wat.type/Tuple :- [(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply :wat::kernel::Transport.Wire]) (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply :wat::kernel::Transport.Wire])] (:wat::capability::Dialable/coord kvh) (:wat::capability::Dialable/coord eh))
      _    (:probe::dial-all good)
      _    (:probe::dial-all bad)]
     nil))

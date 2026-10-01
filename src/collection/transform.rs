@@ -1756,7 +1756,7 @@ mod seqable_to_stream_tests {
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]\n\
       -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
       (:wat::vector::conj acc i))\n\
-    (:wat::core::PersistentVector)\n\
+    (:wat::core::PersistentVector :- [:wat::core::i64])\n\
     (:wat::core::range 0 n)))\n\
 ";
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
@@ -1821,7 +1821,7 @@ mod filter_native_tests {
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]\n\
       -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
       (:wat::vector::conj acc i))\n\
-    (:wat::core::PersistentVector)\n\
+    (:wat::core::PersistentVector :- [:wat::core::i64])\n\
     (:wat::core::range 0 n)))\n\
 ";
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))

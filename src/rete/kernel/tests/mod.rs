@@ -388,15 +388,15 @@ const NODE_SHARE_WORLD: &str = "\
                                     :undefined 0))))\n\
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]\n\
     (:wat::rete::Rule :name (:wat::i64::to-string i)\n\
-      :lhs (:wat::core::PersistentVector a-c b-c where-c)\n\
-      :rhs (:wat::core::PersistentVector ins))))\n\
+      :lhs (:wat::core::PersistentVector :- [:wat::WatAST] a-c b-c where-c)\n\
+      :rhs (:wat::core::PersistentVector :- [:wat::WatAST] ins))))\n\
 \n\
 (:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]\n\
       -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
       (:wat::vector::conj acc (:nsh::build-rule i n)))\n\
-    (:wat::core::PersistentVector)\n\
+    (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
     (:wat::core::range 0 n)))\n\
 \n\
 (:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session\n\
