@@ -6748,43 +6748,90 @@ pub(crate) fn dispatch_substrate_impl(
 // nest for >2 args (or fold).
 
 // Stone 216.5b — runtime hashability guard.
-// Returns `false` for the 14 opaque-handle `Value` variants that carry
-// `unreachable!()` in `impl Hash for Value`. These variants are not
-// atomizable and should not be inserted into a `HashSet<Value>` at the WAT surface.
 // Called by `eval_hashset_ctor` and `hashset_conj_inner` BEFORE `HashSet::insert`
 // so that a user-visible `TypeMismatch` is returned instead of an `unreachable!()`
-// panic. The `is_atomizable` check-time predicate (src/check.rs:3623) is the static
-// guarantee; this guard is the runtime defence-in-depth for inferred types.
-/// Stone 216.5c — shared hashability predicate.
+// panic. The `is_atomizable` check-time predicate (src/check.rs) is the static
+// guarantee; this guard is the runtime defence-in-depth for values the checker
+// never saw — `eval-ast!`-built values, and a generic `:T` instantiated at
+// runtime to a type the checker only verified abstractly (is_atomizable treats
+// an unresolved type var conservatively as `true`).
+/// Stone 255.74 — deep runtime hashability guard, rewritten to classify every
+/// LEAF from `Value::key_eligibility()` (`src/value/value.rs:1341`, the
+/// exhaustive per-variant classifier gate-tested against `is_atomizable` by
+/// `every_interior_mutable_variant_is_rejected_as_a_key`) instead of hand-rolling
+/// a second list that can (and had — `wat__stream__Stream` was missing) drift
+/// from `impl Hash for Value`'s own `unreachable!()` arms.
 ///
-/// Returns `false` for the 14 opaque-handle variants (those that receive
-/// `unreachable!()` in `impl Hash for Value`). All other variants — including
-/// structurally-hashable non-atomizable ones like `u8`, `Tuple`, `Option`, etc. —
-/// return `true`. Callers rely on this before inserting into `HashSet<Value>`
-/// or `HashMap<Value, _>` to preserve WAT-surface TypeMismatch behavior
-/// instead of hitting the `unreachable!()` panic.
+/// **This guard answers a narrower question than `is_atomizable`: "will
+/// `Hash::hash` panic?", not "is this checker-admissible as a key type?".**
+/// `key_eligibility()`'s `NeverAKey` carries a reason (`NotAKeyReason`,
+/// `src/value/value.rs:1246`), and only two of its three reasons are an actual
+/// panic risk:
+/// - `InteriorMutable` / `OpaqueHandle` — the `Hash` arm IS `unreachable!()`
+///   (or pointer-identity, equally unsafe to treat as structural). These
+///   REJECT here, at any depth.
+/// - `ExcludedByDesign` — "the `Hash` arm is real/structural, but
+///   `is_atomizable` does not admit it" (its own doc, `:1261-1265`): covers
+///   `PersistentMap`/`PersistentVector`/`Option`/`Result`/`Enum`/
+///   `ForeignRecord`/`ForeignVariant`/`u8`. This is a STATIC-ADMISSION policy
+///   gap, not a safety one — rejecting it here regressed a real capability
+///   (`value::pmap::tests::a_map_used_as_a_key_is_found_across_arms`: a
+///   `PersistentMap` nested as a key inside another `PersistentMap`, proven
+///   safe by `PMap`'s own `Hash` impl) the very first time this function was
+///   wired to `key_eligibility()` uniformly. So `ExcludedByDesign` does NOT
+///   reject by itself — but it IS still a RECURSIVE container for five of its
+///   eight variants (`PersistentMap`, `PersistentVector`, `Option`, `Result`,
+///   `Enum`, `ForeignRecord`, `ForeignVariant` all wrap further `Value`s, and
+///   `impl Hash for Value` recurses into every one of them, same as `Tuple`/
+///   `HashSet`/`HashMap`), so this walk recurses into those too — closing a
+///   LATENT gap the pre-255.74 guard also had (an `Option` wrapping a fn was
+///   never on its hand-rolled reject list either, and `Value::Option`'s own
+///   `Hash` arm — `Some(v) => v.hash(state)` — would have hit the fn's
+///   `unreachable!()` exactly the same way the Vector-of-fn probe did).
+///
+/// A `Hashable` outer verdict is ALSO necessary-but-not-sufficient for the
+/// five recursively-atomizable-per-`is_atomizable` shapes (`HashSet`,
+/// `HashMap`, `Vector`/`Vec`, `Tuple`, `Record`/`HolonRecord`): `key_eligibility()`
+/// answers `Hashable` for them UNCONDITIONALLY (mirroring `is_atomizable`'s own
+/// recursive `Parametric`/`Tuple` arms, `src/check.rs`, which likewise only
+/// admit them when every element/field type is itself atomizable) — so this
+/// walk recurses into their contents too (`probe-255.74-a-key-must-be-data-deep.wat.bad`'s
+/// `(Vector :- [FnType])` set element is exactly this gap), before `Hash::hash`
+/// ever reaches an `unreachable!()` arm.
 ///
 /// **Unification decision:** `value_is_set_hashable` and `value_is_key_hashable`
-/// have identical bodies (same 14 opaque-handle variants). They are both thin
-/// wrappers over this function. Separate names are kept for call-site clarity
-/// (set insert vs. map key insert) but the predicate logic is defined once.
+/// have identical bodies. They are both thin wrappers over this function.
+/// Separate names are kept for call-site clarity (set insert vs. map key
+/// insert) but the predicate logic is defined once.
 pub fn value_is_hashable(v: &Value) -> bool {
-    !matches!(
-        v,
-        Value::wat__core__fn(_)
-            | Value::wat__kernel__Sender(_)
-            | Value::wat__kernel__Receiver(_)
-            | Value::wat__kernel__HandlePool { .. }
-            | Value::wat__kernel__ChildHandle(_)
-            | Value::RustOpaque(_)
-            | Value::io__IOReader(_)
-            | Value::io__IOWriter(_)
-            | Value::OnlineSubspace(_)
-            | Value::Reckoner(_)
-            | Value::Engram(_)
-            | Value::EngramLibrary(_)
-            | Value::Hologram(_)
-    )
+    use crate::value::{KeyEligibility, NotAKeyReason};
+    if matches!(
+        v.key_eligibility(),
+        KeyEligibility::NeverAKey(NotAKeyReason::InteriorMutable | NotAKeyReason::OpaqueHandle)
+    ) {
+        return false;
+    }
+    match v {
+        Value::Tuple(xs) | Value::Vec(xs) => xs.iter().all(value_is_hashable),
+        Value::wat__core__List(xs) => xs.iter().all(value_is_hashable),
+        Value::wat__std__HashSet(s) => s.iter().all(value_is_hashable),
+        Value::wat__std__HashMap(m) => m.iter().all(|(k, val)| value_is_hashable(k) && value_is_hashable(val)),
+        Value::Aggregate(a) => a.fields.iter().all(value_is_hashable),
+        Value::wat__core__PersistentMap(m) => m.iter().all(|(k, val)| value_is_hashable(k) && value_is_hashable(val)),
+        Value::wat__core__PersistentVector(pv) => pv.iter().all(value_is_hashable),
+        Value::Option(opt) => (**opt).as_ref().is_none_or(value_is_hashable),
+        Value::Result(res) => match (**res).as_ref() {
+            Ok(inner) | Err(inner) => value_is_hashable(inner),
+        },
+        Value::Enum(e) => e.fields.iter().all(value_is_hashable),
+        Value::ForeignRecord(a) => a.fields.iter().all(|(_, fv)| value_is_hashable(fv)),
+        Value::ForeignVariant(a) => a.fields.iter().all(value_is_hashable),
+        // Every other case is a true leaf (primitives, `Nil`, `keyword`,
+        // `HolonAST`, `WatAST`, `Uuid`, `char`, `Instant`, `Duration`,
+        // `wat__core__clauses`, `wat__core__extend_def`, `u8`, the
+        // pointer-hashed carriers) — nothing further to recurse into.
+        _ => true,
+    }
 }
 
 /// Guard for `HashSet<Value>` insert sites. Delegates to `value_is_hashable`.

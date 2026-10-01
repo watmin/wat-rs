@@ -184,7 +184,8 @@ pub(crate) fn infer_conj(
         // Extract the expected element type from the collection shape via the registry.
         // StreamContainer::of_type + has_append() is the single source of truth — no
         // hand-rolled per-container arms here. HashMap is assoc's territory (not a StreamContainer).
-        let elem_ty_opt: Option<TypeExpr> = match crate::collection::seq_container::StreamContainer::of_type(&reduced) {
+        let container_kind = crate::collection::seq_container::StreamContainer::of_type(&reduced);
+        let elem_ty_opt: Option<TypeExpr> = match container_kind {
             Some(container) if container.has_append() => {
                 // All has_append containers are parametric with element type T as first arg.
                 match &reduced {
@@ -232,15 +233,24 @@ pub(crate) fn infer_conj(
         // `Vector<Peer'<Reply, O>>` (I-slot: `Never <: Reply`, the R7 bottom). unify-first keeps
         // the join semantics; the assignable-fallback only ever ADDS acceptance (sound up-cast).
         if let (Some(elem_ty), Some(arg1)) = (elem_ty_opt, arg1_ty) {
-            if unify(&arg1, &elem_ty, subst, env.types()).is_err()
-                && !assignable(&arg1, &elem_ty, subst, env)
-            {
+            let compatible = unify(&arg1, &elem_ty, subst, env.types()).is_ok()
+                || assignable(&arg1, &elem_ty, subst, env);
+            if !compatible {
                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#2".into(),
                     expected: format_type(&elem_ty),
                     got: format_type(&apply_subst(&arg1, subst))
                 } });
+            } else if container_kind == Some(crate::collection::seq_container::StreamContainer::HashSet) {
+                // Stone 255.74 — the ONE door: `conj` onto a HashSet resolves a fresh
+                // element type from arg1 when the set started unbound (e.g. `(conj #{} x)`);
+                // that resolved type must be key-eligible, the same rule the HashSet
+                // constructor/literal already enforce.
+                let resolved = apply_subst(&elem_ty, subst);
+                if let Some(err) = crate::check::key_eligible_or_error(&resolved, ":wat::core::conj (HashSet)", "element type", args[1].span(), env) {
+                    local_errors.push(err);
+                }
             }
         }
 
@@ -462,6 +472,19 @@ pub(crate) fn infer_assoc(
                                 expected: format_type(&key_ty),
                                 got: format_type(&apply_subst(&arg1, subst))
                             } });
+                        } else {
+                            // Stone 255.74 — the ONE door: `assoc` onto a HashMap/PersistentMap
+                            // resolves a fresh KEY type from arg1 when the map started unbound
+                            // (e.g. `(assoc {} k v)`); that resolved type must be key-eligible,
+                            // the same rule the constructors/literals already enforce.
+                            let resolved_k = apply_subst(&key_ty, subst);
+                            let container_label = match &reduced {
+                                TypeExpr::Parametric { head, .. } => format!(":wat::core::assoc ({head})"),
+                                _ => ":wat::core::assoc".to_string(),
+                            };
+                            if let Some(err) = crate::check::key_eligible_or_error(&resolved_k, &container_label, "key type", args[1].span(), env) {
+                                local_errors.push(err);
+                            }
                         }
                     }
                     // Unify arg2 against V (NOT K — the K-vs-V trap).

@@ -1,0 +1,14 @@
+;; probe-255.74 (deep) — before 255.74, the checker's HashSet wall didn't exist (any element
+;; type checked) AND the runtime guard `value_is_hashable` checked only the OUTER variant: a
+;; vector is hashable, a vector holding a fn is not. Before 255.74: check passed, run panicked.
+;;
+;; .wat.bad: Stone 255.74's own negative fixture (the deep/nested case — now caught
+;; STATICALLY, at `--check` time, same as the shallow case: `is_atomizable` recurses into
+;; `(Vector :- [T])`'s T). Driven by tests/types/probe_arc255_74_key_must_be_data.rs.
+(:wat::core::defn :probe::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
+
+(:wat::core::defn :user::main [] -> wat.type/nil
+  (:wat::core::let
+    [s (wat.type/HashSet :- [(wat.type/Vector :- [[wat.type/i64 :-> wat.type/i64]])]
+         (wat.type/Vector :- [[wat.type/i64 :-> wat.type/i64]] :probe::inc))]
+    (:wat::kernel::println "a vector of fns became a set element")))

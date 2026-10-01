@@ -1,19 +1,23 @@
 ;; probe-compound-upcast.wat — POSITIVE gate for the generalized expected-type-directed
-;; up-cast rule (this strike): Tuple / Map / Set constructors/literals up-cast their
+;; up-cast rule (this strike): Tuple / Map constructors/literals up-cast their
 ;; components against a known expected type, same as fbc60b94 did for `[...]` Vector.
 ;;
 ;; eh (echo'::Handle) IS-A :wat::capability::Capability via the defservice-auto-emitted
 ;; extend-type (same subtype pair fbc60b94's vector fix + probe-c1-capability-upcast.wat
 ;; already used for the scalar case).
 ;;
-;; GATE: `wat --check` on this file must exit 0 (all three forms type-check: Tuple via
-;; ann-form, Map via call-arg, Set via call-arg — each up-casts eh: Handle -> Capability
-;; at construction). Tuple+Map also RUN to completion (proven separately). Set's runtime
-;; execution hits a PRE-EXISTING, unrelated gap — `(HashSet :- [Capability])` panics on an
-;; opaque-Handle element ("Value::RustOpaque is not atomizable") even via the OLD verbose
-;; `(:wat::core::HashSet :wat::capability::Capability (:wat::capability::as-capability eh))`
-;; ctor (verified: same panic pre-fix, nothing to do with this strike's checker change —
-;; a runtime hashing limitation, out of this strike's "no runtime.rs change" scope).
+;; GATE: `wat --check` on this file must exit 0 (both forms type-check: Tuple via
+;; ann-form, Map via call-arg — each up-casts eh: Handle -> Capability at construction).
+;; Both also RUN to completion, driven by
+;; tests/process/probe_arc255_74_compound_upcast_runs.rs.
+;;
+;; Stone 255.74 RETIRED a third claim this probe used to make: a Set case up-casting eh
+;; into `(HashSet :- [Capability])`. A service handle is a RustOpaque at runtime and was
+;; never key-eligible — pre-255.74 that was a checker-BLIND runtime panic
+;; ("Value::RustOpaque is not atomizable"); Stone 255.74 made the checker refuse it
+;; statically instead. The refusal is now its own negative fixture:
+;; wat-scripts/probes/arc-255/probe-255.74-set-of-capability.wat.bad (driven by
+;; tests/types/probe_arc255_74_key_must_be_data.rs).
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
@@ -28,10 +32,6 @@
   -> (wat.type/HashMap :- [wat.type/keyword :wat::capability::Capability])
   m)
 
-(:wat::core::defn :probe::as-set [s <- (wat.type/HashSet :- [:wat::capability::Capability])]
-  -> (wat.type/HashSet :- [:wat::capability::Capability])
-  s)
-
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
@@ -40,7 +40,5 @@
      pr (:wat::core::ann-form (wat.type/Tuple :- [wat.type/keyword :wat::capability::Capability] :echo eh)
           (wat.type/Tuple :- [wat.type/keyword :wat::capability::Capability]))
      ;; Map — call-arg site: {:echo eh} against as-map's (HashMap :- [keyword Capability]) param.
-     mp (:probe::as-map {:echo eh})
-     ;; Set — call-arg site: #{eh} against as-set's (HashSet :- [Capability]) param.
-     st (:probe::as-set #{eh})]
+     mp (:probe::as-map {:echo eh})]
     (:wat::kernel::println "compound-upcast: ok")))

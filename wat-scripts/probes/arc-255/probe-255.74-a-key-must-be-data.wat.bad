@@ -1,5 +1,9 @@
 ;; probe-255.74 — a set element / map key must be key-eligible (is_atomizable). Before 255.74
 ;; the checker admits a fn as a HashSet element and the run panics in `impl Hash for Value`.
+;;
+;; .wat.bad: Stone 255.74's own negative fixture (the shallow case). `wat --check` on this
+;; file must now exit non-zero, refusing with a TypeMismatch naming the Fn type and
+;; `:wat::core::HashSet` — driven by tests/types/probe_arc255_74_key_must_be_data.rs.
 (:wat::core::defn :probe::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
 
 (:wat::core::defn :user::main [] -> wat.type/nil

@@ -881,10 +881,19 @@ impl std::hash::Hash for Value {
             // Duration: stored as i64 nanoseconds
             Value::Duration(ns) => ns.hash(state),
             // --- Non-atomizable variants: unreachable!() with predicate citation ---
-            // The is_atomizable predicate at src/check.rs is the static guarantee
-            // that these variants never reach hashing contexts (HashSet/HashMap key positions).
-            // If this panic fires, the predicate has drifted from this Hash impl.
-            // rune:coverage(unreachable) [cluster] — is_atomizable (src/check.rs) statically gates every non-atomizable variant out of all hashing contexts before this match; each arm below is provably dead until coverage resumes, and the panic IS the bug if one ever fires (cf. the predicate-drift note above).
+            // Two layers now keep these arms dead (Stone 255.74 — before it, `is_atomizable`
+            // had exactly ONE caller, `to-holon`/`leaf`, and neither layer below existed):
+            // (1) STATIC — `is_atomizable` (src/check.rs) is wired into every checker-visible
+            //     site that learns a set-element/map-key type: the `HashSet`/`HashMap`/
+            //     `PersistentMap` constructors (either spelling), the `#{}`/`{}` literals
+            //     (bottom-up and expected-type-directed), and `conj`/`assoc` when they resolve
+            //     a fresh element/key type from an argument (`key_eligible_or_error`, one door).
+            // (2) RUNTIME — `value_is_hashable` (src/runtime.rs) recurses through every
+            //     container `impl Hash for Value` itself recurses into and classifies each
+            //     leaf from `Value::key_eligibility()` below, for values the checker never
+            //     saw (an unresolved generic `:T` instantiated at runtime; `:wat::eval-ast!`).
+            // If this panic fires, EITHER layer has drifted from this Hash impl.
+            // rune:coverage(unreachable) [cluster] — the static wall (1) and the deep runtime guard (2) jointly gate every non-atomizable variant out of every hashing context this crate calls `value_is_hashable`/`value_is_set_hashable`/`value_is_key_hashable` before; each arm below is provably dead until coverage resumes, and the panic IS the bug if one ever fires (cf. the two-layer note above). NOT a guarantee for a `HashMap<Value,_>`/`HashSet<Value>` built WITHOUT that guard (e.g. RETE's internal indexing structures, `src/rete/{alpha_tree,where_tree}.rs` — census'd by Stone 255.74, found pre-existing and out of its boundary).
             Value::wat__core__fn(_) => unreachable!(
                 "Value::wat__core__fn is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \

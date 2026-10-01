@@ -2377,3 +2377,144 @@ mod arc109_two_iii_ctor_guard_widening {
         eprintln!("row2_vector_ctor_rejects_malformed_form_first_arg: {err:?}");
     }
 }
+
+/// Stone 255.74 — the DEEP runtime guard, exercised directly on hand-built `Value`s with no
+/// `.wat` source at all. This is the "checker never saw it" boundary the brief names: a
+/// generic `:T` instantiated at runtime (or a value threaded through `:wat::eval-ast!`) can
+/// carry a concrete type the static wall (`is_atomizable` / `check_set_literal_against` /
+/// `infer_hashset_constructor`, all exercised via `.wat` fixtures in
+/// `tests/types/probe_arc255_74_key_must_be_data.rs`) never inferred, because there is no
+/// `.wat` AST node for it to type-check — only a `Value` the Rust-level guard must classify
+/// on its own. `hashset_conj_inner` is called DIRECTLY (bypassing `eval`/`eval_inner`
+/// entirely) so this test isolates exactly `value_is_set_hashable` (`src/runtime.rs`), not
+/// the surrounding dispatch.
+#[cfg(test)]
+mod arc255_74_deep_runtime_guard {
+    use super::hashset_conj_inner;
+    use crate::runtime::{EvalBreak, RuntimeErrorKind, Value};
+    use crate::value::{Function, FunctionBody};
+    use std::collections::HashSet;
+    use std::sync::Arc;
+
+    /// A minimal, never-called `Value::wat__core__fn` — a `Function` record whose fields
+    /// don't matter for this test (the guard never inspects a fn's body; it only has to
+    /// recognize the VARIANT, at any depth).
+    fn fn_value() -> Value {
+        Value::wat__core__fn(Arc::new(Function {
+            name: None,
+            params: Vec::new(),
+            type_params: Vec::new(),
+            type_param_bounds: vec![],
+            param_types: Vec::new(),
+            ret_type: crate::types::TypeExpr::Path(":wat::core::i64".into()),
+            rest_param: None,
+            rest_param_type: None,
+            body: FunctionBody::Native,
+            closed_env: None,
+            rete: None,
+            synthesized_for: None,
+        }))
+    }
+
+    fn empty_hashset() -> Value {
+        Value::wat__std__HashSet(Arc::new(HashSet::new()))
+    }
+
+    /// The SHALLOW case: a bare fn conj'd directly into a HashSet. `value_is_set_hashable`
+    /// catches it at variant depth 0 — this is the pre-255.74 guard's own original scope,
+    /// kept as the row that must stay green.
+    #[test]
+    fn conj_bare_fn_into_hashset_is_type_mismatch_not_panic() {
+        let result = hashset_conj_inner(&empty_hashset(), &fn_value());
+        match result {
+            Err(EvalBreak::Diagnostic(e)) => {
+                assert!(
+                    matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }),
+                    "expected TypeMismatch, got {:?}",
+                    e.kind()
+                );
+            }
+            other => panic!("expected Err(EvalBreak::Diagnostic(TypeMismatch)), got {other:?}"),
+        }
+    }
+
+    /// The DEEP case — `probe-255.74-a-key-must-be-data-deep.wat.bad`'s exact shape, built
+    /// as `Value`s directly instead of parsed `.wat`: a fn buried inside a `Value::Vec`,
+    /// conj'd into a HashSet. Before 255.74's rewrite of `value_is_hashable`, this passed
+    /// the (outer-variant-only) guard and panicked inside `impl Hash for Value` the moment
+    /// `HashSet::insert` ran. It must now return a `TypeMismatch`, never panic — this test
+    /// itself would abort (not merely fail) if `hashset_conj_inner` panicked, so a passing
+    /// run is itself part of the proof.
+    #[test]
+    fn conj_vector_of_fn_into_hashset_is_type_mismatch_not_panic() {
+        let vector_of_fn = Value::Vec(Arc::new(vec![fn_value()]));
+        let result = hashset_conj_inner(&empty_hashset(), &vector_of_fn);
+        match result {
+            Err(EvalBreak::Diagnostic(e)) => {
+                assert!(
+                    matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }),
+                    "expected TypeMismatch, got {:?}",
+                    e.kind()
+                );
+            }
+            other => panic!(
+                "expected Err(EvalBreak::Diagnostic(TypeMismatch)), got {other:?} — a non-error \
+                 result here means the deep guard let a fn-carrying Vector through, and the next \
+                 step (HashSet::insert's Hash::hash) would have panicked at value.rs's \
+                 `Value::wat__core__fn` unreachable!() arm"
+            ),
+        }
+    }
+
+    /// Negative control — a vector of ORDINARY i64s must still conj in cleanly. Proves the
+    /// deep walk doesn't over-reject: recursion into a Vector's elements only rejects when
+    /// an actual non-key-eligible leaf is found.
+    #[test]
+    fn conj_vector_of_i64_into_hashset_still_succeeds() {
+        let vector_of_i64 = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2)]));
+        let result = hashset_conj_inner(&empty_hashset(), &vector_of_i64);
+        match result {
+            Ok(Value::wat__std__HashSet(s)) => assert_eq!(s.len(), 1),
+            other => panic!("expected Ok(HashSet) with 1 element, got {other:?}"),
+        }
+    }
+
+    /// The regression this stone's FIRST draft caused and then cured
+    /// (`value::pmap::tests::a_map_used_as_a_key_is_found_across_arms`, caught by the floor):
+    /// `Value::Option`'s `key_eligibility()` is `NeverAKey(ExcludedByDesign)` — "the `Hash` arm
+    /// is real, `is_atomizable` just doesn't admit it" — NOT a panic risk. An `Option` wrapping
+    /// an ordinary i64 must still conj in cleanly; rejecting every `NeverAKey` uniformly (this
+    /// stone's first cut) would wrongly refuse it.
+    #[test]
+    fn conj_option_of_i64_into_hashset_still_succeeds() {
+        let option_of_i64 = Value::Option(Arc::new(Some(Value::i64(7))));
+        let result = hashset_conj_inner(&empty_hashset(), &option_of_i64);
+        match result {
+            Ok(Value::wat__std__HashSet(s)) => assert_eq!(s.len(), 1),
+            other => panic!("expected Ok(HashSet) with 1 element, got {other:?}"),
+        }
+    }
+
+    /// The other half of that same correction: `ExcludedByDesign` is "safe but not
+    /// checker-admitted", NOT "safe, full stop" — `Option` is still a RECURSIVE container
+    /// (`impl Hash for Value`'s `Option` arm hashes the wrapped value), so an `Option` wrapping
+    /// a fn must still be refused, exactly like the bare-fn and Vector-of-fn cases above.
+    #[test]
+    fn conj_option_of_fn_into_hashset_is_type_mismatch_not_panic() {
+        let option_of_fn = Value::Option(Arc::new(Some(fn_value())));
+        let result = hashset_conj_inner(&empty_hashset(), &option_of_fn);
+        match result {
+            Err(EvalBreak::Diagnostic(e)) => {
+                assert!(
+                    matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }),
+                    "expected TypeMismatch, got {:?}",
+                    e.kind()
+                );
+            }
+            other => panic!(
+                "expected Err(EvalBreak::Diagnostic(TypeMismatch)), got {other:?} — an Option \
+                 wrapping a fn must be refused the same as a bare fn or a Vector-of-fn"
+            ),
+        }
+    }
+}

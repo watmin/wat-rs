@@ -1692,6 +1692,43 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
     }
 }
 
+/// Stone 255.74 — the ONE door through which the checker refuses a set-element
+/// or map-key type that is not key-eligible (`is_atomizable`), wherever the
+/// checker learns that type: the `HashSet`/`HashMap`/`PersistentMap`
+/// constructors, the `#{}`/`{}` literals (bottom-up and expected-type-directed),
+/// and `conj`/`assoc` when they resolve a fresh element/key type from their
+/// argument. Mirrors the record-subtype carve-out `to-holon`/`leaf` already
+/// apply (`:3960-3963` above): a Record subtype is atomizable via its
+/// `holon_form` even though `is_atomizable` only knows the exact root names.
+///
+/// `container` names the offending construct for the diagnostic (e.g.
+/// `":wat::core::HashSet"`, `"{…} map literal"`); `position` names the slot
+/// (`"element type"` / `"key type"`). `ty` must already be `apply_subst`'d.
+/// Returns `None` when `ty` is key-eligible.
+pub(crate) fn key_eligible_or_error(
+    ty: &TypeExpr,
+    container: &str,
+    position: &str,
+    span: &Span,
+    env: &CheckEnv,
+) -> Option<CheckError> {
+    let is_record_subtype = matches!(ty, TypeExpr::Path(p)
+        if crate::types::is_subtype(p, ":wat::core::Record", env.types())
+            || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
+    if is_record_subtype || is_atomizable(ty) {
+        return None;
+    }
+    Some(CheckError {
+        span: span.clone(),
+        kind: CheckErrorKind::TypeMismatch {
+            callee: container.to_string(),
+            param: position.to_string(),
+            expected: "key-eligible type (is_atomizable)".to_string(),
+            got: format_type(ty),
+        },
+    })
+}
+
 /// Arc 170 — Process-output-channel join-before-drain detection.
 ///
 /// Walks `node` (and its children, recursively) collecting every call site
@@ -13059,8 +13096,10 @@ fn infer_hashset_constructor(
         // HARVEST (236.2): existing diagnostic; partial — return HashSet placeholder.
         return CheckResult::partial_with(ty, local_errors);
     }
+    let mut t_span: Span = head_span.clone();
     let (t_ty, rest): (TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
         (Some(inner), rest) if inner.len() == 1 => {
+            t_span = inner[0].span().clone();
             (parse_param_spec_slot(":wat::core::HashSet", &inner[0], fresh, &mut local_errors), rest)
         }
         (Some(inner), rest) => {
@@ -13092,9 +13131,14 @@ fn infer_hashset_constructor(
             }
         }
     }
+    // Stone 255.74 — the ONE door: a HashSet's declared element type must be key-eligible.
+    let resolved_t = apply_subst(&t_ty, subst);
+    if let Some(err) = key_eligible_or_error(&resolved_t, ":wat::core::HashSet", "element type", &t_span, env) {
+        local_errors.push(err);
+    }
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashSet".into(),
-        args: vec![apply_subst(&t_ty, subst)],
+        args: vec![resolved_t],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -15569,8 +15613,10 @@ fn infer_hashmap_constructor(
     // leading `:K :V` pair and an unmarked `[K V]` bracket are BOTH now
     // rejected — `peel_param_spec` requires the literal `:-` marker, so
     // neither shape reaches `parse_param_spec_slot`.
+    let mut k_span: Span = head_span.clone();
     let (k_ty, v_ty, pairs): (TypeExpr, TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
         (Some(inner), rest) if inner.len() == 2 => {
+            k_span = inner[0].span().clone();
             let k = crate::types::expand_alias(
                 &parse_param_spec_slot(":wat::core::HashMap", &inner[0], fresh, &mut local_errors),
                 env.types(),
@@ -15633,9 +15679,15 @@ fn infer_hashmap_constructor(
             }
         }
     }
+    // Stone 255.74 — the ONE door: a HashMap's declared KEY type must be
+    // key-eligible (the VALUE type is unconstrained — only keys get hashed).
+    let resolved_k = apply_subst(&k_ty, subst);
+    if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::core::HashMap", "key type", &k_span, env) {
+        local_errors.push(err);
+    }
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashMap".into(),
-        args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
+        args: vec![resolved_k, apply_subst(&v_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -15670,6 +15722,7 @@ fn infer_persistentmap_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
+    let mut k_span: Span = head_span.clone();
     let (declared, values): (Option<(TypeExpr, TypeExpr)>, &[WatAST]) = match split_type_param_bracket(args) {
         Some((inner, bspan, rest)) => {
             if inner.len() != 2 {
@@ -15680,6 +15733,7 @@ fn infer_persistentmap_constructor(
                 } });
                 (Some((fresh.fresh(), fresh.fresh())), rest)
             } else {
+                k_span = inner[0].span().clone();
                 let k_t = parse_param_spec_slot(":wat::core::PersistentMap", &inner[0], fresh, &mut local_errors);
                 let v_t = parse_param_spec_slot(":wat::core::PersistentMap", &inner[1], fresh, &mut local_errors);
                 (Some((k_t, v_t)), rest)
@@ -15749,9 +15803,19 @@ fn infer_persistentmap_constructor(
             }
         }
     }
+    // Stone 255.74 — the ONE door: a declared PersistentMap KEY type must be
+    // key-eligible. Bracket-less calls are already walled off (illegal, above)
+    // and leave `declared` `None`/`k_ty` a free var (`is_atomizable` admits
+    // unresolved vars conservatively), so this only fires for a declared key.
+    let resolved_k = apply_subst(&k_ty, subst);
+    if declared.is_some() {
+        if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::core::PersistentMap", "key type", &k_span, env) {
+            local_errors.push(err);
+        }
+    }
     let ty = TypeExpr::Parametric {
         head: "wat::core::PersistentMap".into(),
-        args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
+        args: vec![resolved_k, apply_subst(&v_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -15840,7 +15904,7 @@ fn infer_persistentvector_constructor(
 /// :wat::type::Infer :wat::type::Infer)` call.
 fn infer_map_literal(
     pairs: &[(WatAST, WatAST)],
-    _span: &Span, // rune:lint(unused-span) — located elsewhere: key/value type errors locate at `k_node.span()`/`v_node.span()`, more precise than the coarse literal span
+    span: &Span, // Stone 255.74 — now used: locates the key-eligibility wall below when no single key/value node is the culprit (e.g. an empty `{}` whose declared/inferred key type still fails the wall).
 
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
@@ -15873,9 +15937,15 @@ fn infer_map_literal(
             }
         }
     }
+    // Stone 255.74 — the ONE door: a `{…}` map literal's resolved KEY type
+    // must be key-eligible (the VALUE type is unconstrained).
+    let resolved_k = apply_subst(&k_ty, subst);
+    if let Some(err) = key_eligible_or_error(&resolved_k, "{…} map literal", "key type", span, env) {
+        local_errors.push(err);
+    }
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashMap".into(),
-        args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
+        args: vec![resolved_k, apply_subst(&v_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -15890,7 +15960,7 @@ fn infer_map_literal(
 /// An empty set literal `#{}` produces `(HashSet :- [fresh_T])`.
 fn infer_set_literal(
     items: &[WatAST],
-    _span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `item.span()`, more precise than the coarse literal span
+    span: &Span, // Stone 255.74 — now used: locates the key-eligibility wall below when no single element node is the culprit (e.g. an empty `#{}` whose declared/inferred element type still fails the wall).
 
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
@@ -15912,9 +15982,15 @@ fn infer_set_literal(
             }
         }
     }
+    // Stone 255.74 — the ONE door: a `#{…}` set literal's resolved element
+    // type must be key-eligible.
+    let resolved_t = apply_subst(&t_ty, subst);
+    if let Some(err) = key_eligible_or_error(&resolved_t, "#{…} set literal", "element type", span, env) {
+        local_errors.push(err);
+    }
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashSet".into(),
-        args: vec![apply_subst(&t_ty, subst)],
+        args: vec![resolved_t],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -16338,16 +16414,26 @@ fn tuple_elems_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<Vec<Ty
 /// up-casts against `V` (via `assignable`); returns `(HashMap :- [K V])` (the
 /// compound is BORN at the expected type). Sound (up-cast only): a
 /// non-assignable key or value still errors.
+#[allow(clippy::too_many_arguments)] // Stone 255.74 added `span` (the key-eligibility wall's diagnostic location) to an already-8-parameter-adjacent shape; see the file's other `too_many_arguments` allows on sibling check_* fns.
 fn check_map_literal_against(
     pairs: &[(WatAST, WatAST)],
     expected_k: &TypeExpr,
     expected_v: &TypeExpr,
+    span: &Span,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
+    // Stone 255.74 — the ONE door: the EXPECTED key type (a function param's
+    // or ann-form's declared `(HashMap :- [K V])`) must be key-eligible. This
+    // is the call-arg/ann-form up-cast path `infer_hashmap_constructor`'s
+    // declared-bracket wall can't see — the literal has no bracket of its own.
+    let resolved_k = apply_subst(expected_k, subst);
+    if let Some(err) = key_eligible_or_error(&resolved_k, "{…} map literal", "key type", span, env) {
+        local_errors.push(err);
+    }
     for (i, (k_node, v_node)) in pairs.iter().enumerate() {
         let k_ty = infer_component_against(k_node, expected_k, env, locals, fresh, subst, &mut local_errors);
         if let Some(k_ty) = k_ty {
@@ -16386,12 +16472,23 @@ fn check_map_literal_against(
 fn check_set_literal_against(
     items: &[WatAST],
     expected_elem: &TypeExpr,
+    span: &Span,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
+    // Stone 255.74 — the ONE door: the EXPECTED element type (a function
+    // param's or ann-form's declared `(HashSet :- [T])`) must be key-eligible.
+    // This is the call-arg/ann-form up-cast path `infer_hashset_constructor`'s
+    // declared-bracket wall can't see — the literal has no bracket of its own
+    // (this is exactly `probe-compound-upcast.wat`'s old Set case: `#{eh}`
+    // up-cast against a `(HashSet :- [Capability])` parameter).
+    let resolved_elem = apply_subst(expected_elem, subst);
+    if let Some(err) = key_eligible_or_error(&resolved_elem, "#{…} set literal", "element type", span, env) {
+        local_errors.push(err);
+    }
     for (i, item) in items.iter().enumerate() {
         let item_ty = infer_component_against(item, expected_elem, env, locals, fresh, subst, &mut local_errors);
         if let Some(item_ty) = item_ty {
@@ -16482,13 +16579,13 @@ fn check_compound_against_expected(
             let elem = vector_elem_of(expected, subst, env.types())?;
             Some(check_vector_literal_against(items, &elem, env, locals, fresh, subst))
         }
-        WatAST::Map(pairs, _) => {
+        WatAST::Map(pairs, map_span) => {
             let (k, v) = map_kv_of(expected, subst, env.types())?;
-            Some(check_map_literal_against(pairs, &k, &v, env, locals, fresh, subst))
+            Some(check_map_literal_against(pairs, &k, &v, map_span, env, locals, fresh, subst))
         }
-        WatAST::Set(items, _) => {
+        WatAST::Set(items, set_span) => {
             let elem = set_elem_of(expected, subst, env.types())?;
-            Some(check_set_literal_against(items, &elem, env, locals, fresh, subst))
+            Some(check_set_literal_against(items, &elem, set_span, env, locals, fresh, subst))
         }
         WatAST::List(items, span) => {
             // Tuple ctor call: `(:wat::core::Tuple a b ...)` — a constructor

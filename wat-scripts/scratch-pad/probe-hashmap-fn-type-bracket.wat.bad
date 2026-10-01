@@ -1,0 +1,16 @@
+;; Scratch probe (arc 255, three-orphans stone) — original question, for HashMap: does
+;; eval_hashmap_ctor's is_type_arg_shaped guard (Keyword|List only) reject a
+;; well-typed `[T :-> R]` fn-type-bracket K/V that check-time (parse_type_node,
+;; via parse_param_spec_slot) accepts?
+;;
+;; .wat.bad (Stone 255.74): that question is now MOOT — a fn-typed HashMap key is a key-eligible
+;; wall violation (`is_atomizable`), so the checker refuses this before `eval_hashmap_ctor` is
+;; ever reached. Was a bare `.wat` (type-checked clean) until this stone wired `is_atomizable`
+;; into `infer_hashmap_constructor`; renamed `.wat` -> `.wat.bad` to match (floor:
+;; `wat_scripts_fixes_load::every_wat_scripts_file_loads_on_the_current_runtime` caught it as
+;; newly-rotted). See `wat-scripts/probes/arc-255/probe-255.74-a-key-must-be-data.wat.bad` for
+;; the recorded fixture (the HashSet sibling of this exact shape).
+(:wat::core::def :user::main
+  (:wat::core::fn [] -> wat.type/nil
+    (:wat::kernel::println
+      (wat.type/HashMap :- [[:wat::core::i64 :-> wat.type/bool] wat.type/i64]))))
