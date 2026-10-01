@@ -293,13 +293,15 @@ pub enum Value {
     /// this type-enforced via `u64`.)
     /// Constructed via `:wat::time::Hour`/`Minute`/`Second`/`Day`/etc.
     Duration(i64),
-    /// Arc 207 — `:wat::core::Uuid`. Typed UUID primitive. Distinct
+    /// Arc 207 — `:wat::core::Uuid`; arc 255.77 moved the type's key home to
+    /// `:wat::uuid::UUID` (`.wat` spelling `wat.uuid/UUID`; old spelling retired via
+    /// `src/remedy/retirement.rs`). Typed UUID primitive. Distinct
     /// runtime variant from `Value::String` so `(= some-uuid some-string)`
     /// returns type-mismatch rather than comparing by content — UUIDs are
     /// identifiers, not strings. Pattern B (opaque Value variant) per
     /// `Instant`/`Duration`/`keyword` precedent. `uuid::Uuid` is `Copy`.
     /// Constructed via `Uuid/v4`, `Uuid/v5`, `Uuid/from-string`, `Uuid/nil`.
-    wat__core__Uuid(uuid::Uuid),
+    wat__uuid__Uuid(uuid::Uuid),
     /// Arc 220 — `:wat::core::char` (formerly `:wat::core::Char`; Stone 242.1 rename).
     /// Typed character primitive (BMP-only).
     /// Distinct runtime variant from `Value::String` — a char is a single
@@ -579,7 +581,7 @@ where
 ///
 /// **`Hashable`** (may appear as HashSet elements / HashMap keys): `bool`, `i64`, `f64`, `u8`,
 /// `bigint`, `rational`, `String`, `wat__core__keyword`, `holon__HolonAST`, `wat__WatAST`,
-/// `wat__core__Uuid`, `wat__core__Char`, `Instant`, `Duration`, `Vector` (holon::Vector),
+/// `wat__uuid__Uuid`, `wat__core__Char`, `Instant`, `Duration`, `Vector` (holon::Vector),
 /// `Aggregate` (Record/HolonRecord), `Unit` (`:wat::core::nil`), `Vec` / `wat__core__List` /
 /// `wat__std__HashSet` / `wat__std__HashMap` / `wat__core__PersistentVector` / `Option` /
 /// `Result` (recursive — iff every element/field type is itself `:< Equatable`), `Tuple`
@@ -607,7 +609,7 @@ impl PartialEq for Value {
             (Value::wat__core__keyword(a), Value::wat__core__keyword(b)) => a == b,
             (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => a == b,
             (Value::wat__WatAST(a), Value::wat__WatAST(b)) => a == b,
-            (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
+            (Value::wat__uuid__Uuid(a), Value::wat__uuid__Uuid(b)) => a == b,
             // Arc 220 — Char equality. `char` implements `PartialEq`.
             (Value::wat__core__Char(a), Value::wat__core__Char(b)) => a == b,
             // Arc 300 stone B — Rational equality. `BigRational` implements
@@ -779,7 +781,7 @@ impl std::hash::Hash for Value {
             Value::wat__core__keyword(k) => k.hash(state),
             Value::holon__HolonAST(h) => h.hash(state),
             Value::wat__WatAST(ast) => ast.hash(state),
-            Value::wat__core__Uuid(u) => u.hash(state),
+            Value::wat__uuid__Uuid(u) => u.hash(state),
             // Arc 220 — Char hash. `char` implements `Hash`.
             Value::wat__core__Char(c) => c.hash(state),
             // Arc 300 stone B — Rational hash. `BigRational` implements `Hash`.
@@ -1060,7 +1062,7 @@ fn value_is_shallow(v: &Value) -> bool {
         | Value::Nil
         | Value::wat__core__keyword(_)
         | Value::wat__core__Char(_)
-        | Value::wat__core__Uuid(_)
+        | Value::wat__uuid__Uuid(_)
         | Value::Instant(_)
         | Value::Duration(_) => true,
         Value::Aggregate(a) => a.identity != 0,
@@ -1515,10 +1517,10 @@ value_key_eligibility_table! {
             TypeExpr::Path(":wat::core::Record".to_string()) => KeyEligibility::Hashable,
         ]
     },
-    Value::wat__core__Uuid(_) => {
-        type_name: "wat::core::Uuid",
+    Value::wat__uuid__Uuid(_) => {
+        type_name: "wat::uuid::UUID",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::Uuid".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::uuid::UUID".to_string()) ]
     },
     // Arc 220 — Stone 242.1 renamed the surface to `char`; this arm was
     // half-propagated (still emitted capital). C1 fixes it.
@@ -1865,7 +1867,7 @@ impl Value {
             Value::Hologram(_) => self.type_name().to_string(),
             Value::Instant(_) => self.type_name().to_string(),
             Value::Duration(_) => self.type_name().to_string(),
-            Value::wat__core__Uuid(_) => self.type_name().to_string(),
+            Value::wat__uuid__Uuid(_) => self.type_name().to_string(),
             Value::wat__core__Char(_) => self.type_name().to_string(),
             Value::wat__core__Rational(_) => self.type_name().to_string(),
             Value::wat__core__BigInt(_) => self.type_name().to_string(),

@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 148; // 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
+const LEDGER_TOTAL: usize = 149; // 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -812,7 +812,7 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "unify", 1, "Ex1"),
     ("src/check.rs", "validate_def_position_with_wrapper", 1, "Ax1"),
 
-    ("src/check.rs", "walk_for_bare_primitives", 4, "Ax4"),
+    ("src/check.rs", "walk_for_bare_primitives", 5, "Ax5"),
     ("src/closure_extract.rs", "rewrite_with_scope", 2, "Ax2"),
     ("src/closure_extract.rs", "split_body_prelude", 1, "Ax1"),
     ("src/closure_extract.rs", "walk_free_symbols", 1, "Ax1"),

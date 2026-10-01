@@ -17,7 +17,7 @@
 (:wat::service::defservice :wat::telemetry::span
   :satisfies :wat::telemetry::Span
   :durable   [namespace     <- wat.type/String
-              uuid          <- :wat::core::Uuid
+              uuid          <- wat.uuid/UUID
               tags          <- :wat::telemetry::Tags
               start-time-ns <- wat.type/i64
               counters      <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])

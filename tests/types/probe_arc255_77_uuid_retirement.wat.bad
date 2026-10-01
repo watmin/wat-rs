@@ -1,0 +1,9 @@
+;; Arc 255.77 — negative fixture: the OLD `:wat::core::Uuid` type-key spelling must be HARD-CUT
+;; rejected with a retirement remedy naming `wat.uuid/UUID`. Loaded via `startup_from_file`
+;; (never `startup_beside` — a `.wat.bad` extension is deliberately excluded from the normal
+;; corpus gates); startup FAILURE + the retirement message is the assertion.
+(:wat::core::defn :test::needs-uuid [u <- :wat::core::Uuid] -> :wat::core::Uuid
+  u)
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  nil)

@@ -1007,6 +1007,23 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
             } });
             return;
         }
+        // Arc 255.77 — HARD CUT: `:wat::core::Uuid` (the type's old key) is retired; the
+        // type's key goes home to `:wat::uuid::UUID` (`.wat` spelling `wat.uuid/UUID`,
+        // U1). Same shape as the `:wat::core::Char` arm immediately above — fires in ANY
+        // keyword position, no privileged paths.
+        if s == ":wat::core::Uuid" {
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
+                head: s.clone(),
+                reason: format!(
+                    "'{}' is retired (arc 255.77); use 'wat.uuid/UUID' instead \
+                     (wat.type/ holds only the 24 hard primitives; other typed things, like \
+                     Uuid, live in their own homes)",
+                    s
+                ),
+                remedies: crate::remedy::remedies_for(s, std::iter::empty()),
+            } });
+            return;
+        }
         // Try parsing as a type expression. Most keywords aren't
         // types (callee paths, value keywords like `:None`); they
         // parse to a plain Path that doesn't match any bare
@@ -1631,7 +1648,8 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
                 // Uuid — hashable primitive (arc 207); value_to_atom dispatches via
                 // the Uuid arm → HolonAST::Bind(Tag("uuid"), String(hex)) per arc 221
                 // doctrine correction (Stone 221.4). Closes arc 207 false-flag.
-                | ":wat::core::Uuid"
+                // Arc 255.77 moved the type's key home from `:wat::core::Uuid`.
+                | ":wat::uuid::UUID"
                 // Arc 221 Stone 221.2 — Char is a primitive; HolonAST::Char leaf shipped
                 // in holon-rs commit 243eded (Stone 221.1); value_to_atom dispatches via
                 // the Char arm added in Stone 221.2 (src/runtime.rs); is_atomizable gate
@@ -15026,7 +15044,7 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::core::u8"
                 | "wat::core::String"
                 | "wat::core::keyword"
-                | "wat::core::Uuid"
+                | "wat::uuid::UUID"
                 | "wat::core::char"
                 | "wat::core::rational"
                 | "wat::core::bigint"
@@ -19985,13 +20003,14 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
+    // Arc 207 slice 2 — typed `:wat::uuid::UUID` constructors + accessors (arc 255.77
+    // moved the type's key home from `:wat::core::Uuid`).
     // Pattern B (opaque TypeExpr::Path) per keyword/Instant/Duration precedent.
     // Five verbs: v4 (random), v5 (deterministic SHA-1), from-string (parse),
     // to-string (render), nil (zero-UUID sentinel).
     // `uuid_ty` is an opaque Path; `opt_uuid_ty` is `(Option :- [Uuid])` for
     // `from-string`'s parse-safe interface.
-    let uuid_ty = || TypeExpr::Path(":wat::core::Uuid".into());
+    let uuid_ty = || TypeExpr::Path(":wat::uuid::UUID".into());
     let opt_uuid_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
         args: vec![uuid_ty()],

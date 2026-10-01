@@ -12,8 +12,8 @@
 ;; the reserved-prefix gate — RegistrationPrivilege::Stdlib in src/types.rs).
 ;;
 ;; Loads AFTER wat/core.wat (defrecord/defenum/defsurface/typealias + splice + Keyword/String/i64/
-;; HashMap primitives). Depends additionally on :wat::core::Uuid (arc-207 runtime primitive, always
-;; available).
+;; HashMap primitives). Depends additionally on wat.uuid/UUID (arc-207 runtime primitive, home
+;; moved by arc 255.77; always available).
 ;;
 ;; Arc 278 stone T1b.1 adds the `Journal` surface (write half) at the end of this file — it reuses
 ;; `:wat::query::{Constraint,Transient,Fatal}` (wat/query.wat) as its response payloads, so this
@@ -74,7 +74,7 @@
 (:wat::core::defsurface :wat::telemetry::Scope
   :nature :wat::core::Record
   :features [namespace <- wat.type/String
-             uuid      <- :wat::core::Uuid
+             uuid      <- wat.uuid/UUID
              tags      <- :wat::telemetry::Tags
              time-ns   <- wat.type/i64])
 
@@ -289,12 +289,20 @@
 ;; DESIGN-telemetry-caller-and-capacity.md §3. Reflects a record type's fields at RUNTIME
 ;; (field-names-of/field-types-of — compile-time/macro-expand reflection of a baked record is
 ;; DEAD, proven; runtime resolves for both stdlib and user records) and sums the byte cost of:
-;;   1. FIXED-VALUE costs — per field, classify its type-node's `ast-name` string against the
-;;      "explicitly-defined-known-size" set (i64/f64/Uuid/bool, max EDN-text bytes). Everything
-;;      else (String, Tags/maps, records, Frame, enums) is VARIABLE and contributes 0 here — an
-;;      under-count is a SAFE conservative floor, never an over-count (the runtime remainder is
-;;      the exact per-caller gate; enum-by-reflection via a future `variants-of` is the deferred
-;;      refinement that moves enums from variable into fixed, sized to their longest variant).
+;;   1. FIXED-VALUE costs — per field, classify its type-node AS DATA, via
+;;      `:wat::core::type-equal?` (the type door — parses both sides to a `TypeExpr` and
+;;      compares structurally), against the "explicitly-defined-known-size" set (i64/f64/
+;;      Uuid/bool, max EDN-text bytes). Everything else (String, Tags/maps, records, Frame,
+;;      enums) is VARIABLE and contributes 0 here — an under-count is a SAFE conservative
+;;      floor, never an over-count (the runtime remainder is the exact per-caller gate;
+;;      enum-by-reflection via a future `variants-of` is the deferred refinement that moves
+;;      enums from variable into fixed, sized to their longest variant).
+;;      ⚠ arc 255.77 — THE TRAP this replaced: comparing `(:wat::core::ast-name t)` against a
+;;      literal string like `"wat.type/Uuid"` is renderer-fragile — a type-key rename (the
+;;      Uuid home move this stone makes) changes what `field-types-of` renders, and the
+;;      branch falls to `:else 0` SILENTLY (a record with that field gets a frame budget
+;;      short, nothing goes red). `type-equal?` compares the type's DENOTATION, not its
+;;      rendered spelling, so it survives a future rename of any of these four names too.
 ;;   2. Field-name KEY costs — every field name is a wire key; its serialized byte cost is
 ;;      `string::length` of the field keyword's text (ASCII → char-length = byte-length; a UTF-8
 ;;      byte-length prim is a deferred refinement for non-ASCII keys).
@@ -309,10 +317,10 @@
                   (:wat::core::fn [acc <- wat.type/i64  t <- wat.type/AST] -> wat.type/i64
                     (:wat::i64::+ acc
                       (:wat::core::cond
-                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/i64")  20)
-                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/f64")  24)
-                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/Uuid") 36)
-                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/bool")  5)
+                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::core::i64"))  20)
+                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::core::f64"))  24)
+                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::uuid::UUID")) 36)
+                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::core::bool")) 5)
                         (:else 0))))
                   0 (:wat::runtime::field-types-of ty))
      key-cost   (:wat::core::foldl

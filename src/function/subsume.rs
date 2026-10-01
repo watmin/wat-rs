@@ -282,7 +282,7 @@ pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
         Value::Hologram(_) => ":wat::holon::Hologram",
         Value::Instant(_) => ":wat::time::Instant",
         Value::Duration(_) => ":wat::time::Duration",
-        Value::wat__core__Uuid(_) => ":wat::core::Uuid",
+        Value::wat__uuid__Uuid(_) => ":wat::uuid::UUID",
         // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
         // (scalar types lowercase per Doctrine 2).
         Value::wat__core__Char(_) => ":wat::core::char",

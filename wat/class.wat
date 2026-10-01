@@ -55,7 +55,7 @@
 (:wat::core::extend-type wat.type/String :wat::core::Equatable)
 (:wat::core::extend-type wat.type/bool :wat::core::Equatable)
 (:wat::core::extend-type wat.type/keyword :wat::core::Equatable)
-(:wat::core::extend-type :wat::core::Uuid :wat::core::Equatable)
+(:wat::core::extend-type wat.uuid/UUID :wat::core::Equatable)
 (:wat::core::extend-type wat.type/char :wat::core::Equatable)
 (:wat::core::extend-type :wat::time::Instant :wat::core::Equatable)
 (:wat::core::extend-type :wat::time::Duration :wat::core::Equatable)

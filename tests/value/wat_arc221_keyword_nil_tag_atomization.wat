@@ -116,7 +116,7 @@
   (:wat::core::let
     [ns   (:wat::uuid::nil)
      u1   (:wat::uuid::v5 ns "hello")
-     m    (wat.type/HashMap :- [:wat::core::Uuid wat.type/String])
+     m    (wat.type/HashMap :- [wat.uuid/UUID wat.type/String])
      m2   (:wat::hashmap::assoc m u1 "world-entry")]
     (:wat::core::match (:wat::hashmap::get m2 u1) 
       [:wat::core::Option.Some {:value v} v]
@@ -127,7 +127,7 @@
     [ns   (:wat::uuid::nil)
      u1   (:wat::uuid::v5 ns "hello")
      u2   (:wat::uuid::v5 ns "world")
-     m    (wat.type/HashMap :- [:wat::core::Uuid wat.type/String])
+     m    (wat.type/HashMap :- [wat.uuid/UUID wat.type/String])
      m2   (:wat::hashmap::assoc m u1 "hello-entry")]
     (:wat::core::match (:wat::hashmap::get m2 u2) 
       [:wat::core::Option.Some {:value v} v]

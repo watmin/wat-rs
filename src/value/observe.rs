@@ -438,7 +438,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
         Value::Duration(ns) => format!("<Duration {}ns>", ns),
         // Arc 207 — Uuid renders as the EDN reader literal form.
-        Value::wat__core__Uuid(u) => format!("#uuid \"{}\"", u),
+        Value::wat__uuid__Uuid(u) => format!("#uuid \"{}\"", u),
         // Arc 220 — Char renders as the EDN character literal form `\c`.
         // Named chars: newline → `\newline`, return → `\return`,
         // space → `\space`, tab → `\tab`. All others: `\<char>`.

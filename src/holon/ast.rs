@@ -394,7 +394,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         // payload in Bind, NOT Atom-wrapped. HolonAST::tag("uuid") strips the '#'
         // if present; "uuid" has no '#'. The hex representation is the canonical
         // lowercase hyphenated UUID string.
-        Value::wat__core__Uuid(u) => {
+        Value::wat__uuid__Uuid(u) => {
             HolonAST::bind(HolonAST::tag("uuid"), HolonAST::string(u.to_string()))
         }
         // Arc 221 Stone 221.2 — Char primitive → HolonAST::Char leaf.

@@ -78,7 +78,7 @@ fn probe_1_self_equality_keyword() {
 #[test]
 fn probe_1_self_equality_uuid() {
     let u = uuid::Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
-    let v = Value::wat__core__Uuid(u);
+    let v = Value::wat__uuid__Uuid(u);
     assert_eq!(hash_value(&v), hash_value(&v), "Uuid hash must be stable");
     assert_eq!(v, v, "Uuid PartialEq reflexive");
 }

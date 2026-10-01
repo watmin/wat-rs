@@ -3,6 +3,6 @@
   {:restricted-to  [:my::]
    :field-metadata {:server-id {:restricted-to [:my::]}
                     :client-id {:restricted-to [:my::]}}}
-  [server-id <- :wat::core::Uuid
-   client-id <- :wat::core::Uuid
+  [server-id <- wat.uuid/UUID
+   client-id <- wat.uuid/UUID
    public-data <- wat.type/i64])

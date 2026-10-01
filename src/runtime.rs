@@ -5755,7 +5755,7 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // String holding the same 36 chars are NOT equal (cross-type
         // falls through to `_ => None`). UUIDs are identifiers, not ordinals;
         // no `values_compare` arm is added (correct: same as keyword/Enum/Struct).
-        (Value::wat__core__Uuid(x), Value::wat__core__Uuid(y)) => Some(x == y),
+        (Value::wat__uuid__Uuid(x), Value::wat__uuid__Uuid(y)) => Some(x == y),
         // Arc 220 — Char equality. `char` implements `PartialEq`.
         // Two Char values with the same codepoint are equal; a Char and a
         // String are NOT equal (cross-type falls through to `_ => None`).
@@ -10264,7 +10264,7 @@ pub(crate) const BUILTIN_PRIMITIVES: &[&str] = &[
     "wat::core::String",
     "wat::core::keyword",
     "wat::core::nil",
-    "wat::core::Uuid",
+    "wat::uuid::UUID",
     "wat::core::char",
     "wat::core::rational",
     "wat::core::bigint",

@@ -1,10 +1,11 @@
-//! Arc 207 slice 2 — `:wat::core::Uuid` typed primitive.
+//! Arc 207 slice 2 — `wat.uuid/UUID` typed primitive (key home moved from
+//! `:wat::core::Uuid` by arc 255.77).
 //!
-//! Verifies the new `Value::wat__core__Uuid` variant and the six verbs:
+//! Verifies the new `Value::wat__uuid__Uuid` variant and the six verbs:
 //! `Uuid/v4`, `Uuid/v5`, `Uuid/from-string`, `Uuid/to-string`, `Uuid/nil`.
 //!
 //! Eight core cases (BRIEF item 20):
-//!   1 — `Uuid/v4` returns a typed `:wat::core::Uuid` (not `:String`)
+//!   1 — `Uuid/v4` returns a typed `wat.uuid/UUID` (not `:String`)
 //!   2 — `Uuid/v5` with typed namespace (`:Uuid` arg) returns `:Uuid`
 //!   3 — `Uuid/from-string` valid canonical → `Some(uuid)`; invalid → `None`
 //!   4 — `Uuid/to-string` round-trips `Uuid/v4` value → 36-char canonical string
@@ -63,9 +64,9 @@ fn run(path: &str) -> Vec<String> {
     drain_lines(&stdout_capture)
 }
 
-// ─── 1: Uuid/v4 returns typed :wat::core::Uuid (not :String) ───────────────
+// ─── 1: Uuid/v4 returns typed wat.uuid/UUID (not :String) ───────────────
 
-/// `(:wat::uuid::v4)` returns a `:wat::core::Uuid` value.
+/// `(:wat::uuid::v4)` returns a `wat.uuid/UUID` value.
 /// We verify by calling `Uuid/to-string` on it (which requires a typed Uuid
 /// arg) and asserting the result is a 36-char string. If `Uuid/v4` returned
 /// `:String`, `Uuid/to-string` would TypeMismatch at runtime.
@@ -171,7 +172,7 @@ fn uuid_string_not_equal_to_typed_uuid() {
 
 // ─── 8: (= u1 u2) works via values_equal arm ────────────────────────────────
 
-/// The `values_equal` arm for `(Value::wat__core__Uuid, Value::wat__core__Uuid)`
+/// The `values_equal` arm for `(Value::wat__uuid__Uuid, Value::wat__uuid__Uuid)`
 /// is exercised by `(= u1 u2)`. Covered structurally by test 6 (v5 equal);
 /// this test makes it explicit with the nil sentinel for clarity.
 #[test]
@@ -187,7 +188,7 @@ fn uuid_eq_uses_values_equal_arm() {
 // ─── EDN roundtrip: write → #uuid "..."; read → typed Uuid ─────────────────
 
 /// `(:wat::edn::write uuid-val)` produces `#uuid "canonical-form"`.
-/// `(:wat::edn::read "#uuid \"...\"")` produces a typed `:wat::core::Uuid`.
+/// `(:wat::edn::read "#uuid \"...\"")` produces a typed `wat.uuid/UUID`.
 /// The roundtripped Uuid equals the original (same content, same type).
 #[test]
 fn uuid_edn_roundtrip_typed() {

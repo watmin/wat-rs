@@ -2358,9 +2358,10 @@ fn edn_to_value_caps(
         }
         Edn::Inst(t) => Ok(Value::Instant(*t)),
         // arc 138: no span — edn_to_value walks an OwnedValue tree (already-parsed EDN); no WatAST available
-        // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::core::Uuid`.
+        // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::uuid::UUID`
+        // (arc 255.77 moved the type's key home from `:wat::core::Uuid`).
         // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::Instant(*t)` pattern.
-        Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
+        Edn::Uuid(u) => Ok(Value::wat__uuid__Uuid(*u)),
         Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps, foreign, ctx),
     }
 }
@@ -2604,16 +2605,17 @@ fn edn_to_typed_value_inner(
                 Edn::Integer(n) => Ok(Value::u8(*n as u8)),
                 other => Err(mismatch(target, other)),
             },
-            // Arc 207 slice 4 (latent gap from slice 2): `#uuid "..."` EDN → typed `:Uuid`.
+            // Arc 207 slice 4 (latent gap from slice 2): `#uuid "..."` EDN → typed `:UUID`.
             // `edn_to_value` (untyped path) already handled `Edn::Uuid`; this arm
-            // covers the typed path (`readln -> :T` where T contains `:wat::core::Uuid`
+            // covers the typed path (`readln -> :T` where T contains `:wat::uuid::UUID`
             // fields). Required for subprocess wire deserialization of UUID-typed fields.
-            ":wat::core::Uuid" => match edn {
-                Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
+            // Arc 255.77 — key renamed from `:wat::core::Uuid` to `:wat::uuid::UUID`.
+            ":wat::uuid::UUID" => match edn {
+                Edn::Uuid(u) => Ok(Value::wat__uuid__Uuid(*u)),
                 other => Err(mismatch(target, other)),
             },
             // Arc 220 slice 2: EDN character literal `\c` → typed `:char`.
-            // Typed path mirrors `:wat::core::Uuid` above (latent gap pattern).
+            // Typed path mirrors `:wat::uuid::UUID` above (latent gap pattern).
             // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
             // (scalar types lowercase per Doctrine 2).
             ":wat::core::char" => match edn {
@@ -2621,7 +2623,7 @@ fn edn_to_typed_value_inner(
                 other => Err(mismatch(target, other)),
             },
             // Arc 300 stone B — rational literal typed-coerce path, mirrors
-            // the `:wat::core::Uuid` / `:wat::core::char` latent-gap pattern.
+            // the `:wat::uuid::UUID` / `:wat::core::char` latent-gap pattern.
             // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
             ":wat::core::rational" => match edn {
                 Edn::Rational(r) => Ok(Value::wat__core__Rational(Box::new((**r).clone()))),
@@ -4802,7 +4804,7 @@ pub fn value_to_edn_with(
         // Mirrors `Value::Instant → OwnedValue::Inst` pattern.
         // `uuid::Uuid` is `Copy`; `OwnedValue::Uuid` already exists
         // in wat-edn (no crates/wat-edn/ edits needed).
-        Value::wat__core__Uuid(u) => OwnedValue::Uuid(*u),
+        Value::wat__uuid__Uuid(u) => OwnedValue::Uuid(*u),
         // Arc 220 — typed Char → EDN character literal.
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
         Value::wat__core__Char(c) => OwnedValue::Char(*c),

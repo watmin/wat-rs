@@ -4,7 +4,7 @@
 (:wat::core::defn :test::pure-double [n <- wat.type/i64] -> wat.type/i64
   (:wat::core::* n 2))
 
-(:wat::core::defn :test::nondet-uuid [] -> :wat::core::Uuid
+(:wat::core::defn :test::nondet-uuid [] -> wat.uuid/UUID
   (:wat::uuid::v4))
 
 (:wat::core::defn :test::io-fn [] -> :wat::io::IOReader

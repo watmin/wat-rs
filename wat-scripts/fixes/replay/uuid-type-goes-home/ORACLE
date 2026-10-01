@@ -1,0 +1,9 @@
+# ORACLE for uuid-type-goes-home — HISTORY or header spec, never the tool.
+#
+# This is a brand-new codemod (arc 255.77, drawn against c16915636) with no prior landed
+# commit to cite as history — so provenance is the codemod's OWN header spec, same shape as
+# bare-symbol-shorthand-to-fqdn's spec rows.
+
+spec (:wat::core::defn :test::needs-uuid [u <- wat.uuid/UUID] -> wat.uuid/UUID :: `:wat::core::Uuid` to the symbol `wat.uuid/UUID`
+
+spec-before (:wat::core::defn :test::needs-uuid [u <- :wat::core::Uuid] -> :wat::core::Uuid :: `:wat::core::Uuid` to the symbol `wat.uuid/UUID`

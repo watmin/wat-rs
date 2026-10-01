@@ -125,7 +125,7 @@
   :nature :wat::core::Record
   :features [namespace     <- wat.type/keyword   ;; the service's own fqdn — compile-time literal
              operation     <- wat.type/String    ;; the op arm's own name — compile-time literal
-             invocation-id <- :wat::core::Uuid      ;; minted by THIS service, per dispatch
+             invocation-id <- wat.uuid/UUID      ;; minted by THIS service, per dispatch
              start-ns      <- wat.type/i64])     ;; clock read, per dispatch
 
 ;; SELF-originated: a self-scheduled alarm fired. No connection, no caller, no request — the

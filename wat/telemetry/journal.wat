@@ -27,7 +27,7 @@
 
 ;; the uuid correlation GSI's index-keys for a scope uuid + the row's sk.
 (:wat::core::defn :wat::telemetry::uuid-index-keys
-  [uuid <- :wat::core::Uuid  sk <- wat.type/String]
+  [uuid <- wat.uuid/UUID  sk <- wat.type/String]
   -> (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey])
   (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey]
     "by-uuid" (:wat::query::IndexKey :ipk (:wat::edn::write uuid) :isk sk)))

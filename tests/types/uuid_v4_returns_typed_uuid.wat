@@ -1,4 +1,4 @@
-;; uuid_v4_returns_typed_uuid.wat — Uuid/v4 returns typed :wat::core::Uuid.
+;; uuid_v4_returns_typed_uuid.wat — Uuid/v4 returns typed wat.uuid/UUID.
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [u  (:wat::uuid::v4)

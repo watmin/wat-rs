@@ -3549,7 +3549,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
         // `coll <- (:wat::core::List :- [T])`, `wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat:17`
         // `-> (:wat::core::List :- [:wat::core::i64])`.
         ":wat::core::List",
-        // opaques — `wat/telemetry.wat:77` `uuid <- :wat::core::Uuid`;
+        // opaques — `wat/telemetry.wat:77` `uuid <- wat.uuid/UUID` (arc 255.77 moved the
+        // type's key home from `:wat::core::Uuid` to `:wat::uuid::UUID`);
         // `wat/cache.wat:273` `[hologram <- :wat::holon::Hologram`;
         // `tests/collection/vector_first_class.wat:19` `vec <- :wat::holon::Vector`
         // (the algebra Vector, distinct from the container `:wat::core::Vector`
@@ -3557,7 +3558,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         // `tests/rete/probe_arc278_6a_purity.wat:10` `-> :wat::io::IOReader`;
         // `tests/program/wat_arc170_program_contracts_t1_legacy_3arg.wat:4`
         // `stdout <- :wat::io::IOWriter`.
-        ":wat::core::Uuid",
+        ":wat::uuid::UUID",
         ":wat::holon::Hologram",
         ":wat::holon::Vector",
         ":wat::io::IOReader",
@@ -9264,7 +9265,7 @@ mod tests {
             ":wat::WatAST",
             ":wat::core::Value",
             ":wat::core::List",
-            ":wat::core::Uuid",
+            ":wat::uuid::UUID",
             ":wat::holon::Hologram",
             ":wat::holon::Vector",
             ":wat::io::IOReader",

@@ -49,6 +49,7 @@
 //! | `":wat::core::Record::def"`             | 293.2  | base record decl macro          | defrecord (`:wat::core::defrecord`)  |
 //! | `":wat::holon::Record::def"`      | 293.2  | holonic record decl macro       | defrecord (`:wat::holon::defrecord`) |
 //! | `":wat::core::foldr"`             | 118.B6b | right fold (reverse+foldl wearing a Haskell name) | reduce (`:wat::core::reduce f init (:wat::core::reverse coll)`) |
+//! | `":wat::core::Uuid"`              | 255.77 | Uuid TYPE key, junk-drawer home | `wat.uuid/UUID` (`.wat` surface spelling, not a colon key) |
 //! | `":wat::core::Uuid/v4"`               | 255 | Uuid v4 constructor, junk-drawer home         | `:wat::uuid::v4` |
 //! | `":wat::core::Uuid/v5"`               | 255 | Uuid v5 constructor, junk-drawer home         | `:wat::uuid::v5` |
 //! | `":wat::core::Uuid/from-string"`      | 255 | Uuid parse-safe constructor, junk-drawer home | `:wat::uuid::from-string` |
@@ -386,6 +387,16 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":rust::sqlite::Connection::commit", replacement: ":rust::sqlite::Connection/commit", note: None },
     RetirementEntry { retired: ":rust::sqlite::ReadConnection::open_readonly", replacement: ":rust::sqlite::ReadConnection/open_readonly", note: None },
     RetirementEntry { retired: ":rust::sqlite::ReadConnection::select", replacement: ":rust::sqlite::ReadConnection/select", note: None },
+    // Arc 255.77 — cutover stone 3, "the UUID type goes home": the Uuid type's own KEY
+    // (not a verb — the six verbs already moved to `:wat::uuid::*` in stone "the four that
+    // got homes") moves from the `:wat::core::` junk-drawer to `:wat::uuid::UUID`. U1
+    // (builder, 2026-10-01): the replacement is spelled as the `.wat` surface form
+    // `wat.uuid/UUID` — NOT the internal colon key — because `wat.type/` holds only the
+    // 24 hard primitives (Uuid is not a member) and a non-member home type is always
+    // spelled as a namespace-preserving symbol in the corpus (the `wat.time/Instant` /
+    // `wat.holon/HolonAST` shape), unlike every other row above (all verbs, still
+    // keyword-FQDN-spelled).
+    RetirementEntry { retired: ":wat::core::Uuid", replacement: "wat.uuid/UUID", note: None },
 ];
 
 /// Look up `needle` in the retirement table.
