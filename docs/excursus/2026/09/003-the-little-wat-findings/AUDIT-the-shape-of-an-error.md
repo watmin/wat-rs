@@ -274,3 +274,28 @@ Builder: *"let's continue in the order you've expressed"*. Delivery: **T** (type
 field value against its declared type — the hole B1 found) → **B2** (dotted enum tags for sum types,
 a tagged lex error, `HashError` gains the floor, `fault_value`'s `<runtime>` synthesis goes) → C → D
 → E → F → the stdlib-freeze excursus.
+
+## Strike T + T2 landed (`f24e16037`) — and the hole T2 reopened
+
+T closed the decoder hole (every field checked, undeclared keys refused, in all four reconstructors
+plus `coerce_struct_path`); T2 made `recv'`'s decode failures structured (`:wat::edn::*` read-error
+records). But T2 restored arc 278's `:RequestMalformed` by a LENIENT RE-DECODE: on a shape refusal,
+`decode_client_message_event` discards the strict error and decodes again the pre-T way so
+`:wat::edn::validate` has a value to check. Driven by the orchestrator (a temporary probe, not kept):
+
+```
+wire     #t.edn2.Bag/Op.Put {:req #t.edn2.Bag/PutRequest {:items ["a"] :stray 1}}
+strict   Err(UnknownField { type_path: ":t::edn2::Bag::PutRequest", key: "stray" })
+event    ServiceEvent::Message                       ← the lenient retry
+validate sees  #t.edn2.Bag/PutRequest {:items ["a"]} ← the stray key already dropped
+validate Ok (ACCEPTED)
+```
+
+An undeclared key is ACCEPTED on the process-tier service wire — strike T's hole reopened at the one
+place a real attacker reaches. The lenient door is also a second answer to one question.
+
+## RULING 2026-10-01 — a wrongly-shaped request frame replies `:RequestMalformed`
+
+Builder chose to keep arc 278's contract: no lenient re-decode; the serve loop identifies the op from
+the frame's outer tag and replies that op's `:RequestMalformed`, built from the STRUCTURED refusal.
+Strict decode becomes the wall's first line. Strike T3.
