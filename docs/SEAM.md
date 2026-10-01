@@ -27,7 +27,9 @@ Release floor at `4969e1907`: **6235 passed / 24 skipped**, clippy 0, census 202
 floor **6257**/6257 at `2ffcdfa3e`; then 255.75 (E3: every probe runs, one test per probe; `82af2f167`), floor
 **6337**/6337; then 255.76 (every probe asserts its claim; `e266c8e1a`), floor **6336**/6336; then cutover stone 3
 (255.77, `:wat::core::Uuid` → `wat.uuid/UUID`) and 255.78 (T1: the floor never reads a clock), floor **6349**/6349 at
-`f12c10995`, heresy ledger **149**. Next: cutover stone 4 (C1 for primitives, deletes the T-door).
+`f12c10995`, heresy ledger **149**. Cutover stone 4 split (S-b + P-surface): 4a = 255.79 (`817e2003f`, every `.wat` type position
+spells `wat.type/`, floor **6349**/6349); STOP-1 open: 1,093 type sites in wat embedded in Rust strings (84 files). Then
+4b: flip the key, delete `type_denotation`'s mapping, refuse `:wat::core::X` in type positions, print types as written.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
