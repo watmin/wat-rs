@@ -34,3 +34,27 @@ is the measurement.
 
 How the recorded codemods meet the wall (they are programs; a path exemption would be a hole in the wall). Then one stone
 converts them and the Rust-literal fixtures, and fixes this stone's own reds, so the wall lands green.
+
+## AMEND 2 weighed (2026-10-01): ACCEPTED, the wall lands green
+
+**Commits `0374d9c78` … `a34dc3406`** (a Sonnet subagent, M1). Re-run by the orchestrator:
+
+| row | result |
+|---|---|
+| release floor at `a34dc3406` | **6235 passed / 24 skipped**, exit 0 |
+| the wall is intact | `git diff 2fb4578a9 HEAD -- src/check.rs` is empty (the stash-dance restored it); `git stash list` is empty |
+| the wall fires | `(:wat::core::PersistentVector 1 2)` → *"untyped `:wat::core::PersistentVector` constructor call — every `PersistentVector` needs its own type bracket, whatever the head's spelling; write `(wat.type/PersistentVector :- [T…] …)`"* |
+| agents' gates | census `no STOP-8` (the 84-file STOP resolved); idempotent; clippy rc 0; wall's reach: exactly the 2 named STOP-1 sites |
+
+- **The 84 codemods:** 338 sites (the 674 was a double count: each error carries `:message` and `:reason`), typed from the
+  checker's record with the wall lifted, in a sibling table `TABLE-STONE-255.71-fixes-typed-constructors.edn`.
+- **The Rust-literal census:** 55 real sites in 19 files, all converted; three non-program strings left, each named.
+- **The 62 reds**, grouped into 11 causes, each traced and cured with a verbatim capture. The `probe_arc170` red was
+  a wrong table row (a 2-arg `Address` where the real return is 3-arg), proven against the prior green floor, and
+  hand-corrected in one `.wat.bad` (the codemod cannot re-target a bracketed site; disclosed).
+- **Self-reported:** its first floor (`.floor/2026-10-01T00-13-03Z`, 84 timeouts) ran **concurrently with the census**, a
+  doctrine breach it named, kept, and did not count. A clean floor followed.
+
+**The two named STOP-1 sites, for the builder:** `wat/rete/oracle/accum-pass.wat:135` (an accumulator binding whose type
+depends on the rule) and `wat-scripts/probes/arc-170/probe-s3b-astsplice.wat:75` (a run-time AST-splice construction).
+They are the wall's only remaining bracket-less sites.
