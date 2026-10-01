@@ -1,4 +1,4 @@
-# SEAM — THE ONE LIVE BREADCRUMB. 2026-09-19. ⛔ **YOU ARE ON `main`.**
+# SEAM — THE ONE LIVE BREADCRUMB. 2026-10-01. ⛔ **YOU ARE ON `main`.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice,
 > which is why it will feel like *continuing* rather than *waking* — **and that feeling is the failure.**
@@ -21,93 +21,95 @@ ls -dt docs/arc/2026/*/*/ | head -6      # which arcs moved most recently
 git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # the ignore ledger, live
 ```
 
-**Stamp: written against HEAD `d6ed8514d` (2026-09-26).** `main` == `origin/main` at that commit.
-Release floor at `145d2434a`: **6141 passed / 22 skipped**, clippy 0, census 215 non-zero, delta NEW 2 / RECOVERY 0, ledger 198.
+**Stamp: written against HEAD `b78414eaa` (2026-10-01).** `main` == `origin/main` at that commit.
+Release floor at `4969e1907`: **6235 passed / 24 skipped**, clippy 0, census 202 non-zero of 2268, ledger **148**, ignores 18.
+⚠ **In flight at this stamp:** stone 255.73 (repair the rotted probe), a Sonnet subagent. Its SCORE lands beside its brief.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
 ---
 
-## ⭐ WHERE THE WORK STANDS — 2026-09-26 (arc 255; stones 255.14 → 255.45)
+## ⭐ WHERE THE WORK STANDS — 2026-10-01 (arc 255 stones 255.46 → 255.73: declared signatures, then the Clojure cutover)
 
 ⛔ **You did not live this.** It is a cache, not your memory. Fetch the grimoire and the four primers (SIGNED MCP),
-run the commands above, then read the **newest WEIGH** in `docs/arc/2026/06/255-builtin-registry/`
-(`WEIGH-STONE-255.45-…`) before you move.
+run the commands above, then read the **newest WEIGH** in `docs/arc/2026/06/255-builtin-registry/` before you move.
 
-**Executor:** grok, via **pulsare**. Write `BRIEF-STONE-*.md`, `mcp__pulsare__pulsare_yield kind=briefed`,
-confirm the ingest in `tmux capture-pane -p -t holon:grok.1`, then **re-run every SCORE yourself** and write a
-WEIGH. Opus subagents are for **ward casts** only (intueri etc.). grok compacts itself, so its context is no
-reason to reroute.
+**Executor:** grok's credits ran out on 2026-09-27, so strikes go to **Sonnet subagents** (the Agent tool, `model:
+sonnet`, run in the background, pointed at the brief file). When grok returns: pulsare, as before. **Ask the builder
+which is live.** Either way: draw a BRIEF, **re-run every floor yourself**, write a WEIGH, push.
 
-### Standing rulings (builder), newest first
+**The floor rule in every brief (builder's doctrine, refined 2026-09-28):** a red caused by the stone's **own** gap may
+be captured **verbatim**, cured, and a **new** floor run. Any other red is a STOP. Never re-run unchanged code for a
+green. **One floor at a time, nothing else running** (two concurrent floors and a census-during-floor both produced
+false timeouts). **"Pre-existing" needs the prior green floor's line for that test**, or it is not a disposition.
 
-- **Totality:** every runtime raise becomes a match; zero surprises at run time. (The broad crusade is on the
-  `sns-sqs` branch; here only the flagged raises.)
-- **Structural, never spelled:** substring or name matches are wrong. The checker knows by **declaration**, not
-  spelling.
-- **Supervisor pattern:** a death's reason goes only to the owner (the admin handle). A server never gets a
-  client's reason; a crashing service notifies clients **reasonlessly**; `eprintln` is a final statement before
-  dying.
-- **Only data crosses a comm, on every locus;** resources live only in `:ephemeral`. A thread address is inert
-  data; *"auth on threads is nonsense"*.
-- **The owner's end is its own type:** `:wat::spawn::Spawned :- [S R]`, a featureless surface whose parameters
-  are consumed by its implementors' binder edges (H5).
-- **Declare things where they are logical; a new file is fine.** **Simple measures the surface, not the work.**
-- **Four questions** on the page, never a menu. **A STOP trigger means STOP.**
+### The rulings, newest first (the full record: `FINDING-the-shape-of-a-declared-signature.md`)
 
-### Landed since 255.27
+- **The Clojure cutover's end state (2026-09-27):** names become symbols (251.8d); **`wat.type/` holds exactly 24 hard
+  primitives** (`i64 f64 u8 bigint rational char String bool keyword nil Value Never Fn Record Struct Vector HashMap
+  HashSet List Tuple PersistentVector PersistentMap Bytes AST`); other typed things live in their own homes
+  (`wat.time/Instant`, `wat.uuid/UUID`, `wat.holon/HolonAST`); declared utilities stay where declared
+  (`wat.core/Option`, `wat.core/Result`, …); **`wat.core` is utility, never a type home**. **The new spelling is the
+  canonical key** (C1). **Position decides:** `(wat.type/Vector :- [T])` is the type in a type position, the empty
+  vector elsewhere; `(wat.core/Vector …)` is an unknown function after the cutover.
+- **Constructors (2026-09-28):** one shape, `(wat.type/X :- [T…] items…)`, and **an untyped constructor call is
+  illegal** (the wall, 255.71). **A type builds its own values:** `(wat.type/u8 65)`. Later all collections become
+  rpds-backed `wat.type/vec`/`map`/`set` in the same shape.
+- **T-door (2026-09-27):** during the cutover a temporary second key may live; stones 4 and 5 delete it. **K1
+  (2026-09-28):** canonicalize a type spelling **at the door where it enters** (`canonical_type_key`), never reconcile
+  two spellings at compare sites.
+- **Types are headers on function definitions:** no typed `let`, no ascription; a typed consumer pins a dynamic value.
+  **Equality is data equality, goldens included:** never compare strings. **X-G:** a golden is `<stem>__<case>.wat.golden`.
+- **K1-nil:** `nil` is the leaf type `:wat::core::nil` (`Value::Nil`), never `Tuple([])`. **W1:** a record holds data and
+  only data; a struct holds resources and non-data fields.
+- **The classes:** `Orderable`/`Equatable` are declared (`wat/class.wat`): leaves, conditional edges
+  (`(extend-type :- [[T :< X]] (Vector :- [T]) X)`), tuples by `:..`, records by the `Record` root (**Q1: only pure
+  data is comparable**), Pure enums by `:wat::enum::Pure` (EN-P), newtypes record-shaped (N-R). **Refuse:** a bounded
+  variable unresolved at the end is an error.
+- **Declared signatures (ruling A):** an intrinsic's signature is a bodiless wat declaration `defintrinsic`, `defclause`'s
+  clause shape with the binder at the head (H), a separate letter per bounded role (L). Bounds are `[T :< X]`; the
+  repeated-entry marker is the keyword `:..`. Not built yet.
+- Standing from before: totality; structural, never spelled; the supervisor pattern; only data crosses a comm; four
+  questions on the page, never a menu; a STOP means STOP.
+
+### Landed, 255.46 → 255.72 (every stone has a BRIEF, SCORE and WEIGH in the arc directory)
 
 | stones | what |
 |---|---|
-| 255.28–.30 | purity sees through generics; a thread address is data; the `ThreadSelfPeer` hatch is gone |
-| 255.31 | a thread address is inert (no registry, no `Mutex`); the outcome-vocabulary table |
-| 255.32–.33 | a server reaps a dead client; every connected client hears a crash (the listen backlog is drained) |
-| 255.34–.36 | vocabulary 1–3: `ConnectOutcome` (no `Refused`), `AcceptOutcome` (+`Stopped`), `SendOutcome` (`HandleClosed`, `Closed [cause]`, no `Lost`) |
-| 255.37–.39 | the owner family: `Thread`/`Process` no longer derive `Peer`; `Spawned` is a featureless surface |
-| 255.40 | `RecvError::Malformed` split out; one crash classifier |
-| 255.41–.42 | the re-poll reads what arrived, driven from Rust by a `cfg(test)` accept seam |
-| 255.43–.44 | telemetry faces its outcomes; `Span::LogResponse` mirrors `CloseResponse` |
-| 255.45 | measurement: declarations and drops |
+| .46–.50 | measurements: what `defintrinsic` needs; C and Refuse; the bound's unknowns; O1, tuples, classes |
+| .48 | B1: a featureless surface's members are the declared ones |
+| .51–.53 | bounded type parameters on `fn`; conditional membership; `:..` tuples |
+| .54–.57 | `Orderable`/`Equatable` declared; newtypes tagged and ordered; `<`/`=` ask the classes; `nil` a proper type |
+| .58–.59 | goldens compared as text (measured); the clj oracle against the source reader: 44 divergences |
+| .60–.65 | the `::` wall measured in layers; the cutover sized into seven stones |
+| .66 | cutover 1/7: position decides |
+| .67 | cutover 2/7: the corpus spells its primitives `wat.type/`; K1; X-G |
+| .68–.72 | the checker's type record (`WAT_CHECK_TYPES=1`); every constructor typed from it; the untyped-constructor wall, with no exceptions |
 
-### THE OPEN QUESTION at the compaction (the builder asked; the orchestrator answered; unruled)
+### The cutover (7 stones, `WEIGH-STONE-255.65-size-the-cutover.md`)
 
-*"does this hint that this new form can't cover or do we need to re-assess how this form is needing to be
-constructed?"* The answer given (WEIGH-255.45 plus the conversation):
+1 position ✅ · 2 types ✅ (with .68–.72) · **3 `Uuid` → `wat.uuid/UUID` (next)** · 4 C1 for primitives (deletes the
+T-door) · 5 function and form heads · 6 printers and goldens · 7 the `::` wall and the F1 wall. Carried from stone 2:
+79 `:nature :wat::core::Struct` type positions the codemod missed, and ~280 unclassified sites
+(`WEIGH-STONE-255.67-…` § Residue).
 
-- the 15% a bodiless clause declaration (`defintrinsic`, S-b) cannot express today is mostly **not the form's
-  limit**: genuine forms, untyped debt, and three checker gaps (rest elements unchecked at check time; an
-  unresolved receiver taking the first clause; `Vector` covariance);
-- **one missing capability is the form's construction: a family-bounded type variable** (`:- [(E <-
-  :wat::spawn::Spawned)]`). It closes both `select`/`poll` (a vector of any owner) and ordering (`Orderable`).
-  S1 was rejected earlier for the transport, when no measured case needed it; **two measured cases need it now**.
-- **Proposed next, unconfirmed:** a grok measurement of whether bounded type variables alone close
-  `select`/`poll` and ordering, and whether unification can carry a bound through instantiation.
+### Open, not blocking (each has its grid in its WEIGH or the FINDING)
 
-### Pending rulings (grids offered; not yet ruled)
+- The enum marker's name (D): `wat.enum/Pure` really means "holds no resource in its own fields".
+- `sort`/`sort-by` take a `Seqable` and return a seq (ruled), with `[K :< Orderable]`; `reverse` must follow.
+- `defintrinsic` and the `recv`/`select` split (`Owners`/`Peers` aliases); the head-binder letter rule L.
+- How goldens are **compared** (as data, R-W: `assert_wat_eq!`); 255.67 only protected them.
+- The source reader (255.59): tags read as two forms (T1, a `Tagged` node, proposed); 19 "other" parity bugs, two of
+  which corrupt data silently (integers past `i64` become floats; non-ASCII keywords are byte-corrupted).
+- `where_tree_branch_differential`'s `classify()` reads `.wat` as raw text; it has been patched for spelling twice.
+- The probe census 255.73 is taking: probes nothing runs, and which of them crash.
 
-- **D-c:** a discard is **any `let` binding never read**, whatever its name (today's gate matches only `_`, and
-  the stdlib dodged it with `_es`/`_w`).
-- **N-a:** a `:wat::core::Never` type for divergent forms.
-- **Drops without a drop form:** `stop` returns `nil` (6 sites); callers of write counts use `print`/`println`
-  (the twins exist); a `for-each` for `mapv`/`foldl`-for-effect; the rest face or bind.
-- **S-b sequencing:** close the three gaps, then `defintrinsic`, with the owner/peer `recv` split as its first
-  consumer; the event split waits on the bound.
+### Merge hazards
 
-### The queue
-
-1. The bounded-type-variable measurement (above).
-2. The `recv`/`select` split: `PeerRecvOutcome`/`OwnerRecvOutcome`, `PeerEvent`/`OwnerEvent` (named in
-   `FINDING-INTUERI-naming-the-two-{recv,event}-vantages.md`). R-value is ruled: a stop is a value.
-3. Must-use and its remedy by declaration (the `MUST_USE_*` lists and `contains("ServiceEvent")` go).
-4. Carried:
-   - the peer `@arg` docs contradict the checker, unseen (the doc gate skips hand rows);
-   - `poll`'s permissive self-peer/listener arguments;
-   - the rete fences that rely on a raise;
-   - 255.22–.30's carried items (see those WEIGHs);
-   - C-c (type parameters by declaration; `defn` binders are unenforced);
-   - step 3 (a generic `start`).
-5. ⚠ **The `sns-sqs` merge:** 255.41/.42 moved the process `poll` loop into `poll_process_tier` (`message.rs`
-   ~1443–1817). Carry `sns-sqs`'s edits into the moved function.
+`main` now carries its own versions of two other branches' work: tagged newtypes (`origin/reason/little-wat-findings`
+stone R: `is_newtype`, `AggregateValue::newtype`) and the type record (`origin/the-little-wat` `bbfac2ee8`). Both were
+written fresh with the same names. `sns-sqs`, `grok-rete` and `queue-promotion-blocked-on-startup-cost` touch `src/`
+and `wat/`; rebase them after the cutover. 255.41/.42 moved the process `poll` loop into `poll_process_tier`.
 
 ⛔ **End of the breadcrumb. The self reading this is new. Run recolligere against the disk before acting on any
 line above.**
@@ -200,7 +202,7 @@ text**, so a malformed `@example` failed late in a reflection test and a wat dec
 ## 📋 THE IGNORE LEDGER — the concrete measure of what is owed
 
 **Builder's standing ruling: *"we should have precisely 1 ignore when we're done — the ignore that proves
-wat-tests support ignores."*** Today: **17**. History: 31 → 24 → 13 → **17** (the replay moved it back up).
+wat-tests support ignores."*** **18** at 2026-10-01 (measured by the command at the top; the table below is the 2026-09-19 breakdown of 17). History: 31 → 24 → 13 → 17 → **18**.
 
 | owed by | count | note |
 |---|---|---|
