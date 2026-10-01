@@ -23,7 +23,7 @@ git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # t
 
 **Stamp: written against HEAD `b78414eaa` (2026-10-01).** `main` == `origin/main` at that commit.
 Release floor at `4969e1907`: **6235 passed / 24 skipped**, clippy 0, census 202 non-zero of 2268, ledger **148**, ignores 18.
-⚠ **In flight at this stamp:** stone 255.73 (repair the rotted probe), a Sonnet subagent. Its SCORE lands beside its brief.
+⚠ **255.73 landed after this stamp** (`9a54f673c`, WEIGH accepted): floor **6236**/6236. Its probe census awaits the builder's ruling.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
@@ -102,7 +102,8 @@ T-door) · 5 function and form heads · 6 printers and goldens · 7 the `::` wal
 - The source reader (255.59): tags read as two forms (T1, a `Tagged` node, proposed); 19 "other" parity bugs, two of
   which corrupt data silently (integers past `i64` become floats; non-ASCII keywords are byte-corrupted).
 - `where_tree_branch_differential`'s `classify()` reads `.wat` as raw text; it has been patched for spelling twice.
-- The probe census 255.73 is taking: probes nothing runs, and which of them crash.
+- The probe census (`WEIGH-STONE-255.73-…`): 82 of 83 probes are run by nothing; 21 crash today (one a Rust panic naming a
+  drifted invariant); only 21 of 83 declare an `EXPECT`. Builder's ruling owed.
 
 ### Merge hazards
 
