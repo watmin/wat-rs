@@ -651,7 +651,7 @@ mod arc109_two_iii_defclause_return_slot {
         .expect("parse defclause clause with form return");
         let parsed = parse_defclause_clause(&clause, ":probe::defclause-row1", None)
             .unwrap_or_else(|e| panic!("form return type must parse: {e:?}"));
-        let type_node = crate::parse_one!("(:wat::core::Vector :- [:wat::core::i64])")
+        let type_node = crate::parse_one!("(wat.type/Vector :- [wat.type/i64])")
             .expect("parse the equivalent bare type form");
         let expected = crate::types::parse_type_node(&type_node)
             .expect("the reference form itself must parse via the substrate's one door");

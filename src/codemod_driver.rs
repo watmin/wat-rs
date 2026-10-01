@@ -232,8 +232,30 @@ pub fn run_codemod_over_text(wat_binary: &Path, codemod_path: &Path, text: &str)
     std::fs::create_dir_all(&dir)?;
     let tmp_path = dir.join(format!("probe-{}.wat", uuid::Uuid::new_v4()));
     std::fs::write(&tmp_path, text)?;
+    run_codemod_batch(wat_binary, codemod_path, std::slice::from_ref(&tmp_path))?;
+    let new_text = std::fs::read_to_string(&tmp_path)?;
+    let _ = std::fs::remove_file(&tmp_path);
+    Ok(new_text)
+}
 
-    let stdin_payload = format!("[\"{}\"]\n", tmp_path.display());
+/// Run a recorded codemod ONCE over every path in `paths` — the literal brief usage
+/// (`printf '["pathA" "pathB" …]\n' | ./target/release/wat ./wat-scripts/fixes/<fix>.wat`)
+/// extended to many paths in a single process invocation ("one batch"), so converting a
+/// file's several embedded-wat literals costs one subprocess, not one per literal. Each
+/// path's file is read, converted, and written back IN PLACE by the codemod itself
+/// (`:user::apply-each`); this function only drives the process and surfaces a failure.
+pub fn run_codemod_batch(wat_binary: &Path, codemod_path: &Path, paths: &[std::path::PathBuf]) -> io::Result<()> {
+    let mut stdin_payload = String::from("[");
+    for (i, p) in paths.iter().enumerate() {
+        if i > 0 {
+            stdin_payload.push(' ');
+        }
+        stdin_payload.push('"');
+        stdin_payload.push_str(&p.display().to_string());
+        stdin_payload.push('"');
+    }
+    stdin_payload.push_str("]\n");
+
     let mut child = Command::new(wat_binary)
         .arg(codemod_path)
         .stdin(std::process::Stdio::piped())
@@ -246,17 +268,135 @@ pub fn run_codemod_over_text(wat_binary: &Path, codemod_path: &Path, text: &str)
     }
     let output = child.wait_with_output()?;
     if !output.status.success() {
-        let _ = std::fs::remove_file(&tmp_path);
         return Err(io::Error::other(format!(
-            "codemod exited {:?}\nstdout:\n{}\nstderr:\n{}",
+            "codemod batch ({} path(s)) exited {:?}\nstdout:\n{}\nstderr:\n{}",
+            paths.len(),
             output.status.code(),
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr),
         )));
     }
-    let new_text = std::fs::read_to_string(&tmp_path)?;
-    let _ = std::fs::remove_file(&tmp_path);
-    Ok(new_text)
+    Ok(())
+}
+
+/// Is `text` (already placeholder-substituted, same-length) wat-shaped — the SAME
+/// surface-agnostic contract the inline-wat lint uses (`is_inline_wat_form`,
+/// `tests/lint/no_inlined_wat_in_tests.rs:80`): wat's own reader parses it to a List whose
+/// head is a Keyword or a Symbol. A `catch_unwind` guards the same rare lexer-panic-on-
+/// pathological-input gap the lint's version documents — most literals in a Rust source
+/// file are ordinary prose/fixtures, not wat, and forcing them through the reader must
+/// never crash the driver.
+pub fn is_candidate_wat(placeholder_substituted_text: &str) -> bool {
+    let result = std::panic::catch_unwind(|| crate::parser::parse_one_with_file(placeholder_substituted_text, "<embedded-wat-candidate>"));
+    matches!(
+        result,
+        Ok(Ok(WatAST::List(items, _)))
+            if matches!(items.first(), Some(WatAST::Keyword(..)) | Some(WatAST::Symbol(..)))
+    )
+}
+
+/// One literal's outcome inside a file-level apply.
+#[derive(Debug)]
+pub enum LiteralOutcome {
+    NotCandidate,
+    Unchanged,
+    Edited { changes: Vec<(String, String)> },
+    Refused(Vec<RefusedSplice>),
+    /// The codemod's own diff/parse failed for a reason unrelated to splicing (e.g. the
+    /// codemod restructured the tree, or NEW text fails to parse) — reported, never applied.
+    DiffFailed(String),
+}
+
+/// The result of running a codemod over one whole `.rs` file's embedded wat literals.
+pub struct FileApplyResult {
+    pub new_src: String,
+    pub changed: bool,
+    pub total_edits: usize,
+    pub total_refused: usize,
+    pub per_literal: Vec<LiteralOutcome>,
+}
+
+/// Apply `codemod_path` to every wat-shaped literal in `raw_src` (one Rust source file's
+/// content), batched through ONE subprocess invocation covering every candidate literal in
+/// THIS file (bounding the blast radius of a single malformed literal to one file, not the
+/// whole corpus run). Never writes `raw_src`'s own file — the caller decides whether/where
+/// to persist `FileApplyResult::new_src`.
+pub fn apply_codemod_to_rust_source(wat_binary: &Path, codemod_path: &Path, raw_src: &str) -> io::Result<FileApplyResult> {
+    let raw_chars: Vec<char> = raw_src.chars().collect();
+    let spans = crate::embedded_wat::extract_literal_spans(&raw_chars);
+
+    let mut candidates: Vec<(usize, String)> = Vec::new(); // (span index, placeholder-substituted decoded text)
+    let mut per_literal: Vec<LiteralOutcome> = spans.iter().map(|_| LiteralOutcome::NotCandidate).collect();
+    for (i, span) in spans.iter().enumerate() {
+        let ph = crate::embedded_wat::replace_placeholders_preserving_len(&span.decoded);
+        if is_candidate_wat(&ph) {
+            candidates.push((i, ph));
+        }
+    }
+
+    if candidates.is_empty() {
+        return Ok(FileApplyResult { new_src: raw_src.to_string(), changed: false, total_edits: 0, total_refused: 0, per_literal });
+    }
+
+    let dir = std::env::temp_dir().join(format!("wat-codemod-driver-{}-{}", std::process::id(), uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir)?;
+    let mut temp_paths = Vec::with_capacity(candidates.len());
+    for (i, ph) in &candidates {
+        let p = dir.join(format!("lit-{i}.wat"));
+        std::fs::write(&p, ph)?;
+        temp_paths.push(p);
+    }
+
+    run_codemod_batch(wat_binary, codemod_path, &temp_paths)?;
+
+    let mut all_splices: Vec<(usize, usize, String)> = Vec::new();
+    let mut total_edits = 0usize;
+    let mut total_refused = 0usize;
+
+    for ((span_i, old_ph), temp_path) in candidates.iter().zip(temp_paths.iter()) {
+        let new_ph = std::fs::read_to_string(temp_path)?;
+        let span = &spans[*span_i];
+        if new_ph == *old_ph {
+            per_literal[*span_i] = LiteralOutcome::Unchanged;
+            continue;
+        }
+        match diff_decoded(old_ph, &new_ph) {
+            Ok(edits) if edits.is_empty() => {
+                per_literal[*span_i] = LiteralOutcome::Unchanged;
+            }
+            Ok(edits) => {
+                let mut refusals = Vec::new();
+                let mut changes = Vec::new();
+                for edit in &edits {
+                    match verify_and_map(span, old_ph, &raw_chars, edit) {
+                        Ok(triple) => {
+                            let old_decoded_chars: Vec<char> = old_ph.chars().collect();
+                            let old_text: String = old_decoded_chars[edit.old_lo..edit.old_hi].iter().collect();
+                            changes.push((old_text, edit.new_text.clone()));
+                            all_splices.push(triple);
+                        }
+                        Err(refusal) => refusals.push(refusal),
+                    }
+                }
+                total_edits += changes.len();
+                total_refused += refusals.len();
+                per_literal[*span_i] = if refusals.is_empty() {
+                    LiteralOutcome::Edited { changes }
+                } else {
+                    LiteralOutcome::Refused(refusals)
+                };
+            }
+            Err(e) => {
+                per_literal[*span_i] = LiteralOutcome::DiffFailed(e);
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let changed = !all_splices.is_empty();
+    let new_src = if changed { splice_raw(&raw_chars, all_splices) } else { raw_src.to_string() };
+
+    Ok(FileApplyResult { new_src, changed, total_edits, total_refused, per_literal })
 }
 
 #[cfg(test)]
@@ -280,6 +420,16 @@ mod probe_255_80 {
     /// carries THREE `\` line continuations, a `\"`-escaped pair wrapping a `{bare_name}`
     /// placeholder, AND two type-position `:wat::WatAST` tokens plus a head-of-bracket
     /// `:wat::core::Vector` — strictly harder than the brief's ask, not easier.
+    ///
+    /// This test's body ran BEFORE item 4's corpus apply (when the literal still spelled
+    /// `:wat::core::Vector`/`:wat::WatAST`) and proved the full composition: decode → run the
+    /// recorded codemod on a temp `.wat` → diff leaf-by-leaf → map to raw offsets → verify →
+    /// splice → recompiled syntactically → re-decoded to exactly the codemod's output (that
+    /// run is what the commit message and SCORE report). Item 4's real driver run then
+    /// converted this SAME literal for real, in place, in the actual file — so what this test
+    /// asserts now is the POST-conversion invariant: running the codemod over the already-
+    /// converted literal is a true no-op (idempotence), on the exact literal the probe used,
+    /// through the exact same escape/continuation/placeholder machinery.
     #[test]
     fn codemod_reaches_a_literal_through_escapes_continuation_and_placeholder() {
         let manifest = env!("CARGO_MANIFEST_DIR");
@@ -290,111 +440,106 @@ mod probe_255_80 {
         let spans = extract_literal_spans(&raw_chars);
         let span = spans
             .iter()
-            .find(|s| s.decoded.contains("defmacro {bare_name}") && s.decoded.contains(":wat::core::Vector"))
-            .expect("the aggregate_kwargs_companion_source format! literal must still be present");
+            .find(|s| s.decoded.contains("defmacro {bare_name}") && s.decoded.contains("wat.type/Vector"))
+            .expect("the aggregate_kwargs_companion_source format! literal must still be present, now converted");
 
-        // Measured precondition: this literal really does carry both an escape/continuation
-        // AND a type-position marker — the exact combination STOP-1 is about.
+        // Measured precondition: this literal still carries the escape/continuation shape
+        // (255.80's apply only ever rewrites a leaf's span text, never the surrounding
+        // escapes), and is now post-conversion (wat.type/AST, not :wat::WatAST).
         let raw_slice: String = raw_chars[span.raw_quote_start..span.raw_quote_end].iter().collect();
-        assert!(raw_slice.contains('\\'), "probe literal must contain a raw backslash (escape/continuation)");
-        assert!(span.decoded.contains(":wat::WatAST"), "probe literal must carry a type-position :wat::core::<24> token");
+        assert!(raw_slice.contains('\\'), "probe literal must still contain a raw backslash (escape/continuation)");
+        assert!(span.decoded.contains("wat.type/AST"), "probe literal must carry the now-converted type spelling");
+        assert!(span.decoded.contains("wat.type/Vector"));
+        assert!(!span.decoded.contains(":wat::WatAST"), "the old type-position spelling must be gone");
+        assert!(!span.decoded.contains(":wat::core::Vector"), "the old type-position spelling must be gone");
 
-        // 1. decode, then substitute format! placeholders (same length, so char_map still
-        //    applies 1:1) so wat's reader can parse the template shape.
         let old_ph = replace_placeholders_preserving_len(&span.decoded);
         assert_eq!(old_ph.chars().count(), span.decoded.chars().count());
 
-        // 2. run the recorded codemod over the decoded literal, via a real temp .wat file —
-        //    the exact documented invocation, never a Rust reimplementation of its rules.
         let wat_binary = Path::new(manifest).join("target/release/wat");
         let codemod = Path::new(manifest).join("wat-scripts/fixes/types-to-wat-type.wat");
         assert!(wat_binary.is_file(), "release binary must be built first (cargo build --release)");
         let new_ph = run_codemod_over_text(&wat_binary, &codemod, &old_ph)
-            .expect("codemod composition over a decoded embedded-wat literal must succeed — STOP-1 if not");
+            .expect("codemod composition over a decoded embedded-wat literal must succeed");
 
-        // Some real conversion must have happened (otherwise this probe proves nothing).
-        assert_ne!(old_ph, new_ph, "the codemod found nothing to convert in the probe literal");
-
-        // 3. diff old vs new by walking both parses leaf-by-leaf (never a text diff / regex).
+        // Idempotence: nothing left to convert on the already-converted literal.
+        assert_eq!(old_ph, new_ph, "a second run over the already-converted literal must be a no-op");
         let edits = diff_decoded(&old_ph, &new_ph).expect("old/new decoded text must diff cleanly");
-        assert!(!edits.is_empty());
-        assert!(
-            edits.iter().any(|e| e.new_text == "wat.type/AST") && edits.iter().any(|e| e.new_text == "wat.type/Vector"),
-            "expected the two :wat::WatAST sites and the :wat::core::Vector head to convert; got {edits:?}"
-        );
+        assert!(edits.is_empty(), "expected no further edits post-conversion; got {edits:?}");
+    }
+}
 
-        // 4. map every edit back to raw offsets and verify the raw slice is exactly the old
-        //    text (no escape hiding inside the changed region) — none of this probe's three
-        //    target tokens sit inside an escape, so none should be refused.
-        let mut raw_splices = Vec::new();
-        for edit in &edits {
-            match verify_and_map(span, &old_ph, &raw_chars, edit) {
-                Ok(triple) => raw_splices.push(triple),
-                Err(refusal) => panic!("STOP-1: splice refused unexpectedly: {refusal:?}"),
-            }
-        }
-        assert_eq!(raw_splices.len(), edits.len());
+#[cfg(test)]
+mod driver_tests {
+    use super::*;
 
-        // 5. splice into a COPY of the raw file (never touch the real file from a test) and
-        //    confirm the resulting Rust compiles.
-        let spliced = splice_raw(&raw_chars, raw_splices);
-        assert_ne!(spliced, raw_src);
+    fn wat_binary() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/release/wat")
+    }
+    fn types_to_wat_type() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("wat-scripts/fixes/types-to-wat-type.wat")
+    }
 
-        let tmp_dir = std::env::temp_dir().join(format!("probe-255-80-splice-{}", std::process::id()));
-        std::fs::create_dir_all(&tmp_dir).unwrap();
-        let tmp_rs = tmp_dir.join("parse_spliced.rs");
-        std::fs::write(&tmp_rs, &spliced).unwrap();
-        let check = Command::new("rustc")
-            .args(["--edition", "2021", "--crate-type", "lib", "--emit=metadata"])
-            .arg("-o")
-            .arg(tmp_dir.join("out.rmeta"))
-            .arg(&tmp_rs)
-            .output();
-        // A standalone rustc check can't resolve this module's `use crate::...` / `super::`
-        // paths (it isn't the real crate graph) — so what this step actually certifies is
-        // narrower than "compiles in the workspace": that the SPLICE produced syntactically
-        // valid Rust (balanced strings/escapes, no stray quote introduced by the splice).
-        // The real "does the crate build" claim is certified separately, below, by splicing
-        // the ACTUAL file and running `cargo build --release` over the real workspace.
-        if let Ok(out) = check {
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            // A standalone-file rustc check can't resolve this module's `crate::`/`super::`
-            // paths at all (it isn't fed the real crate graph), so NAME-RESOLUTION errors
-            // (E0432/E0433, "too many leading `super`") are expected noise. What this step
-            // actually screens for is a SYNTAX error the splice itself could have introduced
-            // (an unbalanced quote/paren from a bad raw-offset splice) — those are different
-            // error codes entirely (E0765 unterminated literal, E0624/E0601 structural, a bare
-            // "error: expected .."/"mismatched closing delimiter" with no error code).
-            let resolution_only = !out.status.success()
-                && stderr
-                    .lines()
-                    .filter(|l| l.trim_start().starts_with("error["))
-                    .all(|l| {
-                        l.contains("E0432")
-                            || l.contains("E0433")
-                            || l.contains("E0425")
-                            || l.contains("E0599")
-                            || l.contains("too many leading")
-                    });
-            assert!(
-                out.status.success() || resolution_only,
-                "splice produced syntactically invalid Rust (not just unresolved-name noise):\n{stderr}"
-            );
-        }
+    /// Item 5 — "the driver's idempotence on a fixture .rs": a file with a genuine
+    /// type-position embedded literal converts once, then a SECOND run over the already-
+    /// converted source finds nothing left to edit.
+    #[test]
+    fn driver_is_idempotent_on_a_fixture_rs_file() {
+        let fixture = r#"
+fn make_form() -> &'static str {
+    "(:wat::core::defn :my::inc [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))"
+}
+"#;
+        let first = apply_codemod_to_rust_source(&wat_binary(), &types_to_wat_type(), fixture)
+            .expect("first apply must succeed");
+        assert!(first.changed, "the fixture's two type-position i64 sites must convert");
+        assert_eq!(first.total_refused, 0);
+        assert!(first.new_src.contains("wat.type/i64"));
+        assert!(!first.new_src.contains(":wat::core::i64"));
 
-        // 6. the literal, re-extracted from the spliced raw source and decoded, must equal the
-        //    codemod's own output (modulo restoring the `{bare_name}` placeholder the codemod
-        //    never saw — it only ever saw the same-length `x`-run stand-in).
-        let spliced_chars: Vec<char> = spliced.chars().collect();
-        let re_spans = extract_literal_spans(&spliced_chars);
-        let re_span = re_spans
+        let second = apply_codemod_to_rust_source(&wat_binary(), &types_to_wat_type(), &first.new_src)
+            .expect("second apply must succeed");
+        assert!(!second.changed, "a re-run over already-converted source must find nothing to edit");
+        assert_eq!(second.total_edits, 0);
+        assert_eq!(second.new_src, first.new_src);
+    }
+
+    /// Item 5 — "a splice that must be refused": a type-position keyword whose colon is
+    /// written as a `\x3a` hex escape. It decodes to a genuine `:wat::core::i64` type-
+    /// position token (the codemod converts it), but the RAW source under that leaf's span
+    /// is `\x3awat::core::i64` (18 raw chars for a 15-char decoded token) — not char-for-char
+    /// the decoded text — so the splice must be refused, never silently applied.
+    #[test]
+    fn driver_refuses_a_splice_when_an_escape_hides_inside_the_changed_span() {
+        let fixture = "fn f() -> &'static str { \"(:my::f [x <- \\x3awat::core::i64])\" }\n";
+        let result = apply_codemod_to_rust_source(&wat_binary(), &types_to_wat_type(), fixture)
+            .expect("apply must run (refusal is a reported outcome, not an error)");
+        assert_eq!(result.total_edits, 0, "the one edit here must be refused, not applied");
+        assert_eq!(result.total_refused, 1);
+        assert!(!result.changed, "a file with only a refused splice must come back unchanged");
+        assert_eq!(result.new_src, fixture);
+
+        let refusals: Vec<_> = result
+            .per_literal
             .iter()
-            .find(|s| s.decoded.contains("defmacro {bare_name}"))
-            .expect("the literal must still be found after splicing");
-        let re_decoded_ph = replace_placeholders_preserving_len(&re_span.decoded);
-        assert_eq!(
-            re_decoded_ph, new_ph,
-            "the spliced literal must decode (post placeholder-substitution) to exactly the codemod's output"
-        );
+            .filter_map(|o| if let LiteralOutcome::Refused(r) = o { Some(r) } else { None })
+            .collect();
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(refusals[0].len(), 1);
+        assert_eq!(refusals[0][0].old_decoded_text, ":wat::core::i64");
+        assert_ne!(refusals[0][0].raw_text, refusals[0][0].old_decoded_text);
+    }
+
+    /// A file with no wat-shaped literals at all is left alone — the common case across most
+    /// of the corpus, and the non-vacuity floor: this must not misfire as "candidate" noise.
+    #[test]
+    fn driver_leaves_ordinary_rust_source_untouched() {
+        let fixture = "fn f(x: i32) -> i32 { x + 1 }\n// a comment mentioning :wat::core::i64\n";
+        let result = apply_codemod_to_rust_source(&wat_binary(), &types_to_wat_type(), fixture)
+            .expect("apply must succeed");
+        assert!(!result.changed);
+        assert_eq!(result.total_edits, 0);
+        assert_eq!(result.total_refused, 0);
+        assert_eq!(result.new_src, fixture);
     }
 }

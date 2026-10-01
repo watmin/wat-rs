@@ -113,7 +113,7 @@ mod tests {
     fn the_startup_passes_run_in_the_declared_order() {
         reset();
         let world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println 41))",
+            "(:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println 41))",
             None,
             std::sync::Arc::new(crate::load::loader::InMemoryLoader::new()),
         );

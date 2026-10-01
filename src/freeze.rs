@@ -2154,7 +2154,7 @@ mod tests {
         let mut loader = InMemoryLoader::new();
         loader.add_source(
             "lib.wat",
-            r#"(:wat::core::defn :lib::square [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x x))"#,
+            r#"(:wat::core::defn :lib::square [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x x))"#,
         );
         let entry = r#"
             (:wat::config::set-capacity-mode! :error)
@@ -2273,7 +2273,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parse_one!(r#"(:wat::core::defstruct :evil::Backdoor [x <- :wat::core::i64])"#,)
+            crate::parse_one!(r#"(:wat::core::defstruct :evil::Backdoor [x <- wat.type/i64])"#,)
                 .unwrap();
         let env = Environment::new();
         let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
@@ -2345,7 +2345,7 @@ mod tests {
         "#,
         );
         let ast = crate::parse_one!(
-            r#"(:wat::core::defmacro :evil::M [x <- :wat::WatAST] -> :wat::WatAST x)"#,
+            r#"(:wat::core::defmacro :evil::M [x <- wat.type/AST] -> wat.type/AST x)"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -2498,7 +2498,7 @@ mod tests {
         );
         let ast = crate::parse_one!(
             r#"(:wat::core::let ((x 1))
-                 (:wat::core::defstruct :evil::Inner [y <- :wat::core::i64]))"#,
+                 (:wat::core::defstruct :evil::Inner [y <- wat.type/i64]))"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -2659,7 +2659,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parse_one!(r#"(:wat::core::defstruct :evil::E [x <- :wat::core::i64])"#,)
+        let ast = crate::parse_one!(r#"(:wat::core::defstruct :evil::E [x <- wat.type/i64])"#,)
             .unwrap();
         let hex = digest_hex_for(&ast);
         let err =

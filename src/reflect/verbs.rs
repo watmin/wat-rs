@@ -1587,7 +1587,7 @@ fn asts_from_value(v: &Value, span: &Span, op: &str) -> Result<Vec<WatAST>, Eval
                 span.clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
-                    expected: "(:wat::core::Vector :- [:wat::WatAST])",
+                    expected: "(wat.type/Vector :- [wat.type/AST])",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )

@@ -408,9 +408,9 @@ mod tests {
         // and silently stop testing the compiled path at all.
         let type_src = r#"
 (:wat::core::defrecord :fan::Pair
-  [key <- :wat::core::i64
-   lid <- :wat::core::i64
-   rid <- :wat::core::i64])
+  [key <- wat.type/i64
+   lid <- wat.type/i64
+   rid <- wat.type/i64])
 "#;
         let forms = crate::parse_all!(type_src).expect("parse the fixture record decl");
         let sym = crate::freeze::env::build_env(forms).expect("build_env").symbols;
@@ -480,9 +480,9 @@ mod tests {
 
         let type_src = r#"
 (:wat::core::defrecord :fan::Pair
-  [key <- :wat::core::i64
-   lid <- :wat::core::i64
-   rid <- :wat::core::i64])
+  [key <- wat.type/i64
+   lid <- wat.type/i64
+   rid <- wat.type/i64])
 "#;
         let forms = crate::parse_all!(type_src).expect("parse the fixture record decl");
         let sym = crate::freeze::env::build_env(forms).expect("build_env").symbols;
@@ -624,9 +624,9 @@ mod tests {
 
         let type_src = r#"
 (:wat::core::defrecord :fan::Pair
-  [key <- :wat::core::i64
-   lid <- :wat::core::i64
-   rid <- :wat::core::i64])
+  [key <- wat.type/i64
+   lid <- wat.type/i64
+   rid <- wat.type/i64])
 "#;
         let forms = crate::parse_all!(type_src).expect("parse the fixture record decl");
         let sym = crate::freeze::env::build_env(forms).expect("build_env").symbols;

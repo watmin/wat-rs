@@ -52,7 +52,7 @@ const WORLD: &str = "\
 /// A `Rule` with empty `:lhs`/`:rhs` — exactly the shape an imported Export's rules have, and the
 /// shape `wat-scripts/scratch-pad/a5-termination-silence.wat` drives through `compile-all`.
 const AST_LESS: &str = "(:wat::rete::Rule :name \"ast-less\" \
-    :lhs (:wat::core::PersistentVector :- [:wat::WatAST]) :rhs (:wat::core::PersistentVector :- [:wat::WatAST]))";
+    :lhs (wat.type/PersistentVector :- [wat.type/AST]) :rhs (wat.type/PersistentVector :- [wat.type/AST]))";
 
 fn a5_world() -> FrozenWorld {
     startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
@@ -130,7 +130,7 @@ fn an_ast_less_rule_alone_is_not_analysable() {
     let world = a5_world();
     let rules = rule_set(
         &world,
-        &format!("(:wat::core::PersistentVector :- [:wat::rete::Rule] {AST_LESS})"),
+        &format!("(wat.type/PersistentVector :- [:wat::rete::Rule] {AST_LESS})"),
     );
     let got = verdict_name(&refuse_non_terminating(&rules, world.symbols()));
     assert_eq!(

@@ -97,6 +97,14 @@ path = "src/bin/wat.rs"
 name = "cargo-wat"
 path = "src/bin/cargo-wat.rs"
 
+# Arc 255 stone 255.80 — the codemod-reach driver (R1, item 3): runs any recorded
+# wat-scripts/fixes/*.wat codemod over wat-shaped literals embedded in Rust string
+# literals and splices the verified edits back. General tooling, not special-cased to
+# one codemod — see `src/bin/wat-fix-rust.rs`'s module docs.
+[[bin]]
+name = "wat-fix-rust"
+path = "src/bin/wat-fix-rust.rs"
+
 [dependencies]
 # `simd` is NOT holon's default (its `default = []`), so wat ran the scalar
 # `dot_raw` loop for the whole of the substrate's life. Turned on 2026-08-02 —

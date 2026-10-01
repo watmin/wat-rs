@@ -847,7 +847,7 @@ pub(crate) fn eval_type_params_used_in(
         other => {
             return Err(RuntimeError::new(params.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "(:wat::core::Vector :- [:wat::WatAST])",
+                    expected: "(wat.type/Vector :- [wat.type/AST])",
                     got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 })
             .into());

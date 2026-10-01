@@ -1184,7 +1184,7 @@ mod tests {
     #[test]
     fn declared_max_request_bytes_is_parsed_and_undeclared_defaults() {
         let surf = parse_surface(
-            "(:wat::core::defsurface :t::Svc :nature :wat::core::Struct :features [\
+            "(:wat::core::defsurface :t::Svc :nature wat.type/Struct :features [\
                (write-logs [self <- :t::Svc] -> :t::Resp :max-request-bytes 300)\
                (stats [self <- :t::Svc] -> :t::Resp)])",
         )
@@ -1207,7 +1207,7 @@ mod tests {
     #[test]
     fn nonpositive_max_request_bytes_is_a_located_error() {
         let err = parse_surface(
-            "(:wat::core::defsurface :t::Bad :nature :wat::core::Struct :features [\
+            "(:wat::core::defsurface :t::Bad :nature wat.type/Struct :features [\
                (write-logs [self <- :t::Bad] -> :t::Resp :max-request-bytes -5)])",
         )
         .expect_err(
@@ -1223,7 +1223,7 @@ mod tests {
     #[test]
     fn noninteger_max_request_bytes_is_a_located_error() {
         let err = parse_surface(
-            "(:wat::core::defsurface :t::Bad2 :nature :wat::core::Struct :features [\
+            "(:wat::core::defsurface :t::Bad2 :nature wat.type/Struct :features [\
                (write-logs [self <- :t::Bad2] -> :t::Resp :max-request-bytes :nope)])",
         )
         .expect_err("`:max-request-bytes :nope` (non-integer) must be a LOCATED error");
@@ -1239,7 +1239,7 @@ mod tests {
         // what keeps the options map extensible: a future stone adds `:max-page-bytes` to the
         // recognized set and this test's key stays rejected.
         let err = parse_surface(
-            "(:wat::core::defsurface :t::Bad3 :nature :wat::core::Struct :features [\
+            "(:wat::core::defsurface :t::Bad3 :nature wat.type/Struct :features [\
                (write-logs [self <- :t::Bad3] -> :t::Resp :max-frobnicate 5)])",
         )
         .expect_err("an unrecognized option key must be a LOCATED error, not silently ignored");
@@ -1254,7 +1254,7 @@ mod tests {
         // The options loop is order-INDEPENDENT (not observable with a single recognized key);
         // a repeated key is a located error rather than a silent last-wins overwrite.
         let err = parse_surface(
-            "(:wat::core::defsurface :t::Bad4 :nature :wat::core::Struct :features [\
+            "(:wat::core::defsurface :t::Bad4 :nature wat.type/Struct :features [\
                (write-logs [self <- :t::Bad4] -> :t::Resp :max-request-bytes 300 :max-request-bytes 400)])",
         )
         .expect_err("a duplicate `:max-request-bytes` must be a LOCATED error");
@@ -1285,10 +1285,10 @@ mod tests {
         let surf = parse_surface(
             "(:wat::core::defsurface :t::Cache :- [K V] :nature :wat::kernel::Peer \
                :messages \
-               [(:wat::core::recordtype :t::Cache::GetRequest :- [K] [probes <- (:wat::core::Vector :- [K])]) \
+               [(:wat::core::recordtype :t::Cache::GetRequest :- [K] [probes <- (wat.type/Vector :- [K])]) \
                 (:wat::core::defenum :t::Cache::GetResponse :- [V] :wat::enum::Pure \
-                  :Ok              [results <- (:wat::core::Vector :- [(:wat::core::Option :- [V])])] \
-                  :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])] \
+                  :Ok              [results <- (wat.type/Vector :- [(:wat::core::Option :- [V])])] \
+                  :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64])] \
                :features \
                [(get [self <- (:t::Cache :- [K V])  req <- (:t::Cache::GetRequest :- [K])] \
                   -> (:t::Cache::GetResponse :- [V]) :max-request-bytes 1024)])",
@@ -1311,7 +1311,7 @@ mod tests {
         let err = parse_surface(
             "(:wat::core::defsurface :t::Cache2 :- [K] :nature :wat::kernel::Peer \
                :messages \
-               [(:wat::core::recordtype :t::Cache2::GetRequest :- [K] [probes <- (:wat::core::Vector :- [K])])] \
+               [(:wat::core::recordtype :t::Cache2::GetRequest :- [K] [probes <- (wat.type/Vector :- [K])])] \
                :features \
                [(get [self <- (:t::Cache2 :- [K])  req <- (:t::Cache2::PutRequest :- [K])] \
                   -> :t::Cache2::GetResponse :max-request-bytes 1024)])",
@@ -1364,10 +1364,10 @@ mod tests {
         let kw = parse_surface(
             "(:wat::core::defsurface :t::Echo :nature :wat::kernel::Peer \
                :messages \
-               [(:wat::core::recordtype :t::Echo::Oops [why <- :wat::core::String]) \
-                (:wat::core::recordtype :t::Echo::Req [msg <- :wat::core::String  meta <- :t::Echo::Oops])] \
+               [(:wat::core::recordtype :t::Echo::Oops [why <- wat.type/String]) \
+                (:wat::core::recordtype :t::Echo::Req [msg <- wat.type/String  meta <- :t::Echo::Oops])] \
                :features \
-               [(echo [self <- :t::Echo  req <- :t::Echo::Req] -> :wat::core::String \
+               [(echo [self <- :t::Echo  req <- :t::Echo::Req] -> wat.type/String \
                   :max-request-bytes 1024)])",
         )
         .expect("the rust-scheme spelling must parse");
@@ -1410,21 +1410,21 @@ mod tests {
             // `:messages` as a bare symbol → a Peer surface with no protocol at all.
             (
                 "(:wat::core::defsurface :t::M1 :nature :wat::kernel::Peer \
-                   messages [(:wat::core::recordtype :t::M1::Req [msg <- :wat::core::String])] \
-                   :features [(echo [self <- :t::M1  req <- :t::M1::Req] -> :wat::core::String \
+                   messages [(:wat::core::recordtype :t::M1::Req [msg <- wat.type/String])] \
+                   :features [(echo [self <- :t::M1  req <- :t::M1::Req] -> wat.type/String \
                      :max-request-bytes 1024)])",
                 MARKER_MESSAGES_REASON,
             ),
             // `:features` as a namespaced symbol → no features clause.
             (
-                "(:wat::core::defsurface :t::M2 :nature :wat::core::Struct \
-                   wat.core/features [(echo [self <- :t::M2] -> :wat::core::String)])",
+                "(:wat::core::defsurface :t::M2 :nature wat.type/Struct \
+                   wat.core/features [(echo [self <- :t::M2] -> wat.type/String)])",
                 MARKER_FEATURES_REASON,
             ),
             // `:nature` as a bare symbol → the mandatory nature clause is missing.
             (
                 "(:wat::core::defsurface :t::M3 nature :wat::core::Struct \
-                   :features [(echo [self <- :t::M3] -> :wat::core::String)])",
+                   :features [(echo [self <- :t::M3] -> wat.type/String)])",
                 MARKER_NATURE_REASON,
             ),
         ] {
@@ -1459,9 +1459,9 @@ mod tests {
         for undeclared_src in [
             "(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer \
                :messages \
-               [(:wat::core::recordtype :t::Bad::Req [msg <- :wat::core::String  meta <- :t::Bad::Oops])] \
+               [(:wat::core::recordtype :t::Bad::Req [msg <- wat.type/String  meta <- :t::Bad::Oops])] \
                :features \
-               [(echo [self <- :t::Bad  req <- :t::Bad::Req] -> :wat::core::String \
+               [(echo [self <- :t::Bad  req <- :t::Bad::Req] -> wat.type/String \
                   :max-request-bytes 1024)])",
             "(wat.core/defsurface t/Bad :nature wat.kernel/Peer \
                :messages \

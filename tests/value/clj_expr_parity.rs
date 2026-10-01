@@ -31,7 +31,7 @@ const GOLDEN: &str = include_str!("../clj_expr_oracle/golden.txt");
 /// type-agnostic (Value is the universal subtype-top, arc 278 R7) AND runs the checker, so a
 /// check-rejection surfaces as `:ERR` exactly like an eval error.
 fn wat_eval_edn(expr: &str) -> String {
-    let src = format!("(:wat::core::defn :probe::e [] -> :wat::core::Value {expr})");
+    let src = format!("(:wat::core::defn :probe::e [] -> wat.type/Value {expr})");
     let world = match std::panic::catch_unwind(AssertUnwindSafe(|| {
         startup_from_source(&src, None, Arc::new(wat::load::loader::InMemoryLoader::new()))
     })) {

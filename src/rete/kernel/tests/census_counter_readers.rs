@@ -43,7 +43,7 @@ fn filter_test_env_counters_are_nonzero() {
 #[test]
 fn prod_class_alloc_is_nonzero_on_interpreter_insert() {
     let world = freeze_src(
-        "(:wat::core::defrecord :ccr::T [n <- :wat::core::i64])\n",
+        "(:wat::core::defrecord :ccr::T [n <- wat.type/i64])\n",
     );
     let ast = crate::parse_one!("(:ccr::T 1)").expect("parse fact form");
     let (_, rows) = super::with_count_census(|| {
@@ -67,7 +67,7 @@ fn prod_class_alloc_is_nonzero_on_interpreter_insert() {
 #[test]
 fn rematch_compiled_is_nonzero() {
     let world = freeze_src(
-        "(:wat::core::defrecord :ccr::T [n <- :wat::core::i64])\n",
+        "(:wat::core::defrecord :ccr::T [n <- wat.type/i64])\n",
     );
     let cond = crate::parse_one!("(:ccr::T (?n :- :n))").expect("parse cond");
     let compiled = crate::rete::compiled_cond::compile_alpha_ops(

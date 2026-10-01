@@ -1186,7 +1186,7 @@ mod tests {
         // Build a self-peer echo fn: recv' the input, send' it back — identity.
         // Use startup_from_source to get a real Arc<Function>.
         let world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::echo [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
+            "(:wat::core::defn :my::echo [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil \
                (:wat::core::match (:wat::kernel::recv self) \
                  [:wat::kernel::RecvOutcome.Message {:msg m} \
                    (:wat::core::match (:wat::kernel::send self m) \
@@ -1212,7 +1212,7 @@ mod tests {
 
         // Build a default init-fn: 0-arg, returns EmptyEnv (the default thunk).
         let init_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv'))",  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
+            "(:wat::core::defn :my::default-init [] -> wat.type/Record (:wat::program::EmptyEnv'))",  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
@@ -1225,7 +1225,7 @@ mod tests {
 
         // Build a no-op post-spawn-fn: 1-arg ThreadLaunch → nil (the default no-op).
         let noop_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)",
+            "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> wat.type/nil nil)",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
@@ -1329,7 +1329,7 @@ mod tests {
             // disconnects → recv' returns → the do falls through to nil → the worker exits, then join).
             // So EVERY recv' outcome means "reap me, exit cleanly" → all arms nil (NOT the client-call
             // surface-on-failure facing — an assertion-failed! here would crash the worker the test joins).
-            "(:wat::core::defn :my::blocker [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
+            "(:wat::core::defn :my::blocker [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil \
                (:wat::core::do \
                  (:wat::core::match (:wat::kernel::recv self) \
                    [:wat::kernel::RecvOutcome.Message {:msg _m} nil] \
@@ -1350,7 +1350,7 @@ mod tests {
 
         // Build a default init-fn for the blocker test.
         let init_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv'))",  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
+            "(:wat::core::defn :my::default-init [] -> wat.type/Record (:wat::program::EmptyEnv'))",  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
@@ -1363,7 +1363,7 @@ mod tests {
 
         // Build a no-op post-spawn-fn for the blocker test.
         let noop_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)",
+            "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> wat.type/nil nil)",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )

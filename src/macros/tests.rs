@@ -64,7 +64,7 @@ fn expand_keeping_defmacros(src: &str) -> super::ExpandBatch {
 #[test]
 fn stdlib_privilege_bypasses_reserved_prefix_on_register() {
     let forms = crate::parse_all!(
-        "(:wat::core::defmacro :wat::query::probe-privilege [] -> :wat::WatAST (:wat::core::quasiquote :ok))"
+        "(:wat::core::defmacro :wat::query::probe-privilege [] -> wat.type/AST (:wat::core::quasiquote :ok))"
     )
     .expect("parse ok");
     let def = crate::macros::parse::parse_defmacro_form(forms.into_iter().next().unwrap())
@@ -522,7 +522,7 @@ fn two_macro_invocations_get_distinct_scopes() {
 #[test]
 fn reserved_prefix_macro_rejected() {
     let err = expand_src(
-        r#"(:wat::core::defmacro :wat::std::MyMacro [x <- :wat::WatAST] -> :wat::WatAST `~x)"#,
+        r#"(:wat::core::defmacro :wat::std::MyMacro [x <- wat.type/AST] -> wat.type/AST `~x)"#,
     )
     .unwrap_err();
     assert!(matches!(
@@ -1475,7 +1475,7 @@ fn register_stdlib_bypasses_reserved_prefix_gate() {
 
     // Attempt via the normal path — must be rejected.
     let user_forms = crate::parse_all!(
-        r#"(:wat::core::defmacro :wat::std::TestMacro [x <- :wat::WatAST] -> :wat::WatAST `~x)"#
+        r#"(:wat::core::defmacro :wat::std::TestMacro [x <- wat.type/AST] -> wat.type/AST `~x)"#
     )
     .expect("parse ok");
     let err = register_defmacros(user_forms, &mut reg).unwrap_err();
@@ -1493,7 +1493,7 @@ fn register_stdlib_bypasses_reserved_prefix_gate() {
 
     // Same macro via the privileged stdlib path — must succeed.
     let stdlib_forms = crate::parse_all!(
-        r#"(:wat::core::defmacro :wat::std::TestMacro [x <- :wat::WatAST] -> :wat::WatAST `~x)"#
+        r#"(:wat::core::defmacro :wat::std::TestMacro [x <- wat.type/AST] -> wat.type/AST `~x)"#
     )
     .expect("parse ok");
     register_stdlib_defmacros(stdlib_forms, &mut reg)
@@ -1742,14 +1742,14 @@ fn register_stdlib_duplicate_divergent_body_returns_duplicate_macro_error() {
 
     // First registration — body is `` `~x `` (quasiquote unquote of x).
     let first_forms = crate::parse_all!(
-        r#"(:wat::core::defmacro :wat::std::DivMac [x <- :wat::WatAST] -> :wat::WatAST `~x)"#
+        r#"(:wat::core::defmacro :wat::std::DivMac [x <- wat.type/AST] -> wat.type/AST `~x)"#
     )
     .expect("parse ok");
     register_stdlib_defmacros(first_forms, &mut reg).expect("first registration must succeed");
 
     // Second registration — body is `42` (a different body, structurally divergent).
     let second_forms = crate::parse_all!(
-        r#"(:wat::core::defmacro :wat::std::DivMac [x <- :wat::WatAST] -> :wat::WatAST 42)"#
+        r#"(:wat::core::defmacro :wat::std::DivMac [x <- wat.type/AST] -> wat.type/AST 42)"#
     )
     .expect("parse ok");
     let err = register_stdlib_defmacros(second_forms, &mut reg)

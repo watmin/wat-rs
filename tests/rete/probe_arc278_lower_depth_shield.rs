@@ -34,7 +34,7 @@ fn quote_world(depth: usize) -> String {
     let body = nested_plus(depth, "0");
     format!(
         "\
-(:wat::core::defn :user::go [] -> :wat::core::nil
+(:wat::core::defn :user::go [] -> wat.type/nil
   (:wat::rete::lower (:wat::core::quote {body})))
 "
     )
@@ -45,7 +45,7 @@ fn source_world(depth: usize) -> String {
     let body = nested_plus(depth, "n");
     format!(
         "\
-(:wat::rete::core::defn :probe::deep [n <- :wat::core::i64] -> :wat::core::i64
+(:wat::rete::core::defn :probe::deep [n <- wat.type/i64] -> wat.type/i64
   {body})
 "
     )

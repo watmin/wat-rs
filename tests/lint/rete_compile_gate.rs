@@ -140,11 +140,11 @@ fn driver_defn(namespaces: &std::collections::BTreeSet<String>) -> String {
     let mut calls = String::new();
     for ns in namespaces {
         calls.push_str(&format!(
-            "    (:wat::rete::compile-all (:wat::rete::collect-rules :{ns}) (:wat::core::PersistentVector :- [:wat::rete::Query]))\n"
+            "    (:wat::rete::compile-all (:wat::rete::collect-rules :{ns}) (wat.type/PersistentVector :- [:wat::rete::Query]))\n"
         ));
     }
     format!(
-        "\n(:wat::core::defn :census::run [] -> (:wat::core::PersistentVector :- [:wat::rete::CompileOutcome])\n  (:wat::core::PersistentVector :- [:wat::rete::CompileOutcome]\n{calls}))\n"
+        "\n(:wat::core::defn :census::run [] -> (wat.type/PersistentVector :- [:wat::rete::CompileOutcome])\n  (wat.type/PersistentVector :- [:wat::rete::CompileOutcome]\n{calls}))\n"
     )
 }
 
@@ -386,7 +386,7 @@ mod extraction {
     fn a_bare_token_inside_a_string_literal_with_no_ns_match_yields_nothing() {
         // Mirrors the 8 corpus codemods FINDING-loading-is-not-compiling.md names: the token
         // sits in a string a codemod rewrites, never followed by a `:namespace::name`.
-        let src = r#"(:wat::core::defn :fix::rename [] -> :wat::core::String "rete::defrule renamed")"#;
+        let src = r#"(:wat::core::defn :fix::rename [] -> wat.type/String "rete::defrule renamed")"#;
         assert!(declared_namespaces(src).is_empty());
     }
 

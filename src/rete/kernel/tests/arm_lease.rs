@@ -363,13 +363,13 @@ fn scoped_work_with_overlay_reuses_one_build() {
 
     let src = "\
 (:wat::rete::with-overlay (:sw::the-rules) (:sw::the-queries)\n\
-  (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::i64\n\
+  (:wat::core::fn [overlay <- :wat::rete::Overlay] -> wat.type/i64\n\
     (:wat::core::foldl\n\
-      (:wat::core::fn [acc <- :wat::core::i64  loc <- :wat::core::String] -> :wat::core::i64\n\
+      (:wat::core::fn [acc <- wat.type/i64  loc <- wat.type/String] -> wat.type/i64\n\
         (:wat::i64::+ acc\n\
           (:wat::core::length (:wat::rete::query (:wat::core::match (overlay (:sw::facts-for loc)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message \"overlay: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message \"overlay: fixpoint round cap exceeded\")]) (:sw::q-match)))))\n\
       0\n\
-      (:wat::core::Vector :- [:wat::core::String] \"fileA\" \"fileB\" \"fileC\"))))";
+      (wat.type/Vector :- [wat.type/String] \"fileA\" \"fileB\" \"fileC\"))))";
     let ast = crate::parse_one!(src).expect("parse with-overlay driver");
     let total = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("with-overlay raised: {e:?}"))
@@ -399,7 +399,7 @@ fn scoped_work_with_network_base_untouched() {
 
     let src = "\
 (:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
-  (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64\n\
+  (:wat::core::fn [base <- :wat::rete::Session] -> wat.type/i64\n\
     (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules base) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")]) (:sw::q-match)))))";
     let ast = crate::parse_one!(src).expect("parse with-network driver");
     let zero = eval_in_frozen(&ast, &world, &Environment::new())
@@ -501,7 +501,7 @@ fn scoped_work_with_network_releases_the_lease_when_the_body_raises() {
     let before = rete_arm_table_len();
     let src = "\
 (:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
-  (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64\n\
+  (:wat::core::fn [base <- :wat::rete::Session] -> wat.type/i64\n\
     (:wat::i64::/ 1 0)))";
     let ast = crate::parse_one!(src).expect("parse erroring with-network driver");
     let outcome = eval_in_frozen(&ast, &world, &Environment::new());
@@ -527,7 +527,7 @@ fn scoped_work_with_network_releases_the_lease_when_the_body_panics() {
     let before = rete_arm_table_len();
     let src = "\
 (:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
-  (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64\n\
+  (:wat::core::fn [base <- :wat::rete::Session] -> wat.type/i64\n\
     (:wat::kernel::assertion-failed! :message \"probe: the body panics\")))";
     let ast = crate::parse_one!(src).expect("parse panicking with-network driver");
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -570,7 +570,7 @@ fn scoped_work_with_overlay_releases_the_lease_when_the_body_raises() {
     let before = rete_arm_table_len();
     let src = "\
 (:wat::rete::with-overlay (:sw::the-rules) (:sw::the-queries)\n\
-  (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::i64\n\
+  (:wat::core::fn [overlay <- :wat::rete::Overlay] -> wat.type/i64\n\
     (:wat::i64::/ 1 0)))";
     let ast = crate::parse_one!(src).expect("parse erroring with-overlay driver");
     let outcome = eval_in_frozen(&ast, &world, &Environment::new());

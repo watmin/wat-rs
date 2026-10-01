@@ -197,7 +197,7 @@ fn cascade_query_harvest_split() {
     ];
     const WORLD: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/wat-scripts/perf/grid/deep-cascade.wat"));
     const QUERIES: &str =
-        "(:wat::core::PersistentVector :- [:wat::rete::Query] (:cascade::q-Node) (:cascade::q-Tag))";
+        "(wat.type/PersistentVector :- [:wat::rete::Query] (:cascade::q-Node) (:cascade::q-Tag))";
 
     struct Shot {
         wall: f64,

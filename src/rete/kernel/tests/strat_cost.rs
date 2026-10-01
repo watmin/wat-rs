@@ -20,7 +20,7 @@ fn strat_neg_query_harvest_split() {
         "OUT: to_persistent",
     ];
     const WORLD: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/wat-scripts/perf/grid/strat-neg.wat"));
-    const QUERIES: &str = "(:wat::core::PersistentVector :- [:wat::rete::Query] \
+    const QUERIES: &str = "(wat.type/PersistentVector :- [:wat::rete::Query] \
         (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) \
         (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))";
 

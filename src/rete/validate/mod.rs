@@ -1753,7 +1753,7 @@ mod tests {
     #[test]
     fn quoted_make_query_of_unregistered_type_is_data_not_a_freeze_error() {
         let src = r#"
-(:wat::core::defn :probe::evaluand [] -> :wat::WatAST
+(:wat::core::defn :probe::evaluand [] -> wat.type/AST
   (:wat::core::quote
     (:wat::rete::make-query "usr::Hot"
       (:wat::core::quote [])

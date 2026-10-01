@@ -370,7 +370,7 @@ fn aggregate_kwargs_companion_source<'a>(
     // field-name vector + prime + ns constants this used to bake are no longer needed.
     format!(
         "(:wat::core::defmacro {bare_name} \
-           [& call-args <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST \
+           [& call-args <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST \
            (:wat::core::let \
              [_kc-type (:wat::core::keyword-node \"{bare_name}\")] \
              `(:wat::core::kwargs-construct ~_kc-type ~@call-args)))",

@@ -3928,7 +3928,7 @@ fn synthesize_surface_protocol(
     const RM_VARIANT: &str = "RequestMalformed";
     // User-facing EXAMPLE text only (the format!()s further down, showing a remedy) — the
     // `TypeExpr` itself is hand-assembled below, not parsed from this string.
-    const RM_PATH_TY: &str = "(:wat::core::Vector :- [:wat::core::String])";
+    const RM_PATH_TY: &str = "(wat.type/Vector :- [wat.type/String])";
     let rm_fields: Vec<(String, TypeExpr)> = vec![
         (
             "path".to_string(),
@@ -7991,14 +7991,14 @@ mod tests {
         // stdlib's own extend-type chain first introduces them — not reachable from
         // `with_builtins()` alone). Semantically odd (i64 "is a" Record), but this test is
         // about the DENOTATION mechanism, not the declaration's meaning.
-        let (env, _) = collect("(:wat::core::extend-type wat.type/i64 :wat::core::Record)")
+        let (env, _) = collect("(:wat::core::extend-type wat.type/i64 wat.type/Record)")
             .expect("extend-type with a wat.type/ symbol child registers");
         assert!(
             is_subtype(":wat::core::i64", ":wat::core::Record", &env),
             "the edge must be visible under the denoted key :wat::core::i64"
         );
         // The colon spelling registers the identical edge — both spellings, one key.
-        let (env2, _) = collect("(:wat::core::extend-type :wat::core::i64 :wat::core::Record)")
+        let (env2, _) = collect("(:wat::core::extend-type wat.type/i64 wat.type/Record)")
             .expect("extend-type with the colon spelling registers");
         assert!(is_subtype(":wat::core::i64", ":wat::core::Record", &env2));
     }
@@ -8020,10 +8020,10 @@ mod tests {
         // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
         let (env, rest) = collect(
             r#"(:wat::core::structtype :project::market::Candle
-                  [open  <- :wat::core::f64
-                   high  <- :wat::core::f64
-                   low   <- :wat::core::f64
-                   close <- :wat::core::f64])"#,
+                  [open  <- wat.type/f64
+                   high  <- wat.type/f64
+                   low   <- wat.type/f64
+                   close <- wat.type/f64])"#,
         )
         .unwrap();
         assert!(rest.is_empty());
@@ -8216,7 +8216,7 @@ mod tests {
 
     #[test]
     fn simple_typealias() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Amount :wat::core::f64)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Amount wat.type/f64)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Amount").unwrap() {
             assert_eq!(a.expr, TypeExpr::Path(":wat::core::f64".into()));
         } else {
@@ -8229,7 +8229,7 @@ mod tests {
         // Arc 109 ③ — angle-bracket decl-name AND reference both retired: `Head :- [T]`
         // siblings for the decl, `(Head :- [T])` in parens for the reference.
         let (env, _) =
-            collect(r#"(:wat::core::typealias :my::Series :- [T] (:wat::core::Vector :- [T]))"#)
+            collect(r#"(:wat::core::typealias :my::Series :- [T] (wat.type/Vector :- [T]))"#)
                 .unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Series").unwrap() {
             assert_eq!(a.type_params, vec!["T".to_string()]);
@@ -8271,7 +8271,7 @@ mod tests {
         // stays a bare Symbol arg (no "::"), which `parse_type_node`'s Symbol arm prepends a
         // colon to (`ns_to_wat_path`'s bare-name branch) — same `Path(":Atom")` result.
         let (env, _) = collect(
-            r#"(:wat::core::typealias :my::Scores (:wat::core::HashMap :- [Atom :wat::core::f64]))"#,
+            r#"(:wat::core::typealias :my::Scores (wat.type/HashMap :- [Atom wat.type/f64]))"#,
         )
         .unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Scores").unwrap() {
@@ -8467,7 +8467,7 @@ mod tests {
         // reference FORM `(Head :- [args])` only parses from a structural `WatAST::List` —
         // build one via `parse_one!` (real wat source syntax) and route it through
         // `parse_type_node`, the substrate's one door for every annotation-slot node shape.
-        let form = crate::parse_one!("(:wat::core::Vector :- [:T])").unwrap();
+        let form = crate::parse_one!("(wat.type/Vector :- [:T])").unwrap();
         assert_eq!(
             parse_type_node(&form).unwrap(),
             TypeExpr::Parametric {
@@ -8482,7 +8482,7 @@ mod tests {
         // Arc 109 ③ — same structural-form migration as `type_expr_parametric` above; the
         // inner `fn(i32)->i32` stays string-spelled (non-parametric fn args are still legal
         // in the flat form) as one arg of the outer reference form.
-        let form = crate::parse_one!("(:wat::core::HashMap :- [:wat::core::String :fn(i32)->i32])")
+        let form = crate::parse_one!("(wat.type/HashMap :- [wat.type/String :fn(i32)->i32])")
             .unwrap();
         let t = parse_type_node(&form).unwrap();
         match t {
@@ -8804,9 +8804,9 @@ mod tests {
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Bad::FooRequest :wat::core::Record
-                                [x <- :wat::core::String])
+                                [x <- wat.type/String])
                              (:wat::core::recordtype :t::Bad::FooResponse :wat::core::Record
-                                [ok <- :wat::core::String])]
+                                [ok <- wat.type/String])]
                   :features [(foo [self <- :t::Bad  req <- :t::Bad::FooRequest]
                                -> :t::Bad::FooResponse :max-request-bytes 524288)])"#,
         )
@@ -8831,9 +8831,9 @@ mod tests {
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad2 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Bad2::FooRequest :wat::core::Record
-                                [x <- :wat::core::String])
+                                [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad2::FooResponse :wat::enum::Pure
-                                :Ok [reply <- :wat::core::String])]
+                                :Ok [reply <- wat.type/String])]
                   :features [(foo [self <- :t::Bad2  req <- :t::Bad2::FooRequest]
                                -> :t::Bad2::FooResponse :max-request-bytes 524288)])"#,
         )
@@ -8858,10 +8858,10 @@ mod tests {
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad3 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Bad3::FooRequest :wat::core::Record
-                                [x <- :wat::core::String])
+                                [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad3::FooResponse :wat::enum::Pure
-                                :Ok [reply <- :wat::core::String]
-                                :RequestTooLarge [bytes <- :wat::core::String  cap <- :wat::core::String])]
+                                :Ok [reply <- wat.type/String]
+                                :RequestTooLarge [bytes <- wat.type/String  cap <- wat.type/String])]
                   :features [(foo [self <- :t::Bad3  req <- :t::Bad3::FooRequest]
                                -> :t::Bad3::FooResponse :max-request-bytes 524288)])"#,
         )
@@ -8890,10 +8890,10 @@ mod tests {
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad4 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Bad4::FooRequest :wat::core::Record
-                                [x <- :wat::core::String])
+                                [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad4::FooResponse :wat::enum::Pure
-                                :Ok [reply <- :wat::core::String]
-                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+                                :Ok [reply <- wat.type/String]
+                                :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64])]
                   :features [(foo [self <- :t::Bad4  req <- :t::Bad4::FooRequest]
                                -> :t::Bad4::FooResponse :max-request-bytes 524288)])"#,
         )
@@ -8920,13 +8920,13 @@ mod tests {
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad5 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Bad5::FooRequest :wat::core::Record
-                                [x <- :wat::core::String])
+                                [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad5::FooResponse :wat::enum::Pure
-                                :Ok [reply <- :wat::core::String]
-                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                :RequestMalformed [path     <- :wat::core::String
-                                                   expected <- :wat::core::String
-                                                   got      <- :wat::core::String])]
+                                :Ok [reply <- wat.type/String]
+                                :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                :RequestMalformed [path     <- wat.type/String
+                                                   expected <- wat.type/String
+                                                   got      <- wat.type/String])]
                   :features [(foo [self <- :t::Bad5  req <- :t::Bad5::FooRequest]
                                -> :t::Bad5::FooResponse :max-request-bytes 524288)])"#,
         )
@@ -8958,13 +8958,13 @@ mod tests {
         expand_then_register(
             r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Ok2::FooRequest :wat::core::Record
-                                [x <- :wat::core::String])
+                                [x <- wat.type/String])
                              (:wat::core::defenum :t::Ok2::FooResponse :wat::enum::Pure
-                                :Ok [reply <- :wat::core::String]
-                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
-                                                   expected <- :wat::core::String
-                                                   got      <- :wat::core::String])]
+                                :Ok [reply <- wat.type/String]
+                                :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                :RequestMalformed [path     <- (wat.type/Vector :- [wat.type/String])
+                                                   expected <- wat.type/String
+                                                   got      <- wat.type/String])]
                   :features [(foo [self <- :t::Ok2  req <- :t::Ok2::FooRequest]
                                -> :t::Ok2::FooResponse :max-request-bytes 524288)])"#,
         )
@@ -8980,13 +8980,13 @@ mod tests {
         let env = expand_then_register(
             r#"(:wat::core::defsurface :t::Ok1 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Ok1::FooRequest :wat::core::Record
-                                [x <- :wat::core::String])
+                                [x <- wat.type/String])
                              (:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
-                                :Ok [reply <- :wat::core::String]
-                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
-                                                   expected <- :wat::core::String
-                                                   got      <- :wat::core::String])]
+                                :Ok [reply <- wat.type/String]
+                                :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+                                :RequestMalformed [path     <- (wat.type/Vector :- [wat.type/String])
+                                                   expected <- wat.type/String
+                                                   got      <- wat.type/String])]
                   :features [(foo [self <- :t::Ok1  req <- :t::Ok1::FooRequest]
                                -> :t::Ok1::FooResponse :max-request-bytes 524288)])"#,
         )

@@ -117,11 +117,11 @@ fn native_stratify_numbers_against_the_oracle_scratch() {
 
     let anchor_rules = eval_form(
         &world,
-        "(:wat::core::PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::neg))",
+        "(wat.type/PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::neg))",
     );
     let bag_rules = eval_form(
         &world,
-        "(:wat::core::PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::tally))",
+        "(wat.type/PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::tally))",
     );
 
     let anchor_views = views_of(&anchor_rules, sym);
@@ -133,14 +133,14 @@ fn native_stratify_numbers_against_the_oracle_scratch() {
     let oracle_anchor = hashmap_i64(
         &eval_form(
             &world,
-            "(:wat::rete::stratify (:wat::core::PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::neg)))",
+            "(:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::neg)))",
         ),
         "oracle ANCHOR",
     );
     let oracle_bag = hashmap_i64(
         &eval_form(
             &world,
-            "(:wat::rete::stratify (:wat::core::PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::tally)))",
+            "(:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:l23::ok) (:l23::tally)))",
         ),
         "oracle MEASURE",
     );
@@ -206,14 +206,14 @@ fn native_stratify_numbers_nested_or_and_not_against_the_oracle() {
 
     let nested_rules = eval_form(
         &world,
-        "(:wat::core::PersistentVector :- [:wat::rete::Rule] (:l24::mkc) (:l24::nested))",
+        "(wat.type/PersistentVector :- [:wat::rete::Rule] (:l24::mkc) (:l24::nested))",
     );
     let nested_views = views_of(&nested_rules, sym);
     let native_nested = native_stratify(&nested_views).expect("native stratify NESTED");
     let oracle_nested = hashmap_i64(
         &eval_form(
             &world,
-            "(:wat::rete::stratify (:wat::core::PersistentVector :- [:wat::rete::Rule] (:l24::mkc) (:l24::nested)))",
+            "(:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:l24::mkc) (:l24::nested)))",
         ),
         "oracle NESTED",
     );

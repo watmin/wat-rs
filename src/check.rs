@@ -13253,8 +13253,8 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
         let bracket = crate::parse_one!("[(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]")
             .expect("parse the param-spec bracket");
-        let one = crate::parse_one!("(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64] 1 2)").expect("parse element 1");
-        let two = crate::parse_one!("(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64] 3 4)").expect("parse element 2");
+        let one = crate::parse_one!("(wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)").expect("parse element 1");
+        let two = crate::parse_one!("(wat.type/Tuple :- [wat.type/i64 wat.type/i64] 3 4)").expect("parse element 2");
         let args = vec![marker, bracket, one, two];
         let result: CheckResult<TypeExpr> = infer_list_constructor(
             &args,
@@ -13393,7 +13393,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
         let bracket = crate::parse_one!("[(:wat::core::Vector :- [:wat::core::i64])]")
             .expect("parse the param-spec bracket");
-        let one = crate::parse_one!("(:wat::core::Vector :- [:wat::core::i64] 1 2)")
+        let one = crate::parse_one!("(wat.type/Vector :- [wat.type/i64] 1 2)")
             .expect("parse element 1");
         let args = vec![marker, bracket, one];
         let result = infer_hashset_constructor(
@@ -24430,7 +24430,7 @@ fn register_builtins(env: &mut CheckEnv) {
 pub(crate) mod tests {
     use super::*;
     use crate::macros::{expand_all, register_defmacros, MacroRegistry};
-    use crate::resolve::Privilege;
+    use crate::resolve::{normalize_symbol_refs, Privilege};
     use crate::declare::register::{register_defclause, register_defines};
     use crate::runtime::{ClauseRegPhase, Environment, SymbolTable};
     use crate::types::{parse_type_expr, parse_type_node, register_types, TypeEnv};
@@ -24473,6 +24473,22 @@ pub(crate) mod tests {
             register_types(expanded, &mut types).expect("register user types");
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(rest_post_types, &mut sym).expect("register defines");
+        // Arc 255 stone 255.80 — this harness's doc above claims it "delegates to the
+        // canonical pipeline so the test environment CANNOT drift from production," but it
+        // was missing production's own step 7 (`freeze.rs`'s doc comment: "7. Name
+        // resolution — normalize namespaced symbol refs (normalize_symbol_refs) ... Order
+        // matters: the resolver only validates keyword heads, so normalize must precede
+        // it"), run here BEFORE check_program exactly as freeze.rs runs it before
+        // resolve_references/check_program. Without it, a faithful-Clojure `wat.type/X`
+        // SYMBOL call head never reaches this module's big `if let WatAST::Keyword(k, _) =
+        // head` dispatch table at all (`infer`, the `:wat::core::Vector` arm among them) —
+        // it falls through to a different, unchecked path, so an element-type mismatch a
+        // `:wat::core::Vector`-headed literal caught silently stops being caught the moment
+        // the SAME literal is spelled `wat.type/Vector` (255.80's own corpus conversion
+        // exposed this: `list_mixed_types_rejected` started asserting `.unwrap_err()` on an
+        // `Ok` after its literal converted). Production never has this gap because
+        // `freeze.rs` always normalizes before checking; this harness now matches it.
+        let rest = normalize_symbol_refs(rest, &sym, &macros).expect("normalize symbol refs");
         check_program(&rest, &sym, &types)
     }
 
@@ -24586,7 +24602,7 @@ pub(crate) mod tests {
     fn declared_types_kwargs_defn_mints_kwargs() {
         let env = decls(
             r#"
-            (:wat::core::defn :t::work [x <- :wat::core::i64 & [n <- :wat::core::i64]] -> :wat::core::i64
+            (:wat::core::defn :t::work [x <- wat.type/i64 & [n <- wat.type/i64]] -> wat.type/i64
               (:wat::i64::+ x n))
             "#,
         );
@@ -24656,7 +24672,7 @@ pub(crate) mod tests {
     fn declared_stdlib_types_registers_reserved_prefix() {
         let (env, names) = stdlib_decls(
             r#"
-            (:wat::core::defenum :wat::probe2a4::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
+            (:wat::core::defenum :wat::probe2a4::Colour :wat::enum::Pure :Red :Blue [n <- wat.type/i64])
             "#,
         );
         assert!(
@@ -24673,7 +24689,7 @@ pub(crate) mod tests {
         let (sym, macros, types) = stdlib_loaded();
         let forms = crate::parse_all!(
             r#"
-            (:wat::core::defenum :wat::probe2a4::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
+            (:wat::core::defenum :wat::probe2a4::Colour :wat::enum::Pure :Red :Blue [n <- wat.type/i64])
             "#
         )
         .expect("parse");
@@ -24690,10 +24706,10 @@ pub(crate) mod tests {
     #[test]
     fn declared_stdlib_types_replaces_divergent_fields() {
         let src_old = r#"
-            (:wat::core::defenum :wat::probe2a4::E :wat::enum::Pure :V [a <- :wat::core::i64])
+            (:wat::core::defenum :wat::probe2a4::E :wat::enum::Pure :V [a <- wat.type/i64])
         "#;
         let src_new = r#"
-            (:wat::core::defenum :wat::probe2a4::E :wat::enum::Pure :V [b <- :wat::core::i64 c <- :wat::core::i64])
+            (:wat::core::defenum :wat::probe2a4::E :wat::enum::Pure :V [b <- wat.type/i64 c <- wat.type/i64])
         "#;
         let (env1, _) = stdlib_decls(src_old);
         assert_eq!(
@@ -24719,10 +24735,10 @@ pub(crate) mod tests {
     #[test]
     fn declared_stdlib_types_retracts_old_variant_singletons() {
         let src_old = r#"
-            (:wat::core::defenum :wat::probe2a4b::E :wat::enum::Pure :V [a <- :wat::core::i64] :W)
+            (:wat::core::defenum :wat::probe2a4b::E :wat::enum::Pure :V [a <- wat.type/i64] :W)
         "#;
         let src_new = r#"
-            (:wat::core::defenum :wat::probe2a4b::E :wat::enum::Pure :V [b <- :wat::core::i64 c <- :wat::core::i64])
+            (:wat::core::defenum :wat::probe2a4b::E :wat::enum::Pure :V [b <- wat.type/i64 c <- wat.type/i64])
         "#;
         let (mut env, _) = stdlib_decls(src_old);
         assert_eq!(
@@ -24913,12 +24929,12 @@ pub(crate) mod tests {
             r#"
             (:wat::core::defsurface :t::Ping :nature :wat::kernel::Peer
               :messages
-              [(:wat::core::defrecord :t::Ping::PingRequest [n <- :wat::core::i64])
+              [(:wat::core::defrecord :t::Ping::PingRequest [n <- wat.type/i64])
                (:wat::core::defenum :t::Ping::PingResponse :wat::enum::Pure
-                 :Ok [n <- :wat::core::i64]
-                 :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-                 :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                                    expected <- :wat::core::String got <- :wat::core::String])]
+                 :Ok [n <- wat.type/i64]
+                 :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+                 :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                                    expected <- wat.type/String got <- wat.type/String])]
               :features
               [(ping [self <- :t::Ping req <- :t::Ping::PingRequest] -> :t::Ping::PingResponse
                  :max-request-bytes 64)])
@@ -24955,11 +24971,11 @@ pub(crate) mod tests {
     fn declared_types_isolation_same_name_different_fields() {
         let (sym, macros, types) = stdlib_loaded();
         let a = crate::parse_all!(
-            "(:wat::core::defrecord :t::Box [left <- :wat::core::i64])"
+            "(:wat::core::defrecord :t::Box [left <- wat.type/i64])"
         )
         .unwrap();
         let b = crate::parse_all!(
-            "(:wat::core::defrecord :t::Box [right <- :wat::core::String])"
+            "(:wat::core::defrecord :t::Box [right <- wat.type/String])"
         )
         .unwrap();
         let ea = crate::freeze::env::register_declared_types(a, sym, macros, types).unwrap();
@@ -25066,23 +25082,23 @@ pub(crate) mod tests {
     #[test]
     fn declared_types_oracle_matches_type_of_after_startup() {
         oracle_type_of_after_startup(
-            "(:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])",
+            "(:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- wat.type/i64])",
             ":t::Colour",
         );
         oracle_type_of_after_startup(
-            "(:wat::core::defrecord :t::Point [x <- :wat::core::i64 y <- :wat::core::i64])",
+            "(:wat::core::defrecord :t::Point [x <- wat.type/i64 y <- wat.type/i64])",
             ":t::Point",
         );
         oracle_type_of_after_startup(
             r#"
             (:wat::core::defsurface :t::Ping :nature :wat::kernel::Peer
               :messages
-              [(:wat::core::defrecord :t::Ping::PingRequest [n <- :wat::core::i64])
+              [(:wat::core::defrecord :t::Ping::PingRequest [n <- wat.type/i64])
                (:wat::core::defenum :t::Ping::PingResponse :wat::enum::Pure
-                 :Ok [n <- :wat::core::i64]
-                 :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-                 :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
-                                    expected <- :wat::core::String got <- :wat::core::String])]
+                 :Ok [n <- wat.type/i64]
+                 :RequestTooLarge [bytes <- wat.type/i64 cap <- wat.type/i64]
+                 :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
+                                    expected <- wat.type/String got <- wat.type/String])]
               :features
               [(ping [self <- :t::Ping req <- :t::Ping::PingRequest] -> :t::Ping::PingResponse
                  :max-request-bytes 64)])
@@ -25104,7 +25120,7 @@ pub(crate) mod tests {
         oracle_type_of_after_startup(&holon, ":myapp::Point");
         oracle_type_of_after_startup(
             r#"
-            (:wat::core::defn :t::work [x <- :wat::core::i64 & [n <- :wat::core::i64]] -> :wat::core::i64
+            (:wat::core::defn :t::work [x <- wat.type/i64 & [n <- wat.type/i64]] -> wat.type/i64
               (:wat::i64::+ x n))
             "#,
             ":t::work::Kwargs",
@@ -25116,9 +25132,9 @@ pub(crate) mod tests {
         let src = r#"
             (:wat::core::defn :user::go [] -> :wat::runtime::DeclaredTypes
               (:wat::runtime::declared-types
-                (:wat::core::Vector :- [:wat::WatAST]
+                (wat.type/Vector :- [wat.type/AST]
                   (:wat::core::quote
-                    (:wat::core::defenum :t::E :wat::enum::Pure :A [x <- :wat::core::i64] :B)))))
+                    (:wat::core::defenum :t::E :wat::enum::Pure :A [x <- wat.type/i64] :B)))))
         "#;
         let world = crate::freeze::startup_from_source(
             src,
@@ -25148,7 +25164,7 @@ pub(crate) mod tests {
         let src = r#"
             (:wat::core::defn :user::go [] -> :wat::runtime::DeclaredTypes
               (:wat::runtime::declared-types
-                (:wat::core::Vector :- [:wat::WatAST]
+                (wat.type/Vector :- [wat.type/AST]
                   (:wat::core::quote
                     (:wat::core::defenum)))))
         "#;
@@ -25301,10 +25317,10 @@ pub(crate) mod tests {
         let errors = check_with_stdlib_defclause(
             "(:wat::core::defclause :probe::gap-guarded\n\
              \x20 {:restricted-to [:wat::kernel::]}\n\
-             \x20 ([a <- :wat::core::i64] -> :wat::core::i64 a))",
+             \x20 ([a <- wat.type/i64] -> wat.type/i64 a))",
             "(:wat::core::defn :user::caller\n\
-             \x20 [x <- :wat::core::i64]\n\
-             \x20 -> :wat::core::i64\n\
+             \x20 [x <- wat.type/i64]\n\
+             \x20 -> wat.type/i64\n\
              \x20 (:probe::gap-guarded x))",
         )
         .expect_err(
@@ -25490,13 +25506,13 @@ pub(crate) mod tests {
 
     #[test]
     fn list_same_type_passes() {
-        assert!(check("(:wat::core::Vector :- [:wat::core::i64] 1 2 3)").is_ok());
-        assert!(check(r#"(:wat::core::Vector :- [:wat::core::String] "a" "b")"#).is_ok());
+        assert!(check("(wat.type/Vector :- [wat.type/i64] 1 2 3)").is_ok());
+        assert!(check(r#"(wat.type/Vector :- [wat.type/String] "a" "b")"#).is_ok());
     }
 
     #[test]
     fn list_mixed_types_rejected() {
-        let err = check(r#"(:wat::core::Vector :- [:wat::core::i64] 1 "two" 3)"#).unwrap_err();
+        let err = check(r#"(wat.type/Vector :- [wat.type/i64] 1 "two" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -25507,7 +25523,7 @@ pub(crate) mod tests {
         // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
         // to-holon for integer literals (the polymorphic UP verb).
         assert!(check(
-            r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST]
+            r#"(:wat::holon::Bundle (wat.type/Vector :- [:wat::holon::HolonAST]
                  (:wat::holon::to-holon 1)
                  (:wat::holon::to-holon 2)))"#
         )
@@ -25517,7 +25533,7 @@ pub(crate) mod tests {
     #[test]
     fn bundle_of_list_of_ints_rejected() {
         // Bundle wants :wat::holon::Holons, but this is (:wat::core::Vector :- [wat::core::i64]).
-        let err = check(r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::core::i64] 1 2 3))"#).unwrap_err();
+        let err = check(r#"(:wat::holon::Bundle (wat.type/Vector :- [wat.type/i64] 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -25567,7 +25583,7 @@ pub(crate) mod tests {
     #[test]
     fn user_define_body_matches_signature() {
         assert!(check(
-            r#"(:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x y))"#
+            r#"(:wat::core::defn :my::app::add [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x y))"#
         )
         .is_ok());
     }
@@ -25634,7 +25650,7 @@ pub(crate) mod tests {
         assert!(check(
             r#"(:wat::core::let
                  [doubler
-                   (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+                   (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
                      (:wat::i64::+ x x))]
                  true)"#
         )

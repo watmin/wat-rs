@@ -62,7 +62,7 @@ fn write_temp(contents: &str, tag: &str) -> std::path::PathBuf {
 /// NAME alone and returns before arity is ever inspected.
 fn probe(retired_name: &str) -> String {
     let program = format!(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil\n  (:wat::kernel::println ({retired_name})))\n"
+        "(:wat::core::defn :user::main [] -> wat.type/nil\n  (:wat::kernel::println ({retired_name})))\n"
     );
     let tag: String = retired_name
         .chars()

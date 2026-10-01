@@ -146,7 +146,7 @@ use std::process::ExitCode;
 /// `(:repl::turn defs)` to embed a loop seeded with its own definitions, which is the thing
 /// a REPL-as-a-file could never offer.
 const REPL_SOURCE: &str =
-    "(:wat::core::defn :user::main [] -> :wat::core::nil\n   (:repl::turn (:wat::core::Vector :- [:wat::WatAST])))\n";
+    "(:wat::core::defn :user::main [] -> wat.type/nil\n   (:repl::turn (wat.type/Vector :- [wat.type/AST])))\n";
 const REPL_LABEL: &str = "<repl-entry>";
 /// `--mcp` has no entry file either — the loop is Rust (see `mcp.rs`), and this is what any
 /// diagnostic reaching a span from that path carries.
@@ -186,7 +186,7 @@ fn validate_user_grep_signature(world: &crate::freeze::FrozenWorld) -> Result<()
             .to_string()
     })?;
     let expected_ret =
-        crate::types::parse_type_expr_from_source("(:wat::core::PersistentVector :- [:wat::rete::Rule])")
+        crate::types::parse_type_expr_from_source("(wat.type/PersistentVector :- [:wat::rete::Rule])")
             .expect("arc 278: the grep-mode canonical return type source parses");
     if !func.param_types.is_empty() {
         return Err(format!(

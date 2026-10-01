@@ -118,7 +118,7 @@ fn legal_accumulate_still_compiles() {
 // rune:lint(no-inlined-wat) — world parameterized by runtime acc/gate strings — cartesian matrix of combinations cannot be pre-extracted
 fn world(with_threshold: bool, acc: &str, gate: &str) -> String {
     let threshold_defrecord = if with_threshold {
-        "(:wat::core::defrecord :w3::Threshold [min <- :wat::core::i64])\n"
+        "(:wat::core::defrecord :w3::Threshold [min <- wat.type/i64])\n"
     } else {
         ""
     };
@@ -168,7 +168,7 @@ fn busy_count(with_threshold: bool, acc: &str, gate: &str, min: i64, readings: &
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w3)\n\
-             session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector :- [:wat::rete::Query] (:w3::q-Busy))) {compile_arm})\n\
+             session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:w3::q-Busy))) {compile_arm})\n\
              session (:wat::core::match (:wat::rete::insert session (:w3::Station :location \"Oslo\")) {insert_arm})\n\
 {threshold_insert}\
 {reading_inserts}\

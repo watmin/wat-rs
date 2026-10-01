@@ -51,11 +51,11 @@ fn expect_i64(defn: &str, call: &str, want: i64) {
     }
 }
 
-const SUM: &str = "(:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 \
+const SUM: &str = "(:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 \
                      (:wat::i64::+ acc x))";
-const DBL: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))";
-const GT1: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1))";
-const L123: &str = "(:wat::core::List :- [:wat::core::i64] 1 2 3)";
+const DBL: &str = "(:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))";
+const GT1: &str = "(:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::i64::> x 1))";
+const L123: &str = "(wat.type/List :- [wat.type/i64] 1 2 3)";
 const MAIN: &str = "";
 
 // ── Checker parity: all 8 ops type-check over a List (parametric AND bare param) ──
@@ -104,7 +104,7 @@ fn list_hofs_typecheck_bare_param() {
 #[test]
 fn wrong_element_rejected() {
     // GUARD — parity != permissiveness. A String reducer folded over an i64 List must be REJECTED.
-    let str_sum = "(:wat::core::fn [acc <- :wat::core::String x <- :wat::core::String] -> :wat::core::String \
+    let str_sum = "(:wat::core::fn [acc <- wat.type/String x <- wat.type/String] -> wat.type/String \
                      (:wat::core::string::concat acc x))";
     let src = format!("(:wat::core::defn :user::bad [] -> :wat::core::String (:wat::core::foldl {str_sum} \"\" {L123}))\n{MAIN}");
     // Not via `check()` here — it collapses the typed error to a Debug-formatted `String`
@@ -146,7 +146,7 @@ fn list_reverse_order() {
 fn list_concat_nxm() {
     // N×M: two DISTINCT lists (1 2 3)+(4 5) → (1 2 3 4 5). Exact combined sum 15 and length 5
     // (a cross-product would give 6 elements / sum 45).
-    let cat = format!("(:wat::core::concat {L123} (:wat::core::List :- [:wat::core::i64] 4 5))");
+    let cat = format!("(:wat::core::concat {L123} (wat.type/List :- [wat.type/i64] 4 5))");
     expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 {cat})"), 15);
     expect_i64(MAIN, &format!("(:wat::core::length {cat})"), 5);
 }

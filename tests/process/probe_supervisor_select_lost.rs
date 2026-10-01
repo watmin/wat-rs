@@ -117,7 +117,7 @@ fn assert_location_names_the_child_not_the_decoder(msg: &str) {
 
 /// The process child immediately panics with "boom" via `Option/expect` on `None`.
 const CRASHING_CHILD_SRC: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil
+    (:wat::core::defn :user::main [] -> wat.type/nil
       (:wat::core::Option/expect :wat::core::Option.None "boom"))
 "#;
 
@@ -147,7 +147,7 @@ fn select_prime_yields_lost_when_process_child_crashes() {
     // (already live in the stdlib — wat/cache.wat, wat/spawn.wat) is the replacement.
     let select_call = wat::parse_one!(
         r#"
-        (:wat::kernel::select (:wat::core::Vector (:wat::kernel::Process :- [:wat::core::nil :wat::core::nil]) child))
+        (:wat::kernel::select (:wat::core::Vector (:wat::kernel::Process :- [wat.type/nil wat.type/nil]) child))
         "#
     )
     .expect("parse select' call");

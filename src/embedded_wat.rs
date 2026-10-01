@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn placeholder_substitution_preserves_length() {
-        let s = "(:wat::core::defmacro {bare_name} [x <- :wat::core::i64])";
+        let s = "(:wat::core::defmacro {bare_name} [x <- wat.type/i64])";
         let out = replace_placeholders_preserving_len(s);
         assert_eq!(out.chars().count(), s.chars().count());
         assert!(!out.contains('{'));

@@ -618,18 +618,18 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
         ":wat::rete::core::let" => (":wat::core::i64", "10", "1", "(:wat::rete::core::let [x {f}] (:wat::rete::i64::> x 5))", ""),
         ":wat::rete::core::cond" => (":wat::core::i64", "10", "1", "(:wat::rete::core::cond ((:wat::rete::i64::> {f} 5) true) (:else false))", ""),
         ":wat::rete::core::match" => (":probe::E", ":probe::E.A", ":probe::E.B", "(:wat::rete::core::match {f} [:probe::E.A {} true] [:probe::E.B {} false])", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
-        ":wat::rete::core::fn" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 1 2)", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
+        ":wat::rete::core::fn" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
         ":wat::rete::core::enum::=" => (":probe::E", ":probe::E.A", ":probe::E.B", "(:wat::rete::core::enum::= {f} :probe::E.A)", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
         ":wat::rete::core::enum::not=" => (":probe::E", ":probe::E.B", ":probe::E.A", "(:wat::rete::core::enum::not= {f} :probe::E.A)", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
         ":wat::rete::core::variant-name" => (":probe::E", ":probe::E.A", ":probe::E.B", "(:wat::rete::string::= (:wat::rete::core::variant-name {f}) \"A\")", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
         ":wat::rete::core::PersistentVector" => (":wat::core::i64", "7", "9", "(:wat::rete::vector::contains? (:wat::rete::core::PersistentVector {f} 99) 7)", ""),
         ":wat::rete::core::Vector" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::Vector {f}) :undefined 0) 7)", ""),
         ":wat::rete::core::List" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::List/first (:wat::rete::core::List {f}) :undefined 0) 7)", ""),
-        ":wat::rete::core::foldl" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 1 2)", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
-        ":wat::rete::core::reduce" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 1 2)", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::reduce (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
+        ":wat::rete::core::foldl" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
+        ":wat::rete::core::reduce" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::reduce (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
         ":wat::rete::core::PersistentMap" => (":wat::core::String", "\"a\"", "\"z\"", "(:wat::rete::map::contains-key? (:wat::rete::core::PersistentMap {f} 1) \"a\")", ""),
-        ":wat::rete::core::mapv" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 1 2)", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::mapv (:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::i64::* x 10 :undefined 0)) {f}) :undefined 0) 10)", ""),
-        ":wat::rete::core::filterv" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", "(:wat::core::PersistentVector :- [:wat::core::i64] 1)", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::filterv (:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::rete::i64::> x 5)) {f}) :undefined 0) 9)", ""),
+        ":wat::rete::core::mapv" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::mapv (:wat::rete::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::* x 10 :undefined 0)) {f}) :undefined 0) 10)", ""),
+        ":wat::rete::core::filterv" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(wat.type/PersistentVector :- [wat.type/i64] 1)", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::filterv (:wat::rete::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::rete::i64::> x 5)) {f}) :undefined 0) 9)", ""),
         ":wat::rete::core::Tuple" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
         ":wat::rete::core::Tuple/first" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
         ":wat::rete::core::Tuple/second" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/second (:wat::rete::core::Tuple 99 {f})) 7)", ""),
@@ -731,7 +731,7 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
         // non-scalar declaration.
         ":wat::rete::vector::contains?" => (
             2,
-            "(:wat::core::PersistentVector :- [:wat::core::i64])",
+            "(wat.type/PersistentVector :- [wat.type/i64])",
             "(wat.type/PersistentVector :- [wat.type/i64] 1 2)",
             "(wat.type/PersistentVector :- [wat.type/i64] 9)",
             "1",
@@ -739,7 +739,7 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
         ),
         ":wat::rete::map::contains-key?" => (
             2,
-            "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])",
+            "(wat.type/PersistentMap :- [wat.type/String wat.type/i64])",
             "(wat.type/PersistentMap :- [wat.type/String wat.type/i64] \"a\" 1)",
             "(wat.type/PersistentMap :- [wat.type/String wat.type/i64] \"z\" 1)",
             "\"a\"",
@@ -781,13 +781,13 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 
         // Container accessors. `first`/`get` return the ELEMENT type, so the wrap is the
         // element's comparator — the row's `Var("T")` return resolved by the field declaration.
-        ":wat::rete::vector::length" => (1, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 1 2)", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", "", Some((":wat::rete::i64::=", "2"))),
-        ":wat::rete::vector::get" => (4, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 7)", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::vec::get" => (4, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :- [:wat::core::i64] 7)", "(:wat::core::Vector :- [:wat::core::i64] 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::linkedlist::get" => (4, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List :- [:wat::core::i64] 7)", "(:wat::core::List :- [:wat::core::i64] 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::core::PersistentVector/first" => (3, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector :- [:wat::core::i64] 7)", "(:wat::core::PersistentVector :- [:wat::core::i64] 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::core::Vector/first" => (3, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :- [:wat::core::i64] 7)", "(:wat::core::Vector :- [:wat::core::i64] 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::core::List/first" => (3, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List :- [:wat::core::i64] 7)", "(:wat::core::List :- [:wat::core::i64] 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::vector::length" => (1, "(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "", Some((":wat::rete::i64::=", "2"))),
+        ":wat::rete::vector::get" => (4, "(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 7)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::vec::get" => (4, "(wat.type/Vector :- [wat.type/i64])", "(wat.type/Vector :- [wat.type/i64] 7)", "(wat.type/Vector :- [wat.type/i64] 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::linkedlist::get" => (4, "(wat.type/List :- [wat.type/i64])", "(wat.type/List :- [wat.type/i64] 7)", "(wat.type/List :- [wat.type/i64] 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::core::PersistentVector/first" => (3, "(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 7)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::core::Vector/first" => (3, "(wat.type/Vector :- [wat.type/i64])", "(wat.type/Vector :- [wat.type/i64] 7)", "(wat.type/Vector :- [wat.type/i64] 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::core::List/first" => (3, "(wat.type/List :- [wat.type/i64])", "(wat.type/List :- [wat.type/i64] 7)", "(wat.type/List :- [wat.type/i64] 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
 
         _ => return None,
     };

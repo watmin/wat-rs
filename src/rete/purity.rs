@@ -3118,7 +3118,7 @@ mod declaration_derived_identity_tests {
     use crate::runtime::SymbolTable;
     use std::sync::Arc;
 
-    const WORLD: &str = "(:wat::core::defrecord :dd::R [x <- :wat::core::i64])\n";
+    const WORLD: &str = "(:wat::core::defrecord :dd::R [x <- wat.type/i64])\n";
 
     fn span() -> crate::span::Span {
         crate::rust_caller_span!()
