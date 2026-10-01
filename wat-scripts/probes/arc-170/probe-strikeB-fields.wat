@@ -10,6 +10,11 @@
 ;; until the §7 purity wall was corrected to cover Peer/Thread/Process — this file was the
 ;; ONLY one of 260 under wat-scripts/ that the correction lit. The probe's own header already
 ;; called it "struct-field reflection"; the declaration simply did not match the name.
+;; CLAIM: field-names-of :probe::Bag == [:kv :n] exactly (keywords are Equatable data). The
+;; field TYPES (a Peer type and an i64 type) are structured type descriptors, not pinnable
+;; digits/pids but not bare strings either — asserted by shape (exactly 2 entries, one per
+;; field) rather than reconstructing a byte-identical Type literal, same class of exception
+;; the brief grants a pid/timestamp/address.
 (:wat::core::defstruct :probe::Bag [kv <- (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])  n <- wat.type/i64])
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Kv::GetRequest [k <- wat.type/String])
@@ -18,6 +23,11 @@
   :features [(get [self <- :probe::Kv req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [_ (:wat::kernel::println (:wat::runtime::field-names-of :probe::Bag))
-     _ (:wat::kernel::println (:wat::runtime::field-types-of :probe::Bag))]
-    (:wat::kernel::println "fields-of: ok")))
+    [names (:wat::runtime::field-names-of :probe::Bag)
+     types (:wat::runtime::field-types-of :probe::Bag)]
+    (:wat::core::do
+      (:wat::test::assert-eq names (wat.type/Vector :- [wat.type/keyword] :kv :n))
+      (:wat::test::assert-eq (:wat::core::length types) 2)
+      (:wat::kernel::println names)
+      (:wat::kernel::println types)
+      (:wat::kernel::println "fields-of: ok"))))

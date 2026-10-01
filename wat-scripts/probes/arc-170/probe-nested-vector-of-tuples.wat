@@ -4,7 +4,10 @@
 ;; must up-cast RECURSIVELY (Vector's check_vector_literal_against dispatches each item
 ;; through check_compound_against_expected, not bare infer) — a Handle inside a Tuple
 ;; inside a Vector literal, direct construction, no as-capability wrapping.
-;; EXPECT (green): "nested-upcast: ok"
+;;
+;; CLAIM (exit 0): the nested up-cast (Handle -> Capability inside a Tuple inside a Vector
+;; literal) type-checks and constructs successfully — `hs` is never inspected past being
+;; built, so there is no further computed value; exit 0 is the whole proof.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]

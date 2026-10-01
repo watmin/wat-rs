@@ -1,5 +1,8 @@
 ;; Can a concrete (Address' :- [S R]) be erased to bare Address' via ann-form, stored, and
 ;; sent as a bare-D PoolMsg::Setup? Test the TYPE questions only (no child).
+;; CLAIM (shape, not digits — an Address' can't be pinned): the erase->store->construct
+;; pipeline produces an actual :probe::PoolMsg.Setup variant (never silently falls through
+;; to .Work or fails to construct at all).
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
@@ -27,4 +30,9 @@
      eab (:wat::core::ann-form ea :wat::kernel::Address)      ;; erase -> bare Address'
      v   (wat.type/Vector :- [:wat::kernel::Address] eab)       ;; store bare in (Vector :- [Address'])
      msg (:probe::PoolMsg.Setup {:addr (:wat::core::first v)})]       ;; bare-D Setup constructor
-    (:wat::kernel::println "erase-ok")))
+    (:wat::core::do
+      (:wat::core::match msg
+        [:probe::PoolMsg.Setup {:addr _} nil]
+        [:probe::PoolMsg.Work {:s _}
+          (:wat::kernel::assertion-failed! :message "erase-only: expected PoolMsg.Setup, got PoolMsg.Work")])
+      (:wat::kernel::println "erase-ok"))))

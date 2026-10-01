@@ -3,6 +3,8 @@
 ;; to its concrete backend record via a defclause dispatch? (R7: up-free, down-checked.)
 ;; If this prints "downcast ok, sqlite code = 2067", the Reason error channel is feasible
 ;; with existing substrate (no new narrowing mechanism needed).
+;; CLAIM: code-of(as-reason(SqliteReason{code=2067})) == 2067 — the open-surface value
+;; dispatches to the concrete defclause arm and recovers the field.
 
 ;; the error-context surface — no members, so a record joins it only by extend-type (B1).
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
@@ -24,5 +26,7 @@
   (:wat::core::let
     [reason (:probe::as-reason (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))   ; reason : :probe::Reason
      code   (:probe::code-of reason)]                                                 ; open Reason -> concrete clause
-    (:wat::kernel::println
-      (:wat::string::concat "downcast ok, sqlite code = " (:wat::i64::to-string code)))))
+    (:wat::core::do
+      (:wat::test::assert-eq code 2067)
+      (:wat::kernel::println
+        (:wat::string::concat "downcast ok, sqlite code = " (:wat::i64::to-string code))))))

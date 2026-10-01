@@ -7,7 +7,7 @@
 ;; At the call site a concrete :probe::Doubler is passed (structural satisfaction); inside drive the
 ;; abstract-typed r must dispatch to Doubler's extend-type impl (the check.rs:6104 open-surface path).
 ;;
-;; GREEN target: prints "42".
+;; CLAIM: (drive (Doubler) 21) == 42.
 
 (:wat::core::defsurface :probe::Runner :nature :wat::core::Struct
   :features [(run [self <- :probe::Runner  n <- wat.type/i64] -> wat.type/i64)])
@@ -21,5 +21,8 @@
   (:probe::Runner/run r n))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::i64::to-string (:probe::drive (:probe::Doubler) 21))))  ;; expect 42
+  (:wat::core::let
+    [result (:probe::drive (:probe::Doubler) 21)]
+    (:wat::core::do
+      (:wat::test::assert-eq result 42)
+      (:wat::kernel::println (:wat::i64::to-string result)))))

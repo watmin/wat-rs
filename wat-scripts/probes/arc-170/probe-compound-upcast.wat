@@ -18,6 +18,12 @@
 ;; statically instead. The refusal is now its own negative fixture:
 ;; wat-scripts/probes/arc-255/probe-255.74-set-of-capability.wat.bad (driven by
 ;; tests/types/probe_arc255_74_key_must_be_data.rs).
+;;
+;; CLAIM (exit 0): both up-casts (Tuple via ann-form, Map via call-arg) type-check AND
+;; construct successfully — there is no further computed value past "did construction
+;; raise" (pr/mp are never inspected beyond being built), so exit 0 — plus the dedicated
+;; `--check` assertion in tests/process/probe_arc255_74_compound_upcast_runs.rs — is the
+;; whole proof.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]

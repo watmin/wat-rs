@@ -2,9 +2,8 @@
 ;; A defclause with ONLY concrete-satisfier clauses (no surface clause, no fallback), passed a value
 ;; typed as the OPEN surface (as it flows from an agnostic contract). Does the checker allow it, and
 ;; does runtime dispatch on the value's concrete class? No as?, no surface-match, no new construct.
-;; If this prints "sqlite 2067" -> the capability already exists.
-;; If it fails at CHECK time -> the sole missing rule is "an open-surface arg may narrow to a
-;;   concrete-satisfier clause; trust the runtime dispatch."
+;; CLAIM: describe(reason) == "sqlite 2067" — an open-surface-typed arg narrows to a concrete-
+;; satisfier clause, dispatched by the value's runtime class, with no surface clause or fallback.
 
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 (:wat::core::defrecord  :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
@@ -26,4 +25,6 @@
   (:wat::core::let
     [reason (:probe::as-reason (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))   ; : :probe::Reason (concrete = Sqlite)
      d      (:probe::describe reason)]                                                 ; open-surface arg -> concrete clauses
-    (:wat::kernel::println d)))                                                        ; want: "sqlite 2067"
+    (:wat::core::do
+      (:wat::test::assert-eq d "sqlite 2067")
+      (:wat::kernel::println d))))

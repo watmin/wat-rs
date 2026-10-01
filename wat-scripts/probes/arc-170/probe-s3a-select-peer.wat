@@ -12,7 +12,12 @@
 ;; on EXACTLY that gap — everything else is clean (the fn body just binds + discards).
 ;;
 ;; GREEN after S3a: :probe::sel type-checks (select' accepts the Peer' element, returns
-;; (ServiceEvent :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) ?])), main prints "ok".
+;; (ServiceEvent :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) ?])).
+;;
+;; CLAIM (exit 0): :probe::sel — which never runs (main does not call it; it only binds/discards
+;; its own select' result) — type-checks. The claim is entirely at freeze time; there is no
+;; runtime value of :probe::sel's to assert on, so exit 0 (the freeze succeeding) is the proof.
+;; main's "ok" is a sentinel that the WHOLE file (sel's definition included) loaded clean.
 
 ;; peers held at the ABSTRACT Peer' type — the shape the bracket's collect-loop wants
 ;; ((Vector :- [(Peer' :- [(:wat::core::Tuple :- [:wat::core::i64 I]) (:wat::core::Tuple :- [:wat::core::i64 O])])])). Positionally identical to (Thread' :- [(:wat::core::Tuple :- [:wat::core::i64 I]) (:wat::core::Tuple :- [:wat::core::i64 O])]).

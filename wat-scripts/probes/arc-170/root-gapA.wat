@@ -1,4 +1,10 @@
 ;; ROOT Gap A — fn-forms directly on the kwargs $impl vs a hand-written same-shape fn.
+;; CLAIM (measured): fn-forms on the hand-written fn (hf) and on the kwargs $impl (kf) both
+;; ship exactly 5 forms (the macro + structtype registrations needed are identical in count —
+;; fn-forms ships the full currently-registered macro/struct set, not a precise per-fn
+;; dependency closure), and each one's LAST form is the correct target def — ast-name on the
+;; def's name node is ":test::hand" for hf and ":test::work" for kf. No gap: both paths name
+;; the right function; "ROOT Gap A" resolves negative (no divergence between the two shippers).
 (:wat::core::defstruct :probe::Bag [n <- wat.type/String])
 (:wat::core::defn :probe::hand
   [item <- wat.type/String  bag <- :probe::Bag] -> wat.type/String
@@ -13,5 +19,14 @@
      _  (:wat::kernel::println "hand: ok")
      _  (:wat::kernel::println "--- fn-forms KWARGS impl ---")
      kf (:wat::kernel::fn-forms :probe::work$impl :test::work)
-     _  (:wat::kernel::println "work impl: ok")]
-    (:wat::kernel::println "both ok")))
+     _  (:wat::kernel::println "work impl: ok")
+     hf-last    (:wat::core::Option/expect (:wat::core::last hf) "no last")
+     kf-last    (:wat::core::Option/expect (:wat::core::last kf) "no last")
+     hf-name    (:wat::core::ast-name (:wat::core::nth (:wat::core::ast->children hf-last) 1))
+     kf-name    (:wat::core::ast-name (:wat::core::nth (:wat::core::ast->children kf-last) 1))]
+    (:wat::core::do
+      (:wat::test::assert-eq (:wat::core::length hf) 5)
+      (:wat::test::assert-eq (:wat::core::length kf) 5)
+      (:wat::test::assert-eq hf-name ":test::hand")
+      (:wat::test::assert-eq kf-name ":test::work")
+      (:wat::kernel::println "both ok"))))

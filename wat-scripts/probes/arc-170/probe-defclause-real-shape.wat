@@ -3,8 +3,8 @@
 ;; how :wat::query::PutResult would). Construct it with a concrete SqliteReason (UP — the extend-type),
 ;; match it out, hand the `reason` (typed :probe::Reason by the field) to a concrete-clause defclause.
 ;; This settles whether the gap is REAL (the agnostic field loses the concrete type) or a shim artifact.
-;;   prints "sqlite 2067"  -> defclause already handles it; no rule needed; I was wrong.
-;;   check-time gap on (describe r)  -> the gap is the agnostic FIELD, intrinsic to the contract.
+;; CLAIM: describe(the Reason unpacked from PutResult.Constraint's own field) == "sqlite 2067" —
+;; defclause already handles a value typed by an agnostic field's declared (not literal) type.
 
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 (:wat::core::defrecord  :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
@@ -27,8 +27,10 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [result (:probe::PutResult.Constraint {:reason (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ...")})  ; concrete into a Reason field
-     d      (:wat::core::match result 
+     d      (:wat::core::match result
               [:probe::PutResult.Success {:ok _}   "ok"]
               [:probe::PutResult.Constraint {:reason r}          ; r : :probe::Reason (the field type)
                 (:probe::describe r)])]                    ; concrete-clause defclause on a Reason-typed value
-    (:wat::kernel::println d)))                            ; want: "sqlite 2067"
+    (:wat::core::do
+      (:wat::test::assert-eq d "sqlite 2067")
+      (:wat::kernel::println d))))

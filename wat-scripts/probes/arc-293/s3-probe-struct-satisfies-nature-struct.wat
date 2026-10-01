@@ -2,6 +2,7 @@
 ;; QUESTION: after adding the fourth Nature variant (Peer), does an ORDINARY struct still
 ;; extend-type-satisfy a `:nature :wat::core::Struct` surface (the aggregate rank-ladder path,
 ;; UNCHANGED by this stone — the `else` branch of `nature_floor_ok`)? MUST type-check.
+;; CLAIM: (Bumper/bump c) == 42.
 
 (:wat::core::defstruct :probe::Counter [n <- wat.type/i64])
 
@@ -15,4 +16,6 @@
   (:wat::core::let
     [c (:probe::Counter 41)
      r (:probe::Bumper/bump c)]
-    (:wat::kernel::println (:wat::string::concat "struct-as-Bumper bump = " (:wat::i64::to-string r)))))
+    (:wat::core::do
+      (:wat::test::assert-eq r 42)
+      (:wat::kernel::println (:wat::string::concat "struct-as-Bumper bump = " (:wat::i64::to-string r))))))

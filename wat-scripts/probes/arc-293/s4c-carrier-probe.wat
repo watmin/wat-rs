@@ -1,3 +1,6 @@
+;; CLAIM: a user-defined defsurface's generated `surface-forms` accessor resolves and
+;; returns exactly 1 carrier form (AMEND-255.4's "the rename reaches beyond the builtin
+;; families" finding — :my::Counter/surface-forms is a USER type's member, not a builtin).
 (:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest  [])
@@ -7,5 +10,8 @@
   [(get [self <- :my::Counter  req <- :my::Counter::GetRequest] -> :my::Counter::GetResponse :max-request-bytes 524288)])
 
 (:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:wat::i64::to-string
-    (:wat::core::length (:my::Counter/surface-forms)))))
+  (:wat::core::let
+    [forms (:my::Counter/surface-forms)]
+    (:wat::core::do
+      (:wat::test::assert-eq (:wat::core::length forms) 1)
+      (:wat::kernel::println (:wat::i64::to-string (:wat::core::length forms))))))

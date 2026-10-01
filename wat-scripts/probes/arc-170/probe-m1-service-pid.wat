@@ -6,7 +6,8 @@
 ;;   (:probe::echo'::Handle/handle eh)  is a spawn-derived Process' peer → peer-pid → (Some pid).
 ;; This is the pid path a SERVICE-prober M1 needs (dogfooding service+bracket only).
 ;;
-;; EXPECT (green): "service pid via Handle/handle:" then "#wat.core/Option.Some [<pid>]".
+;; CLAIM (shape, not digits — a pid can't be pinned): peer-pid on a started service's
+;; Handle/handle lineage peer is Option.Some of a positive i64.
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
@@ -26,6 +27,11 @@
   (:wat::core::let
     [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      lp  (:probe::echo::Handle/handle eh)
+     lp-pid (:wat::kernel::peer-pid lp)
+     _   (:wat::core::match lp-pid
+           [:wat::core::Option.Some {:value v} (:wat::test::assert-true (:wat::i64::> v 0))]
+           [:wat::core::Option.None {}
+             (:wat::kernel::assertion-failed! :message "service pid via Handle/handle: expected Some, got None")])
      _   (:wat::kernel::println "service pid via Handle/handle:")
-     _   (:wat::kernel::println (:wat::kernel::peer-pid lp))]
+     _   (:wat::kernel::println lp-pid)]
     nil))

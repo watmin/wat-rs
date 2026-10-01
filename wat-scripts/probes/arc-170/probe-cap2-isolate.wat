@@ -1,3 +1,5 @@
+;; CLAIM: a map-worker process bracket, over a locus that ALSO hosts a live defservice,
+;; produces [2 4 6 8 10] — the service's presence doesn't disturb the plain-fn pool path.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
@@ -14,4 +16,6 @@
   (:wat::core::let
     [nums (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)
      pr   (:wat::bracket::map (:wat::spawn::process) nums :probe::double)]
-    (:wat::kernel::println (:wat::edn::write pr))))
+    (:wat::core::do
+      (:wat::test::assert-eq pr (wat.type/Vector :- [wat.type/i64] 2 4 6 8 10))
+      (:wat::kernel::println (:wat::edn::write pr)))))

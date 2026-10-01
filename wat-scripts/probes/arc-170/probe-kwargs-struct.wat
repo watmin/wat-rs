@@ -7,7 +7,7 @@
 ;;
 ;; RED at HEAD: freezing :probe::apply-it errors — an impure fn field in the pure
 ;;   :probe::apply-it::Kwargs record.
-;; GREEN after the flip: prints "42".
+;; GREEN after the flip: result == 42.
 
 (:wat::core::defn :probe::apply-it
   [& [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
@@ -16,7 +16,9 @@
   (:wat::core::apply  f n []))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::i64::to-string
-      (:probe::apply-it :f (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
-                        :n 21))))  ;; expect 42
+  (:wat::core::let
+    [result (:probe::apply-it :f (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
+                               :n 21)]
+    (:wat::core::do
+      (:wat::test::assert-eq result 42)
+      (:wat::kernel::println (:wat::i64::to-string result)))))

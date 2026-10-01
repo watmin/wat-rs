@@ -30,14 +30,23 @@
      ;; THE READER (tier-blind) — read the count off an ABSTRACT :Locus. read-blind holds its
      ;; arg at the :Locus protocol type; the defclause dispatches on the concrete class at runtime.
      lproc (:user::read-blind (:wat::spawn::process::runner-count 8))       ;; expect 8
-     lthr  (:user::read-blind (:wat::spawn::thread))]                      ;; expect cpu-count (14)
-    (:wat::kernel::println
-      (:wat::string::concat
-        (:wat::i64::to-string n8)
-        (:wat::string::concat " "
-          (:wat::string::concat (:wat::i64::to-string ndef)
-            (:wat::string::concat " "
-              (:wat::string::concat (:wat::i64::to-string n4)
-                (:wat::string::concat " reader="
-                  (:wat::string::concat (:wat::i64::to-string lproc)
-                    (:wat::string::concat " " (:wat::i64::to-string lthr))))))))))))
+     lthr  (:user::read-blind (:wat::spawn::thread))                       ;; expect cpu-count
+     cpus  (:wat::program::cpu-count)]
+    (:wat::core::do
+      ;; explicit counts are pinned exactly; the two cpu-count defaults are asserted against
+      ;; the SAME builtin the field is meant to default from (machine-dependent, never a digit).
+      (:wat::test::assert-eq n8 8)
+      (:wat::test::assert-eq ndef cpus)
+      (:wat::test::assert-eq n4 4)
+      (:wat::test::assert-eq lproc 8)
+      (:wat::test::assert-eq lthr cpus)
+      (:wat::kernel::println
+        (:wat::string::concat
+          (:wat::i64::to-string n8)
+          (:wat::string::concat " "
+            (:wat::string::concat (:wat::i64::to-string ndef)
+              (:wat::string::concat " "
+                (:wat::string::concat (:wat::i64::to-string n4)
+                  (:wat::string::concat " reader="
+                    (:wat::string::concat (:wat::i64::to-string lproc)
+                      (:wat::string::concat " " (:wat::i64::to-string lthr)))))))))))))

@@ -2,6 +2,8 @@
 ;; — exactly what a service Handle does (it satisfies Capability mono, + we add Dialable parametric).
 ;; parametric receiver errors → bug is multi-surface (pre-existing mono satisfaction blocks parametric)
 ;; clean → bug is specific to the AUTO-EMITTED service Handle
+;; CLAIM: (Pair2/fst m) == 42 — a record satisfying BOTH a mono and a parametric surface still
+;; dispatches the parametric one correctly.
 (:wat::core::defsurface :probe::Flat :nature :wat::core::Struct
   :features [(tag [self <- :probe::Flat] -> wat.type/String)])
 (:wat::core::defsurface :probe::Pair2 :- [A B] :nature :wat::core::Struct
@@ -15,4 +17,6 @@
   (:wat::core::let
     [m  (:probe::Multi :i 42 :s "hi")
      ok (:wat::core::ann-form (:probe::Pair2/fst m) :wat::core::i64)]
-    (:wat::kernel::println "narrowed2")))
+    (:wat::core::do
+      (:wat::test::assert-eq ok 42)
+      (:wat::kernel::println "narrowed2"))))

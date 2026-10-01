@@ -8,6 +8,11 @@
 ;;
 ;; EXPECT (pre-fix, the gap): DuplicateDefine :probe::Echo::EchoRequest (at the constructor).
 ;; EXPECT (post-(B)-fix):     the re-declaration is a no-op → prints "ok".
+;;
+;; CLAIM (exit 0): re-declaring :probe::Echo::EchoRequest standalone AND inside the defsurface's
+;; :messages is a no-op at BOTH the type AND the constructor-fn registration — no DuplicateDefine.
+;; There is no computed value past "did loading this file raise" (the claim is a load-time/startup
+;; property, same class as a --check claim), so exit 0 is the whole proof; the println is a sentinel.
 
 (:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])   ;; standalone
 
