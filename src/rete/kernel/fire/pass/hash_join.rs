@@ -293,6 +293,11 @@ for node_id in &kind_ids.join_parent {
             // old form paid two map lookups per token (80,000 on the fanout cell) where
             // two total will do. Correct regardless of the guard below.
             let n_emit = new_tokens.len();
+            // STONE 255.78 — deterministic witness for `fanout_per_call_alpha_census`'s
+            // production-dominates-hash-join claim: a real OPERATION count (tokens the
+            // hash-join pass actually emits), not a duration. `census_count_n` is a no-op in
+            // non-test builds (`census.rs`), so this costs nothing in release.
+            census_count_n("hash-join:tokens-emitted", n_emit as u64);
             record_tokens(&mut wm.beta, d_beta, beta_readers, *child_id, &new_tokens);
             if n_emit > 0 {
                 dirty_parents.insert(*child_id);
@@ -403,6 +408,8 @@ for node_id in &kind_ids.join_parent {
         let __s6 = phase_start();
         // Same hoist + guard as the catch-up emit above.
         let n_emit = new_tokens.len();
+        // STONE 255.78 — see the catch-up emit's twin counter above.
+        census_count_n("hash-join:tokens-emitted", n_emit as u64);
         record_tokens(&mut wm.beta, d_beta, beta_readers, *child_id, &new_tokens);
         if n_emit > 0 {
             dirty_parents.insert(*child_id);

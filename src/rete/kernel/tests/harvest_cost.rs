@@ -289,12 +289,26 @@ fn harvest_wrap_split() {
         black_box(maps);
     }
 
+    // DETERMINISTIC WITNESS (STONE 255.78 — T1, no verdict on the floor reads a clock): the
+    // apportionment claim is that the combined (h) closure performs EXACTLY the filter matches
+    // and `PMap::from_pairs` calls that its scan (s) and wrap (w) halves perform — not a
+    // different, silently smaller or larger amount of work. That is a COUNT, not a duration, and
+    // is counted inside the SAME closures the clock used to time, so a mutation that drops a
+    // phase out of `h` is caught by the count exactly as it would have been by the apportionment
+    // window, with no machine-speed dependence.
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let scan_matches_in_s = AtomicUsize::new(0);
+    let scan_matches_in_h = AtomicUsize::new(0);
+    let wrap_maps_in_w = AtomicUsize::new(0);
+    let wrap_maps_in_h = AtomicUsize::new(0);
+
     let mut s = f64::INFINITY;
     let mut w = f64::INFINITY;
     let mut h = f64::INFINITY;
     for _ in 0..RUNS {
         s = s.min(ns_per_iter(1, || {
             let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
+            scan_matches_in_s.fetch_add(collected.len(), Ordering::Relaxed);
             black_box(collected);
         }));
         let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
@@ -303,14 +317,17 @@ fn harvest_wrap_split() {
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
                 .collect();
+            wrap_maps_in_w.fetch_add(maps.len(), Ordering::Relaxed);
             black_box(maps);
         }));
         h = h.min(ns_per_iter(1, || {
             let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
+            scan_matches_in_h.fetch_add(collected.len(), Ordering::Relaxed);
             let maps: Vec<crate::value::pmap::PMap> = collected
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
                 .collect();
+            wrap_maps_in_h.fetch_add(maps.len(), Ordering::Relaxed);
             black_box(maps);
         }));
     }
@@ -330,16 +347,30 @@ fn harvest_wrap_split() {
         collected.len()
     );
 
-    // APPORTIONMENT: scan and wrap are the two halves of the combined pass, so they must
-    // roughly account for it. Bounds are deliberately loose (0.5x–2x) because these are wall
-    // clocks on a shared runner; what they catch is a phase silently dropping out of the
-    // combined measurement, which is what would make the "split" stop being a split.
-    assert!(
-        h >= (s + w) * 0.5 && h <= (s + w) * 2.0,
-        "combined harvest ({:.2} ms) is not accounted for by scan ({:.2} ms) + wrap ({:.2} ms) \
-         — the apportionment this test reports no longer adds up, so one of the three closures \
-         is measuring something other than what its name says",
-        ms(h), ms(s), ms(w)
+    // APPORTIONMENT, DETERMINISTIC FORM: the combined closure's scan phase must match exactly
+    // as many facts as the scan-alone closure did (summed over the RUNS reps each ran), and its
+    // wrap phase must build exactly as many maps as the wrap-alone closure did. A phase silently
+    // dropping out of `h` — the failure this assertion exists to catch — moves one of these
+    // counts away from its sibling; nothing here depends on which machine ran it.
+    let (sm_s, sm_h) = (
+        scan_matches_in_s.load(Ordering::Relaxed),
+        scan_matches_in_h.load(Ordering::Relaxed),
+    );
+    let (wm_w, wm_h) = (
+        wrap_maps_in_w.load(Ordering::Relaxed),
+        wrap_maps_in_h.load(Ordering::Relaxed),
+    );
+    assert_eq!(
+        sm_h, sm_s,
+        "combined harvest's scan phase matched {sm_h} facts across {RUNS} runs; scan-alone \
+         matched {sm_s} — the combined closure is no longer doing the same filter work as its \
+         scan half, so the apportionment this test reports no longer adds up"
+    );
+    assert_eq!(
+        wm_h, wm_w,
+        "combined harvest's wrap phase built {wm_h} maps across {RUNS} runs; wrap-alone built \
+         {wm_w} — the combined closure is no longer doing the same `PMap::from_pairs` work as \
+         its wrap half, so the apportionment this test reports no longer adds up"
     );
 
     println!(

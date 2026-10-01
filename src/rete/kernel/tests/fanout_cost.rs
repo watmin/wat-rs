@@ -318,18 +318,60 @@ fn fanout_per_call_alpha_census() {
         );
     }
 
-    // Structural claim this workload exists to demonstrate: on a rule-light, fact-heavy fan-out
-    // the PRODUCTION phase dominates. Measured 2026-08-30: production 79.5% vs hash-join 8.7%,
-    // a 9x gap — so a 2x floor cannot flake on a loaded runner and still fires if the cost
-    // centre moves somewhere else, which is exactly the regression this census would be read to
-    // detect.
-    let ns_of = |want: &str| rows.iter().find(|(n, _)| *n == want).map_or(0, |(_, ns)| *ns);
-    let (prod, hj) = (ns_of("production"), ns_of("hash-join"));
-    assert!(
-        prod > hj * 2,
-        "production ({prod} ns) no longer dominates hash-join ({hj} ns) by 2x on a fan-out \
-         workload — measured at 9x. The cost centre has moved and this census's reading of \
-         `where the time goes` is describing a different engine.{table}"
+    // STONE 255.78 — T1 (no verdict on the floor reads a clock). The ORIGINAL assertion here
+    // compared nanoseconds (`prod > hj * 2`, production 79.5% vs hash-join 8.7%, measured
+    // 2026-08-30). The brief's row 3 proposed re-pointing it to the per-phase OPERATION counts
+    // the census already collects — `prod:derivations` against a new `hash-join:tokens-emitted`
+    // counter (added at `fire/pass/hash_join.rs`'s two emit sites, `census_count_n`, a no-op in
+    // non-test builds).
+    //
+    // ⛔ MEASURED AND FALSIFIED: the two counts are NOT a 2x relationship, they are EQUAL.
+    let (_fired2, counts) = super::with_count_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("fanout census fire (counted) raised: {e:?}"))
+            .value_owned()
+    });
+    let count_of = |want: &str| -> u64 {
+        counts
+            .iter()
+            .find(|(n, _)| *n == want)
+            .map_or(0, |(_, c)| *c)
+    };
+    let prod_derivations = count_of("prod:derivations");
+    let hj_emitted = count_of("hash-join:tokens-emitted");
+    println!(
+        "  bench:fanout-dominance-operation-counts  prod:derivations={prod_derivations}  \
+         hash-join:tokens-emitted={hj_emitted}  ratio={:.2}\n",
+        if hj_emitted > 0 {
+            prod_derivations as f64 / hj_emitted as f64
+        } else {
+            0.0
+        }
+    );
+    // Every hash-join emits exactly one token per production (this fan-out is 1 rule, 1 join, 1
+    // RHS — a 1:1 pipeline), so the OPERATION COUNT is 1.00x regardless of which phase is
+    // slower. The real ~9-10x gap this test documents is a PER-ITEM cost asymmetry (production's
+    // dedup-store + compiled-RHS execution vs hash-join's index probe/emit), not a volume
+    // asymmetry — and per-item cost is a nanosecond question by construction, with no
+    // operation-count proxy. There is therefore NO deterministic (non-clock) witness for this
+    // specific claim: the premise the brief's row 3 proposed (a count-based re-point analogous
+    // to rows 1/4) does not hold for this row, and no `DESIGN-STONE` exists for it to re-derive
+    // a different one from (unlike rows 5/6). The honest move, per the brief's own row-7
+    // fallback ("a claim with no deterministic witness... the SCORE says why"), is to drop the
+    // assertion rather than gate on it or assert something it cannot support. The breakdown
+    // stays PRINTED (information, same as the brief allows for a relocated bench) rather than
+    // physically moving to `benches/`: the per-phase figures come from `with_phase_census`,
+    // `#[cfg(test)]`-only instrumentation invisible to a `benches/` binary (a separate crate
+    // linked only against `wat`'s PUBLIC API — confirmed against
+    // `benches/perf_arc278_fire_baseline.rs`, which times the whole fire from OUTSIDE for
+    // exactly this reason). Exposing that instrument publicly to relocate a diagnostic print is
+    // a larger surface-area decision than this stone's narrow-counter allowance covers.
+    assert_eq!(
+        hj_emitted, prod_derivations,
+        "hash-join emitted {hj_emitted} tokens against {prod_derivations} production \
+         derivations — this fan-out's pipeline is no longer 1 hash-join token per production, \
+         so the ratio printed above is not the 1.00x this comment claims; re-derive before \
+         trusting it.{table}"
     );
 }
 
@@ -462,7 +504,7 @@ fn fanout_production_leftover_split() {
     assert_eq!(
         rhs_pairs, 40_000,
         "compiled-rhs pairs must be the 40k cell, not a dead fire:{table}"
-    );
+    ); // rune:lint(clock-verdict) — `rhs_pairs`/`.rhs_pairs` is a deterministic COUNT destructured alongside a clock-derived sibling (`r_ns`/ns-prefixed fields) from an opaque (ns,count)-returning closure (`of`/`Shot`); this detector pools taint over the whole binding and cannot split tuple/struct fields. Not clock-derived. STONE 255.78.
 }
 
 /// Rank harvest / compiled-rhs / OUT freeze at fanout [100 20].
@@ -653,11 +695,11 @@ fn fanout_three_leftover_split() {
     assert_eq!(
         without.rhs_pairs, 40_000,
         "without-query compiled-rhs pairs must be 40k:{table}"
-    );
+    ); // rune:lint(clock-verdict) — `rhs_pairs`/`.rhs_pairs` is a deterministic COUNT destructured alongside a clock-derived sibling (`r_ns`/ns-prefixed fields) from an opaque (ns,count)-returning closure (`of`/`Shot`); this detector pools taint over the whole binding and cannot split tuple/struct fields. Not clock-derived. STONE 255.78.
     assert_eq!(
         with.rhs_pairs, 40_000,
         "with-query compiled-rhs pairs must be 40k:{table}"
-    );
+    ); // rune:lint(clock-verdict) — `rhs_pairs`/`.rhs_pairs` is a deterministic COUNT destructured alongside a clock-derived sibling (`r_ns`/ns-prefixed fields) from an opaque (ns,count)-returning closure (`of`/`Shot`); this detector pools taint over the whole binding and cannot split tuple/struct fields. Not clock-derived. STONE 255.78.
     assert_eq!(
         without.query_maps, 0,
         "census world has no query — query-memory must be empty:{table}"
@@ -776,7 +818,7 @@ fn fanout_honest_fire_rank() {
     assert_eq!(
         rhs_pairs, 40_000,
         "compiled-rhs pairs must be the 40k cell:{table}"
-    );
+    ); // rune:lint(clock-verdict) — `rhs_pairs`/`.rhs_pairs` is a deterministic COUNT destructured alongside a clock-derived sibling (`r_ns`/ns-prefixed fields) from an opaque (ns,count)-returning closure (`of`/`Shot`); this detector pools taint over the whole binding and cannot split tuple/struct fields. Not clock-derived. STONE 255.78.
 }
 
 /// Complete phase apportionment of the fanout census world — every mark the

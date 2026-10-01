@@ -171,8 +171,23 @@ for node_id in &kind_ids.acc {
         None => (&empty_index, &empty_keys),
     };
     // No clone — indices name this round's wm.alpha[id] (step 1 is done).
+    //
+    // STONE 255.78 — deterministic witness for `accum_fire_phase_census`'s snapshot-under-1ms
+    // claim: `DESIGN-STONE-gather-no-snapshot` removed a `wm.alpha[id].clone()` here; if it ever
+    // returned, it would allocate — a BYTE question, not a duration one. Reuses the existing
+    // `CountingAllocator` instrument (`crate::alloc_counter::thread_bytes`, already wired for
+    // the session memory ceiling) rather than adding a new counter, and the whole before/after
+    // read + subtraction is `#[cfg(test)]`-gated (mirroring `phase_start`/`phase_end`'s own
+    // split in this file), so the production fire path gains zero instructions.
     let __sn = phase_start();
+    #[cfg(test)]
+    let __sn_bytes_before = crate::alloc_counter::thread_bytes();
     let from_elements = alpha_elements(&wm.alpha, from_alpha_id);
+    #[cfg(test)]
+    census_count_n(
+        "accum:snapshot-alloc-bytes",
+        (crate::alloc_counter::thread_bytes()).saturating_sub(__sn_bytes_before) as u64,
+    );
     phase_end("  ├ accum:snapshot", __sn);
     let from_compiled = rematch_compiled(compiled_conds, from_alpha_id)?;
     let leftover = from_compiled.has_seed_cmp();
@@ -238,6 +253,12 @@ for node_id in &kind_ids.acc {
         if leftover {
             for i in gather_bucket(bucket) {
                 let el = &from_elements[i];
+                // STONE 255.78 — deterministic witness for `accum_fire_phase_census`'s
+                // fold-under-25ms claim: the 68.49 ms mechanism `DESIGN-STONE-accum-fold-
+                // the-wall` names is this REMATCH (a second compiled walk per element, the
+                // `fact_holds_under` call below); the fast `fold_bucket` path above never
+                // reaches here. `census_count` is a no-op in non-test builds.
+                census_count("accum:rematch");
                 let ok = fact_holds_under(
                     sym,
                     fact_at(&wm.facts, &wm.derived_facts, wm.n_input, el.fact),

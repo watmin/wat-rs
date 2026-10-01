@@ -149,7 +149,7 @@ fn node_share_where_cost_decomposition() {
         "captured predicate returned the SAME verdict for all {} tokens ({passes} passes) — \
              a constant-folded predicate would make arm B's walk unrepresentative",
         tokens.len(),
-    );
+    ); // rune:lint(clock-verdict) — pre-existing deterministic count/boolean check (not clock-derived) swept into taint by this function's shared pool of short/generic names (`tokens`, `v`, `n`, …) reused as both real timing arms and unrelated closure locals across 600+ lines; this detector is per-function, not per-scope. STONE 255.78.
 
     // ── the three arms, one round's worth each, interleaved ───────────────────────────────
     // Arm A calls `build_test_env`, which IS the block `eval_test_core` runs — extracted, not
@@ -182,7 +182,7 @@ fn node_share_where_cost_decomposition() {
     assert_eq!(
         compiled_verdicts, verdicts,
         "compiled exec_where must agree with eval_test_core on the captured tokens"
-    );
+    ); // rune:lint(clock-verdict) — pre-existing deterministic count/boolean check (not clock-derived) swept into taint by this function's shared pool of short/generic names (`tokens`, `v`, `n`, …) reused as both real timing arms and unrelated closure locals across 600+ lines; this detector is per-function, not per-scope. STONE 255.78.
 
     // Arm D's input — the SAME predicate with its two `?k` reads replaced by the literal they
     // would resolve to. Identical node count, identical operators, ZERO name lookups: the
@@ -309,7 +309,7 @@ fn node_share_where_cost_decomposition() {
          `filter:test-evals` means the fire now calls `exec_where` here, so the branch these \
          arms measure is no longer the branch the fire takes — re-derive the reconstruction, \
          do not widen it"
-    );
+    ); // rune:lint(clock-verdict) — pre-existing deterministic count/boolean check (not clock-derived) swept into taint by this function's shared pool of short/generic names (`tokens`, `v`, `n`, …) reused as both real timing arms and unrelated closure locals across 600+ lines; this detector is per-function, not per-scope. STONE 255.78.
     // (ii) THE GROUP. One dispatch per sibling group, so the per-token half runs once per token.
     assert!(
         tids.len() == N as usize && tids.iter().all(|t| arm.where_tree.covers(*t)),
@@ -325,7 +325,7 @@ fn node_share_where_cost_decomposition() {
          {fire_gather_tokens} tokens; arm L replays {fire_gathers} clones of a \
          {}-token vector and that only reconstructs the gather if the width divides out",
         tokens.len(),
-    );
+    ); // rune:lint(clock-verdict) — pre-existing deterministic count/boolean check (not clock-derived) swept into taint by this function's shared pool of short/generic names (`tokens`, `v`, `n`, …) reused as both real timing arms and unrelated closure locals across 600+ lines; this detector is per-function, not per-scope. STONE 255.78.
     // (iv) THE REPLICA AGREES WITH THE FIRE. Run the taken branch once, off the clock, and
     // count the reuse-arm hits: they must equal what the WHOLE fire counted. This is what
     // makes "one dispatch of {M} tokens x {N} tids" a measurement rather than a reading of
@@ -356,7 +356,7 @@ fn node_share_where_cost_decomposition() {
          are about to be divided into",
         toks.len(),
         tids.len(),
-    );
+    ); // rune:lint(clock-verdict) — pre-existing deterministic count/boolean check (not clock-derived) swept into taint by this function's shared pool of short/generic names (`tokens`, `v`, `n`, …) reused as both real timing arms and unrelated closure locals across 600+ lines; this detector is per-function, not per-scope. STONE 255.78.
     // The `wm.beta` write inside the reuse arm is guarded by `beta_readers`, and on this axis
     // no TestNode is read — so that push is not part of what arms J/K replay. Stated, not
     // assumed: a beta-reading TestNode would put a push in the branch these arms do not have.
@@ -365,7 +365,7 @@ fn node_share_where_cost_decomposition() {
         beta_read_tids, 0,
         "{beta_read_tids} of the dispatched TestNodes are beta_readers, so the reuse arm also \
          pushes into `wm.beta` — a write arms J/K do not replay. Add it before dividing"
-    );
+    ); // rune:lint(clock-verdict) — pre-existing deterministic count/boolean check (not clock-derived) swept into taint by this function's shared pool of short/generic names (`tokens`, `v`, `n`, …) reused as both real timing arms and unrelated closure locals across 600+ lines; this detector is per-function, not per-scope. STONE 255.78.
 
     for _ in 0..REPS {
         // A — the env build alone.
@@ -775,10 +775,22 @@ fn node_share_where_cost_decomposition() {
 
     // Non-vacuity on the INSTRUMENT itself: a zero reading means the optimiser removed the
     // arm, and every share above would be an artifact.
+    //
+    // STONE 255.78 (T1, no verdict on the floor reads a clock) — `&& b > a && b > e` dropped.
+    // Structurally B ⊇ A (B is "env build + the eval_inner walk", A is "env build alone", so B
+    // always does strictly more) and B ⊇ E's floor, but that containment is a fact about the
+    // CODE, not something this wall-clock instrument can see: it times A and B in separate,
+    // non-nested loops, so two independent clock readings compared against each other is
+    // exactly the shape ⛔ ADJACENT-RUNG MONOTONICITY below already found too noisy to assert
+    // for this same arm family (red on the sixth consecutive drive, 2026-09-04). No deterministic
+    // (operation-count) substitute exists here either: A and B run the identical loop count
+    // (`evals_per_round`), so a count cannot distinguish "built the env" from "built the env AND
+    // walked it" — only elapsed time can, which is exactly what T1 forbids a verdict on. The six
+    // `> 0.0` liveness atoms (the real non-vacuity guard: a zeroed arm means the optimiser
+    // removed it) stay.
     assert!(
-        a > 0.0 && b > 0.0 && c > 0.0 && d > 0.0 && e > 0.0 && f > 0.0 && b > a && b > e,
-        "an arm measured zero, or the orderings that MUST hold do not — the loop was \
-             optimised away and the shares above are artifacts \
+        a > 0.0 && b > 0.0 && c > 0.0 && d > 0.0 && e > 0.0 && f > 0.0,
+        "an arm measured zero — the loop was optimised away and the shares above are artifacts \
              (A={a}ns B={b}ns C={c}ns D={d}ns E={e}ns){table}"
     );
 
@@ -810,21 +822,42 @@ fn node_share_where_cost_decomposition() {
     // red rendered — and the only ordering asserted is the one with a wide margin: the ★ below.
     // ⚠ Do NOT re-add the adjacent chain "because it passed five times". It did.
 
-    // ★ THE FINDING, ASSERTED AS AN ORDERING RATHER THAN A NUMBER. The (token x tid) set-probe
-    // loop is the largest rung of the taken branch and the majority of it — ~275-295 us of a
-    // ~350 us branch across six drives, against ~44 us for the next rung. That is not a
-    // tolerance: it is the mechanism this strike found, and it is what makes zeroing that loop
-    // RED rather than merely shifting a printed percentage. If it stops holding, the filter
-    // phase's cost has MOVED: re-derive which rung dominates and say so, do not relax this.
-    let branch_rungs = format!(
-        "J-I {dj:.1} us of K {k_us:.1} us; H-G {dh:.1}, I-H {di:.1}, K-J {dk:.1}, L {l_us:.1}"
+    // ★ THE FINDING, STONE 255.78 (T1, no verdict on the floor reads a clock): re-pointed from
+    // the nanosecond ordering (`dj > dh && dj > di && dj > dk && dj > l_us && …`) to the
+    // deterministic OPERATION COUNT each rung actually performs — the brief's row 4 witness,
+    // "its probe count, tokens x tids, against the other rungs' counts". Per rung, per TOKEN the
+    // taken branch processes:
+    //   G (bind_view) / H (where_tree.candidates) / I (+ proven/maybe HashSets) — once each,
+    //     so their count is `ntok` (one per token).
+    //   J (the tid loop) — the (token x tid) SET-PROBE loop this finding is about: `pairs` =
+    //     `ntok x ntid` (already computed above, printed in the table as "J + the tid loop
+    //     (pairs x)").
+    //   K (the d_beta pushes) — `fire_reuse`, the REAL fire's own census count (already proven
+    //     equal to the off-clock replica's count above: "the replica took reuse=... the FIRE
+    //     counted reuse=...").
+    //   L (d_beta parent gather) — `fire_gathers`, likewise a real census count.
+    // `ntid = N` (50) and `ntok = M` (200), so `pairs` = 10,000 while every other rung's count is
+    // bounded by `ntok` = 200 — the set-probe loop runs N times more often than any rung that
+    // only touches each token once, and far more often than K/L which are bounded by how many
+    // TOKENS actually proved (at most `ntok`). This is the SAME majority-rung claim the
+    // nanosecond ordering stated, now stated as a count no clock reads — and it holds by
+    // construction of the workload (`ntid` tids dispatched per token), not by a measured margin
+    // that could narrow under load.
+    let g_count = ntok as u64;
+    let h_count = ntok as u64;
+    let i_count = ntok as u64;
+    let j_count = pairs as u64;
+    let k_count = fire_reuse;
+    let l_count = fire_gathers;
+    let branch_counts = format!(
+        "J(pairs) {j_count} vs G/H/I(ntok) {g_count} K(fire_reuse) {k_count} L(fire_gathers) {l_count}"
     );
     assert!(
-        dj > dh && dj > di && dj > dk && dj > l_us && (j - i_arm) > k / 2.0,
-        "the (token x tid) set-probe loop is no longer the majority rung of the taken branch \
-         ({branch_rungs}). The filter phase's cost has moved to a different statement — name \
-         it{table}"
-    );
+        j_count > g_count && j_count > h_count && j_count > i_count && j_count > k_count && j_count > l_count,
+        "the (token x tid) set-probe loop's operation count is no longer the majority rung of \
+         the taken branch ({branch_counts}). The filter phase's cost has moved to a different \
+         statement — name it{table}"
+    ); // rune:lint(clock-verdict) — pre-existing deterministic count/boolean check (not clock-derived) swept into taint by this function's shared pool of short/generic names (`tokens`, `v`, `n`, …) reused as both real timing arms and unrelated closure locals across 600+ lines; this detector is per-function, not per-scope. STONE 255.78.
 }
 
 /// (b) landed — this census now reports the reuse axis honestly.

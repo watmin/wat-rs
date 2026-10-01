@@ -87,5 +87,13 @@ fn a_doomed_child_fails_spawn_by_name_instead_of_hanging() {
     assert!(
         elapsed < Duration::from_secs(2),
         "doomed spawn took {elapsed:?} — parent is still holding the ack write end"
-    );
+    ); // rune:lint(clock-verdict) — STOP-3 (STONE 255.78): a genuine clock-based verdict, found
+       // by the wall outside its target (`src/rete/kernel/tests/`). This is a HANG watchdog, not
+       // a performance apportionment — the claim is "does not hang forever", which by
+       // construction has no deterministic (clock-free) witness: a process that is actually
+       // stuck cannot be distinguished from one that is merely slow except by a timeout, and 2s
+       // is a generous bound against an operation that fails by name in microseconds when it
+       // works. T1 ("no verdict on the floor depends on a clock") was ruled against the rete
+       // cost-test family's machine-relative PHASE COMPARISONS; this is a different class this
+       // stone's brief does not cover. Listed, not converted — the builder's call, not mine.
 }

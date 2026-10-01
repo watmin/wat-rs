@@ -574,7 +574,10 @@ fn nested_program_literals_start_on_the_child_path() {
     assert!(
         total >= 141,
         "census was 141 literals; got checked={checked} assembled={assembled} templates={templates} data={data} total={total}"
-    );
+    ); // rune:lint(clock-verdict) — `total` is a deterministic census count, tainted only
+       // because it is destructured alongside `ms` (a wall-clock reading) from the same
+       // `run_gate_on_tree()` tuple; this detector pools taint over the whole tuple pattern and
+       // cannot split its fields. Not clock-derived. STONE 255.78.
 }
 
 #[test]

@@ -119,7 +119,10 @@ fn one_trial(trial_idx: usize) -> Result<(), String> {
                 4,
             )
         };
-        assert_eq!(n, 4, "supervisor pid_pipe write failed");
+        assert_eq!(n, 4, "supervisor pid_pipe write failed"); // rune:lint(clock-verdict) — `n`
+        // here is a `libc::write` byte count, not clock-derived; it is tainted only because this
+        // function reuses the name `n` for an unrelated `libc::read`/`libc::write` byte count AND
+        // this detector pools taint per-FUNCTION, not per-binding-site. STONE 255.78.
         drop(pid_w);
 
         // Exit IMMEDIATELY — no sleep, no special ordering.
@@ -148,7 +151,9 @@ fn one_trial(trial_idx: usize) -> Result<(), String> {
             4,
         )
     };
-    assert_eq!(n, 4, "pid_pipe read failed");
+    assert_eq!(n, 4, "pid_pipe read failed"); // rune:lint(clock-verdict) — same as the write-side
+    // `n` above: a `libc::read` byte count, not clock-derived; pooled by the per-function taint
+    // this detector uses. STONE 255.78.
     let grandchild = i32::from_le_bytes(pid_bytes);
     drop(pid_r);
 

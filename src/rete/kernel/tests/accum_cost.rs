@@ -129,6 +129,13 @@ fn accum_matcher_op_census() {
     // entered). `alpha:leaf-fill-pairs` took the place `compiled:calls` used to occupy in this
     // list on 2026-09-03 (C14) — a rename, not a new mark: the same bulk add, under a name that
     // says which unit it carries.
+    //
+    // `accum:snapshot-alloc-bytes` joined 2026-10-01 (STONE 255.78): the deterministic witness
+    // for `accum_fire_phase_census`'s snapshot-under-1ms claim — a byte-allocation delta around
+    // `alpha_elements` (`fire/pass/accumulate.rs`), reusing `crate::alloc_counter::thread_bytes`.
+    // It fires on EVERY accumulate node this fire visits, leftover or not, so it is present here
+    // even though `accum:rematch` (the OTHER new STONE 255.78 counter, gated to the leftover
+    // branch this axis never takes) is not.
     let mut names: Vec<&str> = rows.iter().map(|(n, _)| *n).collect();
     names.sort_unstable();
     assert_eq!(
@@ -136,6 +143,7 @@ fn accum_matcher_op_census() {
         [
             "accum:index-builds",
             "accum:index-elements",
+            "accum:snapshot-alloc-bytes",
             "alpha:leaf-fill-pairs",
             "bind-card:ELEMENTS",
             "dbeta:calls",
@@ -237,20 +245,55 @@ fn accum_fire_phase_census() {
         fold_ms > 0.0,
         "accum:fold at [200 200] recorded zero — the mark moved"
     );
-    assert!(
-        fold_ms < 25.0,
-        "accum:fold at [200 200] is {fold_ms:.2} ms — DESIGN-STONE-accum-fold-the-wall \
-             requires < 25 ms (was 68.49).{table}"
-    );
     let snap_ms = ns_of("  ├ accum:snapshot") as f64 / 1e6;
     assert!(
         snap_ms > 0.0,
         "accum:snapshot at [200 200] recorded zero — the mark was deleted"
     );
-    assert!(
-        snap_ms < 1.0,
-        "accum:snapshot at [200 200] is {snap_ms:.2} ms — \
-             DESIGN-STONE-gather-no-snapshot requires < 1 ms (was 5.56).{table}"
+
+    // DETERMINISTIC WITNESSES (STONE 255.78 — T1, no verdict on the floor reads a clock). Same
+    // [200 200] world/driver `accum_phase_census` builds above, run once more with COUNTING
+    // armed instead of timing — fully deterministic (`compile`+`fire-rules` on fixed input).
+    let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("accum-axis world should freeze");
+    let staged = "(:apx::seed (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :apx)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")]) 200 200)".to_string();
+    let src = format!("(:wat::core::match (:wat::rete::fire-rules {staged}) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])");
+    let ast = crate::parse_one!(src.as_str()).expect("parse the counted fire driver");
+    let (_fired, counts) = super::with_count_census(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("counted fire raised at [200 200]: {e:?}"))
+            .value_owned()
+    });
+    let count_of = |name: &str| -> u64 {
+        counts.iter().find(|(n, _)| *n == name).map_or(0, |(_, c)| *c)
+    };
+
+    // ROW 5 — the 68.49 ms mechanism `DESIGN-STONE-accum-fold-the-wall` names is the per-element
+    // REMATCH (`fact_holds_under`, counted at its one call site in `fire/pass/accumulate.rs` as
+    // `accum:rematch`). The fast slot-fold path (`fold_bucket`) never calls it. This [200 200]
+    // world's accum rules carry no leftover `SeedCmp`, so the fast path is taken and the count
+    // must read exactly 0 — the deterministic form of "has not regressed to the rematch
+    // mechanism", independent of how fast or slow a rematch would run on this machine.
+    let rematch_calls = count_of("accum:rematch");
+    assert_eq!(
+        rematch_calls, 0,
+        "accum:fold at [200 200] called the per-element rematch mechanism \
+         (`fact_holds_under`) {rematch_calls} times — DESIGN-STONE-accum-fold-the-wall's 68.49 \
+         ms mechanism has returned; the fast slot-fold path (`fold_bucket`) is no longer being \
+         taken for this leftover-free world.{table}"
+    );
+
+    // ROW 6 — `DESIGN-STONE-gather-no-snapshot` removed a `wm.alpha[id].clone()` from the
+    // `accum:snapshot` mark; today it only borrows (`alpha_elements`). A clone would show up as
+    // allocated BYTES, not as a duration — `accum:snapshot-alloc-bytes` sums
+    // `thread_bytes()`'s before/after delta across every accumulate node this fire visits
+    // (`fire/pass/accumulate.rs`), and must be exactly 0: the snapshot never allocates.
+    let snapshot_alloc_bytes = count_of("accum:snapshot-alloc-bytes");
+    assert_eq!(
+        snapshot_alloc_bytes, 0,
+        "accum:snapshot at [200 200] allocated {snapshot_alloc_bytes} bytes — \
+         DESIGN-STONE-gather-no-snapshot's clone has returned; the snapshot mark must only ever \
+         borrow `wm.alpha[id]`, never allocate.{table}"
     );
 }
 

@@ -414,16 +414,50 @@ fn drop_memories_cost_split() {
     // (`binding_repr_microbench`'s doc, which still cites that figure). It is now UNDER 5
     // MICROSECONDS for the same 40,200-element workload — the cost this test exists to split
     // no longer exists. A liveness assert cannot notice that, in either direction.
-    //
-    // So the gate LOCKS IN THE WIN instead: drop stays cheap. 1 ms is ~40x below the historical
-    // figure and ~200x above the current one, so it cannot flake on a loaded runner and still
-    // fires if clearing these four structures ever becomes expensive again.
     assert!(d > 0.0, "drop-all recorded 0 ns — the loop never ran");
+
+    // DETERMINISTIC WITNESS (STONE 255.78 — T1, no verdict on the floor reads a clock): "stays
+    // O(1)" means `clear()` does not REALLOCATE, which is an allocation-BYTE question, not a
+    // duration one. Reuses the existing `CountingAllocator` instrument
+    // (`crate::alloc_counter::thread_bytes`, already wired for the session memory ceiling) —
+    // no new counter. Measured at TWO different N (the full 40,200-element cell and a
+    // 10x-smaller one): `Vec::clear()` never grows capacity, so the combined clear's own byte
+    // delta must be <= 0 (it can only free, never allocate) AT BOTH SCALES. The historical
+    // defect this split exists to have killed was a REBUILD (new Vecs instead of `.clear()`),
+    // which is exactly an allocation this witness would see — at any N, not just the cell's own.
+    fn alloc_delta_of_combined_clear(
+        n: usize,
+        facts: &[Value],
+        gkey: &Value,
+        vkey: &Value,
+    ) -> i64 {
+        let (mut alpha, mut pool) = build_alpha(facts, gkey, vkey);
+        let mut match_pool: Vec<(u32, i64)> = (0..n).map(|i| (i as u32, 1i64)).collect();
+        let mut tokens: Vec<super::Token> = (0..n)
+            .map(|_| super::Token {
+                matches: super::empty_span(),
+                binds: super::empty_span(),
+            })
+            .collect();
+        let before = crate::alloc_counter::thread_bytes();
+        alpha.clear();
+        tokens.clear();
+        pool.clear();
+        match_pool.clear();
+        black_box(alpha.len() + tokens.len() + pool.len() + match_pool.len());
+        crate::alloc_counter::thread_bytes() as i64 - before as i64
+    }
+
+    const N0: usize = N / 10;
+    let delta_full = alloc_delta_of_combined_clear(N, &facts, &gkey, &vkey);
+    let delta_small = alloc_delta_of_combined_clear(N0, &facts[..N0], &gkey, &vkey);
     assert!(
-        ms(d) < 1.0,
-        "round:drop-memories regressed to {:.2} ms for {N} elements — it was 41 ms historically \
-         and is ~0.00 ms today; anything approaching 1 ms means clear() stopped being O(1)",
-        ms(d)
+        delta_full <= 0 && delta_small <= 0,
+        "the combined clear() allocated {delta_full} bytes at N={N} and {delta_small} bytes at \
+         N={N0} — clear() must only ever FREE, never allocate; a positive delta at either scale \
+         means one of these four structures stopped being cleared in place and started being \
+         rebuilt, which is the O(N) mechanism (41 ms historically) this split exists to have \
+         killed"
     );
 
     println!(
