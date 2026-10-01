@@ -120,21 +120,53 @@
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
       ;; 8-custom — a non-built-in head is a USER fold fn. Gather the ?var values into a
-      ;; (Vector :- [i64]), build the call `(user-fn (:wat::core::PersistentVector v0 v1 …))`
+      ;; (PersistentVector :- [T]), build the call `(user-fn (wat.type/PersistentVector :- [T] v0 v1 …))`
       ;; via quasiquote (~acc-hd splices the head; ~@vals splices the literal values into a
       ;; PV constructor), then eval-ast! it. The result (any Value) assocs into the binding.
       ;; The compile fence (compile-condition) has already proven the fn is pure∧det∧total∧rete.
+      ;;
+      ;; arc 255 Stone 255.72 (the wall has no exceptions, A1) — T is the fold's OWN declared
+      ;; parameter type, read off its signature at run time (`signature-of-defn` + `extract-arg-types`,
+      ;; measured against this oracle's own differential test's real fold,
+      ;; `:w::sum-of-squares [xs <- (PersistentVector :- [i64])] -> i64`: readable, returns the
+      ;; element type verbatim). A2 (`wat.type/Value` as the element type) was rejected: a fold
+      ;; declared over i64 receiving a `(PersistentVector :- [Value])` would hide a mismatch.
       (:else
-       (:wat::core::let [var  (:wat::core::ast-name
-                                (:wat::core::Option/expect  
-                                  (:wat::core::get acc-ch 1)
-                                  "accumulate-pass-for-token: custom fold missing ?var"))
-                         vals (:wat::rete::acc::gather-vals var gathered)
+       (:wat::core::let [var        (:wat::core::ast-name
+                                       (:wat::core::Option/expect
+                                         (:wat::core::get acc-ch 1)
+                                         "accumulate-pass-for-token: custom fold missing ?var"))
+                         vals       (:wat::rete::acc::gather-vals var gathered)
+                         ;; `acc-hd` is a REIFIED :wat::WatAST value (not a literal keyword AST at
+                         ;; this call site, and not a `Value::Keyword`), so `signature-of-defn`
+                         ;; (which dispatches on the argument's own literal-keyword shape, else
+                         ;; evals and requires a `Value::Keyword`/named fn) cannot take it directly
+                         ;; — measured: "expected :wat::core::keyword or named function ...,
+                         ;; got wat::WatAST". Round-trip through its name string instead, same
+                         ;; `ast-name` + colon-strip + `keyword::from-string` idiom `wat/bracket.wat`
+                         ;; and this file's own `var` extraction already use.
+                         acc-kw     (:wat::keyword::from-string
+                                      (:wat::string::subs acc-nm 1 (:wat::string::length acc-nm)))
+                         acc-sig    (:wat::core::Option/expect
+                                      (:wat::runtime::signature-of-defn acc-kw)
+                                      "accumulate-pass-for-token: custom fold has no signature")
+                         acc-argtys (:wat::runtime::extract-arg-types acc-sig)
+                         param-ty   (:wat::core::Option/expect
+                                      (:wat::core::get acc-argtys 0)
+                                      "accumulate-pass-for-token: custom fold declares no parameter")
+                         param-ch   (:wat::core::ast->children param-ty)
+                         bracket    (:wat::core::Option/expect
+                                      (:wat::core::get param-ch 2)
+                                      "accumulate-pass-for-token: custom fold's parameter type has no :- [T] bracket")
+                         bracket-ch (:wat::core::ast->children bracket)
+                         elem-ty    (:wat::core::Option/expect
+                                      (:wat::core::get bracket-ch 0)
+                                      "accumulate-pass-for-token: custom fold's parameter type bracket is empty")
                          call (:wat::core::quasiquote
                                 ((:wat::core::unquote acc-hd)
-                                 (:wat::core::PersistentVector
+                                 (wat.type/PersistentVector :- [(:wat::core::unquote elem-ty)]
                                    (:wat::core::unquote-splicing vals))))
-                         v    (:wat::core::Result/expect  
+                         v    (:wat::core::Result/expect
                                 (:wat::eval-ast! call)
                                 "accumulate-pass-for-token: custom fold eval failed")
                          nb   (:wat::map::assoc tok-binds result-var v)

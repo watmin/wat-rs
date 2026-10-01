@@ -72,7 +72,13 @@
                    [prn <- ~peer-node] -> wat.type/nil
                    (:wat::core::let
                      [pair (:wat::kernel::recv prn)
-                      out  (:wat::core::Tuple (:wat::core::first pair)
+                      ;; arc 255 Stone 255.72 (the wall has no exceptions) — splice the probe's
+                      ;; own concrete types into the bracket, as wat/bracket.wat:491's `~ret-ty`
+                      ;; precedent does. The index is i64 by this runner's own protocol (the
+                      ;; Peer's inbound/outbound pairs are `(i64, T)`); `~ret-ty` is the raw
+                      ;; type AST already extracted off the reified work-fn's declared return
+                      ;; (`ret-ty` above), not re-derived by hand.
+                      out  (wat.type/Tuple :- [wat.type/i64 ~ret-ty] (:wat::core::first pair)
                                               (:probe::__work (:wat::core::second pair)))
                       _    (:wat::core::match (:wat::kernel::send prn out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                      (:probe::__runner prn)))

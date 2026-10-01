@@ -9,8 +9,15 @@
 ;;                         codemod's own leaf-conversion door re-spells primitives to wat.type/X).
 ;;   :stop1              — BRIEF's STOP-1: the element type is genuinely a design decision (a
 ;;                         macro template variable substituted differently per call site, or a
-;;                         rule-dependent runtime binding). Left unconverted. Exactly 5 sites —
-;;                         at the brief's own "five or fewer" boundary, so this is not a STOP.
+;;                         rule-dependent runtime binding). Left unconverted. STALE COUNT: this
+;;                         said "exactly 5 sites" when first written; AMEND-2 (2026-10-01) found
+;;                         3 of those 5 had their type variable in scope after all and converted
+;;                         them to :typed, leaving exactly 2 (named in WEIGH-STONE-255.71's close).
+;;                         Stone 255.72 ("the wall has no exceptions") converted both of those —
+;;                         `wat-scripts/probes/arc-170/probe-s3b-astsplice.wat` and
+;;                         `wat/rete/oracle/accum-pass.wat` — so **zero rows below carry `:stop1`**;
+;;                         this bullet is kept only to document the kind's meaning for the table's
+;;                         other `kind`s' readers, not because any row still uses it.
 ;;   :legacy-shape       — NOT a genuinely untyped call: a pre-`:-`-marker positional-type-keyword
 ;;                         shape (`(Head TypeKeyword items...)`, no `:-`), already illegal today
 ;;                         via a DIFFERENT, pre-existing wall (arc 109 stone 3, Vector/HashSet/
@@ -377,10 +384,11 @@
    :reason "self <- (Peer :- [(Tuple :- [i64 i64]) (Tuple :- [i64 i64])]) — concrete (non-generic) pool-runner; `out` is the 2nd (reply) shape"}
   {:head ":wat::core::Tuple"
    :file "wat-scripts/probes/arc-170/probe-s3b-astsplice.wat"
-   :line 75
+   :line 81
    :col 28
-   :kind :stop1
-   :reason "`~peer-node`'s type is built at RUN TIME via string-concat + :wat::core::keyword-node AST splicing (the whole point of this probe — \"derive-and-splice\"), never a static `:-` bracket annotation in the template text this stone can read a fixed type off of"}
+   :kind :typed
+   :type "(wat.type/Tuple :- [wat.type/i64 ~ret-ty])"
+   :reason "arc 255 Stone 255.72 (the wall has no exceptions): converted, not left bracket-less. `~ret-ty` is the raw type AST the probe already extracts off the reified work-fn's declared return (`ret-ty`, bound earlier in the same `let`), spliced via quasiquote exactly as wat/bracket.wat:491's `~ret-ty` precedent does; the index slot is the literal `wat.type/i64` this runner's own (i64,T) protocol always uses. Line moved 75→81 (comment added above the site); behaviour unchanged — the probe fails identically before and after this edit, for a DIFFERENT, pre-existing reason unrelated to this stone (see SCORE-STONE-255.72)."}
   {:head ":wat::core::Tuple"
    :file "wat-scripts/probes/arc-170/probe-s3c-rendezvous.wat"
    :line 65
@@ -1146,10 +1154,11 @@
    :reason "empty-pm seeds Session's alpha/beta/production/query-memory fields, all bare wat.type/PersistentMap; same convention as :1177"}
   {:head ":wat::core::PersistentVector"
    :file "wat/rete/oracle/accum-pass.wat"
-   :line 135
+   :line 167
    :col 34
-   :kind :stop1
-   :reason "custom-accumulator emission: the PersistentVector's elements are ~@vals, the query-variable bindings gathered by :wat::rete::acc::gather-vals across matching facts for a user-authored rule; the element type is genuinely rule-dependent (whichever field/value the rule's own accumulator var binds) and is not statically known to this emitting code — a design decision, not a read"}
+   :kind :typed
+   :type "(wat.type/PersistentVector :- [(:wat::core::unquote elem-ty)])"
+   :reason "arc 255 Stone 255.72 (the wall has no exceptions, A1): converted, not left bracket-less. `elem-ty` is read off the custom fold's OWN declared signature at run time (`:wat::runtime::signature-of-defn` + `:wat::runtime::extract-arg-types`, measured against this oracle's own differential test's real fold `:w::sum-of-squares [xs <- (PersistentVector :- [i64])] -> i64` — readable, returns the element type verbatim) — not a design decision guessed at `wat.type/Value` (A2, rejected: would hide a mismatch for a fold declared over a narrower type). Line moved 135→167 (the signature-lookup lets added above); behaviour unchanged — `cargo test --release --test rete differential_custom_fold/_value/_empty` and `fence_rejects_impure_fold` all pass identically before and after (see SCORE-STONE-255.72)."}
   {:head ":wat::core::PersistentMap"
    :file "wat/rete/oracle/accum-pass.wat"
    :line 194
