@@ -268,3 +268,54 @@ pass — the coordinator runs those when weighing.
   header gained the "pins a known gap, rewrite on red" paragraph.
 - `wat-scripts/probes/arc-170/root-gapA.wat` — 2 string asserts → 2 AST-node asserts.
 - This file (§7 appended).
+
+## 8. Coordinator correction — ann-form is a retired crutch; pin by a typed consumer
+
+**The builder's ruling: types are headers on function definitions; a dynamic value is pinned by
+a TYPED CONSUMER, never by `ann-form` ascription — arc 258 retired `ann-form` as a crutch.** §7's
+own round-trip fix for `probe-edn.wat` used `(:wat::core::ann-form (:wat::edn::read rendered)
+(Vector :- [i64]))` to pin the polymorphic `edn::read` result — exactly the retired pattern.
+
+**Fix:** a small `defn`, `:probe::check-roundtrip`, whose declared parameter headers are
+`(wat.type/Vector :- [wat.type/i64])` for both `parsed` and `original`, and whose body is the
+`assert-eq`. Calling it with `(:wat::edn::read rendered)` as the `parsed` argument pins the
+dynamic value's type via the typed consumer's own signature — no `ann-form` anywhere in the file.
+
+```
+(:wat::core::defn :probe::check-roundtrip
+  [parsed <- (wat.type/Vector :- [wat.type/i64])  original <- (wat.type/Vector :- [wat.type/i64])]
+  -> wat.type/nil
+  (:wat::test::assert-eq parsed original))
+```
+
+**Grepped `cf4d5b00e^..HEAD`'s probe diff for every `ann-form` this stone added** (`git diff
+cf4d5b00e^..HEAD -- 'wat-scripts/probes/**/*.wat' | grep '^+.*ann-form'`): exactly ONE code-level
+`ann-form` was added by this stone — the `probe-edn.wat` round-trip line just fixed. Two other
+`ann-form` hits in the full-file grep are NOT additions:
+
+- `probe-compound-upcast.wat` line 46's `ann-form` call is PRE-EXISTING (unchanged context in
+  the diff) — it is that probe's own SUBJECT (the claim IS "does a Tuple up-cast via ann-form",
+  arc 255.74's own positive gate), not a pinning device this stone introduced. My added "CLAIM
+  (exit 0)" line merely describes it in prose; left alone.
+- `probe-c2-narrow-2param-plainrecord.wat` / `probe-c2-narrow-multisurface.wat` /
+  `probe-c2-nonparam-baseline.wat` each have a PRE-EXISTING `ok (:wat::core::ann-form ... :wat::core::i64)`
+  line (unchanged context in the diff, present before this stone) — I only added `(assert-eq ok
+  42)` after it; the `ann-form` itself predates 255.76 and is out of this correction's scope
+  (it narrows a dispatch result to drive the probe's own surface-satisfaction claim, not a
+  device I added to pin an assertion).
+- `probe-m1-erase-only.wat`'s `ann-form` (unchanged context) is that probe's entire SUBJECT —
+  "can a concrete Address' be erased to bare Address' via ann-form" — not a pinning device.
+
+No other `ann-form` exists in the 39 probes' diff.
+
+**Targeted gate, re-run after the fix** (`cargo nextest run --release -E
+'test(/every_probe_runs/)'`, foreground, only gate run per instruction — no floor, no clippy):
+```
+Summary [   4.193s] 69 tests run: 69 passed, 6291 skipped
+```
+
+### Files touched (this correction pass)
+
+- `wat-scripts/probes/arc-170/probe-edn.wat` — `ann-form`-pinned round trip replaced by a typed-
+  consumer (`:probe::check-roundtrip`) pin.
+- This file (§8 appended).
