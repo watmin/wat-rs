@@ -16664,7 +16664,7 @@ mod tests {
                       p (:wat::holon::coincident? aa bb)
                       expl
                         (:wat::holon::coincident-explain aa bb)]
-                     (:wat::core::Tuple p
+                     (:wat::core::Tuple :- [:wat::core::bool :wat::core::bool] p
                        (:wat::core::struct-field expl 4)))"#
             );
             let result = eval_with_ctx(&probe, 1024).unwrap();
@@ -17658,7 +17658,7 @@ mod tests {
         // `require_vec` and REJECT a `List` outright; it accepts one now, same result shape as
         // the Vector case immediately above.
         let src = r#"
-            (:wat::seq::window (:wat::core::List 1 2 3 4) 2)
+            (:wat::seq::window (:wat::core::List :- [:wat::core::i64] 1 2 3 4) 2)
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(outer) => {
@@ -18725,7 +18725,7 @@ mod tests {
         // List + Vector inputs.
         let src = r#"
             (:wat::seq::zip
-              (:wat::core::List 1 2 3)
+              (:wat::core::List :- [:wat::core::i64] 1 2 3)
               (:wat::core::Vector :- [:String] "a" "b"))
         "#;
         match eval_expr(src).unwrap() {
@@ -18792,7 +18792,7 @@ mod tests {
         // Arc 255 Stone HOME-9, acceptance row 2 — the SEQABLE PROOF: `remove-at` used to call
         // `require_vec` and REJECT a `List`; it accepts one now, same result as the Vector case
         // immediately above.
-        match eval_expr("(:wat::seq::remove-at (:wat::core::List 10 20 30) 1)").unwrap() {
+        match eval_expr("(:wat::seq::remove-at (:wat::core::List :- [:wat::core::i64] 10 20 30) 1)").unwrap() {
             Value::Vec(items) => {
                 let ns: Vec<i64> = items
                     .iter()

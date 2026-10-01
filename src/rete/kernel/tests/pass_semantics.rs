@@ -272,8 +272,8 @@ fn root_join_seeds_one_token_per_element() {
             &world,
             "(:wat::core::let \
                [cond  (:wat::core::quote (:user::Temp (?t :- :value) (:wat::rete::i64::> ?t 20)))\
-                rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))\
-                sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
+                rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector :- [:wat::WatAST] cond) :rhs (:wat::core::PersistentVector :- [:wat::WatAST]))\
+                sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temp :value 25)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])]\
               sess1)"
         );
@@ -369,8 +369,8 @@ fn hash_join_produces_one_token_on_same_loc() {
             "(:wat::core::let \
                [c1    (:wat::core::quote (:user::Temperature (?loc :- :location) (?t :- :celsius)))\
                 c2    (:wat::core::quote (:user::WindSpeed (?loc :- :location) (?w :- :kph)))\
-                rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
-                sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
+                rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector :- [:wat::WatAST] c1 c2) :rhs (:wat::core::PersistentVector :- [:wat::WatAST]))\
+                sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
                 sess2 (:wat::core::match (:wat::rete::insert sess1 (:user::WindSpeed :kph 45 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])]\
               sess2)"
@@ -484,8 +484,8 @@ fn hash_join_drops_on_mismatched_loc() {
             "(:wat::core::let \
                [c1    (:wat::core::quote (:user::Temperature (?loc :- :location) (?t :- :celsius)))\
                 c2    (:wat::core::quote (:user::WindSpeed (?loc :- :location) (?w :- :kph)))\
-                rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
-                sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
+                rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector :- [:wat::WatAST] c1 c2) :rhs (:wat::core::PersistentVector :- [:wat::WatAST]))\
+                sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
                 sess2 (:wat::core::match (:wat::rete::insert sess1 (:user::WindSpeed :kph 45 :location \"Bergen\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])]\
               sess2)"
@@ -560,8 +560,8 @@ fn hash_join_no_cross_loc_leakage() {
             "(:wat::core::let \
                [c1 (:wat::core::quote (:user::Temperature (?loc :- :location) (?t :- :celsius)))\
                 c2 (:wat::core::quote (:user::WindSpeed (?loc :- :location) (?w :- :kph)))\
-                rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
-                s0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
+                rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector :- [:wat::WatAST] c1 c2) :rhs (:wat::core::PersistentVector :- [:wat::WatAST]))\
+                s0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 s1 (:wat::core::match (:wat::rete::insert s0 (:user::Temperature :celsius 15 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
                 s2 (:wat::core::match (:wat::rete::insert s1 (:user::Temperature :celsius 10 :location \"Bergen\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
                 s3 (:wat::core::match (:wat::rete::insert s2 (:user::WindSpeed :kph 45 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
@@ -776,7 +776,7 @@ fn seed_leaf_occupancy_differential_predicts_a_mixed_class() {
     let (_fired, diffs) = super::with_leaf_occ_diff(|| {
         eval_in(&world,
           "(:wat::core::let \
-             [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :c16) (:wat::core::PersistentVector (:c16::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message \"mnt\")])\
+             [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :c16) (:wat::core::PersistentVector :- [:wat::rete::Query] (:c16::q))) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message \"mnt\")])\
               s1 (:wat::core::match (:wat::rete::insert s0 (:c16::as-record (:c16::Box :k 0 :v 100))) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message \"c\")])\
               s2 (:wat::core::match (:wat::rete::insert s1 (:c16::as-record (:c16::Box :k 1 :v \"x\"))) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message \"c\")])\
               s3 (:wat::core::match (:wat::rete::insert s2 (:c16::as-record (:c16::Box :k 2 :v 300))) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message \"c\")])]\

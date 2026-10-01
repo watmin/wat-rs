@@ -527,7 +527,7 @@ fn fanout_three_leftover_split() {
             .expect("fanout three-leftover world should freeze");
         let compile = if with_query {
             "(:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :fan) \
-              (:wat::core::PersistentVector (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])"
+              (:wat::core::PersistentVector :- [:wat::rete::Query] (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])"
         } else {
             "(:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :fan)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])"
         };

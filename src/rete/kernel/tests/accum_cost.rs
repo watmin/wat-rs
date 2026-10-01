@@ -321,7 +321,7 @@ fn accum_query_harvest_split() {
             .expect("accum query-harvest world should freeze");
         let compile = if with_query {
             "(:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :apx) \
-              (:wat::core::PersistentVector \
+              (:wat::core::PersistentVector :- [:wat::rete::Query] \
                 (:apx::q-CountF) (:apx::q-SumF) (:apx::q-MinF) \
                 (:apx::q-MaxF) (:apx::q-ExistsF))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])"
         } else {

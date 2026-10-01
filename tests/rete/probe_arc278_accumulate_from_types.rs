@@ -168,7 +168,7 @@ fn busy_count(with_threshold: bool, acc: &str, gate: &str, min: i64, readings: &
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w3)\n\
-             session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w3::q-Busy))) {compile_arm})\n\
+             session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector :- [:wat::rete::Query] (:w3::q-Busy))) {compile_arm})\n\
              session (:wat::core::match (:wat::rete::insert session (:w3::Station :location \"Oslo\")) {insert_arm})\n\
 {threshold_insert}\
 {reading_inserts}\

@@ -1500,7 +1500,7 @@ fn n3_leaf_set_vs_occupancy() {
             &world,
             "(:wat::core::let \
                [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :n3) \
-                     (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) \
+                     (:wat::core::PersistentVector :- [:wat::rete::Query] (:n::q-Bad) (:n::q-Ok) \
                        (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 s1 (:wat::core::match (:wat::rete::insert s0 (:n3::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
                 s2 (:wat::core::match (:wat::rete::insert s1 (:n3::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
