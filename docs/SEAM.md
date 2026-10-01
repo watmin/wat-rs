@@ -23,7 +23,9 @@ git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # t
 
 **Stamp: written against HEAD `b78414eaa` (2026-10-01).** `main` == `origin/main` at that commit.
 Release floor at `4969e1907`: **6235 passed / 24 skipped**, clippy 0, census 202 non-zero of 2268, ledger **148**, ignores 18.
-⚠ **255.73 landed after this stamp** (`9a54f673c`, WEIGH accepted): floor **6236**/6236. Its probe census awaits the builder's ruling.
+⚠ **Landed after this stamp:** 255.73 (`9a54f673c`) and 255.74 (a key must be data, D3: `:< Equatable`; `2ffcdfa3e`),
+floor **6257**/6257 at `2ffcdfa3e`. Next, by the builder's order: P2 (a gate runs every probe against its `EXPECT`), then
+cutover stone 3.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
@@ -103,7 +105,8 @@ T-door) · 5 function and form heads · 6 printers and goldens · 7 the `::` wal
   which corrupt data silently (integers past `i64` become floats; non-ASCII keywords are byte-corrupted).
 - `where_tree_branch_differential`'s `classify()` reads `.wat` as raw text; it has been patched for spelling twice.
 - The probe census (`WEIGH-STONE-255.73-…`): 82 of 83 probes are run by nothing; 21 crash today (one a Rust panic naming a
-  drifted invariant); only 21 of 83 declare an `EXPECT`. Builder's ruling owed.
+  drifted invariant, cured by 255.74); only 21 of 83 declare an `EXPECT`. Ruled: P2, next.
+- Rete's internal indexes hash `Value`s with neither key guard (`WEIGH-STONE-255.74-…` § Open finding).
 
 ### Merge hazards
 
