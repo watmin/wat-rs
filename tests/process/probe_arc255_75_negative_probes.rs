@@ -1,17 +1,22 @@
 //! Arc 255 Stone 255.75 — "every probe runs" (ruling E3): "A probe that must fail is a
-//! `.wat.bad` with a driven test naming its error." This file drives the ten probes
+//! `.wat.bad` with a driven test naming its error." This file drives the nine probes
 //! whose claim IS a refusal/crash.
 //!
-//! AMEND: all ten were first renamed `.wat.bad` in `wat-scripts/probes/`, per the brief's
-//! literal reading of E3 — but `tests/lint/every_wat_bad_fixture_actually_fails.rs` (pre-existing,
-//! not this stone's) drives `startup_from_file` on every `.wat.bad` and requires it to refuse AT
-//! STARTUP; all ten of these fail only at RUNTIME (division by zero, a dispatch miss, a refused
-//! builtin call, …), so they `startup_from_file` CLEAN and that gate correctly red-flagged all
-//! ten: "the file is a valid program and the NAME is wrong — git mv it to `.wat`". Per that
-//! remedy, each moved to a plain `.wat` under `tests/process/fixtures/` (OUT of
+//! AMEND: all ten (at the time) were first renamed `.wat.bad` in `wat-scripts/probes/`, per the
+//! brief's literal reading of E3 — but `tests/lint/every_wat_bad_fixture_actually_fails.rs`
+//! (pre-existing, not this stone's) drives `startup_from_file` on every `.wat.bad` and requires
+//! it to refuse AT STARTUP; all ten failed only at RUNTIME (division by zero, a dispatch miss, a
+//! refused builtin call, …), so they `startup_from_file` CLEAN and that gate correctly
+//! red-flagged all ten: "the file is a valid program and the NAME is wrong — git mv it to
+//! `.wat`". Per that remedy, each moved to a plain `.wat` under `tests/process/fixtures/` (OUT of
 //! `wat-scripts/probes/`, so the new "every probe runs, exit 0" gate does not see it), each with
-//! its own header DISPOSITION/AMEND note. Per probe below: what it claims, why it must fail, and
-//! what the assertion pins.
+//! its own header DISPOSITION/AMEND note. One of the ten, `probe-m1-fix-revoke.wat`, was then
+//! RETIRED (coordinator correction, 2026-10-01): its claim pins a specific raw substrate outcome
+//! (a clean `Closed` EOF) that the M1-TEETH design itself treats as equivalent to `Lost`/`Stopped`
+//! (all three fold to `Outcome.Bounced` — `tests/services/probe_arc170_m1_teeth_revoked.wat:112-117`,
+//! per `DESIGN-STONE-M1-TEETH-revoke-refusal.md`), exactly as `probe-m1-cf-norevoke.wat` was
+//! retired — see the brief's dispositions #11/#12 in the SCORE. Nine remain here. Per probe
+//! below: what it claims, why it must fail, and what the assertion pins.
 //!
 //! `needle_count` mirrors `tests/types/probe_arc255_74_key_must_be_data.rs`'s own
 //! `needle_count` shape — `.matches(needle).count()`, never a loose `.contains()` inside
@@ -197,42 +202,6 @@ fn m1_addr_roundtrip_is_refused_by_the_capability_wall() {
     );
 }
 
-// ─── probe-m1-fix-revoke.wat.bad — revoke is load-bearing: dial #2 bounces, prober dies ──
-
-#[test]
-fn m1_fix_revoke_bounces_dial_2() {
-    let (code, stdout, stderr) = run("tests/process/fixtures/probe-m1-fix-revoke.wat");
-    assert_ne!(
-        code,
-        Some(0),
-        "with the revoke restored, dial #2 must be bounced and the owner's recv' must raise: {stderr}"
-    );
-    // AMEND (floor red, 2026-10-01, full concurrent floor only — never in isolation): measured
-    // "disconnected" instead of "recv': peer closed". `src/kernel/error.rs` traces `"disconnected"`
-    // to `LociDiedError::Disconnected` — a clean-EOF kernel outcome — and the captured panic has
-    // ONLY the `:user::main` frame (no bracket/collect-loop nesting), which matches exactly ONE
-    // unmatched call in this probe: `_r (:probe::echo/revoke eh …)` is not wrapped in a
-    // `:wat::core::match` at all, so if the echo SERVICE's own control channel disconnects first
-    // (plausible under ~16-way parallel nextest process-spawn pressure — the floor's own Summary
-    // this run carried 14 SLOW markers past 15s, three past 90–300s, evidence of real system
-    // load, not a guess), that raises directly, before the probe's documented revoke→bounce→EOF
-    // path is ever reached. Both outcomes are still FAILURES (non-zero exit, no
-    // "NOREVOKE-REACHED-END" print) — a revoke REGRESSION (wrongly admitting dial #2) produces
-    // NEITHER string, so accepting both preserves the regression-catching power the probe exists
-    // for while not over-pinning which of two legitimate failure paths a resource-pressured run
-    // hits first. Never silently widened past these two known, traced kernel/probe outcomes.
-    assert!(
-        needle_count(&stderr, "recv': peer closed") >= 1 || needle_count(&stderr, "disconnected") >= 1,
-        "the raised message must be the peer-closed EOF the bounce produces, or the kernel's own \
-         Disconnected (the unmatched echo/revoke call's failure mode under load): {stderr}"
-    );
-    assert_eq!(
-        needle_count(&stdout, "NOREVOKE-REACHED-END"),
-        0,
-        "a regression (revoke not load-bearing) would print this — it must never appear: {stdout}"
-    );
-}
-
 // ─── probe-s1-impure-gate.wat.bad — fn-forms never leaks an impure Process capture ─────
 
 #[test]
@@ -272,23 +241,35 @@ fn generic_shipped_runner_cannot_claim_the_abstract_type() {
         code,
         Some(0),
         "a pool-runner declared generic over [A B] cannot call the monomorphic __work \
-         (reified from a concrete i64->i64 fn) and claim its result has the abstract type B: {stderr}"
+         (reified from a concrete i64->i64 fn) and claim its argument/result has the abstract \
+         type B: {stderr}"
+    );
+    // AMEND (coordinator correction, 2026-10-01): the fixture's RecvOutcome bare-bind +
+    // missing SendOutcome.Stopped (255.73's defect class) is now repaired in place, same as the
+    // other five probes — the pool-runner's body matches on `recv` and the `send` match carries
+    // the Stopped arm. That repair also UN-MASKS a 3rd generic-class error
+    // (`:bracket::__work`'s own parameter check) that the bare-bind's own type error had been
+    // hiding: 5 originally measured → 3 remain, all load-bearing, none from the repaired class.
+    assert!(
+        needle_count(&stderr, "3 type-check errors") >= 1,
+        "the child's own startup type-check must report exactly the 3 load-bearing \
+         generic-vs-monomorphic errors, with the RecvOutcome-bare-bind/Stopped-arm class \
+         repaired: {stderr}"
     );
     assert!(
-        needle_count(&stderr, "5 type-check errors") >= 1,
-        "the child's own startup type-check must report all 5 errors: {stderr}"
+        needle_count(&stderr, ":wat::core::Tuple: parameter #2 expects :B; got :wat::core::i64") >= 1,
+        "the Tuple constructor must refuse the abstract-B slot (out's 2nd element): {stderr}"
     );
     assert!(
-        needle_count(&stderr, "parameter #2 expects :B") >= 1,
-        "the Tuple constructor must refuse the abstract-B slot: {stderr}"
+        needle_count(&stderr, ":bracket::__work: parameter #1 expects :wat::core::i64; got :B") >= 1,
+        "the monomorphic __work call must refuse the abstract-B argument: {stderr}"
     );
     assert!(
-        needle_count(&stderr, "got :wat::core::i64") >= 1,
-        "the offending value must be named as the concrete i64 __work actually returns: {stderr}"
-    );
-    assert!(
-        needle_count(&stderr, ":wat::core::Tuple") >= 1,
-        "the error must name the Tuple constructor refusing the abstract-B slot: {stderr}"
+        needle_count(
+            &stderr,
+            ":wat::kernel::send: parameter payload expects :(wat::core::i64,A); got :(wat::core::i64,B)"
+        ) >= 1,
+        "send must refuse out's (i64,B) payload against self's declared (i64,A) send type: {stderr}"
     );
 }
 
