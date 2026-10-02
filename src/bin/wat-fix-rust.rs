@@ -188,10 +188,15 @@ fn main() -> ExitCode {
     }
 
     println!(
-        "[wat-fix-rust] {} file(s) scanned, {} changed, {} edit(s) applied, {} refused",
+        "[wat-fix-rust] {} file(s) scanned, {} changed, {} edit(s){}, {} refused",
         paths.len(),
         total_files_changed,
         total_edits,
+        // Stone 255.81 — a dry run COUNTS edits; it never WRITES one. The label said
+        // "applied" unconditionally, including under `--dry-run`, where `std::fs::write`
+        // above is never reached — a label that states the wrong conclusion about its own
+        // run (255.80's SCORE named this; fixed here).
+        if args.dry_run { " found" } else { " applied" },
         total_refused
     );
     if !refused_report.is_empty() {

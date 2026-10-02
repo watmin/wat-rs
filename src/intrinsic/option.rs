@@ -59,7 +59,7 @@ use crate::span::Span;
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     opt (:wat::core::Option :- [T]) the option unwrapped
-/// @arg     msg :wat::core::String the message evaluated and raised if `opt` is `None`
+/// @arg     msg :wat::type::String the message evaluated and raised if `opt` is `None`
 /// @ret     :T the wrapped value, if `opt` is `Some`
 /// @example (:wat::core::Option/expect (:wat::core::Option::Some {:value 3}) "unreachable") #=> 3
 /// @see     :wat::core::Record/field-at

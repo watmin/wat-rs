@@ -540,7 +540,7 @@ pub(crate) fn eval_handle_pool_new(
                 args[1].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::kernel::HandlePool/new".into(),
-                    expected: "wat::core::Vector",
+                    expected: "wat::type::Vector",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )

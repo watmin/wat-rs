@@ -51,9 +51,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::bigint the left addend
-/// @arg     b :wat::core::bigint the right addend
-/// @ret     :wat::core::bigint the sum of `a` and `b`
+/// @arg     a :wat::type::bigint the left addend
+/// @arg     b :wat::type::bigint the right addend
+/// @ret     :wat::type::bigint the sum of `a` and `b`
 /// @example (:wat::bigint::+ (:wat::i64::to-bigint 1) (:wat::i64::to-bigint 2)) #=> (:wat::i64::to-bigint 3)
 #[wat_intrinsic(":wat::bigint::+", value = eval_bigint_add_value)]
 pub(crate) fn eval_bigint_add(
@@ -89,9 +89,9 @@ fn eval_bigint_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::bigint the minuend
-/// @arg     b :wat::core::bigint the subtrahend
-/// @ret     :wat::core::bigint `a` minus `b`
+/// @arg     a :wat::type::bigint the minuend
+/// @arg     b :wat::type::bigint the subtrahend
+/// @ret     :wat::type::bigint `a` minus `b`
 /// @example (:wat::bigint::- (:wat::i64::to-bigint 5) (:wat::i64::to-bigint 3)) #=> (:wat::i64::to-bigint 2)
 #[wat_intrinsic(":wat::bigint::-", value = eval_bigint_sub_value)]
 pub(crate) fn eval_bigint_sub(
@@ -123,9 +123,9 @@ fn eval_bigint_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::bigint the first factor
-/// @arg     b :wat::core::bigint the second factor
-/// @ret     :wat::core::bigint `a` times `b`
+/// @arg     a :wat::type::bigint the first factor
+/// @arg     b :wat::type::bigint the second factor
+/// @ret     :wat::type::bigint `a` times `b`
 /// @example (:wat::bigint::* (:wat::i64::to-bigint 3) (:wat::i64::to-bigint 4)) #=> (:wat::i64::to-bigint 12)
 #[wat_intrinsic(":wat::bigint::*", value = eval_bigint_mul_value)]
 pub(crate) fn eval_bigint_mul(
@@ -159,9 +159,9 @@ fn eval_bigint_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::bigint the dividend
-/// @arg     b :wat::core::bigint the divisor
-/// @ret     :wat::core::bigint `a` divided by `b` (bigint if divisible, rational otherwise)
+/// @arg     a :wat::type::bigint the dividend
+/// @arg     b :wat::type::bigint the divisor
+/// @ret     :wat::type::bigint `a` divided by `b` (bigint if divisible, rational otherwise)
 /// @example (:wat::bigint::/ (:wat::i64::to-bigint 6) (:wat::i64::to-bigint 2)) #=> (:wat::i64::to-bigint 3)
 #[wat_intrinsic(":wat::bigint::/", value = eval_bigint_div_value)]
 pub(crate) fn eval_bigint_div_intrinsic(
@@ -213,8 +213,8 @@ fn eval_bigint_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::bigint the bigint to cast
-/// @ret     :wat::core::f64 `n`, cast to f64
+/// @arg     n :wat::type::bigint the bigint to cast
+/// @ret     :wat::type::f64 `n`, cast to f64
 /// @example (:wat::bigint::to-f64 (:wat::i64::to-bigint 5)) #=> 5.0
 #[wat_intrinsic(":wat::bigint::to-f64")]
 pub(crate) fn eval_bigint_to_f64_intrinsic(
@@ -235,8 +235,8 @@ pub(crate) fn eval_bigint_to_f64_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::bigint the bigint to promote
-/// @ret     :wat::core::rational `n`, promoted to rational
+/// @arg     n :wat::type::bigint the bigint to promote
+/// @ret     :wat::type::rational `n`, promoted to rational
 /// @example (:wat::bigint::to-rational (:wat::i64::to-bigint 5)) #=> (:wat::bigint::to-rational (:wat::i64::to-bigint 5))
 #[wat_intrinsic(":wat::bigint::to-rational")]
 pub(crate) fn eval_bigint_to_rational_intrinsic(

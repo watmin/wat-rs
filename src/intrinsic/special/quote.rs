@@ -57,7 +57,7 @@ use std::collections::HashMap;
 /// @Totality Total
 /// @ExpandTime Legal
 /// @syntax (:wat::core::quote <expr>)
-/// @ret :wat::WatAST `<expr>`'s own unevaluated syntax, wrapped as a first-class value
+/// @ret :wat::type::AST `<expr>`'s own unevaluated syntax, wrapped as a first-class value
 /// @example (:wat::core::ast-kind (:wat::core::quote (f x))) #=> "list"
 #[wat_special_form(":wat::core::quote")]
 pub(crate) struct Quote;
@@ -105,6 +105,6 @@ pub(crate) fn infer_quote(
             got: args.len()
         } });
     }
-    let ty = TypeExpr::Path(":wat::WatAST".into());
+    let ty = TypeExpr::Path(":wat::type::AST".into());
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }

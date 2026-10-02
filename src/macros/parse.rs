@@ -208,12 +208,12 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     use crate::types::TypeExpr;
     fn is_watast(ty: &TypeExpr) -> bool {
         matches!(ty, TypeExpr::Path(p)
-            if p == ":wat::WatAST"
-                || crate::edn::render::type_denotation(p) == ":wat::WatAST")
+            if p == ":wat::type::AST"
+                || crate::edn::render::type_denotation(p) == ":wat::type::AST")
     }
     fn is_watast_vec(ty: &TypeExpr) -> bool {
         matches!(ty, TypeExpr::Parametric { head, args }
-            if crate::types::parametric_heads_unify(head, "wat::core::Vector")
+            if crate::types::parametric_heads_unify(head, "wat::type::Vector")
                 && args.len() == 1
                 && is_watast(&args[0]))
     }
@@ -246,7 +246,7 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         }
     }
     if let WatAST::Keyword(ret_kw, ret_span) = &rettype_item {
-        if ret_kw != ":wat::WatAST" {
+        if ret_kw != ":wat::type::AST" {
             return Err(MacroError {
                 span: ret_span.clone(),
                 kind: MacroErrorKind::MalformedDefmacro {

@@ -821,7 +821,7 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
     let is_vector = matches!(
         &rest_ty,
         crate::types::TypeExpr::Parametric { head, .. }
-            if crate::types::parametric_heads_unify(head, "wat::core::Vector") || head == "wat::core::Vec"
+            if crate::types::parametric_heads_unify(head, "wat::type::Vector") || head == "wat::core::Vec"
     );
     if !is_vector {
         let span = args_vec
@@ -1036,12 +1036,12 @@ pub(crate) fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, Ev
             }
             // :Tuple — all remaining children are element types. Arc 109 ③ — also the FQDN
             // spelling `:wat::core::Tuple` (what this stone's codemod emits, matching
-            // `parse_type_form`'s own `raw_head == "wat::core::Tuple"` special-case in
+            // `parse_type_form`'s own `raw_head == "wat::type::Tuple"` special-case in
             // `src/types.rs` — the canonical checker-side parser tests the FQDN, not the bare
             // short name, so this runtime-side twin now tests both). Args resolve through
             // `resolve_type_slot_args` so a `:- [args]` binder (or the bare `[args]` bracket)
             // reads correctly here too, not just the flat positional legacy shape.
-            if head_kw == ":Tuple" || head_kw == ":wat::core::Tuple" {
+            if head_kw == ":Tuple" || head_kw == ":wat::type::Tuple" {
                 let elems = resolve_type_slot_args(&items[1..])?;
                 return Ok(crate::types::TypeExpr::Tuple(elems));
             }

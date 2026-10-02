@@ -25,9 +25,9 @@ use wat_macros::wat_intrinsic;
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     pattern  :wat::core::String the regex pattern (not anchored)
-/// @arg     haystack :wat::core::String the string searched
-/// @ret     :wat::core::bool true iff `pattern` matches anywhere in `haystack`
+/// @arg     pattern  :wat::type::String the regex pattern (not anchored)
+/// @arg     haystack :wat::type::String the string searched
+/// @ret     :wat::type::bool true iff `pattern` matches anywhere in `haystack`
 /// @example (:wat::regex::matches? "wor" "hello world") #=> true
 #[wat_intrinsic(":wat::regex::matches?")]
 pub(crate) fn eval_regex_matches(

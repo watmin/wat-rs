@@ -38,26 +38,26 @@ use wat_macros::wat_intrinsic;
 ///     :totality :wat.runtime.Totality/Unreviewed
 ///     :expand-time :wat.runtime.ExpandTime/Unreviewed
 ///     :category :wat.runtime.Category/Transform
-///     :args [[s :wat.core/String "a length-1 BMP string"]]
-///     :ret [:wat.core/char "the single character in `s`"]
+///     :args [[s :wat.type/String "a length-1 BMP string"]]
+///     :ret [:wat.type/char "the single character in `s`"]
 ///     :examples [[(:wat.core/char "x") (:wat.core/char "x")]]
 ///   }
 /// ```
-#[wat_intrinsic(":wat::core::char")]
+#[wat_intrinsic(":wat::type::char")]
 pub(crate) fn eval_char_of(
     s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: every error (TypeMismatch/MalformedForm) locates at `s`'s own span
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::char";
+    const OP: &str = ":wat::type::char";
     let val = eval_inner(s, env, sym)?.value_owned();
     let text = match val {
         Value::String(v) => (*v).clone(),
         other => {
             return Err(RuntimeError::new(s.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(ValueSnapshot::of(&other)),
             })
             .into());

@@ -88,7 +88,7 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::bool true once the kernel stop flag has been set
+/// @ret     :wat::type::bool true once the kernel stop flag has been set
 /// @example-norun (:wat::kernel::stopped?) #=> false
 #[wat_intrinsic(":wat::kernel::stopped?")]
 pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> {
@@ -105,7 +105,7 @@ pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::bool the current value of the SIGUSR1 flag
+/// @ret     :wat::type::bool the current value of the SIGUSR1 flag
 /// @example-norun (:wat::kernel::sigusr1?) #=> false
 #[wat_intrinsic(":wat::kernel::sigusr1?")]
 pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> {
@@ -123,7 +123,7 @@ pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::bool the current value of the SIGUSR2 flag
+/// @ret     :wat::type::bool the current value of the SIGUSR2 flag
 /// @example-norun (:wat::kernel::sigusr2?) #=> false
 #[wat_intrinsic(":wat::kernel::sigusr2?")]
 pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> {
@@ -141,7 +141,7 @@ pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> 
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::bool the current value of the SIGHUP flag
+/// @ret     :wat::type::bool the current value of the SIGHUP flag
 /// @example-norun (:wat::kernel::sighup?) #=> false
 #[wat_intrinsic(":wat::kernel::sighup?")]
 pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
@@ -161,7 +161,7 @@ pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::nil always nil
+/// @ret     :wat::type::nil always nil
 /// @example-norun (:wat::kernel::reset-sigusr1!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sigusr1!")]
 pub(crate) fn eval_kernel_reset_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> {
@@ -179,7 +179,7 @@ pub(crate) fn eval_kernel_reset_sigusr1(list_span: &Span) -> Result<Value, EvalB
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::nil always nil
+/// @ret     :wat::type::nil always nil
 /// @example-norun (:wat::kernel::reset-sigusr2!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sigusr2!")]
 pub(crate) fn eval_kernel_reset_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> {
@@ -197,7 +197,7 @@ pub(crate) fn eval_kernel_reset_sigusr2(list_span: &Span) -> Result<Value, EvalB
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::nil always nil
+/// @ret     :wat::type::nil always nil
 /// @example-norun (:wat::kernel::reset-sighup!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sighup!")]
 pub(crate) fn eval_kernel_reset_sighup(list_span: &Span) -> Result<Value, EvalBreak> {

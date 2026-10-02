@@ -83,7 +83,7 @@ pub(crate) fn eval_time_now() -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     secs :wat::core::i64 epoch seconds since the Unix epoch (may be negative)
+/// @arg     secs :wat::type::i64 epoch seconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-seconds mark
 /// @example (:wat::time::epoch-seconds (:wat::time::at 1000000000)) #=> 1000000000
 /// @see     :wat::time::epoch-seconds
@@ -115,7 +115,7 @@ pub(crate) fn eval_time_at(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     ms :wat::core::i64 epoch milliseconds since the Unix epoch (may be negative)
+/// @arg     ms :wat::type::i64 epoch milliseconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-millis mark
 /// @example (:wat::time::epoch-millis (:wat::time::at-millis 1000000000000)) #=> 1000000000000
 /// @see     :wat::time::epoch-millis
@@ -148,7 +148,7 @@ pub(crate) fn eval_time_at_millis(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     ns :wat::core::i64 epoch nanoseconds since the Unix epoch (may be negative)
+/// @arg     ns :wat::type::i64 epoch nanoseconds since the Unix epoch (may be negative)
 /// @ret     :wat::time::Instant the instant at that epoch-nanos mark
 /// @example (:wat::time::epoch-nanos (:wat::time::at-nanos 1000000000000000000)) #=> 1000000000000000000
 /// @see     :wat::time::epoch-nanos
@@ -174,7 +174,7 @@ pub(crate) fn eval_time_at_nanos(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     s :wat::core::String the ISO 8601 / RFC 3339 timestamp string
+/// @arg     s :wat::type::String the ISO 8601 / RFC 3339 timestamp string
 /// @ret     (:wat::core::Option :- [:wat::time::Instant]) Some(Instant) on success, None on malformed input
 /// @example (:wat::time::from-iso8601 "not-a-date") #=> :None
 /// @see     :wat::time::to-iso8601
@@ -206,8 +206,8 @@ pub(crate) fn eval_time_from_iso8601(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to format
-/// @arg     digits :wat::core::i64 fractional-second digit count, clamped to [0, 9]
-/// @ret     :wat::core::String the ISO 8601 / RFC 3339 string, `Z`-suffixed
+/// @arg     digits :wat::type::i64 fractional-second digit count, clamped to [0, 9]
+/// @ret     :wat::type::String the ISO 8601 / RFC 3339 string, `Z`-suffixed
 /// @example (:wat::time::to-iso8601 (:wat::time::at 0) 0) #=> "1970-01-01T00:00:00Z"
 /// @see     :wat::time::from-iso8601
 #[wat_intrinsic(":wat::time::to-iso8601")]
@@ -255,7 +255,7 @@ pub(crate) fn eval_time_to_iso8601(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
-/// @ret     :wat::core::i64 epoch seconds since the Unix epoch, truncated
+/// @ret     :wat::type::i64 epoch seconds since the Unix epoch, truncated
 /// @example (:wat::time::epoch-seconds (:wat::time::at 1000000000)) #=> 1000000000
 /// @see     :wat::time::at
 #[wat_intrinsic(":wat::time::epoch-seconds")]
@@ -279,7 +279,7 @@ pub(crate) fn eval_time_epoch_seconds(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
-/// @ret     :wat::core::i64 epoch milliseconds since the Unix epoch, truncated
+/// @ret     :wat::type::i64 epoch milliseconds since the Unix epoch, truncated
 /// @example (:wat::time::epoch-millis (:wat::time::at-millis 1000000000000)) #=> 1000000000000
 /// @see     :wat::time::at-millis
 #[wat_intrinsic(":wat::time::epoch-millis")]
@@ -304,7 +304,7 @@ pub(crate) fn eval_time_epoch_millis(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     inst :wat::time::Instant the instant to read
-/// @ret     :wat::core::i64 epoch nanoseconds since the Unix epoch
+/// @ret     :wat::type::i64 epoch nanoseconds since the Unix epoch
 /// @example (:wat::time::epoch-nanos (:wat::time::at-nanos 1000000000000000000)) #=> 1000000000000000000
 /// @see     :wat::time::at-nanos
 #[wat_intrinsic(":wat::time::epoch-nanos")]
@@ -388,7 +388,7 @@ fn unit_constructor(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of nanoseconds (non-negative)
+/// @arg     n :wat::type::i64 the count of nanoseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N nanoseconds
 /// @example (:wat::time::nanoseconds (:wat::time::Nanosecond 5)) #=> 5
 /// @see     :wat::time::nanoseconds
@@ -410,7 +410,7 @@ pub(crate) fn eval_time_unit_nanosecond(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of microseconds (non-negative)
+/// @arg     n :wat::type::i64 the count of microseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N microseconds
 /// @example (:wat::time::microseconds (:wat::time::Microsecond 5)) #=> 5
 /// @see     :wat::time::microseconds
@@ -433,7 +433,7 @@ pub(crate) fn eval_time_unit_microsecond(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of milliseconds (non-negative)
+/// @arg     n :wat::type::i64 the count of milliseconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N milliseconds
 /// @example (:wat::time::milliseconds (:wat::time::Millisecond 5)) #=> 5
 /// @see     :wat::time::milliseconds
@@ -456,7 +456,7 @@ pub(crate) fn eval_time_unit_millisecond(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of seconds (non-negative)
+/// @arg     n :wat::type::i64 the count of seconds (non-negative)
 /// @ret     :wat::time::Duration the Duration of N seconds
 /// @example (:wat::time::seconds (:wat::time::Second 5)) #=> 5
 /// @see     :wat::time::seconds
@@ -478,7 +478,7 @@ pub(crate) fn eval_time_unit_second(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of minutes (non-negative)
+/// @arg     n :wat::type::i64 the count of minutes (non-negative)
 /// @ret     :wat::time::Duration the Duration of N minutes
 /// @example (:wat::time::minutes (:wat::time::Minute 5)) #=> 5
 /// @see     :wat::time::minutes
@@ -500,7 +500,7 @@ pub(crate) fn eval_time_unit_minute(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of hours (non-negative)
+/// @arg     n :wat::type::i64 the count of hours (non-negative)
 /// @ret     :wat::time::Duration the Duration of N hours
 /// @example (:wat::time::hours (:wat::time::Hour 5)) #=> 5
 /// @see     :wat::time::hours
@@ -522,7 +522,7 @@ pub(crate) fn eval_time_unit_hour(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the count of days (non-negative)
+/// @arg     n :wat::type::i64 the count of days (non-negative)
 /// @ret     :wat::time::Duration the Duration of N days
 /// @example (:wat::time::days (:wat::time::Day 5)) #=> 5
 /// @see     :wat::time::days
@@ -569,7 +569,7 @@ fn unit_readout(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
-/// @ret     :wat::core::i64 the duration's length in nanoseconds, truncated
+/// @ret     :wat::type::i64 the duration's length in nanoseconds, truncated
 /// @example (:wat::time::nanoseconds (:wat::time::Nanosecond 5)) #=> 5
 /// @see     :wat::time::Nanosecond
 #[wat_intrinsic(":wat::time::nanoseconds")]
@@ -591,7 +591,7 @@ pub(crate) fn eval_time_nanoseconds(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
-/// @ret     :wat::core::i64 the duration's length in microseconds, truncated
+/// @ret     :wat::type::i64 the duration's length in microseconds, truncated
 /// @example (:wat::time::microseconds (:wat::time::Microsecond 5)) #=> 5
 /// @see     :wat::time::Microsecond
 #[wat_intrinsic(":wat::time::microseconds")]
@@ -613,7 +613,7 @@ pub(crate) fn eval_time_microseconds(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
-/// @ret     :wat::core::i64 the duration's length in milliseconds, truncated
+/// @ret     :wat::type::i64 the duration's length in milliseconds, truncated
 /// @example (:wat::time::milliseconds (:wat::time::Millisecond 5)) #=> 5
 /// @see     :wat::time::Millisecond
 #[wat_intrinsic(":wat::time::milliseconds")]
@@ -635,7 +635,7 @@ pub(crate) fn eval_time_milliseconds(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
-/// @ret     :wat::core::i64 the duration's length in seconds, truncated
+/// @ret     :wat::type::i64 the duration's length in seconds, truncated
 /// @example (:wat::time::seconds (:wat::time::Second 5)) #=> 5
 /// @see     :wat::time::Second
 #[wat_intrinsic(":wat::time::seconds")]
@@ -657,7 +657,7 @@ pub(crate) fn eval_time_seconds(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
-/// @ret     :wat::core::i64 the duration's length in minutes, truncated
+/// @ret     :wat::type::i64 the duration's length in minutes, truncated
 /// @example (:wat::time::minutes (:wat::time::Minute 5)) #=> 5
 /// @see     :wat::time::Minute
 #[wat_intrinsic(":wat::time::minutes")]
@@ -679,7 +679,7 @@ pub(crate) fn eval_time_minutes(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
-/// @ret     :wat::core::i64 the duration's length in hours, truncated
+/// @ret     :wat::type::i64 the duration's length in hours, truncated
 /// @example (:wat::time::hours (:wat::time::Hour 5)) #=> 5
 /// @see     :wat::time::Hour
 #[wat_intrinsic(":wat::time::hours")]
@@ -701,7 +701,7 @@ pub(crate) fn eval_time_hours(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     d :wat::time::Duration the duration to read
-/// @ret     :wat::core::i64 the duration's length in days, truncated
+/// @ret     :wat::type::i64 the duration's length in days, truncated
 /// @example (:wat::time::days (:wat::time::Day 5)) #=> 5
 /// @see     :wat::time::Day
 #[wat_intrinsic(":wat::time::days")]
@@ -1026,7 +1026,7 @@ fn unit_from_now(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of nanoseconds before now (non-negative)
+/// @arg     n :wat::type::i64 the count of nanoseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N nanoseconds before wall-clock now
 /// @example-norun (:wat::time::nanoseconds-ago 5) #=> #inst "5ns before now"
 /// @see     :wat::time::nanoseconds-from-now
@@ -1048,7 +1048,7 @@ pub(crate) fn eval_time_nanoseconds_ago(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of microseconds before now (non-negative)
+/// @arg     n :wat::type::i64 the count of microseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N microseconds before wall-clock now
 /// @example-norun (:wat::time::microseconds-ago 5) #=> #inst "5us before now"
 /// @see     :wat::time::microseconds-from-now
@@ -1070,7 +1070,7 @@ pub(crate) fn eval_time_microseconds_ago(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of milliseconds before now (non-negative)
+/// @arg     n :wat::type::i64 the count of milliseconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N milliseconds before wall-clock now
 /// @example-norun (:wat::time::milliseconds-ago 5) #=> #inst "5ms before now"
 /// @see     :wat::time::milliseconds-from-now
@@ -1092,7 +1092,7 @@ pub(crate) fn eval_time_milliseconds_ago(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of seconds before now (non-negative)
+/// @arg     n :wat::type::i64 the count of seconds before now (non-negative)
 /// @ret     :wat::time::Instant the instant N seconds before wall-clock now
 /// @example-norun (:wat::time::seconds-ago 5) #=> #inst "5s before now"
 /// @see     :wat::time::seconds-from-now
@@ -1114,7 +1114,7 @@ pub(crate) fn eval_time_seconds_ago(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of minutes before now (non-negative)
+/// @arg     n :wat::type::i64 the count of minutes before now (non-negative)
 /// @ret     :wat::time::Instant the instant N minutes before wall-clock now
 /// @example-norun (:wat::time::minutes-ago 5) #=> #inst "5m before now"
 /// @see     :wat::time::minutes-from-now
@@ -1136,7 +1136,7 @@ pub(crate) fn eval_time_minutes_ago(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of hours before now (non-negative)
+/// @arg     n :wat::type::i64 the count of hours before now (non-negative)
 /// @ret     :wat::time::Instant the instant N hours before wall-clock now
 /// @example-norun (:wat::time::hours-ago 5) #=> #inst "5h before now"
 /// @see     :wat::time::hours-from-now
@@ -1158,7 +1158,7 @@ pub(crate) fn eval_time_hours_ago(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of days before now (non-negative)
+/// @arg     n :wat::type::i64 the count of days before now (non-negative)
 /// @ret     :wat::time::Instant the instant N days before wall-clock now
 /// @example-norun (:wat::time::days-ago 5) #=> #inst "5d before now"
 /// @see     :wat::time::days-from-now
@@ -1182,7 +1182,7 @@ pub(crate) fn eval_time_days_ago(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of nanoseconds after now (non-negative)
+/// @arg     n :wat::type::i64 the count of nanoseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N nanoseconds after wall-clock now
 /// @example-norun (:wat::time::nanoseconds-from-now 5) #=> #inst "5ns after now"
 /// @see     :wat::time::nanoseconds-ago
@@ -1204,7 +1204,7 @@ pub(crate) fn eval_time_nanoseconds_from_now(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of microseconds after now (non-negative)
+/// @arg     n :wat::type::i64 the count of microseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N microseconds after wall-clock now
 /// @example-norun (:wat::time::microseconds-from-now 5) #=> #inst "5us after now"
 /// @see     :wat::time::microseconds-ago
@@ -1227,7 +1227,7 @@ pub(crate) fn eval_time_microseconds_from_now(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of milliseconds after now (non-negative)
+/// @arg     n :wat::type::i64 the count of milliseconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N milliseconds after wall-clock now
 /// @example-norun (:wat::time::milliseconds-from-now 5) #=> #inst "5ms after now"
 /// @see     :wat::time::milliseconds-ago
@@ -1250,7 +1250,7 @@ pub(crate) fn eval_time_milliseconds_from_now(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of seconds after now (non-negative)
+/// @arg     n :wat::type::i64 the count of seconds after now (non-negative)
 /// @ret     :wat::time::Instant the instant N seconds after wall-clock now
 /// @example-norun (:wat::time::seconds-from-now 5) #=> #inst "5s after now"
 /// @see     :wat::time::seconds-ago
@@ -1273,7 +1273,7 @@ pub(crate) fn eval_time_seconds_from_now(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of minutes after now (non-negative)
+/// @arg     n :wat::type::i64 the count of minutes after now (non-negative)
 /// @ret     :wat::time::Instant the instant N minutes after wall-clock now
 /// @example-norun (:wat::time::minutes-from-now 5) #=> #inst "5m after now"
 /// @see     :wat::time::minutes-ago
@@ -1296,7 +1296,7 @@ pub(crate) fn eval_time_minutes_from_now(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of hours after now (non-negative)
+/// @arg     n :wat::type::i64 the count of hours after now (non-negative)
 /// @ret     :wat::time::Instant the instant N hours after wall-clock now
 /// @example-norun (:wat::time::hours-from-now 5) #=> #inst "5h after now"
 /// @see     :wat::time::hours-ago
@@ -1318,7 +1318,7 @@ pub(crate) fn eval_time_hours_from_now(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Entropic
-/// @arg     n :wat::core::i64 the count of days after now (non-negative)
+/// @arg     n :wat::type::i64 the count of days after now (non-negative)
 /// @ret     :wat::time::Instant the instant N days after wall-clock now
 /// @example-norun (:wat::time::days-from-now 5) #=> #inst "5d after now"
 /// @see     :wat::time::days-ago

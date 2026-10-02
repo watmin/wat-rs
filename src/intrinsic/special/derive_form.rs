@@ -75,7 +75,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::derive :Child :Parent)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at registration (the type-lattice edge) and never reaches evaluation; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at registration (the type-lattice edge) and never reaches evaluation; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
 /// @example-norun (:wat::core::derive :probe::Puppy :probe::Dog) #=> registers the (Puppy, Dog) subtype edge; no runtime value
 #[wat_special_form(":wat::core::derive")]
 pub(crate) struct Derive;

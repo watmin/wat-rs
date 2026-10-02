@@ -32,9 +32,9 @@ use std::sync::Arc;
 
 /// The cold-and-windy world: Temperature + WindSpeed + ColdAndWindy records + the rule.
 const WORLD: &str = "\
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])\n\
 \n\
 (:wat::rete::defrule :weather::cold-and-windy\n\
   :when\n\
@@ -81,13 +81,13 @@ fn eval_in(world: &crate::freeze::FrozenWorld, src: &str) -> Value {
 // the gather's SHAPE, where two accumulators are enough.)
 
 const ACCUM_AXIS_WORLD: &str = "\
-(:wat::core::defrecord :apx::Group   [g <- :wat::core::i64])\n\
-(:wat::core::defrecord :apx::Reading [g <- :wat::core::i64  v <- :wat::core::i64])\n\
-(:wat::core::defrecord :apx::CountF  [g <- :wat::core::i64  n <- :wat::core::i64])\n\
-(:wat::core::defrecord :apx::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
-(:wat::core::defrecord :apx::MinF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
-(:wat::core::defrecord :apx::MaxF    [g <- :wat::core::i64  n <- :wat::core::i64])\n\
-(:wat::core::defrecord :apx::ExistsF [g <- :wat::core::i64])\n\
+(:wat::core::defrecord :apx::Group   [g <- wat.type/i64])\n\
+(:wat::core::defrecord :apx::Reading [g <- wat.type/i64  v <- wat.type/i64])\n\
+(:wat::core::defrecord :apx::CountF  [g <- wat.type/i64  n <- wat.type/i64])\n\
+(:wat::core::defrecord :apx::SumF    [g <- wat.type/i64  n <- wat.type/i64])\n\
+(:wat::core::defrecord :apx::MinF    [g <- wat.type/i64  n <- wat.type/i64])\n\
+(:wat::core::defrecord :apx::MaxF    [g <- wat.type/i64  n <- wat.type/i64])\n\
+(:wat::core::defrecord :apx::ExistsF [g <- wat.type/i64])\n\
 \n\
 (:wat::rete::defrule :apx::count-rule\n\
   :when [(:apx::Group (?g :- :g))\n\
@@ -114,20 +114,20 @@ const ACCUM_AXIS_WORLD: &str = "\
          (:wat::rete::exists (:apx::Reading (?g :- :g)))]\n\
   :then [(:apx::ExistsF ?g)])\n\
 \n\
-(:wat::core::defn :apx::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64\n\
+(:wat::core::defn :apx::val [g <- wat.type/i64  j <- wat.type/i64] -> wat.type/i64\n\
   (:wat::core::let [x (:wat::i64::+ (:wat::i64::* g 31) (:wat::i64::* j 17))]\n\
     (:wat::i64::- x (:wat::i64::* (:wat::i64::/ x 1000) 1000))))\n\
 \n\
-(:wat::core::defn :apx::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :apx::seed-readings [session <- :wat::rete::Session  g <- wat.type/i64  w <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [s <- :wat::rete::Session  j <- wat.type/i64] -> :wat::rete::Session\n\
       (:wat::core::match (:wat::rete::insert s (:apx::Reading :g g :v (:apx::val g j))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]))\n\
     session\n\
     (:wat::core::range 0 w)))\n\
 \n\
-(:wat::core::defn :apx::seed [session <- :wat::rete::Session  gs <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :apx::seed [session <- :wat::rete::Session  gs <- wat.type/i64  w <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [s <- :wat::rete::Session  g <- wat.type/i64] -> :wat::rete::Session\n\
       (:apx::seed-readings (:wat::core::match (:wat::rete::insert s (:apx::Group g)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]) g w))\n\
     session\n\
     (:wat::core::range 0 gs)))\n\
@@ -164,10 +164,10 @@ fn accum_count_census(g: i64, w: i64) -> Vec<(&'static str, u64)> {
 // incremental propagation (T3) helps. It asserts nothing about which — it prints the rows.
 
 const DEPTH_SPLIT_WORLD: &str = "\
-(:wat::core::defrecord :cascade::Node [level <- :wat::core::i64  id <- :wat::core::i64])\n\
-(:wat::core::defrecord :cascade::Tag  [level <- :wat::core::i64  id <- :wat::core::i64])\n\
+(:wat::core::defrecord :cascade::Node [level <- wat.type/i64  id <- wat.type/i64])\n\
+(:wat::core::defrecord :cascade::Tag  [level <- wat.type/i64  id <- wat.type/i64])\n\
 \n\
-(:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule\n\
+(:wat::core::defn :dc::build-rule [k <- wat.type/i64] -> :wat::rete::Rule\n\
   (:wat::core::let [prev (:wat::i64::- k 1)\n\
                     c1 (:wat::core::quasiquote (:cascade::Node (?id :- :id) (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))\n\
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id :- :id) (?m :- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))\n\
@@ -177,16 +177,16 @@ const DEPTH_SPLIT_WORLD: &str = "\
       :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2)\n\
       :rhs (wat.type/PersistentVector :- [wat.type/AST] t1 t2))))\n\
 \n\
-(:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
+(:wat::core::defn :dc::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
       (:wat::vector::conj acc (:dc::build-rule k)))\n\
     (wat.type/PersistentVector :- [:wat::rete::Rule] (:dc::build-rule 1))\n\
     (:wat::core::range 2 (:wat::i64::+ depth 1))))\n\
 \n\
-(:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session\n\
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:cascade::Node :level 0 :id i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]) (:cascade::Tag :level 0 :id i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]))\n\
     session\n\
     (:wat::core::range 0 width)))\n";
@@ -373,11 +373,11 @@ pub(super) fn ms(ns: f64) -> f64 {
 /// no `i`, so it is the shared prefix under test; only the trailing `where` holds the per-rule
 /// literal. `mod` is spelled as the truncating-division idiom (wat has no native i64 mod).
 const NODE_SHARE_WORLD: &str = "\
-(:wat::core::defrecord :nsh::A   [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :nsh::B   [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :nsh::Out [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :nsh::A   [k <- wat.type/i64])\n\
+(:wat::core::defrecord :nsh::B   [k <- wat.type/i64])\n\
+(:wat::core::defrecord :nsh::Out [k <- wat.type/i64])\n\
 \n\
-(:wat::core::defn :nsh::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule\n\
+(:wat::core::defn :nsh::build-rule [i <- wat.type/i64  n <- wat.type/i64] -> :wat::rete::Rule\n\
   (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k :- :k)))\n\
                     b-c     (:wat::core::quasiquote (:nsh::B (?k :- :k)))\n\
                     where-c (:wat::core::quasiquote\n\
@@ -388,20 +388,20 @@ const NODE_SHARE_WORLD: &str = "\
                                     :undefined 0))))\n\
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]\n\
     (:wat::rete::Rule :name (:wat::i64::to-string i)\n\
-      :lhs (:wat::core::PersistentVector :- [:wat::WatAST] a-c b-c where-c)\n\
-      :rhs (:wat::core::PersistentVector :- [:wat::WatAST] ins))))\n\
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)\n\
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))\n\
 \n\
-(:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
+(:wat::core::defn :nsh::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]\n\
-      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]\n\
+      -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
       (:wat::vector::conj acc (:nsh::build-rule i n)))\n\
-    (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
+    (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
     (:wat::core::range 0 n)))\n\
 \n\
-(:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session\n\
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:nsh::A i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]) (:nsh::B i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]))\n\
     session\n\
     (:wat::core::range 0 items)))\n\
@@ -653,20 +653,20 @@ fn cascade_phase_census(depth: i64, width: i64) -> Vec<(&'static str, u64, u64)>
 // shapes, which is the error that has cost this arc twice today. Measure the shape you mean.
 
 const FANOUT_CENSUS_WORLD: &str = "\
-(:wat::core::defrecord :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])\n\
-(:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])\n\
-(:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])\n\
+(:wat::core::defrecord :fan::Left  [key <- wat.type/i64  lid <- wat.type/i64])\n\
+(:wat::core::defrecord :fan::Right [key <- wat.type/i64  rid <- wat.type/i64])\n\
+(:wat::core::defrecord :fan::Pair  [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64])\n\
 \n\
-(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- wat.type/i64] -> :wat::rete::Session\n\
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:fan::Left :key k :lid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]) (:fan::Right :key k :rid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]))\n\
     s\n\
     (:wat::core::range 0 fanout)))\n\
 \n\
-(:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
       (:fan::seed-key acc k fanout))\n\
     s\n\
     (:wat::core::range 0 keys)))\n\

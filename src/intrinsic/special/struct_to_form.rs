@@ -70,7 +70,7 @@ use std::collections::HashMap;
 /// @Totality Partial
 /// @ExpandTime Legal
 /// @syntax (:wat::core::struct->form <struct-value>)
-/// @ret :wat::WatAST a constructor-call form (`:class::Foo' field1 field2 ...`) that reconstructs `<struct-value>`
+/// @ret :wat::type::AST a constructor-call form (`:class::Foo' field1 field2 ...`) that reconstructs `<struct-value>`
 /// @example (:wat::core::ast-kind (:wat::core::struct->form (:wat::holon::CapacityExceeded :cost 7 :budget 3))) #=> "list"
 #[wat_special_form(":wat::core::struct->form")]
 pub(crate) struct StructToForm;
@@ -105,6 +105,6 @@ pub(crate) fn infer_struct_to_form(
     } else {
         let _ = crate::check::infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     }
-    let ty = TypeExpr::Path(":wat::WatAST".into());
+    let ty = TypeExpr::Path(":wat::type::AST".into());
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }

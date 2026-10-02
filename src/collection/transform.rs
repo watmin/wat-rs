@@ -477,7 +477,7 @@ pub(crate) fn eval_vec_sort_by(
 /// @Category      Transform
 /// @arg     args [:T :-> :U] `f` (position 0, applied lazily per pulled element — see `@yields`) then `xs` (position 1, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
 /// @yields  args the element pulled from `xs`, handed to `f`
-/// @ret     (:wat::core::Vector :- [U]) — NOTE: the registered `TypeScheme` (`src/check.rs`) is a RETAINED fallback for `defalias` derivation only; real call-site checking routes through `infer_map` (checker's keyword-head arm), and the REAL runtime return (arc 118.2a) is a lazy `(:wat::stream::Stream :- [U])`, not a `Vector` — this `@ret` transcribes the checker scheme verbatim, per the stone's brief, not the corrected runtime type
+/// @ret     (:wat::type::Vector :- [U]) — NOTE: the registered `TypeScheme` (`src/check.rs`) is a RETAINED fallback for `defalias` derivation only; real call-site checking routes through `infer_map` (checker's keyword-head arm), and the REAL runtime return (arc 118.2a) is a lazy `(:wat::stream::Stream :- [U])`, not a `Vector` — this `@ret` transcribes the checker scheme verbatim, per the stone's brief, not the corrected runtime type
 /// @example (:wat::core::stream->vec [] (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3 4)
 /// @see     :wat::core::filter
 #[wat_intrinsic(":wat::core::map")]
@@ -590,7 +590,7 @@ pub(crate) fn eval_vec_map(
 /// @Category      ControlFlow
 /// @arg     args [:T :-> :U] `f` (position 0, applied eagerly to every element — see `@yields`) then `coll` (position 1, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
 /// @yields  args the element applied to `f`
-/// @ret     (:wat::core::Vector :- [U]) each element of `coll`, mapped through `f`
+/// @ret     (:wat::type::Vector :- [U]) each element of `coll`, mapped through `f`
 /// @example (:wat::core::mapv (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3)) #=> (:wat::core::Vector 2 3 4)
 /// @see     :wat::core::map
 #[wat_intrinsic(":wat::core::mapv")]
@@ -964,8 +964,8 @@ pub(crate) fn eval_vec_foldl(
 /// @Totality      Preserving
 /// @ExpandTime    Preserving
 /// @Category      ControlFlow
-/// @arg     args (:wat::core::Vector :- [T]) `acc` (position 0, the seed Vector appended onto) then `s` (position 1, `(:wat::stream::Stream :- [T])`, drained one cell at a time via `crate::stream::realize` — see `:wat::stream::next`'s identical forcing act); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
-/// @ret     (:wat::core::Vector :- [T]) `acc` with every element realized from `s` appended
+/// @arg     args (:wat::type::Vector :- [T]) `acc` (position 0, the seed Vector appended onto) then `s` (position 1, `(:wat::stream::Stream :- [T])`, drained one cell at a time via `crate::stream::realize` — see `:wat::stream::next`'s identical forcing act); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @ret     (:wat::type::Vector :- [T]) `acc` with every element realized from `s` appended
 /// @example (:wat::core::stream->vec [] (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3 4)
 /// @see     :wat::core::foldl
 #[wat_intrinsic(":wat::core::stream->vec")]
@@ -993,7 +993,7 @@ pub(crate) fn eval_stream_to_vec(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::core::Vector",
+                expected: "wat::type::Vector",
                 got: Box::new(ValueSnapshot::of(&acc)),
             },
         )
@@ -1061,7 +1061,7 @@ pub(crate) fn eval_stream_to_pvec(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::core::PersistentVector",
+                expected: "wat::type::PersistentVector",
                 got: Box::new(ValueSnapshot::of(&acc)),
             },
         )
@@ -1355,9 +1355,9 @@ pub(crate) fn eval_vec_last(
 /// @Totality      Preserving
 /// @ExpandTime    Preserving
 /// @Category      ControlFlow
-/// @arg     args (:wat::core::Vector :- [T]) `xs` (position 0, the receiver — `Value::Vec` only, no `PersistentVector`/`List`/`Stream`) then `pred` (position 1, `[T :-> :wat::core::bool]`, applied to every element — see `@yields`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @arg     args (:wat::type::Vector :- [T]) `xs` (position 0, the receiver — `Value::Vec` only, no `PersistentVector`/`List`/`Stream`) then `pred` (position 1, `[T :-> :wat::type::bool]`, applied to every element — see `@yields`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
 /// @yields  args the element applied to `pred`
-/// @ret     (:wat::core::Option :- [:wat::core::i64]) the rightmost index where `pred` returned true, or `None`
+/// @ret     (:wat::core::Option :- [:wat::type::i64]) the rightmost index where `pred` returned true, or `None`
 /// @example (:wat::core::find-last-index (:wat::core::Vector 1 2 3 2) (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::= x 2))) #=> (:wat::core::Option.Some {:value 3})
 /// @see     :wat::core::foldl
 #[wat_intrinsic(":wat::core::find-last-index")]
@@ -1582,9 +1582,9 @@ pub(crate) fn seqable_value_to_stream(
 /// @Totality      Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args [:T :-> :wat::core::bool] `pred` (position 0, applied lazily per pulled element — see `@yields`) then `coll` (position 1, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
+/// @arg     args [:T :-> :wat::type::bool] `pred` (position 0, applied lazily per pulled element — see `@yields`) then `coll` (position 1, the receiver — `(Vector :- [T])`, `(PersistentVector :- [T])`, `(List :- [T])`, or `(Stream :- [T])`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
 /// @yields  args the element pulled from `coll`, handed to `pred`
-/// @ret     (:wat::core::Vector :- [T]) — NOTE: as with `map`, the registered `TypeScheme` (`src/check.rs`) is a RETAINED fallback for `defalias` derivation; real call-site checking routes through `infer_filter`, and the REAL runtime return is a lazy `(:wat::stream::Stream :- [T])`, not a `Vector` — this `@ret` transcribes the checker scheme verbatim, per the stone's brief
+/// @ret     (:wat::type::Vector :- [T]) — NOTE: as with `map`, the registered `TypeScheme` (`src/check.rs`) is a RETAINED fallback for `defalias` derivation; real call-site checking routes through `infer_filter`, and the REAL runtime return is a lazy `(:wat::stream::Stream :- [T])`, not a `Vector` — this `@ret` transcribes the checker scheme verbatim, per the stone's brief
 /// @example (:wat::core::stream->vec [] (:wat::core::filter (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3)
 /// @see     :wat::core::map
 #[wat_intrinsic(":wat::core::filter")]
@@ -1669,7 +1669,7 @@ fn lazy_filter_stream(
                             span.clone(),
                             RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
-                                expected: "wat::core::bool",
+                                expected: "wat::type::bool",
                                 got: Box::new(ValueSnapshot::of(&other)),
                             },
                         )
@@ -1749,14 +1749,14 @@ mod seqable_to_stream_tests {
     #[test]
     fn seqable_to_stream_keep_stays_under_wall_at_n4000() {
         const WORLD: &str = "\
-(:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])\n\
+(:wat::core::defn :cx::keep-all [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])\n\
   (:wat::core::Option.Some {:value x}))\n\
-(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
+(:wat::core::defn :cx::build-pv [n <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/i64])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]\n\
-      -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  i <- wat.type/i64]\n\
+      -> (wat.type/PersistentVector :- [wat.type/i64])\n\
       (:wat::vector::conj acc i))\n\
-    (:wat::core::PersistentVector :- [:wat::core::i64])\n\
+    (wat.type/PersistentVector :- [wat.type/i64])\n\
     (:wat::core::range 0 n)))\n\
 ";
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
@@ -1814,14 +1814,14 @@ mod filter_native_tests {
     #[test]
     fn filter_native_stays_under_wall_at_n4000_persistentvector() {
         const WORLD: &str = "\
-(:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> :wat::core::bool\n\
+(:wat::core::defn :cx::keep-all [x <- wat.type/i64] -> wat.type/bool\n\
   true)\n\
-(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
+(:wat::core::defn :cx::build-pv [n <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/i64])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]\n\
-      -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
+    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  i <- wat.type/i64]\n\
+      -> (wat.type/PersistentVector :- [wat.type/i64])\n\
       (:wat::vector::conj acc i))\n\
-    (:wat::core::PersistentVector :- [:wat::core::i64])\n\
+    (wat.type/PersistentVector :- [wat.type/i64])\n\
     (:wat::core::range 0 n)))\n\
 ";
         let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))

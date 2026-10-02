@@ -260,9 +260,14 @@ fn lower_bundle(args: &[WatAST], head_span: Span) -> Result<HolonAST, LowerError
         WatAST::List(items, list_span) => {
             // Pattern B — inner list's span for inner shape errors
             let head = items.first().ok_or_else(|| LowerError { span: list_span.clone(), kind: LowerErrorKind::BundleShape })?;
+            // Stone 255.81 K1 — accept a symbol-spelled type head (`wat.type/Vector`) too,
+            // not just its post-normalization Keyword form: `lower()` runs on raw AST,
+            // bypassing the checker's `normalize_symbol_refs` (255.80's SCORE — "the K1
+            // door-bypass class"), so a Symbol-headed Vector never reached this match before.
             match head {
-                WatAST::Keyword(k, _)
-                    if crate::types::constructor_head_key(k).as_ref() == ":wat::core::Vector" =>
+                WatAST::Keyword(_, _) | WatAST::Symbol(_, _)
+                    if crate::types::head_keyword_fqdn(head)
+                        .is_some_and(|k| crate::types::constructor_head_key(&k).as_ref() == ":wat::type::Vector") =>
                 {
                     let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
                     if peeled.is_none() {
@@ -406,7 +411,7 @@ mod tests {
         // directly, bypassing the checker, but it should still exercise a
         // form a user could actually write).
         let ast = crate::parse_one!(
-            r#"(:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
+            r#"(:wat::holon::Bundle (wat.type/Vector :- [:wat::holon::HolonAST] (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();

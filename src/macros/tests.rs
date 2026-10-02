@@ -96,8 +96,8 @@ fn malformed_quasiquote_body_wrong_arity_fails_with_malformed_template() {
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::bad-quasi
-          [x <- :wat::WatAST]
-          -> :wat::WatAST
+          [x <- wat.type/AST]
+          -> wat.type/AST
           (:wat::core::quasiquote a b))
         (:my::bad-quasi 1)
         "#,
@@ -128,12 +128,12 @@ fn expand_keeping_defmacros_keeps_vs_expand_src_strips() {
     // A macro-generating-macro: invoking `:my::mkmac` produces a defmacro form.
     let src = r#"
     (:wat::core::defmacro :my::mkmac
-      [name <- :wat::WatAST]
-      -> :wat::WatAST
+      [name <- wat.type/AST]
+      -> wat.type/AST
       `(:wat::core::defmacro
          ~name
          []
-         -> :wat::WatAST
+         -> wat.type/AST
          `(:sentinel)))
     (:my::mkmac :my::generated)
     "#;
@@ -165,10 +165,10 @@ fn alias_macro_expands_to_primitive() {
     let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::Concurrent
-          [xs <- :wat::WatAST]
-          -> :wat::WatAST
+          [xs <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::holon::Bundle ~xs))
-        (:my::vocab::Concurrent (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
+        (:my::vocab::Concurrent (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
         "#,
     )
     .unwrap();
@@ -190,9 +190,9 @@ fn subtract_macro_expansion() {
     let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::Subtract
-          [x <- :wat::WatAST
-           y <- :wat::WatAST]
-          -> :wat::WatAST
+          [x <- wat.type/AST
+           y <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::holon::Blend ~x ~y 1 -1))
         (:my::vocab::Subtract foo bar)
         "#,
@@ -219,8 +219,8 @@ fn splice_list_arg_into_template() {
     let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::SumAll
-          [xs <- :wat::WatAST]
-          -> :wat::WatAST
+          [xs <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::holon::Bundle ~@xs))
         (:my::vocab::SumAll (a b c))
         "#,
@@ -245,8 +245,8 @@ fn splice_list_arg_into_template() {
 fn nested_macro_expands_to_fixpoint() {
     let forms = expand_src(
         r#"
-        (:wat::core::defmacro :my::outer [x <- :wat::WatAST] -> :wat::WatAST `(:my::inner ~x))
-        (:wat::core::defmacro :my::inner [x <- :wat::WatAST] -> :wat::WatAST `(:wat::holon::Atom ~x))
+        (:wat::core::defmacro :my::outer [x <- wat.type/AST] -> wat.type/AST `(:my::inner ~x))
+        (:wat::core::defmacro :my::inner [x <- wat.type/AST] -> wat.type/AST `(:wat::holon::Atom ~x))
         (:my::outer 42)
         "#,
     )
@@ -317,8 +317,8 @@ fn template_identifier_carries_macro_scope() {
     let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::WithTmp
-          [body <- :wat::WatAST]
-          -> :wat::WatAST
+          [body <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::let ((tmp 1)) ~body))
         (:my::vocab::WithTmp tmp)
         "#,
@@ -367,7 +367,7 @@ fn binder_and_reference_carry_identical_scope_sets() {
         r#"
         (:wat::core::defmacro :my::vocab::WalkUniformity
           []
-          -> :wat::WatAST
+          -> wat.type/AST
           `(:wat::core::let ((tmp 1)) tmp))
         (:my::vocab::WalkUniformity)
         "#,
@@ -412,7 +412,7 @@ fn argument_identifiers_pass_through_unchanged() {
     // User passes a symbol; the macro should splice it verbatim.
     let forms = expand_src(
         r#"
-        (:wat::core::defmacro :my::wrap [v <- :wat::WatAST] -> :wat::WatAST `(:wat::holon::Atom ~v))
+        (:wat::core::defmacro :my::wrap [v <- wat.type/AST] -> wat.type/AST `(:wat::holon::Atom ~v))
         (:my::wrap some-var)
         "#,
     )
@@ -500,8 +500,8 @@ fn two_macro_invocations_get_distinct_scopes() {
     let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::twice
-          [x <- :wat::WatAST]
-          -> :wat::WatAST
+          [x <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::let (((t :i64) ~x)) t))
         (:my::twice 1)
         (:my::twice 2)
@@ -542,8 +542,8 @@ fn duplicate_defmacro_with_divergent_body_rejected() {
     // distinct templates.
     let err = expand_src(
         r#"
-        (:wat::core::defmacro :my::m [x <- :wat::WatAST] -> :wat::WatAST `~x)
-        (:wat::core::defmacro :my::m [x <- :wat::WatAST] -> :wat::WatAST `(:wat::core::Vector ~x))
+        (:wat::core::defmacro :my::m [x <- wat.type/AST] -> wat.type/AST `~x)
+        (:wat::core::defmacro :my::m [x <- wat.type/AST] -> wat.type/AST `(:wat::core::Vector ~x))
         "#,
     )
     .unwrap_err();
@@ -563,8 +563,8 @@ fn duplicate_defmacro_structurally_equivalent_is_noop() {
     // expands normally afterward.
     let result = expand_src(
         r#"
-        (:wat::core::defmacro :my::m [x <- :wat::WatAST] -> :wat::WatAST `~x)
-        (:wat::core::defmacro :my::m [x <- :wat::WatAST] -> :wat::WatAST `~x)
+        (:wat::core::defmacro :my::m [x <- wat.type/AST] -> wat.type/AST `~x)
+        (:wat::core::defmacro :my::m [x <- wat.type/AST] -> wat.type/AST `~x)
         (:my::m 42)
         "#,
     );
@@ -583,10 +583,10 @@ fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
     // `wat.core.Option/expect` canonicalizes to `::`, and the keyword keeps `/`.
     let same = expand_src(
         r#"
-        (:wat::core::defmacro :my::m [& call-args <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
+        (:wat::core::defmacro :my::m [& call-args <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST
           (:wat::core::let [_kc-type (:wat::core::keyword-node ":my::m")]
             `(:wat::core::kwargs-construct ~_kc-type ~@call-args)))
-        (wat.core/defmacro :my::m [& call-args :- (wat.core/Vector :- [wat/WatAST])] :- wat/WatAST
+        (wat.core/defmacro :my::m [& call-args :- (wat.type/Vector :- [wat.type/AST])] :- wat.type/AST
           (wat.core/let [_kc-type (wat.core/keyword-node ":my::m")]
             `(wat.core/kwargs-construct ~_kc-type ~@call-args)))
         "#,
@@ -599,8 +599,8 @@ fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
 
     let member = expand_src(
         r#"
-        (:wat::core::defmacro :my::m2 [] -> :wat::WatAST `(:wat::core::Option/expect x "m"))
-        (:wat::core::defmacro :my::m2 [] -> :wat::WatAST `(wat.core.Option/expect x "m"))
+        (:wat::core::defmacro :my::m2 [] -> wat.type/AST `(:wat::core::Option/expect x "m"))
+        (:wat::core::defmacro :my::m2 [] -> wat.type/AST `(wat.core.Option/expect x "m"))
         "#,
     );
     assert!(
@@ -621,8 +621,8 @@ fn macro_arity_mismatch() {
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::two
-          [x <- :wat::WatAST y <- :wat::WatAST]
-          -> :wat::WatAST
+          [x <- wat.type/AST y <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::Vector ~x ~y))
         (:my::two 1)
         "#,
@@ -645,8 +645,8 @@ fn variadic_macro_arity_too_few_uses_arity_too_few_variant() {
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::variadic
-          [x <- :wat::WatAST y <- :wat::WatAST & rest <- (:wat::core::Vector :- [:wat::WatAST])]
-          -> :wat::WatAST
+          [x <- wat.type/AST y <- wat.type/AST & rest <- (wat.type/Vector :- [wat.type/AST])]
+          -> wat.type/AST
           `(:wat::core::Vector ~x ~y ~@rest))
         (:my::variadic 1)
         "#,
@@ -681,8 +681,8 @@ fn program_body_producing_non_ast_rejected() {
     // errors — with MalformedTemplate (value_to_watast rejects Vec).
     let err = expand_src(
         r#"
-        (:wat::core::defmacro :my::m [x <- :wat::WatAST] -> :wat::WatAST
-          (:wat::core::Vector :- [:bogus] x))
+        (:wat::core::defmacro :my::m [x <- wat.type/AST] -> wat.type/AST
+          (wat.type/Vector :- [:bogus] x))
         (:my::m 1)
         "#,
     )
@@ -700,7 +700,7 @@ fn program_body_producing_non_ast_rejected() {
 fn splice_non_list_arg_rejected() {
     let err = expand_src(
         r#"
-        (:wat::core::defmacro :my::s [xs <- :wat::WatAST] -> :wat::WatAST `(:wat::core::Vector ~@xs))
+        (:wat::core::defmacro :my::s [xs <- wat.type/AST] -> wat.type/AST `(:wat::core::Vector ~@xs))
         (:my::s 42)
         "#,
     )
@@ -808,12 +808,12 @@ fn nested_quasiquote_preserves_inner_unquote() {
     let forms = expand_keeping_defmacros(
         r#"
         (:wat::core::defmacro :my::mkmac
-          [name <- :wat::WatAST]
-          -> :wat::WatAST
+          [name <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::defmacro
              ~name
-             [x <- :wat::WatAST]
-             -> :wat::WatAST
+             [x <- wat.type/AST]
+             -> wat.type/AST
              `(:wat::holon::Atom ~x)))
         (:my::mkmac :my::wrap)
         "#,
@@ -844,12 +844,12 @@ fn double_unquote_substitutes_at_outer_level() {
     let forms = expand_keeping_defmacros(
         r#"
         (:wat::core::defmacro :my::mkmac
-          [v <- :wat::WatAST]
-          -> :wat::WatAST
+          [v <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::defmacro
              :my::configured
              []
-             -> :wat::WatAST
+             -> wat.type/AST
              `(:wat::holon::Atom ~~v)))
         (:my::mkmac 42)
         "#,
@@ -906,12 +906,12 @@ fn unquote_splicing_at_depth_two_preserves() {
     let forms = expand_keeping_defmacros(
         r#"
         (:wat::core::defmacro :my::mkmac
-          [name <- :wat::WatAST]
-          -> :wat::WatAST
+          [name <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::defmacro
              ~name
-             [xs <- :wat::WatAST]
-             -> :wat::WatAST
+             [xs <- wat.type/AST]
+             -> wat.type/AST
              `(:wat::holon::Bundle ~@xs)))
         (:my::mkmac :my::wrap)
         "#,
@@ -953,16 +953,16 @@ fn make_deftest_shaped_template_expands_through_two_passes() {
     let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::make-mac
-          [name   <- :wat::WatAST
-           dims   <- :wat::WatAST
-           mode   <- :wat::WatAST
-           extras <- :wat::WatAST]
-          -> :wat::WatAST
+          [name   <- wat.type/AST
+           dims   <- wat.type/AST
+           mode   <- wat.type/AST
+           extras <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::defmacro
              ~name
-             [test-name <- :wat::WatAST
-              body      <- :wat::WatAST]
-             -> :wat::WatAST
+             [test-name <- wat.type/AST
+              body      <- wat.type/AST]
+             -> wat.type/AST
              `(:wat::holon::configured
                 ~test-name
                 ~~dims
@@ -1016,9 +1016,9 @@ fn arc138_macro_error_message_carries_span() {
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::two
-          [x <- :wat::WatAST
-           y <- :wat::WatAST]
-          -> :wat::WatAST
+          [x <- wat.type/AST
+           y <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::Vector ~x ~y))
         (:my::two 1)
         "#,
@@ -1128,7 +1128,7 @@ fn computed_unquote_evaluates_substrate_call() {
         r#"
         (:wat::core::defmacro :my::computed-test
           []
-          -> :wat::WatAST
+          -> wat.type/AST
           `(:result ~(:wat::i64::+ 10 32)))
         (:my::computed-test)
         "#,
@@ -1154,8 +1154,8 @@ fn computed_unquote_substitutes_params_before_eval() {
     let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::succ
-          [n <- :wat::WatAST]
-          -> :wat::WatAST
+          [n <- wat.type/AST]
+          -> wat.type/AST
           `(:result ~(:wat::i64::+ n 1)))
         (:my::succ 41)
         "#,
@@ -1182,8 +1182,8 @@ fn computed_unquote_splicing_evaluates_and_splices() {
         r#"
         (:wat::core::defmacro :my::trio
           []
-          -> :wat::WatAST
-          `(:wrapper ~@(:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+          -> wat.type/AST
+          `(:wrapper ~@(wat.type/Vector :- [wat.type/i64] 1 2 3)))
         (:my::trio)
         "#,
     )
@@ -1214,12 +1214,12 @@ fn computed_unquote_in_nested_quasiquote_preserved_at_outer() {
     let forms = expand_keeping_defmacros(
         r#"
         (:wat::core::defmacro :my::make-inner
-          [name <- :wat::WatAST]
-          -> :wat::WatAST
+          [name <- wat.type/AST]
+          -> wat.type/AST
           `(:wat::core::defmacro
              ~name
              []
-             -> :wat::WatAST
+             -> wat.type/AST
              `(:result ~(:wat::i64::+ 1 2))))
         (:my::make-inner :my::inner)
         "#,
@@ -1255,7 +1255,7 @@ fn computed_unquote_in_nested_quasiquote_preserved_at_outer() {
 fn depth_limit_exceeded_on_self_recursive_macro() {
     let err = expand_src(
         r#"
-        (:wat::core::defmacro :my::inf [x <- :wat::WatAST] -> :wat::WatAST `(:my::inf ~x))
+        (:wat::core::defmacro :my::inf [x <- wat.type/AST] -> wat.type/AST `(:my::inf ~x))
         (:my::inf 1)
         "#,
     )
@@ -1280,8 +1280,8 @@ fn depth_limit_exceeded_on_self_recursive_macro() {
 fn expand_once_single_step_not_fixpoint() {
     let (reg, rest, env, sym) = expand_setup(
         r#"
-        (:wat::core::defmacro :my::outer [x <- :wat::WatAST] -> :wat::WatAST `(:my::inner ~x))
-        (:wat::core::defmacro :my::inner [x <- :wat::WatAST] -> :wat::WatAST `(:wat::holon::Atom ~x))
+        (:wat::core::defmacro :my::outer [x <- wat.type/AST] -> wat.type/AST `(:my::inner ~x))
+        (:wat::core::defmacro :my::inner [x <- wat.type/AST] -> wat.type/AST `(:wat::holon::Atom ~x))
         (:my::outer 42)
         "#,
     );
@@ -1344,8 +1344,8 @@ fn unquote_of_typo_param_errors_unbound_macro_param() {
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::typo
-          [x <- :wat::WatAST]
-          -> :wat::WatAST
+          [x <- wat.type/AST]
+          -> wat.type/AST
           `(:result ~y))
         (:my::typo 42)
         "#,
@@ -1711,8 +1711,8 @@ fn defmacro_with_metadata_map_registered_and_expands() {
         r#"
         (:wat::core::defmacro :my::meta-mac
           {:tag 1}
-          [x <- :wat::WatAST]
-          -> :wat::WatAST
+          [x <- wat.type/AST]
+          -> wat.type/AST
           `~x)
         (:my::meta-mac 99)
         "#,

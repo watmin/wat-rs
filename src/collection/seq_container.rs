@@ -90,16 +90,16 @@ impl StreamContainer {
     pub(crate) fn of_type(reduced: &TypeExpr) -> Option<StreamContainer> {
         match reduced {
             // Parametric forms: Vector<T>, List<T>, PersistentVector<T>
-            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::core::Vector") => {
+            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::type::Vector") => {
                 Some(StreamContainer::Vector)
             }
-            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::core::List") => {
+            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::type::List") => {
                 Some(StreamContainer::List)
             }
-            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::core::PersistentVector") => {
+            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::type::PersistentVector") => {
                 Some(StreamContainer::PersistentVector)
             }
-            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::core::HashSet") => {
+            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::type::HashSet") => {
                 Some(StreamContainer::HashSet)
             }
             // Arc 118 — Stream<T>: lazy sequence.
@@ -107,18 +107,18 @@ impl StreamContainer {
                 Some(StreamContainer::Stream)
             }
             // Bare Path forms: annotations without type parameters
-            TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == ":wat::core::Vector" => {
+            TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == ":wat::type::Vector" => {
                 Some(StreamContainer::Vector)
             }
-            TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == ":wat::core::List" => {
+            TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == ":wat::type::List" => {
                 Some(StreamContainer::List)
             }
             TypeExpr::Path(p)
-                if crate::edn::render::type_denotation(p) == ":wat::core::PersistentVector" =>
+                if crate::edn::render::type_denotation(p) == ":wat::type::PersistentVector" =>
             {
                 Some(StreamContainer::PersistentVector)
             }
-            TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == ":wat::WatAST" => {
+            TypeExpr::Path(p) if crate::edn::render::type_denotation(p) == ":wat::type::AST" => {
                 Some(StreamContainer::WatAstList)
             }
             TypeExpr::Path(p) if p == ":wat::stream::Stream" => Some(StreamContainer::Stream),

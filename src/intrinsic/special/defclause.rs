@@ -73,7 +73,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::defclause :name [-> :T] ([args] body) ...)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at check-time registration and never reaches evaluation; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at check-time registration and never reaches evaluation; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
 /// @example-norun (:wat::core::defclause :probe::id ([n <- :wat::core::i64] -> :wat::core::i64 n)) #=> registers :probe::id into the ClauseSet table; no runtime value
 #[wat_special_form(":wat::core::defclause")]
 pub(crate) struct Defclause;

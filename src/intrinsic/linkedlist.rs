@@ -64,8 +64,8 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     l (:wat::core::List :- [T]) the list probed
-/// @ret     :wat::core::i64 the number of elements in `l`
+/// @arg     l (:wat::type::List :- [T]) the list probed
+/// @ret     :wat::type::i64 the number of elements in `l`
 /// @example (:wat::linkedlist::length (:wat::core::List)) #=> 0
 /// @example (:wat::linkedlist::length (:wat::core::List 1 2 3)) #=> 3
 /// @see     :wat::linkedlist::empty?
@@ -82,8 +82,8 @@ pub(crate) fn list_length(l: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     l (:wat::core::List :- [T]) the list probed
-/// @ret     :wat::core::bool true iff `l` has zero elements
+/// @arg     l (:wat::type::List :- [T]) the list probed
+/// @ret     :wat::type::bool true iff `l` has zero elements
 /// @example (:wat::linkedlist::empty? (:wat::core::List)) #=> true
 /// @example (:wat::linkedlist::empty? (:wat::core::List 1)) #=> false
 /// @see     :wat::linkedlist::length
@@ -101,9 +101,9 @@ pub(crate) fn list_empty_q(l: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     l (:wat::core::List :- [T]) the list probed
+/// @arg     l (:wat::type::List :- [T]) the list probed
 /// @arg     item :T the candidate element
-/// @ret     :wat::core::bool true iff `item` occurs in `l`
+/// @ret     :wat::type::bool true iff `item` occurs in `l`
 /// @example (:wat::linkedlist::contains? (:wat::core::List 1 2 3) 2) #=> true
 /// @example (:wat::linkedlist::contains? (:wat::core::List 1 2 3) 9) #=> false
 /// @see     :wat::linkedlist::get
@@ -122,8 +122,8 @@ pub(crate) fn list_contains_q(l: &Value, item: &Value) -> Result<Value, EvalBrea
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     l (:wat::core::List :- [T]) the list probed
-/// @arg     i :wat::core::i64 the index looked up
+/// @arg     l (:wat::type::List :- [T]) the list probed
+/// @arg     i :wat::type::i64 the index looked up
 /// @ret     (:wat::core::Option :- [T]) `Some` the element at `i`, or `None` on OOB
 /// @example (:wat::linkedlist::get (:wat::core::List 1 2 3) 0) #=> (:wat::core::Option::Some {:value 1})
 /// @example (:wat::linkedlist::get (:wat::core::List 1 2 3) 9) #=> :None
@@ -143,9 +143,9 @@ pub(crate) fn list_get(l: &Value, i: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     l (:wat::core::List :- [T]) the list transformed
+/// @arg     l (:wat::type::List :- [T]) the list transformed
 /// @arg     item :T the element prepended
-/// @ret     (:wat::core::List :- [T]) `l` with `item` prepended
+/// @ret     (:wat::type::List :- [T]) `l` with `item` prepended
 /// @example (:wat::linkedlist::length (:wat::linkedlist::conj (:wat::core::List) 1)) #=> 1
 /// @see     :wat::linkedlist::length
 #[wat_intrinsic(":wat::linkedlist::conj")]

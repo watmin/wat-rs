@@ -77,8 +77,8 @@ use crate::value::{
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     record :wat::core::Record the receiver — a Record/HolonRecord Aggregate (not Struct)
-/// @arg     index :wat::core::i64 the zero-based positional field index; raises a TypeMismatch if negative or out of bounds
+/// @arg     record :wat::type::Record the receiver — a Record/HolonRecord Aggregate (not Struct)
+/// @arg     index :wat::type::i64 the zero-based positional field index; raises a TypeMismatch if negative or out of bounds
 /// @ret     :T the field value at `fields[index]`
 /// @example (:wat::core::do (:wat::core::defrecord :probe::FieldAtExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:probe::FieldAtExample :sk 7) 0)) #=> 7
 /// @see     :wat::core::Option/expect
@@ -130,7 +130,7 @@ pub(crate) fn eval_record_field_at(
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     x :T the value being projected; its concrete type must implement every field accessor the surface declares
-/// @arg     surface :wat::core::keyword a literal surface keyword (e.g. :my::Surface), NOT evaluated; must name a registered `SurfaceDef`
+/// @arg     surface :wat::type::keyword a literal surface keyword (e.g. :my::Surface), NOT evaluated; must name a registered `SurfaceDef`
 /// @ret     :T the freshly-built `$core-record`-tier Record Aggregate carrying the surface's fields
 /// @example (:wat::core::Record/field-at (:wat::core::to-record (:wat::core::Fault/of "boom") :wat::core::Error) 0) #=> "boom"
 /// @see     :wat::core::Record/field-at
@@ -176,8 +176,8 @@ pub(crate) fn eval_to_core_record(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     record :wat::core::Record the receiver — a Record/HolonRecord Aggregate whose class is registered in the TypeEnv
-/// @ret     (:wat::core::HashMap :- [:wat::core::keyword T]) field-name keyword → field value, one entry per declared field
+/// @arg     record :wat::type::Record the receiver — a Record/HolonRecord Aggregate whose class is registered in the TypeEnv
+/// @ret     (:wat::type::HashMap :- [:wat::type::keyword T]) field-name keyword → field value, one entry per declared field
 /// @example (:wat::core::do (:wat::core::defrecord :probe::ToMapExample [sk <- :wat::core::i64]) (:wat::hashmap::get (:wat::core::record->map (:probe::ToMapExample :sk 3)) :sk)) #=> (:wat::core::Option::Some {:value 3})
 /// @see     :wat::core::Record/same-data?
 #[wat_intrinsic(":wat::core::record->map")]
@@ -220,10 +220,10 @@ pub(crate) fn eval_record_to_map(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     record :wat::core::Record the receiver — a Record/HolonRecord Aggregate
-/// @arg     key :wat::core::keyword the field name written; raises UnknownField if the record has no such field
+/// @arg     record :wat::type::Record the receiver — a Record/HolonRecord Aggregate
+/// @arg     key :wat::type::keyword the field name written; raises UnknownField if the record has no such field
 /// @arg     new_value :T the value written at `key`; raises a TypeMismatch if its type variant differs from the original field's
-/// @ret     :wat::core::Record a NEW record, same class/nature, with `key` bound to `new_value`; the original is unchanged
+/// @ret     :wat::type::Record a NEW record, same class/nature, with `key` bound to `new_value`; the original is unchanged
 /// @example (:wat::core::do (:wat::core::defrecord :probe::AssocExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::Record/assoc (:probe::AssocExample :sk 1) :sk 9) 0)) #=> 9
 /// @see     :wat::core::assoc
 #[wat_intrinsic(":wat::core::Record/assoc")]
@@ -269,9 +269,9 @@ pub(crate) fn eval_record_assoc(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::Record the first record — a Record/HolonRecord Aggregate whose class is registered in the TypeEnv
-/// @arg     b :wat::core::Record the second record — same requirement
-/// @ret     :wat::core::bool true iff `a` and `b`'s field-name→value maps are equal, regardless of class or flavor
+/// @arg     a :wat::type::Record the first record — a Record/HolonRecord Aggregate whose class is registered in the TypeEnv
+/// @arg     b :wat::type::Record the second record — same requirement
+/// @ret     :wat::type::bool true iff `a` and `b`'s field-name→value maps are equal, regardless of class or flavor
 /// @example (:wat::core::do (:wat::core::defrecord :probe::PtEx [sk <- :wat::core::i64]) (:wat::core::defrecord :probe::CoordEx [sk <- :wat::core::i64]) (:wat::core::Record/same-data? (:probe::PtEx :sk 0) (:probe::CoordEx :sk 0))) #=> true
 /// @see     :wat::core::record->map
 #[wat_intrinsic(":wat::core::Record/same-data?")]
@@ -315,8 +315,8 @@ pub(crate) fn eval_record_same_data(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     record :wat::core::Record the receiver — any Aggregate (record, holon-record, or struct)
-/// @arg     index :wat::core::i64 the zero-based positional field index; raises a TypeMismatch on a non-Aggregate receiver, or a MalformedForm if the index is out of range
+/// @arg     record :wat::type::Record the receiver — any Aggregate (record, holon-record, or struct)
+/// @arg     index :wat::type::i64 the zero-based positional field index; raises a TypeMismatch on a non-Aggregate receiver, or a MalformedForm if the index is out of range
 /// @ret     :T the field value at `fields[index]`
 /// @example (:wat::core::do (:wat::core::defstruct :probe::StructFieldExample [sk <- :wat::core::i64]) (:wat::core::struct-field (:probe::StructFieldExample :sk 5) 0)) #=> 5
 /// @see     :wat::core::Record/field-at
@@ -360,7 +360,7 @@ pub(crate) fn eval_struct_field(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     xs… :wat::core::Value arg0 is a literal keyword naming a registered struct/newtype type; the rest are the field values, evaluated in declaration order (exactly one for a Newtype)
+/// @arg     xs… :wat::type::Value arg0 is a literal keyword naming a registered struct/newtype type; the rest are the field values, evaluated in declaration order (exactly one for a Newtype)
 /// @ret     :T the newly constructed struct/newtype Aggregate
 /// @example (:wat::core::do (:wat::core::defstruct :probe::StructNewExample [sk <- :wat::core::i64]) (:wat::core::struct-field (:wat::core::struct-new :probe::StructNewExample 4) 0)) #=> 4
 /// @see     :wat::core::struct-field
@@ -406,7 +406,7 @@ pub(crate) fn eval_struct_new(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     xs… :wat::core::Value arg0 the enum's type path (literal keyword), arg1 the variant name (literal keyword, leading `:` stripped), the rest are the variant's field values in declaration order
+/// @arg     xs… :wat::type::Value arg0 the enum's type path (literal keyword), arg1 the variant name (literal keyword, leading `:` stripped), the rest are the variant's field values in declaration order
 /// @ret     :T the newly constructed enum value carrying the named variant and its fields
 /// @example (:wat::core::do (:wat::core::defenum :probe::VariantExample :wat::enum::Pure :V [sk <- :wat::core::i64]) (:wat::core::= (:wat::core::variant :probe::VariantExample :V 6) (:probe::VariantExample::V 6))) #=> true
 /// @see     :wat::core::struct-new
@@ -441,7 +441,7 @@ pub(crate) fn eval_variant(
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     e :T an enum value
-/// @ret     :wat::core::String the variant name, no leading colon
+/// @ret     :wat::type::String the variant name, no leading colon
 /// @example (:wat::core::do (:wat::core::defenum :probe::NameExample :wat::enum::Pure :V []) (:wat::core::variant-name (:probe::NameExample::V))) #=> "V"
 /// @see     :wat::core::variant
 #[wat_intrinsic(":wat::core::variant-name")]
@@ -510,7 +510,7 @@ pub(crate) fn eval_variant_name(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     xs… :wat::core::Value arg0 is a literal keyword naming a registered aggregate type; the rest are the field values, evaluated in declaration order
+/// @arg     xs… :wat::type::Value arg0 is a literal keyword naming a registered aggregate type; the rest are the field values, evaluated in declaration order
 /// @ret     :T the newly constructed aggregate
 /// @example (:wat::core::do (:wat::core::defrecord :probe::AggNewExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::aggregate-new :probe::AggNewExample 7) 0)) #=> 7
 /// @see     :wat::core::kwargs-construct
@@ -558,7 +558,7 @@ pub(crate) fn eval_aggregate_new_home(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     xs… :wat::core::Value arg0 is a literal keyword naming a registered aggregate type; the rest are either kwargs (`:field value …`) or positional field values
+/// @arg     xs… :wat::type::Value arg0 is a literal keyword naming a registered aggregate type; the rest are either kwargs (`:field value …`) or positional field values
 /// @ret     :T the newly constructed aggregate
 /// @example (:wat::core::do (:wat::core::defrecord :probe::KwargsConstructExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::kwargs-construct :probe::KwargsConstructExample :sk 9) 0)) #=> 9
 /// @see     :wat::core::aggregate-new

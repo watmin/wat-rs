@@ -50,7 +50,7 @@ use std::collections::HashMap;
 /// @Totality Total
 /// @ExpandTime Legal
 /// @syntax (:wat::core::forms <form>*)
-/// @ret (:wat::core::Vector :- [:wat::WatAST]) one unevaluated `:wat::WatAST` per positional argument, in order; empty Vector for zero arguments
+/// @ret (:wat::type::Vector :- [:wat::type::AST]) one unevaluated `:wat::type::AST` per positional argument, in order; empty Vector for zero arguments
 /// @example (:wat::core::length (:wat::core::forms 1 2 3)) #=> 3
 #[wat_special_form(":wat::core::forms")]
 pub(crate) struct Forms;
@@ -92,7 +92,7 @@ pub(crate) fn infer_forms(
     // `(:wat::core::Vector :- [wat::WatAST])` regardless of arity (including
     // zero, which produces an empty Vec).
     CheckResult::ok(TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::WatAST".into())],
+        head: "wat::type::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::type::AST".into())],
     })
 }

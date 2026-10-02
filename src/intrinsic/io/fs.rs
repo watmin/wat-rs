@@ -141,7 +141,7 @@ pub(crate) fn eval_io_temp_file_new(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     temp_file :wat::io::TempFile the temp file handle to read the path from
-/// @ret     :wat::core::String the temp file's on-disk path
+/// @ret     :wat::type::String the temp file's on-disk path
 /// @example (:wat::i64::> (:wat::string::length (:wat::io::TempFile/path (:wat::io::TempFile/new))) 0) #=> true
 // Registered `TypeScheme` — `check.rs:15955` — gate LIVE.
 //
@@ -221,7 +221,7 @@ pub(crate) fn eval_io_temp_dir_new(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     temp_dir :wat::io::TempDir the temp dir handle to read the path from
-/// @ret     :wat::core::String the temp dir's on-disk path
+/// @ret     :wat::type::String the temp dir's on-disk path
 /// @example (:wat::i64::> (:wat::string::length (:wat::io::TempDir/path (:wat::io::TempDir/new))) 0) #=> true
 // Registered `TypeScheme` — `check.rs:15973` — gate LIVE.
 //
@@ -259,8 +259,8 @@ pub(crate) fn eval_io_temp_dir_path(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
-/// @arg     path :wat::core::String the path to read
-/// @ret     :wat::core::String the file's full contents
+/// @arg     path :wat::type::String the path to read
+/// @ret     :wat::type::String the file's full contents
 /// @example-norun (:wat::io::read-file "/tmp/x.txt") #=> "hello"
 // Registered `TypeScheme` — `check.rs:15988` — gate LIVE.
 //
@@ -300,8 +300,8 @@ pub(crate) fn eval_io_read_file(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
-/// @arg     path :wat::core::String the directory to list
-/// @ret     (:wat::core::Vector :- [:wat::core::String]) each entry's full path
+/// @arg     path :wat::type::String the directory to list
+/// @ret     (:wat::type::Vector :- [:wat::type::String]) each entry's full path
 /// @example-norun (:wat::io::list-dir "wat") #=> Vector["wat/fix.wat" "wat/core.wat" …]
 // Registered `TypeScheme` — `check.rs:15997` — gate LIVE.
 //

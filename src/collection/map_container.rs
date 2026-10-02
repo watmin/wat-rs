@@ -100,14 +100,14 @@ impl MapContainer {
     /// head/structure), so taking the lattice is honest, not ceremony.
     pub(crate) fn of_type(reduced: &TypeExpr, types: &TypeEnv) -> Option<MapContainer> {
         match reduced {
-            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::core::HashMap") => {
+            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::type::HashMap") => {
                 Some(MapContainer::HashMap)
             }
-            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::core::PersistentMap") => {
+            TypeExpr::Parametric { head, .. } if crate::types::parametric_heads_unify(head, "wat::type::PersistentMap") => {
                 Some(MapContainer::PersistentMap)
             }
             TypeExpr::Path(p)
-                if crate::types::is_subtype(p, ":wat::core::Record", types)
+                if crate::types::is_subtype(p, ":wat::type::Record", types)
                     || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
             {
                 Some(MapContainer::Record)

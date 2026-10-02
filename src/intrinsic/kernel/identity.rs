@@ -200,7 +200,7 @@ pub(crate) fn eval_require_wire_address(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     peer (:wat::kernel::Peer :- [S R]) the peer to interrogate
-/// @ret     :wat::core::bool whether the peer's transport is a wire
+/// @ret     :wat::type::bool whether the peer's transport is a wire
 /// @example-norun (:wat::kernel::peer-wire? p) #=> false
 // No registered `TypeScheme` — `check.rs`'s `infer_peer_wire` (`:11140`) is
 // the real authority: ∀-parametric over `peer<∀I,∀O>`, result always `bool`.
@@ -245,7 +245,7 @@ pub(crate) fn eval_peer_wire(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     addr (:wat::kernel::Address :- [S R]) the address to interrogate
-/// @ret     :wat::core::bool whether the address has a portable (wire) form
+/// @ret     :wat::type::bool whether the address has a portable (wire) form
 /// @example (:wat::kernel::address-wire? (:wat::spawn::Bound/address (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64))) #=> false
 // No registered `TypeScheme` — `check.rs`'s `infer_address_wire` (`:11187`)
 // is the real authority: unifies `addr` against `Address<S,R>`, result
@@ -292,7 +292,7 @@ pub(crate) fn eval_address_wire(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     peer (:wat::kernel::Peer :- [I O]) the peer to read the far-end pid from
-/// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(pid)` for a process peer, `:None` for a thread peer
+/// @ret     (:wat::core::Option :- [:wat::type::i64]) `Some(pid)` for a process peer, `:None` for a thread peer
 /// @example-norun (:wat::kernel::peer-pid p) #=> (Some 4242)
 // No registered `TypeScheme` — verified by the rider (`grep -cF
 // ':wat::kernel::peer-pid' src/check.rs` → 0), independently of the

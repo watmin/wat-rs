@@ -61,7 +61,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::defmacro :name [<param> <- :wat::WatAST ...] -> :wat::WatAST <body>)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at macro-registration time (before `expand_all`) and never reaches evaluation; its effect is the `MacroDef` it leaves in the `MacroRegistry`
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at macro-registration time (before `expand_all`) and never reaches evaluation; its effect is the `MacroDef` it leaves in the `MacroRegistry`
 /// @example-norun (:wat::core::defmacro :probe::ident [x <- :wat::WatAST] -> :wat::WatAST `~x) #=> registers :probe::ident into the MacroRegistry; no runtime value
 #[wat_special_form(":wat::core::defmacro")]
 pub(crate) struct Defmacro;

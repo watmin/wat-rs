@@ -1086,7 +1086,7 @@ mod tests {
         ":wat::core::Some",
         ":wat::core::Ok",
         ":wat::core::Err",
-        ":wat::core::List",
+        ":wat::type::List",
         ":wat::core::fresh-symbol",
         ":wat::core::if",
         ":wat::core::let",
@@ -1373,8 +1373,8 @@ mod tests {
         ":wat::core::first",
         ":wat::core::second",
         ":wat::core::third",
-        ":wat::core::PersistentVector",
-        ":wat::core::PersistentMap",
+        ":wat::type::PersistentVector",
+        ":wat::type::PersistentMap",
         // Arc 255 Stone 1c-b-ii — `=`/`not=`/`<`/`>`/`<=`/`>=` join: each is now a registered
         // `#[wat_intrinsic]` row (`src/runtime.rs` — `eval_eq_intrinsic`/`eval_not_eq_intrinsic`/
         // `eval_lt_intrinsic`/`eval_gt_intrinsic`/`eval_lte_intrinsic`/`eval_gte_intrinsic`), but
@@ -1519,7 +1519,7 @@ mod tests {
     /// ⛔ `:wat::core::variant` is NOT on this list, though the DESIGN's initial behavioural
     /// probe (an arity-abuse call, `(<verb> 1 2 .. 9)`) measured it as one of the eleven.
     /// STOP-1: `variant`'s declared arg type — `@arg xs… :wat::core::Value` — is
-    /// `:wat::core::Value`, which `types.rs::is_subtype`'s `sup == ":wat::core::Value"` arm
+    /// `:wat::core::Value`, which `types.rs::is_subtype`'s `sup == ":wat::type::Value"` arm
     /// makes the UNIVERSAL SUBTYPE-TOP (arc 278 Stone-Value: "every type <: Value"). No value
     /// is ill-typed against a `Value`-typed parameter — passing `"not-a-keyword"` where the doc
     /// says "arg0 the enum's type path (literal keyword)" still type-checks, confirmed against
@@ -1665,12 +1665,12 @@ mod tests {
     /// `register_builtins` and `crate::rete::vocabulary::RETE_OPS` again, or — better — read
     /// this gate's own failure message, which names the true population directly.
     const REGISTRY_MEMBERSHIP_GAP_A: &[&str] = &[
-        // Arc 255 Stone 1c-a-ii — ":wat::core::Tuple" / ":wat::core::apply" /
+        // Arc 255 Stone 1c-a-ii — ":wat::type::Tuple" / ":wat::core::apply" /
         // ":wat::core::conforms?" / ":wat::core::contains?" / ":wat::core::get" DELETED: all
         // five now carry a `#[wat_intrinsic]` row (`src/runtime.rs`), so `registry()` answers
         // for them and the gap this list named is closed.
-        // Arc 255 Stone the-three-orphans — ":wat::core::HashMap" / ":wat::core::HashSet" /
-        // ":wat::core::Vector" DELETED: all three now carry a `#[wat_intrinsic]` row
+        // Arc 255 Stone the-three-orphans — ":wat::type::HashMap" / ":wat::type::HashSet" /
+        // ":wat::type::Vector" DELETED: all three now carry a `#[wat_intrinsic]` row
         // (`eval_hashmap`/`eval_hashset`/`eval_vector`, `src/runtime.rs`), so `registry()`
         // answers for them (`check_env` still holds their pre-existing sentinel `TypeScheme`s,
         // `check.rs:21146-21202` — unchanged, unrelated to this gap) and the gap this list named
@@ -1863,14 +1863,14 @@ mod tests {
         ":wat::core::quote",
         ":wat::core::=",
         ":wat::core::do",
-        ":wat::core::PersistentVector",
+        ":wat::type::PersistentVector",
         ":wat::core::foldl",
         ":wat::core::first",
         ":wat::eval-ast!",
-        ":wat::core::Tuple",
+        ":wat::type::Tuple",
         ":wat::core::ann-form",
         ":wat::core::second",
-        ":wat::core::PersistentMap",
+        ":wat::type::PersistentMap",
         ":wat::core::get",
         ":wat::core::extend-type",
         ":wat::core::str",
@@ -1911,7 +1911,7 @@ mod tests {
         ":wat::rete::map::contains-key?",
         ":wat::rete::holon::cosine",
         ":wat::rete::core::foldl",
-        ":wat::core::u8",
+        ":wat::type::u8",
         ":wat::core::defclause",
         ":wat::type::i64",
         ":wat::rete::f64::>",
@@ -2078,7 +2078,10 @@ mod tests {
         ":wat::rete::i64::-",
         ":wat::rete::i64::+",
         ":wat::rete::i64::mod",
-        ":wat::type::Tuple",
+        // ":wat::type::Tuple" REMOVED -- arc 255 Stone 255.81: the key flip put Tuple's
+        // constructor's own `#[wat_intrinsic]` row under this new name directly (previously
+        // ":wat::core::Tuple"), so `registry().lookup_entry` returns `Some` and this name is
+        // resolved, not gapped.
         ":wat::rete::holon::cosine",
         // ":wat::rete::core::foldl" REMOVED -- arc 255 Stone the-rete-vocabulary-enters-the-
         // registry, Part 3: same reason as ":wat::rete::string::=" above.
@@ -2095,7 +2098,9 @@ mod tests {
         // ":wat::rete::string::=" above.
         ":wat::eval-with-defs!",
         ":wat::core::None",
-        ":wat::type::Vector",
+        // ":wat::type::Vector" REMOVED -- arc 255 Stone 255.81: same reason as
+        // ":wat::type::Tuple" above — the key flip put Vector's constructor under this name
+        // directly, so `registry().lookup_entry` returns `Some` now.
         ":wat::rete::vec::get",
         ":wat::rete::linkedlist::get",
         ":wat::rete::i64::rem",
@@ -2533,7 +2538,7 @@ mod tests {
         //   `:wat::rete::lower` ret  — the parser canonicalizes `:wat::core::nil` to `Tuple([])`;
         //                              13 other nil-returning schemes in `register_builtins`
         //                              already spell it `Tuple([])`/`unit_ty()`. `lower` was the
-        //                              lone `Path(":wat::core::nil")`; now matches the house form.
+        //                              lone `Path(":wat::type::nil")`; now matches the house form.
         //   `:wat::string::join` arg1 — the parser yields the type var as `Path(":T")` (bare doc
         //                              symbols are colon-prefixed on parse); 14 other `Path`
         //                              type-var occurrences in `register_builtins` (incl.
@@ -2653,13 +2658,21 @@ mod tests {
             // checker therefore stores it as `Tuple([])`, while every doc, signature
             // and call site in the corpus writes `:wat::core::nil`. Render the
             // canonical form back to the spelling humans use.
-            crate::types::TypeExpr::Tuple(items) if items.is_empty() => ":wat::core::nil".to_string(),
+            crate::types::TypeExpr::Tuple(items) if items.is_empty() => ":wat::type::nil".to_string(),
             // Non-empty tuple — verified against the corpus's own canonical
             // parametric-type-reference form (see fn doc above), not invented.
+            // Stone 255.81 (P-surface) — 255.80 held this arm back pending "4b makes types
+            // print as written." That's now: this renders the NEW canonical spelling for
+            // every caller (`doc_arg_ret_types_match_checker_scheme` compares it against
+            // EVERY Tuple-typed row's doc, not just one), and `reckoner.rs`'s hand-written
+            // mirror comment is updated to match in the same commit — see that file.
             crate::types::TypeExpr::Tuple(items) if !items.is_empty() => {
                 let items_str: Vec<String> =
                     items.iter().map(typeexpr_to_type_arg_string).collect();
-                format!("(:wat::core::Tuple :- [{}])", items_str.join(" "))
+                // Keyword dialect, matching every other arm in this fn (the Parametric arm's
+                // `format!(":{head} :- […])`, the nil arm's `":wat::type::nil"`) and every
+                // `@arg`/`@ret` doc line this stone touched.
+                format!("(:wat::type::Tuple :- [{}])", items_str.join(" "))
             }
             crate::types::TypeExpr::Fn { args, ret } => {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();
@@ -3571,7 +3584,7 @@ mod tests {
                     let after = after_open[end + 1..].trim_start();
                     let is_arm_continuation = if after.is_empty() {
                         // ⛔ SKIP BLANK LINES. `strip_line_comments` replaces a comment line with
-                        // an EMPTY one, so an arm followed by a comment — e.g. `| ":wat::core::u8"`
+                        // an EMPTY one, so an arm followed by a comment — e.g. `| ":wat::type::u8"`
                         // then `// Comparison` (src/rete/purity.rs) — had an empty next line and
                         // was silently NOT counted. The stripping that prevents prose
                         // false-POSITIVES was manufacturing false-NEGATIVES, and the gate's own

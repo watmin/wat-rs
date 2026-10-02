@@ -103,9 +103,9 @@ use crate::value::{
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::f64 the left addend
-/// @arg     b :wat::core::f64 the right addend
-/// @ret     :wat::core::f64 the sum of `a` and `b`
+/// @arg     a :wat::type::f64 the left addend
+/// @arg     b :wat::type::f64 the right addend
+/// @ret     :wat::type::f64 the sum of `a` and `b`
 /// @example (:wat::f64::+ 1.0 2.0) #=> 3.0
 #[wat_intrinsic(":wat::f64::+", value = eval_f64_add_value)]
 pub(crate) fn eval_f64_add(
@@ -142,9 +142,9 @@ fn eval_f64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::f64 the minuend
-/// @arg     b :wat::core::f64 the subtrahend
-/// @ret     :wat::core::f64 `a` minus `b`
+/// @arg     a :wat::type::f64 the minuend
+/// @arg     b :wat::type::f64 the subtrahend
+/// @ret     :wat::type::f64 `a` minus `b`
 /// @example (:wat::f64::- 5.0 3.0) #=> 2.0
 #[wat_intrinsic(":wat::f64::-", value = eval_f64_sub_value)]
 pub(crate) fn eval_f64_sub(
@@ -177,9 +177,9 @@ fn eval_f64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::f64 the first factor
-/// @arg     b :wat::core::f64 the second factor
-/// @ret     :wat::core::f64 `a` times `b`
+/// @arg     a :wat::type::f64 the first factor
+/// @arg     b :wat::type::f64 the second factor
+/// @ret     :wat::type::f64 `a` times `b`
 /// @example (:wat::f64::* 3.0 4.0) #=> 12.0
 #[wat_intrinsic(":wat::f64::*", value = eval_f64_mul_value)]
 pub(crate) fn eval_f64_mul(
@@ -213,9 +213,9 @@ fn eval_f64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::f64 the dividend
-/// @arg     b :wat::core::f64 the divisor
-/// @ret     :wat::core::f64 `a` divided by `b`
+/// @arg     a :wat::type::f64 the dividend
+/// @arg     b :wat::type::f64 the divisor
+/// @ret     :wat::type::f64 `a` divided by `b`
 /// @example (:wat::f64::/ 6.0 2.0) #=> 3.0
 #[wat_intrinsic(":wat::f64::/", value = eval_f64_div_value)]
 pub(crate) fn eval_f64_div(
@@ -255,9 +255,9 @@ fn eval_f64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::f64 the larger of `a` and `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::f64 the larger of `a` and `b`
 /// @example (:wat::f64::max 1.0 2.0) #=> 2.0
 #[wat_intrinsic(":wat::f64::max")]
 pub(crate) fn eval_f64_max(
@@ -285,9 +285,9 @@ pub(crate) fn eval_f64_max(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::f64 the smaller of `a` and `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::f64 the smaller of `a` and `b`
 /// @example (:wat::f64::min 1.0 2.0) #=> 1.0
 #[wat_intrinsic(":wat::f64::min")]
 pub(crate) fn eval_f64_min(
@@ -330,9 +330,9 @@ pub(crate) fn eval_f64_min(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::bool true iff `a` is less than `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::bool true iff `a` is less than `b`
 /// @example (:wat::f64::< 1.0 2.0) #=> true
 #[wat_intrinsic(":wat::f64::<")]
 pub(crate) fn eval_f64_lt(
@@ -365,9 +365,9 @@ pub(crate) fn eval_f64_lt(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::bool true iff `a` is less than or equal to `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::bool true iff `a` is less than or equal to `b`
 /// @example (:wat::f64::<= 2.0 2.0) #=> true
 #[wat_intrinsic(":wat::f64::<=")]
 pub(crate) fn eval_f64_lte(
@@ -400,9 +400,9 @@ pub(crate) fn eval_f64_lte(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::bool true iff `a` is greater than `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::bool true iff `a` is greater than `b`
 /// @example (:wat::f64::> 3.0 2.0) #=> true
 #[wat_intrinsic(":wat::f64::>")]
 pub(crate) fn eval_f64_gt(
@@ -435,9 +435,9 @@ pub(crate) fn eval_f64_gt(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::bool true iff `a` is greater than or equal to `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::bool true iff `a` is greater than or equal to `b`
 /// @example (:wat::f64::>= 2.0 2.0) #=> true
 #[wat_intrinsic(":wat::f64::>=")]
 pub(crate) fn eval_f64_gte(
@@ -472,9 +472,9 @@ pub(crate) fn eval_f64_gte(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::bool true iff `a` equals `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::bool true iff `a` equals `b`
 /// @example (:wat::f64::= 2.0 2.0) #=> true
 #[wat_intrinsic(":wat::f64::=")]
 pub(crate) fn eval_f64_eq(
@@ -508,9 +508,9 @@ pub(crate) fn eval_f64_eq(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::f64 the left operand
-/// @arg     b :wat::core::f64 the right operand
-/// @ret     :wat::core::bool true iff `a` does not equal `b`
+/// @arg     a :wat::type::f64 the left operand
+/// @arg     b :wat::type::f64 the right operand
+/// @ret     :wat::type::bool true iff `a` does not equal `b`
 /// @example (:wat::f64::not= 2.0 3.0) #=> true
 #[wat_intrinsic(":wat::f64::not=")]
 pub(crate) fn eval_f64_not_eq(
@@ -539,8 +539,8 @@ pub(crate) fn eval_f64_not_eq(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     n :wat::core::f64 the f64 to take the absolute value of
-/// @ret     :wat::core::f64 the absolute value of `n`
+/// @arg     n :wat::type::f64 the f64 to take the absolute value of
+/// @ret     :wat::type::f64 the absolute value of `n`
 /// @example (:wat::f64::abs -3.5) #=> 3.5
 #[wat_intrinsic(":wat::f64::abs")]
 pub(crate) fn eval_f64_abs(
@@ -570,9 +570,9 @@ pub(crate) fn eval_f64_abs(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     v :wat::core::f64 the value to round
-/// @arg     digits :wat::core::i64 the number of decimal places, non-negative
-/// @ret     :wat::core::f64 `v` rounded to `digits` decimal places
+/// @arg     v :wat::type::f64 the value to round
+/// @arg     digits :wat::type::i64 the number of decimal places, non-negative
+/// @ret     :wat::type::f64 `v` rounded to `digits` decimal places
 /// @example (:wat::f64::round 1.5 0) #=> 2.0
 #[wat_intrinsic(":wat::f64::round")]
 pub(crate) fn eval_f64_round(
@@ -602,8 +602,8 @@ pub(crate) fn eval_f64_round(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     n :wat::core::f64 the f64 to truncate
-/// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(n as i64)` when in range, `None` otherwise
+/// @arg     n :wat::type::f64 the f64 to truncate
+/// @ret     (:wat::core::Option :- [:wat::type::i64]) `Some(n as i64)` when in range, `None` otherwise
 /// @example (:wat::f64::to-i64 3.75) #=> (:wat::f64::to-i64 3.75)
 #[wat_intrinsic(":wat::f64::to-i64")]
 pub(crate) fn eval_f64_to_i64(
@@ -638,8 +638,8 @@ pub(crate) fn eval_f64_to_i64(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     n :wat::core::f64 the f64 to render
-/// @ret     :wat::core::String the rendering of `n`
+/// @arg     n :wat::type::f64 the f64 to render
+/// @ret     :wat::type::String the rendering of `n`
 /// @example (:wat::f64::to-string 2.5) #=> "2.5"
 #[wat_intrinsic(":wat::f64::to-string")]
 pub(crate) fn eval_f64_to_string(
@@ -679,10 +679,10 @@ pub(crate) fn eval_f64_to_string(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     v :wat::core::f64 the value to bound
-/// @arg     lo :wat::core::f64 the lower bound
-/// @arg     hi :wat::core::f64 the upper bound
-/// @ret     :wat::core::f64 `v`, bounded into `[lo, hi]`
+/// @arg     v :wat::type::f64 the value to bound
+/// @arg     lo :wat::type::f64 the lower bound
+/// @arg     hi :wat::type::f64 the upper bound
+/// @ret     :wat::type::f64 `v`, bounded into `[lo, hi]`
 /// @example (:wat::f64::clamp 5.0 -1.0 1.0) #=> 1.0
 #[wat_intrinsic(":wat::f64::clamp")]
 pub(crate) fn eval_f64_clamp(
@@ -756,8 +756,8 @@ fn f64_variadic_reduce(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     args… :wat::core::f64 the values to reduce
-/// @ret     (:wat::core::Option :- [:wat::core::f64]) the maximum, or `None` if no args given
+/// @arg     args… :wat::type::f64 the values to reduce
+/// @ret     (:wat::core::Option :- [:wat::type::f64]) the maximum, or `None` if no args given
 /// @example (:wat::f64::max-of 1.0 2.0 3.0) #=> (:wat::f64::max-of 1.0 2.0 3.0)
 #[wat_intrinsic(":wat::f64::max-of")]
 pub(crate) fn eval_f64_max_of(
@@ -786,8 +786,8 @@ pub(crate) fn eval_f64_max_of(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     args… :wat::core::f64 the values to reduce
-/// @ret     (:wat::core::Option :- [:wat::core::f64]) the minimum, or `None` if no args given
+/// @arg     args… :wat::type::f64 the values to reduce
+/// @ret     (:wat::core::Option :- [:wat::type::f64]) the minimum, or `None` if no args given
 /// @example (:wat::f64::min-of 1.0 2.0 3.0) #=> (:wat::f64::min-of 1.0 2.0 3.0)
 #[wat_intrinsic(":wat::f64::min-of")]
 pub(crate) fn eval_f64_min_of(

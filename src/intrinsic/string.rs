@@ -129,9 +129,9 @@ fn arg_i64(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     haystack :wat::core::String the string searched
-/// @arg     needle   :wat::core::String the substring sought
-/// @ret     :wat::core::bool true iff `needle` occurs anywhere in `haystack`
+/// @arg     haystack :wat::type::String the string searched
+/// @arg     needle   :wat::type::String the substring sought
+/// @ret     :wat::type::bool true iff `needle` occurs anywhere in `haystack`
 /// @example (:wat::string::contains? "hello world" "wor") #=> true
 /// @see     :wat::string::starts-with?
 #[wat_intrinsic(":wat::string::contains?")]
@@ -169,9 +169,9 @@ pub(crate) fn eval_string_contains(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     haystack :wat::core::String the string examined
-/// @arg     prefix   :wat::core::String the prefix sought
-/// @ret     :wat::core::bool true iff `haystack` begins with `prefix`
+/// @arg     haystack :wat::type::String the string examined
+/// @arg     prefix   :wat::type::String the prefix sought
+/// @ret     :wat::type::bool true iff `haystack` begins with `prefix`
 /// @example (:wat::string::starts-with? "hello" "he") #=> true
 /// @see     :wat::string::ends-with?
 #[wat_intrinsic(":wat::string::starts-with?")]
@@ -209,9 +209,9 @@ pub(crate) fn eval_string_starts_with(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     haystack :wat::core::String the string examined
-/// @arg     suffix   :wat::core::String the suffix sought
-/// @ret     :wat::core::bool true iff `haystack` ends with `suffix`
+/// @arg     haystack :wat::type::String the string examined
+/// @arg     suffix   :wat::type::String the suffix sought
+/// @ret     :wat::type::bool true iff `haystack` ends with `suffix`
 /// @example (:wat::string::ends-with? "hello" "lo") #=> true
 /// @see     :wat::string::starts-with?
 #[wat_intrinsic(":wat::string::ends-with?")]
@@ -255,8 +255,8 @@ pub(crate) fn eval_string_ends_with(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     s :wat::core::String the string to test
-/// @ret     :wat::core::bool true iff `s` has zero characters
+/// @arg     s :wat::type::String the string to test
+/// @ret     :wat::type::bool true iff `s` has zero characters
 /// @example (:wat::string::empty? "") #=> true
 /// @see     :wat::string::length
 #[wat_intrinsic(":wat::string::empty?")]
@@ -293,8 +293,8 @@ pub(crate) fn eval_string_empty(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the string to measure
-/// @ret     :wat::core::i64 the number of Unicode scalar values in `s`
+/// @arg     s :wat::type::String the string to measure
+/// @ret     :wat::type::i64 the number of Unicode scalar values in `s`
 /// @example (:wat::string::length "hello") #=> 5
 #[wat_intrinsic(":wat::string::length")]
 pub(crate) fn eval_string_length(
@@ -327,8 +327,8 @@ pub(crate) fn eval_string_length(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the string to trim
-/// @ret     :wat::core::String the string with leading and trailing whitespace removed
+/// @arg     s :wat::type::String the string to trim
+/// @ret     :wat::type::String the string with leading and trailing whitespace removed
 /// @example (:wat::string::trim "  x  ") #=> "x"
 /// @see     :wat::string::to-lowercase
 #[wat_intrinsic(":wat::string::trim")]
@@ -365,8 +365,8 @@ pub(crate) fn eval_string_trim(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the string to lowercase
-/// @ret     :wat::core::String `s` with every character lowercased
+/// @arg     s :wat::type::String the string to lowercase
+/// @ret     :wat::type::String `s` with every character lowercased
 /// @example (:wat::string::to-lowercase "HELLO") #=> "hello"
 /// @see     :wat::string::to-uppercase
 #[wat_intrinsic(":wat::string::to-lowercase")]
@@ -396,8 +396,8 @@ pub(crate) fn eval_string_to_lowercase(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the string to uppercase
-/// @ret     :wat::core::String `s` with every character uppercased
+/// @arg     s :wat::type::String the string to uppercase
+/// @ret     :wat::type::String `s` with every character uppercased
 /// @example (:wat::string::to-uppercase "hello") #=> "HELLO"
 /// @see     :wat::string::to-lowercase
 #[wat_intrinsic(":wat::string::to-uppercase")]
@@ -432,8 +432,8 @@ pub(crate) fn eval_string_to_uppercase(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the PascalCase string to convert
-/// @ret     :wat::core::String the kebab-case rendering of `s`
+/// @arg     s :wat::type::String the PascalCase string to convert
+/// @ret     :wat::type::String the kebab-case rendering of `s`
 /// @example (:wat::string::pascal->kebab "GetObject") #=> "get-object"
 /// @see     :wat::string::pascal->kebab-in
 #[wat_intrinsic(":wat::string::pascal->kebab")]
@@ -477,9 +477,9 @@ pub(crate) fn eval_string_pascal_to_kebab(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
-/// @arg     s  :wat::core::String  the PascalCase string to convert
-/// @ret     :wat::core::String the kebab-case rendering of `s`
+/// @arg     ns :wat::type::keyword the namespace whose declared acronyms apply
+/// @arg     s  :wat::type::String  the PascalCase string to convert
+/// @ret     :wat::type::String the kebab-case rendering of `s`
 /// @example (:wat::string::pascal->kebab-in :my-ns "GetObject") #=> "get-object"
 /// @see     :wat::string::kebab->pascal-in
 #[wat_intrinsic(":wat::string::pascal->kebab-in")]
@@ -518,9 +518,9 @@ pub(crate) fn eval_string_pascal_to_kebab_in(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     ns :wat::core::keyword the namespace whose declared acronyms apply
-/// @arg     s  :wat::core::String  the kebab-case string to convert
-/// @ret     :wat::core::String the PascalCase rendering of `s`
+/// @arg     ns :wat::type::keyword the namespace whose declared acronyms apply
+/// @arg     s  :wat::type::String  the kebab-case string to convert
+/// @ret     :wat::type::String the PascalCase rendering of `s`
 /// @example (:wat::string::kebab->pascal-in :my-ns "get-object") #=> "GetObject"
 /// @see     :wat::string::pascal->kebab-in
 #[wat_intrinsic(":wat::string::kebab->pascal-in")]
@@ -559,10 +559,10 @@ pub(crate) fn eval_string_kebab_to_pascal_in(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s     :wat::core::String the string to slice
-/// @arg     start :wat::core::i64    the start index, inclusive
-/// @arg     end   :wat::core::i64    the end index, exclusive
-/// @ret     :wat::core::String the substring `s[start..end)`, char-indexed
+/// @arg     s     :wat::type::String the string to slice
+/// @arg     start :wat::type::i64    the start index, inclusive
+/// @arg     end   :wat::type::i64    the end index, exclusive
+/// @ret     :wat::type::String the substring `s[start..end)`, char-indexed
 /// @example (:wat::string::subs "hello world" 0 5) #=> "hello"
 #[wat_intrinsic(":wat::string::subs")]
 pub(crate) fn eval_string_subs(
@@ -613,9 +613,9 @@ pub(crate) fn eval_string_subs(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     haystack :wat::core::String the string to split
-/// @arg     sep      :wat::core::String the separator; must not be empty
-/// @ret     (:wat::core::Vector :- [:wat::core::String]) the pieces of `haystack` between occurrences of `sep`
+/// @arg     haystack :wat::type::String the string to split
+/// @arg     sep      :wat::type::String the separator; must not be empty
+/// @ret     (:wat::type::Vector :- [:wat::type::String]) the pieces of `haystack` between occurrences of `sep`
 /// @example (:wat::string::split "a,b,c" ",") #=> (:wat::core::Vector :- [:wat::core::String] "a" "b" "c")
 /// @see     :wat::string::join
 #[wat_intrinsic(":wat::string::split")]
@@ -664,9 +664,9 @@ pub(crate) fn eval_string_split(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     sep    :wat::core::String the separator
+/// @arg     sep    :wat::type::String the separator
 /// @arg     pieces (:wat::core::Seqable :- [T]) the elements to render and join
-/// @ret     :wat::core::String every element of `pieces`, rendered and joined by `sep`
+/// @ret     :wat::type::String every element of `pieces`, rendered and joined by `sep`
 /// @example (:wat::string::join "-" (:wat::core::Vector :- [:wat::core::String] "a" "b")) #=> "a-b"
 /// @see     :wat::string::split
 #[wat_intrinsic(":wat::string::join")]
@@ -768,8 +768,8 @@ pub(crate) fn eval_string_join(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args… :wat::core::String the strings to concatenate, in order
-/// @ret     :wat::core::String every argument, concatenated in order
+/// @arg     args… :wat::type::String the strings to concatenate, in order
+/// @ret     :wat::type::String every argument, concatenated in order
 /// @example (:wat::string::concat "a" "b" "c") #=> "abc"
 /// @see     :wat::string::join
 #[wat_intrinsic(":wat::string::concat")]
@@ -838,8 +838,8 @@ pub(crate) fn eval_string_concat(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the template followed by `:name value` kwarg pairs
-/// @ret     :wat::core::String `tmpl` with each `{name}` replaced by its rendered `:name` kwarg
+/// @arg     args… :wat::type::Value the template followed by `:name value` kwarg pairs
+/// @ret     :wat::type::String `tmpl` with each `{name}` replaced by its rendered `:name` kwarg
 /// @example (:wat::string::interpolate "hi {name}" :name "world") #=> "hi world"
 #[wat_intrinsic(":wat::string::interpolate")]
 pub(crate) fn eval_string_interpolate(
@@ -1070,9 +1070,9 @@ pub(crate) fn eval_string_interpolate(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Declaration
-/// @arg     _ns        :wat::core::keyword the namespace the acronyms are declared for (unused here — registered by the pre-pass)
-/// @arg     _acronyms  :wat::core::Vector   the acronym literals (unused here — registered by the pre-pass)
-/// @ret     :wat::core::nil always nil
+/// @arg     _ns        :wat::type::keyword the namespace the acronyms are declared for (unused here — registered by the pre-pass)
+/// @arg     _acronyms  :wat::type::Vector   the acronym literals (unused here — registered by the pre-pass)
+/// @ret     :wat::type::nil always nil
 /// @example (:wat::string::declare-acronyms :my-ns ["ACL"]) #=> nil
 #[wat_intrinsic(":wat::string::declare-acronyms")]
 pub(crate) fn eval_string_declare_acronyms(
@@ -1101,8 +1101,8 @@ pub(crate) fn eval_string_declare_acronyms(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the string to parse
-/// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(n)` on a valid base-10 i64 literal, `None` otherwise
+/// @arg     s :wat::type::String the string to parse
+/// @ret     (:wat::core::Option :- [:wat::type::i64]) `Some(n)` on a valid base-10 i64 literal, `None` otherwise
 /// @example (:wat::string::to-i64 "42") #=> (:wat::core::Option::Some {:value 42})
 /// @example (:wat::string::to-i64 "nope") #=> :None
 /// @see     :wat::string::to-f64
@@ -1134,8 +1134,8 @@ pub(crate) fn eval_string_to_i64(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the string to parse
-/// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some(x)` on a valid f64 literal, `None` otherwise
+/// @arg     s :wat::type::String the string to parse
+/// @ret     (:wat::core::Option :- [:wat::type::f64]) `Some(x)` on a valid f64 literal, `None` otherwise
 /// @example (:wat::string::to-f64 "3.5") #=> (:wat::core::Option::Some {:value 3.5})
 /// @example (:wat::string::to-f64 "nope") #=> :None
 /// @see     :wat::string::to-bool
@@ -1167,8 +1167,8 @@ pub(crate) fn eval_string_to_f64(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the string to parse
-/// @ret     (:wat::core::Option :- [:wat::core::bool]) `Some(b)` for exactly `"true"`/`"false"`, `None` otherwise
+/// @arg     s :wat::type::String the string to parse
+/// @ret     (:wat::core::Option :- [:wat::type::bool]) `Some(b)` for exactly `"true"`/`"false"`, `None` otherwise
 /// @example (:wat::string::to-bool "true") #=> (:wat::core::Option::Some {:value true})
 /// @example (:wat::string::to-bool "nope") #=> :None
 /// @see     :wat::string::to-i64

@@ -394,7 +394,7 @@ mod tests {
             normalize_resolve(
                 r#"
                 (:wat::core::def :my::app::square
-                  (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+                  (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
                     (:wat::i64::* x x)))
                 (:my::app::square 5)
                 "#

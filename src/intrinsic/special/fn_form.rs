@@ -43,7 +43,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality Total
 /// @ExpandTime Legal
 /// @syntax (:wat::core::fn [<param> <- :T ...] -> :RetType <body>+)
-/// @ret :wat::core::Fn the constructed closure, callable with the declared parameter and return types
+/// @ret :wat::type::Fn the constructed closure, callable with the declared parameter and return types
 /// @example ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 7) #=> 7
 #[wat_special_form(":wat::core::fn")]
 pub(crate) struct Fn;

@@ -239,7 +239,7 @@ pub(crate) fn eval_record_field_at(
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     args :T the value to classify
-/// @ret     :wat::core::bool `true` iff `args` is a `Value::Aggregate` with Record or HolonRecord nature (never `Struct`)
+/// @ret     :wat::type::bool `true` iff `args` is a `Value::Aggregate` with Record or HolonRecord nature (never `Struct`)
 /// @example (:wat::core::do (:wat::core::defrecord :probe::RecordQExample [sk <- :wat::core::i64]) (:wat::core::record? (:probe::RecordQExample :sk 1))) #=> true
 #[wat_intrinsic(":wat::core::record?")]
 pub(crate) fn eval_record_q(

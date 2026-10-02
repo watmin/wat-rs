@@ -66,7 +66,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     err :wat::kernel::LociDiedError the death report to read a message from
-/// @ret     :wat::core::String the carried message
+/// @ret     :wat::type::String the carried message
 /// @example (:wat::kernel::LociDiedError/message :wat::kernel::LociDiedError::Disconnected) #=> "disconnected"
 // Deciding line for `@Category Projection`: the fn returns a component
 // (the message payload) that was already there on the matched variant —
@@ -106,8 +106,8 @@ pub(crate) fn eval_died_error_message(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
-/// @arg     f :wat::core::Record the Failure to read a message from
-/// @ret     :wat::core::String the message carried on `f`'s `error` field
+/// @arg     f :wat::type::Record the Failure to read a message from
+/// @ret     :wat::type::String the message carried on `f`'s `error` field
 /// @example (:wat::kernel::Failure/message (:wat::kernel::message-only-failure "boom")) #=> "boom"
 // Deciding line for `@Category Projection`: `runtime.rs:27423`
 // `eval_failure_message` reads `record_field_by_name(&error, "message", …)`
@@ -139,7 +139,7 @@ pub(crate) fn eval_failure_message(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
-/// @arg     f :wat::core::Record the Failure to read a location from
+/// @arg     f :wat::type::Record the Failure to read a location from
 /// @ret     (:wat::core::Option :- [:wat::kernel::Location]) `Some` of `f`'s `error.location`
 /// @example (:wat::kernel::Failure/location (:wat::kernel::Failure :error (:wat::core::Fault :message "boom" :location (:wat::kernel::Location :file "test" :line 1 :col 1) :causes (:wat::core::Vector :- [:wat::core::Error])) :frames (:wat::core::Vector :- [:wat::kernel::Frame]) :actual :wat::core::Option::None :expected :wat::core::Option::None)) #=> (:wat::core::Option::Some {:value (:wat::kernel::Location :file "test" :line 1 :col 1)})
 // Deciding line for `@Category Projection`: `runtime.rs:27452`

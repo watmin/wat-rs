@@ -770,14 +770,14 @@ fn check_sigma_fn_contract(
         )));
     }
     if !func.param_types.is_empty() {
-        let expected_param = crate::types::TypeExpr::Path(":wat::core::i64".into());
+        let expected_param = crate::types::TypeExpr::Path(":wat::type::i64".into());
         if func.param_types[0] != expected_param {
             return Err(StartupError::SigmaFn(format!(
                 "{} function param must be :i64; got {:?}",
                 setter, func.param_types[0]
             )));
         }
-        let expected_ret = crate::types::TypeExpr::Path(":wat::core::i64".into());
+        let expected_ret = crate::types::TypeExpr::Path(":wat::type::i64".into());
         if func.ret_type != expected_ret {
             return Err(StartupError::SigmaFn(format!(
                 "{} function return type must be :i64; got {:?}",
@@ -1616,13 +1616,13 @@ fn invoke_user_main_orchestrated(
 /// maps to `libc::exit(N)` via slice 1i's `StdErrService` epilogue.
 /// User code never participates in exit-code arithmetic.
 ///
-/// `:wat::core::nil` canonicalizes to `TypeExpr::Path(":wat::core::nil".into())` at
+/// `:wat::core::nil` canonicalizes to `TypeExpr::Path(":wat::type::nil".into())` at
 /// type-check time (per `src/types.rs:1740`); the validator
 /// compares against that internal form so wat source written as
 /// `-> :wat::core::nil` flows through unification cleanly.
 pub fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
     let params = vec![]; // empty — argv is ambient (REALIZATIONS pass 7)
-    let ret = TypeExpr::Path(":wat::core::nil".into()); // :wat::core::nil canonical (REALIZATIONS pass 10)
+    let ret = TypeExpr::Path(":wat::type::nil".into()); // :wat::core::nil canonical (REALIZATIONS pass 10)
     (params, ret)
 }
 
@@ -2026,7 +2026,7 @@ mod tests {
     fn user_define_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x y))
+            (:wat::core::defn :my::app::add [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x y))
         "#;
         let world = startup(src).expect("startup");
         assert!(world.symbols().get(":my::app::add").is_some());
@@ -2037,7 +2037,7 @@ mod tests {
         // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defstruct :my::Candle [open <- :wat::core::f64 close <- :wat::core::f64])
+            (:wat::core::defstruct :my::Candle [open <- wat.type/f64 close <- wat.type/f64])
         "#;
         let world = startup(src).expect("startup");
         // rune:lint(loose-assert) — property over variable set; type registry holds many built-in types; only user-type membership is the contract
@@ -2049,8 +2049,8 @@ mod tests {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::defmacro :my::vocab::Double
-              [x <- :wat::WatAST]
-              -> :wat::WatAST
+              [x <- wat.type/AST]
+              -> wat.type/AST
               `(:wat::holon::Blend ,x ,x 1 1))
         "#;
         let world = startup(src).expect("startup");
@@ -2081,8 +2081,8 @@ mod tests {
         // Stone 241.8 — migrated from :wat::core::struct to defstruct.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defstruct :my::Candle [x <- :wat::core::f64])
-            (:wat::core::defstruct :my::Candle [y <- :wat::core::i64])
+            (:wat::core::defstruct :my::Candle [x <- wat.type/f64])
+            (:wat::core::defstruct :my::Candle [y <- wat.type/i64])
         "#;
         let err = startup(src).unwrap_err();
         assert!(matches!(err, StartupError::Type(_)));
@@ -2118,7 +2118,7 @@ mod tests {
         // or at check_program itself. Either way, startup fails.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::bad [x <- :Any] -> :wat::core::i64 42)
+            (:wat::core::defn :my::bad [x <- :Any] -> wat.type/i64 42)
         "#;
         let err = startup(src).unwrap_err();
         // Startup must fail — accept Runtime or Check errors.
@@ -2178,7 +2178,7 @@ mod tests {
         // substrate maps to libc::exit(0).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
+            (:wat::core::defn :user::main [] -> wat.type/nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
@@ -2191,8 +2191,8 @@ mod tests {
         // side-effects (or in this minimal case, just produces nil).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::do-work [] -> :wat::core::nil nil)
-            (:wat::core::defn :user::main [] -> :wat::core::nil (:my::app::do-work))
+            (:wat::core::defn :my::app::do-work [] -> wat.type/nil nil)
+            (:wat::core::defn :user::main [] -> wat.type/nil (:my::app::do-work))
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
@@ -2233,7 +2233,7 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::triple [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 3))
+            (:wat::core::defn :my::app::triple [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 3))
         "#,
         );
         let ast = crate::parse_one!("(:my::app::triple 7)").unwrap();
@@ -2690,9 +2690,9 @@ mod tests {
         let err = startup(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
+            (:wat::core::defn :my::helper [] -> wat.type/i64 42)
             (:wat::core::defmacro :my::uses-helper []
-              -> :wat::WatAST
+              -> wat.type/AST
               (:wat::i64::+ (:my::helper) 0))
             (:my::uses-helper)
         "#,

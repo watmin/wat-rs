@@ -171,7 +171,7 @@ pub(crate) fn eval_iowriter_new(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     path :wat::core::String the path to open (create+truncate) for writing
+/// @arg     path :wat::type::String the path to open (create+truncate) for writing
 /// @ret     :wat::io::IOWriter a fresh file-backed writer
 /// @example-norun (:wat::io::IOWriter/open-file "/tmp/x.txt") #=> #wat.io/IOWriter{}
 // Registered `TypeScheme` — `check.rs:15827` — gate LIVE.
@@ -214,7 +214,7 @@ pub(crate) fn eval_iowriter_open_file(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     fd :wat::core::i64 the raw fd to dup and wrap
+/// @arg     fd :wat::type::i64 the raw fd to dup and wrap
 /// @ret     :wat::io::IOWriter a fresh writer owning a private dup of `fd`
 /// @example-norun (:wat::io::IOWriter/from-fd 1) #=> #wat.io/IOWriter{}
 // Registered `TypeScheme` — `check.rs:15838` — gate LIVE.
@@ -250,7 +250,7 @@ pub(crate) fn eval_iowriter_from_fd(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
-/// @ret     (:wat::core::Vector :- [:wat::core::u8]) the bytes accumulated so far
+/// @ret     (:wat::type::Vector :- [:wat::type::u8]) the bytes accumulated so far
 /// @example-norun (:wat::io::IOWriter/to-bytes writer) #=> Bytes[104, 105]
 // Registered `TypeScheme` — `check.rs:15847` — gate LIVE.
 //
@@ -296,7 +296,7 @@ pub(crate) fn eval_iowriter_to_bytes(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
-/// @ret     (:wat::core::Option :- [:wat::core::String]) the decoded text, or `None` if the buffer is not valid UTF-8
+/// @ret     (:wat::core::Option :- [:wat::type::String]) the decoded text, or `None` if the buffer is not valid UTF-8
 /// @example-norun (:wat::io::IOWriter/to-string writer) #=> (Some "hi")
 // Registered `TypeScheme` — `check.rs:15856` — gate LIVE.
 //
@@ -332,8 +332,8 @@ pub(crate) fn eval_iowriter_to_string(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
-/// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes to write
-/// @ret     :wat::core::i64 the number of bytes actually written
+/// @arg     bytes (:wat::type::Vector :- [:wat::type::u8]) the bytes to write
+/// @ret     :wat::type::i64 the number of bytes actually written
 /// @example-norun (:wat::io::IOWriter/write writer bytes) #=> 5
 // Registered `TypeScheme` — `check.rs:15865` — gate LIVE.
 //
@@ -370,8 +370,8 @@ pub(crate) fn eval_iowriter_write(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
-/// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes to write, in full
-/// @ret     :wat::core::nil always `:()` on success; a broken pipe or stop request raises
+/// @arg     bytes (:wat::type::Vector :- [:wat::type::u8]) the bytes to write, in full
+/// @ret     :wat::type::nil always `:()` on success; a broken pipe or stop request raises
 /// @example-norun (:wat::io::IOWriter/write-all writer bytes) #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:15874` — gate LIVE.
 //
@@ -407,8 +407,8 @@ pub(crate) fn eval_iowriter_write_all(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
-/// @arg     s :wat::core::String the string to write, UTF-8 encoded
-/// @ret     :wat::core::i64 the number of bytes written
+/// @arg     s :wat::type::String the string to write, UTF-8 encoded
+/// @ret     :wat::type::i64 the number of bytes written
 /// @example-norun (:wat::io::IOWriter/write-string writer "hi") #=> 2
 // Registered `TypeScheme` — `check.rs:15883` — gate LIVE.
 //
@@ -443,8 +443,8 @@ pub(crate) fn eval_iowriter_write_string(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
-/// @arg     s :wat::core::String the string to write, UTF-8 encoded
-/// @ret     :wat::core::nil always `:()` on success; a broken pipe or stop request raises
+/// @arg     s :wat::type::String the string to write, UTF-8 encoded
+/// @ret     :wat::type::nil always `:()` on success; a broken pipe or stop request raises
 /// @example-norun (:wat::io::IOWriter/print writer "hi") #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:15892` — gate LIVE.
 //
@@ -478,8 +478,8 @@ pub(crate) fn eval_iowriter_print(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
-/// @arg     s :wat::core::String the string to write, UTF-8 encoded, before the trailing `\n`
-/// @ret     :wat::core::nil always `:()` on success; a broken pipe or stop request raises
+/// @arg     s :wat::type::String the string to write, UTF-8 encoded, before the trailing `\n`
+/// @ret     :wat::type::nil always `:()` on success; a broken pipe or stop request raises
 /// @example-norun (:wat::io::IOWriter/println writer "hi") #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:15901` — gate LIVE.
 //
@@ -512,8 +512,8 @@ pub(crate) fn eval_iowriter_println(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push the string into
-/// @arg     s :wat::core::String the string to write, UTF-8 encoded, before the trailing `\n`
-/// @ret     :wat::core::i64 the number of bytes written, including the trailing `\n`
+/// @arg     s :wat::type::String the string to write, UTF-8 encoded, before the trailing `\n`
+/// @ret     :wat::type::i64 the number of bytes written, including the trailing `\n`
 /// @example-norun (:wat::io::IOWriter/writeln writer "hi") #=> 3
 // Registered `TypeScheme` — `check.rs:15910` — gate LIVE.
 //
@@ -551,7 +551,7 @@ pub(crate) fn eval_iowriter_writeln(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     writer :wat::io::IOWriter the writer to flush
-/// @ret     :wat::core::nil always `:()` on success; an OS-level flush error raises
+/// @ret     :wat::type::nil always `:()` on success; an OS-level flush error raises
 /// @example-norun (:wat::io::IOWriter/flush writer) #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:15919` — gate LIVE.
 //
@@ -594,7 +594,7 @@ pub(crate) fn eval_iowriter_flush(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     writer :wat::io::IOWriter the writer to close
-/// @ret     :wat::core::nil always `:()`
+/// @ret     :wat::type::nil always `:()`
 /// @example-norun (:wat::io::IOWriter/close writer) #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:15932` — gate LIVE.
 //

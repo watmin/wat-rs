@@ -482,7 +482,7 @@ pub struct ExtendDef {
     /// name) always hit. See `protocol_type_args` for the parsed concrete args.
     pub protocol_name: String,
     /// Arc 170 C2 — the concrete type args from a parametric surface target
-    /// (`(:Holds :- [wat::core::i64])` → `[Path(":wat::core::i64")]`). Empty for a monomorphic
+    /// (`(:Holds :- [wat::core::i64])` → `[Path(":wat::type::i64")]`). Empty for a monomorphic
     /// surface/protocol target (`:Greeter`) — the common case, a pure no-op.
     pub protocol_type_args: Vec<TypeExpr>,
     /// Per-method impl bodies: method name → `Clause` (argspec + body).
@@ -1407,35 +1407,35 @@ macro_rules! value_key_eligibility_table {
 value_key_eligibility_table! {
     // ── Hashable: pure data, MUST be `:< :wat::core::Equatable` (Stone 255.74 D3) ──────────
     Value::bool(_) => {
-        type_name: "wat::core::bool",
+        type_name: "wat::type::bool",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::bool".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::bool".to_string()) ]
     },
     Value::i64(_) => {
-        type_name: "wat::core::i64",
+        type_name: "wat::type::i64",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::i64".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::i64".to_string()) ]
     },
     Value::f64(_) => {
-        type_name: "wat::core::f64",
+        type_name: "wat::type::f64",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::f64".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::f64".to_string()) ]
     },
     Value::String(_) => {
-        type_name: "wat::core::String",
+        type_name: "wat::type::String",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::String".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::String".to_string()) ]
     },
     // Arc 220 Stone 220.4 — Vec is recursively atomizable (`is_atomizable`'s
-    // `Parametric { head: "wat::core::Vector", .. }` arm); bare-Path is not how the
+    // `Parametric { head: "wat::type::Vector", .. }` arm); bare-Path is not how the
     // checker admits it, so the probe uses a representative atomizable element.
     Value::Vec(_) => {
-        type_name: "wat::core::Vector",
+        type_name: "wat::type::Vector",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
             TypeExpr::Parametric {
-                head: "wat::core::Vector".to_string(),
-                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                head: "wat::type::Vector".to_string(),
+                args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
             } => KeyEligibility::Hashable
         ]
     },
@@ -1443,12 +1443,12 @@ value_key_eligibility_table! {
     Value::Nil => {
         type_name: "nil",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::nil".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::nil".to_string()) ]
     },
     Value::wat__core__keyword(_) => {
-        type_name: "wat::core::keyword",
+        type_name: "wat::type::keyword",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::keyword".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::keyword".to_string()) ]
     },
     Value::holon__HolonAST(_) => {
         type_name: "wat::holon::HolonAST",
@@ -1456,54 +1456,54 @@ value_key_eligibility_table! {
         gate: [ TypeExpr::Path(":wat::holon::HolonAST".to_string()) ]
     },
     Value::wat__WatAST(_) => {
-        type_name: "wat::WatAST",
+        type_name: "wat::type::AST",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::WatAST".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::AST".to_string()) ]
     },
     // Arc 216 Stone 3 — HashMap recursively atomizable; same Parametric-probe reasoning as Vec.
     Value::wat__std__HashMap(_) => {
-        type_name: "wat::core::HashMap",
+        type_name: "wat::type::HashMap",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
             TypeExpr::Parametric {
-                head: "wat::core::HashMap".to_string(),
+                head: "wat::type::HashMap".to_string(),
                 args: vec![
-                    TypeExpr::Path(":wat::core::i64".to_string()),
-                    TypeExpr::Path(":wat::core::i64".to_string()),
+                    TypeExpr::Path(":wat::type::i64".to_string()),
+                    TypeExpr::Path(":wat::type::i64".to_string()),
                 ],
             } => KeyEligibility::Hashable
         ]
     },
     // Arc 216 Stone 1 — HashSet recursively atomizable; same Parametric-probe reasoning as Vec.
     Value::wat__std__HashSet(_) => {
-        type_name: "wat::core::HashSet",
+        type_name: "wat::type::HashSet",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
             TypeExpr::Parametric {
-                head: "wat::core::HashSet".to_string(),
-                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                head: "wat::type::HashSet".to_string(),
+                args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
             } => KeyEligibility::Hashable
         ]
     },
     // Arc 216 Stone 7 — Tuple atomizable iff every element is; is_atomizable admits it via
     // the dedicated `TypeExpr::Tuple` variant, not a bare Path or a Parametric head.
     Value::Tuple(_) => {
-        type_name: "wat::core::Tuple",
+        type_name: "wat::type::Tuple",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
-            TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".to_string())])
+            TypeExpr::Tuple(vec![TypeExpr::Path(":wat::type::i64".to_string())])
                 => KeyEligibility::Hashable
         ]
     },
     // Arc 293.R2.1 — Aggregate: nature gates BOTH the kind-string and the eligibility.
-    // Struct nature → "wat::core::Struct" (NOT atomizable); Record/HolonRecord →
-    // "wat::core::Record" (atomizable via the hologram property, arc 234 Stone 234.5).
+    // Struct nature → "wat::type::Struct" (NOT atomizable); Record/HolonRecord →
+    // "wat::type::Record" (atomizable via the hologram property, arc 234 Stone 234.5).
     // Arc 293 S3-Nature-2 — `Peer` is never the nature of a constructed `AggregateValue`
     // (a peer is a `RustOpaque`, not an aggregate); exhaustiveness only, unreachable at runtime.
     Value::Aggregate(a) => {
         type_name: match a.nature {
-            Nature::Struct => "wat::core::Struct",
-            Nature::Record | Nature::HolonRecord => "wat::core::Record",
+            Nature::Struct => "wat::type::Struct",
+            Nature::Record | Nature::HolonRecord => "wat::type::Record",
             Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
         },
         key_eligibility: match a.nature {
@@ -1512,9 +1512,9 @@ value_key_eligibility_table! {
             Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
         },
         gate: [
-            TypeExpr::Path(":wat::core::Struct".to_string())
+            TypeExpr::Path(":wat::type::Struct".to_string())
                 => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
-            TypeExpr::Path(":wat::core::Record".to_string()) => KeyEligibility::Hashable,
+            TypeExpr::Path(":wat::type::Record".to_string()) => KeyEligibility::Hashable,
         ]
     },
     Value::wat__uuid__Uuid(_) => {
@@ -1525,9 +1525,9 @@ value_key_eligibility_table! {
     // Arc 220 — Stone 242.1 renamed the surface to `char`; this arm was
     // half-propagated (still emitted capital). C1 fixes it.
     Value::wat__core__Char(_) => {
-        type_name: "wat::core::char",
+        type_name: "wat::type::char",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::char".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::char".to_string()) ]
     },
 
     // ── NeverAKey(InteriorMutable): interior-mutable field, proven by reading the ─────
@@ -1659,23 +1659,23 @@ value_key_eligibility_table! {
     // ── amendment measured the checker refusing a map key of each of these while the runtime
     // ── hashed all of them anyway — reclassified here to close that gap. ───────────────────
     Value::u8(_) => {
-        type_name: "wat::core::u8",
+        type_name: "wat::type::u8",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::u8".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::u8".to_string()) ]
     },
     // `wat/class.wat`'s own comment: "PersistentMap is not a member" (unlike
     // HashMap/HashSet/PersistentVector, which are unconditional Equatable members) — the one
     // row in this cluster that stays NeverAKey under EITHER door, by design, not by a
     // checker-predicate gap.
     Value::wat__core__PersistentMap(_) => {
-        type_name: "wat::core::PersistentMap",
+        type_name: "wat::type::PersistentMap",
         key_eligibility: KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign),
         gate: [
             TypeExpr::Parametric {
-                head: "wat::core::PersistentMap".to_string(),
+                head: "wat::type::PersistentMap".to_string(),
                 args: vec![
-                    TypeExpr::Path(":wat::core::i64".to_string()),
-                    TypeExpr::Path(":wat::core::i64".to_string()),
+                    TypeExpr::Path(":wat::type::i64".to_string()),
+                    TypeExpr::Path(":wat::type::i64".to_string()),
                 ],
             } => KeyEligibility::NeverAKey(NotAKeyReason::ExcludedByDesign)
         ]
@@ -1683,12 +1683,12 @@ value_key_eligibility_table! {
     // Unconditional Equatable member (`wat/class.wat`); recursively atomizable-shaped probe
     // (representative Equatable inner type), same convention as Vector/HashSet/HashMap/Tuple.
     Value::wat__core__PersistentVector(_) => {
-        type_name: "wat::core::PersistentVector",
+        type_name: "wat::type::PersistentVector",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
             TypeExpr::Parametric {
-                head: "wat::core::PersistentVector".to_string(),
-                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                head: "wat::type::PersistentVector".to_string(),
+                args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
             }
         ]
     },
@@ -1702,7 +1702,7 @@ value_key_eligibility_table! {
         gate: [
             TypeExpr::Parametric {
                 head: "wat::core::Option".to_string(),
-                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
             }
         ]
     },
@@ -1715,8 +1715,8 @@ value_key_eligibility_table! {
             TypeExpr::Parametric {
                 head: "wat::core::Result".to_string(),
                 args: vec![
-                    TypeExpr::Path(":wat::core::i64".to_string()),
-                    TypeExpr::Path(":wat::core::i64".to_string()),
+                    TypeExpr::Path(":wat::type::i64".to_string()),
+                    TypeExpr::Path(":wat::type::i64".to_string()),
                 ],
             }
         ]
@@ -1762,26 +1762,26 @@ value_key_eligibility_table! {
     },
     // Arc 300 stone B — representation-only; not in is_atomizable, but `:< Equatable`.
     Value::wat__core__Rational(_) => {
-        type_name: "wat::core::rational",
+        type_name: "wat::type::rational",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::rational".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::rational".to_string()) ]
     },
     // Arc 300 stone C1 — full arithmetic type; not in is_atomizable, but `:< Equatable`.
     Value::wat__core__BigInt(_) => {
-        type_name: "wat::core::bigint",
+        type_name: "wat::type::bigint",
         key_eligibility: KeyEligibility::Hashable,
-        gate: [ TypeExpr::Path(":wat::core::bigint".to_string()) ]
+        gate: [ TypeExpr::Path(":wat::type::bigint".to_string()) ]
     },
     // Arc 220 Stone 220.4 — List hashes exactly like Vec (hash_sequence, real, recursive).
     // `(List :- [T :< Equatable]) :< Equatable` (`wat/class.wat`) — same bare-vs-applied
     // distinction as Option/Result above: the representative probe must be PARAMETRIC.
     Value::wat__core__List(_) => {
-        type_name: "wat::core::List",
+        type_name: "wat::type::List",
         key_eligibility: KeyEligibility::Hashable,
         gate: [
             TypeExpr::Parametric {
-                head: "wat::core::List".to_string(),
-                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                head: "wat::type::List".to_string(),
+                args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
             }
         ]
     },
@@ -1793,7 +1793,7 @@ impl Value {
     /// 237.5.fix-nominal-identity).
     ///
     /// Distinct from `type_name()`, which returns the *variant kind*
-    /// (`"wat::core::Enum"`, `"wat::core::Struct"`, …).  Use
+    /// (`"wat::core::Enum"`, `"wat::type::Struct"`, …).  Use
     /// `declared_type_name` wherever you need the per-instance declared FQDN
     /// (e.g., `:my::Color`), and `type_name()` only for generic-kind dispatch.
     ///

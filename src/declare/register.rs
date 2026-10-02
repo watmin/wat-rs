@@ -126,7 +126,7 @@ pub fn register_defclause(
                     type_params: vec![],
                     type_param_bounds: vec![],
                     param_types: vec![],
-                    ret_type: crate::types::TypeExpr::Path(":wat::core::nil".into()),
+                    ret_type: crate::types::TypeExpr::Path(":wat::type::nil".into()),
                     rest_param: None,
                     rest_param_type: None,
                     body: FunctionBody::Wat(Arc::new(stub_body)),
@@ -459,7 +459,7 @@ pub(crate) fn register_extend_type_surface_impls(
                                 .get(i)
                                 .map(|(_, t)| t.clone())
                                 .unwrap_or_else(|| {
-                                    crate::types::TypeExpr::Path(":wat::core::nil".into())
+                                    crate::types::TypeExpr::Path(":wat::type::nil".into())
                                 });
                             crate::check::rename(&raw, &surface_type_subst)
                         }
@@ -858,7 +858,7 @@ fn parametric_decl_type(name: &str, type_params: &[String]) -> crate::types::Typ
 /// handles both encodings.
 fn restrictions_to_binding_metadata_ast(prefixes: &[String]) -> WatAST {
     let mut items = vec![WatAST::Keyword(
-        ":wat::core::Vector".into(),
+        ":wat::type::Vector".into(),
         crate::rust_caller_span!(),
     )];
     for p in prefixes {
@@ -957,7 +957,7 @@ pub fn register_aggregate_methods(
             crate::types::Nature::Struct => aggregate_type.clone(),
             _ => {
                 if agg.type_params.is_empty() {
-                    crate::types::TypeExpr::Path(":wat::core::Record".into())
+                    crate::types::TypeExpr::Path(":wat::type::Record".into())
                 } else {
                     aggregate_type.clone()
                 }
@@ -1743,7 +1743,7 @@ pub fn register_type_predicates(
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
             param_types: vec![TypeExpr::Path("T".into())],
-            ret_type: TypeExpr::Path(":wat::core::bool".into()),
+            ret_type: TypeExpr::Path(":wat::type::bool".into()),
             rest_param: None,
             rest_param_type: None,
             body: FunctionBody::Wat(Arc::new(body)),
@@ -2252,7 +2252,7 @@ fn register_defalias(
                 type_params: vec![],
                 type_param_bounds: vec![],
                 param_types: vec![],
-                ret_type: crate::types::TypeExpr::Path(":wat::core::nil".into()),
+                ret_type: crate::types::TypeExpr::Path(":wat::type::nil".into()),
                 rest_param: None,
                 rest_param_type: None,
                 body: FunctionBody::Wat(Arc::new(stub_body)),

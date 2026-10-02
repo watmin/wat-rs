@@ -59,7 +59,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::defalias :alias-name :target-name)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at registration time and never reaches evaluation; its effect is the delegating Function it leaves in the symbol table
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at registration time and never reaches evaluation; its effect is the delegating Function it leaves in the symbol table
 /// @example-norun (:wat::core::defalias :probe::size :wat::core::length) #=> registers :probe::size as a delegating alias for :wat::core::length; no runtime value
 #[wat_special_form(":wat::core::defalias")]
 pub(crate) struct Defalias;

@@ -86,7 +86,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::extend-type :T :P (method-1 [self ...] body) ...)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at registration (the type-lattice edge and each method impl) and never reaches evaluation; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at registration (the type-lattice edge and each method impl) and never reaches evaluation; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
 /// @example-norun (:wat::core::extend-type :probe::Robot :probe::Greeter (greet [self loudness] "beep")) #=> registers the (Robot, Greeter) subtype edge and the greet method; no runtime value
 #[wat_special_form(":wat::core::extend-type")]
 pub(crate) struct ExtendType;

@@ -62,7 +62,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::newtype :Name :InnerType)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
 /// @example-norun (:wat::core::newtype :probe::Price :wat::core::f64) #=> registers :probe::Price into the type registry; no runtime value
 #[wat_special_form(":wat::core::newtype")]
 pub(crate) struct Newtype;

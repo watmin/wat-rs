@@ -199,7 +199,7 @@ fn validate_user_grep_signature(world: &crate::freeze::FrozenWorld) -> Result<()
     }
     if func.ret_type != expected_ret {
         return Err(format!(
-            ":user::grep return type expected (:wat::core::PersistentVector :- \
+            ":user::grep return type expected (wat.type/PersistentVector :- \
              [:wat::rete::Rule]); got {}. Arc 278 (the grep-mode stone) — `:user::grep` must \
              return the vector of rules `:wat::grep::run` compiles and fires. The canonical \
              signature is `[] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])`.",

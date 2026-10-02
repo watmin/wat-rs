@@ -15,21 +15,21 @@ use super::*;
 ///
 /// `keys=10 x fanout=5`: 50 of each record, A⋈B = 250 pairs, A⋈B⋈C = 1250 triples.
 const TRI_CENSUS_WORLD: &str = "\
-(:wat::core::defrecord :tri::A [key <- :wat::core::i64  a <- :wat::core::i64])\n\
-(:wat::core::defrecord :tri::B [key <- :wat::core::i64  b <- :wat::core::i64])\n\
-(:wat::core::defrecord :tri::C [key <- :wat::core::i64  c <- :wat::core::i64])\n\
-(:wat::core::defrecord :tri::Trip [key <- :wat::core::i64  a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])\n\
+(:wat::core::defrecord :tri::A [key <- wat.type/i64  a <- wat.type/i64])\n\
+(:wat::core::defrecord :tri::B [key <- wat.type/i64  b <- wat.type/i64])\n\
+(:wat::core::defrecord :tri::C [key <- wat.type/i64  c <- wat.type/i64])\n\
+(:wat::core::defrecord :tri::Trip [key <- wat.type/i64  a <- wat.type/i64  b <- wat.type/i64  c <- wat.type/i64])\n\
 \n\
-(:wat::core::defn :tri::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :tri::seed-key [s <- :wat::rete::Session  k <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- wat.type/i64] -> :wat::rete::Session\n\
       (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:tri::A :key k :a f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]) (:tri::B :key k :b f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]) (:tri::C :key k :c f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")]))\n\
     s\n\
     (:wat::core::range 0 fanout)))\n\
 \n\
-(:wat::core::defn :tri::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :tri::seed [s <- :wat::rete::Session  keys <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
       (:tri::seed-key acc k fanout))\n\
     s\n\
     (:wat::core::range 0 keys)))\n\

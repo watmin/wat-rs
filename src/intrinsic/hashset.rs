@@ -65,8 +65,8 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     s (:wat::core::HashSet :- [T]) the set probed
-/// @ret     :wat::core::i64 the number of elements in `s`
+/// @arg     s (:wat::type::HashSet :- [T]) the set probed
+/// @ret     :wat::type::i64 the number of elements in `s`
 /// @example (:wat::hashset::length (:wat::core::HashSet :- [:i64])) #=> 0
 /// @example (:wat::hashset::length (:wat::core::HashSet :- [:i64] 1 2 3)) #=> 3
 /// @see     :wat::hashset::empty?
@@ -87,8 +87,8 @@ pub(crate) fn hashset_length(s: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     s (:wat::core::HashSet :- [T]) the set probed
-/// @ret     :wat::core::bool true iff `s` has zero elements
+/// @arg     s (:wat::type::HashSet :- [T]) the set probed
+/// @ret     :wat::type::bool true iff `s` has zero elements
 /// @example (:wat::hashset::empty? (:wat::core::HashSet :- [:i64])) #=> true
 /// @example (:wat::hashset::empty? (:wat::core::HashSet :- [:i64] 1)) #=> false
 /// @see     :wat::hashset::length
@@ -111,9 +111,9 @@ pub(crate) fn hashset_empty_q(s: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     s (:wat::core::HashSet :- [T]) the set probed
+/// @arg     s (:wat::type::HashSet :- [T]) the set probed
 /// @arg     item :T the candidate element
-/// @ret     :wat::core::bool true iff `item` is a member of `s`
+/// @ret     :wat::type::bool true iff `item` is a member of `s`
 /// @example (:wat::hashset::contains? (:wat::core::HashSet :- [:i64] 1 2 3) 2) #=> true
 /// @example (:wat::hashset::contains? (:wat::core::HashSet :- [:i64] 1 2 3) 9) #=> false
 /// @see     :wat::hashset::conj
@@ -136,9 +136,9 @@ pub(crate) fn hashset_contains_q(s: &Value, item: &Value) -> Result<Value, EvalB
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s (:wat::core::HashSet :- [T]) the set transformed
+/// @arg     s (:wat::type::HashSet :- [T]) the set transformed
 /// @arg     item :T the element inserted
-/// @ret     (:wat::core::HashSet :- [T]) `s` with `item` inserted
+/// @ret     (:wat::type::HashSet :- [T]) `s` with `item` inserted
 /// @example (:wat::hashset::length (:wat::hashset::conj (:wat::core::HashSet :- [:i64]) 1)) #=> 1
 /// @see     :wat::hashset::contains?
 #[wat_intrinsic(":wat::hashset::conj")]

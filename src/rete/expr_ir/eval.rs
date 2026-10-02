@@ -161,7 +161,7 @@ fn expect_bool(v: Value, op: &'static str, span: &Span) -> Result<bool, EvalBrea
             span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: ":wat::core::bool",
+                expected: ":wat::type::bool",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -668,7 +668,7 @@ fn exec_filterv(
                     span.clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "wat::core::bool",
+                        expected: "wat::type::bool",
                         got: Box::new(ValueSnapshot::of(&other)),
                     },
                 )
@@ -888,11 +888,11 @@ impl OpExec {
             ":wat::core::first" => Self::First,
             ":wat::core::second" => Self::Second,
             ":wat::core::third" => Self::Third,
-            ":wat::core::PersistentVector" => Self::PvNew,
-            ":wat::core::Vector" => Self::VecNew,
-            ":wat::core::List" => Self::ListNew,
-            ":wat::core::Tuple" => Self::TupleNew,
-            ":wat::core::PersistentMap" => Self::PmNew,
+            ":wat::type::PersistentVector" => Self::PvNew,
+            ":wat::type::Vector" => Self::VecNew,
+            ":wat::type::List" => Self::ListNew,
+            ":wat::type::Tuple" => Self::TupleNew,
+            ":wat::type::PersistentMap" => Self::PmNew,
             ":wat::holon::cosine" => Self::Cosine,
             ":wat::holon::dot" => Self::Dot,
             ":wat::holon::coincident?" => Self::Coincident,
@@ -1216,7 +1216,7 @@ fn apply_core_kind(
         (OpExec::TupleNew, []) => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::Tuple".into(),
+                head: ":wat::type::Tuple".into(),
                 reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into(),
             },
         )
@@ -1238,7 +1238,7 @@ fn apply_core_kind(
                 return Err(RuntimeError::new(
                     span.clone(),
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::PersistentMap".into(),
+                        head: ":wat::type::PersistentMap".into(),
                         reason: format!(
                             "arity must be even (alternating key/value pairs); got {}",
                             args.len()
@@ -1253,7 +1253,7 @@ fn apply_core_kind(
                     return Err(RuntimeError::new(
                         span.clone(),
                         RuntimeErrorKind::TypeMismatch {
-                            op: ":wat::core::PersistentMap".into(),
+                            op: ":wat::type::PersistentMap".into(),
                             expected: "hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
                             got: Box::new(ValueSnapshot::of(&pair[0])),
                         },
@@ -1384,8 +1384,8 @@ fn ord(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
-/// @arg     expr :wat::WatAST the quoted expression to validate-and-lower (from `:wat::core::quote`)
-/// @ret     :wat::core::nil `nil` on a successful lower; raises if `lower` refuses the form
+/// @arg     expr :wat::type::AST the quoted expression to validate-and-lower (from `:wat::core::quote`)
+/// @ret     :wat::type::nil `nil` on a successful lower; raises if `lower` refuses the form
 /// @example (:wat::rete::lower (:wat::core::quote (:wat::rete::i64::> ?c 5))) #=> nil
 #[wat_intrinsic(":wat::rete::lower")]
 pub(crate) fn eval_lower(
@@ -1401,7 +1401,7 @@ pub(crate) fn eval_lower(
                 expr.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::rete::lower".into(),
-                    expected: ":wat::WatAST",
+                    expected: ":wat::type::AST",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )

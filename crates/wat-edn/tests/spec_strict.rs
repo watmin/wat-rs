@@ -303,7 +303,7 @@ fn parser_rejects_double_colon_in_keyword() {
     // The lexer now consumes `:wat::core::HashMap` as one keyword; the
     // post-scan refuses it.
     assert!(
-        parse(":wat::core::HashMap").is_err(),
+        parse(":wat::type::HashMap").is_err(),
         "expected parse to fail on `::` in keyword body"
     );
 }

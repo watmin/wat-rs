@@ -273,7 +273,7 @@ impl<T: FromWat> FromWat for Vec<T> {
                 .collect::<Result<Vec<_>, _>>(),
             other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "wat::core::Vector",
+                expected: "wat::type::Vector",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)) // arc 138 F4b: real threaded through
             })),
         }
@@ -598,7 +598,7 @@ mod tests {
             RuntimeErrorKind::TypeMismatch { op, expected, got, .. } => {
                 assert_eq!(op, ":rust::test::method");
                 assert_eq!(*expected, "i64");
-                assert_eq!(got.type_name, "wat::core::String");
+                assert_eq!(got.type_name, "wat::type::String");
             }
             _ => panic!("expected TypeMismatch, got {:?}", err),
         }

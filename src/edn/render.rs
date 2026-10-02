@@ -173,7 +173,7 @@ pub fn eval_edn_read(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other))
             }));
         }
@@ -322,7 +322,7 @@ pub fn eval_edn_read_json(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -370,7 +370,7 @@ pub fn eval_edn_read_foreign(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other))
             }));
         }
@@ -454,7 +454,7 @@ pub fn eval_foreign_record_get(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::keyword",
+                expected: ":wat::type::keyword",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -645,7 +645,7 @@ pub fn eval_read_string(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -690,7 +690,7 @@ pub fn eval_read_string_with_comments(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -786,7 +786,7 @@ pub fn eval_write_forms(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::WatAST",
+                expected: ":wat::type::AST",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -827,7 +827,7 @@ pub fn eval_ast_to_source(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::WatAST",
+                expected: ":wat::type::AST",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -1162,7 +1162,7 @@ pub fn eval_ast_children(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::WatAST",
+                expected: ":wat::type::AST",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -1214,7 +1214,7 @@ pub fn eval_with_children(
     let template: &WatAST = match &template_v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST",
+            op: OP.into(), expected: ":wat::type::AST",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
         })),
     };
@@ -1284,7 +1284,7 @@ pub fn eval_ast_kind(
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::AST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let kind = match ast {
         WatAST::IntLit(..) => "int",
@@ -1320,7 +1320,7 @@ pub fn eval_ast_name(
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::AST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let name: String = match ast {
         WatAST::Symbol(ident, _) => ident.as_str().to_string(),
@@ -1360,7 +1360,7 @@ pub fn eval_ast_span(
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::AST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let span = ast.span();
     #[allow(clippy::mutable_key_type)]
@@ -1394,7 +1394,7 @@ pub fn eval_ast_end_span(
     let ast: &WatAST = match &v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::AST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let span = ast.span();
     #[allow(clippy::mutable_key_type)]
@@ -1427,7 +1427,7 @@ pub fn eval_symbol_node(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     // STONE-the-last-mint — the third door. Genuinely unwalled until now; harmless only
     // because the checker's surface arm keys on Keyword rather than Symbol. Same predicate,
@@ -1463,7 +1463,7 @@ pub fn eval_fresh_symbol(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let ident = Identifier::bare(s).add_scope(crate::scope::fresh_scope());
     let node = WatAST::Symbol(ident, crate::rust_caller_span!());
@@ -1485,7 +1485,7 @@ pub fn eval_keyword_node(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     if crate::declare::typevar::angle_type_head_in_name(&s) {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
@@ -1537,7 +1537,7 @@ pub fn eval_keyword_to_symbol(
             })),
         },
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: OP.into(), expected: ":wat::type::AST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     let symbol_name = wat_keyword_to_clojure_symbol(&kw).ok_or_else(|| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),
@@ -1623,13 +1623,13 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
             } else if body == "wat::WatAST" {
                 // Case 1b — arc 255.67: `:wat::WatAST` is the one `wat.type/` leaf whose
                 // internal key is NOT `:wat::core::<tail>` (`type_denotation`'s own carve-out,
-                // `src/types.rs`'s `type_denotation`: "AST" => ":wat::WatAST"). Without this
+                // `src/types.rs`'s `type_denotation`: "AST" => ":wat::type::AST"). Without this
                 // case it fell through to Case 3 (a generic `::`-namespaced user type) and
                 // rendered `wat/WatAST` — wrong namespace, wrong tail — because `body` DOES
                 // contain `::` even though it isn't `wat::core::`-prefixed.
                 match mode {
                     TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare("wat.type/AST".to_string()), unk),
-                    TypeFormHeadMode::Colon => WatAST::Keyword(":wat::WatAST".to_string(), unk),
+                    TypeFormHeadMode::Colon => WatAST::Keyword(":wat::type::AST".to_string(), unk),
                 }
             } else if let Some((_bare, fqdn)) = crate::check::BARE_PRIMITIVES.iter().find(|(bare, _)| *bare == format!(":{body}").as_str()) {
                 // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body} (Clojure)
@@ -1658,7 +1658,7 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
             }
         }
         TypeExpr::Parametric { head, args } => {
-            // head is stored WITHOUT a leading colon (e.g. "wat::core::Vector").
+            // head is stored WITHOUT a leading colon (e.g. "wat::type::Vector").
             // 4-way ladder mirrors Path.
             let head_node: WatAST = if let Some(tail) = head.strip_prefix("wat::core::") {
                 // Case 1: core FQDN -> flat wat.type/ namespace (Clojure) or :wat::core:: keyword (Colon).
@@ -1732,7 +1732,7 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
             // ladder, distinct from `nil` (wat's unit; wat's `()` empty tuple is not `nil`).
             let head_node: WatAST = match mode {
                 TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare("wat.type/Tuple".to_string()), unk.clone()),
-                TypeFormHeadMode::Colon => WatAST::Keyword(":wat::core::Tuple".into(), unk.clone()),
+                TypeFormHeadMode::Colon => WatAST::Keyword(":wat::type::Tuple".into(), unk.clone()),
             };
             let mut arg_items: Vec<WatAST> = Vec::with_capacity(items.len());
             for it in items {
@@ -1770,7 +1770,7 @@ fn eval_keyword_to_type_form_impl(
             })),
         },
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: op.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+            op: op.into(), expected: ":wat::type::AST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
     // Arc 109 Stone ②-i-b — the NON-canonicalizing preserving parse: keeps the source
     // spelling (`:wat::core::nil` stays `Path`) so the
@@ -2559,7 +2559,7 @@ fn edn_to_typed_value_inner(
         // to the registry lookup, where `i64` has membership but no `TypeDef` — so a
         // perfectly well-typed value was refused with a diagnostic that contradicted itself:
         //   (:wat::edn::validate 42 :wat::type::i64)
-        //     → #wat.edn/Validation.Invalid {:expected ":wat::core::i64" :got "Integer"}
+        //     → #wat.edn/Validation.Invalid {:expected ":wat::type::i64" :got "Integer"}
         // (`format_type` denotes on the way OUT, so the message claimed a comparison that
         // was never made). This is the 8d-ii STOP.
         //
@@ -2568,29 +2568,29 @@ fn edn_to_typed_value_inner(
         // already denotation-aware (`types.rs`'s `get`), so denoting again there would
         // only hide which spelling arrived.
         TypeExpr::Path(p) => match crate::types::denoted_type_path(p).as_str() {
-            ":wat::core::i64" => match edn {
+            ":wat::type::i64" => match edn {
                 Edn::Integer(n) => Ok(Value::i64(*n)),
                 other => Err(mismatch(target, other)),
             },
-            ":wat::core::f64" => match edn {
+            ":wat::type::f64" => match edn {
                 Edn::Float(x) => Ok(Value::f64(*x)),
                 // Widening: Integer fits a Float request.
                 Edn::Integer(n) => Ok(Value::f64(*n as f64)),
                 other => Err(mismatch(target, other)),
             },
-            ":wat::core::String" => match edn {
+            ":wat::type::String" => match edn {
                 Edn::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
                 other => Err(mismatch(target, other)),
             },
-            ":wat::core::bool" => match edn {
+            ":wat::type::bool" => match edn {
                 Edn::Bool(b) => Ok(Value::bool(*b)),
                 other => Err(mismatch(target, other)),
             },
-            ":wat::core::nil" => match edn {
+            ":wat::type::nil" => match edn {
                 Edn::Nil => Ok(Value::Nil),
                 other => Err(mismatch(target, other)),
             },
-            ":wat::core::keyword" => match edn {
+            ":wat::type::keyword" => match edn {
                 Edn::Keyword(k) => {
                     let s = match k.namespace() {
                         // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword from an EDN keyword's dotted namespace
@@ -2601,7 +2601,7 @@ fn edn_to_typed_value_inner(
                 }
                 other => Err(mismatch(target, other)),
             },
-            ":wat::core::u8" => match edn {
+            ":wat::type::u8" => match edn {
                 Edn::Integer(n) => Ok(Value::u8(*n as u8)),
                 other => Err(mismatch(target, other)),
             },
@@ -2618,14 +2618,14 @@ fn edn_to_typed_value_inner(
             // Typed path mirrors `:wat::uuid::UUID` above (latent gap pattern).
             // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
             // (scalar types lowercase per Doctrine 2).
-            ":wat::core::char" => match edn {
+            ":wat::type::char" => match edn {
                 Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
                 other => Err(mismatch(target, other)),
             },
             // Arc 300 stone B — rational literal typed-coerce path, mirrors
             // the `:wat::uuid::UUID` / `:wat::core::char` latent-gap pattern.
             // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
-            ":wat::core::rational" => match edn {
+            ":wat::type::rational" => match edn {
                 Edn::Rational(r) => Ok(Value::wat__core__Rational(Box::new((**r).clone()))),
                 other => Err(mismatch(target, other)),
             },
@@ -2636,8 +2636,8 @@ fn edn_to_typed_value_inner(
             // `EdnRepresentable` (write side) and now an EDN coerce target (read
             // side) — closing the write-but-not-read asymmetry. `edn_to_value`
             // honours `types` so `#ns/Variant` enum tags rebuild as `Value::Enum`.
-            ":wat::core::Value" => edn_to_value(edn, types, ctx).map_err(|e| EdnCoerceError {
-                expected: ":wat::core::Value".into(),
+            ":wat::type::Value" => edn_to_value(edn, types, ctx).map_err(|e| EdnCoerceError {
+                expected: ":wat::type::Value".into(),
                 got: format!("{e}"),
                 path: String::new(),
             }),
@@ -2650,10 +2650,10 @@ fn edn_to_typed_value_inner(
             // TYPE lattice (types.rs:5212, `:wat::core::Value`), one domain over.
             // `edn_to_watast` is the write side's own inverse (`watast_to_edn`), so
             // accepting here is literally undoing what the wire's own writer did.
-            ":wat::WatAST" => crate::edn::bridge::edn_to_watast(edn)
+            ":wat::type::AST" => crate::edn::bridge::edn_to_watast(edn)
                 .map(|ast| Value::wat__WatAST(Arc::new(ast)))
                 .map_err(|e| EdnCoerceError {
-                    expected: ":wat::WatAST".into(),
+                    expected: ":wat::type::AST".into(),
                     got: format!("{e}"),
                     path: String::new(),
                 }),
@@ -2748,7 +2748,7 @@ fn edn_to_typed_value_inner(
         .strip_prefix(':')
         .unwrap_or_default()
         {
-            "wat::core::Vector" => {
+            "wat::type::Vector" => {
                 let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
                 match edn {
                     Edn::Vector(items) | Edn::List(items) => {
@@ -2766,7 +2766,7 @@ fn edn_to_typed_value_inner(
             // Arc 220 Stone 220.4 — `:wat::core::List<T>` typed path.
             // Accepts EDN list `(...)` (and vector `[...]` for compatibility with
             // Clojure that pr-str's lists as parens but JSON consumers may emit brackets).
-            "wat::core::List" => {
+            "wat::type::List" => {
                 let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
                 match edn {
                     Edn::List(items) | Edn::Vector(items) => {
@@ -2848,7 +2848,7 @@ fn edn_to_typed_value_inner(
             // `{k v …}`, a std HashSet as a bare EDN set `#{v …}`. Keys are walked against `K`
             // and values against `V`, so a mistyped key or value is still caught — the
             // recursion is the point, and the offending path names which one.
-            "wat::core::HashMap" => {
+            "wat::type::HashMap" => {
                 if args.len() != 2 {
                     return Err(mismatch(target, edn));
                 }
@@ -2873,7 +2873,7 @@ fn edn_to_typed_value_inner(
                     other => Err(mismatch(target, other)),
                 }
             }
-            "wat::core::HashSet" => {
+            "wat::type::HashSet" => {
                 let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
                 match edn {
                     Edn::Set(items) => {
@@ -3005,7 +3005,7 @@ fn substitute_type_params(
                 Some(i) => args
                     .get(i)
                     .cloned()
-                    .unwrap_or_else(|| TypeExpr::Path(":wat::core::Value".into())),
+                    .unwrap_or_else(|| TypeExpr::Path(":wat::type::Value".into())),
                 None => ty.clone(),
             }
         }
@@ -3700,22 +3700,18 @@ pub(crate) fn canonical_identity(s: &str) -> String {
     s.to_string()
 }
 
-/// TypeExpr storage key: a `wat.type/X` **member** denotes the same
-/// builtin as `wat.core/X`. Non-members are left as identity so the
-/// caller can refuse them as "not a member of wat.type".
+/// TypeExpr storage key. **Stone 255.81 (cutover 4b) deletes the `:wat::type::` →
+/// `:wat::core::` rewrite this door used to perform.** Before this stone, a
+/// `wat.type/X` member denoted the OLD `wat::core::X` key (`wat.type/AST` →
+/// `:wat::WatAST`); the new spelling IS the key now, so this is identity for
+/// every input — the function is kept (rather than inlined to `canonical_identity`
+/// at each of its ~22 call sites) because several callers (`denoted_type_path`,
+/// `Nature::from_root_keyword`, `is_subtype`, `type_exprs_same`,
+/// `parametric_heads_unify`) name it explicitly as "the denotation door," and a
+/// future non-identity canonicalization (a different namespace alias) has one home
+/// to land in again.
 pub(crate) fn type_denotation(s: &str) -> String {
-    let id = canonical_identity(s);
-    if let Some(tail) = id.strip_prefix(":wat::type::") {
-        // `:wat::WatAST` is not a `wat::core` key. The surface spelling is
-        // `wat.type/AST` (cutover). Every other `wat.type/` tail still
-        // denotes the core key.
-        if tail == "AST" {
-            return ":wat::WatAST".to_string();
-        }
-        // rune:lint(one-variant-separator, namespace) — wat.type member → its registered key
-        return format!(":wat::core::{tail}");
-    }
-    id
+    canonical_identity(s)
 }
 
 /// Is this identity a `wat.type/…` spelling (either dialect)?
@@ -4470,10 +4466,10 @@ mod cap_decode_boundary {
             // minter-pid <- :wat::core::i64
             // name       <- (:wat::core::Vector :- [wat::core::i64])
             fields: vec![
-                ("minter-pid".to_string(), TypeExpr::Path(":wat::core::i64".to_string())),
+                ("minter-pid".to_string(), TypeExpr::Path(":wat::type::i64".to_string())),
                 ("name".to_string(), TypeExpr::Parametric {
-                    head: "wat::core::Vector".to_string(),
-                    args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                    head: "wat::type::Vector".to_string(),
+                    args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
                 }),
             ],
         }))
@@ -5272,7 +5268,7 @@ mod tests {
     /// `(extend-type :wat::WatAST Equatable)` in `wat/class.wat`.
     #[test]
     fn ast_type_renders_to_wat_type_ast_not_a_generic_namespaced_symbol() {
-        let te = TypeExpr::Path(":wat::WatAST".to_string());
+        let te = TypeExpr::Path(":wat::type::AST".to_string());
         let clojure = type_expr_to_clojure_form(&te, TypeFormHeadMode::Clojure).expect("renders");
         match clojure {
             WatAST::Symbol(id, _) => assert_eq!(id.as_str(), "wat.type/AST"),
@@ -5281,7 +5277,7 @@ mod tests {
         // Colon mode round-trips the original spelling unchanged.
         let colon = type_expr_to_clojure_form(&te, TypeFormHeadMode::Colon).expect("renders");
         match colon {
-            WatAST::Keyword(k, _) => assert_eq!(k, ":wat::WatAST"),
+            WatAST::Keyword(k, _) => assert_eq!(k, ":wat::type::AST"),
             other => panic!("expected a Keyword, got {other:?}"),
         }
     }
@@ -5366,14 +5362,14 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_i64_from_integer() {
-        let t = TypeExpr::Path(":wat::core::i64".into());
+        let t = TypeExpr::Path(":wat::type::i64".into());
         let v = coerce(&t, "42").unwrap();
         assert!(matches!(v, Value::i64(42)));
     }
 
     #[test]
     fn arc170_1fi_coerce_string_from_quoted() {
-        let t = TypeExpr::Path(":wat::core::String".into());
+        let t = TypeExpr::Path(":wat::type::String".into());
         let v = coerce(&t, "\"hello\"").unwrap();
         match v {
             Value::String(s) => assert_eq!(&*s, "hello"),
@@ -5383,14 +5379,14 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_bool() {
-        let t = TypeExpr::Path(":wat::core::bool".into());
+        let t = TypeExpr::Path(":wat::type::bool".into());
         let v = coerce(&t, "true").unwrap();
         assert!(matches!(v, Value::bool(true)));
     }
 
     #[test]
     fn arc170_1fi_coerce_f64_widens_integer() {
-        let t = TypeExpr::Path(":wat::core::f64".into());
+        let t = TypeExpr::Path(":wat::type::f64".into());
         let v = coerce(&t, "3").unwrap();
         match v {
             Value::f64(x) => assert!((x - 3.0).abs() < 1e-12),
@@ -5400,7 +5396,7 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_nil_to_unit() {
-        let t = TypeExpr::Path(":wat::core::nil".into());
+        let t = TypeExpr::Path(":wat::type::nil".into());
         let v = coerce(&t, "nil").unwrap();
         assert!(matches!(v, Value::Nil));
     }
@@ -5409,7 +5405,7 @@ mod tests {
     fn unit_variant_empty_vector_is_refused() {
         let t = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
         };
         assert!(
             coerce(&t, "#wat.core/Option.None []").is_err(),
@@ -5422,7 +5418,7 @@ mod tests {
         // Arc 296 H-2 — Option wire form is `#wat.core/Option.None {}` (empty map).
         let t = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
         };
         let v = coerce(&t, "#wat.core/Option.None {}").unwrap();
         match v {
@@ -5436,7 +5432,7 @@ mod tests {
         // Arc 296 H-2 — Option wire form is `#wat.core/Option.Some {:value v}`.
         let t = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
         };
         let v = coerce(&t, "#wat.core/Option.Some {:value 7}").unwrap();
         match v {
@@ -5451,8 +5447,8 @@ mod tests {
     #[test]
     fn arc170_1fi_coerce_vector_of_i64() {
         let t = TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            head: "wat::type::Vector".into(),
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
         };
         let v = coerce(&t, "[1 2 3]").unwrap();
         match v {
@@ -5468,8 +5464,8 @@ mod tests {
     #[test]
     fn arc170_1fi_coerce_tuple_heterogeneous() {
         let t = TypeExpr::Tuple(vec![
-            TypeExpr::Path(":wat::core::i64".into()),
-            TypeExpr::Path(":wat::core::String".into()),
+            TypeExpr::Path(":wat::type::i64".into()),
+            TypeExpr::Path(":wat::type::String".into()),
         ]);
         let v = coerce(&t, "[1 \"x\"]").unwrap();
         match v {
@@ -5489,20 +5485,20 @@ mod tests {
     fn arc170_1fi_coerce_mismatch_surfaces_path() {
         // Vector<i64> + first element is a String → mismatch at .[0].
         let t = TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            head: "wat::type::Vector".into(),
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
         };
         let err = coerce(&t, "[\"oops\" 2]").unwrap_err();
-        assert_eq!(err.expected, ":wat::core::i64");
+        assert_eq!(err.expected, "wat.type/i64");
         assert_eq!(err.got, "String");
         assert_eq!(err.path, ".[0]");
     }
 
     #[test]
     fn arc170_1fi_coerce_top_level_mismatch_no_path() {
-        let t = TypeExpr::Path(":wat::core::i64".into());
+        let t = TypeExpr::Path(":wat::type::i64".into());
         let err = coerce(&t, "\"not an int\"").unwrap_err();
-        assert_eq!(err.expected, ":wat::core::i64");
+        assert_eq!(err.expected, "wat.type/i64");
         assert_eq!(err.got, "String");
         assert_eq!(err.path, "");
     }
@@ -5513,8 +5509,8 @@ mod tests {
         let t = TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![
-                TypeExpr::Path(":wat::core::i64".into()),
-                TypeExpr::Path(":wat::core::String".into()),
+                TypeExpr::Path(":wat::type::i64".into()),
+                TypeExpr::Path(":wat::type::String".into()),
             ],
         };
         let v = coerce(&t, "#wat.core/Result.Ok {:value 42}").unwrap();
@@ -5533,8 +5529,8 @@ mod tests {
         let t = TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![
-                TypeExpr::Path(":wat::core::i64".into()),
-                TypeExpr::Path(":wat::core::String".into()),
+                TypeExpr::Path(":wat::type::i64".into()),
+                TypeExpr::Path(":wat::type::String".into()),
             ],
         };
         let v = coerce(&t, "#wat.core/Result.Err {:error \"boom\"}").unwrap();
@@ -5632,8 +5628,8 @@ mod tests {
                 variants: vec![EnumVariant::Tagged {
                     name: "At".to_string(),
                     fields: vec![
-                        ("x".into(), TypeExpr::Path(":wat::core::i64".into())),
-                        ("y".into(), TypeExpr::Path(":wat::core::i64".into())),
+                        ("x".into(), TypeExpr::Path(":wat::type::i64".into())),
+                        ("y".into(), TypeExpr::Path(":wat::type::i64".into())),
                     ],
                 }],
             }))

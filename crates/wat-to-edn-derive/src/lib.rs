@@ -177,12 +177,12 @@ fn rust_type_to_wat_path(ty: &syn::Type) -> Result<&'static str, TokenStream2> {
     }
 
     match seg.ident.to_string().as_str() {
-        "i64"    => Ok(":wat::core::i64"),
-        "i32"    => Ok(":wat::core::i64"),
-        "u32"    => Ok(":wat::core::i64"),
-        "usize"  => Ok(":wat::core::i64"),
-        "bool"   => Ok(":wat::core::bool"),
-        "String" => Ok(":wat::core::String"),
+        "i64"    => Ok(":wat::type::i64"),
+        "i32"    => Ok(":wat::type::i64"),
+        "u32"    => Ok(":wat::type::i64"),
+        "usize"  => Ok(":wat::type::i64"),
+        "bool"   => Ok(":wat::type::bool"),
+        "String" => Ok(":wat::type::String"),
         other    => Err(syn::Error::new_spanned(
             ty,
             format!(

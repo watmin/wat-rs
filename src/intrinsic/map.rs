@@ -53,8 +53,8 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
-/// @ret     :wat::core::i64 the number of entries in `m`
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map probed
+/// @ret     :wat::type::i64 the number of entries in `m`
 /// @example (:wat::map::length (:wat::core::PersistentMap)) #=> 0
 /// @see     :wat::map::empty?
 #[wat_intrinsic(":wat::map::length")]
@@ -70,8 +70,8 @@ pub(crate) fn persistentmap_length(m: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
-/// @ret     :wat::core::bool true iff `m` has zero entries
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map probed
+/// @ret     :wat::type::bool true iff `m` has zero entries
 /// @example (:wat::map::empty? (:wat::core::PersistentMap)) #=> true
 /// @see     :wat::map::length
 #[wat_intrinsic(":wat::map::empty?")]
@@ -87,9 +87,9 @@ pub(crate) fn persistentmap_empty_q(m: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map probed
 /// @arg     k :K the candidate key
-/// @ret     :wat::core::bool true iff `k` occurs as a key in `m`
+/// @ret     :wat::type::bool true iff `k` occurs as a key in `m`
 /// @example (:wat::map::contains-key? (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> true
 /// @see     :wat::map::get
 #[wat_intrinsic(":wat::map::contains-key?")]
@@ -106,7 +106,7 @@ pub(crate) fn persistentmap_contains_key_q(m: &Value, k: &Value) -> Result<Value
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map probed
 /// @arg     k :K the key looked up
 /// @ret     (:wat::core::Option :- [V]) `Some` the value at `k`, or `None` on a miss
 /// @example (:wat::map::get (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> (:wat::core::Option::Some {:value 1})
@@ -125,10 +125,10 @@ pub(crate) fn persistentmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map transformed
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map transformed
 /// @arg     k :K the key inserted or overwritten
 /// @arg     v :V the value bound to `k`
-/// @ret     (:wat::core::PersistentMap :- [K V]) `m` with `k` bound to `v`
+/// @ret     (:wat::type::PersistentMap :- [K V]) `m` with `k` bound to `v`
 /// @example (:wat::map::length (:wat::map::assoc (:wat::core::PersistentMap) "a" 1)) #=> 1
 /// @see     :wat::map::dissoc
 #[wat_intrinsic(":wat::map::assoc")]
@@ -145,9 +145,9 @@ pub(crate) fn persistentmap_assoc(m: &Value, k: &Value, v: &Value) -> Result<Val
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map transformed
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map transformed
 /// @arg     k :K the key removed
-/// @ret     (:wat::core::PersistentMap :- [K V]) `m` with `k` removed
+/// @ret     (:wat::type::PersistentMap :- [K V]) `m` with `k` removed
 /// @example (:wat::map::length (:wat::map::dissoc (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a")) #=> 0
 /// @see     :wat::map::assoc
 #[wat_intrinsic(":wat::map::dissoc")]
@@ -170,8 +170,8 @@ pub(crate) fn persistentmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBr
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map projected
-/// @ret     (:wat::core::Vector :- [K]) `m`'s keys, order unspecified
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map projected
+/// @ret     (:wat::type::Vector :- [K]) `m`'s keys, order unspecified
 /// @example-norun (:wat::map::length (:wat::map::keys (:wat::map::assoc (:wat::core::PersistentMap) "a" 1))) #=> 1
 /// @see     :wat::map::values
 #[wat_intrinsic(":wat::map::keys")]
@@ -193,8 +193,8 @@ pub(crate) fn persistentmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
-/// @arg     m (:wat::core::PersistentMap :- [K V]) the map projected
-/// @ret     (:wat::core::Vector :- [V]) `m`'s values, order unspecified
+/// @arg     m (:wat::type::PersistentMap :- [K V]) the map projected
+/// @ret     (:wat::type::Vector :- [V]) `m`'s values, order unspecified
 /// @example-norun (:wat::map::length (:wat::map::values (:wat::map::assoc (:wat::core::PersistentMap) "a" 1))) #=> 1
 /// @see     :wat::map::keys
 #[wat_intrinsic(":wat::map::values")]

@@ -1685,7 +1685,7 @@ pub(crate) fn eval_inner(
             //
             // Arc 233 Stone 233.2.e: nil/None keyword special-cases carry
             // Provenance::Literal{span} (they appear as keyword literals in source).
-            if k == ":wat::core::nil" {
+            if k == ":wat::type::nil" {
                 return Ok(TrackedValue::new(
                     Value::Nil,
                     Provenance::Literal { span: span.clone() },
@@ -4434,7 +4434,7 @@ fn destructure_tuple(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "wat::core::Tuple",
+                expected: "wat::type::Tuple",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -4967,8 +4967,8 @@ pub(crate) fn eval_one_arg<T>(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args :wat::core::bool the boolean to render
-/// @ret     :wat::core::String `"true"` when `args` is `true`, `"false"` otherwise
+/// @arg     args :wat::type::bool the boolean to render
+/// @ret     :wat::type::String `"true"` when `args` is `true`, `"false"` otherwise
 /// @example (:wat::core::bool::to-string true) #=> "true"
 #[wat_intrinsic(":wat::core::bool::to-string")]
 fn eval_bool_to_string(
@@ -5009,7 +5009,7 @@ fn eval_bool_to_string(
 ///
 /// Examples:
 ///   `(keyword/to-string :foo)`            → `"foo"`
-///   `(keyword/to-string :wat::core::i64)` → `"wat::core::i64"`
+///   `(keyword/to-string :wat::core::i64)` → `"wat::type::i64"`
 // Arc 255 Stone E-iv — bumped to `pub(crate)` so `src/intrinsic/keyword.rs`'s registry-home
 // shim (`:wat::keyword::to-string`) can call the SAME algorithm; the algorithm stays here
 // (untouched), only its home's dispatch route moves.
@@ -5262,7 +5262,7 @@ fn eval_apply(
                 spread_ast.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::apply".into(),
-                    expected: "wat::core::Vector",
+                    expected: "wat::type::Vector",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -5297,7 +5297,7 @@ fn eval_apply(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::apply".into(),
-                    expected: "wat::core::keyword",
+                    expected: "wat::type::keyword",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -5475,7 +5475,7 @@ fn eval_apply(
 /// @Totality      Preserving
 /// @ExpandTime    RuntimeOnly
 /// @Category      ControlFlow
-/// @arg     args :wat::core::keyword the head to dispatch (position 0, a `:wat::core::fn` value or a `:wat::core::keyword` FQDN) then zero or more leading positional args then a trailing `:wat::core::Vector` spread as further args (prose-only past position 0 — the variadic sniff leaves no further `@arg` slots)
+/// @arg     args :wat::type::keyword the head to dispatch (position 0, a `:wat::core::fn` value or a `:wat::type::keyword` FQDN) then zero or more leading positional args then a trailing `:wat::type::Vector` spread as further args (prose-only past position 0 — the variadic sniff leaves no further `@arg` slots)
 /// @ret     :T the dispatched call's own return value
 /// @example (:wat::core::apply (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1)) #=> 2
 #[wat_intrinsic(":wat::core::apply")]
@@ -5578,7 +5578,7 @@ fn eval_eq(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+/// @arg     args :wat::type::Value the left operand (position 0) then the right operand
 ///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); the two must
 ///   be compatible — their types `unify`, one is a subtype of the other, both are subtypes of
 ///   `:wat::core::Record` (cross-flavor record comparison), or both are numeric
@@ -5590,7 +5590,7 @@ fn eval_eq(
 ///   still reaches it (`wat-scripts/scratch-pad/probe-eq-generic-instantiation.wat`); raises
 ///   `TypeMismatch` at runtime if the compatible pair is not one `values_equal` can actually
 ///   compare (e.g. two `:wat::core::fn` values)
-/// @ret     :wat::core::bool true iff position 0 structurally equals position 1
+/// @ret     :wat::type::bool true iff position 0 structurally equals position 1
 ///   (`values_equal`)
 /// @example (:wat::core::= 1 1) #=> true
 /// @see     :wat::core::not=
@@ -5672,7 +5672,7 @@ fn eval_not_eq(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+/// @arg     args :wat::type::Value the left operand (position 0) then the right operand
 ///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
 ///   compatibility rule as `:wat::core::=` (`infer_equality`, `src/check.rs`), including the
 ///   `is_type_equatable` (`src/check.rs`) narrowing described there — a generic body's rigid
@@ -5680,7 +5680,7 @@ fn eval_not_eq(
 ///   inside it still reaches the raise
 ///   (`wat-scripts/scratch-pad/probe-eq-generic-instantiation.wat`); raises `TypeMismatch` at
 ///   runtime under the same condition `=` does
-/// @ret     :wat::core::bool true iff position 0 does not structurally equal position 1
+/// @ret     :wat::type::bool true iff position 0 does not structurally equal position 1
 /// @example (:wat::core::not= 1 2) #=> true
 /// @see     :wat::core::=
 #[wat_intrinsic(":wat::core::not=")]
@@ -6229,13 +6229,13 @@ pub(crate) fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+/// @arg     args :wat::type::Value the left operand (position 0) then the right operand
 ///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); both must be
 ///   an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration,
 ///   (Vector :- [T]), Tuple, (Option :- [T]), (Result :- [T E])), `unify`-ed STRICTLY against
 ///   each other (no subtype path) (`infer_ordering`/`is_type_orderable`,
 ///   `src/check.rs:12909-12970`/`:12868-12904`)
-/// @ret     :wat::core::bool true iff position 0 is less than position 1
+/// @ret     :wat::type::bool true iff position 0 is less than position 1
 ///   (`values_compare`/`numeric_order`,
 ///   `src/runtime.rs:5558-5679`)
 /// @example (:wat::core::< 1 2) #=> true
@@ -6267,11 +6267,11 @@ fn eval_lt_intrinsic(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+/// @arg     args :wat::type::Value the left operand (position 0) then the right operand
 ///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
 ///   orderable-class / strict-unify rule as `:wat::core::<` (`infer_ordering`/
 ///   `is_type_orderable`, `src/check.rs:12909-12970`/`:12868-12904`)
-/// @ret     :wat::core::bool true iff position 0 is greater than position 1
+/// @ret     :wat::type::bool true iff position 0 is greater than position 1
 /// @example (:wat::core::> 2 1) #=> true
 /// @see     :wat::core::<
 /// @see     :wat::core::>=
@@ -6299,11 +6299,11 @@ fn eval_gt_intrinsic(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+/// @arg     args :wat::type::Value the left operand (position 0) then the right operand
 ///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
 ///   orderable-class / strict-unify rule as `:wat::core::<` (`infer_ordering`/
 ///   `is_type_orderable`, `src/check.rs:12909-12970`/`:12868-12904`)
-/// @ret     :wat::core::bool true iff position 0 is less than or equal to position 1
+/// @ret     :wat::type::bool true iff position 0 is less than or equal to position 1
 /// @example (:wat::core::<= 2 2) #=> true
 /// @see     :wat::core::<
 /// @see     :wat::core::>=
@@ -6331,11 +6331,11 @@ fn eval_lte_intrinsic(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     args :wat::core::Value the left operand (position 0) then the right operand
+/// @arg     args :wat::type::Value the left operand (position 0) then the right operand
 ///   (position 1, prose-only — the variadic sniff leaves no second `@arg` slot); same
 ///   orderable-class / strict-unify rule as `:wat::core::<` (`infer_ordering`/
 ///   `is_type_orderable`, `src/check.rs:12909-12970`/`:12868-12904`)
-/// @ret     :wat::core::bool true iff position 0 is greater than or equal to position 1
+/// @ret     :wat::type::bool true iff position 0 is greater than or equal to position 1
 /// @example (:wat::core::>= 2 2) #=> true
 /// @see     :wat::core::<=
 /// @see     :wat::core::>
@@ -6392,8 +6392,8 @@ fn eval_gte_intrinsic(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args :wat::core::bool the boolean to negate
-/// @ret     :wat::core::bool the inverse of `args`
+/// @arg     args :wat::type::bool the boolean to negate
+/// @ret     :wat::type::bool the inverse of `args`
 /// @example (:wat::core::not true) #=> false
 #[wat_intrinsic(":wat::core::not")]
 fn eval_not(
@@ -6505,7 +6505,7 @@ fn eval_not(
 /// cannot fail. `Total`.
 ///
 /// **Expand-time ground —** `src/macros/eval.rs`'s `is_expand_time_legal` residue names
-/// `":wat::core::Tuple"` literally (its "collection constructors" group) — legal,
+/// `":wat::type::Tuple"` literally (its "collection constructors" group) — legal,
 /// pre-registration; this registration carries the SAME verdict. `Legal`.
 ///
 /// **Category ground —** builds a brand-new compound value from several evaluated element
@@ -6520,9 +6520,9 @@ fn eval_not(
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args :T one or more heterogeneous element values, or a `:-`-marked leading type-param bracket (`(Tuple :- [T1 T2 …] v1 v2 …)`, or `(Tuple :- [])` for the empty tuple) — the variadic sniff leaves no further `@arg` slots
-/// @ret     (:wat::core::Tuple :- [T]) the newly constructed heterogeneous tuple
+/// @ret     (:wat::type::Tuple :- [T]) the newly constructed heterogeneous tuple
 /// @example (:wat::core::Tuple 1 2) #=> (:wat::core::Tuple 1 2)
-#[wat_intrinsic(":wat::core::Tuple")]
+#[wat_intrinsic(":wat::type::Tuple")]
 fn eval_tuple(
     args: &[WatAST],
     list_span: &Span,
@@ -6569,7 +6569,7 @@ fn eval_tuple_ctor(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::Tuple".into(),
+                head: ":wat::type::Tuple".into(),
                 reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into(),
             },
         )
@@ -6594,7 +6594,7 @@ pub(crate) fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>,
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "wat::core::Vector",
+                expected: "wat::type::Vector",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -7683,8 +7683,8 @@ fn doc_contract_from_comment(doc: &wat_doc::DocComment) -> DocContractEmit {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg     name_ast :wat::core::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
-/// @ret     (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])]) the metadata map, or `:None` when the binding is unregistered or carries no metadata
+/// @arg     name_ast :wat::type::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
+/// @ret     (:wat::core::Option :- [(:wat::type::HashMap :- [:wat::type::keyword :wat::type::Value])]) the metadata map, or `:None` when the binding is unregistered or carries no metadata
 /// @example (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::lookup-define) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> true
 /// @example (:wat::core::match (:wat::runtime::metadata-of :probe::totally-unknown-xyz) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
 /// @see     :wat::runtime::lookup-define
@@ -8223,7 +8223,7 @@ pub(crate) fn positional_at(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     args (:wat::core::Vector :- [T]) the receiver (position 0) — this call also
+/// @arg     args (:wat::type::Vector :- [T]) the receiver (position 0) — this call also
 ///   accepts a Tuple, (List :- [T]), (PersistentVector :- [T]), or a WatAST list form
 ///   (returning bare `:wat::WatAST`); a (Stream :- [T]) or HashSet is refused
 ///   (`indexable()` gate excludes them — a lazy Stream has no first; advance it with
@@ -8267,7 +8267,7 @@ fn eval_first(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     args (:wat::core::Vector :- [T]) the receiver (position 0) — this call also
+/// @arg     args (:wat::type::Vector :- [T]) the receiver (position 0) — this call also
 ///   accepts a Tuple, (List :- [T]), (PersistentVector :- [T]), or a WatAST list form
 ///   (returning bare `:wat::WatAST`); a (Stream :- [T]) or HashSet is refused
 ///   (`indexable()` gate excludes them — advance a Stream with `:wat::stream::next`); the
@@ -8308,7 +8308,7 @@ fn eval_second(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     args (:wat::core::Vector :- [T]) the receiver (position 0) — this call also
+/// @arg     args (:wat::type::Vector :- [T]) the receiver (position 0) — this call also
 ///   accepts a Tuple, (List :- [T]), (PersistentVector :- [T]), or a WatAST list form
 ///   (returning bare `:wat::WatAST`); a (Stream :- [T]) or HashSet is refused
 ///   (`indexable()` gate excludes them — advance a Stream with `:wat::stream::next`); the
@@ -8349,7 +8349,7 @@ fn eval_third(
 /// sibling below.
 ///
 /// **Expand-time ground — `Legal`, a real gap this stone CLOSES, not widens:** grepped
-/// `src/macros/eval.rs` — `":wat::core::PersistentVector"` appears in NEITHER the
+/// `src/macros/eval.rs` — `":wat::type::PersistentVector"` appears in NEITHER the
 /// registry-first consult NOR the residue hand-list (zero hits) — silently refused today
 /// (`is_expand_time_legal` returns `false` for it, so a `defmacro` body calling it is
 /// rejected by `validate_pure_total`, `:169-207`), with no ruling ever made. A THIRD instance
@@ -8378,13 +8378,13 @@ fn eval_third(
 /// @Totality      Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the elements, in order (0 or more); each is
+/// @arg     args… :wat::type::Value the elements, in order (0 or more); each is
 ///   `unify`/`assignable`-checked against a common `T` — a fresh variable inferred from the
 ///   first element, or the declared target of a leading `(PersistentVector :- [T] …)` bracket
-/// @ret     (:wat::core::PersistentVector :- [T]) a new persistent vector holding each
+/// @ret     (:wat::type::PersistentVector :- [T]) a new persistent vector holding each
 ///   argument, in order
 /// @example (:wat::core::PersistentVector 1 2 3) #=> (:wat::core::PersistentVector 1 2 3)
-#[wat_intrinsic(":wat::core::PersistentVector")]
+#[wat_intrinsic(":wat::type::PersistentVector")]
 fn eval_persistentvector(
     args: &[WatAST],
     list_span: &Span,
@@ -8423,7 +8423,7 @@ fn eval_persistentvector(
 /// `:wat::core::fn` value as a key and hit this raise at runtime. `Partial`.
 ///
 /// **Expand-time ground — `Legal`, a real gap this stone CLOSES, not widens:** grepped
-/// `src/macros/eval.rs` — `":wat::core::PersistentMap"` appears in NEITHER the registry-first
+/// `src/macros/eval.rs` — `":wat::type::PersistentMap"` appears in NEITHER the registry-first
 /// consult NOR the residue hand-list (zero hits) — silently refused today, with no ruling
 /// ever made. A FOURTH instance of the defect this arc has already found (`ann-form`,
 /// `apply`, and this fn's own `PersistentVector` sibling immediately above). Structurally
@@ -8447,15 +8447,15 @@ fn eval_persistentvector(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args… :wat::core::Value alternating key/value pairs, in order (arity must be
+/// @arg     args… :wat::type::Value alternating key/value pairs, in order (arity must be
 ///   even — raises `MalformedForm` otherwise); each key raises `TypeMismatch` at runtime if
 ///   its value is not hashable (`value_is_key_hashable`), a check the type system does not
 ///   perform; keys/values are `unify`/`assignable`-checked against common `K`/`V` — fresh
 ///   variables inferred from the first pair, or the declared targets of a leading
 ///   `(PersistentMap :- [K V] …)` bracket
-/// @ret     (:wat::core::PersistentMap :- [K V]) a new persistent map holding each pair
+/// @ret     (:wat::type::PersistentMap :- [K V]) a new persistent map holding each pair
 /// @example (:wat::core::PersistentMap :a 1 :b 2) #=> (:wat::core::PersistentMap :a 1 :b 2)
-#[wat_intrinsic(":wat::core::PersistentMap")]
+#[wat_intrinsic(":wat::type::PersistentMap")]
 fn eval_persistentmap(
     args: &[WatAST],
     list_span: &Span,
@@ -8497,7 +8497,7 @@ fn eval_persistentmap(
 /// (`wat-scripts/scratch-pad/probe-vector-fn-type-bracket.wat`) and then raises `MalformedForm`
 /// at eval time ("first argument must be a `(Head :- [T …])` type form"). `Partial`.
 ///
-/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::core::Vector"` is
+/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::type::Vector"` is
 /// present in the residue hand-list (`:501`), which already returns `true` for it there (ruled
 /// `Legal`, unlike the silent-refusal gap `ann-form`/`apply`/`PersistentVector`/`PersistentMap`
 /// had). This registration carries that same ruling forward as the honest `@ExpandTime Legal` —
@@ -8531,10 +8531,10 @@ fn eval_persistentmap(
 ///   keyword, or the `:-`-marked bracket's single type node, spliced to this position by the
 ///   dispatch call site's `unwrap_type_param_bracket`) followed by zero or more elements, in
 ///   order — the variadic sniff leaves no further `@arg` slots
-/// @ret     (:wat::core::Vector :- [T]) a new vector holding each argument after the leading
+/// @ret     (:wat::type::Vector :- [T]) a new vector holding each argument after the leading
 ///   type declaration, in order
 /// @example (:wat::core::Vector :- [:wat::core::i64] 1 2 3) #=> [1 2 3]
-#[wat_intrinsic(":wat::core::Vector")]
+#[wat_intrinsic(":wat::type::Vector")]
 fn eval_vector(
     args: &[WatAST],
     list_span: &Span,
@@ -8572,7 +8572,7 @@ fn eval_vector(
 ///     `PersistentMap` sibling's own `Partial` ground (above) already proves for the same
 ///     predicate. `Partial`.
 ///
-/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::core::HashMap"` is
+/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::type::HashMap"` is
 /// present in the residue hand-list (`:502`), already returning `true` there (ruled `Legal`).
 /// This registration carries that ruling forward; no macro-expansion-time state consulted in
 /// `eval_hashmap_ctor`'s body.
@@ -8603,9 +8603,9 @@ fn eval_vector(
 ///   key/value pairs, in order (arity after the two type args must be even; raises
 ///   `MalformedForm` otherwise; each key raises `TypeMismatch` at runtime if not hashable) — the
 ///   variadic sniff leaves no further `@arg` slots
-/// @ret     (:wat::core::HashMap :- [K V]) a new hash map holding each pair
+/// @ret     (:wat::type::HashMap :- [K V]) a new hash map holding each pair
 /// @example (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64] :a 1) #=> {:a 1}
-#[wat_intrinsic(":wat::core::HashMap")]
+#[wat_intrinsic(":wat::type::HashMap")]
 fn eval_hashmap(
     args: &[WatAST],
     list_span: &Span,
@@ -8643,7 +8643,7 @@ fn eval_hashmap(
 ///     this raise at runtime, the same gap `HashMap`'s key ground and `PersistentMap`'s key
 ///     ground both already prove for the identical predicate. `Partial`.
 ///
-/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::core::HashSet"` is
+/// **Expand-time ground — `Legal`:** grepped `src/macros/eval.rs` — `":wat::type::HashSet"` is
 /// present in the residue hand-list (`:503`), already returning `true` there (ruled `Legal`).
 /// This registration carries that ruling forward; no macro-expansion-time state consulted in
 /// `eval_hashset_ctor`'s body.
@@ -8671,10 +8671,10 @@ fn eval_hashmap(
 ///   dispatch call site's `unwrap_type_param_bracket`) followed by zero or more elements, in
 ///   order (duplicates collapse; each raises `TypeMismatch` at runtime if not hashable) — the
 ///   variadic sniff leaves no further `@arg` slots
-/// @ret     (:wat::core::HashSet :- [T]) a new hash set holding each distinct argument after the
+/// @ret     (:wat::type::HashSet :- [T]) a new hash set holding each distinct argument after the
 ///   leading type declaration
 /// @example (:wat::core::HashSet :- [:wat::core::i64] 1) #=> #{1}
-#[wat_intrinsic(":wat::core::HashSet")]
+#[wat_intrinsic(":wat::type::HashSet")]
 fn eval_hashset(
     args: &[WatAST],
     list_span: &Span,
@@ -9531,7 +9531,7 @@ pub(crate) fn eval_type(
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     args :T the collection (position 0) then the element-or-key to test (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
-/// @ret     :wat::core::bool whether the collection contains the element (Vector/HashSet/List/PersistentVector/Tuple/WatAstList) or key (HashMap/PersistentMap) or field name (Record)
+/// @ret     :wat::type::bool whether the collection contains the element (Vector/HashSet/List/PersistentVector/Tuple/WatAstList) or key (HashMap/PersistentMap) or field name (Record)
 /// @example (:wat::core::contains? (:wat::core::Vector 1 2 3) 2) #=> true
 #[wat_intrinsic(":wat::core::contains?")]
 fn eval_contains(
@@ -9883,7 +9883,7 @@ fn eval_get(
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     args :T the value to check (position 0) then the type-position keyword or `(Head :- [args])` reference form (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
-/// @ret     :wat::core::bool whether `args`'s value structurally conforms to the declared type
+/// @ret     :wat::type::bool whether `args`'s value structurally conforms to the declared type
 /// @example (:wat::core::conforms? 1 :wat::core::i64) #=> true
 #[wat_intrinsic(":wat::core::conforms?")]
 fn eval_conforms(
@@ -10075,7 +10075,7 @@ fn conforms_check(
                 | Some(TypeDef::Enum(_))
                 | Some(TypeDef::Newtype(_)) => {
                     let stripped_name = name.strip_prefix(':').unwrap_or(name.as_str());
-                    if stripped_name == "wat::core::Record" || stripped_name == "wat::holon::Record"
+                    if stripped_name == "wat::type::Record" || stripped_name == "wat::holon::Record"
                     {
                         return Ok(matches!(
                             value,
@@ -10121,10 +10121,10 @@ fn conforms_check(
             let head_owned = crate::types::constructor_head_key(head);
             let head_key = head_owned.as_ref().strip_prefix(':').unwrap_or(head_owned.as_ref());
             let classifier_ok = match head_key {
-                "wat::core::Vector" => value_tag == "wat::core::Vector",
-                "wat::core::List" => value_tag == "wat::core::List",
-                "wat::core::HashSet" => value_tag == "wat::core::HashSet",
-                "wat::core::HashMap" => value_tag == "wat::core::HashMap",
+                "wat::type::Vector" => value_tag == "wat::type::Vector",
+                "wat::type::List" => value_tag == "wat::type::List",
+                "wat::type::HashSet" => value_tag == "wat::type::HashSet",
+                "wat::type::HashMap" => value_tag == "wat::type::HashMap",
                 // User parametric type — nominal head match only (full
                 // parametric-instance introspection is arc 235 territory).
                 other => value_tag == other,
@@ -10134,7 +10134,7 @@ fn conforms_check(
             }
             // Recurse element-wise for known collection classifiers.
             match head_key {
-                "wat::core::Vector" => {
+                "wat::type::Vector" => {
                     if args.is_empty() {
                         return Ok(true);
                     }
@@ -10148,7 +10148,7 @@ fn conforms_check(
                     }
                     Ok(true)
                 }
-                "wat::core::List" => {
+                "wat::type::List" => {
                     if args.is_empty() {
                         return Ok(true);
                     }
@@ -10162,7 +10162,7 @@ fn conforms_check(
                     }
                     Ok(true)
                 }
-                "wat::core::HashSet" => {
+                "wat::type::HashSet" => {
                     if args.is_empty() {
                         return Ok(true);
                     }
@@ -10176,7 +10176,7 @@ fn conforms_check(
                     }
                     Ok(true)
                 }
-                "wat::core::HashMap" => {
+                "wat::type::HashMap" => {
                     if args.len() < 2 {
                         return Ok(true);
                     }
@@ -10257,27 +10257,27 @@ fn concrete_type_name_matches(value: &Value, path_with_colon: &str) -> bool {
 /// `Value` are leaves and not here). Stone Q's `is-type?` unions both; a count
 /// of either is not the authority (`TABLE-STONE-Q-the-mechanisms.md`).
 pub(crate) const BUILTIN_PRIMITIVES: &[&str] = &[
-    "wat::core::bool",
-    "wat::core::i64",
-    "wat::core::u8",
-    "wat::core::f64",
-    "wat::core::String",
-    "wat::core::keyword",
-    "wat::core::nil",
+    "wat::type::bool",
+    "wat::type::i64",
+    "wat::type::u8",
+    "wat::type::f64",
+    "wat::type::String",
+    "wat::type::keyword",
+    "wat::type::nil",
     "wat::uuid::UUID",
-    "wat::core::char",
-    "wat::core::rational",
-    "wat::core::bigint",
+    "wat::type::char",
+    "wat::type::rational",
+    "wat::type::bigint",
     "wat::core::fn",
-    "wat::core::Tuple",
-    "wat::core::Vector",
-    "wat::core::List",
-    "wat::core::HashMap",
-    "wat::core::HashSet",
+    "wat::type::Tuple",
+    "wat::type::Vector",
+    "wat::type::List",
+    "wat::type::HashMap",
+    "wat::type::HashSet",
     "wat::core::Option",
     "wat::core::Result",
-    "wat::core::Record",
-    "wat::WatAST",
+    "wat::type::Record",
+    "wat::type::AST",
     "wat::holon::HolonAST",
     "wat::holon::Vector",
     "wat::holon::OnlineSubspace",
@@ -10343,8 +10343,8 @@ pub(crate) fn is_builtin_primitive(name: &str) -> bool {
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     args :wat::core::keyword the child type keyword (position 0) then the parent type keyword (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
-/// @ret     :wat::core::bool whether the first type is-a the second
+/// @arg     args :wat::type::keyword the child type keyword (position 0) then the parent type keyword (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
+/// @ret     :wat::type::bool whether the first type is-a the second
 /// @example (:wat::core::subtype? :wat::holon::Record :wat::core::Record) #=> true
 #[wat_intrinsic(":wat::core::subtype?")]
 fn eval_subtype(
@@ -10878,7 +10878,7 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     args :T the value to render
-/// @ret     :wat::core::String a debug-friendly rendering of `args` — quoted for `String`, literal for other primitives, a bounded angle-bracketed summary for compound values
+/// @ret     :wat::type::String a debug-friendly rendering of `args` — quoted for `String`, literal for other primitives, a bounded angle-bracketed summary for compound values
 /// @example (:wat::core::show 42) #=> "42"
 #[wat_intrinsic(":wat::core::show")]
 fn eval_show(
@@ -11011,7 +11011,7 @@ fn eval_show(
 /// @arg     args :T the value to render — `String` renders as itself (unquoted), `i64`/`f64`/
 /// `bool` render as their literal text, and every other `Value` renders via the shared EDN
 /// encoder (`value_to_edn_string_with`), so a record renders by field NAME
-/// @ret     :wat::core::String the unquoted rendering of `args`
+/// @ret     :wat::type::String the unquoted rendering of `args`
 /// @example (:wat::core::str 42) #=> "42"
 /// @see     :wat::core::show
 #[wat_intrinsic(":wat::core::str")]
@@ -11443,8 +11443,8 @@ fn eval_program_self_peer(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @arg     args… :wat::core::Value must be empty — this verb takes no wat-level arguments
-/// @ret     :wat::core::i64 the host's available parallelism (`std::thread::available_parallelism()`), sampled at call time
+/// @arg     args… :wat::type::Value must be empty — this verb takes no wat-level arguments
+/// @ret     :wat::type::i64 the host's available parallelism (`std::thread::available_parallelism()`), sampled at call time
 /// @example-norun (:wat::program::cpu-count) #=> 8
 #[wat_intrinsic(":wat::program::cpu-count")]
 fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
@@ -11481,7 +11481,7 @@ fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     (:wat::core::Vector :- [:wat::core::String]) the process argv, fixed for this run's duration (empty if never set)
+/// @ret     (:wat::type::Vector :- [:wat::type::String]) the process argv, fixed for this run's duration (empty if never set)
 /// @example (:wat::core::= (:wat::runtime::argv) (:wat::runtime::argv)) #=> true
 /// @see     :wat::program::env
 #[wat_intrinsic(":wat::runtime::argv")]
@@ -11517,7 +11517,7 @@ fn eval_runtime_argv() -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::String the calling thread's id, `{:?}`-formatted
+/// @ret     :wat::type::String the calling thread's id, `{:?}`-formatted
 /// @example-norun (:wat::runtime::current-thread) #=> "ThreadId(1)"
 /// @see     :wat::program::cpu-count
 #[wat_intrinsic(":wat::runtime::current-thread")]
@@ -12883,7 +12883,7 @@ fn eval_form_step(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: ":wat::eval-step!".into(),
-                        expected: "wat::WatAST",
+                        expected: "wat::type::AST",
                         got: Box::new(ValueSnapshot::of(&other)),
                     },
                 )
@@ -12950,7 +12950,7 @@ fn eval_walk(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "wat::WatAST",
+                        expected: "wat::type::AST",
                         got: Box::new(ValueSnapshot::of(&other)),
                     },
                 )
@@ -13338,7 +13338,7 @@ fn step_list(
         | ":wat::f64::min"
         // arc 237 Stone 237.8a — +'i64'f64 / +'f64'i64 etc. mixed-type
         // canonical entries DELETED under THE DECISION.
-        | ":wat::core::u8" => step_descend_then_fire(items, list_span, env, sym),
+        | ":wat::type::u8" => step_descend_then_fire(items, list_span, env, sym),
         // Holon constructors — pure ops over the closed algebra (arc 057).
         // They use a holon-canonical fire condition: a list whose head is
         // itself a holon constructor with recursively-canonical args
@@ -15007,7 +15007,7 @@ mod tests {
 
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::failing-fn [] -> :wat::core::nil (:wat::kernel::assertion-failed! :message "stack test"))
+            (:wat::core::defn :my::app::failing-fn [] -> wat.type/nil (:wat::kernel::assertion-failed! :message "stack test"))
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
@@ -15617,7 +15617,7 @@ mod tests {
     fn define_and_call() {
         let result = run(
             r#"
-            (:wat::core::defn :my::app::inc [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))
+            (:wat::core::defn :my::app::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
             (:my::app::inc 41)
             "#,
         )
@@ -15628,7 +15628,7 @@ mod tests {
     #[test]
     fn define_recursive_factorial() {
         let result = run(r#"
-            (:wat::core::defn :my::app::fact [n <- :wat::core::i64] -> :wat::core::i64
+            (:wat::core::defn :my::app::fact [n <- wat.type/i64] -> wat.type/i64
               (:wat::core::if (:wat::core::= n 0)
                                 1
                                 (:wat::i64::* n (:my::app::fact (:wat::i64::- n 1)))))
@@ -15663,9 +15663,9 @@ mod tests {
         use std::sync::Arc;
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :foo [x <- :wat::core::i64] -> :wat::core::i64 x)
-            (:wat::core::defn :foo [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))
-            (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
+            (:wat::core::defn :foo [x <- wat.type/i64] -> wat.type/i64 x)
+            (:wat::core::defn :foo [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
+            (:wat::core::defn :user::main [] -> wat.type/nil :wat::core::nil)
         "#;
         let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
         assert!(result.is_err(), "duplicate defn must be rejected");
@@ -15814,7 +15814,7 @@ mod tests {
         // Arc 225 Stone 225.1 — to-holon lifts string parameters.
         let result = run(
             r#"
-            (:wat::core::defn :my::app::encode-pair [a <- :wat::core::String b <- :wat::core::String] -> :wat::holon::HolonAST
+            (:wat::core::defn :my::app::encode-pair [a <- wat.type/String b <- wat.type/String] -> :wat::holon::HolonAST
               (:wat::holon::Bind
                               (:wat::holon::to-holon a)
                               (:wat::holon::to-holon b)))
@@ -15934,7 +15934,7 @@ mod tests {
         assert_eq!(kind, "type-mismatch");
         assert_eq!(
             msg,
-            r#":wat::eval-ast!: expected Ast, got wat::core::String `"oops"`"#
+            r#":wat::eval-ast!: expected Ast, got wat::type::String `"oops"`"#
         );
     }
 
@@ -16845,7 +16845,7 @@ mod tests {
         assert_eq!(kind, "type-mismatch");
         assert_eq!(
             msg,
-            r#":wat::holon::eval-coincident?: expected Ast, got wat::core::String `"not-ast"`"#
+            r#":wat::holon::eval-coincident?: expected Ast, got wat::type::String `"not-ast"`"#
         );
     }
 
@@ -19000,9 +19000,9 @@ mod tests {
             (:wat::core::match
               (:wat::holon::bytes-vector
                 (wat.type/Vector :- [:u8]
-                  (:wat::core::u8 0)
-                  (:wat::core::u8 0)
-                  (:wat::core::u8 0)))
+                  (wat.type/u8 0)
+                  (wat.type/u8 0)
+                  (wat.type/u8 0)))
               [:wat::holon::VectorDecodeOutcome.Decoded {:vector _v} false]
               [:wat::holon::VectorDecodeOutcome.DimensionMismatch {:expected _e :got _g} false]
               [:wat::holon::VectorDecodeOutcome.TruncatedHeader {:got _g} true]
@@ -19026,10 +19026,10 @@ mod tests {
             (:wat::core::match
               (:wat::holon::bytes-vector
                 (wat.type/Vector :- [:u8]
-                  (:wat::core::u8 16)
-                  (:wat::core::u8 39)
-                  (:wat::core::u8 0)
-                  (:wat::core::u8 0)))
+                  (wat.type/u8 16)
+                  (wat.type/u8 39)
+                  (wat.type/u8 0)
+                  (wat.type/u8 0)))
               [:wat::holon::VectorDecodeOutcome.Decoded {:vector _v} false]
               [:wat::holon::VectorDecodeOutcome.DimensionMismatch {:expected _e :got _g} false]
               [:wat::holon::VectorDecodeOutcome.TruncatedHeader {:got _g} false]
@@ -19102,10 +19102,10 @@ mod tests {
         let src = r#"
             (:wat::core::Bytes/to-hex
               (wat.type/Vector :- [:u8]
-                (:wat::core::u8 222)   ;; 0xde
-                (:wat::core::u8 173)   ;; 0xad
-                (:wat::core::u8 190)   ;; 0xbe
-                (:wat::core::u8 239))) ;; 0xef
+                (wat.type/u8 222)   ;; 0xde
+                (wat.type/u8 173)   ;; 0xad
+                (wat.type/u8 190)   ;; 0xbe
+                (wat.type/u8 239))) ;; 0xef
         "#;
         match eval_expr(src).unwrap() {
             Value::String(s) => assert_eq!(&*s, "deadbeef"),
@@ -19120,17 +19120,17 @@ mod tests {
             (:wat::core::let
               [bs1
                 (wat.type/Vector :- [:u8]
-                  (:wat::core::u8 1)
-                  (:wat::core::u8 2)
-                  (:wat::core::u8 254)
-                  (:wat::core::u8 255))
+                  (wat.type/u8 1)
+                  (wat.type/u8 2)
+                  (wat.type/u8 254)
+                  (wat.type/u8 255))
                hex (:wat::core::Bytes/to-hex bs1)
                maybe-bs2
                 (:wat::core::Bytes/from-hex hex)
                bs2
                 (:wat::core::match maybe-bs2
                   [:wat::core::Option.Some {:value b} b]
-                  [:wat::core::Option.None {} (wat.type/Vector :- [:u8] (:wat::core::u8 0))])]
+                  [:wat::core::Option.None {} (wat.type/Vector :- [:u8] (wat.type/u8 0))])]
               (:wat::core::= bs1 bs2))
         "#;
         match eval_expr(src).unwrap() {
@@ -19823,7 +19823,7 @@ mod tests {
         // `:wat::WatAST` either way; `eval-ast!` evaluates the literal
         // straight back to `:wat::core::i64`.
         let src = r#"
-        (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64])
+        (:wat::core::defn :my::test::skip-on-first [acc <- wat.type/i64 form <- wat.type/AST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [wat.type/i64])
           (:wat::eval::WalkStep.Skip
                       {:terminal (:wat::holon::to-wat (:wat::holon::leaf 999))
                        :acc (:wat::i64::+ acc 1)}))
@@ -19976,7 +19976,7 @@ mod tests {
         let s = step_to_show("(:wat::eval-step! 42)");
         assert_eq!(
             s,
-            r#":wat::core::EvalError{#0: "type-mismatch", #1: ":wat::eval-step!: expected wat::WatAST, got wat::core::i64 `42`"}"#
+            r#":wat::core::EvalError{#0: "type-mismatch", #1: ":wat::eval-step!: expected wat::type::AST, got wat::type::i64 `42`"}"#
         );
     }
 
@@ -20173,7 +20173,7 @@ mod tests {
         let src = format!(
             r#"
             {}
-            (:wat::core::defn :my::test::square [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n n))
+            (:wat::core::defn :my::test::square [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::* n n))
             (:my::test::step-to-terminal
               (:wat::core::quote (:my::test::square 3)))
             "#,
@@ -20254,12 +20254,12 @@ mod tests {
         // at the step level).
         let src = format!(
             r#"
-            (:wat::core::defn :my::test::sum-to [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
+            (:wat::core::defn :my::test::sum-to [n <- wat.type/i64 acc <- wat.type/i64] -> wat.type/i64
               (:wat::core::if (:wat::core::= n 0)
                               acc
                               (:my::test::sum-to (:wat::i64::- n 1)
                                                  (:wat::i64::+ acc n))))
-            (:wat::core::defn :my::test::step-count [form <- :wat::WatAST n <- :wat::core::i64] -> :wat::core::i64
+            (:wat::core::defn :my::test::step-count [form <- wat.type/AST n <- wat.type/i64] -> wat.type/i64
               (:wat::core::match (:wat::eval-step! form)
                               [:wat::core::Result.Ok {{:value r}}
                                 (:wat::core::match r
@@ -20276,7 +20276,7 @@ mod tests {
                steps
                 (:my::test::step-count
                   (:wat::core::quote (:my::test::sum-to 3 0)) 0)]
-              (:wat::core::Tuple :- [:wat::WatAST :wat::core::i64] sum steps))
+              (wat.type/Tuple :- [wat.type/AST wat.type/i64] sum steps))
             "#,
             step_to_terminal_prelude()
         );
@@ -20409,7 +20409,7 @@ mod tests {
             (:my::test::step-to-terminal
               (:wat::core::quote
                 (:wat::holon::Bundle
-                  (:wat::core::Vector :- [:wat::holon::HolonAST]
+                  (wat.type/Vector :- [:wat::holon::HolonAST]
                     (:wat::holon::to-holon "a")
                     (:wat::holon::to-holon "b")))))
             "#,
@@ -20738,7 +20738,7 @@ mod tests {
                 type_params: vec![],
                 type_param_bounds: vec![],
                 param_types: vec![],
-                ret_type: crate::types::TypeExpr::Path(":wat::core::i64".to_string()),
+                ret_type: crate::types::TypeExpr::Path(":wat::type::i64".to_string()),
                 rest_param: None,
                 rest_param_type: None,
                 body: FunctionBody::Wat(Arc::new(helper_body)),
@@ -21049,10 +21049,17 @@ mod tests {
             "foo"
         );
         assert_eq!(
+            // Stone 255.81 — this is a plain multi-segment KEYWORD example for
+            // `keyword/to-string`'s strip-leading-colon subject, not a type position;
+            // `:wat::core::i64`'s own text is unchanged by the cutover, so stripping its
+            // colon still yields "wat::core::i64" (my earlier blanket sweep had wrongly
+            // flipped this expectation — reverted).
             expect_string(eval_expr("(:wat::keyword::to-string :wat::core::i64)").unwrap()),
             "wat::core::i64"
         );
         assert_eq!(
+            // Same revert as the i64 case just above — a plain keyword-text example,
+            // not a type position.
             expect_string(eval_expr("(:wat::keyword::to-string :wat::core::Vector)").unwrap()),
             "wat::core::Vector"
         );
@@ -21065,9 +21072,9 @@ mod tests {
             Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":foo"),
             other => panic!("expected keyword; got {:?}", other),
         }
-        let result2 = eval_expr(r#"(:wat::keyword::from-string "wat::core::i64")"#).unwrap();
+        let result2 = eval_expr(r#"(:wat::keyword::from-string "wat::type::i64")"#).unwrap();
         match result2 {
-            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::core::i64"),
+            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::type::i64"),
             other => panic!("expected keyword; got {:?}", other),
         }
     }
@@ -21083,7 +21090,7 @@ mod tests {
         // keyword instead.
         let cases = [
             (":foo", "foo"),
-            (":wat::core::i64", "wat::core::i64"),
+            (":wat::type::i64", "wat::type::i64"),
             (":wat::kernel::Receiver", "wat::kernel::Receiver"),
         ];
         for (kw, expected_text) in &cases {

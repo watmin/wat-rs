@@ -155,7 +155,7 @@ pub(crate) fn eval_err_ctor(
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     res (:wat::core::Result :- [T E]) the result unwrapped
-/// @arg     msg :wat::core::String the message evaluated and raised if `res` is `Err`
+/// @arg     msg :wat::type::String the message evaluated and raised if `res` is `Err`
 /// @ret     :T the wrapped value, if `res` is `Ok`
 /// @example (:wat::core::Result/expect (:wat::core::Result::Ok {:value 3}) "unreachable") #=> 3
 /// @see     :wat::core::Option/expect

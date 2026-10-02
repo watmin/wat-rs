@@ -777,10 +777,15 @@ fn then_operand_declared_type(
     types: &TypeEnv,
 ) -> Option<String> {
     match operand {
-        WatAST::IntLit(..) => Some(":wat::core::i64".to_string()),
-        WatAST::FloatLit(..) => Some(":wat::core::f64".to_string()),
-        WatAST::StringLit(..) => Some(":wat::core::String".to_string()),
-        WatAST::BoolLit(..) => Some(":wat::core::bool".to_string()),
+        // Stone 255.81 (P-surface) — these must render the SAME way `format_type`/
+        // `field_types` (built from `check::format_type`) now does for one of the 24, or
+        // `then_types_fit`'s string comparison below diverges on dialect alone for a type
+        // that is otherwise identical (measured: this exact mismatch, `declared
+        // "wat.type/i64"` vs the old `actual ":wat::type::i64"`, on the floor).
+        WatAST::IntLit(..) => Some("wat.type/i64".to_string()),
+        WatAST::FloatLit(..) => Some("wat.type/f64".to_string()),
+        WatAST::StringLit(..) => Some("wat.type/String".to_string()),
+        WatAST::BoolLit(..) => Some("wat.type/bool".to_string()),
         WatAST::Symbol(sym, _) if sym.as_str().starts_with('?') => {
             binds.get(sym.as_str()).cloned()
         }
@@ -1599,8 +1604,8 @@ mod tests {
     #[test]
     fn corrupt_when_clause_is_a_located_error() {
         let src = r#"
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :alert::Unattended    [location <- wat.type/String])
 (:wat::rete::defrule :alert::unattended
   :when
   [(:weather::Temperature :celsius (?loc :- :location) :location (?c :- :celsius))]
@@ -1623,8 +1628,8 @@ mod tests {
     #[test]
     fn correct_defrule_validates_clean() {
         let src = r#"
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :alert::Unattended    [location <- wat.type/String])
 (:wat::rete::defrule :alert::unattended
   :when
   [(:weather::Temperature (?loc :- :location) (?c :- :celsius))]
@@ -1643,8 +1648,8 @@ mod tests {
     #[test]
     fn an_unconsumed_bind_inside_a_not_is_refused() {
         let src = r#"
-(:wat::core::defrecord :w::S2  [k <- :wat::core::i64])
-(:wat::core::defrecord :w::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :w::S2  [k <- wat.type/i64])
+(:wat::core::defrecord :w::Hit [k <- wat.type/i64])
 (:wat::rete::defrule :w::r
   :when [(:wat::rete::not (:w::S2 (?s :- :k)))]
   :then [(:w::Hit :k 1)])
@@ -1670,8 +1675,8 @@ mod tests {
     #[test]
     fn a_bind_escaping_a_not_is_refused_at_declaration_time() {
         let src = r#"
-(:wat::core::defrecord :w::S2  [k <- :wat::core::i64])
-(:wat::core::defrecord :w::Hit [k <- :wat::core::i64])
+(:wat::core::defrecord :w::S2  [k <- wat.type/i64])
+(:wat::core::defrecord :w::Hit [k <- wat.type/i64])
 (:wat::rete::defrule :w::r
   :when [(:wat::rete::not (:w::S2 (?s :- :k)))
          (:wat::rete::where (:wat::rete::i64::>= ?s 0))]
@@ -1703,8 +1708,8 @@ mod tests {
     #[test]
     fn an_unconsumed_bind_inside_exists_is_left_alone_because_exists_binds_outward() {
         let src = r#"
-(:wat::core::defrecord :w::Wind [loc <- :wat::core::String])
-(:wat::core::defrecord :w::Hit  [k <- :wat::core::i64])
+(:wat::core::defrecord :w::Wind [loc <- wat.type/String])
+(:wat::core::defrecord :w::Hit  [k <- wat.type/i64])
 (:wat::rete::defrule :w::r
   :when [(:wat::rete::exists (:w::Wind (?loc :- :loc)))]
   :then [(:w::Hit :k 1)])
@@ -1719,9 +1724,9 @@ mod tests {
     #[test]
     fn a_correlated_bind_inside_a_not_is_legal() {
         let src = r#"
-(:wat::core::defrecord :w::Station [loc <- :wat::core::String])
-(:wat::core::defrecord :w::Reading [loc <- :wat::core::String])
-(:wat::core::defrecord :w::Hit     [loc <- :wat::core::String])
+(:wat::core::defrecord :w::Station [loc <- wat.type/String])
+(:wat::core::defrecord :w::Reading [loc <- wat.type/String])
+(:wat::core::defrecord :w::Hit     [loc <- wat.type/String])
 (:wat::rete::defrule :w::r
   :when [(:w::Station (?loc :- :loc))
          (:wat::rete::not (:w::Reading (?loc :- :loc)))]
@@ -1737,8 +1742,8 @@ mod tests {
     #[test]
     fn a_bind_consumed_inside_the_not_is_legal() {
         let src = r#"
-(:wat::core::defrecord :w::Temp [c <- :wat::core::i64])
-(:wat::core::defrecord :w::Hit  [k <- :wat::core::i64])
+(:wat::core::defrecord :w::Temp [c <- wat.type/i64])
+(:wat::core::defrecord :w::Hit  [k <- wat.type/i64])
 (:wat::rete::defrule :w::r
   :when [(:wat::rete::not (:w::Temp (?c :- :c) (:wat::rete::i64::< ?c 20)))]
   :then [(:w::Hit :k 1)])
@@ -1789,8 +1794,8 @@ mod tests {
     #[test]
     fn unknown_field_ref_is_located() {
         let src = r#"
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :alert::Unattended    [location <- wat.type/String])
 (:wat::rete::defrule :alert::unattended
   :when
   [(:weather::Temperature (?loc :- :location) (?bad :- :not-a-field))]
@@ -1816,8 +1821,8 @@ mod tests {
     fn out_of_order_then_kwargs_are_reordered_in_residue() {
         // Cold declares [location, celsius] — the :then below writes celsius BEFORE location.
         let src = r#"
-(:wat::core::defrecord :weather2::Temp [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :alert2::Cold   [location <- :wat::core::String  celsius <- :wat::core::i64])
+(:wat::core::defrecord :weather2::Temp [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :alert2::Cold   [location <- wat.type/String  celsius <- wat.type/i64])
 (:wat::rete::defrule :alert2::mark-cold
   :when
   [(:weather2::Temp (?c :- :celsius) (?loc :- :location))]
@@ -1896,8 +1901,8 @@ mod tests {
     #[test]
     fn a_computed_operand_is_typed_like_any_other() {
         const MISMATCH: &str = r#"
-(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/i64])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 (:wat::rete::defrule :probe::rule
   :when
   [(:probe::In (?k :- :k)

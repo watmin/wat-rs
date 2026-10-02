@@ -211,7 +211,7 @@ pub enum CheckErrorKind {
     /// D1: primary span was `:location`; normalized to `:span`.
     /// Synthetic constant fields `:primitive` and `:fqdn` replace the
     /// struct-less unit variant's hand-written pair list.
-    #[to_edn(literal(primitive = ":()", fqdn = ":wat::core::nil"))]
+    #[to_edn(literal(primitive = ":()", fqdn = ":wat::type::nil"))]
     BareLegacyUnitType,
     /// Arc 179 — bare `()` empty-list literal in VALUE position retired.
     ///
@@ -222,10 +222,10 @@ pub enum CheckErrorKind {
     /// SYNTAX (`Fn()->T`, `(() -> T)`), which never reaches this arm —
     /// the expression checker distinguishes value position from
     /// parameter-list syntax structurally, not textually.
-    #[to_edn(literal(retired = "()", fqdn = ":wat::core::nil"))]
+    #[to_edn(literal(retired = "()", fqdn = ":wat::type::nil"))]
     BareLegacyUnitValue,
     /// Arc 153 — `:wat::core::unit` retired in favor of `:wat::core::nil`.
-    #[to_edn(literal(retired = ":wat::core::unit", fqdn = ":wat::core::nil"))]
+    #[to_edn(literal(retired = ":wat::core::unit", fqdn = ":wat::type::nil"))]
     BareLegacyUnitName,
     /// Arc 154 — `:wat::core::let*` retired.
     #[to_edn(literal(retired = ":wat::core::let*", fqdn = ":wat::core::let"))]

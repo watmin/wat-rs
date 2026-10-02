@@ -47,8 +47,8 @@ fn arg_string(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     n :wat::core::String a head spelling, any of the three flavors
-/// @ret     :wat::core::String the clojure-target spelling (`wat.core/defn`)
+/// @arg     n :wat::type::String a head spelling, any of the three flavors
+/// @ret     :wat::type::String the clojure-target spelling (`wat.core/defn`)
 /// @example (:wat::grep::canonical-name ":wat::core::defn") #=> "wat.core/defn"
 /// @example (:wat::grep::canonical-name ":wat.core/defn") #=> "wat.core/defn"
 /// @example (:wat::grep::canonical-name "wat.core/defn") #=> "wat.core/defn"

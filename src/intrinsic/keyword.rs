@@ -65,10 +65,10 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     k :wat::core::keyword the keyword probed
-/// @ret     :wat::core::String the text of `k`, without the leading colon
+/// @arg     k :wat::type::keyword the keyword probed
+/// @ret     :wat::type::String the text of `k`, without the leading colon
 /// @example (:wat::keyword::to-string :foo) #=> "foo"
-/// @example (:wat::keyword::to-string :wat::core::i64) #=> "wat::core::i64"
+/// @example (:wat::keyword::to-string :wat::core::i64) #=> "wat::type::i64"
 /// @see     :wat::keyword::from-string
 #[wat_intrinsic(":wat::keyword::to-string")]
 pub(crate) fn eval_keyword_to_string_home(
@@ -95,10 +95,10 @@ pub(crate) fn eval_keyword_to_string_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the colon-free keyword text
-/// @ret     :wat::core::keyword a keyword built from `s`
+/// @arg     s :wat::type::String the colon-free keyword text
+/// @ret     :wat::type::keyword a keyword built from `s`
 /// @example (:wat::keyword::from-string "foo") #=> :foo
-/// @example (:wat::keyword::from-string "wat::core::i64") #=> :wat::core::i64
+/// @example (:wat::keyword::from-string "wat::type::i64") #=> :wat::core::i64
 /// @see     :wat::keyword::to-string
 #[wat_intrinsic(":wat::keyword::from-string")]
 pub(crate) fn eval_keyword_from_string_home(
@@ -127,8 +127,8 @@ pub(crate) fn eval_keyword_from_string_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     kw_node :wat::WatAST the Keyword form node converted
-/// @ret     :wat::WatAST a Symbol form node carrying the faithful-Clojure spelling
+/// @arg     kw_node :wat::type::AST the Keyword form node converted
+/// @ret     :wat::type::AST a Symbol form node carrying the faithful-Clojure spelling
 /// @example (:wat::keyword::to-symbol (:wat::core::keyword-node ":wat::core::Bytes/to-hex")) #=> wat.core.Bytes/to-hex
 /// @see     :wat::keyword::to-type-form
 #[wat_intrinsic(":wat::keyword::to-symbol")]
@@ -158,9 +158,9 @@ pub(crate) fn eval_keyword_to_symbol_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     kw_node :wat::WatAST the type Keyword form node rendered
-/// @ret     :wat::WatAST the faithful-Clojure type form
-/// @example (:wat::keyword::to-type-form (:wat::core::keyword-node ":wat::core::i64")) #=> wat.type/i64
+/// @arg     kw_node :wat::type::AST the type Keyword form node rendered
+/// @ret     :wat::type::AST the faithful-Clojure type form
+/// @example (:wat::keyword::to-type-form (:wat::core::keyword-node ":wat::type::i64")) #=> wat.type/i64
 /// @see     :wat::keyword::to-type-form-colon
 #[wat_intrinsic(":wat::keyword::to-type-form")]
 pub(crate) fn eval_keyword_to_type_form_home(
@@ -189,9 +189,9 @@ pub(crate) fn eval_keyword_to_type_form_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     kw_node :wat::WatAST the type Keyword form node rendered
-/// @ret     :wat::WatAST the Colon-mode type form
-/// @example (:wat::keyword::to-type-form-colon (:wat::core::keyword-node ":wat::core::i64")) #=> :wat.core/i64
+/// @arg     kw_node :wat::type::AST the type Keyword form node rendered
+/// @ret     :wat::type::AST the Colon-mode type form
+/// @example (:wat::keyword::to-type-form-colon (:wat::core::keyword-node ":wat::type::i64")) #=> :wat.core/i64
 /// @see     :wat::keyword::to-type-form
 #[wat_intrinsic(":wat::keyword::to-type-form-colon")]
 pub(crate) fn eval_keyword_to_type_form_colon_home(

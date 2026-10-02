@@ -97,7 +97,7 @@ pub(in crate::function) fn value_matches_type_by_name(
                 return true;
             }
             // Arc 259 S2c-ii.0 — a Record::def value's val_type_path() returns
-            // the generic static ":wat::core::Record"; its SPECIFIC class lives in
+            // the generic static ":wat::type::Record"; its SPECIFIC class lives in
             // class_fqdn. Dispatch on the specific class so a defclause keyed on
             // e.g. `:user::Tag` matches the corresponding record value.
             // All non-record values keep the existing val_type_path() comparison.
@@ -110,7 +110,7 @@ pub(in crate::function) fn value_matches_type_by_name(
                     // checker. `:wat::core::Record` roots every record for `is_subtype` (R7's
                     // record-top), so the checker ACCEPTS a call passing a concrete record to a
                     // param declared as the top — and this arm then refused it, because no real
-                    // record's `class` is ever literally "wat::core::Record". The result was a
+                    // record's `class` is ever literally "wat::type::Record". The result was a
                     // program that type-checks and dies at runtime with `NoMatchingClause`,
                     // reporting `expected :wat::core::Record, got :wat::core::Record` (a declared
                     // TYPE against a concrete CLASS, which could never be equal).
@@ -120,7 +120,7 @@ pub(in crate::function) fn value_matches_type_by_name(
                     // supertype, so it can never make a call that dispatches today stop
                     // dispatching; and the checker still gates which calls are legal at all.
                     bare_p == a.class.as_ref()
-                        || (bare_p == "wat::core::Record" && a.nature != Nature::Struct)
+                        || (bare_p == "wat::type::Record" && a.nature != Nature::Struct)
                 }
                 _ => {
                     // Map the value's runtime type to its canonical type-keyword path.
@@ -199,11 +199,11 @@ pub(in crate::function) fn value_matches_type_by_name(
             match StreamContainer::of_value(val) {
                 Some(container) => {
                     let canonical_head = match container {
-                        StreamContainer::Vector => "wat::core::Vector",
-                        StreamContainer::List => "wat::core::List",
-                        StreamContainer::PersistentVector => "wat::core::PersistentVector",
+                        StreamContainer::Vector => "wat::type::Vector",
+                        StreamContainer::List => "wat::type::List",
+                        StreamContainer::PersistentVector => "wat::type::PersistentVector",
                         StreamContainer::Stream => "wat::stream::Stream",
-                        StreamContainer::HashSet => "wat::core::HashSet",
+                        StreamContainer::HashSet => "wat::type::HashSet",
                         // Tuple/WatAstList aren't declared via a Parametric head with a type
                         // arg the way the others are (Tuple is structural; WatAstList is the
                         // bare `:wat::WatAST` Path) — never competes at this arm; permissive.
@@ -235,37 +235,37 @@ pub(in crate::function) fn value_matches_type_by_name(
 /// Map a runtime `Value` to its canonical type-keyword path for defclause dispatch.
 pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
     match val {
-        Value::i64(_) => ":wat::core::i64",
-        Value::u8(_) => ":wat::core::u8",
-        Value::f64(_) => ":wat::core::f64",
-        Value::bool(_) => ":wat::core::bool",
-        Value::String(_) => ":wat::core::String",
-        Value::Nil => ":wat::core::nil",
-        Value::wat__core__keyword(_) => ":wat::core::keyword",
+        Value::i64(_) => ":wat::type::i64",
+        Value::u8(_) => ":wat::type::u8",
+        Value::f64(_) => ":wat::type::f64",
+        Value::bool(_) => ":wat::type::bool",
+        Value::String(_) => ":wat::type::String",
+        Value::Nil => ":wat::type::nil",
+        Value::wat__core__keyword(_) => ":wat::type::keyword",
         Value::wat__core__fn(_) => ":wat::core::fn",
         Value::wat__core__clauses(_) => ":wat::core::clauses",
-        Value::wat__WatAST(_) => ":wat::WatAST",
+        Value::wat__WatAST(_) => ":wat::type::AST",
         Value::holon__HolonAST(_) => ":wat::holon::HolonAST",
-        Value::Vec(_) => ":wat::core::Vector",
-        Value::Tuple(_) => ":wat::core::Tuple",
+        Value::Vec(_) => ":wat::type::Vector",
+        Value::Tuple(_) => ":wat::type::Tuple",
         Value::Option(_) => ":wat::core::Option",
         Value::Result(_) => ":wat::core::Result",
-        // Arc 293.R2.1 — Aggregate: Struct nature → "<struct>" (dynamic class); others → ":wat::core::Record".
+        // Arc 293.R2.1 — Aggregate: Struct nature → "<struct>" (dynamic class); others → ":wat::type::Record".
         // Arc 293 S3-Nature-2 — `Peer` is never the nature of a constructed `AggregateValue` (a peer is
         // a `RustOpaque`, not an aggregate); exhaustiveness only, unreachable at runtime.
         Value::Aggregate(a) => match a.nature {
             Nature::Struct => "<struct>",
-            Nature::Record | Nature::HolonRecord => ":wat::core::Record",
+            Nature::Record | Nature::HolonRecord => ":wat::type::Record",
             Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
         },
         Value::Enum(_) => "<enum>",
         // Arc 278 Stone A — foreign dynamic values dispatch on their own kind.
         Value::ForeignRecord(_) => ":wat::edn::ForeignRecord",
         Value::ForeignVariant(_) => ":wat::edn::ForeignVariant",
-        Value::wat__std__HashMap(_) => ":wat::core::HashMap",
-        Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap",
-        Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector",
-        Value::wat__std__HashSet(_) => ":wat::core::HashSet",
+        Value::wat__std__HashMap(_) => ":wat::type::HashMap",
+        Value::wat__core__PersistentMap(_) => ":wat::type::PersistentMap",
+        Value::wat__core__PersistentVector(_) => ":wat::type::PersistentVector",
+        Value::wat__std__HashSet(_) => ":wat::type::HashSet",
         // Arc 214 Stone 4.6a-i — peer RustOpaques carry their specific type_path
         // (e.g. ":wat::kernel::Thread" / ":wat::kernel::Process"); report it
         // so the defclause dispatcher sees the real peer type, not the generic fallback.
@@ -285,13 +285,13 @@ pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
         Value::wat__uuid__Uuid(_) => ":wat::uuid::UUID",
         // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
         // (scalar types lowercase per Doctrine 2).
-        Value::wat__core__Char(_) => ":wat::core::char",
+        Value::wat__core__Char(_) => ":wat::type::char",
         // Arc 300 stone B — FQDN-only (mirrors Uuid, not the bare-primitive char).
         // Stone C1 lowercased the surface (Doctrine 2: scalar types are lowercase).
-        Value::wat__core__Rational(_) => ":wat::core::rational",
+        Value::wat__core__Rational(_) => ":wat::type::rational",
         // Arc 300 stone C1 — arbitrary-precision integer.
-        Value::wat__core__BigInt(_) => ":wat::core::bigint",
-        Value::wat__core__List(_) => ":wat::core::List",
+        Value::wat__core__BigInt(_) => ":wat::type::bigint",
+        Value::wat__core__List(_) => ":wat::type::List",
         Value::wat__stream__Stream(_) => ":wat::stream::Stream",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",
         Value::wat__kernel__Receiver(_) => ":wat::kernel::Receiver",

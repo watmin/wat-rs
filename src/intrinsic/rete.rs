@@ -146,8 +146,8 @@ fn eval_axis_predicate_impl_ctx(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
-/// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is effect-free
+/// @arg     expr :wat::type::AST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
+/// @ret     :wat::type::bool whether every head in `expr`'s transitive walk is effect-free
 /// @example (:wat::rete::pure? (:wat::core::quote (:wat::core::+ 1 2))) #=> true
 #[wat_intrinsic(":wat::rete::pure?")]
 pub(crate) fn eval_rete_pure_intrinsic(
@@ -176,8 +176,8 @@ pub(crate) fn eval_rete_pure_intrinsic(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
-/// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is referentially transparent
+/// @arg     expr :wat::type::AST the quoted expression form, walked structurally, never evaluated
+/// @ret     :wat::type::bool whether every head in `expr`'s transitive walk is referentially transparent
 /// @example (:wat::rete::deterministic? (:wat::core::quote (:wat::uuid::v4))) #=> false
 #[wat_intrinsic(":wat::rete::deterministic?")]
 pub(crate) fn eval_rete_deterministic_intrinsic(
@@ -209,8 +209,8 @@ pub(crate) fn eval_rete_deterministic_intrinsic(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
-/// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is defined on all its inputs
+/// @arg     expr :wat::type::AST the quoted expression form, walked structurally, never evaluated
+/// @ret     :wat::type::bool whether every head in `expr`'s transitive walk is defined on all its inputs
 /// @example (:wat::rete::total? (:wat::core::quote (:wat::core::= 1 1))) #=> true
 #[wat_intrinsic(":wat::rete::total?")]
 pub(crate) fn eval_rete_total_intrinsic(
@@ -243,8 +243,8 @@ pub(crate) fn eval_rete_total_intrinsic(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     expr :wat::WatAST the quoted expression form, walked structurally, never evaluated
-/// @ret     :wat::core::bool whether every head in `expr`'s transitive walk is a rete primitive
+/// @arg     expr :wat::type::AST the quoted expression form, walked structurally, never evaluated
+/// @ret     :wat::type::bool whether every head in `expr`'s transitive walk is a rete primitive
 /// @example (:wat::rete::primitive? (:wat::core::quote (:wat::rete::core::cond (true 1) (:else 2)))) #=> true
 #[wat_intrinsic(":wat::rete::primitive?")]
 pub(crate) fn eval_rete_primitive_intrinsic(
@@ -285,8 +285,8 @@ pub(crate) fn eval_rete_primitive_intrinsic(
 /// @Totality         Partial
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     head :wat::WatAST a `:wat::WatAST` holding a quoted Keyword (a head name), from `:wat::core::quote`
-/// @ret     :wat::core::bool whether `head` falls inside a declared rete-vocabulary sub-namespace
+/// @arg     head :wat::type::AST a `:wat::type::AST` holding a quoted Keyword (a head name), from `:wat::core::quote`
+/// @ret     :wat::type::bool whether `head` falls inside a declared rete-vocabulary sub-namespace
 /// @example (:wat::rete::vocabulary-admitted? (:wat::core::quote :wat::rete::core::cond)) #=> true
 #[wat_intrinsic(":wat::rete::vocabulary-admitted?")]
 pub(crate) fn eval_rete_vocabulary_admitted_intrinsic(
@@ -353,8 +353,8 @@ pub(crate) fn eval_rete_vocabulary_admitted_intrinsic(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     cond :wat::WatAST the quoted condition form (from `:wat::core::quote`), walked structurally, never evaluated
-/// @ret     :wat::core::bool whether an inline constraint in `cond` references a `?var` not bound by `cond` itself
+/// @arg     cond :wat::type::AST the quoted condition form (from `:wat::core::quote`), walked structurally, never evaluated
+/// @ret     :wat::type::bool whether an inline constraint in `cond` references a `?var` not bound by `cond` itself
 /// @example (:wat::rete::cond-has-deferred-constraint? (:wat::core::quote (:some::Type (?t :- :value) (:wat::rete::i64::> ?t ?m)))) #=> true
 #[wat_intrinsic(":wat::rete::cond-has-deferred-constraint?")]
 pub(crate) fn eval_rete_cond_has_deferred_constraint_intrinsic(
@@ -465,9 +465,9 @@ fn eval_alpha_match_kind_impl(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
-/// @arg     fact :wat::core::Record the fact to test the condition against
-/// @ret     (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String V])]) `Some(bindings)` on a match, `None` on any mismatch
+/// @arg     cond :wat::type::AST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
+/// @arg     fact :wat::type::Record the fact to test the condition against
+/// @ret     (:wat::core::Option :- [(:wat::type::PersistentMap :- [:wat::type::String V])]) `Some(bindings)` on a match, `None` on any mismatch
 /// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match (:wat::core::quote (:probe::AlphaMatchTemp (?t :- :value) (:wat::rete::i64::> ?t 20))) (:probe::AlphaMatchTemp :value 25))) #=> (:wat::core::Option::Some {:value (:wat::core::PersistentMap "?t" 25)})
 #[wat_intrinsic(":wat::rete::alpha-match")]
 pub(crate) fn eval_rete_alpha_match_intrinsic(
@@ -498,9 +498,9 @@ pub(crate) fn eval_rete_alpha_match_intrinsic(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
-/// @arg     fact :wat::core::Record the fact to test the condition against
-/// @ret     (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String V])]) `Some(bindings)` on a match, `None` on any mismatch
+/// @arg     cond :wat::type::AST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
+/// @arg     fact :wat::type::Record the fact to test the condition against
+/// @ret     (:wat::core::Option :- [(:wat::type::PersistentMap :- [:wat::type::String V])]) `Some(bindings)` on a match, `None` on any mismatch
 /// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchLocalTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match-local (:wat::core::quote (:probe::AlphaMatchLocalTemp (?t :- :value) (:wat::rete::i64::> ?t 20))) (:probe::AlphaMatchLocalTemp :value 25))) #=> (:wat::core::Option::Some {:value (:wat::core::PersistentMap "?t" 25)})
 #[wat_intrinsic(":wat::rete::alpha-match-local")]
 pub(crate) fn eval_rete_alpha_match_local_intrinsic(
@@ -530,10 +530,10 @@ pub(crate) fn eval_rete_alpha_match_local_intrinsic(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
-/// @arg     fact :wat::core::Record the fact to test the condition against
-/// @arg     bindings (:wat::core::PersistentMap :- [:wat::core::String V]) the token's already-bound `?var`s, seeding the clause fold
-/// @ret     (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String V])]) `Some(bindings)` (seed plus any new binds) on a match, `None` on any mismatch
+/// @arg     cond :wat::type::AST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
+/// @arg     fact :wat::type::Record the fact to test the condition against
+/// @arg     bindings (:wat::type::PersistentMap :- [:wat::type::String V]) the token's already-bound `?var`s, seeding the clause fold
+/// @ret     (:wat::core::Option :- [(:wat::type::PersistentMap :- [:wat::type::String V])]) `Some(bindings)` (seed plus any new binds) on a match, `None` on any mismatch
 /// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchUnderTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match-under (:wat::core::quote (:probe::AlphaMatchUnderTemp (?p :- :value) (:wat::rete::i64::> ?p ?m))) (:probe::AlphaMatchUnderTemp :value 25) (:wat::core::PersistentMap "?m" 20))) #=> (:wat::core::Option::Some {:value (:wat::core::PersistentMap "?m" 20 "?p" 25)})
 #[wat_intrinsic(":wat::rete::alpha-match-under")]
 pub(crate) fn eval_rete_alpha_match_under_intrinsic(

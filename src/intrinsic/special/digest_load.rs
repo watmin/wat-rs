@@ -66,7 +66,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::digest-load! <path> :wat::verify::digest-<algo> :wat::verify::<iface> <payload>)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at load-resolution time and never reaches evaluation; its effect is the digest-verified file's forms, spliced into the surrounding program
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at load-resolution time and never reaches evaluation; its effect is the digest-verified file's forms, spliced into the surrounding program
 /// @example-norun (:wat::digest-load! "lib/util.wat" :wat::verify::digest-sha256 :wat::verify::string "<64-hex-char sha256 of lib/util.wat's bytes>") #=> verifies lib/util.wat's bytes against the declared sha256 digest, then splices its forms in; no runtime value
 #[wat_special_form(":wat::digest-load!")]
 pub(crate) struct DigestLoad;

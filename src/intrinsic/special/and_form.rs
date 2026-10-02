@@ -41,8 +41,8 @@ use wat_macros::wat_special_form;
 /// @Totality Preserving
 /// @ExpandTime Preserving
 /// @syntax (:wat::core::and <exprs>+)
-/// @arg exprs… :wat::core::bool the operands, evaluated left to right until the first `:false` (or all of them)
-/// @ret :wat::core::bool `:false` at the first `:false` operand, else `:true` (`:true` when there are no operands)
+/// @arg exprs… :wat::type::bool the operands, evaluated left to right until the first `:false` (or all of them)
+/// @ret :wat::type::bool `:false` at the first `:false` operand, else `:true` (`:true` when there are no operands)
 /// @example (:wat::core::and true true) #=> true
 /// @example (:wat::core::and true false) #=> false
 /// @example (:wat::core::and) #=> true

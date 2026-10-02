@@ -45,11 +45,11 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     args… :wat::core::Value an optional leading `(List :- [T])` type declaration,
+/// @arg     args… :wat::type::Value an optional leading `(List :- [T])` type declaration,
 ///   followed by the elements of the new list, in order
-/// @ret     :wat::core::List a `List` holding each argument, in order
+/// @ret     :wat::type::List a `List` holding each argument, in order
 /// @example (:wat::core::List 1 2 3) #=> (:wat::core::List 1 2 3)
-#[wat_intrinsic(":wat::core::List", value = list_of_value_door)]
+#[wat_intrinsic(":wat::type::List", value = list_of_value_door)]
 pub(crate) fn eval_list_ctor(
     args: &[WatAST],
     _list_span: &Span, // rune:lint(unused-span) — located elsewhere: each element's own error locates at `arg.span()` via `eval_inner`, more precise than the whole call's span

@@ -188,17 +188,17 @@ fn binding_cardinality_distribution() {
     // (?loc shared, ?t from one, ?w from the other). This is the shape that grows a token's
     // binding map, and the one an accumulate-only measurement would never show.
     const J: &str = "\
-(:wat::core::defrecord :bcd::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::i64])\n\
-(:wat::core::defrecord :bcd::WindSpeed   [kph      <- :wat::core::i64  location <- :wat::core::i64])\n\
-(:wat::core::defrecord :bcd::Cw          [loc <- :wat::core::i64  t <- :wat::core::i64  w <- :wat::core::i64])\n\
-(:wat::core::defn :bcd::seed [n <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defrecord :bcd::Temperature [celsius  <- wat.type/i64  location <- wat.type/i64])\n\
+(:wat::core::defrecord :bcd::WindSpeed   [kph      <- wat.type/i64  location <- wat.type/i64])\n\
+(:wat::core::defrecord :bcd::Cw          [loc <- wat.type/i64  t <- wat.type/i64  w <- wat.type/i64])\n\
+(:wat::core::defn :bcd::seed [n <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::let [c1   (:wat::core::quote (:bcd::Temperature (?loc :- :location) (?t :- :celsius)))\n\
                     c2   (:wat::core::quote (:bcd::WindSpeed (?loc :- :location) (?w :- :kph)))\n\
                     rhs1 (:wat::core::quote (:bcd::Cw ?loc ?t ?w))\n\
-                    rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector :- [:wat::WatAST] c1 c2) :rhs (:wat::core::PersistentVector :- [:wat::WatAST] rhs1))\n\
-                    s0   (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])]\n\
+                    rule (:wat::rete::Rule :name \"cw\" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs1))\n\
+                    s0   (:wat::core::match (:wat::rete::compile (wat.type/PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])]\n\
     (:wat::core::foldl\n\
-      (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::core::fn [acc <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session\n\
         (:wat::core::let [a (:wat::core::match (:wat::rete::insert acc (:bcd::Temperature :celsius i :location i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])]\n\
           (:wat::core::match (:wat::rete::insert a (:bcd::WindSpeed :kph i :location i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])))\n\
       s0 (:wat::core::range 0 n))))\n\

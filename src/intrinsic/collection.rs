@@ -98,7 +98,7 @@ use crate::span::Span;
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
-/// @ret     :wat::core::i64 the element/entry count
+/// @ret     :wat::type::i64 the element/entry count
 /// @example (:wat::core::length (:wat::core::Vector 1 2 3)) #=> 3
 /// @see     :wat::core::empty?
 #[wat_intrinsic(":wat::core::length")]
@@ -150,7 +150,7 @@ pub(crate) fn eval_length(
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     xs :T the collection probed — (Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T]); a (Stream :- [T]) is refused (`measurable()` gate excludes it — see :wat::stream::next)
-/// @ret     :wat::core::bool whether the collection has zero elements/entries
+/// @ret     :wat::type::bool whether the collection has zero elements/entries
 /// @example (:wat::core::empty? (:wat::core::Vector 1 2 3)) #=> false
 /// @see     :wat::core::length
 #[wat_intrinsic(":wat::core::empty?")]
@@ -205,8 +205,8 @@ pub(crate) fn eval_empty(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     xs (:wat::core::Vector :- [T]) the receiver — this call also accepts (PersistentVector :- [T]), (List :- [T]), or a WatAST list form (returning :wat::WatAST); a (Stream :- [T]) is refused (`nth_indexable()` gate excludes it — use (drop s i) then :wat::stream::next)
-/// @arg     idx :wat::core::i64 the zero-based index; raises "nth: index out of range" if out of bounds
+/// @arg     xs (:wat::type::Vector :- [T]) the receiver — this call also accepts (PersistentVector :- [T]), (List :- [T]), or a WatAST list form (returning :wat::type::AST); a (Stream :- [T]) is refused (`nth_indexable()` gate excludes it — use (drop s i) then :wat::stream::next)
+/// @arg     idx :wat::type::i64 the zero-based index; raises "nth: index out of range" if out of bounds
 /// @ret     :T the element at `idx`
 /// @example (:wat::core::nth (:wat::core::Vector 10 20 30) 1) #=> 20
 /// @see     :wat::core::last
@@ -252,7 +252,7 @@ pub(crate) fn eval_nth(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     xs (:wat::core::Vector :- [T]) the vector probed
+/// @arg     xs (:wat::type::Vector :- [T]) the vector probed
 /// @ret     (:wat::core::Option :- [T]) the last element, or `None` if `xs` is empty
 /// @example (:wat::core::last (:wat::core::Vector 1 2 3)) #=> (:wat::core::Option::Some {:value 3})
 /// @see     :wat::core::nth
@@ -304,8 +304,8 @@ pub(crate) fn eval_vec_last(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     xs (:wat::core::Vector :- [T]) the receiver; identity-preserving — this call also accepts (List :- [T]), (PersistentVector :- [T]), or a WatAST list form, each returning the same container kind; a (Stream :- [T]) is refused (`has_tail()` gate excludes it — see :wat::stream::next)
-/// @ret     (:wat::core::Vector :- [T]) every element after the first
+/// @arg     xs (:wat::type::Vector :- [T]) the receiver; identity-preserving — this call also accepts (List :- [T]), (PersistentVector :- [T]), or a WatAST list form, each returning the same container kind; a (Stream :- [T]) is refused (`has_tail()` gate excludes it — see :wat::stream::next)
+/// @ret     (:wat::type::Vector :- [T]) every element after the first
 /// @example (:wat::core::rest (:wat::core::Vector 1 2 3)) #=> (:wat::core::Vector 2 3)
 /// @see     :wat::core::last
 #[wat_intrinsic(":wat::core::rest")]
@@ -345,8 +345,8 @@ pub(crate) fn eval_rest(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     xs (:wat::core::Vector :- [T]) the sequence reversed; this call also accepts (PersistentVector :- [T]) or (List :- [T]), each returning the same container kind — a (Stream :- [T]), Tuple, HashSet, or WatAST form is refused (`ordered()` gate excludes them)
-/// @ret     (:wat::core::Vector :- [T]) `xs`'s elements in reverse order
+/// @arg     xs (:wat::type::Vector :- [T]) the sequence reversed; this call also accepts (PersistentVector :- [T]) or (List :- [T]), each returning the same container kind — a (Stream :- [T]), Tuple, HashSet, or WatAST form is refused (`ordered()` gate excludes them)
+/// @ret     (:wat::type::Vector :- [T]) `xs`'s elements in reverse order
 /// @example (:wat::core::reverse (:wat::core::Vector 1 2 3)) #=> (:wat::core::Vector 3 2 1)
 /// @see     :wat::core::range
 #[wat_intrinsic(":wat::core::reverse")]
@@ -390,9 +390,9 @@ pub(crate) fn eval_vec_reverse(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     start :wat::core::i64 the inclusive lower bound
-/// @arg     end :wat::core::i64 the exclusive upper bound
-/// @ret     (:wat::core::Vector :- [:wat::core::i64]) `start, start+1, …, end-1`; empty if `start >= end`
+/// @arg     start :wat::type::i64 the inclusive lower bound
+/// @arg     end :wat::type::i64 the exclusive upper bound
+/// @ret     (:wat::type::Vector :- [:wat::type::i64]) `start, start+1, …, end-1`; empty if `start >= end`
 /// @example (:wat::core::range 0 3) #=> (:wat::core::Vector 0 1 2)
 /// @see     :wat::core::reverse
 #[wat_intrinsic(":wat::core::range")]
@@ -458,9 +458,9 @@ pub(crate) fn eval_vec_range(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     cmp [:T :T :-> :wat::core::bool] the `less?` comparator; refused before any comparison runs unless proven Pure ∧ Deterministic against its own closed environment
-/// @arg     xs (:wat::core::Vector :- [T]) the vector sorted
-/// @ret     (:wat::core::Vector :- [T]) a new vector holding `xs`'s elements ordered by `cmp`
+/// @arg     cmp [:T :T :-> :wat::type::bool] the `less?` comparator; refused before any comparison runs unless proven Pure ∧ Deterministic against its own closed environment
+/// @arg     xs (:wat::type::Vector :- [T]) the vector sorted
+/// @ret     (:wat::type::Vector :- [T]) a new vector holding `xs`'s elements ordered by `cmp`
 /// @yields  cmp two elements of `xs` at a time — the pair being ordered; `cmp` returns whether the first sorts before the second. Called up to twice per comparison (the two-sided test that distinguishes Equal from Less/Greater — see `eval_vec_sort_by`), which is why an EFFECTFUL comparator leaks an implementation detail into observable output and is refused at the door
 /// @example (:wat::core::sort$native (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool (:wat::core::< a b)) (:wat::core::Vector 3 1 2)) #=> (:wat::core::Vector 1 2 3)
 /// @see :wat::core::sort
@@ -539,7 +539,7 @@ pub(crate) fn eval_sort_native(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     coll :T the receiver — (HashMap :- [K V]), (PersistentMap :- [K V]), or :wat::core::Record; any other container is refused (`can_assoc()` gate excludes it)
+/// @arg     coll :T the receiver — (HashMap :- [K V]), (PersistentMap :- [K V]), or :wat::type::Record; any other container is refused (`can_assoc()` gate excludes it)
 /// @arg     key :T the key/field written — the registered scheme has ONE type param, so K flattens to :T here; the K/V relation lives in this prose, not in the scheme.
 ///           — a hashable K for a map receiver (raises a TypeMismatch if unhashable), or a :wat::core::keyword field name for a Record (raises UnknownField if the Record has no such field)
 /// @arg     new_value :T the value written at `key` (V, flattened to the scheme's single :T)
@@ -661,8 +661,8 @@ pub(crate) fn eval_conj(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     xs (:wat::core::Vector :- [T]) the source seqable — this call also accepts (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T]); any other receiver is refused (`value_as_stream` gate excludes it)
-/// @arg     n :wat::core::i64 the maximum count yielded; negative clamps to 0
+/// @arg     xs (:wat::type::Vector :- [T]) the source seqable — this call also accepts (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T]); any other receiver is refused (`value_as_stream` gate excludes it)
+/// @arg     n :wat::type::i64 the maximum count yielded; negative clamps to 0
 /// @ret     (:wat::stream::Stream :- [T]) a lazy stream of at most the first `n` elements of `xs`
 /// @example (:wat::core::stream->vec [] (:wat::core::take (:wat::core::Vector 1 2 3) 2)) #=> [1 2]
 /// @see     :wat::core::drop
@@ -719,8 +719,8 @@ pub(crate) fn eval_vec_take(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     xs (:wat::core::Vector :- [T]) the source seqable — this call also accepts (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T]); any other receiver is refused (`value_as_stream` gate excludes it)
-/// @arg     n :wat::core::i64 the count skipped; negative clamps to 0
+/// @arg     xs (:wat::type::Vector :- [T]) the source seqable — this call also accepts (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T]); any other receiver is refused (`value_as_stream` gate excludes it)
+/// @arg     n :wat::type::i64 the count skipped; negative clamps to 0
 /// @ret     (:wat::stream::Stream :- [T]) a lazy stream of `xs` with the first `n` elements skipped
 /// @example (:wat::core::stream->vec [] (:wat::core::drop (:wat::core::Vector 1 2 3) 1)) #=> [2 3]
 /// @see     :wat::core::take

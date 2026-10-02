@@ -73,7 +73,7 @@ pub(crate) fn eval_uuid_v4() -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     ns   :wat::uuid::UUID   the namespace UUID
-/// @arg     name :wat::core::String the name, scoped by `ns`
+/// @arg     name :wat::type::String the name, scoped by `ns`
 /// @ret     :wat::uuid::UUID the deterministic SHA-1-based UUID for `(ns, name)`
 /// @example (:wat::uuid::v5 (:wat::uuid::nil) "x") #=> (:wat::uuid::v5 (:wat::uuid::nil) "x")
 /// @see     :wat::uuid::v4
@@ -104,7 +104,7 @@ pub(crate) fn eval_uuid_v5(
         other => {
             return Err(RuntimeError::new(name.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(ValueSnapshot::of(other)),
             })
             .into());
@@ -126,7 +126,7 @@ pub(crate) fn eval_uuid_v5(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     s :wat::core::String the candidate UUID text
+/// @arg     s :wat::type::String the candidate UUID text
 /// @ret     (:wat::core::Option :- [:wat::uuid::UUID]) `Some(u)` iff `s` is a canonical UUID string, `None` otherwise
 /// @example (:wat::uuid::from-string "not-a-uuid") #=> :None
 /// @see     :wat::uuid::to-string
@@ -144,7 +144,7 @@ pub(crate) fn eval_uuid_from_string(
         other => {
             return Err(RuntimeError::new(s.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(ValueSnapshot::of(other)),
             })
             .into());
@@ -168,7 +168,7 @@ pub(crate) fn eval_uuid_from_string(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     u :wat::uuid::UUID the UUID to render
-/// @ret     :wat::core::String the canonical 8-4-4-4-12 lowercase hyphenated rendering of `u`
+/// @ret     :wat::type::String the canonical 8-4-4-4-12 lowercase hyphenated rendering of `u`
 /// @example (:wat::uuid::to-string (:wat::uuid::nil)) #=> "00000000-0000-0000-0000-000000000000"
 /// @see     :wat::uuid::from-string
 #[wat_intrinsic(":wat::uuid::to-string")]
@@ -222,7 +222,7 @@ pub(crate) fn eval_uuid_nil() -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     u :wat::uuid::UUID the UUID to inspect
-/// @ret     :wat::core::i64 the version nibble of `u` (e.g. 4 for a v4 UUID)
+/// @ret     :wat::type::i64 the version nibble of `u` (e.g. 4 for a v4 UUID)
 /// @example (:wat::uuid::version (:wat::uuid::nil)) #=> 0
 #[wat_intrinsic(":wat::uuid::version")]
 pub(crate) fn eval_uuid_version(
@@ -260,7 +260,7 @@ pub(crate) fn eval_uuid_version(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     u :wat::uuid::UUID the UUID to inspect
-/// @ret     :wat::core::bool true iff `u`'s variant nibble indicates RFC-4122
+/// @ret     :wat::type::bool true iff `u`'s variant nibble indicates RFC-4122
 /// @example (:wat::uuid::rfc4122-variant? (:wat::uuid::nil)) #=> false
 #[wat_intrinsic(":wat::uuid::rfc4122-variant?")]
 pub(crate) fn eval_uuid_rfc4122_variant(

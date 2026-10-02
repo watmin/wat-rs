@@ -167,8 +167,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     name :wat::core::String the pool's name, surfaced in pop/finish error messages
-/// @arg     handles (:wat::core::Vector :- [T]) the handles to pool, in claim order
+/// @arg     name :wat::type::String the pool's name, surfaced in pop/finish error messages
+/// @arg     handles (:wat::type::Vector :- [T]) the handles to pool, in claim order
 /// @ret     (:wat::kernel::HandlePool :- [T]) the built pool
 /// @example-norun (:wat::kernel::HandlePool/new "workers" handles) #=> #wat.kernel/HandlePool{}
 // Registered `TypeScheme` — `check.rs:18169` — gate LIVE.
@@ -244,7 +244,7 @@ pub(crate) fn eval_handle_pool_pop(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     pool (:wat::kernel::HandlePool :- [T]) the pool to check is drained
-/// @ret     :wat::core::nil always `:()` on success
+/// @ret     :wat::type::nil always `:()` on success
 /// @example-norun (:wat::kernel::HandlePool/finish pool) #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:18199` — gate LIVE.
 //
@@ -296,7 +296,7 @@ pub(crate) fn eval_handle_pool_finish(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @ret     (:wat::core::Tuple :- [:wat::io::IOWriter :wat::io::IOReader]) the fresh pipe's write and read ends
+/// @ret     (:wat::type::Tuple :- [:wat::io::IOWriter :wat::io::IOReader]) the fresh pipe's write and read ends
 /// @example-norun (:wat::kernel::pipe) #=> #wat.core/Tuple[#wat.io/IOWriter{} #wat.io/IOReader{}]
 // Registered `TypeScheme` — `check.rs:18028` — gate LIVE.
 //
@@ -333,9 +333,9 @@ pub(crate) fn eval_kernel_pipe(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the self-peer program body, run once on the new thread
-/// @arg     init_fn [:-> :wat::core::Record] 0-arg fn run at peer-start; its return becomes the peer's user-data
-/// @arg     post_spawn_fn [:wat::spawn::ThreadLaunch :-> :wat::core::nil] runs owner-side after spawn
+/// @arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::type::nil] the self-peer program body, run once on the new thread
+/// @arg     init_fn [:-> :wat::type::Record] 0-arg fn run at peer-start; its return becomes the peer's user-data
+/// @arg     post_spawn_fn [:wat::spawn::ThreadLaunch :-> :wat::type::nil] runs owner-side after spawn
 /// @yields  prog the new thread's own self-peer handle — a `(Peer' :- [S R])` — handed to prog when the thread starts running it
 /// @yields  post_spawn_fn the just-spawned thread's ThreadLaunch record, handed to post_spawn_fn owner-side after spawn
 /// @ret     (:wat::kernel::Thread :- [R S]) the new thread's peer handle
@@ -389,12 +389,12 @@ pub(crate) fn eval_kernel_spawn_thread_prime(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     forms (:wat::core::Vector :- [:wat::WatAST]) the forms-server program to run in the child
-/// @arg     post_spawn_fn [:wat::spawn::ProcessLaunch :-> :wat::core::nil] runs owner-side after fork, with the child pid
+/// @arg     forms (:wat::type::Vector :- [:wat::type::AST]) the forms-server program to run in the child
+/// @arg     post_spawn_fn [:wat::spawn::ProcessLaunch :-> :wat::type::nil] runs owner-side after fork, with the child pid
 /// @yields  post_spawn_fn the just-forked child's ProcessLaunch record (including its pid), handed to post_spawn_fn owner-side after fork
-/// @arg     env_fn :wat::core::String source string the child evals to produce user-data
-/// @arg     max_message_bytes :wat::core::i64 per-receiver frame-size budget
-/// @arg     identity (:wat::core::Option :- [:wat::core::Record]) optional ps-visible identity label
+/// @arg     env_fn :wat::type::String source string the child evals to produce user-data
+/// @arg     max_message_bytes :wat::type::i64 per-receiver frame-size budget
+/// @arg     identity (:wat::core::Option :- [:wat::type::Record]) optional ps-visible identity label
 /// @ret     (:wat::kernel::Process :- [I O]) the new process's peer handle
 /// @example-norun (:wat::kernel::spawn-process forms post-fn env-fn 524288 :wat::core::Option::None) #=> #wat.kernel/Process{}
 // No registered `TypeScheme` — `check.rs`'s `infer_spawn_process_prime`
@@ -459,7 +459,7 @@ pub(crate) fn eval_kernel_spawn_process_prime(
 /// @arg     peer_kind :wat::program::PeerKind `:thread` or `:process` — selects the timer's tier
 /// @arg     duration :wat::time::Duration non-negative delay before the timer fires
 /// @arg     msg :O the payload delivered when the timer fires; becomes the peer's output type
-/// @ret     (:wat::kernel::Thread :- [:wat::core::nil O]) a one-shot timer peer (`I` = nil — the timer takes no input)
+/// @ret     (:wat::kernel::Thread :- [:wat::type::nil O]) a one-shot timer peer (`I` = nil — the timer takes no input)
 /// @example-norun (:wat::kernel::after (:thread) (:wat::time::Millisecond 50) "tick") #=> #wat.kernel/Thread{}
 // No registered `TypeScheme` — `check.rs`'s `infer_kernel_after`
 // (`:10595`) is the real authority: `peer-kind` must conform to
@@ -594,7 +594,7 @@ pub(crate) fn eval_signal(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     xs… :wat::core::Value locus (+ tier-dependent trailing args — see `infer_listener_prime`)
+/// @arg     xs… :wat::type::Value locus (+ tier-dependent trailing args — see `infer_listener_prime`)
 /// @ret     (:wat::kernel::Listener :- [S R]) the fresh listener (thread tier also returns its paired Address in a tuple)
 /// @example-norun (:wat::kernel::listener (:thread) :S :R) #=> #wat.core/Tuple[#wat.kernel/Listener{} #wat.kernel/Address{}]
 // No registered `TypeScheme` — `check.rs`'s `infer_listener_prime`
@@ -713,8 +713,8 @@ pub(crate) fn eval_accept_prime(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the listener whose allow-set to administer
-/// @arg     pid :wat::core::i64 the pid to allow
-/// @ret     :wat::core::nil always `:()`
+/// @arg     pid :wat::type::i64 the pid to allow
+/// @ret     :wat::type::nil always `:()`
 /// @example-norun (:wat::kernel::allow my-listener 4242) #=> #wat.core/nil{}
 // No registered `TypeScheme` — `check.rs`'s `infer_allow_prime`
 // (`:10011`) is the real authority: `[(Listener' :- [S R]) i64 :-> nil]`; tier
@@ -755,8 +755,8 @@ pub(crate) fn eval_allow_prime(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the listener whose allow-set to administer
-/// @arg     pid :wat::core::i64 the pid to deny
-/// @ret     :wat::core::nil always `:()`
+/// @arg     pid :wat::type::i64 the pid to deny
+/// @ret     :wat::type::nil always `:()`
 /// @example-norun (:wat::kernel::deny my-listener 4242) #=> #wat.core/nil{}
 // No registered `TypeScheme` — `check.rs`'s `infer_deny_prime`
 // (`:10079`) is the real authority: "Identical shape to

@@ -125,9 +125,9 @@ fn constraint_not_rendered(op: &str, operand_index: i64, why: String, span: &Spa
 ///
 /// Arguments:
 ///   - `session`    — `:wat::rete::Session` (network via `session_network`)
-///   - `alpha-id`   — `:wat::core::i64` (the AlphaNode id for this condition)
-///   - `bindings`   — `:wat::core::PersistentMap` (the token's accumulated bindings)
-///   - `sfact`      — `:wat::core::Record` (the supporting fact for this edge)
+///   - `alpha-id`   — `:wat::type::i64` (the AlphaNode id for this condition)
+///   - `bindings`   — `:wat::type::PersistentMap` (the token's accumulated bindings)
+///   - `sfact`      — `:wat::type::Record` (the supporting fact for this edge)
 ///   - `supporting` — `:wat::rete::DerivationNode` (the pre-computed recursive node)
 ///
 /// **Purity ground:** all five args are evaluated by ordinary call-by-value (not itself an
@@ -149,9 +149,9 @@ fn constraint_not_rendered(op: &str, operand_index: i64, why: String, span: &Spa
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     session :wat::rete::Session the compiled session (network read via `session_network`)
-/// @arg     alpha_id :wat::core::i64 the AlphaNode id for this condition
-/// @arg     bindings :wat::core::PersistentMap the token's accumulated bindings
-/// @arg     sfact :wat::core::Record the supporting fact for this edge
+/// @arg     alpha_id :wat::type::i64 the AlphaNode id for this condition
+/// @arg     bindings :wat::type::PersistentMap the token's accumulated bindings
+/// @arg     sfact :wat::type::Record the supporting fact for this edge
 /// @arg     supporting :wat::rete::DerivationNode the pre-computed recursive node for `sfact`
 /// @ret     :wat::rete::DerivationStep the per-edge explain payload (pattern, per-step bindings, substituted constraints, supporting)
 /// @example (:wat::core::do (:wat::core::defrecord :probe::StepPayloadExampleTemp [celsius <- :wat::core::i64]) (:wat::core::defrecord :probe::StepPayloadExampleResult [celsius <- :wat::core::i64]) (:wat::rete::defrule :probe::step-payload-example-rule :when [(:probe::StepPayloadExampleTemp (?c :- :celsius) (:wat::rete::i64::< ?c 20))] :then [(:probe::StepPayloadExampleResult ?c)]) (:wat::core::let [rules (:wat::rete::collect-rules :probe) session (:wat::rete::compile rules) session (:wat::rete::insert session (:probe::StepPayloadExampleTemp :celsius 10)) ex (:wat::rete::fire-rules-explain session) support (:wat::rete::Explained/support ex) result (:probe::StepPayloadExampleResult :celsius 10) sv (:wat::core::Option/expect (:wat::map::get support result) "sv") tok (:wat::rete::Support/token sv) matches (:wat::rete::Token/matches tok) bindings (:wat::rete::Token/bindings tok) m0 (:wat::core::Option/expect (:wat::core::get matches 0) "m0") sfact (:wat::core::first m0) alpha-id (:wat::core::second m0) sess (:wat::rete::Explained/session ex) supporting (:wat::rete::explain ex sfact)] (:wat::rete::step-payload sess alpha-id bindings sfact supporting))) #=> (:wat::rete::DerivationStep :supporting (:wat::rete::DerivationNode :fact (:probe::StepPayloadExampleTemp :celsius 10) :rule :wat::core::Option::None :via (:wat::core::PersistentVector)) :pattern "probe::StepPayloadExampleTemp" :bindings (:wat::core::PersistentMap "?c" 10) :constraints (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::i64::< 10 20))))

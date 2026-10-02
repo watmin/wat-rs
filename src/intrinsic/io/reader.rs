@@ -102,7 +102,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes the reader will yield back, in order
+/// @arg     bytes (:wat::type::Vector :- [:wat::type::u8]) the bytes the reader will yield back, in order
 /// @ret     :wat::io::IOReader a fresh in-memory reader over `bytes`
 /// @example (:wat::io::IOReader/read-all-string (:wat::io::IOReader/from-bytes (:wat::core::Vector :- [:wat::core::u8] (:wat::core::u8 104) (:wat::core::u8 105)))) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15729` — gate LIVE.
@@ -139,7 +139,7 @@ pub(crate) fn eval_ioreader_from_bytes(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     s :wat::core::String the string the reader will yield back
+/// @arg     s :wat::type::String the string the reader will yield back
 /// @ret     :wat::io::IOReader a fresh in-memory reader over `s`
 /// @example (:wat::io::IOReader/read-all-string (:wat::io::IOReader/from-string "hi")) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15749` — gate LIVE.
@@ -175,7 +175,7 @@ pub(crate) fn eval_ioreader_from_string(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     path :wat::core::String the path to open for reading
+/// @arg     path :wat::type::String the path to open for reading
 /// @ret     :wat::io::IOReader a fresh file-backed reader
 /// @example-norun (:wat::io::IOReader/open-file "/tmp/x.txt") #=> #wat.io/IOReader{}
 // Registered `TypeScheme` — `check.rs:15720` — gate LIVE.
@@ -221,7 +221,7 @@ pub(crate) fn eval_ioreader_open_file(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     fd :wat::core::i64 the raw fd to dup and wrap
+/// @arg     fd :wat::type::i64 the raw fd to dup and wrap
 /// @ret     :wat::io::IOReader a fresh reader owning a private dup of `fd`
 /// @example-norun (:wat::io::IOReader/from-fd 0) #=> #wat.io/IOReader{}
 // Registered `TypeScheme` — `check.rs:15740` — gate LIVE.
@@ -257,8 +257,8 @@ pub(crate) fn eval_ioreader_from_fd(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull bytes from
-/// @arg     n :wat::core::i64 max bytes to read (must be non-negative)
-/// @ret     (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::u8])]) the bytes read, or `None` on clean EOF
+/// @arg     n :wat::type::i64 max bytes to read (must be non-negative)
+/// @ret     (:wat::core::Option :- [(:wat::type::Vector :- [:wat::type::u8])]) the bytes read, or `None` on clean EOF
 /// @example-norun (:wat::io::IOReader/read reader 4) #=> (Some Bytes[104, 105, 33, 10])
 // Registered `TypeScheme` — `check.rs:15758` — gate LIVE.
 //
@@ -294,7 +294,7 @@ pub(crate) fn eval_ioreader_read(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to drain to EOF
-/// @ret     (:wat::core::Vector :- [:wat::core::u8]) every byte read
+/// @ret     (:wat::type::Vector :- [:wat::type::u8]) every byte read
 /// @example-norun (:wat::io::IOReader/read-all reader) #=> Bytes[104, 105]
 // Registered `TypeScheme` — `check.rs:15767` — gate LIVE.
 //
@@ -328,7 +328,7 @@ pub(crate) fn eval_ioreader_read_all(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to drain to EOF
-/// @ret     :wat::core::String the decoded UTF-8 text
+/// @ret     :wat::type::String the decoded UTF-8 text
 /// @example-norun (:wat::io::IOReader/read-all-string reader) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15776` — gate LIVE.
 //
@@ -361,7 +361,7 @@ pub(crate) fn eval_ioreader_read_all_string(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull a line from
-/// @ret     (:wat::core::Option :- [:wat::core::String]) the line read, or `None` on clean EOF
+/// @ret     (:wat::core::Option :- [:wat::type::String]) the line read, or `None` on clean EOF
 /// @example-norun (:wat::io::IOReader/read-line reader) #=> (Some "hello")
 // Registered `TypeScheme` — `check.rs:15785` — gate LIVE.
 //
@@ -445,7 +445,7 @@ pub(crate) fn eval_ioreader_read_frame(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     reader :wat::io::IOReader the reader to rewind
-/// @ret     :wat::core::nil always `:()` on success; a non-rewindable backing raises
+/// @ret     :wat::type::nil always `:()` on success; a non-rewindable backing raises
 /// @example (:wat::io::IOReader/read-all-string (:wat::core::let [r (:wat::io::IOReader/from-string "hi") _ (:wat::io::IOReader/read-all r) _ (:wat::io::IOReader/rewind r)] r)) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15807` — gate LIVE.
 //

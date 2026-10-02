@@ -82,7 +82,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality Total
 /// @ExpandTime Legal
 /// @syntax (:wat::config::set-redef! <bool>)
-/// @ret :wat::core::nil always `Unit` — the flag update already happened at freeze time; the eval arm ignores its argument
+/// @ret :wat::type::nil always `Unit` — the flag update already happened at freeze time; the eval arm ignores its argument
 /// @example (:wat::config::set-redef! true) #=> nil
 #[wat_special_form(":wat::config::set-redef!")]
 pub(crate) struct ConfigSetRedef;

@@ -138,7 +138,7 @@ pub(crate) fn eval_kernel_call_site(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @ret     :wat::WatAST a spliceable `(:wat::kernel::Frame' file line symbol)` form
+/// @ret     :wat::type::AST a spliceable `(:wat::kernel::Frame' file line symbol)` form
 /// @example-norun (:wat::kernel::macro-call-site) #=> #wat/WatAST{}
 // Registered `TypeScheme` — `check.rs:17908` — gate LIVE.
 //
@@ -171,9 +171,9 @@ pub(crate) fn eval_kernel_macro_call_site(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg     f :wat::core::Fn the fn value to reify (or a keyword naming a registered fn)
-/// @arg     name :wat::core::keyword the bind name the reified fn carries when the forms are later evaluated
-/// @ret     (:wat::core::Vector :- [:wat::WatAST]) `prologue ++ [(def name entry-form)]`
+/// @arg     f :wat::type::Fn the fn value to reify (or a keyword naming a registered fn)
+/// @arg     name :wat::type::keyword the bind name the reified fn carries when the forms are later evaluated
+/// @ret     (:wat::type::Vector :- [:wat::type::AST]) `prologue ++ [(def name entry-form)]`
 /// @example (:wat::i64::> (:wat::core::length (:wat::kernel::fn-forms (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) :my-id)) 0) #=> true
 // No registered `TypeScheme` — `check.rs`'s `infer_kernel_fn_forms`
 // (`:10406`) is the real authority.

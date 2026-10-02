@@ -80,8 +80,8 @@ use crate::runtime::{eval_inner, values_equal};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     args… :wat::core::Value SUBJECT (evaluated) followed by the pattern `(:TYPE-NAME clause ...)` (never evaluated — walked structurally)
-/// @ret     :wat::core::bool whether SUBJECT structurally matches the pattern (Clara semantics: a non-matching class, non-Struct value, or `:None` subject is `false`, never an error)
+/// @arg     args… :wat::type::Value SUBJECT (evaluated) followed by the pattern `(:TYPE-NAME clause ...)` (never evaluated — walked structurally)
+/// @ret     :wat::type::bool whether SUBJECT structurally matches the pattern (Clara semantics: a non-matching class, non-Struct value, or `:None` subject is `false`, never an error)
 /// @example (:wat::core::do (:wat::core::defstruct :probe::FormMatchSubject [amount <- :wat::core::i64]) (:wat::form::matches? (:probe::FormMatchSubject :amount 3) (:probe::FormMatchSubject (= ?a :amount)))) #=> true
 #[wat_intrinsic(":wat::form::matches?")]
 pub(crate) fn eval_form_matches(

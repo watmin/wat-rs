@@ -67,7 +67,7 @@ pub(crate) fn eval_macroexpand_1(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "wat::WatAST",
+                    expected: "wat::type::AST",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -127,7 +127,7 @@ pub(crate) fn eval_macroexpand(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "wat::WatAST",
+                    expected: "wat::type::AST",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )

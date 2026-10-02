@@ -630,7 +630,7 @@ fn domain_cardinality(ty: &crate::types::TypeExpr, types: &crate::types::TypeEnv
     match p.as_str() {
         // The only primitive small enough to enumerate. `i64`/`f64`/`String`/`keyword` are 2^64 and
         // up — infeasible by exhaustion, which is why the fence half stays punted.
-        ":wat::core::bool" => Some(2),
+        ":wat::type::bool" => Some(2),
         _ => match types.get(p)? {
             // A `defenum`'s inhabitants are its variants — but ONLY when every variant is a unit.
             // A payload-carrying variant's population is its payload's, which reintroduces the

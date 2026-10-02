@@ -75,7 +75,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to print
-/// @ret     :wat::core::nil always nil on success; a write failure raises
+/// @ret     :wat::type::nil always nil on success; a write failure raises
 /// @example-norun (:wat::kernel::println "hi") #=> nil
 #[wat_intrinsic(":wat::kernel::println")]
 pub(crate) fn eval_kernel_println(
@@ -97,7 +97,7 @@ pub(crate) fn eval_kernel_println(
 /// @ExpandTime    Unreviewed
 /// @Category      Io
 /// @arg     v :T the value to pretty-print
-/// @ret     :wat::core::nil always nil on success; a write failure raises
+/// @ret     :wat::type::nil always nil on success; a write failure raises
 /// @example-norun (:wat::kernel::pprintln "hi") #=> nil
 #[wat_intrinsic(":wat::kernel::pprintln")]
 pub(crate) fn eval_kernel_pprintln(
@@ -170,7 +170,7 @@ pub(crate) fn eval_kernel_epprintln(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Io
-/// @arg     cap :wat::core::i64 max buffer bytes for the read frame
+/// @arg     cap :wat::type::i64 max buffer bytes for the read frame
 /// @ret     :T the decoded value (checker special-cases real inference; the registered scheme is vestigial)
 /// @example-norun (:wat::kernel::readln' 65536) #=> #wat.kernel/ReadlnOutcome{...}
 // `//` not `///` — maintainer rationale, not user-facing prose (the `///` block above is what

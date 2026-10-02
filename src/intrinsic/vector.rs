@@ -70,8 +70,8 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
-/// @ret     :wat::core::i64 the number of elements in `v`
+/// @arg     v (:wat::type::PersistentVector :- [T]) the vector probed
+/// @ret     :wat::type::i64 the number of elements in `v`
 /// @example (:wat::vector::length (:wat::core::PersistentVector)) #=> 0
 /// @example (:wat::vector::length (:wat::core::PersistentVector 1 2 3)) #=> 3
 /// @see     :wat::vector::empty?
@@ -88,8 +88,8 @@ pub(crate) fn persistentvector_length(v: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
-/// @ret     :wat::core::bool true iff `v` has zero elements
+/// @arg     v (:wat::type::PersistentVector :- [T]) the vector probed
+/// @ret     :wat::type::bool true iff `v` has zero elements
 /// @example (:wat::vector::empty? (:wat::core::PersistentVector)) #=> true
 /// @example (:wat::vector::empty? (:wat::core::PersistentVector 1)) #=> false
 /// @see     :wat::vector::length
@@ -111,9 +111,9 @@ pub(crate) fn persistentvector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
+/// @arg     v (:wat::type::PersistentVector :- [T]) the vector probed
 /// @arg     item :T the candidate element
-/// @ret     :wat::core::bool true iff `item` occurs in `v`
+/// @ret     :wat::type::bool true iff `item` occurs in `v`
 /// @example (:wat::vector::contains? (:wat::core::PersistentVector 1 2 3) 2) #=> true
 /// @example (:wat::vector::contains? (:wat::core::PersistentVector 1 2 3) 9) #=> false
 /// @see     :wat::vector::get
@@ -137,8 +137,8 @@ pub(crate) fn persistentvector_contains_q(v: &Value, item: &Value) -> Result<Val
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
-/// @arg     i :wat::core::i64 the index looked up
+/// @arg     v (:wat::type::PersistentVector :- [T]) the vector probed
+/// @arg     i :wat::type::i64 the index looked up
 /// @ret     (:wat::core::Option :- [T]) `Some` the element at `i`, or `None` on OOB
 /// @example (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 0) #=> (:wat::core::Option::Some {:value 1})
 /// @example (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 9) #=> :None
@@ -157,9 +157,9 @@ pub(crate) fn persistentvector_get(v: &Value, i: &Value) -> Result<Value, EvalBr
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     v (:wat::core::PersistentVector :- [T]) the vector transformed
+/// @arg     v (:wat::type::PersistentVector :- [T]) the vector transformed
 /// @arg     item :T the element appended
-/// @ret     (:wat::core::PersistentVector :- [T]) `v` with `item` appended
+/// @ret     (:wat::type::PersistentVector :- [T]) `v` with `item` appended
 /// @example (:wat::vector::length (:wat::vector::conj (:wat::core::PersistentVector) 1)) #=> 1
 /// @see     :wat::vector::concat
 #[wat_intrinsic(":wat::vector::conj")]
@@ -181,9 +181,9 @@ pub(crate) fn persistentvector_conj(v: &Value, item: &Value) -> Result<Value, Ev
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     to (:wat::core::PersistentVector :- [T]) the receiver; its kind is preserved
-/// @arg     from (:wat::core::PersistentVector :- [T]) the elements appended (a plain `Vector<T>` is also accepted at check time)
-/// @ret     (:wat::core::PersistentVector :- [T]) `to` with every element of `from` appended
+/// @arg     to (:wat::type::PersistentVector :- [T]) the receiver; its kind is preserved
+/// @arg     from (:wat::type::PersistentVector :- [T]) the elements appended (a plain `Vector<T>` is also accepted at check time)
+/// @ret     (:wat::type::PersistentVector :- [T]) `to` with every element of `from` appended
 /// @example (:wat::vector::length (:wat::vector::concat (:wat::core::PersistentVector 1) (:wat::core::PersistentVector 2))) #=> 2
 /// @see     :wat::vector::conj
 ///

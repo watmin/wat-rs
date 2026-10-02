@@ -53,8 +53,8 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     m (:wat::core::HashMap :- [K V]) the map probed
-/// @ret     :wat::core::i64 the number of entries in `m`
+/// @arg     m (:wat::type::HashMap :- [K V]) the map probed
+/// @ret     :wat::type::i64 the number of entries in `m`
 /// @example (:wat::hashmap::length (:wat::core::HashMap)) #=> 0
 /// @see     :wat::hashmap::empty?
 #[wat_intrinsic(":wat::hashmap::length")]
@@ -74,8 +74,8 @@ pub(crate) fn hashmap_length(m: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     m (:wat::core::HashMap :- [K V]) the map probed
-/// @ret     :wat::core::bool true iff `m` has zero entries
+/// @arg     m (:wat::type::HashMap :- [K V]) the map probed
+/// @ret     :wat::type::bool true iff `m` has zero entries
 /// @example (:wat::hashmap::empty? (:wat::core::HashMap)) #=> true
 /// @see     :wat::hashmap::length
 #[wat_intrinsic(":wat::hashmap::empty?")]
@@ -95,9 +95,9 @@ pub(crate) fn hashmap_empty_q(m: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     m (:wat::core::HashMap :- [K V]) the map probed
+/// @arg     m (:wat::type::HashMap :- [K V]) the map probed
 /// @arg     k :K the candidate key
-/// @ret     :wat::core::bool true iff `k` occurs as a key in `m`
+/// @ret     :wat::type::bool true iff `k` occurs as a key in `m`
 /// @example (:wat::hashmap::contains-key? (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a") #=> true
 /// @see     :wat::hashmap::get
 #[wat_intrinsic(":wat::hashmap::contains-key?")]
@@ -118,7 +118,7 @@ pub(crate) fn hashmap_contains_key_q(m: &Value, k: &Value) -> Result<Value, Eval
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     m (:wat::core::HashMap :- [K V]) the map probed
+/// @arg     m (:wat::type::HashMap :- [K V]) the map probed
 /// @arg     k :K the key looked up
 /// @ret     (:wat::core::Option :- [V]) `Some` the value at `k`, or `None` on a miss
 /// @example (:wat::hashmap::get (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Option::Some {:value 1})
@@ -141,10 +141,10 @@ pub(crate) fn hashmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
+/// @arg     m (:wat::type::HashMap :- [K V]) the map transformed
 /// @arg     k :K the key inserted or overwritten
 /// @arg     v :V the value bound to `k`
-/// @ret     (:wat::core::HashMap :- [K V]) `m` with `k` bound to `v`
+/// @ret     (:wat::type::HashMap :- [K V]) `m` with `k` bound to `v`
 /// @example (:wat::hashmap::length (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1)) #=> 1
 /// @see     :wat::hashmap::dissoc
 #[wat_intrinsic(":wat::hashmap::assoc")]
@@ -165,9 +165,9 @@ pub(crate) fn hashmap_assoc(m: &Value, k: &Value, v: &Value) -> Result<Value, Ev
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     m (:wat::core::HashMap :- [K V]) the map transformed
+/// @arg     m (:wat::type::HashMap :- [K V]) the map transformed
 /// @arg     k :K the key removed
-/// @ret     (:wat::core::HashMap :- [K V]) `m` with `k` removed
+/// @ret     (:wat::type::HashMap :- [K V]) `m` with `k` removed
 /// @example (:wat::hashmap::length (:wat::hashmap::dissoc (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a")) #=> 0
 /// @see     :wat::hashmap::assoc
 #[wat_intrinsic(":wat::hashmap::dissoc")]
@@ -206,8 +206,8 @@ pub(crate) fn hashmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     m (:wat::core::HashMap :- [K V]) the map projected
-/// @ret     (:wat::core::Vector :- [K]) `m`'s keys, order unspecified
+/// @arg     m (:wat::type::HashMap :- [K V]) the map projected
+/// @ret     (:wat::type::Vector :- [K]) `m`'s keys, order unspecified
 /// @example-norun (:wat::hashmap::length (:wat::hashmap::keys (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1))) #=> 1
 /// @see     :wat::hashmap::values
 #[wat_intrinsic(":wat::hashmap::keys")]
@@ -238,8 +238,8 @@ pub(crate) fn hashmap_keys(m: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     m (:wat::core::HashMap :- [K V]) the map projected
-/// @ret     (:wat::core::Vector :- [V]) `m`'s values, order unspecified
+/// @arg     m (:wat::type::HashMap :- [K V]) the map projected
+/// @ret     (:wat::type::Vector :- [V]) `m`'s values, order unspecified
 /// @example-norun (:wat::hashmap::length (:wat::hashmap::values (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1))) #=> 1
 /// @see     :wat::hashmap::keys
 #[wat_intrinsic(":wat::hashmap::values")]

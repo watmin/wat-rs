@@ -86,7 +86,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::defsurface :Name :nature :<nature-root> :features [members])
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
 /// @example-norun (:wat::core::defsurface :geo::Shape :nature :wat::core::Struct :features [(area [self <- :geo::Shape] -> :wat::core::f64)]) #=> registers :geo::Shape into the type registry; no runtime value
 #[wat_special_form(":wat::core::defsurface")]
 pub(crate) struct Defsurface;

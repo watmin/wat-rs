@@ -38,7 +38,7 @@ pub(crate) fn infer_contains(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::core::contains?";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+    let bool_ty = TypeExpr::Path(":wat::type::bool".into());
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(),
@@ -57,22 +57,22 @@ pub(crate) fn infer_contains(
         let reduced = reduce(&coll_ty, subst, env.types());
         // Extract the expected element/key type from the collection shape.
         let elem_ty_opt: Option<TypeExpr> = match &reduced {
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::Vector") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::Vector") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashSet") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::HashSet") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashMap") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::HashMap") => {
                 // contains? on HashMap checks the KEY, not the value.
                 targs.first().map(|k| apply_subst(k, subst))
             }
             // Arc-278-0a — PersistentMap: contains? checks the KEY, same as HashMap.
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentMap") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::PersistentMap") => {
                 targs.first().map(|k| apply_subst(k, subst))
             }
             // Arc-278-0b — PersistentVector: contains? checks element membership, same as Vector.
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentVector") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::PersistentVector") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
             // Unresolved type variable — e.g., returned by `from-holon` which has a
@@ -85,7 +85,7 @@ pub(crate) fn infer_contains(
             // Var arm that cites this comment as the policy source.
             TypeExpr::Var(_) => None,
             // seq-1b — List: element membership, same scan as Vector
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::List") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::List") => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
             // seq-1b — Tuple: scan over Value; element check uses PartialEq
@@ -97,9 +97,9 @@ pub(crate) fn infer_contains(
                 None
             }
             // seq-1b — WatAstList: element membership (child form scan)
-            TypeExpr::Path(p) if p == ":wat::WatAST" => {
+            TypeExpr::Path(p) if p == ":wat::type::AST" => {
                 // WatAstList: contains? compares a WatAST child; arg1 must be :wat::WatAST
-                Some(TypeExpr::Path(":wat::WatAST".into()))
+                Some(TypeExpr::Path(":wat::type::AST".into()))
             }
             _ => {
                 // Arc-278-A2 — Check if this is a Record subtype before rejecting.
@@ -107,7 +107,7 @@ pub(crate) fn infer_contains(
                 use crate::collection::map_container::MapContainer;
                 if MapContainer::of_type(&reduced, env.types()) == Some(MapContainer::Record) {
                     // Record: contains? tests field existence by keyword name. Arg1 must be a keyword.
-                    Some(TypeExpr::Path(":wat::core::keyword".into()))
+                    Some(TypeExpr::Path(":wat::type::keyword".into()))
                 } else {
                     local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: OP.into(),
@@ -316,20 +316,20 @@ pub(crate) fn infer_get(
         // Match collection shape; extract (expected_arg1_type, return_element_type).
         // NO HashSet arm — HashSet has no get.
         let shape_opt: Option<(TypeExpr, TypeExpr)> = match &reduced {
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::Vector") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::Vector") => {
                 // arg1 is the INDEX (i64), independent of the element type T.
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
-                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+                let idx_ty = TypeExpr::Path(":wat::type::i64".into());
                 Some((idx_ty, elem_ty))
             }
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashMap") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::HashMap") => {
                 // arg1 is the KEY (K); return wraps VALUE (V).
                 let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
                 let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((key_ty, val_ty))
             }
             // Arc-278-0a — PersistentMap: same K→V get semantics as HashMap.
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentMap") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::PersistentMap") => {
                 let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
                 let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((key_ty, val_ty))
@@ -337,28 +337,28 @@ pub(crate) fn infer_get(
             // Arc-278-0b — PersistentVector: same i64→Option<T> get semantics as std Vector.
             // arg1 is the INDEX (i64), independent of the element type T.
             // Returns Option<T> — None on out-of-bounds, Some(elem) on hit (safe, never raises).
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::PersistentVector") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::PersistentVector") => {
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
-                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+                let idx_ty = TypeExpr::Path(":wat::type::i64".into());
                 Some((idx_ty, elem_ty))
             }
             // Unresolved type variable — defers to the runtime backstop by design,
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
             // seq-1b — List: index i64 → Option<T>
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::List") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::List") => {
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
-                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+                let idx_ty = TypeExpr::Path(":wat::type::i64".into());
                 Some((idx_ty, elem_ty))
             }
             // seq-1b — WatAstList: index i64 → Option<WatAST>
-            TypeExpr::Path(p) if p == ":wat::WatAST" => {
-                let elem_ty = TypeExpr::Path(":wat::WatAST".into());
-                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+            TypeExpr::Path(p) if p == ":wat::type::AST" => {
+                let elem_ty = TypeExpr::Path(":wat::type::AST".into());
+                let idx_ty = TypeExpr::Path(":wat::type::i64".into());
                 Some((idx_ty, elem_ty))
             }
             // seq-1b — HashSet: element membership-as-lookup; arg1 is T, return Option<T>
-            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::core::HashSet") => {
+            TypeExpr::Parametric { head, args: targs } if crate::types::parametric_heads_unify(head, "wat::type::HashSet") => {
                 let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((elem_ty.clone(), elem_ty))
             }
@@ -369,8 +369,8 @@ pub(crate) fn infer_get(
                 if MapContainer::of_type(&reduced, env.types()) == Some(MapContainer::Record) {
                     // Record: key is keyword; return element is :wat::core::Value (universal top).
                     // Precise per-field-type projection on a literal keyword is a future refinement.
-                    let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
-                    let val_ty = TypeExpr::Path(":wat::core::Value".into());
+                    let keyword_ty = TypeExpr::Path(":wat::type::keyword".into());
+                    let val_ty = TypeExpr::Path(":wat::type::Value".into());
                     Some((keyword_ty, val_ty))
                 } else {
                     local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -513,7 +513,7 @@ pub(crate) fn infer_assoc(
                     // Arc 258 cascade — accept all record subtypes here so assoc on
                     // specifically-typed records type-checks without a TypeMismatch.
                     // Flavor is preserved at runtime by eval_record_assoc.
-                    let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+                    let keyword_ty = TypeExpr::Path(":wat::type::keyword".into());
                     if let Some(arg1) = arg1_ty {
                         if unify(&arg1, &keyword_ty, subst, env.types()).is_err() {
                             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -622,19 +622,19 @@ fn extract_seq_elem(
     match (container, reduced) {
         (StreamContainer::Vector, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
-            Some(("wat::core::Vector", elem_ty))
+            Some(("wat::type::Vector", elem_ty))
         }
         (StreamContainer::PersistentVector, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
-            Some(("wat::core::PersistentVector", elem_ty))
+            Some(("wat::type::PersistentVector", elem_ty))
         }
-        (StreamContainer::Vector, TypeExpr::Path(_)) => Some(("wat::core::Vector", fresh.fresh())),
-        (StreamContainer::PersistentVector, TypeExpr::Path(_)) => Some(("wat::core::PersistentVector", fresh.fresh())),
+        (StreamContainer::Vector, TypeExpr::Path(_)) => Some(("wat::type::Vector", fresh.fresh())),
+        (StreamContainer::PersistentVector, TypeExpr::Path(_)) => Some(("wat::type::PersistentVector", fresh.fresh())),
         (StreamContainer::List, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
-            Some(("wat::core::List", elem_ty))
+            Some(("wat::type::List", elem_ty))
         }
-        (StreamContainer::List, TypeExpr::Path(_)) => Some(("wat::core::List", fresh.fresh())),
+        (StreamContainer::List, TypeExpr::Path(_)) => Some(("wat::type::List", fresh.fresh())),
         // No other containers pass the cap gate today.
         _ => None,
     }
@@ -706,9 +706,9 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
 fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut InferCtx) -> Option<TypeExpr> {
     match reduced {
         TypeExpr::Parametric { head, args }
-            if crate::types::parametric_heads_unify(head, "wat::core::Vector")
-                || crate::types::parametric_heads_unify(head, "wat::core::List")
-                || crate::types::parametric_heads_unify(head, "wat::core::PersistentVector")
+            if crate::types::parametric_heads_unify(head, "wat::type::Vector")
+                || crate::types::parametric_heads_unify(head, "wat::type::List")
+                || crate::types::parametric_heads_unify(head, "wat::type::PersistentVector")
                 || head == "wat::stream::Stream"
                 // ── Stone 118.B7 — `Seqable<T>` ITSELF ────────────────────────────────────────
                 //
@@ -733,9 +733,9 @@ fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut Infe
         TypeExpr::Path(p) => {
             // `wat.type/PersistentVector` is `:wat::type::…` until denotation.
             let denoted = crate::edn::render::type_denotation(p);
-            if denoted == ":wat::core::Vector"
-                || denoted == ":wat::core::List"
-                || denoted == ":wat::core::PersistentVector"
+            if denoted == ":wat::type::Vector"
+                || denoted == ":wat::type::List"
+                || denoted == ":wat::type::PersistentVector"
                 || denoted == ":wat::stream::Stream"
                 || denoted == ":wat::core::Seqable"
             {
@@ -859,7 +859,7 @@ pub(crate) fn infer_mapv(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::core::mapv";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![fresh.fresh()] };
+    let fallback_ty = TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![fresh.fresh()] };
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -886,7 +886,7 @@ pub(crate) fn infer_mapv(
                     env,
                     &mut local_errors,
                 );
-                let ret_ty = TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![apply_subst(&u_var, subst)] };
+                let ret_ty = TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![apply_subst(&u_var, subst)] };
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)
                 } else {
@@ -943,7 +943,7 @@ pub(crate) fn infer_filter(
         match extract_lazyable_elem(&reduced, subst, fresh) {
             Some(elem_ty) => {
                 // pred must be fn(T) -> bool — T from the collection, bool fixed (not a fresh U).
-                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                let bool_ty = TypeExpr::Path(":wat::type::bool".into());
                 let expected_fn_ty = TypeExpr::Fn {
                     args: vec![elem_ty.clone()],
                     ret: Box::new(bool_ty),
@@ -1140,7 +1140,7 @@ pub(crate) fn infer_take(
     // Receiver-first: arg[0] is the collection, arg[1] is the count (i64).
     let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+    let i64_ty = TypeExpr::Path(":wat::type::i64".into());
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
@@ -1203,7 +1203,7 @@ pub(crate) fn infer_drop(
     // Receiver-first: arg[0] is the collection, arg[1] is the count (i64).
     let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+    let i64_ty = TypeExpr::Path(":wat::type::i64".into());
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
@@ -1311,7 +1311,7 @@ pub(crate) fn infer_zip(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::seq::zip";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = seq_ty("wat::core::Vector", TypeExpr::Tuple(vec![fresh.fresh(), fresh.fresh()]));
+    let fallback_ty = seq_ty("wat::type::Vector", TypeExpr::Tuple(vec![fresh.fresh(), fresh.fresh()]));
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -1361,7 +1361,7 @@ pub(crate) fn infer_zip(
     };
 
     if let (Some(elem_a), Some(elem_b)) = (elem_a, elem_b) {
-        let ret_ty = seq_ty("wat::core::Vector", TypeExpr::Tuple(vec![apply_subst(&elem_a, subst), apply_subst(&elem_b, subst)]));
+        let ret_ty = seq_ty("wat::type::Vector", TypeExpr::Tuple(vec![apply_subst(&elem_a, subst), apply_subst(&elem_b, subst)]));
         return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
     }
     if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
@@ -1381,7 +1381,7 @@ pub(crate) fn infer_window(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::seq::window";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = seq_ty("wat::core::Vector", seq_ty("wat::core::Vector", fresh.fresh()));
+    let fallback_ty = seq_ty("wat::type::Vector", seq_ty("wat::type::Vector", fresh.fresh()));
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -1390,7 +1390,7 @@ pub(crate) fn infer_window(
     }
     let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+    let i64_ty = TypeExpr::Path(":wat::type::i64".into());
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
@@ -1406,7 +1406,7 @@ pub(crate) fn infer_window(
                         }});
                     }
                 }
-                let ret_ty = seq_ty("wat::core::Vector", seq_ty("wat::core::Vector", apply_subst(&elem_ty, subst)));
+                let ret_ty = seq_ty("wat::type::Vector", seq_ty("wat::type::Vector", apply_subst(&elem_ty, subst)));
                 return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
             }
             None if matches!(reduced, TypeExpr::Var(_)) => {}
@@ -1438,7 +1438,7 @@ pub(crate) fn infer_remove_at(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::seq::remove-at";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = seq_ty("wat::core::Vector", fresh.fresh());
+    let fallback_ty = seq_ty("wat::type::Vector", fresh.fresh());
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -1447,7 +1447,7 @@ pub(crate) fn infer_remove_at(
     }
     let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+    let i64_ty = TypeExpr::Path(":wat::type::i64".into());
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
@@ -1463,7 +1463,7 @@ pub(crate) fn infer_remove_at(
                         }});
                     }
                 }
-                let ret_ty = seq_ty("wat::core::Vector", apply_subst(&elem_ty, subst));
+                let ret_ty = seq_ty("wat::type::Vector", apply_subst(&elem_ty, subst));
                 return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
             }
             None if matches!(reduced, TypeExpr::Var(_)) => {}
@@ -1603,7 +1603,7 @@ pub(crate) fn infer_vector_extend(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::core::Vector/extend";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = seq_ty("wat::core::Vector", fresh.fresh());
+    let fallback_ty = seq_ty("wat::type::Vector", fresh.fresh());
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -1617,12 +1617,12 @@ pub(crate) fn infer_vector_extend(
     if let Some(a_ty) = a_ty_opt {
         let a_reduced = reduce(&a_ty, subst, env.types());
         match extract_seq_elem(&a_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
-            Some(("wat::core::Vector", elem_ty_a)) => {
+            Some(("wat::type::Vector", elem_ty_a)) => {
                 if let Some(b_ty) = b_ty_opt {
                     let b_reduced = reduce(&b_ty, subst, env.types());
                     match extract_seq_elem(&b_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
                         Some((coll_head_b, elem_ty_b))
-                            if coll_head_b == "wat::core::Vector" || coll_head_b == "wat::core::PersistentVector" =>
+                            if coll_head_b == "wat::type::Vector" || coll_head_b == "wat::type::PersistentVector" =>
                         {
                             if unify(&elem_ty_b, &elem_ty_a, subst, env.types()).is_err() {
                                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -1644,7 +1644,7 @@ pub(crate) fn infer_vector_extend(
                         }
                     }
                 }
-                let ret_ty = seq_ty("wat::core::Vector", apply_subst(&elem_ty_a, subst));
+                let ret_ty = seq_ty("wat::type::Vector", apply_subst(&elem_ty_a, subst));
                 return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
             }
             None if matches!(a_reduced, TypeExpr::Var(_)) => {}
@@ -1671,7 +1671,7 @@ pub(crate) fn infer_persistentvector_concat(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::core::PersistentVector/concat";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = seq_ty("wat::core::PersistentVector", fresh.fresh());
+    let fallback_ty = seq_ty("wat::type::PersistentVector", fresh.fresh());
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -1685,14 +1685,14 @@ pub(crate) fn infer_persistentvector_concat(
     if let Some(a_ty) = a_ty_opt {
         let a_reduced = reduce(&a_ty, subst, env.types());
         match extract_seq_elem(&a_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
-            Some(("wat::core::PersistentVector", elem_ty_a)) => {
+            Some(("wat::type::PersistentVector", elem_ty_a)) => {
                 if let Some(b_ty) = b_ty_opt {
                     let b_reduced = reduce(&b_ty, subst, env.types());
                     match extract_seq_elem(&b_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
                         // The one deliberate divergence from infer_concat: arg2 accepts
                         // EITHER Vector OR PersistentVector, not just a matching kind.
                         Some((coll_head_b, elem_ty_b))
-                            if coll_head_b == "wat::core::Vector" || coll_head_b == "wat::core::PersistentVector" =>
+                            if coll_head_b == "wat::type::Vector" || coll_head_b == "wat::type::PersistentVector" =>
                         {
                             if unify(&elem_ty_b, &elem_ty_a, subst, env.types()).is_err() {
                                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -1714,7 +1714,7 @@ pub(crate) fn infer_persistentvector_concat(
                         }
                     }
                 }
-                let ret_ty = seq_ty("wat::core::PersistentVector", apply_subst(&elem_ty_a, subst));
+                let ret_ty = seq_ty("wat::type::PersistentVector", apply_subst(&elem_ty_a, subst));
                 return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
             }
             None if matches!(a_reduced, TypeExpr::Var(_)) => {}

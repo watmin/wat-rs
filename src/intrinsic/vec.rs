@@ -64,8 +64,8 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     v (:wat::core::Vector :- [T]) the vector probed
-/// @ret     :wat::core::i64 the number of elements in `v`
+/// @arg     v (:wat::type::Vector :- [T]) the vector probed
+/// @ret     :wat::type::i64 the number of elements in `v`
 /// @example (:wat::vec::length (:wat::core::Vector)) #=> 0
 /// @example (:wat::vec::length (:wat::core::Vector 1 2 3)) #=> 3
 /// @see     :wat::vec::empty?
@@ -86,8 +86,8 @@ pub(crate) fn vector_length(v: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     v (:wat::core::Vector :- [T]) the vector probed
-/// @ret     :wat::core::bool true iff `v` has zero elements
+/// @arg     v (:wat::type::Vector :- [T]) the vector probed
+/// @ret     :wat::type::bool true iff `v` has zero elements
 /// @example (:wat::vec::empty? (:wat::core::Vector)) #=> true
 /// @example (:wat::vec::empty? (:wat::core::Vector 1)) #=> false
 /// @see     :wat::vec::length
@@ -109,9 +109,9 @@ pub(crate) fn vector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     v (:wat::core::Vector :- [T]) the vector probed
+/// @arg     v (:wat::type::Vector :- [T]) the vector probed
 /// @arg     item :T the candidate element
-/// @ret     :wat::core::bool true iff `item` occurs in `v`
+/// @ret     :wat::type::bool true iff `item` occurs in `v`
 /// @example (:wat::vec::contains? (:wat::core::Vector 1 2 3) 2) #=> true
 /// @example (:wat::vec::contains? (:wat::core::Vector 1 2 3) 9) #=> false
 /// @see     :wat::vec::get
@@ -133,8 +133,8 @@ pub(crate) fn vector_contains_q(v: &Value, item: &Value) -> Result<Value, EvalBr
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     v (:wat::core::Vector :- [T]) the vector probed
-/// @arg     i :wat::core::i64 the index looked up
+/// @arg     v (:wat::type::Vector :- [T]) the vector probed
+/// @arg     i :wat::type::i64 the index looked up
 /// @ret     (:wat::core::Option :- [T]) `Some` the element at `i`, or `None` on OOB
 /// @example (:wat::vec::get (:wat::core::Vector 1 2 3) 0) #=> (:wat::core::Option::Some {:value 1})
 /// @example (:wat::vec::get (:wat::core::Vector 1 2 3) 9) #=> :None
@@ -157,9 +157,9 @@ pub(crate) fn vector_get(v: &Value, i: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     v (:wat::core::Vector :- [T]) the vector transformed
+/// @arg     v (:wat::type::Vector :- [T]) the vector transformed
 /// @arg     item :T the element appended
-/// @ret     (:wat::core::Vector :- [T]) `v` with `item` appended
+/// @ret     (:wat::type::Vector :- [T]) `v` with `item` appended
 /// @example (:wat::vec::length (:wat::vec::conj (:wat::core::Vector) 1)) #=> 1
 /// @see     :wat::vec::concat
 #[wat_intrinsic(":wat::vec::conj")]
@@ -183,9 +183,9 @@ pub(crate) fn vector_conj(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     left (:wat::core::Vector :- [T]) the left half
-/// @arg     right (:wat::core::Vector :- [T]) the right half
-/// @ret     (:wat::core::Vector :- [T]) `left` followed by `right`
+/// @arg     left (:wat::type::Vector :- [T]) the left half
+/// @arg     right (:wat::type::Vector :- [T]) the right half
+/// @ret     (:wat::type::Vector :- [T]) `left` followed by `right`
 /// @example (:wat::vec::length (:wat::vec::concat (:wat::core::Vector 1) (:wat::core::Vector 2))) #=> 2
 /// @see     :wat::vec::extend
 #[wat_intrinsic(":wat::vec::concat")]
@@ -206,9 +206,9 @@ pub(crate) fn vector_concat(left: &Value, right: &Value) -> Result<Value, EvalBr
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     to (:wat::core::Vector :- [T]) the receiver; its kind is preserved
-/// @arg     from (:wat::core::Vector :- [T]) the elements appended (a `PersistentVector<T>` is also accepted at check time)
-/// @ret     (:wat::core::Vector :- [T]) `to` with every element of `from` appended
+/// @arg     to (:wat::type::Vector :- [T]) the receiver; its kind is preserved
+/// @arg     from (:wat::type::Vector :- [T]) the elements appended (a `PersistentVector<T>` is also accepted at check time)
+/// @ret     (:wat::type::Vector :- [T]) `to` with every element of `from` appended
 /// @example (:wat::vec::length (:wat::vec::extend (:wat::core::Vector 1) (:wat::core::Vector 2 3))) #=> 3
 /// @see     :wat::vec::concat
 #[wat_intrinsic(":wat::vec::extend")]

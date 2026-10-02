@@ -357,8 +357,8 @@ fn hash_join_produces_one_token_on_same_loc() {
     };
     // 2-condition world: Temperature + WindSpeed (no defrule — raw Rule).
     const JOIN_WORLD: &str = "\
-(:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])\n\
+(:wat::core::defrecord :user::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])\n\
 ";
 
     let world = freeze_src(JOIN_WORLD);
@@ -472,8 +472,8 @@ fn hash_join_drops_on_mismatched_loc() {
         sorted_node_ids,
     };
     const JOIN_WORLD: &str = "\
-(:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])\n\
+(:wat::core::defrecord :user::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])\n\
 ";
 
     let world = freeze_src(JOIN_WORLD);
@@ -548,8 +548,8 @@ fn hash_join_no_cross_loc_leakage() {
         sorted_node_ids,
     };
     const JOIN_WORLD: &str = "\
-(:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])\n\
+(:wat::core::defrecord :user::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])\n\
 ";
 
     let world = freeze_src(JOIN_WORLD);
@@ -645,10 +645,10 @@ fn hash_join_no_cross_loc_leakage() {
 // under `#[cfg(test)]` in the lib, so an integration test compiles against no-ops and cannot
 // stand in for this.
 const D7_ERASURE_WORLD: &str = r#"
-(:wat::core::defrecord :d7c::Box :- [T] [k <- :wat::core::i64  v <- :T])
-(:wat::core::defrecord :d7c::Plain    [k <- :wat::core::i64])
-(:wat::core::defrecord :d7c::Hit      [k <- :wat::core::i64])
-(:wat::core::defrecord :d7c::PlainHit [k <- :wat::core::i64])
+(:wat::core::defrecord :d7c::Box :- [T] [k <- wat.type/i64  v <- :T])
+(:wat::core::defrecord :d7c::Plain    [k <- wat.type/i64])
+(:wat::core::defrecord :d7c::Hit      [k <- wat.type/i64])
+(:wat::core::defrecord :d7c::PlainHit [k <- wat.type/i64])
 
 (:wat::rete::defrule :d7c::r-box
   :when [(:d7c::Box (?k :- :k) (?v :- :v))] :then [(:d7c::Hit ?k)])
@@ -657,14 +657,14 @@ const D7_ERASURE_WORLD: &str = r#"
 
 (:wat::rete::defquery :d7c::q :params [] :when [(?fact :- :d7c::Hit)])
 
-(:wat::core::defn :d7c::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
+(:wat::core::defn :d7c::as-record [r <- wat.type/Record] -> wat.type/Record r)
 
 (:wat::core::defn :d7c::fire
-  [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])] -> :wat::rete::Session
+  [facts <- (wat.type/PersistentVector :- [wat.type/Record])] -> :wat::rete::Session
   (:wat::core::let
     [s0 (:wat::core::match (:wat::rete::compile-all
-           (:wat::core::PersistentVector :- [:wat::rete::Rule] (:d7c::r-box) (:d7c::r-plain))
-           (:wat::core::PersistentVector :- [:wat::rete::Query] (:d7c::q)))
+           (wat.type/PersistentVector :- [:wat::rete::Rule] (:d7c::r-box) (:d7c::r-plain))
+           (wat.type/PersistentVector :- [:wat::rete::Query] (:d7c::q)))
            [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
            [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
              (:wat::kernel::assertion-failed! :message "compile")])
@@ -681,7 +681,7 @@ const D7_ERASURE_WORLD: &str = r#"
 
 ;; Every fact of every class packs: both classes must take the occupancy batch.
 (:wat::core::defn :d7c::all-uniform [] -> :wat::rete::Session
-  (:d7c::fire (:wat::core::PersistentVector :- [:wat::core::Record]
+  (:d7c::fire (wat.type/PersistentVector :- [wat.type/Record]
     (:d7c::as-record (:d7c::Box :k 0 :v 100))
     (:d7c::as-record (:d7c::Box :k 1 :v 150))
     (:d7c::as-record (:d7c::Box :k 2 :v 200))
@@ -691,7 +691,7 @@ const D7_ERASURE_WORLD: &str = r#"
 ;; `Box` is MIXED (one String filler) and must forfeit the batch for all three of its facts;
 ;; `Plain` is untouched and must keep it.
 (:wat::core::defn :d7c::box-mixed [] -> :wat::rete::Session
-  (:d7c::fire (:wat::core::PersistentVector :- [:wat::core::Record]
+  (:d7c::fire (wat.type/PersistentVector :- [wat.type/Record]
     (:d7c::as-record (:d7c::Box :k 0 :v 100))
     (:d7c::as-record (:d7c::Box :k 1 :v "not-an-i64"))
     (:d7c::as-record (:d7c::Box :k 2 :v 200))
@@ -766,9 +766,9 @@ fn seed_batches_uniform_classes_and_defers_mixed_ones() {
 #[test]
 fn seed_leaf_occupancy_differential_predicts_a_mixed_class() {
     const W: &str = "\
-(:wat::core::defrecord :c16::Box :- [T] [k <- :wat::core::i64  v <- :T])\n\
-(:wat::core::defrecord :c16::Hit [k <- :wat::core::i64])\n\
-(:wat::core::defn :c16::as-record [r <- :wat::core::Record] -> :wat::core::Record r)\n\
+(:wat::core::defrecord :c16::Box :- [T] [k <- wat.type/i64  v <- :T])\n\
+(:wat::core::defrecord :c16::Hit [k <- wat.type/i64])\n\
+(:wat::core::defn :c16::as-record [r <- wat.type/Record] -> wat.type/Record r)\n\
 (:wat::rete::defrule :c16::r :when [(:c16::Box (?k :- :k) (?v :- :v))] :then [(:c16::Hit :k ?k)])\n\
 (:wat::rete::defquery :c16::q :params [] :when [(?f :- :c16::Hit)])\n\
 ";

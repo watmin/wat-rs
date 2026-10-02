@@ -464,7 +464,7 @@ fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result
                         // arc 138: no span — Vec element iteration; per-element WatAST span unavailable; use form span
                         return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
-                            expected: "wat::WatAST",
+                            expected: "wat::type::AST",
                             got: Box::new(crate::runtime::ValueSnapshot::of(other))
                         }));
                     }

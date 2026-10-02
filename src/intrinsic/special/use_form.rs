@@ -79,7 +79,7 @@ use std::collections::HashMap;
 /// @Totality Total
 /// @ExpandTime Legal
 /// @syntax (:wat::core::use! <rust-path>)
-/// @ret :wat::core::nil always `Unit` — the declaration's real work (validating and recording the dependency) already happened at the resolve pass; the eval arm ignores its argument
+/// @ret :wat::type::nil always `Unit` — the declaration's real work (validating and recording the dependency) already happened at the resolve pass; the eval arm ignores its argument
 /// @example (:wat::core::use! :rust::cache::Lru) #=> nil
 #[wat_special_form(":wat::core::use!")]
 pub(crate) struct Use;
@@ -115,5 +115,5 @@ pub(crate) fn infer_use_form(
     _fresh: &mut InferCtx,
     _subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
+    CheckResult::ok(TypeExpr::Path(":wat::type::nil".into()))
 }

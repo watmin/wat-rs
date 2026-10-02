@@ -39,8 +39,8 @@ use crate::value::{
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     bs :wat::core::Bytes the bytes to encode
-/// @ret     :wat::core::String the lowercase hex string, two chars per byte, no separators
+/// @arg     bs :wat::type::Bytes the bytes to encode
+/// @ret     :wat::type::String the lowercase hex string, two chars per byte, no separators
 /// @example (:wat::core::Bytes/to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> "ff0010"
 /// @see     :wat::core::Bytes/from-hex
 #[wat_intrinsic(":wat::core::Bytes/to-hex")]
@@ -104,8 +104,8 @@ const NIBBLE: [char; 16] = [
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg        s :wat::core::String the hex-encoded string to decode
-/// @ret        (:wat::core::Option :- [:wat::core::Bytes]) Some(Bytes) on success, None on malformed input
+/// @arg        s :wat::type::String the hex-encoded string to decode
+/// @ret        (:wat::core::Option :- [:wat::type::Bytes]) Some(Bytes) on success, None on malformed input
 /// @example    (:wat::core::Bytes/from-hex "gg") #=> :None
 /// @example-norun (:wat::core::Bytes/from-hex "ff0010") #=> Some(Bytes[255, 0, 16])
 /// @see        :wat::core::Bytes/to-hex

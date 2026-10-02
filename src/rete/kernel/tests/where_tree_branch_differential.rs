@@ -486,7 +486,7 @@ fn stage_row(world: &crate::freeze::FrozenWorld, axis: &UniformAxis, row: i64) -
     // positional-tuple enum match arm shape using `::`, and `assertion-failed!`'s retired
     // positional form), same class fixed at #369. Brought current by hand.
     let src = format!(
-        "(:{ns}::seed (:wat::core::match (:wat::rete::compile-all (:{ns}::{rules_verb} {row}) (:wat::core::PersistentVector :- [:wat::rete::Query] (:{ns}::q-Hit))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __fact-type}} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")]) (:{ns}::items))"
+        "(:{ns}::seed (:wat::core::match (:wat::rete::compile-all (:{ns}::{rules_verb} {row}) (wat.type/PersistentVector :- [:wat::rete::Query] (:{ns}::q-Hit))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __fact-type}} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")]) (:{ns}::items))"
     );
     let ast = crate::parse_one!(src.as_str()).expect("parse the staging driver");
     eval_in_frozen(&ast, world, &Environment::new())

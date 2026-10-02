@@ -49,7 +49,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::macroexpand-1 <form>)
-/// @ret :wat::WatAST `<form>` if it names a registered macro call, expanded ONE step; `<form>` unchanged otherwise
+/// @ret :wat::type::AST `<form>` if it names a registered macro call, expanded ONE step; `<form>` unchanged otherwise
 /// @example-norun (:wat::core::macroexpand-1 (:wat::core::quote (:some::macro-with-a-template-local-binder arg))) #=> the one-step-expanded form, with any template-introduced identifier carrying a freshly-minted `ScopeId` on every call — never guaranteed equal to a prior call's result for the same input
 #[wat_special_form(":wat::core::macroexpand-1")]
 pub(crate) struct MacroexpandOne;

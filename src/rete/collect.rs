@@ -48,8 +48,8 @@ use crate::span::Span;
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
-/// @arg     ns :wat::core::keyword the namespace to reflect (e.g. `:weather`); matches `"{ns}::"` as a prefix, subtree included
-/// @ret     (:wat::core::PersistentVector :- [:wat::rete::Rule]) every discovered rule, sorted by name; empty if none
+/// @arg     ns :wat::type::keyword the namespace to reflect (e.g. `:weather`); matches `"{ns}::"` as a prefix, subtree included
+/// @ret     (:wat::type::PersistentVector :- [:wat::rete::Rule]) every discovered rule, sorted by name; empty if none
 /// @example-norun (:wat::rete::collect-rules :probe::weather)
 #[wat_intrinsic(":wat::rete::collect-rules")]
 pub(crate) fn eval_collect_rules(

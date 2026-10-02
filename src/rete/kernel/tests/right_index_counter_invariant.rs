@@ -83,13 +83,13 @@ use crate::rete::kernel::census::{
 /// `first_keying` is false, step 2 runs, and it appends without touching the mark the maintainer
 /// will read back as `already` in the same round's pass 3.7.
 const D2_WORLD: &str = "\
-(:wat::core::defrecord :d2::A [k <- :wat::core::i64  v <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::B [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::C [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::M [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::D [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::Hit [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::Hit2 [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :d2::A [k <- wat.type/i64  v <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::B [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::C [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::M [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::D [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::Hit [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::Hit2 [k <- wat.type/i64])\n\
 \n\
 (:wat::rete::defrule :d2::derive-a\n\
   :when [(:d2::M (?k :- :k))]\n\
@@ -121,30 +121,30 @@ const D2_WORLD: &str = "\
          (:d2::D (?k :- :k))]\n\
   :then [(:d2::Hit2 ?k)])\n\
 \n\
-(:wat::core::defn :d2::ins-a [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-a [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::A :k k :v (:wat::i64::+ k 1))) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert a: ceiling\")]))\n\
-(:wat::core::defn :d2::ins-b [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-b [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::B k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert b: ceiling\")]))\n\
-(:wat::core::defn :d2::ins-c [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-c [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::C k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert c: ceiling\")]))\n\
-(:wat::core::defn :d2::ins-m [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-m [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::M k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert m: ceiling\")]))\n\
 \n\
-(:wat::core::defn :d2::wave1 [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::wave1 [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
       (:d2::ins-c (:d2::ins-b (:d2::ins-a acc k) k) k))\n\
     s\n\
     (:wat::core::range 0 n)))\n\
 \n\
-(:wat::core::defn :d2::wave2 [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::wave2 [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
       (:d2::ins-m acc k))\n\
     s\n\
     (:wat::core::range n (:wat::i64::* n 2))))\n\
 \n\
-(:wat::core::defn :d2::seed [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::seed [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session\n\
   (:d2::wave2 (:d2::wave1 s n) n))\n\
 ";
 
@@ -153,11 +153,11 @@ const D2_WORLD: &str = "\
 /// Mutation 3's target. `HashJoin(b)` does not exist, so there is no index two writers can meet
 /// on, and the applicability guard below must REFUSE this shape rather than pass green over it.
 const D2_SINGLE_JOIN_WORLD: &str = "\
-(:wat::core::defrecord :d2::A [k <- :wat::core::i64  v <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::B [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::C [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::M [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :d2::Hit [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :d2::A [k <- wat.type/i64  v <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::B [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::C [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::M [k <- wat.type/i64])\n\
+(:wat::core::defrecord :d2::Hit [k <- wat.type/i64])\n\
 \n\
 (:wat::rete::defrule :d2::derive-a\n\
   :when [(:d2::M (?k :- :k))]\n\
@@ -177,30 +177,30 @@ const D2_SINGLE_JOIN_WORLD: &str = "\
          (:d2::B (?k :- :k))]\n\
   :then [(:d2::Hit ?k)])\n\
 \n\
-(:wat::core::defn :d2::ins-a [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-a [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::A :k k :v (:wat::i64::+ k 1))) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert a: ceiling\")]))\n\
-(:wat::core::defn :d2::ins-b [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-b [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::B k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert b: ceiling\")]))\n\
-(:wat::core::defn :d2::ins-c [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-c [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::C k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert c: ceiling\")]))\n\
-(:wat::core::defn :d2::ins-m [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::ins-m [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::match (:wat::rete::insert s (:d2::M k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message \"insert m: ceiling\")]))\n\
 \n\
-(:wat::core::defn :d2::wave1 [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::wave1 [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
       (:d2::ins-c (:d2::ins-b (:d2::ins-a acc k) k) k))\n\
     s\n\
     (:wat::core::range 0 n)))\n\
 \n\
-(:wat::core::defn :d2::wave2 [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::wave2 [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session\n\
       (:d2::ins-m acc k))\n\
     s\n\
     (:wat::core::range n (:wat::i64::* n 2))))\n\
 \n\
-(:wat::core::defn :d2::seed [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session\n\
+(:wat::core::defn :d2::seed [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session\n\
   (:d2::wave2 (:d2::wave1 s n) n))\n\
 ";
 

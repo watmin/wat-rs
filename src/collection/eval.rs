@@ -809,7 +809,7 @@ pub(crate) fn eval_persistentmap_ctor(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::PersistentMap".into(),
+                head: ":wat::type::PersistentMap".into(),
                 reason: format!(
                     "arity must be even (alternating key/value pairs); got {}",
                     args.len()
@@ -824,7 +824,7 @@ pub(crate) fn eval_persistentmap_ctor(
         let v = eval_inner(&pair[1], env, sym)?.value_owned();
         if !value_is_key_hashable(&k) {
             return Err(RuntimeError::new(pair[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::PersistentMap".into(),
+                op: ":wat::type::PersistentMap".into(),
                 expected: "hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
                 got: Box::new(ValueSnapshot::of(&k))
             }).into());
@@ -1738,7 +1738,7 @@ pub(crate) fn eval_vector_ctor(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::Vector".into(),
+                op: ":wat::type::Vector".into(),
                 expected: 1,
                 got: 0,
             },
@@ -1761,7 +1761,7 @@ pub(crate) fn eval_vector_ctor(
                 RuntimeError::new(
                     e.span().clone(),
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::Vector".into(),
+                        head: ":wat::type::Vector".into(),
                         reason: e.to_string(),
                     },
                 )
@@ -1771,7 +1771,7 @@ pub(crate) fn eval_vector_ctor(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::Vector".into(),
+                    head: ":wat::type::Vector".into(),
                     reason: "first argument must be a `(Head :- [T …])` type form".into(),
                 },
             )
@@ -1798,7 +1798,7 @@ pub(crate) fn eval_hashmap_ctor(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::HashMap".into(),
+                op: ":wat::type::HashMap".into(),
                 expected: 2,
                 got: args.len(),
             },
@@ -1819,7 +1819,7 @@ pub(crate) fn eval_hashmap_ctor(
                     RuntimeError::new(
                         e.span().clone(),
                         RuntimeErrorKind::MalformedForm {
-                            head: ":wat::core::HashMap".into(),
+                            head: ":wat::type::HashMap".into(),
                             reason: e.to_string(),
                         },
                     )
@@ -1829,7 +1829,7 @@ pub(crate) fn eval_hashmap_ctor(
                 return Err(RuntimeError::new(
                     node.span().clone(),
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::HashMap".into(),
+                        head: ":wat::type::HashMap".into(),
                         reason: format!(
                             "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); {which} argument is not one"
                         ),
@@ -1844,7 +1844,7 @@ pub(crate) fn eval_hashmap_ctor(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::HashMap".into(),
+                head: ":wat::type::HashMap".into(),
                 reason: format!(
                 "arity after :K :V type args must be even (alternating key/value pairs); got {}",
                 pairs.len()
@@ -1863,7 +1863,7 @@ pub(crate) fn eval_hashmap_ctor(
         let v = eval_inner(&pair[1], env, sym)?.value_owned();
         if !value_is_key_hashable(&k) {
             return Err(RuntimeError::new(pair[0].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::HashMap".into(),
+                op: ":wat::type::HashMap".into(),
                 expected: "hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
                 got: Box::new(ValueSnapshot::of(&k))
             }).into());
@@ -1890,7 +1890,7 @@ pub(crate) fn eval_hashset_ctor(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::HashSet".into(),
+                op: ":wat::type::HashSet".into(),
                 expected: 1,
                 got: 0,
             },
@@ -1911,7 +1911,7 @@ pub(crate) fn eval_hashset_ctor(
                 RuntimeError::new(
                     e.span().clone(),
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::HashSet".into(),
+                        head: ":wat::type::HashSet".into(),
                         reason: e.to_string(),
                     },
                 )
@@ -1921,7 +1921,7 @@ pub(crate) fn eval_hashset_ctor(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::HashSet".into(),
+                    head: ":wat::type::HashSet".into(),
                     reason: "first argument must be a `(Head :- [T …])` type form".into(),
                 },
             )
@@ -1937,7 +1937,7 @@ pub(crate) fn eval_hashset_ctor(
         let v = eval_inner(a, env, sym)?.value_owned();
         if !value_is_set_hashable(&v) {
             return Err(RuntimeError::new(a.span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::HashSet".into(),
+                op: ":wat::type::HashSet".into(),
                 expected: "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
                 got: Box::new(ValueSnapshot::of(&v))
             }).into());
@@ -2246,7 +2246,7 @@ mod arc109_two_iii_ctor_guard_widening {
     #[test]
     fn row3_vector_ctor_keyword_first_arg_unchanged() {
         let (env, sym) = env_sym();
-        let args = vec![kw(":wat::core::i64"), i64_lit(1), i64_lit(2), i64_lit(3)];
+        let args = vec![kw(":wat::type::i64"), i64_lit(1), i64_lit(2), i64_lit(3)];
         let v = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
             .unwrap_or_else(|e| panic!("keyword-typed Vector ctor must still eval: {e:?}"));
         assert_eq!(
@@ -2263,7 +2263,7 @@ mod arc109_two_iii_ctor_guard_widening {
     fn row3_hashset_ctor_keyword_first_arg_unchanged() {
         let (env, sym) = env_sym();
         let args = vec![
-            kw(":wat::core::i64"),
+            kw(":wat::type::i64"),
             i64_lit(1),
             i64_lit(2),
             i64_lit(2),
@@ -2295,7 +2295,7 @@ mod arc109_two_iii_ctor_guard_widening {
                 format!(
                     "{:?}",
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::Vector".into(),
+                        head: ":wat::type::Vector".into(),
                         reason: "first argument must be a `(Head :- [T …])` type form".into()
                     }
                 )
@@ -2316,7 +2316,7 @@ mod arc109_two_iii_ctor_guard_widening {
                 format!(
                     "{:?}",
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::HashSet".into(),
+                        head: ":wat::type::HashSet".into(),
                         reason: "first argument must be a `(Head :- [T …])` type form".into()
                     }
                 )
@@ -2333,9 +2333,9 @@ mod arc109_two_iii_ctor_guard_widening {
     fn row2_vector_ctor_accepts_parametric_form_first_arg() {
         let (env, sym) = env_sym();
         let ty = list(vec![
-            kw(":wat::core::Tuple"),
+            kw(":wat::type::Tuple"),
             kw(":-"),
-            vect(vec![kw(":wat::core::i64"), kw(":wat::core::i64")]),
+            vect(vec![kw(":wat::type::i64"), kw(":wat::type::i64")]),
         ]);
         let args = vec![ty, i64_lit(1), i64_lit(2), i64_lit(3)];
         let v = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
@@ -2350,9 +2350,9 @@ mod arc109_two_iii_ctor_guard_widening {
     fn row2_hashset_ctor_accepts_parametric_form_first_arg() {
         let (env, sym) = env_sym();
         let ty = list(vec![
-            kw(":wat::core::Tuple"),
+            kw(":wat::type::Tuple"),
             kw(":-"),
-            vect(vec![kw(":wat::core::i64"), kw(":wat::core::i64")]),
+            vect(vec![kw(":wat::type::i64"), kw(":wat::type::i64")]),
         ]);
         let args = vec![ty, i64_lit(1), i64_lit(2), i64_lit(3)];
         let v = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
@@ -2406,7 +2406,7 @@ mod arc255_74_deep_runtime_guard {
             type_params: Vec::new(),
             type_param_bounds: vec![],
             param_types: Vec::new(),
-            ret_type: crate::types::TypeExpr::Path(":wat::core::i64".into()),
+            ret_type: crate::types::TypeExpr::Path(":wat::type::i64".into()),
             rest_param: None,
             rest_param_type: None,
             body: FunctionBody::Native,

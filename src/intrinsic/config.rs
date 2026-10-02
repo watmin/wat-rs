@@ -39,7 +39,7 @@ use crate::value::{EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::i64 the program's committed encoding dimension
+/// @ret     :wat::type::i64 the program's committed encoding dimension
 /// @example (:wat::config::dim-count) #=> 10000
 #[wat_intrinsic(":wat::config::dim-count")]
 pub(crate) fn eval_config_dim_count_intrinsic(
@@ -63,7 +63,7 @@ pub(crate) fn eval_config_dim_count_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::i64 the program's committed hologram-slot capacity
+/// @ret     :wat::type::i64 the program's committed hologram-slot capacity
 /// @example (:wat::config::dim-capacity) #=> 100
 #[wat_intrinsic(":wat::config::dim-capacity")]
 pub(crate) fn eval_config_dim_capacity_intrinsic(
@@ -92,7 +92,7 @@ pub(crate) fn eval_config_dim_capacity_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::f64 `1/sqrt(dim-count)` at the program's committed dimension
+/// @ret     :wat::type::f64 `1/sqrt(dim-count)` at the program's committed dimension
 /// @example (:wat::config::noise-floor) #=> 0.01
 #[wat_intrinsic(":wat::config::noise-floor")]
 pub(crate) fn eval_config_noise_floor_intrinsic(
@@ -115,7 +115,7 @@ pub(crate) fn eval_config_noise_floor_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
-/// @ret     :wat::core::i64 the program's committed atom-seeding seed
+/// @ret     :wat::type::i64 the program's committed atom-seeding seed
 /// @example (:wat::config::global-seed) #=> 42
 #[wat_intrinsic(":wat::config::global-seed")]
 pub(crate) fn eval_config_global_seed_intrinsic(

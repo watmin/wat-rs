@@ -47,10 +47,10 @@ use holon::HolonAST;
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     name :wat::core::String the reckoner's name
-/// @arg     dims :wat::core::i64 the raw vector dimension
-/// @arg     recalib :wat::core::i64 the recalibration window
-/// @arg     labels (:wat::core::Vector :- [:wat::holon::HolonAST]) the label HolonASTs
+/// @arg     name :wat::type::String the reckoner's name
+/// @arg     dims :wat::type::i64 the raw vector dimension
+/// @arg     recalib :wat::type::i64 the recalibration window
+/// @arg     labels (:wat::type::Vector :- [:wat::holon::HolonAST]) the label HolonASTs
 /// @ret     :wat::holon::Reckoner a fresh, untrained discrete reckoner
 /// @example-norun (:wat::holon::Reckoner/new-discrete "direction" 4096 100 labels) #=> #wat.holon/Reckoner{}
 #[wat_intrinsic(":wat::holon::Reckoner/new-discrete")]
@@ -130,11 +130,11 @@ pub(crate) fn eval_reckoner_new_discrete(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     name :wat::core::String the reckoner's name
-/// @arg     dims :wat::core::i64 the raw vector dimension
-/// @arg     recalib :wat::core::i64 the recalibration window
-/// @arg     default_value :wat::core::f64 the default scale value
-/// @arg     buckets :wat::core::i64 the bucket count
+/// @arg     name :wat::type::String the reckoner's name
+/// @arg     dims :wat::type::i64 the raw vector dimension
+/// @arg     recalib :wat::type::i64 the recalibration window
+/// @arg     default_value :wat::type::f64 the default scale value
+/// @arg     buckets :wat::type::i64 the bucket count
 /// @ret     :wat::holon::Reckoner a fresh, untrained continuous reckoner
 /// @example-norun (:wat::holon::Reckoner/new-continuous "level" 4096 100 0.0 16) #=> #wat.holon/Reckoner{}
 #[wat_intrinsic(":wat::holon::Reckoner/new-continuous")]
@@ -212,9 +212,9 @@ pub(crate) fn eval_reckoner_new_continuous(
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner mutated
 /// @arg     v :wat::holon::Vector the observed vector
-/// @arg     label_idx :wat::core::i64 the label index observed toward
-/// @arg     weight :wat::core::f64 the observation's weight
-/// @ret     :wat::core::nil always `Unit`
+/// @arg     label_idx :wat::type::i64 the label index observed toward
+/// @arg     weight :wat::type::f64 the observation's weight
+/// @ret     :wat::type::nil always `Unit`
 /// @example-norun (:wat::holon::Reckoner/observe r v 0 1.0) #=> nil
 #[wat_intrinsic(":wat::holon::Reckoner/observe")]
 pub(crate) fn reckoner_observe(
@@ -248,7 +248,7 @@ pub(crate) fn reckoner_observe(
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @arg     v :wat::holon::Vector the vector to score
-/// @ret     (:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::f64])]) (:wat::core::Option :- [:wat::core::i64]) :wat::core::f64 :wat::core::f64]) `(scores, direction, conviction, raw-cos)`
+/// @ret     (:wat::type::Tuple :- [(:wat::type::Vector :- [(:wat::type::Tuple :- [:wat::type::i64 :wat::type::f64])]) (:wat::core::Option :- [:wat::type::i64]) :wat::type::f64 :wat::type::f64]) `(scores, direction, conviction, raw-cos)`
 /// @example (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::Reckoner/predict")]
 pub(crate) fn reckoner_predict(r: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -293,9 +293,9 @@ pub(crate) fn reckoner_predict(r: &Value, v: &Value, span: &Span) -> Result<Valu
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner mutated
-/// @arg     conviction :wat::core::f64 the prediction's conviction
-/// @arg     correct :wat::core::bool whether the prediction was correct
-/// @ret     :wat::core::nil always `Unit`
+/// @arg     conviction :wat::type::f64 the prediction's conviction
+/// @arg     correct :wat::type::bool whether the prediction was correct
+/// @ret     :wat::type::nil always `Unit`
 /// @example-norun (:wat::holon::Reckoner/resolve r 0.8 true) #=> nil
 #[wat_intrinsic(":wat::holon::Reckoner/resolve")]
 pub(crate) fn eval_reckoner_resolve(
@@ -350,7 +350,7 @@ pub(crate) fn eval_reckoner_resolve(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
-/// @ret     (:wat::core::Option :- [(:wat::core::Tuple :- [:wat::core::f64 :wat::core::f64])]) the fitted `(slope, intercept)` curve, or `None`
+/// @ret     (:wat::core::Option :- [(:wat::type::Tuple :- [:wat::type::f64 :wat::type::f64])]) the fitted `(slope, intercept)` curve, or `None`
 /// @example-norun (:wat::holon::Reckoner/curve r) #=> (:wat::core::Option (:wat::core::Tuple 1.2 0.1))
 #[wat_intrinsic(":wat::holon::Reckoner/curve")]
 pub(crate) fn reckoner_curve(r: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -378,7 +378,7 @@ pub(crate) fn reckoner_curve(r: &Value, span: &Span) -> Result<Value, EvalBreak>
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
-/// @ret     (:wat::core::Vector :- [:wat::core::i64]) the label indices `r` tracks
+/// @ret     (:wat::type::Vector :- [:wat::type::i64]) the label indices `r` tracks
 /// @example (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/labels")]
 pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -402,7 +402,7 @@ pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     r :wat::holon::Reckoner the reckoner probed
-/// @ret     :wat::core::i64 the raw vector dimension
+/// @ret     :wat::type::i64 the raw vector dimension
 /// @example (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/dims")]
 pub(crate) fn reckoner_dims(r: &Value, span: &Span) -> Result<Value, EvalBreak> {

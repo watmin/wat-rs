@@ -149,10 +149,10 @@ pub(crate) fn eval_rational_to_f64(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args :wat::core::i64 the i64 to cast; must be in `0..=255`
-/// @ret     :wat::core::u8 `args`, cast to `:wat::core::u8`
+/// @arg     args :wat::type::i64 the i64 to cast; must be in `0..=255`
+/// @ret     :wat::type::u8 `args`, cast to `:wat::type::u8`
 /// @example (:wat::core::u8 255) #=> (:wat::core::u8 255)
-#[wat_intrinsic(":wat::core::u8")]
+#[wat_intrinsic(":wat::type::u8")]
 pub(crate) fn eval_u8_cast(
     args: &[WatAST],
     list_span: &Span,
@@ -163,7 +163,7 @@ pub(crate) fn eval_u8_cast(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::core::u8".into(),
+                op: ":wat::type::u8".into(),
                 expected: 1,
                 got: args.len(),
             },
@@ -178,7 +178,7 @@ pub(crate) fn eval_u8_cast(
                 return Err(RuntimeError::new(
                     arg_span,
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::u8".into(),
+                        head: ":wat::type::u8".into(),
                         reason: format!("value {} out of :u8 range 0..=255", n),
                     },
                 )
@@ -189,7 +189,7 @@ pub(crate) fn eval_u8_cast(
         other => Err(RuntimeError::new(
             arg_span,
             RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::u8".into(),
+                op: ":wat::type::u8".into(),
                 expected: "i64",
                 got: Box::new(ValueSnapshot::of(&other)),
             },

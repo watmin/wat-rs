@@ -188,7 +188,7 @@ pub(crate) fn eval_peer_recv_prime(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Message
-/// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) non-empty, same-tier peers to fan in over
+/// @arg     peers (:wat::type::Vector :- [(:wat::kernel::Peer :- [I O])]) non-empty, same-tier peers to fan in over
 /// @ret     (:wat::spawn::ServiceEvent :- [I O A]) Message[idx,O] / Closed[idx] / Lost[idx,Failure] — `A` is a free, unconstrained tyvar (select' has no self-peer/admin channel, so :Admin can never fire from it)
 /// @example-norun (:wat::kernel::select [peer-a peer-b]) #=> #wat.spawn/ServiceEvent.Message{idx: 0, msg: "hi"}
 // `//` not `///` — maintainer rationale (see `readln'`'s note in `kernel_stdio.rs`).
@@ -231,7 +231,7 @@ pub(crate) fn eval_peer_select_prime(
 /// @Category      Message
 /// @arg     self_peer (:wat::kernel::Peer :- [S A]) the owner/supervisor link (self-peer); `A` (its receive type) becomes the Admin payload type
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the connection listener; inferred permissively, not further constrained
-/// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the connected client peers
+/// @arg     peers (:wat::type::Vector :- [(:wat::kernel::Peer :- [I O])]) the connected client peers
 /// @ret     (:wat::spawn::ServiceEvent :- [I O A]) Admin[A] / Shutdown / Connection[Peer<I,O>] / Message[idx,O] / Closed[idx]
 /// @example-norun (:wat::kernel::poll self listener clients) #=> #wat.spawn/ServiceEvent.Message{idx: 0, msg: "hi"}
 // `//` not `///` — maintainer rationale (see `readln'`'s note in `kernel_stdio.rs`).

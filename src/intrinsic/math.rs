@@ -36,8 +36,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     x :wat::core::f64 the value to take the natural log of
-/// @ret     :wat::core::f64 the natural logarithm of `x`
+/// @arg     x :wat::type::f64 the value to take the natural log of
+/// @ret     :wat::type::f64 the natural logarithm of `x`
 /// @example (:wat::math::ln 1.0) #=> 0.0
 #[wat_intrinsic(":wat::math::ln")]
 pub(crate) fn eval_math_ln_intrinsic(
@@ -62,8 +62,8 @@ pub(crate) fn eval_math_ln_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     x :wat::core::f64 the exponent
-/// @ret     :wat::core::f64 `e` raised to the power `x`
+/// @arg     x :wat::type::f64 the exponent
+/// @ret     :wat::type::f64 `e` raised to the power `x`
 /// @example (:wat::math::exp 0.0) #=> 1.0
 #[wat_intrinsic(":wat::math::exp")]
 pub(crate) fn eval_math_exp_intrinsic(
@@ -88,8 +88,8 @@ pub(crate) fn eval_math_exp_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     x :wat::core::f64 the value to take the square root of
-/// @ret     :wat::core::f64 the non-negative square root of `x`
+/// @arg     x :wat::type::f64 the value to take the square root of
+/// @ret     :wat::type::f64 the non-negative square root of `x`
 /// @example (:wat::math::sqrt 16.0) #=> 4.0
 #[wat_intrinsic(":wat::math::sqrt")]
 pub(crate) fn eval_math_sqrt_intrinsic(
@@ -114,8 +114,8 @@ pub(crate) fn eval_math_sqrt_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     x :wat::core::f64 the angle in radians
-/// @ret     :wat::core::f64 the sine of `x`
+/// @arg     x :wat::type::f64 the angle in radians
+/// @ret     :wat::type::f64 the sine of `x`
 /// @example (:wat::math::sin 0.0) #=> 0.0
 #[wat_intrinsic(":wat::math::sin")]
 pub(crate) fn eval_math_sin_intrinsic(
@@ -140,8 +140,8 @@ pub(crate) fn eval_math_sin_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     x :wat::core::f64 the angle in radians
-/// @ret     :wat::core::f64 the cosine of `x`
+/// @arg     x :wat::type::f64 the angle in radians
+/// @ret     :wat::type::f64 the cosine of `x`
 /// @example (:wat::math::cos 0.0) #=> 1.0
 #[wat_intrinsic(":wat::math::cos")]
 pub(crate) fn eval_math_cos_intrinsic(
@@ -167,7 +167,7 @@ pub(crate) fn eval_math_cos_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @ret     :wat::core::f64 the mathematical constant π
+/// @ret     :wat::type::f64 the mathematical constant π
 /// @example (:wat::math::pi) #=> 3.141592653589793
 #[wat_intrinsic(":wat::math::pi")]
 pub(crate) fn eval_math_pi_intrinsic(span: &Span) -> Result<Value, EvalBreak> {

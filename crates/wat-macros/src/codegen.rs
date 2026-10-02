@@ -529,11 +529,11 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
 
     // Return-type expression.
     let return_ty_ts = match &method.sig.output {
-        ReturnType::Default => quote! { ::wat::types::TypeExpr::Path(":wat::core::nil".into()) },
+        ReturnType::Default => quote! { ::wat::types::TypeExpr::Path(":wat::type::nil".into()) },
         ReturnType::Type(_, ty) => rust_type_to_type_expr_tokens(ty, attr)?,
     };
 
-    let fallback_ty = quote! { ::wat::types::TypeExpr::Path(":wat::core::nil".into()) };
+    let fallback_ty = quote! { ::wat::types::TypeExpr::Path(":wat::type::nil".into()) };
 
     Ok(quote! {
         fn #scheme_ident(
@@ -577,16 +577,16 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
             // Primitives
             match name.as_str() {
                 "i64" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::i64".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::type::i64".into()) })
                 }
                 "f64" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::f64".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::type::f64".into()) })
                 }
                 "bool" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::bool".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::type::bool".into()) })
                 }
                 "String" => {
-                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::String".into()) })
+                    return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::type::String".into()) })
                 }
                 "Value" => {
                     // wat::runtime::Value — treat as a fresh var (the
@@ -618,7 +618,7 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
                             let inner_ts = rust_type_to_type_expr_tokens(inner, attr)?;
                             return Ok(quote! {
                                 ::wat::types::TypeExpr::Parametric {
-                                    head: "wat::core::Vector".into(),
+                                    head: "wat::type::Vector".into(),
                                     args: vec![#inner_ts],
                                 }
                             });
@@ -666,7 +666,7 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
     // the trait-bound limit.
     if let Type::Tuple(tup) = ty {
         if tup.elems.is_empty() {
-            return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::core::nil".into()) });
+            return Ok(quote! { ::wat::types::TypeExpr::Path(":wat::type::nil".into()) });
         }
         let inner: Vec<TokenStream> = tup
             .elems

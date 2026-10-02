@@ -338,10 +338,10 @@ mod waist_proof {
             // minter-pid <- :wat::core::i64
             // name       <- (:wat::core::Vector :- [wat::core::i64])
             fields: vec![
-                ("minter-pid".to_string(), TypeExpr::Path(":wat::core::i64".to_string())),
+                ("minter-pid".to_string(), TypeExpr::Path(":wat::type::i64".to_string())),
                 ("name".to_string(), TypeExpr::Parametric {
-                    head: "wat::core::Vector".to_string(),
-                    args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                    head: "wat::type::Vector".to_string(),
+                    args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
                 }),
             ],
         }))

@@ -110,7 +110,7 @@ pub enum TypeExpr {
 }
 
 /// The one place the bare-parametric-head invariant is written down.
-/// `"wat::core::Vector"` → `":wat::core::Vector"`. Idempotent: input that already
+/// `"wat::type::Vector"` → `":wat::type::Vector"`. Idempotent: input that already
 /// carries the colon is returned unchanged.
 ///
 /// `TypeExpr::Parametric.head` is stored WITHOUT a leading colon — deliberately,
@@ -228,17 +228,22 @@ pub(crate) fn denoted_type_path(p: &str) -> String {
 
 /// The CLOSED set `wat.type/` holds (`FINDING-the-shape-of-a-declared-signature.md`
 /// § "`wat.type/` is closed", the ruling `BRIEF-STONE-255.67` ships under): exactly
-/// these 24 tails are hard primitives with an old `:wat::core::<tail>` home (`AST`'s
-/// home is `:wat::WatAST` instead — see [`canonical_type_key`]). Anything else
-/// spelled `:wat::type::<tail>` is NOT a member — `wat.type/Bogus`, `wat.type/nope` —
-/// and [`canonical_type_key`] must leave a non-member RAW so the existing
+/// these 24 tails are hard primitives. **Stone 255.81 (cutover 4b)** flips their
+/// canonical home from the old `:wat::core::<tail>` key (`AST`'s old home was
+/// `:wat::WatAST`) to `:wat::type::<tail>` (`AST` → `:wat::type::AST`) — see
+/// [`canonical_type_key`]. The old spelling is now REFUSED in a type position
+/// (`src/check.rs`'s hard-primitive retirement arm, keyed off this list, mirrors
+/// the `:wat::core::Uuid`/`Char` retirement arms' shape) rather than silently
+/// canonicalized — a hard cut, not a second spelling. Anything else spelled
+/// `:wat::type::<tail>` is NOT a member — `wat.type/Bogus`, `wat.type/nope` — and
+/// fails plain registry lookup the same as any other unknown name; the
 /// `is_wat_type_spelling`-gated "not a member of wat.type" diagnostic
 /// (`src/types/error.rs`, `TypeErrorKind::UnknownNamedType`'s Display; regression-
-/// guarded by `tests/types/probe_255_1_identity.rs`) can still tell "spelled like a
-/// member, isn't one" apart from "not `wat.type/`-spelled at all" — a blind rewrite
-/// (`type_denotation`'s own contract, unchanged) would launder a bogus tail into a
-/// `:wat::core::Bogus` that never existed anywhere, silently losing that diagnostic.
-const WAT_TYPE_HARD_PRIMITIVES: &[&str] = &[
+/// guarded by `tests/types/probe_255_1_identity.rs`) no longer needs a
+/// membership-aware door to tell "spelled like a member, isn't one" apart from
+/// "not `wat.type/`-spelled at all" — there is no more rewrite that could launder
+/// a bogus tail into an existing key.
+pub(crate) const WAT_TYPE_HARD_PRIMITIVES: &[&str] = &[
     "i64",
     "f64",
     "u8",
@@ -265,33 +270,72 @@ const WAT_TYPE_HARD_PRIMITIVES: &[&str] = &[
     "AST",
 ];
 
+/// The OLD (pre-255.81) canonical key for one of the 24 [`WAT_TYPE_HARD_PRIMITIVES`]
+/// tails — the exact spelling `src/check.rs`'s retirement arm refuses in a type
+/// position. `AST`'s old home was `:wat::WatAST` (never `:wat::core::AST`, which
+/// never existed); every other tail's old home was `:wat::core::<tail>`. Keyed off
+/// the same closed list the retirement arm iterates — not a second hand-list.
+pub(crate) fn hard_primitive_old_key(tail: &str) -> String {
+    if tail == "AST" {
+        ":wat::WatAST".to_string()
+    } else {
+        format!(":wat::core::{tail}")
+    }
+}
+
+/// K1 — a List head may be spelled as a `WatAST::Keyword` FQDN or, pre-normalization
+/// (`normalize_symbol_refs` has not yet run), as a `WatAST::Symbol` (`wat.type/Vector`).
+/// Both denote the same head; this is the ONE place that reads either shape into the
+/// keyword-dialect FQDN string [`constructor_head_key`] expects, via the SAME
+/// `ns_to_wat_path` mapping [`parse_type_node`]'s `Symbol` arm uses — so a raw-AST
+/// consumer that bypasses the checker (rete `lower()`, `is_holon_arg_canonical`) sees
+/// a symbol-spelled type the same way the checker does post-normalization. Stone
+/// 255.81 — the K1 door-bypass class (255.80's SCORE): a Symbol-headed `wat.type/
+/// Vector` never reached these sites' `WatAST::Keyword`-only match.
+pub(crate) fn head_keyword_fqdn(node: &WatAST) -> Option<String> {
+    match node {
+        WatAST::Keyword(k, _) => Some(k.clone()),
+        WatAST::Symbol(ident, _) => {
+            let s = ident.as_str();
+            Some(if s.contains('/') {
+                crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method())
+            } else {
+                format!(":{s}")
+            })
+        }
+        _ => None,
+    }
+}
+
 /// K1 (`AMEND-STONE-255.67-K1-canonicalize-at-parse.md`, builder-ruled 2026-09-28) —
 /// **the one function every entry point calls.** A type spelling is canonicalized
 /// the MOMENT it enters the system — parse, an `extend-type`/`derive` edge or
 /// method key, the member-method rekey, a constructor dispatch key — so that
 /// afterwards no parsed type, registered edge key, method key or constructor
 /// dispatch key carries a second spelling for some later `==` to disagree about.
-/// `wat.type/X` (and the retired `:wat::type::X` keyword) → the OLD canonical key
-/// `:wat::core::X`; `wat.type/AST` → `:wat::WatAST`. Identity for anything else,
-/// including `:wat::type::Infer` ([`denoted_type_path`]'s carve-out — a marker, not
-/// a `wat.type` member) and a `:wat::type::<tail>` outside the 24-name CLOSED set
-/// ([`WAT_TYPE_HARD_PRIMITIVES`]) — unlike [`denoted_type_path`]'s blind
-/// `type_denotation` door (still used, unchanged, at every pre-existing compare-time
-/// site), THIS door is membership-aware, because a non-member must stay raw for the
-/// "not a member of wat.type" diagnostic to still recognize it as `wat.type/`-spelled
-/// (see [`WAT_TYPE_HARD_PRIMITIVES`]'s doc).
 ///
-/// T-door (per the ruling): the internal key this returns is still the OLD
-/// `:wat::core::…` spelling — stone 4 flips what that one key IS, not this fn.
+/// **Stone 255.81 (cutover 4b) flips what this returns.** Before this stone, a
+/// `wat.type/X` member canonicalized FORWARD to the old key `:wat::core::X`
+/// (`wat.type/AST` → `:wat::WatAST`) through the now-deleted `type_denotation`
+/// door; the new spelling `:wat::type::X`/`:wat::type::AST` (whichever dialect
+/// `canonical_identity` produces) IS the key now, so this is identity for EVERY
+/// input, member or not — including `:wat::type::Infer` ([`denoted_type_path`]'s
+/// carve-out — a marker, not a `wat.type` member) and a `:wat::type::<tail>`
+/// outside the 24-name CLOSED set ([`WAT_TYPE_HARD_PRIMITIVES`]). The old
+/// membership-aware branch (route members through `type_denotation`, leave
+/// non-members raw) is GONE: a non-member now stays raw for the same reason
+/// every input does — there is no more rewrite to apply — and the "not a member
+/// of wat.type" diagnostic distinguishes member from non-member by a plain
+/// registry lookup against the real `:wat::type::X` keys, not by this door.
+///
+/// T-door (per the ruling): the internal key this returns is NOW the NEW
+/// `:wat::type::…` spelling — the old `:wat::core::…` spelling for one of the 24
+/// is refused in a type position (`src/check.rs`'s hard-primitive retirement arm,
+/// keyed off [`WAT_TYPE_HARD_PRIMITIVES`]), not canonicalized here.
 pub(crate) fn canonical_type_key(s: &str) -> String {
     let id = crate::edn::render::canonical_identity(s);
     if id == INFER_TYPE_PATH {
         return INFER_TYPE_PATH.to_string();
-    }
-    if let Some(tail) = id.strip_prefix(":wat::type::") {
-        if WAT_TYPE_HARD_PRIMITIVES.contains(&tail) {
-            return crate::edn::render::type_denotation(&id);
-        }
     }
     id
 }
@@ -620,8 +664,8 @@ impl Nature {
     /// Every parsed aggregate registers `:Name <: root_keyword()`.
     pub fn root_keyword(&self) -> &'static str {
         match self {
-            Nature::Struct => ":wat::core::Struct",
-            Nature::Record => ":wat::core::Record",
+            Nature::Struct => ":wat::type::Struct",
+            Nature::Record => ":wat::type::Record",
             Nature::HolonRecord => ":wat::holon::Record",
             Nature::Peer => ":wat::kernel::Peer",
         }
@@ -649,8 +693,8 @@ impl Nature {
     /// Record` spelling this stone's codemod now writes.
     pub fn from_root_keyword(kw: &str) -> Option<Nature> {
         match crate::edn::render::type_denotation(kw).as_str() {
-            ":wat::core::Struct" => Some(Nature::Struct),
-            ":wat::core::Record" => Some(Nature::Record),
+            ":wat::type::Struct" => Some(Nature::Struct),
+            ":wat::type::Record" => Some(Nature::Record),
             ":wat::holon::Record" => Some(Nature::HolonRecord),
             ":wat::kernel::Peer" => Some(Nature::Peer),
             _ => None,
@@ -959,7 +1003,7 @@ pub struct TypeEnv {
     builtin_names: std::collections::HashSet<String>,
     /// Stone S-A — the `typesub` child→parent edge registry.
     /// Maps a child FQDN (e.g. `":wat::holon::Record"`) to the list of its direct
-    /// parent FQDNs (e.g. `[":wat::core::Record"]`). Populated by `register_subtype`;
+    /// parent FQDNs (e.g. `[":wat::type::Record"]`). Populated by `register_subtype`;
     /// walked (transitively) by `is_subtype`. Distinct from `typeunion` membership:
     /// this is the Clojure `derive`/`isa?` axis — an open directional is-a hierarchy.
     subtype_edges: HashMap<String, Vec<String>>,
@@ -1366,7 +1410,7 @@ impl TypeEnv {
                 }
                 // Arc 293 inheritance annihilation — wire subtype edge derived from nature.
                 // parse_aggregate rejected any non-nature-root parent, so root_keyword() always
-                // names a registered builtin. No ":wat::core::Value" skip needed: every parsed
+                // names a registered builtin. No ":wat::type::Value" skip needed: every parsed
                 // aggregate registers :Name <: nature.root_keyword().
                 if let TypeDef::Aggregate(agg) = &def {
                     let root = agg.nature.root_keyword();
@@ -1405,7 +1449,7 @@ impl TypeEnv {
                     let pure = crate::check::is_pure_type(&inner, self);
                     self.types.insert(name.clone(), def);
                     if pure {
-                        return self.register_subtype(&name, ":wat::core::Record", span.clone());
+                        return self.register_subtype(&name, ":wat::type::Record", span.clone());
                     }
                     return Ok(());
                 }
@@ -1490,7 +1534,7 @@ impl TypeEnv {
         // mirroring what `register` does for user-defined aggregates (types.rs:525-532).
         // Without this edge, builtin Record types (e.g. :wat::kernel::Failure after its
         // Nature::Struct → Nature::Record flip) have no entry in `subtype_edges`, so
-        // `is_subtype(":wat::kernel::Failure", ":wat::core::Record")` returns false and
+        // `is_subtype(":wat::kernel::Failure", ":wat::type::Record")` returns false and
         // the accessor param-type check (accessor param = :wat::core::Record for monomorphic
         // Record types) rejects callers passing the concrete type.
         // Guard: skip the edge when the aggregate IS the root (e.g. :wat::core::Struct
@@ -1626,7 +1670,7 @@ impl TypeEnv {
     ) {
         let key = match (&tuple_each, &child) {
             (Some(_), _) => {
-                crate::edn::render::type_denotation(":wat::core::Tuple")
+                crate::edn::render::type_denotation(":wat::type::Tuple")
             }
             (None, TypeExpr::Parametric { head, .. }) => {
                 crate::edn::render::type_denotation(&parametric_head_fqdn(head))
@@ -2023,7 +2067,7 @@ pub(crate) fn generic_edge_matches<'e>(
         TypeExpr::Parametric { head, .. } => {
             crate::edn::render::type_denotation(&parametric_head_fqdn(head))
         }
-        TypeExpr::Tuple(_) => crate::edn::render::type_denotation(":wat::core::Tuple"),
+        TypeExpr::Tuple(_) => crate::edn::render::type_denotation(":wat::type::Tuple"),
         _ => return Vec::new(),
     };
     let Some(edges) = env.generic_edges.get(&key) else {
@@ -2080,7 +2124,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is `Some`.
     env.register_builtin(TypeDef::Aggregate(AggregateDef {
         nature: Nature::Struct,
-        name: ":wat::core::Struct".into(),
+        // Stone 255.81 — Struct is one of the 24 WAT_TYPE_HARD_PRIMITIVES; its key is
+        // now `:wat::type::Struct` (old home `:wat::core::Struct` retired, refused).
+        name: ":wat::type::Struct".into(),
         type_params: vec![],
         fields: vec![],
         restrictions: None,
@@ -2185,7 +2231,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // ⛔ ARC 296 K — GENERATED FROM WAT. The AliasDef literal is DELETED; this
     // row is now emitted from `(:wat::core::typealias :wat::core::Bytes …)`
     // in `wat/core.wat`.
-    ::wat_source_derive::wat_alias_register_from!(env, "wat/core.wat", ":wat::core::Bytes");
+    ::wat_source_derive::wat_alias_register_from!(env, "wat/core.wat", ":wat::type::Bytes");
 
     // :wat::core::nil is a builtin leaf, registered with the other leaves
     // below. A tuple type has at least one slot. `:()` does not parse.
@@ -3364,7 +3410,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // type; `::` verbs operate at the type tier (Record::of, Record::def,
     // Record::is?); `/` methods operate on instances (Record/field-at,
     // Record/to-map). Registered as opaque zero-field struct so the TypeEnv
-    // contains the path and `env.types().get(":wat::core::Record")` resolves
+    // contains the path and `env.types().get(":wat::type::Record")` resolves
     // cleanly. Per-class types (`:myapp::Voltage` as `:wat::core::Record` aliases)
     // ship in Stone 234.2b when the defrecord macro lands.
     // ⛔ ARC 296 — nature CORRECTED from `Struct` to `Record` (2026-08-15).
@@ -3397,7 +3443,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // this literal iff `Nature::from_root_keyword(name)` is `Some`.
     env.register_builtin(TypeDef::Aggregate(AggregateDef {
         nature: Nature::Record,
-        name: ":wat::core::Record".into(),
+        // Stone 255.81 — Record is one of the 24 WAT_TYPE_HARD_PRIMITIVES; its key is
+        // now `:wat::type::Record` (old home `:wat::core::Record` retired, refused).
+        name: ":wat::type::Record".into(),
         type_params: vec![],
         fields: vec![],
         restrictions: None,
@@ -3437,7 +3485,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // built-in root hierarchy seed — no source form exists; unreachable cycle path (two distinct roots).
     env.register_subtype(
         ":wat::holon::Record",
-        ":wat::core::Record",
+        ":wat::type::Record",
         crate::rust_caller_span!(),
     )
     .expect("built-in typesub root cannot cycle");
@@ -3541,7 +3589,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `known_builtin_leaf_types`), but every name below was RE-VERIFIED
     // against this tree's own corpus (`grep -rn <name> --include=*.wat .`,
     // excluding `target/`) before being registered — each citation is one
-    // real occurrence, not the full count. `:wat::core::Never` is the one
+    // real occurrence, not the full count. `:wat::type::Never` is the one
     // name from that evidence list that did NOT clear this bar (see the
     // rider's report) and is deliberately NOT registered here.
     for name in [
@@ -3549,23 +3597,24 @@ fn register_builtin_types(env: &mut TypeEnv) {
         // BigIntLit, keyword); e.g. `wat/core.wat:90` `[x <- :wat::core::bigint] ->
         // :wat::core::bigint`, `wat/core.wat:118` (`rational`),
         // `wat-scripts/scratch-pad/probe-timer-as-peer.wat:44` `-> :wat::core::keyword`.
-        ":wat::core::bigint",
-        ":wat::core::rational",
-        ":wat::core::keyword",
+        // Stone 255.81 — these 6 are hard primitives; their key is now `:wat::type::<tail>`.
+        ":wat::type::bigint",
+        ":wat::type::rational",
+        ":wat::type::keyword",
         // AST leaves — `wat-tests/holon/Reject.wat:31` (`HolonAST` param+return),
-        // `tests/resolve/probe_arc251_decl_migrator.wat:4` `[kw <- :wat::WatAST] -> :wat::WatAST`.
+        // `tests/resolve/probe_arc251_decl_migrator.wat:4` `[kw <- wat.type/AST] -> wat.type/AST`.
         ":wat::holon::HolonAST",
-        ":wat::WatAST",
-        // sentinels — `:wat::core::Value` is the universal top, genuinely used
+        ":wat::type::AST",
+        // sentinels — `:wat::type::Value` is the universal top, genuinely used
         // as a declared type: `tests/types/probe_arc278_value_universal_top_widen.wat:4`
-        // `(:wat::core::defrecord :my::Box [slot <- :wat::core::Value])`,
-        // `tests/collection/probe_map_container.wat:68` `-> (:wat::core::Option :wat::core::Value)`.
-        // `:wat::core::Never` is EXCLUDED — see the header note above.
-        ":wat::core::Value",
+        // `(:wat::core::defrecord :my::Box [slot <- wat.type/Value])`,
+        // `tests/collection/probe_map_container.wat:68` `-> (:wat::core::Option wat.type/Value)`.
+        // `:wat::type::Never` is EXCLUDED — see the header note above.
+        ":wat::type::Value",
         // container — no bare-legacy pairing to derive from; `wat/seq.wat:240`
-        // `coll <- (:wat::core::List :- [T])`, `wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat:17`
-        // `-> (:wat::core::List :- [:wat::core::i64])`.
-        ":wat::core::List",
+        // `coll <- (wat.type/List :- [T])`, `wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat:17`
+        // `-> (wat.type/List :- [wat.type/i64])`.
+        ":wat::type::List",
         // opaques — `wat/telemetry.wat:77` `uuid <- wat.uuid/UUID` (arc 255.77 moved the
         // type's key home from `:wat::core::Uuid` to `:wat::uuid::UUID`);
         // `wat/cache.wat:273` `[hologram <- :wat::holon::Hologram`;
@@ -3615,7 +3664,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }
     // 255.57 — `nil` is a leaf path. Denotation makes `wat.type/nil` a
     // member once `:wat::core::nil` is.
-    env.register_builtin_leaf(":wat::core::nil");
+    env.register_builtin_leaf(":wat::type::nil");
 }
 
 /// Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
@@ -3658,28 +3707,28 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
     // (`AssertionFailed`, `MacroAbort`) has it stripped by `error_edn()`'s
     // floor-dedup, so it is NOT re-declared as a coordinate field.
     let s = |p: &str| TypeExpr::Path(p.to_string());
-    let string = || s(":wat::core::String");
-    let i64t = || s(":wat::core::i64");
+    let string = || s(":wat::type::String");
+    let i64t = || s(":wat::type::i64");
     let span = || s(":wat::core::Span");
     let opt_string = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
-        args: vec![TypeExpr::Path(":wat::core::String".into())],
+        args: vec![TypeExpr::Path(":wat::type::String".into())],
     };
     let vec_string = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::core::String".into())],
+        head: "wat::type::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::type::String".into())],
     };
     let floor = || -> Vec<(String, TypeExpr)> {
         vec![
             (
                 "message".into(),
-                TypeExpr::Path(":wat::core::String".into()),
+                TypeExpr::Path(":wat::type::String".into()),
             ),
             ("location".into(), TypeExpr::Path(":wat::core::Span".into())),
             (
                 "causes".into(),
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::type::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::core::Error".into())],
                 },
             ),
@@ -3889,14 +3938,14 @@ fn synthesize_surface_protocol(
     // Arc 278 #16 Stone 16.1c — the required shape of the ruling-A `RequestTooLarge` variant:
     // exactly `[bytes <- :wat::core::i64  cap <- :wat::core::i64]` (matched against each
     // serviceable op-Response enum below). `:wat::core::i64` is how the parser represents an
-    // i64 field type (see `TypeExpr::Path(":wat::core::i64")` throughout, e.g. wat/query.wat).
+    // i64 field type (see `TypeExpr::Path(":wat::type::i64")` throughout, e.g. wat/query.wat).
     const RTL_VARIANT: &str = "RequestTooLarge";
     let rtl_fields: Vec<(String, TypeExpr)> = vec![
         (
             "bytes".to_string(),
-            TypeExpr::Path(":wat::core::i64".into()),
+            TypeExpr::Path(":wat::type::i64".into()),
         ),
-        ("cap".to_string(), TypeExpr::Path(":wat::core::i64".into())),
+        ("cap".to_string(), TypeExpr::Path(":wat::type::i64".into())),
     ];
     // Arc 278 Stone 2 (ANNIHILATE the knob) — the SHAPE sibling of the size variant, and now
     // under the identical lock. Stone 1 built the request-shape guard and defaulted it OFF
@@ -3933,17 +3982,17 @@ fn synthesize_surface_protocol(
         (
             "path".to_string(),
             TypeExpr::Parametric {
-                head: "wat::core::Vector".to_string(),
-                args: vec![TypeExpr::Path(":wat::core::String".to_string())],
+                head: "wat::type::Vector".to_string(),
+                args: vec![TypeExpr::Path(":wat::type::String".to_string())],
             },
         ),
         (
             "expected".to_string(),
-            TypeExpr::Path(":wat::core::String".into()),
+            TypeExpr::Path(":wat::type::String".into()),
         ),
         (
             "got".to_string(),
-            TypeExpr::Path(":wat::core::String".into()),
+            TypeExpr::Path(":wat::type::String".into()),
         ),
     ];
     // Ruling A binds SERVICEABLE ops — the wire ops of a service. Only a `:nature
@@ -4387,10 +4436,10 @@ fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: S
     // constructs raw AST, never source text, so there is no string to re-spell).
     let vec_watast_ty = WatAST::List(
         vec![
-            WatAST::Keyword(":wat::core::Vector".into(), span.clone()),
+            WatAST::Keyword(":wat::type::Vector".into(), span.clone()),
             WatAST::Keyword(":-".into(), span.clone()),
             WatAST::Vector(
-                vec![WatAST::Keyword(":wat::WatAST".into(), span.clone())],
+                vec![WatAST::Keyword(":wat::type::AST".into(), span.clone())],
                 span.clone(),
             ),
         ],
@@ -5856,7 +5905,7 @@ fn parse_structtype(
     }
     // Inject :wat::core::Struct as the parent, AFTER the name (and its binder, if any).
     new_args.push(WatAST::Keyword(
-        ":wat::core::Struct".to_string(),
+        ":wat::type::Struct".to_string(),
         crate::rust_caller_span!(),
     ));
     // Remaining args (optional metadata + fields).
@@ -6181,7 +6230,7 @@ fn is_tuple_type_head(node: &WatAST) -> bool {
         }
         _ => return false,
     };
-    crate::edn::render::type_denotation(&raw) == ":wat::core::Tuple"
+    crate::edn::render::type_denotation(&raw) == ":wat::type::Tuple"
 }
 
 /// `:..` anywhere in a target, or in a child that is not `(Tuple :- [Name :..])`.
@@ -6566,9 +6615,9 @@ pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, Type
 
 /// Arc 109 Stone ②-i-b — span-carrying, NON-canonicalizing sibling of
 /// [`parse_type_expr_with_span`]. Byte-identical except `canonicalize=false`:
-/// preserves the source spelling — `:wat::core::nil` stays `Path(":wat::core::nil")`
+/// preserves the source spelling — `:wat::core::nil` stays `Path(":wat::type::nil")`
 /// (`parse_type_inner` no longer rewrites it; the old `canonicalize &&
-/// raw_path == ":wat::core::nil"` arm below), so the renderer can round-trip what
+/// raw_path == ":wat::type::nil"` arm below), so the renderer can round-trip what
 /// the user actually wrote instead of a type it already lost. Still calls
 /// `reject_any` — the `:Any` ban applies on every path, canonicalizing or not.
 ///
@@ -6605,7 +6654,7 @@ pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<Typ
 ///   arriving **pre-normalization** (before `normalize_symbol_refs` has run).
 ///   Converted to the keyword FQDN (`:wat::type::X`) then parsed; the
 ///   `wat::type::` → `wat::core::` alias in `parse_type_inner` applies on
-///   the canonicalize path, so `wat.type/i64` → `Path(":wat::core::i64")`.
+///   the canonicalize path, so `wat.type/i64` → `Path(":wat::type::i64")`.
 /// - `WatAST::List(_, _)` — a parametric-type FORM `(CTOR arg…)` such as
 ///   `(wat.type/Vector wat.type/i64)`. Delegates to `parse_type_form`.
 ///
@@ -6696,14 +6745,14 @@ fn parse_fn_type_bracket(items: &[WatAST], span: &Span) -> Result<TypeExpr, Type
 /// Produces the SAME `Parametric { head, args }` storage the `<>` keyword surface
 /// produces, so the type-checker unification is unchanged. The CTOR head may be:
 ///
-/// - `WatAST::Symbol("wat.type/Vector")` — pre-normalize; converted to `"wat::core::Vector"`.
+/// - `WatAST::Symbol("wat.type/Vector")` — pre-normalize; converted to `"wat::type::Vector"`.
 /// - `WatAST::Keyword(":wat::type::Vector")` — post-normalize; same result.
-/// - `WatAST::Keyword(":wat::core::Vector")` — already canonical.
+/// - `WatAST::Keyword(":wat::type::Vector")` — already canonical.
 ///
 /// Each arg is parsed recursively via [`parse_type_node`] (atom → `Path`; nested form → recurse).
 ///
 /// HEAD storage convention (mirrors `parse_type_inner`'s `<>` arm, line ~2340):
-/// `raw_head` is the path WITHOUT a leading colon, e.g. `"wat::core::Vector"`.
+/// `raw_head` is the path WITHOUT a leading colon, e.g. `"wat::type::Vector"`.
 /// The `wat::type::` → `wat::core::` alias is applied on the canonicalize path
 /// to maintain the dual-read invariant through the 251.5 hard-cut.
 pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
@@ -6869,7 +6918,7 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // 0-tuple. This is the faithful-Clojure spelling of the legacy `:(A,B)` keyword tuple
     // (both produce the SAME `TypeExpr::Tuple`, so they unify identically).
     let denoted_head = crate::edn::render::type_denotation(&format!(":{raw_head}"));
-    let result = if denoted_head == ":wat::core::Tuple" {
+    let result = if denoted_head == ":wat::type::Tuple" {
         if args.is_empty() {
             return Err(TypeError::new(
                 span.clone(),
@@ -6902,7 +6951,7 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
 /// canonicalizing bare primitives to their internal-form path.
 /// Source spelling is preserved in the resulting [`TypeExpr`]:
 /// bare `:i64` produces `Path(":i64")`; FQDN `:wat::core::i64`
-/// produces `Path(":wat::core::i64")`. The walker that audits for
+/// produces `Path(":wat::type::i64")`. The walker that audits for
 /// retired bare primitives consumes this faithful structure.
 ///
 /// Returns `None` for non-type keywords (callee paths, value
@@ -7050,7 +7099,7 @@ fn parse_type_inner(
     // reduce to the internal empty-tuple form so unify sees it as
     // identical to the legacy `:()` spelling and to validators
     // (e.g. user::main return-type check) that compare against
-    // `TypeExpr::Path(":wat::core::nil".into())`. The retired `:wat::core::unit`
+    // `TypeExpr::Path(":wat::type::nil".into())`. The retired `:wat::core::unit`
     // FQDN spelling was supported during the migration window via
     // `BareLegacyUnitName` walker scaffolding; both the typealias
     // and the walker firing path retired at arc 153 slice 2 per
@@ -7070,7 +7119,7 @@ fn parse_type_inner(
     // K1 (AMEND-STONE-255.67, `canonical_type_key`) — canonicalize EVERY
     // `wat.type/`/`:wat::type::` atom here, at parse, not just `nil`. Before
     // this fix only the `nil` return type was special-cased (`denoted ==
-    // ":wat::core::nil"` below); every other converted hard primitive
+    // ":wat::type::nil"` below); every other converted hard primitive
     // (`wat.type/i64`, `wat.type/String`, …) fell through to the last line
     // and stored the RAW `:wat::type::…` path — a second spelling every
     // downstream `==`-shaped comparison had to remember to denote (and
@@ -7621,16 +7670,16 @@ pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
     // fall-through `unify(Value, T)` fails. No registration: Value is recognized as an opaque
     // Path already; a TypeDef::Struct would wrongly synthesize a constructor (Value is
     // un-constructible). Naming the top of the lattice the directional `assignable` already built.
-    if sup == ":wat::core::Value" {
+    if sup == ":wat::type::Value" {
         return true;
     }
-    // Arc 278 Stone 2 — :wat::core::Never is the universal subtype-BOTTOM: Never <: every type
+    // Arc 278 Stone 2 — :wat::type::Never is the universal subtype-BOTTOM: Never <: every type
     // (the exact DUAL of Value's top). DOWN is free (this rule); UP stays checked — nothing is
     // <: Never except Never itself (reflexive, above). Uninhabited: it is the honest send-type of
     // a timer peer (`after` → `(Peer' :- [Never O])`), which never sends, so `send'`-to-a-timer is a
     // compile error (the wrong thing has no form). No registration: like Value, Never is an opaque
     // Path; a TypeDef::Struct would wrongly synthesize a constructor (Never is un-constructible).
-    if sub == ":wat::core::Never" {
+    if sub == ":wat::type::Never" {
         return true;
     }
     let mut visited = std::collections::HashSet::new();
@@ -7737,10 +7786,10 @@ mod tests {
     #[test]
     fn a_minted_declaration_name_without_angles_is_accepted() {
         let span = crate::span::Span::new(std::sync::Arc::new("<test>".to_string()), 0, 0);
-        let minted = WatAST::Keyword(":wat::core::Vector".to_string(), span.clone());
+        let minted = WatAST::Keyword(":wat::type::Vector".to_string(), span.clone());
         let (name, params) = parse_declared_name(":wat::core::defrecord", &minted, &span)
             .expect("an ordinary minted declaration name must be ACCEPTED");
-        assert_eq!(name, ":wat::core::Vector");
+        assert_eq!(name, ":wat::type::Vector");
         assert!(params.is_empty(), "no binder was present; got {params:?}");
     }
     use super::*;
@@ -7762,14 +7811,14 @@ mod tests {
     fn parametric_head_fqdn_is_idempotent_and_prepends_exactly_once() {
         // the ordinary case: a bare parametric head gains its colon
         assert_eq!(
-            parametric_head_fqdn("wat::core::Vector"),
-            ":wat::core::Vector"
+            parametric_head_fqdn("wat::type::Vector"),
+            ":wat::type::Vector"
         );
         // ★ the case the deleted defensive branches existed for: already prefixed,
         //   returned UNCHANGED — never `"::wat::core::Vector"`
         assert_eq!(
-            parametric_head_fqdn(":wat::core::Vector"),
-            ":wat::core::Vector"
+            parametric_head_fqdn(":wat::type::Vector"),
+            ":wat::type::Vector"
         );
         // applying it twice is applying it once
         let once = parametric_head_fqdn("wat::kernel::Peer");
@@ -7778,23 +7827,23 @@ mod tests {
         // and the two doors agree — `base_fqdn`'s Parametric arm must route through the
         // same implementation, not re-hand-roll the prepend.
         let parametric = TypeExpr::Parametric {
-            head: "wat::core::Vector".to_string(),
-            args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+            head: "wat::type::Vector".to_string(),
+            args: vec![TypeExpr::Path(":wat::type::i64".to_string())],
         };
         assert_eq!(
             parametric.base_fqdn().as_deref(),
-            Some(":wat::core::Vector")
+            Some(":wat::type::Vector")
         );
         // a Path already carries its colon and must not gain a second one
         assert_eq!(
-            TypeExpr::Path(":wat::core::i64".to_string())
+            TypeExpr::Path(":wat::type::i64".to_string())
                 .base_fqdn()
                 .as_deref(),
-            Some(":wat::core::i64"),
+            Some(":wat::type::i64"),
         );
         // variants with no nameable head say so rather than fabricating one
         assert_eq!(
-            TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into())]).base_fqdn(),
+            TypeExpr::Tuple(vec![TypeExpr::Path(":wat::type::i64".into())]).base_fqdn(),
             None
         );
     }
@@ -7931,7 +7980,7 @@ mod tests {
         // `fn(...)->...` and the native tuple `:(...)`. The angle-bracket cases this
         // used to assert as legal are covered (as REFUSALS) by
         // `angle_bracket_parametric_head_is_illegal` below.
-        for input in &[":fn(i64)->bool", ":(wat::core::i64,wat::core::String)"] {
+        for input in &[":fn(i64)->bool", ":(wat.type/i64,wat.type/String)"] {
             let r = parse_type_expr(input);
             assert!(r.is_ok(), "expected {} to parse; got: {:?}", input, r);
         }
@@ -7994,13 +8043,16 @@ mod tests {
         let (env, _) = collect("(:wat::core::extend-type wat.type/i64 wat.type/Record)")
             .expect("extend-type with a wat.type/ symbol child registers");
         assert!(
-            is_subtype(":wat::core::i64", ":wat::core::Record", &env),
-            "the edge must be visible under the denoted key :wat::core::i64"
+            // Stone 255.81 — the denoted key for both IS the new spelling now
+            // (`canonical_type_key` is identity on `:wat::type::X`); no more rewrite to
+            // the old `:wat::core::X` home.
+            is_subtype(":wat::type::i64", ":wat::type::Record", &env),
+            "the edge must be visible under the denoted key :wat::type::i64"
         );
         // The colon spelling registers the identical edge — both spellings, one key.
         let (env2, _) = collect("(:wat::core::extend-type wat.type/i64 wat.type/Record)")
             .expect("extend-type with the colon spelling registers");
-        assert!(is_subtype(":wat::core::i64", ":wat::core::Record", &env2));
+        assert!(is_subtype(":wat::type::i64", ":wat::type::Record", &env2));
     }
 
     // ─── Struct ─────────────────────────────────────────────────────────
@@ -8034,7 +8086,7 @@ mod tests {
                 assert!(a.type_params.is_empty());
                 assert_eq!(a.fields.len(), 4);
                 assert_eq!(a.fields[0].0, "open");
-                assert_eq!(a.fields[0].1, TypeExpr::Path(":wat::core::f64".into()));
+                assert_eq!(a.fields[0].1, TypeExpr::Path(":wat::type::f64".into()));
             }
             _ => panic!("expected Aggregate"),
         }
@@ -8192,9 +8244,9 @@ mod tests {
     #[test]
     fn simple_newtype() {
         let (env, _) =
-            collect(r#"(:wat::core::newtype :my::trading::Price :wat::core::f64)"#).unwrap();
+            collect(r#"(:wat::core::newtype :my::trading::Price wat.type/f64)"#).unwrap();
         if let TypeDef::Newtype(n) = env.get(":my::trading::Price").unwrap() {
-            assert_eq!(n.inner, TypeExpr::Path(":wat::core::f64".into()));
+            assert_eq!(n.inner, TypeExpr::Path(":wat::type::f64".into()));
         } else {
             panic!();
         }
@@ -8218,7 +8270,7 @@ mod tests {
     fn simple_typealias() {
         let (env, _) = collect(r#"(:wat::core::typealias :my::Amount wat.type/f64)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Amount").unwrap() {
-            assert_eq!(a.expr, TypeExpr::Path(":wat::core::f64".into()));
+            assert_eq!(a.expr, TypeExpr::Path(":wat::type::f64".into()));
         } else {
             panic!();
         }
@@ -8236,7 +8288,7 @@ mod tests {
             assert_eq!(
                 a.expr,
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::type::Vector".into(),
                     args: vec![TypeExpr::Path(":T".into())]
                 }
             );
@@ -8277,10 +8329,10 @@ mod tests {
         if let TypeDef::Alias(a) = env.get(":my::Scores").unwrap() {
             match &a.expr {
                 TypeExpr::Parametric { head, args } => {
-                    assert_eq!(head, "wat::core::HashMap");
+                    assert_eq!(head, "wat::type::HashMap");
                     assert_eq!(args.len(), 2);
                     assert_eq!(args[0], TypeExpr::Path(":Atom".into()));
-                    assert_eq!(args[1], TypeExpr::Path(":wat::core::f64".into()));
+                    assert_eq!(args[1], TypeExpr::Path(":wat::type::f64".into()));
                 }
                 other => panic!("expected Parametric, got {:?}", other),
             }
@@ -8451,8 +8503,8 @@ mod tests {
     #[test]
     fn type_expr_path() {
         assert_eq!(
-            parse_type_expr(":wat::core::f64").unwrap(),
-            TypeExpr::Path(":wat::core::f64".into())
+            parse_type_expr(":wat::type::f64").unwrap(),
+            TypeExpr::Path(":wat::type::f64".into())
         );
         assert_eq!(
             parse_type_expr(":my::ns::MyType").unwrap(),
@@ -8471,7 +8523,7 @@ mod tests {
         assert_eq!(
             parse_type_node(&form).unwrap(),
             TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Path(":T".into())]
             }
         );
@@ -8487,7 +8539,7 @@ mod tests {
         let t = parse_type_node(&form).unwrap();
         match t {
             TypeExpr::Parametric { head, args } => {
-                assert_eq!(head, "wat::core::HashMap");
+                assert_eq!(head, "wat::type::HashMap");
                 assert_eq!(args.len(), 2);
                 match &args[1] {
                     TypeExpr::Fn { args: fn_args, ret } => {
@@ -8533,12 +8585,12 @@ mod tests {
 
     #[test]
     fn type_expr_tuple_pair() {
-        let t = parse_type_expr(":(wat::core::i64,wat::core::String)").unwrap();
+        let t = parse_type_expr(":(wat.type/i64,wat.type/String)").unwrap();
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 2);
-                assert_eq!(elements[0], TypeExpr::Path(":wat::core::i64".into()));
-                assert_eq!(elements[1], TypeExpr::Path(":wat::core::String".into()));
+                assert_eq!(elements[0], TypeExpr::Path(":wat::type::i64".into()));
+                assert_eq!(elements[1], TypeExpr::Path(":wat::type::String".into()));
             }
             other => panic!("expected Tuple(i64,String), got {:?}", other),
         }
@@ -8556,18 +8608,18 @@ mod tests {
     #[test]
     fn type_expr_tuple_one_element_is_grouping() {
         // :(T) is Rust grouping — flattens to T (not a 1-tuple).
-        let t = parse_type_expr(":(wat::core::i64)").unwrap();
-        assert_eq!(t, TypeExpr::Path(":wat::core::i64".into()));
+        let t = parse_type_expr(":(wat.type/i64)").unwrap();
+        assert_eq!(t, TypeExpr::Path(":wat::type::i64".into()));
     }
 
     #[test]
     fn type_expr_tuple_one_element_trailing_comma_is_tuple() {
         // :(T,) is the explicit 1-tuple.
-        let t = parse_type_expr(":(wat::core::i64,)").unwrap();
+        let t = parse_type_expr(":(wat.type/i64,)").unwrap();
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 1);
-                assert_eq!(elements[0], TypeExpr::Path(":wat::core::i64".into()));
+                assert_eq!(elements[0], TypeExpr::Path(":wat::type::i64".into()));
             }
             other => panic!("expected 1-tuple, got {:?}", other),
         }
@@ -8636,6 +8688,13 @@ mod tests {
                 match &elements[0] {
                     TypeExpr::Fn { args, ret } => {
                         assert_eq!(args.len(), 1);
+                        // Arc 255.81 — the input literal above stays the RETIRED
+                        // `:wat::core::Fn(args)->ret` keyword-body spelling, at the builder's
+                        // explicit instruction (it becomes the bracket form by its own codemod
+                        // in its own later stone, not an ad-hoc respelling here). With
+                        // `canonical_type_key` now pure identity, an old-spelled bare path
+                        // inside it parses to an old-spelled `Path`, unchanged — not the new
+                        // `:wat::type::i64` key.
                         assert_eq!(args[0], TypeExpr::Path(":wat::core::i64".into()));
                         assert_eq!(**ret, TypeExpr::Path(":wat::core::i64".into()));
                     }
@@ -8712,7 +8771,7 @@ mod tests {
                 assert!(a.type_params.is_empty(), "non-parametric alias");
                 match &a.expr {
                     TypeExpr::Parametric { head, args } => {
-                        assert_eq!(head, "wat::core::Vector");
+                        assert_eq!(head, "wat::type::Vector");
                         assert_eq!(args.len(), 1);
                         assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
                     }
@@ -8730,7 +8789,7 @@ mod tests {
         let expanded = expand_alias(&alias_ref, &env);
         match expanded {
             TypeExpr::Parametric { head, args } => {
-                assert_eq!(head, "wat::core::Vector");
+                assert_eq!(head, "wat::type::Vector");
                 assert_eq!(args.len(), 1);
                 assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
@@ -8803,9 +8862,9 @@ mod tests {
         // resolved to Aggregate at synthesize time (only then does the record branch fire).
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Bad::FooRequest :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Bad::FooRequest wat.type/Record
                                 [x <- wat.type/String])
-                             (:wat::core::recordtype :t::Bad::FooResponse :wat::core::Record
+                             (:wat::core::recordtype :t::Bad::FooResponse wat.type/Record
                                 [ok <- wat.type/String])]
                   :features [(foo [self <- :t::Bad  req <- :t::Bad::FooRequest]
                                -> :t::Bad::FooResponse :max-request-bytes 524288)])"#,
@@ -8830,7 +8889,7 @@ mod tests {
         // error. Also confirms STOP-1: env.get(ret) resolved to Enum at synthesize time.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad2 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Bad2::FooRequest :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Bad2::FooRequest wat.type/Record
                                 [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- wat.type/String])]
@@ -8857,7 +8916,7 @@ mod tests {
         // NOT well-shaped → located ruling-A error. Locks the field-shape, not just the name.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad3 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Bad3::FooRequest :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Bad3::FooRequest wat.type/Record
                                 [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad3::FooResponse :wat::enum::Pure
                                 :Ok [reply <- wat.type/String]
@@ -8889,7 +8948,7 @@ mod tests {
         // the generated code referencing a variant that does not exist.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad4 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Bad4::FooRequest :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Bad4::FooRequest wat.type/Record
                                 [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad4::FooResponse :wat::enum::Pure
                                 :Ok [reply <- wat.type/String]
@@ -8919,7 +8978,7 @@ mod tests {
         // DATA rather than a rendering, so it is refused.
         let err = expand_then_register(
             r#"(:wat::core::defsurface :t::Bad5 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Bad5::FooRequest :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Bad5::FooRequest wat.type/Record
                                 [x <- wat.type/String])
                              (:wat::core::defenum :t::Bad5::FooResponse :wat::enum::Pure
                                 :Ok [reply <- wat.type/String]
@@ -8957,7 +9016,7 @@ mod tests {
         // below, kept as an independent regression anchor for this lock specifically.
         expand_then_register(
             r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Ok2::FooRequest :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Ok2::FooRequest wat.type/Record
                                 [x <- wat.type/String])
                              (:wat::core::defenum :t::Ok2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- wat.type/String]
@@ -8979,7 +9038,7 @@ mod tests {
         // false-positive on the migrated (conforming) fleet.
         let env = expand_then_register(
             r#"(:wat::core::defsurface :t::Ok1 :nature :wat::kernel::Peer
-                  :messages [(:wat::core::recordtype :t::Ok1::FooRequest :wat::core::Record
+                  :messages [(:wat::core::recordtype :t::Ok1::FooRequest wat.type/Record
                                 [x <- wat.type/String])
                              (:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
                                 :Ok [reply <- wat.type/String]
@@ -9011,10 +9070,10 @@ mod tests {
     fn stone_255b_row1_door_answers_type_for_bare_primitive() {
         let mut sym = crate::value::SymbolTable::new();
         sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
-        let regs = sym.registrations(":wat::core::i64");
+        let regs = sym.registrations(":wat::type::i64");
         assert!(
             regs.contains(crate::value::symbol_table::RegistryKind::Type),
-            "registrations(\":wat::core::i64\") = {regs:?}, expected it to contain Type"
+            "registrations(\":wat::type::i64\") = {regs:?}, expected it to contain Type"
         );
     }
 
@@ -9025,7 +9084,7 @@ mod tests {
         let mut sym = crate::value::SymbolTable::new();
         sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
         for name in [
-            ":wat::core::Vector",
+            ":wat::type::Vector",
             ":wat::kernel::Peer",
             ":rust::crossbeam_channel::Sender",
         ] {
@@ -9066,7 +9125,7 @@ mod tests {
         // string-literal argument out of an `assert!`, which `no_loose_string_assert`
         // cannot distinguish from `String::contains` — see the lint finding in this
         // stone's SCORE.)
-        let regs = sym.registrations(":wat::core::i64");
+        let regs = sym.registrations(":wat::type::i64");
         assert!(
             regs.contains(crate::value::symbol_table::RegistryKind::Type),
             "membership must exist first; registrations = {regs:?}"
@@ -9075,7 +9134,7 @@ mod tests {
         // make queryable, asserted rather than merely commented.
         let env = TypeEnv::with_builtins();
         assert_eq!(
-            env.get(":wat::core::i64"),
+            env.get(":wat::type::i64"),
             None,
             "get must stay None — a builtin leaf has membership, not structure"
         );
@@ -9091,7 +9150,7 @@ mod tests {
         // guarantee that — a typo between them would silently test something else. (It also
         // matches this file's existing idiom at the `contains-true` census below.)
         let seeded = ":rust::sqlite::Connection";
-        let already_a_leaf = ":wat::core::i64";
+        let already_a_leaf = ":wat::type::i64";
         let mut env = TypeEnv::with_builtins();
         env.register_use_declared_leaf(seeded);
         assert!(env.contains(seeded), "use!d name must have membership");
@@ -9121,10 +9180,16 @@ mod tests {
             reconstruct_call_path("wat.core", "map", &env),
             ":wat::core::map"
         );
-        // 255.4 — Bytes/to-hex is the same join as Option/expect.
+        // 255.4 — Bytes/to-hex was the same join as Option/expect; stone 255.81 moved
+        // Bytes' registered key to `:wat::type::Bytes`, so `wat.core.Bytes` (the OLD
+        // namespace) is no longer `is_known_type`, and the join falls back to the
+        // double-colon spelling `reconstruct_call_path` uses for an unknown-type
+        // namespace (methods/slash-verbs are untouched by this stone — they stay
+        // `:wat::core::Bytes/to-hex` at the real registry, unreachable through the
+        // now-stale `wat.core.Bytes` namespace this call asks about).
         assert_eq!(
             reconstruct_call_path("wat.core.Bytes", "to-hex", &env),
-            ":wat::core::Bytes/to-hex"
+            ":wat::core::Bytes::to-hex"
         );
         // Identity of a type name stays `::` — not this door.
         assert_eq!(
@@ -9165,20 +9230,45 @@ mod tests {
         assert!(env.is_known_type("wat.type/i64"));
         assert!(env.is_known_type(":wat::type::Vector"));
         assert!(env.is_known_type("wat.type/Vector"));
-        assert!(env.is_known_type("wat.core/i64"));
+        // Stone 255.81 — `wat.core/i64` denotes the now-retired `:wat::core::i64`; i64's
+        // real key moved to `:wat::type::i64`, so the OLD `wat.core/` alias for one of the
+        // 24 is no longer known (the hard cut, not a second spelling).
+        assert!(!env.is_known_type("wat.core/i64"));
         assert!(!env.is_known_type("wat.type/nope"));
         assert!(!env.is_known_type(":wat::type::nope"));
         assert_eq!(env.get(":wat::type::i64"), None);
-        // Every core primitive the old alias forwarded is a wat.type member.
-        for n in crate::runtime::BUILTIN_PRIMITIVES {
-            if let Some(tail) = n.strip_prefix("wat::core::") {
-                let wt = format!("wat.type/{tail}");
-                assert!(
-                    env.is_known_type(&wt),
-                    "{wt} must be a wat.type member (denotation of :{n})"
-                );
+        // Stone 255.81 — before the cutover, `type_denotation` BLINDLY rewrote ANY
+        // `wat.type/X` to `:wat::core::X`, so this loop's "every core primitive the old
+        // alias forwarded is a wat.type member" held by COINCIDENCE for non-members too
+        // (e.g. `wat.type/fn` denoted to the real special-form name `:wat::core::fn` and
+        // read as Builtin, even though "fn" is not one of the 24). `type_denotation` is
+        // now identity, so membership is exactly the closed 24-name set — the genuine
+        // claim this loop should make, not "every primitive".
+        for tail in WAT_TYPE_HARD_PRIMITIVES {
+            // "Never" and "Fn" are the two deliberate exceptions. Never: see
+            // `stone_255b_never_is_deliberately_unregistered` (STOP-2: no genuine corpus
+            // type-position usage ever cleared the registration bar, under either
+            // spelling). Fn: never had a leaf registration either side of this cutover —
+            // `TypeExpr::Fn` is its own AST variant (the `[args :-> ret]` bracket / legacy
+            // `Fn(args)->ret` compound token), never a bare `Path("…Fn")` a corpus program
+            // writes standalone, so `is_known_type`/`classify`'s real-store check was
+            // already Unknown for it pre-cutover (measured: denoting `wat.type/Fn` to the
+            // old `:wat::core::Fn` and asking `is_builtin_primitive` was already false —
+            // nothing registers a function literally named that). `is_known_type` answers
+            // membership through the real stores, not the closed-set list alone, so both
+            // correctly stay Unknown.
+            if *tail == "Never" || *tail == "Fn" {
+                continue;
             }
+            let wt = format!("wat.type/{tail}");
+            assert!(
+                env.is_known_type(&wt),
+                "{wt} must be a wat.type member (one of the 24)"
+            );
         }
+        // The converse: a builtin primitive OUTSIDE the 24 (the special form `fn`, not
+        // the type `Fn`) is no longer coincidentally forwarded.
+        assert!(!env.is_known_type("wat.type/fn"));
         assert!(!env.is_known_type("wat.type/Infer"));
         assert!(env.is_known_type("wat.type/Struct"));
         assert!(!env.is_known_type("wat.type/Bogus"));
@@ -9269,19 +9359,19 @@ mod tests {
 
     /// Every group-3 name this stone registers must answer `contains`-true and
     /// `get`-None — the asymmetry holds uniformly, not just for the row-1/row-4
-    /// examples above. `:wat::core::Never` is deliberately absent from this
+    /// examples above. `:wat::type::Never` is deliberately absent from this
     /// list (STOP-2: no genuine corpus type-position usage found).
     #[test]
     fn stone_255b_group3_opaques_are_membership_without_structure() {
         let env = TypeEnv::with_builtins();
         for name in [
-            ":wat::core::bigint",
-            ":wat::core::rational",
-            ":wat::core::keyword",
+            ":wat::type::bigint",
+            ":wat::type::rational",
+            ":wat::type::keyword",
             ":wat::holon::HolonAST",
-            ":wat::WatAST",
-            ":wat::core::Value",
-            ":wat::core::List",
+            ":wat::type::AST",
+            ":wat::type::Value",
+            ":wat::type::List",
             ":wat::uuid::UUID",
             ":wat::holon::Hologram",
             ":wat::holon::Vector",
@@ -9307,7 +9397,7 @@ mod tests {
         }
     }
 
-    /// STOP-2 documented as a test: `:wat::core::Never` was evaluated against
+    /// STOP-2 documented as a test: `:wat::type::Never` was evaluated against
     /// the same corpus bar as every other group-3 name and did not clear it
     /// (its only non-comment `.wat`-adjacent mention is a Rust-internal
     /// synthesized `TypeExpr::Path`, never a user-written type position) — so
@@ -9317,10 +9407,10 @@ mod tests {
     fn stone_255b_never_is_deliberately_unregistered() {
         let mut sym = crate::value::SymbolTable::new();
         sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
-        let regs = sym.registrations(":wat::core::Never");
+        let regs = sym.registrations(":wat::type::Never");
         assert!(
             regs.is_empty(),
-            "`:wat::core::Never` was refused registration (STOP-2, no corpus \
+            "`:wat::type::Never` was refused registration (STOP-2, no corpus \
              type-position citation) — registrations = {regs:?}. If this is no longer \
              empty someone registered it; update this test deliberately, don't let it \
              happen by drift"
@@ -9340,10 +9430,10 @@ mod tests {
         let type_facet = crate::value::symbol_table::RegistryKind::Type;
 
         let structured: &[(&str, &str)] = &[
-            (":wat::core::Bytes", "Alias"),
+            (":wat::type::Bytes", "Alias"),
             (":wat::core::EvalError", "Aggregate"),
-            (":wat::core::Record", "Aggregate"),
-            (":wat::core::Struct", "Aggregate"),
+            (":wat::type::Record", "Aggregate"),
+            (":wat::type::Struct", "Aggregate"),
             (":wat::core::Option", "Enum"),
             (":wat::core::Result", "Enum"),
 
@@ -9365,22 +9455,22 @@ mod tests {
         }
 
         let leaves: &[&str] = &[
-            ":wat::core::nil",
-            ":wat::core::i64",
-            ":wat::core::f64",
-            ":wat::core::bool",
-            ":wat::core::String",
-            ":wat::core::u8",
-            ":wat::core::keyword",
-            ":wat::core::Vector",
-            ":wat::core::HashMap",
-            ":wat::core::HashSet",
-            ":wat::core::PersistentVector",
-            ":wat::core::PersistentMap",
-            ":wat::core::bigint",
-            ":wat::core::rational",
-            ":wat::core::Value",
-            ":wat::WatAST",
+            ":wat::type::nil",
+            ":wat::type::i64",
+            ":wat::type::f64",
+            ":wat::type::bool",
+            ":wat::type::String",
+            ":wat::type::u8",
+            ":wat::type::keyword",
+            ":wat::type::Vector",
+            ":wat::type::HashMap",
+            ":wat::type::HashSet",
+            ":wat::type::PersistentVector",
+            ":wat::type::PersistentMap",
+            ":wat::type::bigint",
+            ":wat::type::rational",
+            ":wat::type::Value",
+            ":wat::type::AST",
         ];
         for name in leaves {
             let regs = sym.registrations(name);
@@ -9397,7 +9487,7 @@ mod tests {
 
         // Holes vs the runtime primitive table. Asserted so a future leaf-register
         // of char/Tuple is a deliberate test edit, not silent completion.
-        for name in [":wat::core::char", ":wat::core::Tuple", ":wat::core::Fn"] {
+        for name in [":wat::type::char", ":wat::type::Tuple", ":wat::type::Fn"] {
             let regs = sym.registrations(name);
             assert!(
                 !regs.contains(type_facet),

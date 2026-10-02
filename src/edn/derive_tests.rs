@@ -100,7 +100,7 @@ enum FieldViaTest {
 /// real `count` field.
 #[derive(wat_edn::ToEdn)]
 enum LiteralTest {
-    #[to_edn(literal(primitive = ":()", fqdn = ":wat::core::nil"))]
+    #[to_edn(literal(primitive = ":()", fqdn = ":wat::type::nil"))]
     NilType,
     #[to_edn(literal(tag_name = "mixed"))]
     Mixed { count: usize },
@@ -257,7 +257,7 @@ fn literal_unit_variant_prepends_synthetic_pairs() {
     let edn = wat_edn::write(&e.to_edn());
     assert_eq!(
         edn,
-        r#"#wat.kernel/NilType {:primitive ":()" :fqdn ":wat::core::nil"}"#,
+        r#"#wat.kernel/NilType {:primitive ":()" :fqdn ":wat::type::nil"}"#,
     );
 }
 

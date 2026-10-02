@@ -58,7 +58,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     s :wat::core::String the EDN text parsed
+/// @arg     s :wat::type::String the EDN text parsed
 /// @ret     :T the decoded value
 /// @example (:wat::edn::read "42") #=> 42
 /// @see     :wat::edn::write
@@ -85,7 +85,7 @@ pub(crate) fn eval_edn_read_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     s :wat::core::String the JSON text parsed
+/// @arg     s :wat::type::String the JSON text parsed
 /// @ret     (:wat::edn::ReadJsonOutcome :- [T]) `Value[v]` on success, `Malformed[cause]` otherwise
 /// @example (:wat::edn::read-json "42") #=> (:wat::edn::ReadJsonOutcome::Value 42)
 /// @see     :wat::edn::read
@@ -124,7 +124,7 @@ pub(crate) fn eval_edn_read_json_home(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     s :wat::core::String the EDN text parsed
+/// @arg     s :wat::type::String the EDN text parsed
 /// @ret     (:wat::edn::ReadForeignOutcome :- [T]) `Value[v]` on success, `Malformed[cause]` otherwise
 /// @example (:wat::edn::read-foreign "42") #=> (:wat::edn::ReadForeignOutcome::Value 42)
 /// @see     :wat::edn::read
@@ -150,7 +150,7 @@ pub(crate) fn eval_edn_read_foreign_home(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
-/// @ret     :wat::core::String the compact single-line EDN text
+/// @ret     :wat::type::String the compact single-line EDN text
 /// @example (:wat::edn::write 42) #=> "42"
 /// @see     :wat::edn::read
 #[wat_intrinsic(":wat::edn::write")]
@@ -172,7 +172,7 @@ pub(crate) fn eval_edn_write_home(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
-/// @ret     :wat::core::String the multi-line indented EDN text
+/// @ret     :wat::type::String the multi-line indented EDN text
 /// @example (:wat::edn::write-pretty 42) #=> "42"
 /// @see     :wat::edn::write
 #[wat_intrinsic(":wat::edn::write-pretty")]
@@ -195,7 +195,7 @@ pub(crate) fn eval_edn_write_pretty_home(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
-/// @ret     :wat::core::String the round-trip-safe JSON text
+/// @ret     :wat::type::String the round-trip-safe JSON text
 /// @example (:wat::edn::write-json 42) #=> "42"
 /// @see     :wat::edn::write-json-natural
 #[wat_intrinsic(":wat::edn::write-json")]
@@ -220,7 +220,7 @@ pub(crate) fn eval_edn_write_json_home(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :T the value rendered
-/// @ret     :wat::core::String the natural (lossy) JSON text
+/// @ret     :wat::type::String the natural (lossy) JSON text
 /// @example (:wat::edn::write-json-natural 42) #=> "42"
 /// @see     :wat::edn::write-json
 #[wat_intrinsic(":wat::edn::write-json-natural")]
@@ -250,7 +250,7 @@ pub(crate) fn eval_edn_write_json_natural_home(
 /// @ExpandTime    Unreviewed
 /// @Category      CheckGate
 /// @arg     value :T the value checked against `declared_type`'s shape
-/// @arg     declared_type :wat::WatAST the type keyword or `(Head :- [args])` type form checked against
+/// @arg     declared_type :wat::type::AST the type keyword or `(Head :- [args])` type form checked against
 /// @ret     :wat::edn::Validation `Valid`, or `Invalid[path expected got]` naming the first mismatch
 /// @example (:wat::edn::validate 42 :wat::core::i64) #=> :wat::edn::Validation::Valid
 // `@see :wat::core::conforms?` deliberately omitted — `@see` resolves only to REGISTERED
@@ -296,8 +296,8 @@ pub(crate) fn eval_edn_validate_home(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record navigated
-/// @arg     key :wat::core::keyword the field key looked up
-/// @ret     (:wat::core::Option :- [:wat::core::Value]) `Some` the field value, or `None` on a miss
+/// @arg     key :wat::type::keyword the field key looked up
+/// @ret     (:wat::core::Option :- [:wat::type::Value]) `Some` the field value, or `None` on a miss
 /// @example (:wat::edn::ForeignRecord/get (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}") [:wat::edn::ReadForeignOutcome::Value {:value fr} fr] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")]) :kind) #=> (:wat::core::Option::Some {:value (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") [:wat::edn::ReadForeignOutcome::Value {:value fv} fv] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")])})
 /// @see     :wat::edn::read-foreign
 /// @see     :wat::edn::ForeignRecord/class
@@ -333,7 +333,7 @@ pub(crate) fn eval_foreign_record_get_home(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record probed
-/// @ret     :wat::core::String `fr`'s fully-qualified class name
+/// @ret     :wat::type::String `fr`'s fully-qualified class name
 /// @example (:wat::edn::ForeignRecord/class (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}") [:wat::edn::ReadForeignOutcome::Value {:value fr} fr] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")])) #=> "some::unknown::Rec"
 /// @see     :wat::edn::ForeignRecord/get
 #[wat_intrinsic(":wat::edn::ForeignRecord/class")]
@@ -357,8 +357,8 @@ pub(crate) fn eval_foreign_record_class_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     v :wat::core::Value the foreign variant probed
-/// @ret     :wat::core::keyword the variant's name
+/// @arg     v :wat::type::Value the foreign variant probed
+/// @ret     :wat::type::keyword the variant's name
 /// @example (:wat::edn::ForeignVariant/variant (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") [:wat::edn::ReadForeignOutcome::Value {:value fv} fv] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")])) #=> :Click
 /// @see     :wat::edn::ForeignVariant/enum-class
 #[wat_intrinsic(":wat::edn::ForeignVariant/variant")]
@@ -381,8 +381,8 @@ pub(crate) fn eval_foreign_variant_variant_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     v :wat::core::Value the foreign variant probed
-/// @ret     :wat::core::String `v`'s fully-qualified enum class name
+/// @arg     v :wat::type::Value the foreign variant probed
+/// @ret     :wat::type::String `v`'s fully-qualified enum class name
 /// @example (:wat::edn::ForeignVariant/enum-class (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") [:wat::edn::ReadForeignOutcome::Value {:value fv} fv] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")])) #=> "some::unknown::Kind"
 /// @see     :wat::edn::ForeignVariant/variant
 #[wat_intrinsic(":wat::edn::ForeignVariant/enum-class")]
@@ -406,8 +406,8 @@ pub(crate) fn eval_foreign_variant_enum_class_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     v :wat::core::Value the foreign variant probed
-/// @ret     (:wat::core::Vector :- [:wat::core::Value]) `v`'s positional fields, in order
+/// @arg     v :wat::type::Value the foreign variant probed
+/// @ret     (:wat::type::Vector :- [:wat::type::Value]) `v`'s positional fields, in order
 /// @example (:wat::edn::ForeignVariant/fields (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") [:wat::edn::ReadForeignOutcome::Value {:value fv} fv] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")])) #=> (:wat::core::Vector :- [:wat::core::Value] 42)
 /// @see     :wat::edn::ForeignVariant/variant
 #[wat_intrinsic(":wat::edn::ForeignVariant/fields")]

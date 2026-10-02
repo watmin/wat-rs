@@ -63,7 +63,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::typealias :Name :Expr)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
 /// @example-norun (:wat::core::typealias :probe::Tags (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])) #=> registers :probe::Tags into the type registry; no runtime value
 #[wat_special_form(":wat::core::typealias")]
 pub(crate) struct Typealias;

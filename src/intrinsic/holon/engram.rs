@@ -57,7 +57,7 @@ use crate::value::{EvalBreak, Value};
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
-/// @ret     :wat::core::String the engram's name
+/// @ret     :wat::type::String the engram's name
 /// @example (:wat::holon::Engram/name e) #=> "anomaly-a"
 #[wat_intrinsic(":wat::holon::Engram/name")]
 pub(crate) fn engram_name(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -82,7 +82,7 @@ pub(crate) fn engram_name(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
-/// @ret     (:wat::core::Vector :- [:wat::core::f64]) the engram's frozen eigenvalue signature
+/// @ret     (:wat::type::Vector :- [:wat::type::f64]) the engram's frozen eigenvalue signature
 /// @example (:wat::holon::Engram/eigenvalue-signature e) #=> (:wat::core::Vector 0.9 0.4)
 #[wat_intrinsic(":wat::holon::Engram/eigenvalue-signature")]
 pub(crate) fn engram_eigenvalue_signature(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -108,7 +108,7 @@ pub(crate) fn engram_eigenvalue_signature(e: &Value, span: &Span) -> Result<Valu
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
-/// @ret     :wat::core::i64 the observation count at snapshot time
+/// @ret     :wat::type::i64 the observation count at snapshot time
 /// @example (:wat::holon::Engram/n e) #=> 512
 #[wat_intrinsic(":wat::holon::Engram/n")]
 pub(crate) fn engram_n(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -130,7 +130,7 @@ pub(crate) fn engram_n(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @Category      Resource
 /// @arg     e :wat::holon::Engram the engram probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector to score
-/// @ret     :wat::core::f64 the residual of `v` against `e`'s frozen subspace
+/// @ret     :wat::type::f64 the residual of `v` against `e`'s frozen subspace
 /// @example-norun (:wat::holon::Engram/residual e v) #=> 0.03
 #[wat_intrinsic(":wat::holon::Engram/residual")]
 pub(crate) fn engram_residual(e: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -153,7 +153,7 @@ pub(crate) fn engram_residual(e: &Value, v: &Value, span: &Span) -> Result<Value
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     dim :wat::core::i64 the library's vector dimension
+/// @arg     dim :wat::type::i64 the library's vector dimension
 /// @ret     :wat::holon::EngramLibrary a fresh, empty library
 /// @example-norun (:wat::holon::EngramLibrary/new 4096) #=> #wat.holon/EngramLibrary{}
 #[wat_intrinsic(":wat::holon::EngramLibrary/new")]
@@ -177,9 +177,9 @@ pub(crate) fn library_new(dim: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library mutated
-/// @arg     name :wat::core::String the new engram's name
+/// @arg     name :wat::type::String the new engram's name
 /// @arg     subspace :wat::holon::OnlineSubspace the subspace to freeze
-/// @ret     :wat::core::nil always `Unit`
+/// @ret     :wat::type::nil always `Unit`
 /// @example-norun (:wat::holon::EngramLibrary/add lib "anomaly-a" subspace) #=> nil
 #[wat_intrinsic(":wat::holon::EngramLibrary/add")]
 pub(crate) fn library_add(
@@ -215,9 +215,9 @@ pub(crate) fn library_add(
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
 /// @arg     probe :wat::holon::Vector the probe vector
-/// @arg     top_k :wat::core::i64 how many closest matches to return
-/// @arg     prefilter_k :wat::core::i64 how many candidates the eigenvalue prefilter keeps
-/// @ret     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::f64])]) `(name, residual)` tuples for the closest matches, best first
+/// @arg     top_k :wat::type::i64 how many closest matches to return
+/// @arg     prefilter_k :wat::type::i64 how many candidates the eigenvalue prefilter keeps
+/// @ret     (:wat::type::Vector :- [(:wat::type::Tuple :- [:wat::type::String :wat::type::f64])]) `(name, residual)` tuples for the closest matches, best first
 /// @example-norun (:wat::holon::EngramLibrary/match-vec lib probe 3 16) #=> (:wat::core::Vector (:wat::core::Tuple "anomaly-a" 0.02))
 #[wat_intrinsic(":wat::holon::EngramLibrary/match-vec")]
 pub(crate) fn library_match_vec(
@@ -263,7 +263,7 @@ pub(crate) fn library_match_vec(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
-/// @ret     :wat::core::i64 the number of engrams currently held
+/// @ret     :wat::type::i64 the number of engrams currently held
 /// @example (:wat::holon::EngramLibrary/len (:wat::holon::EngramLibrary/new 4096)) #=> (:wat::holon::EngramLibrary/len (:wat::holon::EngramLibrary/new 4096))
 #[wat_intrinsic(":wat::holon::EngramLibrary/len")]
 pub(crate) fn library_len(lib: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -283,8 +283,8 @@ pub(crate) fn library_len(lib: &Value, span: &Span) -> Result<Value, EvalBreak> 
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
-/// @arg     name :wat::core::String the name probed
-/// @ret     :wat::core::bool true iff `lib` holds an engram named `name`
+/// @arg     name :wat::type::String the name probed
+/// @ret     :wat::type::bool true iff `lib` holds an engram named `name`
 /// @example (:wat::holon::EngramLibrary/contains (:wat::holon::EngramLibrary/new 4096) "anomaly-a") #=> (:wat::holon::EngramLibrary/contains (:wat::holon::EngramLibrary/new 4096) "anomaly-a")
 #[wat_intrinsic(":wat::holon::EngramLibrary/contains")]
 pub(crate) fn library_contains(lib: &Value, name: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -307,7 +307,7 @@ pub(crate) fn library_contains(lib: &Value, name: &Value, span: &Span) -> Result
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     lib :wat::holon::EngramLibrary the library probed
-/// @ret     (:wat::core::Vector :- [:wat::core::String]) the names of every engram `lib` holds
+/// @ret     (:wat::type::Vector :- [:wat::type::String]) the names of every engram `lib` holds
 /// @example (:wat::holon::EngramLibrary/names (:wat::holon::EngramLibrary/new 4096)) #=> (:wat::holon::EngramLibrary/names (:wat::holon::EngramLibrary/new 4096))
 #[wat_intrinsic(":wat::holon::EngramLibrary/names")]
 pub(crate) fn library_names(lib: &Value, span: &Span) -> Result<Value, EvalBreak> {

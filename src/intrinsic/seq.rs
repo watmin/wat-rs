@@ -45,7 +45,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Category      Transform
 /// @arg     xs (:wat::core::Seqable :- [T]) the left sequence
 /// @arg     ys (:wat::core::Seqable :- [U]) the right sequence
-/// @ret     (:wat::core::Vector :- [(:wat::core::Tuple :- [T U])]) pairs of corresponding elements, truncated to the shorter input
+/// @ret     (:wat::type::Vector :- [(:wat::type::Tuple :- [T U])]) pairs of corresponding elements, truncated to the shorter input
 /// @example (:wat::seq::zip (:wat::core::Vector :- [:wat::core::i64] 1 2 3) (:wat::core::Vector :- [:wat::core::i64] 4 5 6)) #=> (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple 1 4) (:wat::core::Tuple 2 5) (:wat::core::Tuple 3 6))
 #[wat_intrinsic(":wat::seq::zip")]
 pub(crate) fn eval_seq_zip_intrinsic(
@@ -71,8 +71,8 @@ pub(crate) fn eval_seq_zip_intrinsic(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     xs (:wat::core::Seqable :- [T]) the sequence to window over
-/// @arg     n :wat::core::i64 the window size
-/// @ret     (:wat::core::Vector :- [(:wat::core::Vector :- [T])]) every contiguous window of size `n`
+/// @arg     n :wat::type::i64 the window size
+/// @ret     (:wat::type::Vector :- [(:wat::type::Vector :- [T])]) every contiguous window of size `n`
 /// @example (:wat::seq::window (:wat::core::Vector :- [:wat::core::i64] 1 2 3 4) 2) #=> (:wat::core::Vector (:wat::core::Vector :- [:wat::core::i64]) (:wat::core::Vector :- [:wat::core::i64] 1 2) (:wat::core::Vector :- [:wat::core::i64] 2 3) (:wat::core::Vector :- [:wat::core::i64] 3 4))
 #[wat_intrinsic(":wat::seq::window")]
 pub(crate) fn eval_seq_window_intrinsic(
@@ -99,8 +99,8 @@ pub(crate) fn eval_seq_window_intrinsic(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     xs (:wat::core::Seqable :- [T]) the sequence to remove from
-/// @arg     i :wat::core::i64 the index to remove
-/// @ret     (:wat::core::Vector :- [T]) `xs` with the element at `i` removed, or `xs` unchanged if `i` is out of range
+/// @arg     i :wat::type::i64 the index to remove
+/// @ret     (:wat::type::Vector :- [T]) `xs` with the element at `i` removed, or `xs` unchanged if `i` is out of range
 /// @example (:wat::seq::remove-at (:wat::core::Vector :- [:wat::core::i64] 1 2 3) 1) #=> (:wat::core::Vector :- [:wat::core::i64] 1 3)
 #[wat_intrinsic(":wat::seq::remove-at")]
 pub(crate) fn eval_seq_remove_at_intrinsic(

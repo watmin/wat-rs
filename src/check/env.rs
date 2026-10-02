@@ -283,12 +283,12 @@ impl<'a> CheckEnv<'a> {
                 // than silence.
                 other => {
                     let scalar_ty = match other {
-                        crate::runtime::Value::i64(_) => Some(":wat::core::i64"),
-                        crate::runtime::Value::u8(_) => Some(":wat::core::u8"),
-                        crate::runtime::Value::f64(_) => Some(":wat::core::f64"),
-                        crate::runtime::Value::bool(_) => Some(":wat::core::bool"),
-                        crate::runtime::Value::String(_) => Some(":wat::core::String"),
-                        crate::runtime::Value::wat__core__keyword(_) => Some(":wat::core::keyword"),
+                        crate::runtime::Value::i64(_) => Some(":wat::type::i64"),
+                        crate::runtime::Value::u8(_) => Some(":wat::type::u8"),
+                        crate::runtime::Value::f64(_) => Some(":wat::type::f64"),
+                        crate::runtime::Value::bool(_) => Some(":wat::type::bool"),
+                        crate::runtime::Value::String(_) => Some(":wat::type::String"),
+                        crate::runtime::Value::wat__core__keyword(_) => Some(":wat::type::keyword"),
                         _ => None,
                     };
                     if let Some(ty_path) = scalar_ty {
@@ -593,7 +593,7 @@ mod tests {
         let nil_body = crate::ast::WatAST::nil();
         let clause = Clause {
             args: crate::argspec::ArgSpec { fixed_params: vec![], rest_param: None },
-            return_type: TypeExpr::Path(":wat::core::nil".into()),
+            return_type: TypeExpr::Path(":wat::type::nil".into()),
             guard: None,
             ensure_fn: None,
             body: Arc::new(nil_body),

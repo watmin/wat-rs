@@ -646,7 +646,7 @@ mod arc109_two_iii_defclause_return_slot {
     #[test]
     fn row1_defclause_form_return_type() {
         let clause = crate::parse_one!(
-            "([n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::i64]) n)"
+            "([n <- wat.type/i64] -> (wat.type/Vector :- [wat.type/i64]) n)"
         )
         .expect("parse defclause clause with form return");
         let parsed = parse_defclause_clause(&clause, ":probe::defclause-row1", None)
@@ -667,13 +667,13 @@ mod arc109_two_iii_defclause_return_slot {
     /// always did.
     #[test]
     fn row3_defclause_keyword_return_type_unchanged() {
-        let clause = crate::parse_one!("([n <- :wat::core::i64] -> :wat::core::i64 n)")
+        let clause = crate::parse_one!("([n <- wat.type/i64] -> wat.type/i64 n)")
             .expect("parse defclause clause with keyword return");
         let parsed = parse_defclause_clause(&clause, ":probe::defclause-row3", None)
             .unwrap_or_else(|e| panic!("keyword return type must still parse: {e:?}"));
         assert_eq!(
             parsed.return_type,
-            crate::types::TypeExpr::Path(":wat::core::i64".into())
+            crate::types::TypeExpr::Path(":wat::type::i64".into())
         );
     }
 
@@ -1089,7 +1089,7 @@ pub(crate) fn parse_extend_type_form(
     // Arc 170 C2 — split a parametric protocol/surface target (e.g. `(:Holds :- [wat::core::i64])`
     // — the ONE live spelling; a keyword can never carry `<...>`, the lexer refuses it) into
     // the BARE name (`:probe::Holds`, matching how the surface is registered in
-    // `TypeEnv`) plus the concrete type args (`[Path(":wat::core::i64")]`). A plain
+    // `TypeEnv`) plus the concrete type args (`[Path(":wat::type::i64")]`). A plain
     // (non-generic) target (`:t::Greeter`) parses to `TypeExpr::Path` — `protocol_name`
     // is unchanged, `protocol_type_args` is empty (the monomorphic no-op path).
     // Parse failure (should not happen for a well-formed keyword) falls back to the raw
@@ -1224,7 +1224,7 @@ pub(crate) fn parse_extend_type_form(
             match arg_item {
                 WatAST::Symbol(s, _) => {
                     // Placeholder type — 232.3 dispatch resolves real types from the protocol sig.
-                    fixed_params.push((s.clone(), crate::types::TypeExpr::Path(":wat::core::nil".into())));
+                    fixed_params.push((s.clone(), crate::types::TypeExpr::Path(":wat::type::nil".into())));
                 }
                 other => return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::MalformedForm {
                     head: HEAD.into(),
@@ -1261,7 +1261,7 @@ pub(crate) fn parse_extend_type_form(
             match &body_items[1] {
                 WatAST::Keyword(ret_kw, _) => {
                     let ret = crate::types::parse_type_expr(ret_kw)
-                        .unwrap_or_else(|_| crate::types::TypeExpr::Path(":wat::core::nil".into()));
+                        .unwrap_or_else(|_| crate::types::TypeExpr::Path(":wat::type::nil".into()));
                     (body_items[2..].to_vec(), ret)
                 }
                 // Arc 109 Stone ⑥ — the method-member RETURN slot also accepts the `:-`
@@ -1313,13 +1313,13 @@ pub(crate) fn parse_extend_type_form(
                 }
                 _ => (
                     body_items,
-                    crate::types::TypeExpr::Path(":wat::core::nil".into()),
+                    crate::types::TypeExpr::Path(":wat::type::nil".into()),
                 ),
             }
         } else {
             (
                 body_items,
-                crate::types::TypeExpr::Path(":wat::core::nil".into()),
+                crate::types::TypeExpr::Path(":wat::type::nil".into()),
             )
         };
         if body_forms.is_empty() {
@@ -1492,7 +1492,7 @@ mod tests {
         let sig: [WatAST; 3] = [
             WatAST::Keyword(":not-a-vec".into(), span()),
             arrow(),
-            WatAST::Keyword(":wat::core::i64".into(), span()),
+            WatAST::Keyword(":wat::type::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
         let reason = match err.kind() {
@@ -1538,7 +1538,7 @@ mod tests {
         let sig: [WatAST; 3] = [
             WatAST::IntLit(42, span()),
             arrow(),
-            WatAST::Keyword(":wat::core::i64".into(), span()),
+            WatAST::Keyword(":wat::type::i64".into(), span()),
         ];
         // Map to string inline — ParsedFnSignature<String> doesn't implement Debug,
         // so unwrap_err() is not usable directly; match avoids the Debug bound.
@@ -1563,7 +1563,7 @@ mod tests {
         let sig: [WatAST; 3] = [
             WatAST::Vector(vec![], span()),
             WatAST::Keyword(":not-arrow".into(), span()), // not "->"
-            WatAST::Keyword(":wat::core::i64".into(), span()),
+            WatAST::Keyword(":wat::type::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
         let reason = match err.kind() {

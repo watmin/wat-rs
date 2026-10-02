@@ -187,11 +187,20 @@ pub(crate) fn lookup_field_types(types: &TypeEnv, fact_type: &str) -> Option<Fie
 /// keeps pulling out. Caught by the builder: *"records may hold other records… and enums… and
 /// whatever else we can express in rete's closed syntax."*
 fn rete_type_segment_of(field_type: &str, types: &TypeEnv) -> Option<&'static str> {
+    // Stone 255.81 (P-surface) — TWO callers, TWO dialects, and this is the one door both
+    // read through (the same "no second mapping" discipline the `declared.to_type_expr()`
+    // caller's own doc names). `lookup_field_types` hands this `check::format_type`'s OUTPUT
+    // — `wat.type/i64`, the symbol dialect, no leading colon, the way one of the 24 is
+    // WRITTEN now. The computed-operand caller just above hands this the RAW
+    // `TypeExpr::Path` string instead — the internal keyword `:wat::type::i64` —
+    // deliberately never routed through a renderer (it is not rendering anything, it is
+    // reading a scheme). Both spellings are accepted for the same four scalars, same
+    // precedent as the `keyword`/`Keyword` BOTH-SPELLINGS arm below.
     match field_type.trim_start_matches(':') {
-        "wat::core::i64" => Some("i64"),
-        "wat::core::f64" => Some("f64"),
-        "wat::core::String" => Some("string"),
-        "wat::core::bool" => Some("bool"),
+        "wat.type/i64" | "wat::type::i64" => Some("i64"),
+        "wat.type/f64" | "wat::type::f64" => Some("f64"),
+        "wat.type/String" | "wat::type::String" => Some("string"),
+        "wat.type/bool" | "wat::type::bool" => Some("bool"),
         // ⛔ BOTH SPELLINGS, and the lower-case one is the ONLY inhabitable half.
         //
         // This line read `"wat::core::Keyword"` alone until 2026-08-28, and that capital is a type
@@ -208,7 +217,7 @@ fn rete_type_segment_of(field_type: &str, types: &TypeEnv) -> Option<&'static st
         //
         // Found by arc 278's § 4.1 reachability ledger, root named by arc 109's NOTE. The capital
         // stays mapped because removing a dead type NAME is arc 109's ground, not this file's.
-        "wat::core::keyword" | "wat::core::Keyword" => Some("keyword"),
+        "wat.type/keyword" | "wat::core::Keyword" => Some("keyword"),
         // An enum is named by a user path; the registry is the only way to know.
         other => match types.get(&format!(":{other}")) {
             Some(TypeDef::Enum(_)) => Some("enum"),

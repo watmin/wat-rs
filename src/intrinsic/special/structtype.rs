@@ -78,7 +78,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::structtype :Name [field <- :T ...])
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at freeze time and never reaches evaluation; its effect is the registration it leaves in the type registry
 /// @example-norun (:wat::core::structtype :geo::Pt2 [x <- :wat::core::i64]) #=> registers :geo::Pt2 into the type registry; no runtime value
 #[wat_special_form(":wat::core::structtype")]
 pub(crate) struct Structtype;

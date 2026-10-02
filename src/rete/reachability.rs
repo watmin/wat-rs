@@ -240,8 +240,8 @@ fn synth(cell: &Cell, site: CallSite) -> String {
         ),
     };
     format!(
-        r#"{extra}(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- {field_ty}])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+        r#"{extra}(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- {field_ty}])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -253,7 +253,7 @@ fn synth(cell: &Cell, site: CallSite) -> String {
   :params []
   :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -382,7 +382,7 @@ fn law_a_core_head() -> Cell {
         op: ":wat::core::>",
         arity: 0,
         expr_is_verbatim: true,
-        field_ty: ":wat::core::i64",
+        field_ty: ":wat::type::i64",
         hit: "42",
         miss: "3",
         extra: "",
@@ -612,30 +612,30 @@ fn uniform_call(op: &str, arity: usize, rest: &str, wrap: Option<(&str, &str)>) 
 /// catches that.
 fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static str, &'static str, &'static str)> {
     let t = match rete_name {
-        ":wat::rete::core::and" => (":wat::core::i64", "10", "1", "(:wat::rete::core::and (:wat::rete::i64::> {f} 5) (:wat::rete::i64::< {f} 20))", ""),
-        ":wat::rete::core::or" => (":wat::core::i64", "1", "10", "(:wat::rete::core::or (:wat::rete::i64::> {f} 100) (:wat::rete::i64::< {f} 5))", ""),
-        ":wat::rete::core::if" => (":wat::core::i64", "10", "1", "(:wat::rete::i64::= (:wat::rete::core::if (:wat::rete::i64::> {f} 5) 1 0) 1)", ""),
-        ":wat::rete::core::let" => (":wat::core::i64", "10", "1", "(:wat::rete::core::let [x {f}] (:wat::rete::i64::> x 5))", ""),
-        ":wat::rete::core::cond" => (":wat::core::i64", "10", "1", "(:wat::rete::core::cond ((:wat::rete::i64::> {f} 5) true) (:else false))", ""),
+        ":wat::rete::core::and" => (":wat::type::i64", "10", "1", "(:wat::rete::core::and (:wat::rete::i64::> {f} 5) (:wat::rete::i64::< {f} 20))", ""),
+        ":wat::rete::core::or" => (":wat::type::i64", "1", "10", "(:wat::rete::core::or (:wat::rete::i64::> {f} 100) (:wat::rete::i64::< {f} 5))", ""),
+        ":wat::rete::core::if" => (":wat::type::i64", "10", "1", "(:wat::rete::i64::= (:wat::rete::core::if (:wat::rete::i64::> {f} 5) 1 0) 1)", ""),
+        ":wat::rete::core::let" => (":wat::type::i64", "10", "1", "(:wat::rete::core::let [x {f}] (:wat::rete::i64::> x 5))", ""),
+        ":wat::rete::core::cond" => (":wat::type::i64", "10", "1", "(:wat::rete::core::cond ((:wat::rete::i64::> {f} 5) true) (:else false))", ""),
         ":wat::rete::core::match" => (":probe::E", ":probe::E.A", ":probe::E.B", "(:wat::rete::core::match {f} [:probe::E.A {} true] [:probe::E.B {} false])", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
         ":wat::rete::core::fn" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
         ":wat::rete::core::enum::=" => (":probe::E", ":probe::E.A", ":probe::E.B", "(:wat::rete::core::enum::= {f} :probe::E.A)", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
         ":wat::rete::core::enum::not=" => (":probe::E", ":probe::E.B", ":probe::E.A", "(:wat::rete::core::enum::not= {f} :probe::E.A)", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
         ":wat::rete::core::variant-name" => (":probe::E", ":probe::E.A", ":probe::E.B", "(:wat::rete::string::= (:wat::rete::core::variant-name {f}) \"A\")", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
-        ":wat::rete::core::PersistentVector" => (":wat::core::i64", "7", "9", "(:wat::rete::vector::contains? (:wat::rete::core::PersistentVector {f} 99) 7)", ""),
-        ":wat::rete::core::Vector" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::Vector {f}) :undefined 0) 7)", ""),
-        ":wat::rete::core::List" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::List/first (:wat::rete::core::List {f}) :undefined 0) 7)", ""),
+        ":wat::rete::core::PersistentVector" => (":wat::type::i64", "7", "9", "(:wat::rete::vector::contains? (:wat::rete::core::PersistentVector {f} 99) 7)", ""),
+        ":wat::rete::core::Vector" => (":wat::type::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::Vector {f}) :undefined 0) 7)", ""),
+        ":wat::rete::core::List" => (":wat::type::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::List/first (:wat::rete::core::List {f}) :undefined 0) 7)", ""),
         ":wat::rete::core::foldl" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
         ":wat::rete::core::reduce" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::reduce (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
-        ":wat::rete::core::PersistentMap" => (":wat::core::String", "\"a\"", "\"z\"", "(:wat::rete::map::contains-key? (:wat::rete::core::PersistentMap {f} 1) \"a\")", ""),
+        ":wat::rete::core::PersistentMap" => (":wat::type::String", "\"a\"", "\"z\"", "(:wat::rete::map::contains-key? (:wat::rete::core::PersistentMap {f} 1) \"a\")", ""),
         ":wat::rete::core::mapv" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 1 2)", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::mapv (:wat::rete::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::* x 10 :undefined 0)) {f}) :undefined 0) 10)", ""),
         ":wat::rete::core::filterv" => ("(wat.type/PersistentVector :- [wat.type/i64])", "(wat.type/PersistentVector :- [wat.type/i64] 9)", "(wat.type/PersistentVector :- [wat.type/i64] 1)", "(:wat::rete::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::filterv (:wat::rete::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::rete::i64::> x 5)) {f}) :undefined 0) 9)", ""),
-        ":wat::rete::core::Tuple" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
-        ":wat::rete::core::Tuple/first" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
-        ":wat::rete::core::Tuple/second" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/second (:wat::rete::core::Tuple 99 {f})) 7)", ""),
-        ":wat::rete::core::Tuple/third" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/third (:wat::rete::core::Tuple 99 99 {f})) 7)", ""),
-        ":wat::rete::keyword::to-string" => (":wat::core::keyword", ":alpha", ":beta", "(:wat::rete::string::= (:wat::rete::keyword::to-string {f}) \"alpha\")", ""),
-        ":wat::rete::keyword::from-string" => (":wat::core::String", "\"alpha\"", "\"beta\"", "(:wat::rete::string::= (:wat::rete::keyword::to-string (:wat::rete::keyword::from-string {f} :undefined :none)) \"alpha\")", ""),
+        ":wat::rete::core::Tuple" => (":wat::type::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
+        ":wat::rete::core::Tuple/first" => (":wat::type::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
+        ":wat::rete::core::Tuple/second" => (":wat::type::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/second (:wat::rete::core::Tuple 99 {f})) 7)", ""),
+        ":wat::rete::core::Tuple/third" => (":wat::type::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/third (:wat::rete::core::Tuple 99 99 {f})) 7)", ""),
+        ":wat::rete::keyword::to-string" => (":wat::type::keyword", ":alpha", ":beta", "(:wat::rete::string::= (:wat::rete::keyword::to-string {f}) \"alpha\")", ""),
+        ":wat::rete::keyword::from-string" => (":wat::type::String", "\"alpha\"", "\"beta\"", "(:wat::rete::string::= (:wat::rete::keyword::to-string (:wat::rete::keyword::from-string {f} :undefined :none)) \"alpha\")", ""),
 
         // ── THE FOUR HOLON ROWS. Excluded until 2026-08-28 on the stated ground that "a holon has
         // no literal spelling, so the second operand cannot be written as a constant the way every
@@ -692,40 +692,40 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
     let (arity, field_ty, hit, miss, rhs, wrap): (usize, &str, &str, &str, &str, Option<(&str, &str)>) = match rete_name {
         // i64 — the baseline. Note `<` needs its hit/miss SWAPPED relative to `>` against the
         // same literal, which is the whole argument for a per-row table.
-        ":wat::rete::i64::>" => (2, ":wat::core::i64", "42", "3", "10", None),
-        ":wat::rete::i64::<" => (2, ":wat::core::i64", "3", "42", "10", None),
-        ":wat::rete::i64::>=" => (2, ":wat::core::i64", "10", "3", "10", None),
-        ":wat::rete::i64::<=" => (2, ":wat::core::i64", "10", "42", "10", None),
-        ":wat::rete::i64::=" => (2, ":wat::core::i64", "10", "3", "10", None),
-        ":wat::rete::i64::not=" => (2, ":wat::core::i64", "3", "10", "10", None),
+        ":wat::rete::i64::>" => (2, ":wat::type::i64", "42", "3", "10", None),
+        ":wat::rete::i64::<" => (2, ":wat::type::i64", "3", "42", "10", None),
+        ":wat::rete::i64::>=" => (2, ":wat::type::i64", "10", "3", "10", None),
+        ":wat::rete::i64::<=" => (2, ":wat::type::i64", "10", "42", "10", None),
+        ":wat::rete::i64::=" => (2, ":wat::type::i64", "10", "3", "10", None),
+        ":wat::rete::i64::not=" => (2, ":wat::type::i64", "3", "10", "10", None),
 
         // f64 — `>=`/`<=` pin the BOUNDARY (hit == rhs), so an implementation that dropped the
         // `=` half would go red here rather than passing on the strict half alone.
-        ":wat::rete::f64::>" => (2, ":wat::core::f64", "42.0", "3.0", "10.0", None),
-        ":wat::rete::f64::<" => (2, ":wat::core::f64", "3.0", "42.0", "10.0", None),
-        ":wat::rete::f64::>=" => (2, ":wat::core::f64", "10.0", "3.0", "10.0", None),
-        ":wat::rete::f64::<=" => (2, ":wat::core::f64", "10.0", "42.0", "10.0", None),
-        ":wat::rete::f64::=" => (2, ":wat::core::f64", "10.0", "3.0", "10.0", None),
-        ":wat::rete::f64::not=" => (2, ":wat::core::f64", "3.0", "10.0", "10.0", None),
+        ":wat::rete::f64::>" => (2, ":wat::type::f64", "42.0", "3.0", "10.0", None),
+        ":wat::rete::f64::<" => (2, ":wat::type::f64", "3.0", "42.0", "10.0", None),
+        ":wat::rete::f64::>=" => (2, ":wat::type::f64", "10.0", "3.0", "10.0", None),
+        ":wat::rete::f64::<=" => (2, ":wat::type::f64", "10.0", "42.0", "10.0", None),
+        ":wat::rete::f64::=" => (2, ":wat::type::f64", "10.0", "3.0", "10.0", None),
+        ":wat::rete::f64::not=" => (2, ":wat::type::f64", "3.0", "10.0", "10.0", None),
 
         // String — the three predicates use a needle that is a strict INFIX/PREFIX/SUFFIX of the
         // hit and absent from the miss, so each one tests its own half rather than plain equality.
-        ":wat::rete::string::starts-with?" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"al\"", None),
-        ":wat::rete::string::ends-with?" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"ha\"", None),
-        ":wat::rete::string::contains?" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"lph\"", None),
-        ":wat::rete::string::empty?" => (1, ":wat::core::String", "\"\"", "\"x\"", "", None),
-        ":wat::rete::string::=" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"alpha\"", None),
-        ":wat::rete::string::not=" => (2, ":wat::core::String", "\"beta\"", "\"alpha\"", "\"alpha\"", None),
+        ":wat::rete::string::starts-with?" => (2, ":wat::type::String", "\"alpha\"", "\"beta\"", "\"al\"", None),
+        ":wat::rete::string::ends-with?" => (2, ":wat::type::String", "\"alpha\"", "\"beta\"", "\"ha\"", None),
+        ":wat::rete::string::contains?" => (2, ":wat::type::String", "\"alpha\"", "\"beta\"", "\"lph\"", None),
+        ":wat::rete::string::empty?" => (1, ":wat::type::String", "\"\"", "\"x\"", "", None),
+        ":wat::rete::string::=" => (2, ":wat::type::String", "\"alpha\"", "\"beta\"", "\"alpha\"", None),
+        ":wat::rete::string::not=" => (2, ":wat::type::String", "\"beta\"", "\"alpha\"", "\"alpha\"", None),
 
         // bool
-        ":wat::rete::core::not" => (1, ":wat::core::bool", "false", "true", "", None),
-        ":wat::rete::core::bool::=" => (2, ":wat::core::bool", "true", "false", "true", None),
-        ":wat::rete::core::bool::not=" => (2, ":wat::core::bool", "false", "true", "true", None),
+        ":wat::rete::core::not" => (1, ":wat::type::bool", "false", "true", "", None),
+        ":wat::rete::core::bool::=" => (2, ":wat::type::bool", "true", "false", "true", None),
+        ":wat::rete::core::bool::not=" => (2, ":wat::type::bool", "false", "true", "true", None),
 
         // keyword — `=` is the motivating asymmetry; `not=` is one of the three rows that appear
         // NOWHERE in the 1569-file corpus, so its cells are the first evidence it has ever had.
-        ":wat::rete::core::keyword::=" => (2, ":wat::core::keyword", ":alpha", ":beta", ":alpha", None),
-        ":wat::rete::core::keyword::not=" => (2, ":wat::core::keyword", ":beta", ":alpha", ":alpha", None),
+        ":wat::rete::core::keyword::=" => (2, ":wat::type::keyword", ":alpha", ":beta", ":alpha", None),
+        ":wat::rete::core::keyword::not=" => (2, ":wat::type::keyword", ":beta", ":alpha", ":alpha", None),
 
         // Containers — a parametric field, so these also test that the template survives a
         // non-scalar declaration.
@@ -754,30 +754,30 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 
         // i64 arithmetic. `mod`/`rem` use expected 0 so the MISS lands on a nonzero remainder
         // rather than on a different quotient — otherwise a stubbed op returning 0 would pass.
-        ":wat::rete::i64::+" => (4, ":wat::core::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "12"))),
-        ":wat::rete::i64::-" => (4, ":wat::core::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "8"))),
-        ":wat::rete::i64::*" => (4, ":wat::core::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "20"))),
-        ":wat::rete::i64::/" => (4, ":wat::core::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "5"))),
-        ":wat::rete::i64::mod" => (4, ":wat::core::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "0"))),
-        ":wat::rete::i64::rem" => (4, ":wat::core::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "0"))),
-        ":wat::rete::i64::quot" => (4, ":wat::core::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "5"))),
+        ":wat::rete::i64::+" => (4, ":wat::type::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "12"))),
+        ":wat::rete::i64::-" => (4, ":wat::type::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "8"))),
+        ":wat::rete::i64::*" => (4, ":wat::type::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "20"))),
+        ":wat::rete::i64::/" => (4, ":wat::type::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "5"))),
+        ":wat::rete::i64::mod" => (4, ":wat::type::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "0"))),
+        ":wat::rete::i64::rem" => (4, ":wat::type::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "0"))),
+        ":wat::rete::i64::quot" => (4, ":wat::type::i64", "10", "1", "2 :undefined 0", Some((":wat::rete::i64::=", "5"))),
 
         // f64 arithmetic. `f64::-` is one of the three rows appearing NOWHERE in the corpus.
-        ":wat::rete::f64::+" => (4, ":wat::core::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "12.0"))),
-        ":wat::rete::f64::-" => (4, ":wat::core::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "8.0"))),
-        ":wat::rete::f64::*" => (4, ":wat::core::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "20.0"))),
-        ":wat::rete::f64::/" => (4, ":wat::core::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "5.0"))),
+        ":wat::rete::f64::+" => (4, ":wat::type::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "12.0"))),
+        ":wat::rete::f64::-" => (4, ":wat::type::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "8.0"))),
+        ":wat::rete::f64::*" => (4, ":wat::type::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "20.0"))),
+        ":wat::rete::f64::/" => (4, ":wat::type::f64", "10.0", "1.0", "2.0 :undefined 0.0", Some((":wat::rete::f64::=", "5.0"))),
 
         // String / scalar conversions.
-        ":wat::rete::string::concat" => (2, ":wat::core::String", "\"a\"", "\"b\"", "\"x\"", Some((":wat::rete::string::=", "\"ax\""))),
-        ":wat::rete::string::length" => (1, ":wat::core::String", "\"abc\"", "\"z\"", "", Some((":wat::rete::i64::=", "3"))),
-        ":wat::rete::string::trim" => (1, ":wat::core::String", "\" a \"", "\"b\"", "", Some((":wat::rete::string::=", "\"a\""))),
-        ":wat::rete::string::to-lowercase" => (1, ":wat::core::String", "\"A\"", "\"b\"", "", Some((":wat::rete::string::=", "\"a\""))),
-        ":wat::rete::string::subs" => (5, ":wat::core::String", "\"abcd\"", "\"zzzz\"", "0 2 :undefined \"\"", Some((":wat::rete::string::=", "\"ab\""))),
-        ":wat::rete::i64::to-f64" => (1, ":wat::core::i64", "3", "9", "", Some((":wat::rete::f64::=", "3.0"))),
-        ":wat::rete::i64::to-string" => (1, ":wat::core::i64", "3", "9", "", Some((":wat::rete::string::=", "\"3\""))),
-        ":wat::rete::f64::to-string" => (1, ":wat::core::f64", "3.0", "9.0", "", Some((":wat::rete::string::=", "\"3\""))),
-        ":wat::rete::core::bool::to-string" => (1, ":wat::core::bool", "true", "false", "", Some((":wat::rete::string::=", "\"true\""))),
+        ":wat::rete::string::concat" => (2, ":wat::type::String", "\"a\"", "\"b\"", "\"x\"", Some((":wat::rete::string::=", "\"ax\""))),
+        ":wat::rete::string::length" => (1, ":wat::type::String", "\"abc\"", "\"z\"", "", Some((":wat::rete::i64::=", "3"))),
+        ":wat::rete::string::trim" => (1, ":wat::type::String", "\" a \"", "\"b\"", "", Some((":wat::rete::string::=", "\"a\""))),
+        ":wat::rete::string::to-lowercase" => (1, ":wat::type::String", "\"A\"", "\"b\"", "", Some((":wat::rete::string::=", "\"a\""))),
+        ":wat::rete::string::subs" => (5, ":wat::type::String", "\"abcd\"", "\"zzzz\"", "0 2 :undefined \"\"", Some((":wat::rete::string::=", "\"ab\""))),
+        ":wat::rete::i64::to-f64" => (1, ":wat::type::i64", "3", "9", "", Some((":wat::rete::f64::=", "3.0"))),
+        ":wat::rete::i64::to-string" => (1, ":wat::type::i64", "3", "9", "", Some((":wat::rete::string::=", "\"3\""))),
+        ":wat::rete::f64::to-string" => (1, ":wat::type::f64", "3.0", "9.0", "", Some((":wat::rete::string::=", "\"3\""))),
+        ":wat::rete::core::bool::to-string" => (1, ":wat::type::bool", "true", "false", "", Some((":wat::rete::string::=", "\"true\""))),
 
         // Container accessors. `first`/`get` return the ELEMENT type, so the wrap is the
         // element's comparator — the row's `Var("T")` return resolved by the field declaration.
@@ -1293,8 +1293,8 @@ fn an_inline_constraint_that_computes_now_computes() {
 /// exactly as it does for `i64::/`.
 #[test]
 fn a_keyword_constant_is_writable_in_an_inline_constraint() {
-    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::keyword])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/keyword])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1306,7 +1306,7 @@ fn a_keyword_constant_is_writable_in_an_inline_constraint() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1361,8 +1361,8 @@ fn a_keyword_constant_is_writable_in_an_inline_constraint() {
 /// anyway, because the alternative is the catch-all that caused this.
 #[test]
 fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
-    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/i64])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1373,7 +1373,7 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1408,8 +1408,8 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
     // ⛔ THE POSITION CONTROL — the same expression in a `where` fence, which ALWAYS worked. Its
     // job is to keep the two positions pinned to each other: they disagreed here for the life of
     // the engine, and a regression that breaks the fence instead would otherwise read as green.
-    const FENCE: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+    const FENCE: &str = r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/i64])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1421,7 +1421,7 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1487,8 +1487,8 @@ fn every_provably_boolean_form_is_admitted_inline() {
     /// condition, so a test states only the predicate under study.
     fn src(predicate: &str) -> String {
         format!(
-            r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+            r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/i64])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1498,7 +1498,7 @@ fn every_provably_boolean_form_is_admitted_inline() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1596,8 +1596,8 @@ fn every_provably_boolean_form_is_admitted_inline() {
 /// below is what proves the other half of that claim.
 #[test]
 fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
-    const KW: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::keyword])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+    const KW: &str = r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/keyword])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1607,7 +1607,7 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1619,8 +1619,8 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
     const EN: &str = r#"(:wat::core::defenum :probe::E :wat::enum::Pure :A :B :C)
 
-(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :probe::E])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- :probe::E])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1630,7 +1630,7 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1680,8 +1680,8 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
     // row of this test. `:alpha` here IS a declared field, so it must be read as a FIELD, never as
     // the constant `:alpha`. If the rule had been "keyword is a constant", the hit fact would
     // compare `:x` against the constant `:alpha`, match nothing, and this would read 0.
-    const FIELD_WINS: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::keyword  alpha <- :wat::core::keyword])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+    const FIELD_WINS: &str = r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/keyword  alpha <- wat.type/keyword])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1691,7 +1691,7 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1746,9 +1746,9 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
     /// rather than a comparison on a flat field.
     fn program(condition: &str) -> String {
         format!(
-            r#"(:wat::core::defrecord :probe::Point [x <- :wat::core::i64  y <- :wat::core::i64])
-(:wat::core::defrecord :probe::In  [k <- :wat::core::String  p <- :probe::Point])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+            r#"(:wat::core::defrecord :probe::Point [x <- wat.type/i64  y <- wat.type/i64])
+(:wat::core::defrecord :probe::In  [k <- wat.type/String  p <- :probe::Point])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1758,7 +1758,7 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1844,12 +1844,12 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
 #[test]
 fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
     const HOLON_DECLS: &str = r#"(:wat::core::defn :probe::alpha [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::i64] 1 2 3)))
+  (:wat::holon::to-holon (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 (:wat::core::defn :probe::beta [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:wat::core::Vector :- [:wat::core::i64] 7 8 9)))
+  (:wat::holon::to-holon (wat.type/Vector :- [wat.type/i64] 7 8 9)))
 
-(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::holon::HolonAST  w <- :wat::holon::HolonAST])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- :wat::holon::HolonAST  w <- :wat::holon::HolonAST])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 "#;
     // Two HolonAST fields, not a literal: the ledger's own exclusion says a holon "has no literal
     // spelling", which is true and beside the point — one field cannot discriminate, because
@@ -1857,7 +1857,7 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
     const HOLON_TAIL: &str = r#"
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1892,8 +1892,8 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
 
     // THE SOUNDNESS TWIN. `Tuple/first` returns the tuple's first element, an `i64`. Its row
     // declares `Ret::NoScheme`, so it must NOT be readable as a boolean predicate.
-    const TUPLE: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+    const TUPLE: &str = r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- wat.type/i64])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1903,7 +1903,7 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -1922,8 +1922,8 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
 
 #[test]
 fn a_mistyped_field_still_names_the_field_and_only_once() {
-    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  celsius <- :wat::core::i64])
-(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- wat.type/String  celsius <- wat.type/i64])
+(:wat::core::defrecord :probe::Out [k <- wat.type/String])
 
 (:wat::rete::defrule :probe::rule
   :when
@@ -1933,7 +1933,7 @@ fn a_mistyped_field_still_names_the_field_and_only_once() {
 
 (:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
@@ -2008,13 +2008,13 @@ fn acc_head_shaped_rows() -> Vec<&'static ReteOp> {
 /// must report rather than drop, because dropping it is how a position goes unmeasured.
 fn probe_type_of(p: &ParamType) -> Option<&'static str> {
     Some(match p {
-        ParamType::I64 => ":wat::core::i64",
-        ParamType::Bool => ":wat::core::bool",
-        ParamType::Keyword => ":wat::core::keyword",
-        ParamType::String => ":wat::core::String",
-        ParamType::F64 => ":wat::core::f64",
+        ParamType::I64 => ":wat::type::i64",
+        ParamType::Bool => ":wat::type::bool",
+        ParamType::Keyword => ":wat::type::keyword",
+        ParamType::String => ":wat::type::String",
+        ParamType::F64 => ":wat::type::f64",
         // The row's own type variable, instantiated at the probe's element type.
-        ParamType::Var(_) => ":wat::core::i64",
+        ParamType::Var(_) => ":wat::type::i64",
         _ => return None,
     })
 }
@@ -2083,10 +2083,10 @@ fn synth_acc(row: &ReteOp) -> Result<String, String> {
     }
     let head = row.rete_name;
     Ok(format!(
-        r#"(:wat::core::defrecord :probe::In  [v <- :wat::core::i64])
+        r#"(:wat::core::defrecord :probe::In  [v <- wat.type/i64])
 (:wat::core::defrecord :probe::Out [a <- {ret_ty}  b <- {ret_ty}])
 
-(:wat::rete::core::defn :probe::wrapped [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> {ret_ty}
+(:wat::rete::core::defn :probe::wrapped [xs <- (wat.type/PersistentVector :- [wat.type/i64])] -> {ret_ty}
   ({head} xs))
 
 (:wat::rete::defrule :probe::acc
@@ -2099,7 +2099,7 @@ fn synth_acc(row: &ReteOp) -> Result<String, String> {
   :params []
   :when [(?fact :- :probe::Out)])
 
-(:wat::core::defn :probe::run [] -> :wat::core::i64
+(:wat::core::defn :probe::run [] -> wat.type/i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :probe)
      session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

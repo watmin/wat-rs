@@ -49,7 +49,7 @@ use wat_macros::wat_special_form;
 /// @Totality Total
 /// @ExpandTime Legal
 /// @syntax (:wat::config::set-eval-redef! <bool>)
-/// @ret :wat::core::nil always `Unit` — the flag update already happened at freeze time; the eval arm ignores its argument
+/// @ret :wat::type::nil always `Unit` — the flag update already happened at freeze time; the eval arm ignores its argument
 /// @example (:wat::config::set-eval-redef! true) #=> nil
 #[wat_special_form(":wat::config::set-eval-redef!")]
 pub(crate) struct ConfigSetEvalRedef;

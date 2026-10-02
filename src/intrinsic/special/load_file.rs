@@ -78,7 +78,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::load-file! <path>)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at load-resolution time and never reaches evaluation; its effect is the loaded file's forms, spliced into the surrounding program
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at load-resolution time and never reaches evaluation; its effect is the loaded file's forms, spliced into the surrounding program
 /// @example-norun (:wat::load-file! "lib/util.wat") #=> splices lib/util.wat's forms into the program at this point; no runtime value
 #[wat_special_form(":wat::load-file!")]
 pub(crate) struct LoadFile;

@@ -127,7 +127,7 @@ fn preregister_struct_accessors_from_form(
     // The resolver only checks presence in `sym.functions`; the body/types
     // are irrelevant at pre-registration time.
     let stub_body = Arc::new(WatAST::List(vec![], crate::rust_caller_span!()));
-    let unit_type = crate::types::TypeExpr::Path(":wat::core::nil".into());
+    let unit_type = crate::types::TypeExpr::Path(":wat::type::nil".into());
 
     // Constructor: bare `{type}` (arc 293.R2.3 — parity with records; `/new` annihilated)
     let constructor_path = type_name.to_string();
@@ -290,7 +290,7 @@ fn preregister_enum_constructors_from_form(
     };
 
     let stub_body = Arc::new(WatAST::List(vec![], crate::rust_caller_span!()));
-    let unit_type = crate::types::TypeExpr::Path(":wat::core::nil".into());
+    let unit_type = crate::types::TypeExpr::Path(":wat::type::nil".into());
 
     let variant_items = items.get(variant_start..).unwrap_or(&[]);
     let mut vi = 0;

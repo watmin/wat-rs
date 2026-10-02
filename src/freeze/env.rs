@@ -607,7 +607,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
         let name = entry.wat_name.to_string();
         let mut prefix_items = vec![WatAST::Keyword(
-            ":wat::core::Vector".into(),
+            ":wat::type::Vector".into(),
             crate::rust_caller_span!(),
         )];
         for p in entry.prefixes {
@@ -900,8 +900,8 @@ mod rete_wall_probe {
         // build_env, so a corrupt :when here would make build_env itself fail (proven
         // separately by src/rete/validate.rs's own test module).
         let src = r#"
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
+(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64  location <- wat.type/String])
+(:wat::core::defrecord :alert::Unattended    [location <- wat.type/String])
 (:wat::rete::defrule :alert::unattended
   :when
   [(:weather::Temperature (?loc :- :location) (?c :- :celsius))]

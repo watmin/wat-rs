@@ -797,7 +797,7 @@ pub fn check_program(
 /// keywords live inside the consumed sig sub-AST and never reach
 /// check_program). Arc 163 slice 3g phase A.
 pub fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_bare_primitives(node, errors);
+    walk_for_bare_primitives(node, errors, false);
 }
 
 /// Arc 170 — substrate-as-teacher walker for the `:user::main`
@@ -951,14 +951,21 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
         .as_deref()
         .map(crate::edn::render::type_denotation)
         .as_deref()
-        == Some(":wat::core::nil");
+        == Some(":wat::type::nil");
     if canonical_params && canonical_ret {
         return;
     }
     errors.push(CheckError { span: main_span, kind: CheckErrorKind::BareLegacyMainSignature });
 }
 
-fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
+// Stone 255.81 — `is_head` is `true` iff `node` is literally `items[0]` of the enclosing
+// `WatAST::List` (a call/constructor head — "immediately after `(`", the SAME discriminator
+// `wat-scripts/fixes/types-to-wat-type.wat`'s corpus codemod uses, and the SAME shape the
+// brief's own residue census classified: 308 "head" sites, every one a slash-verb or
+// rust-scheme op the codemod leaves untouched by design). `WatAST::Vector`/`Set`/`Map` have
+// no head position at all — every one of their children recurses with `is_head=false`, same
+// as `children()` already treats them uniformly for every OTHER walker in this fn.
+fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>, is_head: bool) {
     // Walker-specific Keyword-head logic — fire diagnostic for legacy
     // keywords; preserved verbatim from pre-arc-212 shape.
     if let WatAST::Keyword(s, span) = node {
@@ -992,15 +999,20 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
             return;
         }
         // Stone 242.1 — HARD CUT: `:wat::core::Char` (PascalCase) is retired per
-        // Doctrine 2 (scalar types lowercase). The live name is `:wat::core::char`.
+        // Doctrine 2 (scalar types lowercase). The live name was `:wat::core::char`
+        // at Stone 242.1; arc 255.81 (cutover 4b) retired THAT too (`char` is one of
+        // the 24 `WAT_TYPE_HARD_PRIMITIVES` — see the arm below), so the remedy here
+        // points straight to the current survivor, `wat.type/char`, rather than to a
+        // spelling that would itself immediately refuse.
         // Walker fires in ANY keyword position (type annotation, argspec, return type,
         // etc.) — no privileged paths per `feedback_hard_cut_admits_no_bypasses`.
         if s == ":wat::core::Char" {
             errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: s.clone(),
                 reason: format!(
-                    "'{}' is retired (Stone 242.1); use ':wat::core::char' instead \
-                     (scalar types lowercase per arc 242 Doctrine 2)",
+                    "'{}' is retired (Stone 242.1, superseded by arc 255.81); use 'wat.type/char' \
+                     instead (scalar types lowercase per arc 242 Doctrine 2; 'wat.type/' holds \
+                     the 24 hard primitives per arc 255.81)",
                     s
                 ),
                 remedies: crate::remedy::remedies_for(s, std::iter::empty()),
@@ -1024,6 +1036,38 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
             } });
             return;
         }
+        // Arc 255.81 (cutover 4b) — HARD CUT: the OLD home of each of the 24
+        // `WAT_TYPE_HARD_PRIMITIVES` (`:wat::core::<tail>`; `AST`'s old home was
+        // `:wat::WatAST`, not `:wat::core::AST`, which never existed) is retired in a TYPE
+        // POSITION. `wat.type/<tail>` is the sole survivor — `type_denotation`'s
+        // `:wat::type::` → `:wat::core::` door (stones 255.1-255.80) is deleted; nothing maps
+        // the old spelling to anything registered any more. Same shape as the `Char`/`Uuid`
+        // arms immediately above — ONE arm, keyed off the closed list (`hard_primitive_old_key`),
+        // never a hand-duplicated 24-row match — EXCEPT this one has an exception the other
+        // two never needed: `is_head` (see this fn's header doc). A List HEAD —
+        // `(:wat::core::Vector :- …)` as a constructor-bracket type position, or as a bare
+        // value-level constructor call — is left alone here; stone 5 is where the head case
+        // gets its own retirement (and, unlike Char/Uuid, a head genuinely stops resolving
+        // today regardless — this arm only decides whether the stop carries a REMEDY or a
+        // plain UnknownFunction/UnresolvedReference).
+        if !is_head {
+            for &tail in crate::types::WAT_TYPE_HARD_PRIMITIVES {
+                if *s == crate::types::hard_primitive_old_key(tail) {
+                    errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: s.clone(),
+                        reason: format!(
+                            "'{}' is retired (arc 255.81); use 'wat.type/{}' instead \
+                             (wat.type/ holds exactly the 24 hard primitives, and this is one \
+                             of them — the old :wat::core:: home no longer resolves in a type \
+                             position)",
+                            s, tail
+                        ),
+                        remedies: crate::remedy::remedies_for(s, std::iter::empty()),
+                    } });
+                    return;
+                }
+            }
+        }
         // Try parsing as a type expression. Most keywords aren't
         // types (callee paths, value keywords like `:None`); they
         // parse to a plain Path that doesn't match any bare
@@ -1032,30 +1076,39 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
         // `parse_type_expr_audit` is parse_type_inner with the
         // bare→bare canonicalization suppressed: bare `:i64`
         // produces `Path(":i64")`, FQDN `:wat::core::i64`
-        // produces `Path(":wat::core::i64")`. Source spelling
-        // preserved; the structural walk distinguishes them.
+        // produces `Path(":wat::core::i64")` (identity — source spelling
+        // preserved; the structural walk distinguishes them).
         if let Some(ty) = crate::types::parse_type_expr_audit(s) {
             walk_type_for_bare(&ty, span, errors);
         }
         return;
     }
-    // Arc 212 — generic recursion via children() covers List, Vector,
-    // Map, and Set uniformly so legacy keywords buried inside ANY
-    // bracketed shape are caught. children() returns &[] for leaf nodes
-    // (no-op).
+    // Stone 255.81 — a `List`'s own head (`items[0]`) is exempt from the hard-cut arm above
+    // (see this fn's header doc); every other position recurses exactly as arc 212's generic
+    // walk always did. `Vector`/`Set`/`Map` have no head at all, so `children()` (which
+    // flattens `Map` k/v pairs) is still the right generic recursion for them.
+    if let WatAST::List(items, _) = node {
+        for (i, child) in items.iter().enumerate() {
+            walk_for_bare_primitives(child, errors, i == 0);
+        }
+        return;
+    }
+    // Arc 212 — generic recursion via children() covers Vector, Map, and
+    // Set uniformly so legacy keywords buried inside ANY bracketed shape
+    // are caught. children() returns &[] for leaf nodes (no-op).
     for child in node.children().iter() {
-        walk_for_bare_primitives(child, errors);
+        walk_for_bare_primitives(child, errors, false);
     }
 }
 
 /// The five primitive names retired by arc 109 slice 1c, paired
 /// with the canonical FQDN form they replace.
 pub(crate) const BARE_PRIMITIVES: &[(&str, &str)] = &[
-    (":i64", ":wat::core::i64"),
-    (":f64", ":wat::core::f64"),
-    (":bool", ":wat::core::bool"),
-    (":String", ":wat::core::String"),
-    (":u8", ":wat::core::u8"),
+    (":i64", ":wat::type::i64"),
+    (":f64", ":wat::type::f64"),
+    (":bool", ":wat::type::bool"),
+    (":String", ":wat::type::String"),
+    (":u8", ":wat::type::u8"),
 ];
 
 /// Parametric container heads retired by arc 109 (slices 1e + 1f),
@@ -1068,11 +1121,11 @@ pub(crate) const BARE_PRIMITIVES: &[(&str, &str)] = &[
 pub(crate) const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
     ("Option", "wat::core::Option"),           // slice 1e
     ("Result", "wat::core::Result"),           // slice 1e
-    ("HashMap", "wat::core::HashMap"),         // slice 1e
-    ("HashSet", "wat::core::HashSet"),         // slice 1e
-    ("Vec", "wat::core::Vector"),              // slice 1f — rename + move
-    ("PersistentMap", "wat::core::PersistentMap"), // arc-278-0a
-    ("PersistentVector", "wat::core::PersistentVector"), // arc-278-0b
+    ("HashMap", "wat::type::HashMap"),         // slice 1e
+    ("HashSet", "wat::type::HashSet"),         // slice 1e
+    ("Vec", "wat::type::Vector"),              // slice 1f — rename + move
+    ("PersistentMap", "wat::type::PersistentMap"), // arc-278-0a
+    ("PersistentVector", "wat::type::PersistentVector"), // arc-278-0b
 ];
 
 // Arc 154 slice 2 — `validate_legacy_let_star` walker retired
@@ -1394,7 +1447,7 @@ fn walk_for_bare_legacy_console(node: &WatAST, errors: &mut Vec<CheckError>) {
 ///
 /// 2. **`restrictions_to_binding_metadata_ast`** (struct-restrictions +
 ///    freeze-time `RestrictionEntry` iteration) — produces
-///    `WatAST::List([Keyword(":wat::core::Vector"), Keyword(p1), ...], _)`.
+///    `WatAST::List([Keyword(":wat::type::Vector"), Keyword(p1), ...], _)`.
 ///    The first item is the `:wat::core::Vector` head; items[1..] are prefixes.
 ///
 /// Returns the Vec of prefix strings if found and well-formed; `Ok(None)`
@@ -1634,17 +1687,17 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
         TypeExpr::Path(p) => matches!(
             p.as_str(),
             // Primitives (arc 215 baseline)
-            ":wat::core::i64"
-                | ":wat::core::f64"
-                | ":wat::core::bool"
-                | ":wat::core::String"
+            ":wat::type::i64"
+                | ":wat::type::f64"
+                | ":wat::type::bool"
+                | ":wat::type::String"
                 // Arc 221 Stone 221.4 — keyword is atomizable; value_to_atom dispatches
                 // via the Keyword arm → HolonAST::Keyword leaf (Stone 221.3 holon-rs
                 // commit fa48b39). Pre-arc-221 used HolonAST::symbol; now honest.
-                | ":wat::core::keyword"
+                | ":wat::type::keyword"
                 // HolonAST and WatAST (arc 215 baseline)
                 | ":wat::holon::HolonAST"
-                | ":wat::WatAST"
+                | ":wat::type::AST"
                 // Uuid — hashable primitive (arc 207); value_to_atom dispatches via
                 // the Uuid arm → HolonAST::Bind(Tag("uuid"), String(hex)) per arc 221
                 // doctrine correction (Stone 221.4). Closes arc 207 false-flag.
@@ -1657,7 +1710,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
                 // (which shipped Stone 220.2).
                 // Stone 242.1 — renamed from :wat::core::Char (PascalCase) to
                 // :wat::core::char (lowercase per Doctrine 2; scalar types lowercase).
-                | ":wat::core::char"
+                | ":wat::type::char"
                 // Arc 234 Stone 234.5 — wat::core::Record is atomizable via the hologram
                 // property: holon_form is pre-built at construction. to-holon on a record
                 // returns the holon_form directly; no recomputation. The atomizable gate
@@ -1667,14 +1720,14 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
                 // (checker passes, runtime emits the "base has no holon flavor" teaching
                 // error). Both flavors accepted here so the checker is permissive at the
                 // supertype level; flavor enforcement is a runtime contract.
-                | ":wat::core::Record"
+                | ":wat::type::Record"
                 | ":wat::holon::Record"
                 // Arc 221 Stone 221.4 — nil (Value::Nil) is atomizable; value_to_atom
                 // dispatches via the Nil arm → HolonAST::Nil leaf. The nil type is
                 // `:wat::core::nil`; Doctrine 1 (arc 242) requires bare `nil` in value
                 // position but the checker still types nil as `:wat::core::nil`. Allow
                 // it in `is_atomizable` so `(:wat::holon::to-holon nil)` type-checks.
-                | ":wat::core::nil"
+                | ":wat::type::nil"
                 // Type variables and inference sentinels — can't prove non-atomizable
                 | ":wat::type::Infer"
         ) || {
@@ -1699,11 +1752,11 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
             let key = key_owned.as_ref().strip_prefix(':').unwrap_or(key_owned.as_ref());
             match key {
             // Arc 216 Stone 1 — (HashSet :- [T']) is atomizable iff T' is atomizable
-            "wat::core::HashSet" => args.len() == 1 && is_atomizable(&args[0]),
+            "wat::type::HashSet" => args.len() == 1 && is_atomizable(&args[0]),
             // Arc 216 Stone 2 — (Vector :- [T']) atomizable iff T' atomizable
-            "wat::core::Vector" => args.len() == 1 && is_atomizable(&args[0]),
+            "wat::type::Vector" => args.len() == 1 && is_atomizable(&args[0]),
             // Arc 216 Stone 3 — (HashMap :- [K V]) atomizable iff K and V are atomizable
-            "wat::core::HashMap" => {
+            "wat::type::HashMap" => {
                 args.len() == 2 && is_atomizable(&args[0]) && is_atomizable(&args[1])
             }
             _ => false,
@@ -1738,7 +1791,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
 /// separate carve-out is needed here any more.
 ///
 /// `container` names the offending construct for the diagnostic (e.g.
-/// `":wat::core::HashSet"`, `"{…} map literal"`); `position` names the slot
+/// `":wat::type::HashSet"`, `"{…} map literal"`); `position` names the slot
 /// (`"element type"` / `"key type"`). `ty` must already be `apply_subst`'d.
 /// Returns `None` when `ty` is Equatable.
 ///
@@ -2096,13 +2149,13 @@ fn check_form(
 fn is_primitive_type_keyword_in_value_position(k: &str) -> bool {
     matches!(
         k,
-        ":wat::core::nil"
-            | ":wat::core::i64"
-            | ":wat::core::f64"
-            | ":wat::core::bool"
-            | ":wat::core::String"
-            | ":wat::core::u8"
-            | ":wat::core::char"
+        ":wat::type::nil"
+            | ":wat::type::i64"
+            | ":wat::type::f64"
+            | ":wat::type::bool"
+            | ":wat::type::String"
+            | ":wat::type::u8"
+            | ":wat::type::char"
     )
 }
 
@@ -2144,19 +2197,19 @@ fn infer_node(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     match ast {
-        WatAST::IntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::i64".into())),
-        WatAST::FloatLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::f64".into())),
+        WatAST::IntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::i64".into())),
+        WatAST::FloatLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::f64".into())),
         // Arc 300 stone B — rational literal infers as :wat::core::rational.
         // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
-        WatAST::RationalLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::rational".into())),
+        WatAST::RationalLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::rational".into())),
         // Arc 300 stone C1 — bigint literal infers as :wat::core::bigint (lowercase from birth).
-        WatAST::BigIntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bigint".into())),
+        WatAST::BigIntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::bigint".into())),
         // Arc 300 stone D — char literal infers as :wat::core::char.
-        WatAST::CharLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::char".into())),
-        WatAST::BoolLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bool".into())),
-        WatAST::StringLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::String".into())),
+        WatAST::CharLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::char".into())),
+        WatAST::BoolLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::bool".into())),
+        WatAST::StringLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::String".into())),
         // Arc 244 — NilLit is the canonical nil VALUE literal; infers as :wat::core::nil.
-        WatAST::NilLit(_) => CheckResult::ok(TypeExpr::Path(":wat::core::nil".into())),
+        WatAST::NilLit(_) => CheckResult::ok(TypeExpr::Path(":wat::type::nil".into())),
         // `:None` / `:wat::core::None` — nullary constructor of the
         // built-in (:Option :- [T]) enum. Infers as `(:Option :- [T])` with a
         // fresh T; unification against the expected type sharpens T
@@ -2261,7 +2314,7 @@ fn infer_node(
         //   - `:wat::core::nil` → "use bare `nil` in value position"
         //   - Other primitive types → "use a value of this type in value position"
         WatAST::Keyword(k, kw_span) if is_primitive_type_keyword_in_value_position(k) => {
-            let reason = if k == ":wat::core::nil" {
+            let reason = if k == ":wat::type::nil" {
                 format!(
                     "Doctrine 1 (arc 242): '{}' is a TYPE keyword, not a value; \
                      use bare `nil` in value position",
@@ -2280,7 +2333,7 @@ fn infer_node(
                 remedies: vec![],
             } }])
         }
-        WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::keyword".into())),
+        WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::type::keyword".into())),
         WatAST::Symbol(ident, sp) => {
             match locals.get(crate::scope::resolution::env_key(ident).as_ref()).cloned() {
                 Some(ty) => CheckResult::ok(ty),
@@ -2655,7 +2708,7 @@ fn infer_rete_form(
         // the result is String (the variant identifier, no leading colon).
         ":wat::core::variant-name" => {
             let mut local_errors: Vec<CheckError> = Vec::new();
-            let string_ty = TypeExpr::Path(":wat::core::String".into());
+            let string_ty = TypeExpr::Path(":wat::type::String".into());
             if args.len() != 1 {
                 local_errors.push(CheckError {
                     span: head_span.clone(),
@@ -2703,7 +2756,7 @@ fn infer_rete_form(
         }
         ":wat::core::=" | ":wat::core::not=" => {
             let mut local_errors: Vec<CheckError> = Vec::new();
-            let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+            let bool_ty = TypeExpr::Path(":wat::type::bool".into());
             if args.len() != 2 {
                 local_errors.push(CheckError {
                     span: head_span.clone(),
@@ -2728,7 +2781,7 @@ fn infer_rete_form(
             // drawn one notch too tight makes the honest path non-compliant
             // (`[[feedback_a_guard_drawn_too_tight_makes_the_honest_path_noncompliant]]`).
             // The head is normalised for the leading `::` that `Parametric` heads elide
-            // (`check.rs:1013` — `("PersistentMap", "wat::core::PersistentMap")`).
+            // (`check.rs:1013` — `("PersistentMap", "wat::type::PersistentMap")`).
             let is_enum = |t: &Option<TypeExpr>| -> bool {
                 let resolved = match t.as_ref() {
                     Some(x) => apply_subst(x, subst),
@@ -2800,11 +2853,11 @@ fn infer_rete_form(
         // to pass a bound variable because `[]` had no form. See `vocabulary.rs`'s own comment on
         // these rows for the full account, and note the census could not have found it: a corpus
         // records what COMPILED, so it is structurally blind to what cannot be written.
-        ":wat::core::PersistentVector"
-        | ":wat::core::Vector"
-        | ":wat::core::List"
-        | ":wat::core::PersistentMap"
-        | ":wat::core::Tuple" => {
+        ":wat::type::PersistentVector"
+        | ":wat::type::Vector"
+        | ":wat::type::List"
+        | ":wat::type::PersistentMap"
+        | ":wat::type::Tuple" => {
             let mut items = Vec::with_capacity(args.len() + 1);
             items.push(WatAST::Keyword(core_name.to_string(), head_span.clone()));
             items.extend_from_slice(args);
@@ -2939,9 +2992,9 @@ fn infer_list(
                     } });
                 }
                 return if local_errors.is_empty() {
-                    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
+                    CheckResult::ok(TypeExpr::Path(":wat::type::nil".into()))
                 } else {
-                    CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
+                    CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors)
                 };
             }
             // Arc 237 follow-on — `:wat::core::derive` type-check arm.
@@ -2958,9 +3011,9 @@ fn infer_list(
                     } });
                 }
                 return if local_errors.is_empty() {
-                    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
+                    CheckResult::ok(TypeExpr::Path(":wat::type::nil".into()))
                 } else {
-                    CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
+                    CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors)
                 };
             }
             // Arc 265 — `:wat::string::declare-acronyms` type-check arm.
@@ -2978,9 +3031,9 @@ fn infer_list(
                     } });
                 }
                 return if local_errors.is_empty() {
-                    CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
+                    CheckResult::ok(TypeExpr::Path(":wat::type::nil".into()))
                 } else {
-                    CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
+                    CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors)
                 };
             }
             // Arc 157 slice 1a-ii — config setters for redef opt-in.
@@ -3053,7 +3106,7 @@ fn infer_list(
                     } });
                     return CheckResult::errs(local_errors);
                 }
-                let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
+                let bool_result_ty = TypeExpr::Path(":wat::type::bool".into());
                 return if local_errors.is_empty() {
                     CheckResult::ok(bool_result_ty)
                 } else {
@@ -3082,7 +3135,7 @@ fn infer_list(
                 if !args.is_empty() && !matches!(&args[0], WatAST::Keyword(_, _)) {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
-                let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
+                let bool_result_ty = TypeExpr::Path(":wat::type::bool".into());
                 return if local_errors.is_empty() {
                     CheckResult::ok(bool_result_ty)
                 } else {
@@ -3119,7 +3172,7 @@ fn infer_list(
                         infer(&args[0], env, locals, fresh, subst).into_parts();
                     local_errors.extend(arg_errs);
                     let arg_ty = arg_ty_opt.unwrap_or_else(|| fresh.fresh());
-                    let kw = TypeExpr::Path(":wat::core::keyword".into());
+                    let kw = TypeExpr::Path(":wat::type::keyword".into());
                     if !assignable(&arg_ty, &kw, subst, env) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::runtime::variant-parent-of".into(),
@@ -3132,7 +3185,7 @@ fn infer_list(
                 }
                 let opt_kw_ty = TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                    args: vec![TypeExpr::Path(":wat::type::keyword".into())],
                 };
                 return if local_errors.is_empty() {
                     CheckResult::ok(opt_kw_ty)
@@ -3162,7 +3215,7 @@ fn infer_list(
                 // ⛔ LITERAL OR COMPUTED, on EACH arg independently — deliberately NOT
                 // `is-type?`'s literal-only gate. See `variant-parent-of`'s arm above for the
                 // full rationale; the same door, applied twice.
-                let kw = TypeExpr::Path(":wat::core::keyword".into());
+                let kw = TypeExpr::Path(":wat::type::keyword".into());
                 for (idx, arg) in args.iter().enumerate() {
                     if !matches!(arg, WatAST::Keyword(_, _)) {
                         let (arg_ty_opt, arg_errs) = infer(arg, env, locals, fresh, subst).into_parts();
@@ -3221,12 +3274,12 @@ fn infer_list(
                 if !matches!(&args[1], WatAST::Keyword(_, _) | WatAST::List(_, _)) {
                     local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::conforms?".into(),
-                        reason: "second arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Type or (:wat::core::Vector :- [:my::T]))".into(),
+                        reason: "second arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Type or (wat.type/Vector :- [:my::T]))".into(),
                         remedies: vec![],
                     } });
                     return CheckResult::errs(local_errors);
                 }
-                let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
+                let bool_result_ty = TypeExpr::Path(":wat::type::bool".into());
                 return if local_errors.is_empty() {
                     CheckResult::ok(bool_result_ty)
                 } else {
@@ -3260,7 +3313,7 @@ fn infer_list(
                 if !matches!(&args[1], WatAST::Keyword(_, _) | WatAST::List(_, _)) {
                     local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::edn::validate".into(),
-                        reason: "second arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Request or (:wat::core::Vector :- [:my::T]))".into(),
+                        reason: "second arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Request or (wat.type/Vector :- [:my::T]))".into(),
                         remedies: vec![],
                     } });
                     return CheckResult::errs(local_errors);
@@ -3410,7 +3463,7 @@ fn infer_list(
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::vec".into(),
                     param: "(retired verb)".into(),
-                    expected: ":wat::core::Vector".into(),
+                    expected: ":wat::type::Vector".into(),
                     got: ":wat::core::vec".into()
                 } });
                 let (val, mut errs) = infer_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
@@ -3420,7 +3473,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::core::Vector" => {
+            ":wat::type::Vector" => {
                 // Arc 109 stone 3 (THE WALL) — `infer_list_constructor` now peels
                 // its own `:- [T]` param-spec (un-spliced), so this call site no
                 // longer routes args through `unwrap_type_param_bracket` — doing so
@@ -3436,7 +3489,7 @@ fn infer_list(
             // Arc 220 Stone 220.4 — `:wat::core::List` variadic constructor.
             // `(:wat::core::List x1 x2 ...)` → `(List :- [T])`.  No leading type keyword;
             // T is inferred from the elements.
-            ":wat::core::List" => {
+            ":wat::type::List" => {
                 let (val, mut errs) = infer_linked_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3464,7 +3517,7 @@ fn infer_list(
                         let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                     }
                     let t = fresh.fresh();
-                    let list_ty = TypeExpr::Parametric { head: "wat::core::List".into(), args: vec![t] };
+                    let list_ty = TypeExpr::Parametric { head: "wat::type::List".into(), args: vec![t] };
                     return if local_errors.is_empty() { CheckResult::ok(list_ty) } else { CheckResult::partial_with(list_ty, local_errors) };
                 }
                 let list_arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -3473,7 +3526,7 @@ fn infer_list(
                 if let Some(lt) = &list_arg_ty {
                     let reduced = reduce(lt, subst, env.types());
                     match &reduced {
-                        TypeExpr::Parametric { head, args: ta } if crate::types::parametric_heads_unify(head, "wat::core::List") => {
+                        TypeExpr::Parametric { head, args: ta } if crate::types::parametric_heads_unify(head, "wat::type::List") => {
                             if let Some(inner) = ta.first() {
                                 let _ = unify(&elem_ty, inner, subst, env.types());
                             }
@@ -3493,7 +3546,7 @@ fn infer_list(
                     let _ = unify(it, &elem_ty, subst, env.types());
                 }
                 let list_ty = TypeExpr::Parametric {
-                    head: "wat::core::List".into(),
+                    head: "wat::type::List".into(),
                     args: vec![apply_subst(&elem_ty, subst)],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(list_ty) } else { CheckResult::partial_with(list_ty, local_errors) };
@@ -3508,7 +3561,7 @@ fn infer_list(
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::list".into(),
                     param: "(retired verb)".into(),
-                    expected: ":wat::core::Vector".into(),
+                    expected: ":wat::type::Vector".into(),
                     got: ":wat::core::list".into()
                 } });
                 let (val, mut errs) = infer_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
@@ -3527,7 +3580,7 @@ fn infer_list(
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::tuple".into(),
                     param: "(retired verb)".into(),
-                    expected: ":wat::core::Tuple".into(),
+                    expected: ":wat::type::Tuple".into(),
                     got: ":wat::core::tuple".into()
                 } });
                 let (val, mut errs) = infer_tuple_constructor(args, head_span, env, locals, fresh, subst).into_parts();
@@ -3537,7 +3590,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::core::Tuple"
+            ":wat::type::Tuple"
                 if !(k_disp.as_ref() != k.as_str()
                     && matches!(
                         split_type_param_bracket(args),
@@ -3577,7 +3630,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::core::HashMap" => {
+            ":wat::type::HashMap" => {
                 // Arc 109 stone 3 (THE WALL) — `infer_hashmap_constructor` now peels
                 // its own `:- [K V]` param-spec (un-spliced); see the Vector arm above.
                 let (val, mut errs) = infer_hashmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
@@ -3595,7 +3648,7 @@ fn infer_list(
             // pairing — see that helper's doc comment); `infer_persistentmap_constructor`
             // detects and parses its own leading bracket internally, so this call site is
             // unchanged from step ①'s STOP-3 shape.
-            ":wat::core::PersistentMap" => {
+            ":wat::type::PersistentMap" => {
                 let (val, mut errs) = infer_persistentmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3611,7 +3664,7 @@ fn infer_list(
             // `infer_persistentvector_constructor` detects and parses its own leading
             // bracket internally, so this call site is unchanged from step ①'s STOP-3
             // shape.
-            ":wat::core::PersistentVector" => {
+            ":wat::type::PersistentVector" => {
                 let (val, mut errs) = infer_persistentvector_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3638,7 +3691,7 @@ fn infer_list(
             // dispatch_registry guard above intercepts before reaching
             // this match. Per-Type impls (`:wat::core::Vector/length`
             // etc.) reach the standard scheme path via env.get.
-            ":wat::core::HashSet" => {
+            ":wat::type::HashSet" => {
                 // Arc 109 stone 3 (THE WALL) — `infer_hashset_constructor` now peels
                 // its own `:- [T]` param-spec (un-spliced); see the Vector arm above.
                 let (val, mut errs) = infer_hashset_constructor(args, head_span, env, locals, fresh, subst).into_parts();
@@ -3743,7 +3796,7 @@ fn infer_list(
                 }
                 let ty = TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                    args: vec![TypeExpr::Path(":wat::type::AST".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -3767,7 +3820,7 @@ fn infer_list(
                 if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
-                let ty = TypeExpr::Path(":wat::core::String".into());
+                let ty = TypeExpr::Path(":wat::type::String".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::runtime::signature-of-fn" => {
@@ -3794,7 +3847,7 @@ fn infer_list(
                 if !args.is_empty() {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
-                let ty = TypeExpr::Path(":wat::WatAST".into());
+                let ty = TypeExpr::Path(":wat::type::AST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::runtime::return-type-of" => {
@@ -3831,7 +3884,7 @@ fn infer_list(
                         }
                     }
                 }
-                let ty = TypeExpr::Path(":wat::core::String".into());
+                let ty = TypeExpr::Path(":wat::type::String".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::runtime::rename-callable-name" => {
@@ -3854,7 +3907,7 @@ fn infer_list(
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 // Arc 294.f — rename-callable-name now returns :wat::WatAST.
-                let ty = TypeExpr::Path(":wat::WatAST".into());
+                let ty = TypeExpr::Path(":wat::type::AST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::runtime::extract-arg-names" => {
@@ -3874,8 +3927,8 @@ fn infer_list(
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                    head: "wat::type::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::keyword".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -3901,8 +3954,8 @@ fn infer_list(
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                    head: "wat::type::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::AST".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -3959,8 +4012,8 @@ fn infer_list(
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                    head: "wat::type::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::keyword".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -3985,8 +4038,8 @@ fn infer_list(
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                    head: "wat::type::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::AST".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -4050,7 +4103,7 @@ fn infer_list(
                     // or :wat::holon::Record) is atomizable via its holon_form; is_atomizable
                     // only knows the exact root names, so check subtype first.
                     let is_record_subtype = matches!(&resolved, TypeExpr::Path(p)
-                        if crate::types::is_subtype(p, ":wat::core::Record", env.types())
+                        if crate::types::is_subtype(p, ":wat::type::Record", env.types())
                             || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
                     if !is_record_subtype && !is_atomizable(&resolved) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -4118,7 +4171,7 @@ fn infer_list(
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::type::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
@@ -4171,11 +4224,11 @@ fn infer_list(
                         // :wat::holon::Record (specifically-typed records always have a
                         // class_fqdn, so the return type is String, not (Option :- [:String])).
                         let is_record = matches!(&resolved, TypeExpr::Path(p)
-                            if crate::types::is_subtype(p, ":wat::core::Record", env.types())
+                            if crate::types::is_subtype(p, ":wat::type::Record", env.types())
                                 || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
                         if is_record {
                             // Record arg (base or holonic, any subtype) → return type is String (classifier always present).
-                            let ty = TypeExpr::Path(":wat::core::String".into());
+                            let ty = TypeExpr::Path(":wat::type::String".into());
                             return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                         }
                     } else {
@@ -4184,7 +4237,7 @@ fn infer_list(
                 }
                 let ty = TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
+                    args: vec![TypeExpr::Path(":wat::type::String".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -4925,7 +4978,7 @@ fn infer_list(
                         let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                     }
                     let t = fresh.fresh();
-                    let vec_ty = TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] };
+                    let vec_ty = TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![t] };
                     return if local_errors.is_empty() { CheckResult::ok(vec_ty) } else { CheckResult::partial_with(vec_ty, local_errors) };
                 }
                 let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -4963,7 +5016,7 @@ fn infer_list(
                                 got: format_type(&apply_subst(ty, subst))
                             } });
                             let t = fresh.fresh();
-                            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                            TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![t] }
                         }
                         Some(_) => {
                             // ∅ N/A: container has no tail (Tuple, HashSet).
@@ -4974,13 +5027,13 @@ fn infer_list(
                                 got: format_type(&apply_subst(ty, subst))
                             } });
                             let t = fresh.fresh();
-                            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                            TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![t] }
                         }
                         None => {
                             // Unresolved type variable — defer to runtime backstop.
                             if matches!(reduced, TypeExpr::Var(_)) {
                                 let t = fresh.fresh();
-                                TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                                TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![t] }
                             } else {
                                 // Not a sequence container at all.
                                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -4990,13 +5043,13 @@ fn infer_list(
                                     got: format_type(&apply_subst(ty, subst))
                                 } });
                                 let t = fresh.fresh();
-                                TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                                TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![t] }
                             }
                         }
                     }
                 } else {
                     let t = fresh.fresh();
-                    TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                    TypeExpr::Parametric { head: "wat::type::Vector".into(), args: vec![t] }
                 };
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
@@ -5020,7 +5073,7 @@ fn infer_list(
                     for arg in args {
                         let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                     }
-                    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                    let bool_ty = TypeExpr::Path(":wat::type::bool".into());
                     return CheckResult::partial_with(bool_ty, local_errors);
                 }
                 let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -5037,7 +5090,7 @@ fn infer_list(
                         } });
                     }
                 }
-                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                let bool_ty = TypeExpr::Path(":wat::type::bool".into());
                 return if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) };
             }
             ":wat::core::and" | ":wat::core::or" => {
@@ -6003,9 +6056,9 @@ fn infer_list(
                 // does not start with `:wat::`.
                 //
                 // Three permitted receiver shapes for user keyword accessors:
-                //   - TypeExpr::Path(":wat::core::Record")     → record accessor
+                //   - TypeExpr::Path(":wat::type::Record")     → record accessor
                 //   - TypeExpr::Path(name) where name is a registered Struct
-                //   - TypeExpr::Parametric { head: "wat::core::HashMap", .. }
+                //   - TypeExpr::Parametric { head: "wat::type::HashMap", .. }
                 // Plus permissive for unresolved/unknown (Var or None).
                 if args.len() == 1 && !k.starts_with(":wat::") {
                     let resolved = arg_types[0]
@@ -6024,7 +6077,7 @@ fn infer_list(
                             return unresolved_accessor_placeholder(fresh, local_errors);
                         }
                         Some(TypeExpr::Parametric { head, .. })
-                            if crate::types::parametric_heads_unify(head, "wat::core::HashMap") =>
+                            if crate::types::parametric_heads_unify(head, "wat::type::HashMap") =>
                         {
                             return unresolved_accessor_placeholder(fresh, local_errors);
                         }
@@ -6069,7 +6122,7 @@ fn infer_list(
                             if let TypeExpr::Path(p) = recv_ty {
                                 if crate::types::is_subtype(
                                     p,
-                                    ":wat::core::Record",
+                                    ":wat::type::Record",
                                     env.types(),
                                 ) || crate::types::is_subtype(
                                     p,
@@ -6279,7 +6332,7 @@ fn infer_list(
             .as_ref()
             .and_then(|rest_ty| match rest_ty {
                 TypeExpr::Parametric { head, args }
-                    if crate::types::parametric_heads_unify(head, "wat::core::Vector") && args.len() == 1 =>
+                    if crate::types::parametric_heads_unify(head, "wat::type::Vector") && args.len() == 1 =>
                 {
                     Some(args[0].clone())
                 }
@@ -7621,7 +7674,7 @@ fn check_subpattern(
         }
         // Literal sub-patterns — narrow the variant's space; partial.
         WatAST::IntLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::i64" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::type::i64" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -7635,7 +7688,7 @@ fn check_subpattern(
             }
         },
         WatAST::FloatLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::f64" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::type::f64" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -7651,7 +7704,7 @@ fn check_subpattern(
         // Arc 300 stone B — rational literal sub-pattern.
         // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
         WatAST::RationalLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::rational" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::type::rational" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -7666,7 +7719,7 @@ fn check_subpattern(
         },
         // Arc 300 stone C1 — bigint literal sub-pattern.
         WatAST::BigIntLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::bigint" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::type::bigint" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -7681,7 +7734,7 @@ fn check_subpattern(
         },
         // Arc 300 stone D — char literal sub-pattern.
         WatAST::CharLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::char" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::type::char" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -7695,7 +7748,7 @@ fn check_subpattern(
             }
         },
         WatAST::BoolLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::bool" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::type::bool" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -7709,7 +7762,7 @@ fn check_subpattern(
             }
         },
         WatAST::StringLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::String" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::type::String" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -8166,7 +8219,7 @@ fn check_subpattern(
         // Arc 244 — NilLit is a literal pattern; valid at :wat::core::nil position
         // (catches the single nil value exhaustively), type-error otherwise.
         WatAST::NilLit(_) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::nil" => Some(true),
+            TypeExpr::Path(p) if p == ":wat::type::nil" => Some(true),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -8222,11 +8275,11 @@ fn infer_if(
         // cond must be bool. (The 5-arg `-> :T` path is retired.)
         let cond_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(c) = cond_ty {
-            if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
+            if unify(&c, &TypeExpr::Path(":wat::type::bool".into()), subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::if".into(),
                     param: "cond".into(),
-                    expected: ":wat::core::bool".into(),
+                    expected: ":wat::type::bool".into(),
                     got: format_type(&apply_subst(&c, subst))
                 } });
             }
@@ -8686,7 +8739,7 @@ fn infer_def(
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
         // HARVEST (236.2): existing diagnostic; def is a declaration — return unit with errors.
-        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
     }
 
     // Arg 0 must be a keyword (the name).
@@ -8704,7 +8757,7 @@ fn infer_def(
             // Still infer the expr so internal errors surface.
             let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; def is a declaration — return unit with errors.
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
     };
 
@@ -8720,7 +8773,7 @@ fn infer_def(
                 reason: "second arg of 4-item def must be a metadata-map `{key val ...}`".into(),
                 remedies: vec![],
             } });
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
         // Empty {} check: Map with 0 pairs or legacy List with only [head, K, V] = 3 items.
         let is_empty = match meta_node {
@@ -8734,7 +8787,7 @@ fn infer_def(
                 reason: "empty metadata-map `{}` is illegal; provide at least one key-value pair".into(),
                 remedies: vec![],
             } });
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
         2usize // expr is at args[2]
     } else {
@@ -8797,7 +8850,7 @@ fn infer_def(
             match (prior_type, new_type) {
                 (Some(pt), Some(nt)) => {
                     // Compare structural representation via `format_type`.
-                    // TypeExpr::Path(":wat::core::i64") == TypeExpr::Path(":wat::core::i64") etc.
+                    // TypeExpr::Path(":wat::type::i64") == TypeExpr::Path(":wat::type::i64") etc.
                     let pt_str = format_type(&pt);
                     let nt_str = format_type(&nt);
                     if pt_str != nt_str {
@@ -8822,9 +8875,9 @@ fn infer_def(
     // Return unit — `def` is a declaration, not a value expression.
     // HARVEST (236.2): silent-by-intent — declaration forms return unit type.
     if local_errors.is_empty() {
-        CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
+        CheckResult::ok(TypeExpr::Path(":wat::type::nil".into()))
     } else {
-        CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
+        CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors)
     }
 }
 
@@ -8875,7 +8928,7 @@ fn infer_defclause(
                 reason: format!("{}", e),
                 remedies: vec![],
             } });
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
     };
 
@@ -8902,7 +8955,7 @@ fn infer_defclause(
             .drain_errors_into(&mut local_errors);
 
             if let Some(guard_ty) = guard_ty {
-                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                let bool_ty = TypeExpr::Path(":wat::type::bool".into());
                 let resolved_guard = apply_subst(&guard_ty, &clause_subst);
                 if unify(&resolved_guard, &bool_ty, &mut clause_subst, env.types()).is_err() {
                     local_errors.push(CheckError { span: guard_ast.span().clone(), kind: CheckErrorKind::GuardExprNotBoolean {
@@ -9025,7 +9078,7 @@ fn infer_defclause(
                         }
 
                         // Rule 3: return type must be :bool.
-                        let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                        let bool_ty = TypeExpr::Path(":wat::type::bool".into());
                         let mut ret_subst = Subst::new();
                         if unify(&ret_type, &bool_ty, &mut ret_subst, env.types()).is_err() {
                             local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
@@ -9086,9 +9139,9 @@ fn infer_defclause(
     }
 
     if local_errors.is_empty() {
-        CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
+        CheckResult::ok(TypeExpr::Path(":wat::type::nil".into()))
     } else {
-        CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
+        CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors)
     }
 }
 
@@ -9138,20 +9191,20 @@ fn infer_config_set_bool(
             remedies: vec![],
         } });
         // HARVEST (236.2): existing diagnostic; declaration — return unit with errors.
-        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
     }
     // The argument must be a bool literal — infer it to surface any
     // type errors, then verify it's a bool.
     let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     match arg_ty {
-        Some(TypeExpr::Path(ref p)) if p == ":wat::core::bool" => {
+        Some(TypeExpr::Path(ref p)) if p == ":wat::type::bool" => {
             // Well-typed bool arg — accepted.
         }
         Some(ref ty) => {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: head.into(),
                 param: "flag".into(),
-                expected: ":wat::core::bool".into(),
+                expected: ":wat::type::bool".into(),
                 got: format_type(ty)
             } });
         }
@@ -9162,9 +9215,9 @@ fn infer_config_set_bool(
     // Returns Unit — setter is a declaration.
     // HARVEST (236.2): silent-by-intent — declaration forms return unit type.
     if local_errors.is_empty() {
-        CheckResult::ok(TypeExpr::Path(":wat::core::nil".into()))
+        CheckResult::ok(TypeExpr::Path(":wat::type::nil".into()))
     } else {
-        CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors)
+        CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors)
     }
 }
 
@@ -9900,11 +9953,11 @@ fn infer_option_expect(
     // Msg must be :String.
     let msg_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(m) = msg_ty {
-        if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
+        if unify(&m, &TypeExpr::Path(":wat::type::String".into()), subst, env.types()).is_err() {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
-                expected: ":wat::core::String".into(),
+                expected: ":wat::type::String".into(),
                 got: format_type(&apply_subst(&m, subst))
             } });
         }
@@ -9970,11 +10023,11 @@ fn infer_result_expect(
     let result_ty = apply_subst(&t_var, subst);
     let msg_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(m) = msg_ty {
-        if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
+        if unify(&m, &TypeExpr::Path(":wat::type::String".into()), subst, env.types()).is_err() {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
-                expected: ":wat::core::String".into(),
+                expected: ":wat::type::String".into(),
                 got: format_type(&apply_subst(&m, subst))
             } });
         }
@@ -10268,8 +10321,8 @@ fn infer_positional_accessor(
                     }
                     // WatAstList: fixed homogeneous element type :wat::WatAST.
                     // (arc-249 form-values; arc-278 flip: bare WatAST, was Option).
-                    TypeExpr::Path(p) if p == ":wat::WatAST" => {
-                        TypeExpr::Path(":wat::WatAST".into())
+                    TypeExpr::Path(p) if p == ":wat::type::AST" => {
+                        TypeExpr::Path(":wat::type::AST".into())
                     }
                     // Homogeneous parametric containers ((Vector :- [T]), (List :- [T]), (PersistentVector :- [T])):
                     // return bare T (arc-278 flip; was (Option :- [T])). Empty/short is a runtime raise.
@@ -10354,7 +10407,7 @@ fn infer_nth(
 
     // arg1 must be i64 — independent of the receiver's element type.
     if let Some(idx_ty) = &arg1_ty {
-        let expected_idx_ty = TypeExpr::Path(":wat::core::i64".into());
+        let expected_idx_ty = TypeExpr::Path(":wat::type::i64".into());
         if unify(idx_ty, &expected_idx_ty, subst, env.types()).is_err() {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
@@ -10385,8 +10438,8 @@ fn infer_nth(
             Some(container) if container.nth_indexable() => {
                 let result_ty = match &reduced {
                     // WatAstList: fixed homogeneous element type :wat::WatAST.
-                    TypeExpr::Path(p) if p == ":wat::WatAST" => {
-                        TypeExpr::Path(":wat::WatAST".into())
+                    TypeExpr::Path(p) if p == ":wat::type::AST" => {
+                        TypeExpr::Path(":wat::type::AST".into())
                     }
                     // Homogeneous parametric containers: (Vector :- [T]), (List :- [T]), (PersistentVector :- [T])
                     // — bare T, never (Option :- [T]) (nth raises, doesn't None). Stone 118.B4-iii —
@@ -10632,13 +10685,13 @@ fn infer_listener_prime(
                         .drain_errors_into(&mut local_errors);
                     if let Some(b_ty) = b {
                         let b_reduced = reduce(&apply_subst(&b_ty, subst), subst, env.types());
-                        if b_reduced != TypeExpr::Path(":wat::core::i64".into()) {
+                        if b_reduced != TypeExpr::Path(":wat::type::i64".into()) {
                             local_errors.push(CheckError {
                                 span: args[3].span().clone(),
                                 kind: CheckErrorKind::TypeMismatch {
                                     callee: OP.into(),
                                     param: "max-frame-bytes".into(),
-                                    expected: ":wat::core::i64".into(),
+                                    expected: ":wat::type::i64".into(),
                                     got: format_type(&b_reduced),
                                 },
                             });
@@ -10930,12 +10983,12 @@ fn infer_allow_prime(
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
         } });
-        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
     }
     let listener_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
     };
     let listener_surface = apply_subst(&listener_ty, subst);
@@ -10956,12 +11009,12 @@ fn infer_allow_prime(
     let pid_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
     };
     let pid_surface = apply_subst(&pid_ty, subst);
     let pid_reduced = reduce(&pid_surface, subst, env.types());
-    match unify(&pid_reduced, &TypeExpr::Path(":wat::core::i64".into()), subst, env.types()) {
+    match unify(&pid_reduced, &TypeExpr::Path(":wat::type::i64".into()), subst, env.types()) {
         Ok(()) => {}
         Err(_) => {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -10972,7 +11025,7 @@ fn infer_allow_prime(
             } });
         }
     }
-    let ret = TypeExpr::Path(":wat::core::nil".into());
+    let ret = TypeExpr::Path(":wat::type::nil".into());
     if local_errors.is_empty() { CheckResult::ok(ret) } else { CheckResult::partial_with(ret, local_errors) }
 }
 
@@ -10993,12 +11046,12 @@ fn infer_deny_prime(
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
         } });
-        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
     }
     let listener_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
     };
     let listener_surface = apply_subst(&listener_ty, subst);
@@ -11019,12 +11072,12 @@ fn infer_deny_prime(
     let pid_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
     };
     let pid_surface = apply_subst(&pid_ty, subst);
     let pid_reduced = reduce(&pid_surface, subst, env.types());
-    match unify(&pid_reduced, &TypeExpr::Path(":wat::core::i64".into()), subst, env.types()) {
+    match unify(&pid_reduced, &TypeExpr::Path(":wat::type::i64".into()), subst, env.types()) {
         Ok(()) => {}
         Err(_) => {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -11035,7 +11088,7 @@ fn infer_deny_prime(
             } });
         }
     }
-    let ret = TypeExpr::Path(":wat::core::nil".into());
+    let ret = TypeExpr::Path(":wat::type::nil".into());
     if local_errors.is_empty() { CheckResult::ok(ret) } else { CheckResult::partial_with(ret, local_errors) }
 }
 
@@ -11354,8 +11407,8 @@ fn infer_kernel_fn_forms(
     const OP: &str = ":wat::kernel::fn-forms";
     let mut local_errors: Vec<CheckError> = Vec::new();
     let ret_ty = TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::WatAST".into())],
+        head: "wat::type::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::type::AST".into())],
     };
     if args.len() != 2 {
         local_errors.push(CheckError {
@@ -11378,14 +11431,14 @@ fn infer_kernel_fn_forms(
     // arg 1: name — infer; must conform to :wat::core::keyword.
     let name_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(name_ty) = &name_ty_opt {
-        let expected_name = TypeExpr::Path(":wat::core::keyword".into());
+        let expected_name = TypeExpr::Path(":wat::type::keyword".into());
         if !assignable(name_ty, &expected_name, subst, env) {
             local_errors.push(CheckError {
                 span: args[1].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "name".into(),
-                    expected: ":wat::core::keyword".into(),
+                    expected: ":wat::type::keyword".into(),
                     got: format_type(name_ty),
                 },
             });
@@ -11515,7 +11568,7 @@ fn infer_kernel_after(
         let o = fresh.fresh();
         let ty = TypeExpr::Parametric {
             head: "wat::kernel::Peer".into(),
-            args: vec![TypeExpr::Path(":wat::core::nil".into()), o],
+            args: vec![TypeExpr::Path(":wat::type::nil".into()), o],
         };
         return CheckResult::partial_with(ty, local_errors);
     }
@@ -11577,7 +11630,7 @@ fn infer_kernel_after(
     // bottom rule, no Value-erasure / fresh-var papering / coercion.
     let peer_ty = TypeExpr::Parametric {
         head: "wat::kernel::Peer".into(),
-        args: vec![TypeExpr::Path(":wat::core::Never".into()), msg_ty],
+        args: vec![TypeExpr::Path(":wat::type::Never".into()), msg_ty],
     };
     if local_errors.is_empty() {
         CheckResult::ok(peer_ty)
@@ -11876,13 +11929,13 @@ fn infer_close_prime(
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
-        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
     }
 
     let peer_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
-            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            return CheckResult::partial_with(TypeExpr::Path(":wat::type::nil".into()), local_errors);
         }
     };
     let peer_surface = apply_subst(&peer_ty, subst);
@@ -11908,7 +11961,7 @@ fn infer_close_prime(
                     got: format_type(other),
                 },
             });
-            TypeExpr::Path(":wat::core::nil".into())
+            TypeExpr::Path(":wat::type::nil".into())
         }
     };
     if local_errors.is_empty() {
@@ -12111,7 +12164,7 @@ fn infer_peer_wire(
 
     match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
         Ok(_) => {
-            let ret = TypeExpr::Path(":wat::core::bool".into());
+            let ret = TypeExpr::Path(":wat::type::bool".into());
             if local_errors.is_empty() {
                 CheckResult::ok(ret)
             } else {
@@ -12159,7 +12212,7 @@ fn infer_address_wire(
     let addr_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
-            let ret = TypeExpr::Path(":wat::core::bool".into());
+            let ret = TypeExpr::Path(":wat::type::bool".into());
             return CheckResult::partial_with(ret, local_errors);
         }
     };
@@ -12173,7 +12226,7 @@ fn infer_address_wire(
     };
     match unify(&addr_reduced, &expected, subst, env.types()) {
         Ok(_) => {
-            let ret = TypeExpr::Path(":wat::core::bool".into());
+            let ret = TypeExpr::Path(":wat::type::bool".into());
             if local_errors.is_empty() {
                 CheckResult::ok(ret)
             } else {
@@ -12190,7 +12243,7 @@ fn infer_address_wire(
                     got: format_type(&addr_reduced),
                 },
             });
-            CheckResult::partial_with(TypeExpr::Path(":wat::core::bool".into()), local_errors)
+            CheckResult::partial_with(TypeExpr::Path(":wat::type::bool".into()), local_errors)
         }
     }
 }
@@ -12429,7 +12482,7 @@ fn infer_select_prime(
     // Match (Vector :- [elem]).
     let elem_ty = match &vec_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if crate::types::parametric_heads_unify(head, "wat::core::Vector") && targs.len() == 1 =>
+            if crate::types::parametric_heads_unify(head, "wat::type::Vector") && targs.len() == 1 =>
         {
             targs[0].clone()
         }
@@ -12568,7 +12621,7 @@ fn infer_poll_prime(
     // Match (Vector :- [elem]).
     let elem_ty = match &vec_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if crate::types::parametric_heads_unify(head, "wat::core::Vector") && targs.len() == 1 =>
+            if crate::types::parametric_heads_unify(head, "wat::type::Vector") && targs.len() == 1 =>
         {
             targs[0].clone()
         }
@@ -13093,7 +13146,7 @@ fn parse_param_spec_slot(
 /// shape-dependent, matching the brief's own hedge ("if the span allows it").
 fn untyped_constructor_error(head_short: &str, span: Span) -> CheckError {
     // rune:lint(one-variant-separator, type-path) — composes a namespaced TYPE keyword
-    // (":wat::core::List"), never an enum::variant pair; no enum involved.
+    // (":wat::type::List"), never an enum::variant pair; no enum involved.
     let head = format!(":wat::core::{head_short}");
     CheckError {
         span,
@@ -13140,12 +13193,12 @@ fn infer_hashset_constructor(
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: ":wat::core::HashSet".into(),
+            callee: ":wat::type::HashSet".into(),
             expected: 1,
             got: 0
         } });
         let ty = TypeExpr::Parametric {
-            head: "wat::core::HashSet".into(),
+            head: "wat::type::HashSet".into(),
             args: vec![fresh.fresh()],
         };
         // HARVEST (236.2): existing diagnostic; partial — return HashSet placeholder.
@@ -13162,11 +13215,11 @@ fn infer_hashset_constructor(
         (Some(inner), rest) if inner.len() == 1 => {
             bracket_declared = true;
             t_span = inner[0].span().clone();
-            (parse_param_spec_slot(":wat::core::HashSet", &inner[0], fresh, &mut local_errors), rest)
+            (parse_param_spec_slot(":wat::type::HashSet", &inner[0], fresh, &mut local_errors), rest)
         }
         (Some(inner), rest) => {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::HashSet".into(),
+                head: ":wat::type::HashSet".into(),
                 reason: format!("type param-spec `:- [...]` must declare exactly one type (T); got {}", inner.len()),
                 remedies: vec![],
             } });
@@ -13174,7 +13227,7 @@ fn infer_hashset_constructor(
         }
         (None, _) => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::HashSet".into(),
+                head: ":wat::type::HashSet".into(),
                 reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
                 remedies: vec![],
             } });
@@ -13185,7 +13238,7 @@ fn infer_hashset_constructor(
         if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&ty, &t_ty, subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::HashSet".into(),
+                    callee: ":wat::type::HashSet".into(),
                     param: format!("element #{}", i + 1),
                     expected: format_type(&apply_subst(&t_ty, subst)),
                     got: format_type(&apply_subst(&ty, subst))
@@ -13196,12 +13249,12 @@ fn infer_hashset_constructor(
     // Stone 255.74 — the ONE door: a HashSet's declared element type must be key-eligible.
     let resolved_t = apply_subst(&t_ty, subst);
     if bracket_declared {
-        if let Some(err) = key_eligible_or_error(&resolved_t, ":wat::core::HashSet", "element type", &t_span, env) {
+        if let Some(err) = key_eligible_or_error(&resolved_t, ":wat::type::HashSet", "element type", &t_span, env) {
             local_errors.push(err);
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::HashSet".into(),
+        head: "wat::type::HashSet".into(),
         args: vec![resolved_t],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -13251,7 +13304,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
         let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
-        let bracket = crate::parse_one!("[(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]")
+        let bracket = crate::parse_one!("[(wat.type/Tuple :- [wat.type/i64 wat.type/i64])]")
             .expect("parse the param-spec bracket");
         let one = crate::parse_one!("(wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)").expect("parse element 1");
         let two = crate::parse_one!("(wat.type/Tuple :- [wat.type/i64 wat.type/i64] 3 4)").expect("parse element 2");
@@ -13269,10 +13322,10 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         assert_eq!(
             ty,
             Some(TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Tuple(vec![
-                    TypeExpr::Path(":wat::core::i64".into()),
-                    TypeExpr::Path(":wat::core::i64".into())
+                    TypeExpr::Path(":wat::type::i64".into()),
+                    TypeExpr::Path(":wat::type::i64".into())
                 ])]
             })
         );
@@ -13288,7 +13341,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
         let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
-        let bracket = crate::parse_one!("[:wat::core::i64]").expect("parse the param-spec bracket");
+        let bracket = crate::parse_one!("[wat.type/i64]").expect("parse the param-spec bracket");
         let one = crate::parse_one!("1").expect("parse element 1");
         let args = vec![marker, bracket, one];
         let result = infer_list_constructor(
@@ -13304,8 +13357,8 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         assert_eq!(
             ty,
             Some(TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::core::i64".into())]
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::i64".into())]
             })
         );
     }
@@ -13320,7 +13373,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
-        let kw = crate::parse_one!(":wat::core::i64").expect("parse bare keyword first-arg");
+        let kw = crate::parse_one!(":wat::type::i64").expect("parse bare keyword first-arg");
         let one = crate::parse_one!("1").expect("parse element 1");
         let args = vec![kw, one];
         let result = infer_list_constructor(
@@ -13391,7 +13444,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
         let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
-        let bracket = crate::parse_one!("[(:wat::core::Vector :- [:wat::core::i64])]")
+        let bracket = crate::parse_one!("[(wat.type/Vector :- [wat.type/i64])]")
             .expect("parse the param-spec bracket");
         let one = crate::parse_one!("(wat.type/Vector :- [wat.type/i64] 1 2)")
             .expect("parse element 1");
@@ -13409,10 +13462,10 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         assert_eq!(
             ty,
             Some(TypeExpr::Parametric {
-                head: "wat::core::HashSet".into(),
+                head: "wat::type::HashSet".into(),
                 args: vec![TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::i64".into())]
+                    head: "wat::type::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::i64".into())]
                 }]
             })
         );
@@ -13427,7 +13480,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
         let marker = crate::parse_one!(":-").expect("parse the `:-` marker");
-        let bracket = crate::parse_one!("[:wat::core::i64]").expect("parse the param-spec bracket");
+        let bracket = crate::parse_one!("[wat.type/i64]").expect("parse the param-spec bracket");
         let one = crate::parse_one!("1").expect("parse element 1");
         let args = vec![marker, bracket, one];
         let result = infer_hashset_constructor(
@@ -13443,8 +13496,8 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         assert_eq!(
             ty,
             Some(TypeExpr::Parametric {
-                head: "wat::core::HashSet".into(),
-                args: vec![TypeExpr::Path(":wat::core::i64".into())]
+                head: "wat::type::HashSet".into(),
+                args: vec![TypeExpr::Path(":wat::type::i64".into())]
             })
         );
     }
@@ -13458,7 +13511,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         let mut fresh = InferCtx::default();
         let mut subst = Subst::new();
-        let kw = crate::parse_one!(":wat::core::i64").expect("parse bare keyword first-arg");
+        let kw = crate::parse_one!(":wat::type::i64").expect("parse bare keyword first-arg");
         let one = crate::parse_one!("1").expect("parse element 1");
         let args = vec![kw, one];
         let result = infer_hashset_constructor(
@@ -13476,7 +13529,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
             format!(
                 "{:?}",
                 CheckErrorKind::MalformedForm {
-                    head: ":wat::core::HashSet".into(),
+                    head: ":wat::type::HashSet".into(),
                     reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
                     remedies: vec![],
                 }
@@ -13509,7 +13562,7 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
             format!(
                 "{:?}",
                 CheckErrorKind::MalformedForm {
-                    head: ":wat::core::HashSet".into(),
+                    head: ":wat::type::HashSet".into(),
                     reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
                     remedies: vec![],
                 }
@@ -13532,7 +13585,7 @@ fn is_numeric_check_path(p: &str) -> bool {
     let p = crate::edn::render::type_denotation(p);
     matches!(
         p.as_str(),
-        ":wat::core::i64" | ":wat::core::f64" | ":wat::core::bigint" | ":wat::core::rational"
+        ":wat::type::i64" | ":wat::type::f64" | ":wat::type::bigint" | ":wat::type::rational"
     )
 }
 
@@ -13592,7 +13645,7 @@ fn infer_equality(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+    let bool_ty = TypeExpr::Path(":wat::type::bool".into());
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
@@ -13697,7 +13750,7 @@ fn infer_ordering(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+    let bool_ty = TypeExpr::Path(":wat::type::bool".into());
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
@@ -14557,7 +14610,7 @@ fn infer_form_matches(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+    let bool_ty = TypeExpr::Path(":wat::type::bool".into());
 
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -14741,7 +14794,7 @@ fn check_clause(
             // it must type to `:bool`.
             let body_ty = infer(body, env, locals, fresh, subst).drain_errors_into(errors);
             if let Some(t) = body_ty {
-                let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+                let bool_ty = TypeExpr::Path(":wat::type::bool".into());
                 if unify(&t, &bool_ty, subst, env.types()).is_err() {
                     errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::form::matches?".into(),
@@ -14818,7 +14871,7 @@ fn is_holon_or_vector(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
                 || p == ":wat::holon::Vector"
-                || crate::types::is_subtype(p, ":wat::core::Record", types)
+                || crate::types::is_subtype(p, ":wat::type::Record", types)
                 || crate::types::is_subtype(p, ":wat::holon::Record", types)
     )
 }
@@ -14890,7 +14943,7 @@ fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
     matches!(t,
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
-                || crate::types::is_subtype(p, ":wat::core::Record", types)
+                || crate::types::is_subtype(p, ":wat::type::Record", types)
                 || crate::types::is_subtype(p, ":wat::holon::Record", types)
     )
 }
@@ -15038,19 +15091,19 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
             }
             // Well-known pure scalar paths.
             match bare {
-                "wat::core::i64"
-                | "wat::core::f64"
-                | "wat::core::bool"
-                | "wat::core::u8"
-                | "wat::core::String"
-                | "wat::core::keyword"
+                "wat::type::i64"
+                | "wat::type::f64"
+                | "wat::type::bool"
+                | "wat::type::u8"
+                | "wat::type::String"
+                | "wat::type::keyword"
                 | "wat::uuid::UUID"
-                | "wat::core::char"
-                | "wat::core::rational"
-                | "wat::core::bigint"
-                | "wat::core::nil"
+                | "wat::type::char"
+                | "wat::type::rational"
+                | "wat::type::bigint"
+                | "wat::type::nil"
                 | "wat::core::unit" => return true,
-                // ⛔ ARC 296 — the `"wat::core::Record" => return true` arm is DELETED.
+                // ⛔ ARC 296 — the `"wat::type::Record" => return true` arm is DELETED.
                 //
                 // It existed to undo a mis-registration, and its own comment named the symptom:
                 // the aggregate arm below "sees Record registered as Nature::Struct (opaque
@@ -15437,7 +15490,7 @@ fn infer_holon_bundle(
             if let Some(t) = infer(other, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                 let resolved = reduce(&t, subst, env.types());
                 let ok = match &resolved {
-                    TypeExpr::Parametric { head, args: ta } if crate::types::parametric_heads_unify(head, "wat::core::Vector") => {
+                    TypeExpr::Parametric { head, args: ta } if crate::types::parametric_heads_unify(head, "wat::type::Vector") => {
                         ta.len() == 1 && is_holon_or_record(&ta[0], env.types())
                     }
                     _ => false,
@@ -15446,7 +15499,7 @@ fn infer_holon_bundle(
                     local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::holon::Bundle".into(),
                         param: "#1".into(),
-                        expected: "(wat::core::Vector :- [:wat::holon::HolonAST]) or (wat::core::Vector :- [:wat::core::Record])".into(),
+                        expected: "(wat::core::Vector :- [:wat::holon::HolonAST]) or (wat::core::Vector :- [wat.type/Record])".into(),
                         got: format_type(&resolved)
                     } });
                 }
@@ -15471,7 +15524,7 @@ fn infer_polymorphic_holon_pair_to_bool(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+    let bool_ty = TypeExpr::Path(":wat::type::bool".into());
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
@@ -15584,7 +15637,7 @@ fn infer_polymorphic_holon_to_i64(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+    let i64_ty = TypeExpr::Path(":wat::type::i64".into());
     if args.len() != 1 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
@@ -15672,13 +15725,13 @@ fn infer_hashmap_constructor(
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() < 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: ":wat::core::HashMap".into(),
+            callee: ":wat::type::HashMap".into(),
             expected: 2,
             got: args.len()
         } });
         // HARVEST (236.2): existing diagnostic; straight conversion — return placeholder HashMap type.
         return CheckResult::partial_with(TypeExpr::Parametric {
-            head: "wat::core::HashMap".into(),
+            head: "wat::type::HashMap".into(),
             args: vec![fresh.fresh(), fresh.fresh()],
         }, local_errors);
     }
@@ -15703,18 +15756,18 @@ fn infer_hashmap_constructor(
             bracket_declared = true;
             k_span = inner[0].span().clone();
             let k = crate::types::expand_alias(
-                &parse_param_spec_slot(":wat::core::HashMap", &inner[0], fresh, &mut local_errors),
+                &parse_param_spec_slot(":wat::type::HashMap", &inner[0], fresh, &mut local_errors),
                 env.types(),
             );
             let v = crate::types::expand_alias(
-                &parse_param_spec_slot(":wat::core::HashMap", &inner[1], fresh, &mut local_errors),
+                &parse_param_spec_slot(":wat::type::HashMap", &inner[1], fresh, &mut local_errors),
                 env.types(),
             );
             (k, v, rest)
         }
         (Some(inner), rest) => {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::HashMap".into(),
+                head: ":wat::type::HashMap".into(),
                 reason: format!("type param-spec `:- [...]` must declare exactly two types (K V); got {}", inner.len()),
                 remedies: vec![],
             } });
@@ -15722,7 +15775,7 @@ fn infer_hashmap_constructor(
         }
         (None, _) => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::HashMap".into(),
+                head: ":wat::type::HashMap".into(),
                 reason: "first two arguments must be a `(Head :- [K V])` type param-spec".into(),
                 remedies: vec![],
             } });
@@ -15731,7 +15784,7 @@ fn infer_hashmap_constructor(
     };
     if !pairs.len().is_multiple_of(2) {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-            head: ":wat::core::HashMap".into(),
+            head: ":wat::type::HashMap".into(),
             reason: format!(
                 "arity after :K :V type args must be even (alternating key/value pairs); got {}",
                 pairs.len()
@@ -15743,7 +15796,7 @@ fn infer_hashmap_constructor(
         if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: chunk[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::HashMap".into(),
+                    callee: ":wat::type::HashMap".into(),
                     param: format!("key #{}", i + 1),
                     expected: format_type(&apply_subst(&k_ty, subst)),
                     got: format_type(&apply_subst(&k_arg_ty, subst))
@@ -15756,7 +15809,7 @@ fn infer_hashmap_constructor(
         {
             if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: chunk[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::HashMap".into(),
+                    callee: ":wat::type::HashMap".into(),
                     param: format!("value #{}", i + 1),
                     expected: format_type(&apply_subst(&v_ty, subst)),
                     got: format_type(&apply_subst(&v_arg_ty, subst))
@@ -15768,12 +15821,12 @@ fn infer_hashmap_constructor(
     // key-eligible (the VALUE type is unconstrained — only keys get hashed).
     let resolved_k = apply_subst(&k_ty, subst);
     if bracket_declared {
-        if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::core::HashMap", "key type", &k_span, env) {
+        if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::type::HashMap", "key type", &k_span, env) {
             local_errors.push(err);
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::HashMap".into(),
+        head: "wat::type::HashMap".into(),
         args: vec![resolved_k, apply_subst(&v_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -15814,15 +15867,15 @@ fn infer_persistentmap_constructor(
         Some((inner, bspan, rest)) => {
             if inner.len() != 2 {
                 local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::PersistentMap".into(),
+                    head: ":wat::type::PersistentMap".into(),
                     reason: format!("bracket must declare exactly 2 types [K V]; got {}", inner.len()),
                     remedies: vec![],
                 } });
                 (Some((fresh.fresh(), fresh.fresh())), rest)
             } else {
                 k_span = inner[0].span().clone();
-                let k_t = parse_param_spec_slot(":wat::core::PersistentMap", &inner[0], fresh, &mut local_errors);
-                let v_t = parse_param_spec_slot(":wat::core::PersistentMap", &inner[1], fresh, &mut local_errors);
+                let k_t = parse_param_spec_slot(":wat::type::PersistentMap", &inner[0], fresh, &mut local_errors);
+                let v_t = parse_param_spec_slot(":wat::type::PersistentMap", &inner[1], fresh, &mut local_errors);
                 (Some((k_t, v_t)), rest)
             }
         }
@@ -15838,7 +15891,7 @@ fn infer_persistentmap_constructor(
     // including a declared-but-empty `(PersistentMap [K V])`).
     if !values.len().is_multiple_of(2) {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-            head: ":wat::core::PersistentMap".into(),
+            head: ":wat::type::PersistentMap".into(),
             reason: format!(
                 "arity must be even (alternating key/value pairs); got {}",
                 values.len()
@@ -15847,7 +15900,7 @@ fn infer_persistentmap_constructor(
         } });
         let (fk, fv) = declared.unwrap_or_else(|| (fresh.fresh(), fresh.fresh()));
         return CheckResult::partial_with(TypeExpr::Parametric {
-            head: "wat::core::PersistentMap".into(),
+            head: "wat::type::PersistentMap".into(),
             args: vec![fk, fv],
         }, local_errors);
     }
@@ -15864,7 +15917,7 @@ fn infer_persistentmap_constructor(
             };
             if !ok {
                 local_errors.push(CheckError { span: chunk[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::PersistentMap".into(),
+                    callee: ":wat::type::PersistentMap".into(),
                     param: format!("key #{}", i + 1),
                     expected: format_type(&apply_subst(&k_ty, subst)),
                     got: format_type(&apply_subst(&k_arg_ty, subst))
@@ -15882,7 +15935,7 @@ fn infer_persistentmap_constructor(
             };
             if !ok {
                 local_errors.push(CheckError { span: chunk[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::PersistentMap".into(),
+                    callee: ":wat::type::PersistentMap".into(),
                     param: format!("value #{}", i + 1),
                     expected: format_type(&apply_subst(&v_ty, subst)),
                     got: format_type(&apply_subst(&v_arg_ty, subst))
@@ -15896,12 +15949,12 @@ fn infer_persistentmap_constructor(
     // unresolved vars conservatively), so this only fires for a declared key.
     let resolved_k = apply_subst(&k_ty, subst);
     if declared.is_some() {
-        if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::core::PersistentMap", "key type", &k_span, env) {
+        if let Some(err) = key_eligible_or_error(&resolved_k, ":wat::type::PersistentMap", "key type", &k_span, env) {
             local_errors.push(err);
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::PersistentMap".into(),
+        head: "wat::type::PersistentMap".into(),
         args: vec![resolved_k, apply_subst(&v_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -15932,13 +15985,13 @@ fn infer_persistentvector_constructor(
         Some((inner, bspan, rest)) => {
             if inner.len() != 1 {
                 local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::PersistentVector".into(),
+                    head: ":wat::type::PersistentVector".into(),
                     reason: format!("bracket must declare exactly 1 type [T]; got {}", inner.len()),
                     remedies: vec![],
                 } });
                 (Some(fresh.fresh()), rest)
             } else {
-                let t = parse_param_spec_slot(":wat::core::PersistentVector", &inner[0], fresh, &mut local_errors);
+                let t = parse_param_spec_slot(":wat::type::PersistentVector", &inner[0], fresh, &mut local_errors);
                 (Some(t), rest)
             }
         }
@@ -15963,7 +16016,7 @@ fn infer_persistentvector_constructor(
             };
             if !ok {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::PersistentVector".into(),
+                    callee: ":wat::type::PersistentVector".into(),
                     param: format!("element #{}", i + 1),
                     expected: format_type(&apply_subst(&t_ty, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst))
@@ -15972,7 +16025,7 @@ fn infer_persistentvector_constructor(
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::PersistentVector".into(),
+        head: "wat::type::PersistentVector".into(),
         args: vec![apply_subst(&t_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -16031,7 +16084,7 @@ fn infer_map_literal(
         local_errors.push(err);
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::HashMap".into(),
+        head: "wat::type::HashMap".into(),
         args: vec![resolved_k, apply_subst(&v_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -16076,7 +16129,7 @@ fn infer_set_literal(
         local_errors.push(err);
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::HashSet".into(),
+        head: "wat::type::HashSet".into(),
         args: vec![resolved_t],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -16113,7 +16166,7 @@ fn infer_tuple_constructor(
     if let Some((inner, _bspan, rest)) = split_type_param_bracket(args) {
         let mut expected: Vec<TypeExpr> = Vec::with_capacity(inner.len());
         for node in inner.iter() {
-            expected.push(parse_param_spec_slot(":wat::core::Tuple", node, fresh, &mut local_errors));
+            expected.push(parse_param_spec_slot(":wat::type::Tuple", node, fresh, &mut local_errors));
         }
         let (val, mut errs) = check_tuple_constructor_against(rest, &expected, head_span, env, locals, fresh, subst).into_parts();
         local_errors.append(&mut errs);
@@ -16128,7 +16181,7 @@ fn infer_tuple_constructor(
     local_errors.push(untyped_constructor_error("Tuple", untyped_constructor_span(args, head_span)));
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-            head: ":wat::core::Tuple".into(),
+            head: ":wat::type::Tuple".into(),
             reason: "tuple must have at least one element".into(),
             remedies: vec![],
         } });
@@ -16167,14 +16220,14 @@ fn infer_string_concat(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let string_ty = TypeExpr::Path(":wat::core::String".into());
+    let string_ty = TypeExpr::Path(":wat::type::String".into());
     for arg in args {
         if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&ty, &string_ty, subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::string::concat".into(),
                     param: "arg".into(),
-                    expected: ":wat::core::String".into(),
+                    expected: ":wat::type::String".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -16198,7 +16251,7 @@ fn infer_string_interpolate(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let string_ty = TypeExpr::Path(":wat::core::String".into());
+    let string_ty = TypeExpr::Path(":wat::type::String".into());
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::string::interpolate".into(),
@@ -16213,7 +16266,7 @@ fn infer_string_interpolate(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::string::interpolate".into(),
                 param: "template".into(),
-                expected: ":wat::core::String".into(),
+                expected: ":wat::type::String".into(),
                 got: format_type(&apply_subst(&ty, subst)),
             } });
         }
@@ -16236,7 +16289,7 @@ fn infer_string_interpolate(
                 other => {
                     // Infer and check for keyword type.
                     if let Some(ty) = infer(other, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-                        let kw_ty = TypeExpr::Path(":wat::core::keyword".into());
+                        let kw_ty = TypeExpr::Path(":wat::type::keyword".into());
                         if unify(&ty, &kw_ty, subst, env.types()).is_err() {
                             local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::string::interpolate".into(),
@@ -16285,7 +16338,7 @@ fn infer_list_constructor(
         let t = fresh.fresh();
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::partial_with(TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
+            head: "wat::type::Vector".into(),
             args: vec![t],
         }, local_errors);
     }
@@ -16350,14 +16403,14 @@ fn infer_list_constructor(
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![apply_subst(&elem_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
 /// Expected-type reduction helper: reduce/walk `t` and, iff it is
-/// `(Vector :- [T])` (`Parametric{ head == "wat::core::Vector", args.len()==1 }`),
+/// `(Vector :- [T])` (`Parametric{ head == "wat::type::Vector", args.len()==1 }`),
 /// return `Some(T)`; else `None`. Used to detect when a `[...]` literal sits
 /// in a position with a known expected vector element type (arg-position and
 /// ann-form), so its elements can be up-cast (checked against T) instead of
@@ -16366,7 +16419,7 @@ fn vector_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeEx
     let reduced = reduce(&walk(t, subst), subst, types);
     match reduced {
         TypeExpr::Parametric { head, args }
-            if crate::types::parametric_heads_unify(&head, "wat::core::Vector") && args.len() == 1 =>
+            if crate::types::parametric_heads_unify(&head, "wat::type::Vector") && args.len() == 1 =>
         {
             Some(args[0].clone())
         }
@@ -16436,7 +16489,7 @@ fn check_vector_literal_against(
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![apply_subst(expected_elem, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -16455,13 +16508,13 @@ fn check_vector_literal_against(
 // the two call-arg loops) only need ONE call each, not four.
 
 /// Expected-type reduction helper: reduce/walk `t` and, iff it is
-/// `(HashMap :- [K V])` (`Parametric{ head == "wat::core::HashMap", args.len()==2}`),
+/// `(HashMap :- [K V])` (`Parametric{ head == "wat::type::HashMap", args.len()==2}`),
 /// return `Some((K,V))`; else `None`. Mirrors `vector_elem_of`.
 fn map_kv_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<(TypeExpr, TypeExpr)> {
     let reduced = reduce(&walk(t, subst), subst, types);
     match reduced {
         TypeExpr::Parametric { head, args }
-            if crate::types::parametric_heads_unify(&head, "wat::core::HashMap") && args.len() == 2 =>
+            if crate::types::parametric_heads_unify(&head, "wat::type::HashMap") && args.len() == 2 =>
         {
             Some((args[0].clone(), args[1].clone()))
         }
@@ -16470,13 +16523,13 @@ fn map_kv_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<(TypeExpr, 
 }
 
 /// Expected-type reduction helper: reduce/walk `t` and, iff it is
-/// `(HashSet :- [T])` (`Parametric{ head == "wat::core::HashSet", args.len()==1}`),
+/// `(HashSet :- [T])` (`Parametric{ head == "wat::type::HashSet", args.len()==1}`),
 /// return `Some(T)`; else `None`. Mirrors `vector_elem_of`.
 fn set_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeExpr> {
     let reduced = reduce(&walk(t, subst), subst, types);
     match reduced {
         TypeExpr::Parametric { head, args }
-            if crate::types::parametric_heads_unify(&head, "wat::core::HashSet") && args.len() == 1 =>
+            if crate::types::parametric_heads_unify(&head, "wat::type::HashSet") && args.len() == 1 =>
         {
             Some(args[0].clone())
         }
@@ -16546,7 +16599,7 @@ fn check_map_literal_against(
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::HashMap".into(),
+        head: "wat::type::HashMap".into(),
         args: vec![apply_subst(expected_k, subst), apply_subst(expected_v, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -16590,7 +16643,7 @@ fn check_set_literal_against(
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::HashSet".into(),
+        head: "wat::type::HashSet".into(),
         args: vec![apply_subst(expected_elem, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -16614,7 +16667,7 @@ fn check_tuple_constructor_against(
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != expected_elems.len() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: ":wat::core::Tuple".into(),
+            callee: ":wat::type::Tuple".into(),
             expected: expected_elems.len(),
             got: args.len(),
         } });
@@ -16630,7 +16683,7 @@ fn check_tuple_constructor_against(
         if let Some(arg_ty) = arg_ty {
             if !assignable(&arg_ty, expected, subst, env) {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::Tuple".into(),
+                    callee: ":wat::type::Tuple".into(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(expected, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
@@ -16675,15 +16728,30 @@ fn check_compound_against_expected(
             Some(check_set_literal_against(items, &elem, set_span, env, locals, fresh, subst))
         }
         WatAST::List(items, span) => {
-            // Tuple ctor call: `(:wat::core::Tuple a b ...)` — a constructor
-            // call, not a brace literal, so detection is head-keyword-based.
+            // Tuple ctor call: `(wat.type/Tuple a b ...)` or `(wat.type/Tuple :-
+            // [T1 T2 …] a b ...)` — a constructor call, not a brace literal, so
+            // detection is head-keyword-based.
             let head = items.first()?;
             let WatAST::Keyword(k, _) = head else { return None; };
-            if k != ":wat::core::Tuple" {
+            if k != ":wat::type::Tuple" {
                 return None;
             }
+            // Stone 255.81 — `items[1..]` may carry a leading `:- [T1 T2 …]` param-spec
+            // (arc 109 step ①b, same shape `infer_tuple_constructor` already peels via
+            // `split_type_param_bracket`); peel it here too, so only the VALUE args reach
+            // `check_tuple_constructor_against`'s arity check. Before this fix the bracket's
+            // two tokens (`:-`, the bracket Vector) rode along as two extra "values",
+            // inflating the arity by 2 against every bracketed call — invisible pre-cutover
+            // only because this arm's old literal comparison (`":wat::core::Tuple"`) never
+            // matched a genuinely new-spelled call, so bracketed Tuple calls always fell
+            // through to ordinary bottom-up `infer` (which peels correctly via
+            // `infer_tuple_constructor`), never reaching this arm at all.
+            let value_args = match split_type_param_bracket(&items[1..]) {
+                Some((_inner, _bspan, rest)) => rest,
+                None => &items[1..],
+            };
             let elems = tuple_elems_of(expected, subst, env.types())?;
-            Some(check_tuple_constructor_against(&items[1..], &elems, span, env, locals, fresh, subst))
+            Some(check_tuple_constructor_against(value_args, &elems, span, env, locals, fresh, subst))
         }
         _ => None,
     }
@@ -16718,13 +16786,13 @@ fn infer_linked_list_constructor(
         Some((inner, bspan, rest)) => {
             if inner.len() != 1 {
                 local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::List".into(),
+                    head: ":wat::type::List".into(),
                     reason: format!("bracket must declare exactly 1 type [T]; got {}", inner.len()),
                     remedies: vec![],
                 } });
                 (Some(fresh.fresh()), rest)
             } else {
-                let t = parse_param_spec_slot(":wat::core::List", &inner[0], fresh, &mut local_errors);
+                let t = parse_param_spec_slot(":wat::type::List", &inner[0], fresh, &mut local_errors);
                 (Some(t), rest)
             }
         }
@@ -16747,7 +16815,7 @@ fn infer_linked_list_constructor(
             };
             if !ok {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::List".into(),
+                    callee: ":wat::type::List".into(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(&elem_ty, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst))
@@ -16756,7 +16824,7 @@ fn infer_linked_list_constructor(
         }
     }
     let ty = TypeExpr::Parametric {
-        head: "wat::core::List".into(),
+        head: "wat::type::List".into(),
         args: vec![apply_subst(&elem_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
@@ -16789,17 +16857,17 @@ fn infer_boolean_shortcircuit(
     for (i, arg) in args.iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
-            if unify(&arg_ty, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
+            if unify(&arg_ty, &TypeExpr::Path(":wat::type::bool".into()), subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::and/or".into(),
                     param: format!("#{}", i + 1),
-                    expected: ":wat::core::bool".into(),
+                    expected: ":wat::type::bool".into(),
                     got: format_type(&apply_subst(&arg_ty, subst))
                 } });
             }
         }
     }
-    let ty = TypeExpr::Path(":wat::core::bool".into());
+    let ty = TypeExpr::Path(":wat::type::bool".into());
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
@@ -17848,8 +17916,8 @@ pub(crate) fn assignable(
                 // Bottom flows in the ACTUAL position (`Never <: every type`, whatever its
                 // shape — incl. the `()` tuple-nil); top flows in the EXPECTED position
                 // (`every type <: Value`). Plus any genuine declared Path<:Path subtype edge.
-                if matches!(&xr, TypeExpr::Path(p) if p == ":wat::core::Never")
-                    || matches!(&yr, TypeExpr::Path(p) if p == ":wat::core::Value")
+                if matches!(&xr, TypeExpr::Path(p) if p == ":wat::type::Never")
+                    || matches!(&yr, TypeExpr::Path(p) if p == ":wat::type::Value")
                     || matches!((&xr, &yr), (TypeExpr::Path(xp), TypeExpr::Path(yp))
                         if crate::types::is_subtype(xp, yp, types))
                 {
@@ -18398,7 +18466,7 @@ fn unresolved_accessor_placeholder(
 }
 
 fn is_record_umbrella(name: &str) -> bool {
-    name == ":wat::core::Record" || name == ":wat::holon::Record"
+    name == ":wat::type::Record" || name == ":wat::holon::Record"
 }
 
 /// Named fields of a keyword-accessor receiver, type args already substituted.
@@ -18530,16 +18598,24 @@ pub(crate) fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> Type
 /// Arc 143 — exposed so `runtime.rs` helpers can render a `TypeExpr`
 /// as a keyword string for AST reconstruction in the three introspection
 /// primitives (`lookup-define`, `signature-of-defn`, `body-of`).
-/// Render a stored Path through the same denotation door parametric heads
-/// use at parse (`type_denotation`). A `wat.type/i64` argument then prints
-/// as `:wat::core::i64`, matching a `wat.type/Vector` head. Infer is a
-/// marker — keep its wat.type spelling.
-/// Stone 255.12 — the rule itself moved to `types::denoted_type_path`, which is
-/// now the ONE home for "denote a type path, but keep the `Infer` marker". It used
-/// to live here, in a RENDERER, while every other consumer of `type_denotation`
-/// collapsed `Infer` silently. Behaviour here is unchanged.
+///
+/// Stone 255.81 (cutover 4b, P-surface) — THE printer flip. Before this stone, a stored
+/// Path went through `denoted_type_path`'s door, which mapped `:wat::type::X` FORWARD onto
+/// the then-canonical `:wat::core::X` — so a `wat.type/i64` argument printed as
+/// `:wat::core::i64`. That door is deleted (`type_denotation` is now identity); the stored
+/// key for one of the 24 [`crate::types::WAT_TYPE_HARD_PRIMITIVES`] IS `:wat::type::X` now,
+/// and this is the one place that renders it the way a human WROTE it: `wat.type/X`, the
+/// symbol dialect, never the internal keyword. Every other path (`:my::Type`,
+/// `:wat::holon::HolonAST`, the `Infer` marker `denoted_type_path` already special-cases)
+/// renders exactly as it did before this stone — unchanged.
 fn format_type_path(p: &str) -> String {
-    crate::types::denoted_type_path(p)
+    let denoted = crate::types::denoted_type_path(p);
+    if let Some(tail) = denoted.strip_prefix(":wat::type::") {
+        if crate::types::WAT_TYPE_HARD_PRIMITIVES.contains(&tail) {
+            return format!("wat.type/{tail}");
+        }
+    }
+    denoted
 }
 
 pub fn format_type(t: &TypeExpr) -> String {
@@ -18693,19 +18769,19 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
 // ─── Built-in schemes ───────────────────────────────────────────────────
 
 fn register_builtins(env: &mut CheckEnv) {
-    let i64_ty = || TypeExpr::Path(":wat::core::i64".into());
-    let u8_ty = || TypeExpr::Path(":wat::core::u8".into());
-    let f64_ty = || TypeExpr::Path(":wat::core::f64".into());
-    let bool_ty = || TypeExpr::Path(":wat::core::bool".into());
+    let i64_ty = || TypeExpr::Path(":wat::type::i64".into());
+    let u8_ty = || TypeExpr::Path(":wat::type::u8".into());
+    let f64_ty = || TypeExpr::Path(":wat::type::f64".into());
+    let bool_ty = || TypeExpr::Path(":wat::type::bool".into());
     // Arc 300 stone C1 — bigint intrinsic signatures below.
-    let bigint_ty = || TypeExpr::Path(":wat::core::bigint".into());
+    let bigint_ty = || TypeExpr::Path(":wat::type::bigint".into());
     let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
     let t_var = || TypeExpr::Path(":T".into());
 
     // :u8 range-checked cast from :i64. Arc 008 slice 1. Runtime
     // rejects out-of-range values (0..=255) with a MalformedForm.
     env.register(
-        ":wat::core::u8".to_string(),
+        ":wat::type::u8".to_string(),
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
@@ -18719,10 +18795,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 008 slice 2. Two opaque wat types; multiple concrete
     // backings (real stdio, StringIo). Byte-oriented primitives with
     // char-level conveniences.
-    let string_ty = || TypeExpr::Path(":wat::core::String".into());
-    let unit_ty = || TypeExpr::Path(":wat::core::nil".into());
+    let string_ty = || TypeExpr::Path(":wat::type::String".into());
+    let unit_ty = || TypeExpr::Path(":wat::type::nil".into());
     let vec_u8_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![u8_ty()],
     };
     let opt_vec_u8_ty = || TypeExpr::Parametric {
@@ -18742,7 +18818,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: ioreader_ty(),
             rest_param_type: None,
         },
@@ -18805,7 +18881,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![ioreader_ty()],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -18860,7 +18936,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: iowriter_ty(),
             rest_param_type: None,
         },
@@ -19049,7 +19125,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![string_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![string_ty()],
             },
             rest_param_type: None,
@@ -19065,9 +19141,9 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::type::Vector".into(),
                     args: vec![string_ty()],
                 }],
             },
@@ -19084,7 +19160,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Path(":wat::intrinsic::Example".into())],
             },
             rest_param_type: None,
@@ -19103,7 +19179,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Path(":wat::intrinsic::Row".into())],
             },
             rest_param_type: None,
@@ -19118,8 +19194,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // wat body (for user forms). `render-doc` formats metadata-of's fields
     // as a plain-text multi-line block.
     {
-        let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
-        let string_ty = TypeExpr::Path(":wat::core::String".into());
+        let keyword_ty = TypeExpr::Path(":wat::type::keyword".into());
+        let string_ty = TypeExpr::Path(":wat::type::String".into());
         env.register(
             ":wat::core::show-source".to_string(),
             TypeScheme {
@@ -19367,7 +19443,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::core::rational::*` spelling is retired); every one of these
     // forwards straight to `crate::runtime::eval_rational_arith` (see
     // `src/intrinsic/rational.rs`'s module doc).
-    let rational_ty = || TypeExpr::Path(":wat::core::rational".into());
+    let rational_ty = || TypeExpr::Path(":wat::type::rational".into());
     for op in &[
         ":wat::rational::+",
         ":wat::rational::-",
@@ -19516,7 +19592,7 @@ fn register_builtins(env: &mut CheckEnv) {
         args: vec![inner],
     };
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![inner],
     };
     env.register(
@@ -19679,8 +19755,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::bool".into()),
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
+            ret: TypeExpr::Path(":wat::type::bool".into()),
             rest_param_type: None,
         },
     );
@@ -19799,7 +19875,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 255 Stone E-iv — `:wat::core::keyword/{to-string,from-string}` RETIRED this stone;
     // `:wat::keyword::{to-string,from-string}` (registered here, VERBATIM schemes — name-only
     // rename) are their replacements (see `src/remedy/retirement.rs`).
-    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    let keyword_ty = || TypeExpr::Path(":wat::type::keyword".into());
     env.register(
         ":wat::keyword::to-string".to_string(),
         TypeScheme {
@@ -19921,7 +19997,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Both take (keyword, String) → String. `declare-acronyms` handled
     // as a special form in infer_list (returns unit; no TypeScheme).
     {
-        let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+        let keyword_ty = || TypeExpr::Path(":wat::type::keyword".into());
         env.register(
             ":wat::string::pascal->kebab-in".to_string(),
             TypeScheme {
@@ -19948,7 +20024,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![string_ty(), TypeExpr::Path(":wat::core::i64".into()), TypeExpr::Path(":wat::core::i64".into())],
+            params: vec![string_ty(), TypeExpr::Path(":wat::type::i64".into()), TypeExpr::Path(":wat::type::i64".into())],
             ret: string_ty(),
             rest_param_type: None,
         },
@@ -19960,7 +20036,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![string_ty(), string_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![string_ty()],
             },
             rest_param_type: None,
@@ -20105,9 +20181,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // `(HashSet :- [char])` where the element arg must unify to char).
     // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
     // (scalar types lowercase per Doctrine 2).
-    let char_ty = || TypeExpr::Path(":wat::core::char".into());
+    let char_ty = || TypeExpr::Path(":wat::type::char".into());
     env.register(
-        ":wat::core::char".to_string(),
+        ":wat::type::char".to_string(),
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
@@ -20200,7 +20276,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
             ret: holon_ty(),
             rest_param_type: None,
         },
@@ -20230,7 +20306,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![holon_ty()],
-            ret: TypeExpr::Path(":wat::WatAST".into()),
+            ret: TypeExpr::Path(":wat::type::AST".into()),
             rest_param_type: None,
         },
     );
@@ -20256,8 +20332,8 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::core::f64".into())],
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::f64".into())],
             },
             rest_param_type: None,
         },
@@ -20269,10 +20345,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Tuple(vec![
-                    TypeExpr::Path(":wat::core::f64".into()),
-                    TypeExpr::Path(":wat::core::f64".into()),
+                    TypeExpr::Path(":wat::type::f64".into()),
+                    TypeExpr::Path(":wat::type::f64".into()),
                 ])],
             },
             rest_param_type: None,
@@ -20288,7 +20364,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![holon_ty(), holon_ty()],
-            ret: TypeExpr::Path(":wat::core::bool".into()),
+            ret: TypeExpr::Path(":wat::type::bool".into()),
             rest_param_type: None,
         },
     );
@@ -20301,8 +20377,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::i64".into())],
-            ret: TypeExpr::Path(":wat::core::f64".into()),
+            params: vec![TypeExpr::Path(":wat::type::i64".into())],
+            ret: TypeExpr::Path(":wat::type::f64".into()),
             rest_param_type: None,
         },
     );
@@ -20311,8 +20387,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::i64".into())],
-            ret: TypeExpr::Path(":wat::core::f64".into()),
+            params: vec![TypeExpr::Path(":wat::type::i64".into())],
+            ret: TypeExpr::Path(":wat::type::f64".into()),
             rest_param_type: None,
         },
     );
@@ -20322,8 +20398,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // for non-therm). Filter is bound at construction; get is filtered-
     // argmax. HolonAST → HolonAST.
     let hologram_ty = || TypeExpr::Path(":wat::holon::Hologram".into());
-    let f64_ty = || TypeExpr::Path(":wat::core::f64".into());
-    let bool_ty = || TypeExpr::Path(":wat::core::bool".into());
+    let f64_ty = || TypeExpr::Path(":wat::type::f64".into());
+    let bool_ty = || TypeExpr::Path(":wat::type::bool".into());
     let filter_ty = || TypeExpr::Fn {
         args: vec![f64_ty()],
         ret: Box::new(bool_ty()),
@@ -20344,7 +20420,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![hologram_ty(), holon_ty(), holon_ty()],
-            ret: TypeExpr::Path(":wat::core::nil".into()),
+            ret: TypeExpr::Path(":wat::type::nil".into()),
             rest_param_type: None,
         },
     );
@@ -20398,7 +20474,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![hologram_ty()],
-            ret: TypeExpr::Path(":wat::core::i64".into()),
+            ret: TypeExpr::Path(":wat::type::i64".into()),
             rest_param_type: None,
         },
     );
@@ -20408,7 +20484,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![hologram_ty()],
-            ret: TypeExpr::Path(":wat::core::i64".into()),
+            ret: TypeExpr::Path(":wat::type::i64".into()),
             rest_param_type: None,
         },
     );
@@ -20449,9 +20525,9 @@ fn register_builtins(env: &mut CheckEnv) {
             TypeExpr::Path(":wat::core::EvalError".into()),
         ],
     };
-    let wat_ast_ty = || TypeExpr::Path(":wat::WatAST".into());
-    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
-    let string_ty = || TypeExpr::Path(":wat::core::String".into());
+    let wat_ast_ty = || TypeExpr::Path(":wat::type::AST".into());
+    let keyword_ty = || TypeExpr::Path(":wat::type::keyword".into());
+    let string_ty = || TypeExpr::Path(":wat::type::String".into());
 
     // Arc 028 slice 3 — eval family iface drop. Each form takes its
     // source/path directly as the first arg; no interface keyword.
@@ -20508,8 +20584,8 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 wat_ast_ty(),
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                    head: "wat::type::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::AST".into())],
                 },
             ],
             ret: TypeExpr::Parametric {
@@ -20686,7 +20762,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![holon_ty()],
             }],
             ret: TypeExpr::Parametric {
@@ -20741,7 +20817,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![holon_ty()],
             }],
             ret: holon_ty(),
@@ -20754,7 +20830,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![holon_ty()],
             }],
             ret: holon_ty(),
@@ -20767,7 +20843,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![holon_ty()],
             }],
             ret: holon_ty(),
@@ -20780,7 +20856,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![holon_ty()],
             }],
             ret: holon_ty(),
@@ -20793,7 +20869,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![holon_ty()],
             }],
             ret: holon_ty(),
@@ -21111,7 +21187,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![],
-            ret: TypeExpr::Path(":wat::WatAST".into()),
+            ret: TypeExpr::Path(":wat::type::AST".into()),
             rest_param_type: None,
         },
     );
@@ -21155,8 +21231,8 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::core::String".into())],
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::String".into())],
             },
             rest_param_type: None,
         },
@@ -21171,7 +21247,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21222,7 +21298,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 type_param_bounds: vec![],
                 params: vec![],
-                ret: TypeExpr::Path(":wat::core::nil".into()),
+                ret: TypeExpr::Path(":wat::type::nil".into()),
                 rest_param_type: None,
             },
         );
@@ -21259,7 +21335,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21279,8 +21355,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::Record".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            params: vec![TypeExpr::Path(":wat::type::Record".into())],
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21289,7 +21365,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::Record".into())],
+            params: vec![TypeExpr::Path(":wat::type::Record".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
@@ -21331,9 +21407,9 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
             params: vec![
-                TypeExpr::Path(":wat::core::String".into()),
+                TypeExpr::Path(":wat::type::String".into()),
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::type::Vector".into(),
                     args: vec![t_var()],
                 },
             ],
@@ -21366,7 +21442,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::kernel::HandlePool".into(),
                 args: vec![t_var()],
             }],
-            ret: TypeExpr::Path(":wat::core::nil".into()),
+            ret: TypeExpr::Path(":wat::type::nil".into()),
             rest_param_type: None,
         },
     );
@@ -21408,7 +21484,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::holon::Vector".into())],
-            ret: TypeExpr::Path(":wat::core::Bytes".into()),
+            ret: TypeExpr::Path(":wat::type::Bytes".into()),
             rest_param_type: None,
         },
     );
@@ -21417,7 +21493,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
+            params: vec![TypeExpr::Path(":wat::type::Bytes".into())],
             // Arc 278 the dimension-heresy strike — was
             // `(:Option :- [wat::holon::Vector])`, collapsing four distinct
             // wire-decode failures into one reason-free `:None`. See
@@ -21435,8 +21511,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            params: vec![TypeExpr::Path(":wat::type::Bytes".into())],
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21445,10 +21521,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
-                args: vec![TypeExpr::Path(":wat::core::Bytes".into())],
+                args: vec![TypeExpr::Path(":wat::type::Bytes".into())],
             },
             rest_param_type: None,
         },
@@ -21463,10 +21539,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![],
-            ret: TypeExpr::Path(":wat::core::i64".into()),
+            ret: TypeExpr::Path(":wat::type::i64".into()),
             rest_param_type: Some(TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::core::Value".into())],
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::Value".into())],
             }),
         },
     );
@@ -21477,10 +21553,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Fn {
-                args: vec![TypeExpr::Path(":wat::core::i64".into())],
-                ret: Box::new(TypeExpr::Path(":wat::core::i64".into())),
+                args: vec![TypeExpr::Path(":wat::type::i64".into())],
+                ret: Box::new(TypeExpr::Path(":wat::type::i64".into())),
             }],
-            ret: TypeExpr::Path(":wat::core::i64".into()),
+            ret: TypeExpr::Path(":wat::type::i64".into()),
             rest_param_type: None,
         },
     );
@@ -21495,7 +21571,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
             params: vec![t_var()],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21517,7 +21593,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec!["T".into()],
                 type_param_bounds: vec![None],
                 params: vec![t_var()],
-                ret: TypeExpr::Path(":wat::core::String".into()),
+                ret: TypeExpr::Path(":wat::type::String".into()),
                 rest_param_type: None,
             },
         );
@@ -21532,7 +21608,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: t_var(),
             rest_param_type: None,
         },
@@ -21548,7 +21624,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::edn::ReadForeignOutcome".into(),
                 args: vec![t_var()],
@@ -21571,9 +21647,9 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::edn::ForeignRecord".into()),
-                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::type::keyword".into()),
             ],
-            ret: opt(TypeExpr::Path(":wat::core::Value".into())),
+            ret: opt(TypeExpr::Path(":wat::type::Value".into())),
             rest_param_type: None,
         },
     );
@@ -21584,7 +21660,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Path(":wat::edn::ForeignRecord".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21597,8 +21673,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::Value".into())],
-            ret: TypeExpr::Path(":wat::core::keyword".into()),
+            params: vec![TypeExpr::Path(":wat::type::Value".into())],
+            ret: TypeExpr::Path(":wat::type::keyword".into()),
             rest_param_type: None,
         },
     );
@@ -21608,8 +21684,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::Value".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            params: vec![TypeExpr::Path(":wat::type::Value".into())],
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21619,10 +21695,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::Value".into())],
+            params: vec![TypeExpr::Path(":wat::type::Value".into())],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::core::Value".into())],
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::Value".into())],
             },
             rest_param_type: None,
         },
@@ -21644,7 +21720,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::edn::ReadJsonOutcome".into(),
                 args: vec![t_var()],
@@ -21667,7 +21743,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: TypeExpr::Path(":wat::core::ReadOutcome".into()),
             rest_param_type: None,
         },
@@ -21680,7 +21756,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            params: vec![TypeExpr::Path(":wat::type::String".into())],
             ret: TypeExpr::Path(":wat::core::ReadWithCommentsOutcome".into()),
             rest_param_type: None,
         },
@@ -21692,8 +21768,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21705,8 +21781,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -21718,10 +21794,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::AST".into())],
             },
             rest_param_type: None,
         },
@@ -21735,76 +21811,76 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![
-                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Path(":wat::type::AST".into()),
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                    head: "wat::type::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::AST".into())],
                 },
             ],
-            ret: TypeExpr::Path(":wat::WatAST".into()),
+            ret: TypeExpr::Path(":wat::type::AST".into()),
             rest_param_type: None,
         },
     );
     // Arc 251.5a-v — node recognition + construction.
     env.register(":wat::core::ast-kind".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
         type_param_bounds: vec![],
-        ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
+        ret: TypeExpr::Path(":wat::type::String".into()), rest_param_type: None });
     env.register(":wat::core::ast-name".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
         type_param_bounds: vec![],
-        ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
+        ret: TypeExpr::Path(":wat::type::String".into()), rest_param_type: None });
     // Stone 251.5 / Slice 4.2a — source start location: {:line i64 :col i64}.
     env.register(":wat::core::ast-span".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
         type_param_bounds: vec![None],
         ret: TypeExpr::Parametric {
-            head: "wat::core::HashMap".into(),
+            head: "wat::type::HashMap".into(),
             args: vec![
-                TypeExpr::Path(":wat::core::keyword".into()),
-                TypeExpr::Path(":wat::core::i64".into()),
+                TypeExpr::Path(":wat::type::keyword".into()),
+                TypeExpr::Path(":wat::type::i64".into()),
             ],
         },
         rest_param_type: None,
     });
     // Arc 281 — source END location: {:line i64 :col i64} (one char past the node's last char).
     env.register(":wat::core::ast-end-span".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
         type_param_bounds: vec![None],
         ret: TypeExpr::Parametric {
-            head: "wat::core::HashMap".into(),
+            head: "wat::type::HashMap".into(),
             args: vec![
-                TypeExpr::Path(":wat::core::keyword".into()),
-                TypeExpr::Path(":wat::core::i64".into()),
+                TypeExpr::Path(":wat::type::keyword".into()),
+                TypeExpr::Path(":wat::type::i64".into()),
             ],
         },
         rest_param_type: None,
     });
     env.register(":wat::core::symbol-node".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::String".into())],
         type_param_bounds: vec![],
-        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+        ret: TypeExpr::Path(":wat::type::AST".into()), rest_param_type: None });
     env.register(":wat::core::keyword-node".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::String".into())],
         type_param_bounds: vec![],
-        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+        ret: TypeExpr::Path(":wat::type::AST".into()), rest_param_type: None });
     // Arc 251 head role-inversion — a rust-scheme call-head Keyword node → a faithful-Clojure
     // Symbol node (the inverse of `ns_to_wat_path`'s grammar; the kind change IS the inversion).
     // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,to-type-form-colon}`
     // RETIRED this stone; `:wat::keyword::{to-symbol,to-type-form,to-type-form-colon}`
     // (registered here, VERBATIM schemes) are their replacements (see `src/remedy/retirement.rs`).
     env.register(":wat::keyword::to-symbol".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
         type_param_bounds: vec![],
-        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+        ret: TypeExpr::Path(":wat::type::AST".into()), rest_param_type: None });
     env.register(":wat::keyword::to-type-form".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
         type_param_bounds: vec![],
-        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+        ret: TypeExpr::Path(":wat::type::AST".into()), rest_param_type: None });
     env.register(":wat::keyword::to-type-form-colon".into(), TypeScheme {
-        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
         type_param_bounds: vec![],
-        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+        ret: TypeExpr::Path(":wat::type::AST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-
@@ -21913,7 +21989,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![vector_ty()],
             }],
             ret: combine_outcome_ty(),
@@ -21943,7 +22019,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 053: OnlineSubspace native value + 10 core methods.
     let subspace_ty = || TypeExpr::Path(":wat::holon::OnlineSubspace".into());
     let vec_f64_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![f64_ty()],
     };
     env.register(
@@ -22033,7 +22109,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // f64). ReckConfig is encoded in the constructor name (Discrete
     // vs Continuous).
     let reckoner_ty = || TypeExpr::Path(":wat::holon::Reckoner".into());
-    let unit_ty = || TypeExpr::Path(":wat::core::nil".into());
+    let unit_ty = || TypeExpr::Path(":wat::type::nil".into());
     env.register(
         ":wat::holon::Reckoner/new-discrete".into(),
         TypeScheme {
@@ -22044,7 +22120,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 i64_ty(),
                 i64_ty(),
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::type::Vector".into(),
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 },
             ],
@@ -22080,7 +22156,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![reckoner_ty(), vector_ty()],
             ret: TypeExpr::Tuple(vec![
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::type::Vector".into(),
                     args: vec![TypeExpr::Tuple(vec![i64_ty(), f64_ty()])],
                 },
                 TypeExpr::Parametric {
@@ -22123,7 +22199,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![reckoner_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![i64_ty()],
             },
             rest_param_type: None,
@@ -22212,7 +22288,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![library_ty(), vector_ty(), i64_ty(), i64_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Tuple(vec![string_ty(), f64_ty()])],
             },
             rest_param_type: None,
@@ -22245,7 +22321,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![library_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![string_ty()],
             },
             rest_param_type: None,
@@ -22281,11 +22357,11 @@ fn register_builtins(env: &mut CheckEnv) {
     //   lookup-define  — full (:define <head> <body>) AST
     //   signature-of-defn — head only
     //   body-of        — body only (:None for substrate primitives)
-    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    let keyword_ty = || TypeExpr::Path(":wat::type::keyword".into());
     // Arc 294.f — reflection verbs now emit WatAST (plain EDN), not HolonAST.
     let opt_holon_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
-        args: vec![TypeExpr::Path(":wat::WatAST".into())],
+        args: vec![TypeExpr::Path(":wat::type::AST".into())],
     };
     env.register(
         ":wat::runtime::lookup-define".into(),
@@ -22340,7 +22416,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![fn_ty()],
-            ret: TypeExpr::Path(":wat::WatAST".into()),
+            ret: TypeExpr::Path(":wat::type::AST".into()),
             rest_param_type: None,
         },
     );
@@ -22354,7 +22430,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![fn_ty()],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -22372,10 +22448,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // is a WatAST value (not a plain keyword), which interacts with the arc-009
     // "names are values" dispatch the same way as the slice-1 introspection
     // primitives.
-    let watast_ty = || TypeExpr::Path(":wat::WatAST".into());
+    let watast_ty = || TypeExpr::Path(":wat::type::AST".into());
     let vec_kw_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+        head: "wat::type::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::type::keyword".into())],
     };
     env.register(
         ":wat::runtime::rename-callable-name".into(),
@@ -22402,8 +22478,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // Post arc-294.f the signature head already carries canonical `wat.type/`
     // WatAST type nodes; this verb returns each verbatim — no HolonAST anywhere.
     let vec_watast_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::WatAST".into())],
+        head: "wat::type::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::type::AST".into())],
     };
     env.register(
         ":wat::runtime::extract-arg-types".into(),
@@ -22432,7 +22508,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // NOT the reflection surface (arc 294.f moved reflection to WatAST).
     let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
     let vec_holon_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
     };
     env.register(
@@ -22468,7 +22544,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // the arg does NOT trigger arc-009 "names as values" path.
     let opt_string_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
-        args: vec![TypeExpr::Path(":wat::core::String".into())],
+        args: vec![TypeExpr::Path(":wat::type::String".into())],
     };
     let opt_holon_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
@@ -22553,7 +22629,7 @@ fn register_builtins(env: &mut CheckEnv) {
         args: vec![f64_ty()],
     };
     let vec_f64_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![f64_ty()],
     };
     for name in ["mean", "variance", "stddev"] {
@@ -22576,7 +22652,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // duration measurement is two `now` calls + integer-accessor
     // subtract (no separate Duration type).
     let instant_ty = || TypeExpr::Path(":wat::time::Instant".into());
-    let string_ty = || TypeExpr::Path(":wat::core::String".into());
+    let string_ty = || TypeExpr::Path(":wat::type::String".into());
     let opt_instant_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
         args: vec![instant_ty()],
@@ -22755,7 +22831,7 @@ fn register_builtins(env: &mut CheckEnv) {
     let u_var = || TypeExpr::Path(":U".into());
     let acc_var = || TypeExpr::Path(":Acc".into());
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
+        head: "wat::type::Vector".into(),
         args: vec![inner],
     };
     // :wat::core::length scheme retired; polymorphic under
@@ -22793,7 +22869,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 TypeExpr::Fn {
                     args: vec![t_var(), t_var()],
-                    ret: Box::new(TypeExpr::Path(":wat::core::bool".into())),
+                    ret: Box::new(TypeExpr::Path(":wat::type::bool".into())),
                 },
                 vec_of(t_var()),
             ],
@@ -22938,17 +23014,17 @@ fn register_builtins(env: &mut CheckEnv) {
     let k_var = || TypeExpr::Path(":K".into());
     let v_var = || TypeExpr::Path(":V".into());
     let hashmap_of = |k: TypeExpr, v: TypeExpr| TypeExpr::Parametric {
-        head: "wat::core::HashMap".into(),
+        head: "wat::type::HashMap".into(),
         args: vec![k, v],
     };
     let hashset_of = |t: TypeExpr| TypeExpr::Parametric {
-        head: "wat::core::HashSet".into(),
+        head: "wat::type::HashSet".into(),
         args: vec![t],
     };
     // BRIEF-STONE-the-thirteen-schemes — same shape as `hashmap_of` above, head string
     // already established at check.rs:14083/:14127.
     let persistentmap_of = |k: TypeExpr, v: TypeExpr| TypeExpr::Parametric {
-        head: "wat::core::PersistentMap".into(),
+        head: "wat::type::PersistentMap".into(),
         args: vec![k, v],
     };
 
@@ -23015,7 +23091,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 255 Stone E-ii — `:wat::core::PersistentVector/concat` RETIRED this stone;
     // `:wat::vector::concat` (registered below, near its E-ii siblings) is its replacement.
     let pv_of = |inner: TypeExpr| TypeExpr::Parametric {
-        head: "wat::core::PersistentVector".into(),
+        head: "wat::type::PersistentVector".into(),
         args: vec![inner],
     };
 
@@ -23455,7 +23531,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Real arity + type-keyword + per-element checking lives in the
     // handler. Per arc 144 slice 3 limitation.
     env.register(
-        ":wat::core::Vector".into(),
+        ":wat::type::Vector".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
@@ -23473,7 +23549,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // TypeScheme has no variadic-heterogeneous shape today. Per arc
     // 144 slice 3 limitation.
     env.register(
-        ":wat::core::Tuple".into(),
+        ":wat::type::Tuple".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
@@ -23491,7 +23567,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // shape directly. Real arity + pair-parity + per-element checking
     // lives in the handler.
     env.register(
-        ":wat::core::HashMap".into(),
+        ":wat::type::HashMap".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             type_param_bounds: vec![None, None],
@@ -23506,7 +23582,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:T` sentinel mirrors :wat::core::Vector. Per arc 144 slice 3
     // limitation.
     env.register(
-        ":wat::core::HashSet".into(),
+        ":wat::type::HashSet".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
@@ -23523,7 +23599,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // return type from the [-> :T] annotation vector). The scheme here
     // uses keyword + T as a minimal surface: it is NOT reached via the
     // standard infer_call path because infer_list intercepts first.
-    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    let keyword_ty = || TypeExpr::Path(":wat::type::keyword".into());
     env.register(
         ":wat::core::apply".into(),
         TypeScheme {
@@ -23551,7 +23627,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
             params: vec![t_var()],
-            ret: TypeExpr::Path(":wat::core::String".into()),
+            ret: TypeExpr::Path(":wat::type::String".into()),
             rest_param_type: None,
         },
     );
@@ -23731,7 +23807,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Positional accessor: takes a record + i64 index; returns the field value.
     // Generic return T: type-checker propagates T via recipient inference (let-binding
     // or defn return-type annotation drives unification). Mirrors Vector/get's T pattern.
-    let record_ty = || TypeExpr::Path(":wat::core::Record".into());
+    let record_ty = || TypeExpr::Path(":wat::type::Record".into());
     env.register(
         ":wat::core::Record/field-at".into(),
         TypeScheme {
@@ -23790,9 +23866,9 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![None],
             params: vec![record_ty()],
             ret: TypeExpr::Parametric {
-                head: "wat::core::HashMap".into(),
+                head: "wat::type::HashMap".into(),
                 args: vec![
-                    TypeExpr::Path(":wat::core::keyword".into()),
+                    TypeExpr::Path(":wat::type::keyword".into()),
                     t_var(),
                 ],
             },
@@ -23812,7 +23888,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
-            params: vec![record_ty(), TypeExpr::Path(":wat::core::keyword".into()), t_var()],
+            params: vec![record_ty(), TypeExpr::Path(":wat::type::keyword".into()), t_var()],
             ret: record_ty(),
             rest_param_type: None,
         },
@@ -23851,7 +23927,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
-            params: vec![t_var(), TypeExpr::Path(":wat::core::keyword".into())],
+            params: vec![t_var(), TypeExpr::Path(":wat::type::keyword".into())],
             ret: bool_ty(),
             rest_param_type: None,
         },
@@ -23872,8 +23948,8 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![
-                TypeExpr::Path(":wat::core::keyword".into()),
-                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::type::keyword".into()),
+                TypeExpr::Path(":wat::type::keyword".into()),
             ],
             ret: bool_ty(),
             rest_param_type: None,
@@ -23892,7 +23968,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::keyword".into())],
+            params: vec![TypeExpr::Path(":wat::type::keyword".into())],
             ret: bool_ty(),
             rest_param_type: None,
         },
@@ -23911,8 +23987,8 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::AST".into())],
             }],
             ret: TypeExpr::Path(":wat::runtime::DeclaredTypes".into()),
             rest_param_type: None,
@@ -23926,8 +24002,8 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::type::AST".into())],
             }],
             ret: TypeExpr::Path(":wat::runtime::DeclaredTypes".into()),
             rest_param_type: None,
@@ -23947,10 +24023,10 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::keyword".into())],
+            params: vec![TypeExpr::Path(":wat::type::keyword".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
-                args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                args: vec![TypeExpr::Path(":wat::type::keyword".into())],
             },
             rest_param_type: None,
         },
@@ -23971,10 +24047,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![
-                TypeExpr::Path(":wat::core::keyword".into()),
-                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::type::keyword".into()),
+                TypeExpr::Path(":wat::type::keyword".into()),
             ],
-            ret: TypeExpr::Path(":wat::core::keyword".into()),
+            ret: TypeExpr::Path(":wat::type::keyword".into()),
             rest_param_type: None,
         },
     );
@@ -23995,15 +24071,15 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["V".into()],
             type_param_bounds: vec![None],
             params: vec![
-                TypeExpr::Path(":wat::WatAST".into()),
-                TypeExpr::Path(":wat::core::Record".into()),
+                TypeExpr::Path(":wat::type::AST".into()),
+                TypeExpr::Path(":wat::type::Record".into()),
             ],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Parametric {
-                    head: "wat::core::PersistentMap".into(),
+                    head: "wat::type::PersistentMap".into(),
                     args: vec![
-                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":wat::type::String".into()),
                         TypeExpr::Path(":V".into()),
                     ],
                 }],
@@ -24017,7 +24093,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
             ret: bool_ty(),
             rest_param_type: None,
         },
@@ -24029,15 +24105,15 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["V".into()],
             type_param_bounds: vec![None],
             params: vec![
-                TypeExpr::Path(":wat::WatAST".into()),
-                TypeExpr::Path(":wat::core::Record".into()),
+                TypeExpr::Path(":wat::type::AST".into()),
+                TypeExpr::Path(":wat::type::Record".into()),
             ],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Parametric {
-                    head: "wat::core::PersistentMap".into(),
+                    head: "wat::type::PersistentMap".into(),
                     args: vec![
-                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":wat::type::String".into()),
                         TypeExpr::Path(":V".into()),
                     ],
                 }],
@@ -24052,12 +24128,12 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["V".into()],
             type_param_bounds: vec![None],
             params: vec![
-                TypeExpr::Path(":wat::WatAST".into()),
-                TypeExpr::Path(":wat::core::Record".into()),
+                TypeExpr::Path(":wat::type::AST".into()),
+                TypeExpr::Path(":wat::type::Record".into()),
                 TypeExpr::Parametric {
-                    head: "wat::core::PersistentMap".into(),
+                    head: "wat::type::PersistentMap".into(),
                     args: vec![
-                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":wat::type::String".into()),
                         TypeExpr::Path(":V".into()),
                     ],
                 },
@@ -24065,9 +24141,9 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Parametric {
-                    head: "wat::core::PersistentMap".into(),
+                    head: "wat::type::PersistentMap".into(),
                     args: vec![
-                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":wat::type::String".into()),
                         TypeExpr::Path(":V".into()),
                     ],
                 }],
@@ -24089,10 +24165,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![
-                TypeExpr::Path(":wat::WatAST".into()),
-                TypeExpr::Path(":wat::core::PersistentMap".into()),
+                TypeExpr::Path(":wat::type::AST".into()),
+                TypeExpr::Path(":wat::type::PersistentMap".into()),
             ],
-            ret: TypeExpr::Path(":wat::core::Record".into()),
+            ret: TypeExpr::Path(":wat::type::Record".into()),
             rest_param_type: None,
         },
     );
@@ -24125,9 +24201,9 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::core::keyword".into())],
+            params: vec![TypeExpr::Path(":wat::type::keyword".into())],
             ret: TypeExpr::Parametric {
-                head: "wat::core::PersistentVector".into(),
+                head: "wat::type::PersistentVector".into(),
                 args: vec![TypeExpr::Path(":wat::rete::Rule".into())],
             },
             rest_param_type: None,
@@ -24193,7 +24269,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::rete::Session".into()),
-                TypeExpr::Path(":wat::core::Record".into()),
+                TypeExpr::Path(":wat::type::Record".into()),
             ],
             ret: TypeExpr::Path(":wat::rete::InsertOutcome".into()),
             rest_param_type: None,
@@ -24207,8 +24283,8 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![
                 TypeExpr::Path(":wat::rete::Session".into()),
                 TypeExpr::Parametric {
-                    head: "wat::core::PersistentVector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::Record".into())],
+                    head: "wat::type::PersistentVector".into(),
+                    args: vec![TypeExpr::Path(":wat::type::Record".into())],
                 },
             ],
             ret: TypeExpr::Path(":wat::rete::InsertOutcome".into()),
@@ -24277,9 +24353,9 @@ fn register_builtins(env: &mut CheckEnv) {
             type_param_bounds: vec![],
             params: vec![
                 TypeExpr::Path(":wat::rete::Session".into()),
-                TypeExpr::Path(":wat::core::i64".into()),
-                TypeExpr::Path(":wat::core::PersistentMap".into()),
-                TypeExpr::Path(":wat::core::Record".into()),
+                TypeExpr::Path(":wat::type::i64".into()),
+                TypeExpr::Path(":wat::type::PersistentMap".into()),
+                TypeExpr::Path(":wat::type::Record".into()),
                 TypeExpr::Path(":wat::rete::DerivationNode".into()),
             ],
             ret: TypeExpr::Path(":wat::rete::DerivationStep".into()),
@@ -24298,8 +24374,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::bool".into()),
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
+            ret: TypeExpr::Path(":wat::type::bool".into()),
             rest_param_type: None,
         },
     );
@@ -24308,8 +24384,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::bool".into()),
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
+            ret: TypeExpr::Path(":wat::type::bool".into()),
             rest_param_type: None,
         },
     );
@@ -24322,8 +24398,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::bool".into()),
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
+            ret: TypeExpr::Path(":wat::type::bool".into()),
             rest_param_type: None,
         },
     );
@@ -24336,8 +24412,8 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
-            ret: TypeExpr::Path(":wat::core::bool".into()),
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
+            ret: TypeExpr::Path(":wat::type::bool".into()),
             rest_param_type: None,
         },
     );
@@ -24346,7 +24422,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             type_param_bounds: vec![],
-            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            params: vec![TypeExpr::Path(":wat::type::AST".into())],
             // 255.57 — nil is the path `:wat::core::nil`. `unit_ty()` builds that path.
             ret: unit_ty(),
             rest_param_type: None,
@@ -24364,7 +24440,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![
-                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Path(":wat::type::AST".into()),
                 TypeExpr::Path(":wat::rete::Axis".into()),
             ],
             ret: TypeExpr::Parametric {
@@ -24382,10 +24458,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             type_param_bounds: vec![],
             params: vec![
-                TypeExpr::Path(":wat::WatAST".into()),
-                TypeExpr::Path(":wat::core::PersistentMap".into()),
+                TypeExpr::Path(":wat::type::AST".into()),
+                TypeExpr::Path(":wat::type::PersistentMap".into()),
             ],
-            ret: TypeExpr::Path(":wat::core::bool".into()),
+            ret: TypeExpr::Path(":wat::type::bool".into()),
             rest_param_type: None,
         },
     );
@@ -24633,7 +24709,7 @@ pub(crate) mod tests {
         let env = decls(
             r#"
             (:wat::core::defenum :t::Ok :wat::enum::Pure :A)
-            (:wat::core::defn :t::f [] -> :wat::core::i64
+            (:wat::core::defn :t::f [] -> wat.type/i64
               (:wat::core::defstruct))
             "#,
         );
@@ -24770,13 +24846,13 @@ pub(crate) mod tests {
     #[test]
     fn declared_stdlib_types_replaces_divergent_macro() {
         let src_a = r#"
-            (:wat::core::defmacro :wat::probe2a4c::mk [] -> :wat::WatAST
-              `(:wat::core::defenum :wat::probe2a4c::E :wat::enum::Pure :V [a <- :wat::core::i64]))
+            (:wat::core::defmacro :wat::probe2a4c::mk [] -> wat.type/AST
+              `(:wat::core::defenum :wat::probe2a4c::E :wat::enum::Pure :V [a <- wat.type/i64]))
             (:wat::probe2a4c::mk)
         "#;
         let src_b = r#"
-            (:wat::core::defmacro :wat::probe2a4c::mk [] -> :wat::WatAST
-              `(:wat::core::defenum :wat::probe2a4c::E :wat::enum::Pure :V [b <- :wat::core::i64 c <- :wat::core::i64]))
+            (:wat::core::defmacro :wat::probe2a4c::mk [] -> wat.type/AST
+              `(:wat::core::defenum :wat::probe2a4c::E :wat::enum::Pure :V [b <- wat.type/i64 c <- wat.type/i64]))
             (:wat::probe2a4c::mk)
         "#;
         let (env1, macros1, _) = stdlib_decls_full(src_a);
@@ -24812,7 +24888,7 @@ pub(crate) mod tests {
         let (env, names) = stdlib_decls(
             r#"
             (:wat::core::defenum :wat::probe2a4c::Colour :wat::enum::Pure :Red)
-            (:wat::core::defn :wat::probe2a4c::bad [] -> :wat::core::nil
+            (:wat::core::defn :wat::probe2a4c::bad [] -> wat.type/nil
               (:wat::kernel::start-primed-stdio))
             "#,
         );
@@ -24903,8 +24979,8 @@ pub(crate) mod tests {
     fn declared_types_plain_defenum_and_defrecord() {
         let env = decls(
             r#"
-            (:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
-            (:wat::core::defrecord :t::Point [x <- :wat::core::i64 y <- :wat::core::i64])
+            (:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- wat.type/i64])
+            (:wat::core::defrecord :t::Point [x <- wat.type/i64 y <- wat.type/i64])
             "#,
         );
         assert_eq!(
@@ -25348,11 +25424,11 @@ pub(crate) mod tests {
         let (stdlib_sym, ..) = stdlib_loaded();
         let src = "(:wat::core::defclause :probe::guarded\n\
                     \x20 {\"not-a-keyword\" [:wat::kernel::]}\n\
-                    \x20 ([a <- :wat::core::i64] -> :wat::core::i64 a))\n\
+                    \x20 ([a <- wat.type/i64] -> wat.type/i64 a))\n\
                     \n\
                     (:wat::core::defn :user::caller\n\
-                    \x20 [x <- :wat::core::i64]\n\
-                    \x20 -> :wat::core::i64\n\
+                    \x20 [x <- wat.type/i64]\n\
+                    \x20 -> wat.type/i64\n\
                     \x20 (:probe::guarded x))";
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut sym = stdlib_sym.clone();
@@ -25383,11 +25459,11 @@ pub(crate) mod tests {
         let (stdlib_sym, ..) = stdlib_loaded();
         let src = "(:wat::core::defclause :probe::guarded\n\
                     \x20 :not-a-clause-or-metadata\n\
-                    \x20 ([a <- :wat::core::i64] -> :wat::core::i64 a))\n\
+                    \x20 ([a <- wat.type/i64] -> wat.type/i64 a))\n\
                     \n\
                     (:wat::core::defn :user::caller\n\
-                    \x20 [x <- :wat::core::i64]\n\
-                    \x20 -> :wat::core::i64\n\
+                    \x20 [x <- wat.type/i64]\n\
+                    \x20 -> wat.type/i64\n\
                     \x20 (:probe::guarded x))";
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut sym = stdlib_sym.clone();
@@ -25706,8 +25782,8 @@ pub(crate) mod tests {
     fn unify_identical_paths() {
         let mut s = Subst::new();
         assert!(unify(
-            &TypeExpr::Path(":wat::core::i64".into()),
-            &TypeExpr::Path(":wat::core::i64".into()),
+            &TypeExpr::Path(":wat::type::i64".into()),
+            &TypeExpr::Path(":wat::type::i64".into()),
             &mut s,
             &TypeEnv::with_builtins(),
         )
@@ -25718,8 +25794,8 @@ pub(crate) mod tests {
     fn unify_distinct_paths_fails() {
         let mut s = Subst::new();
         assert!(unify(
-            &TypeExpr::Path(":wat::core::i64".into()),
-            &TypeExpr::Path(":wat::core::f64".into()),
+            &TypeExpr::Path(":wat::type::i64".into()),
+            &TypeExpr::Path(":wat::type::f64".into()),
             &mut s,
             &TypeEnv::with_builtins(),
         )
@@ -25751,7 +25827,7 @@ pub(crate) mod tests {
     fn unify_fresh_var_binds_to_concrete() {
         let mut s = Subst::new();
         let var = TypeExpr::Var(0);
-        let concrete = TypeExpr::Path(":wat::core::i64".into());
+        let concrete = TypeExpr::Path(":wat::type::i64".into());
         unify(&var, &concrete, &mut s, &TypeEnv::with_builtins()).expect("unify");
         assert_eq!(apply_subst(&var, &s), concrete);
     }
@@ -25761,12 +25837,12 @@ pub(crate) mod tests {
         // Different parametric heads must NOT unify: (Vector :- [i64]) vs (Option :- [i64]).
         let mut s = Subst::new();
         let vec_int = TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            head: "wat::type::Vector".into(),
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
         };
         let option_int = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
         };
         assert!(unify(&vec_int, &option_int, &mut s, &TypeEnv::with_builtins()).is_err());
     }
@@ -25775,12 +25851,12 @@ pub(crate) mod tests {
     fn unify_fn_types() {
         let mut s = Subst::new();
         let f1 = TypeExpr::Fn {
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
-            ret: Box::new(TypeExpr::Path(":wat::core::bool".into())),
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
+            ret: Box::new(TypeExpr::Path(":wat::type::bool".into())),
         };
         let f2 = TypeExpr::Fn {
-            args: vec![TypeExpr::Path(":wat::core::i64".into())],
-            ret: Box::new(TypeExpr::Path(":wat::core::bool".into())),
+            args: vec![TypeExpr::Path(":wat::type::i64".into())],
+            ret: Box::new(TypeExpr::Path(":wat::type::bool".into())),
         };
         assert!(unify(&f1, &f2, &mut s, &TypeEnv::with_builtins()).is_ok());
     }
@@ -25790,7 +25866,7 @@ pub(crate) mod tests {
         let mut s = Subst::new();
         // α = List<α>  — would produce an infinite type.
         let cyclic = TypeExpr::Parametric {
-            head: "wat::core::Vector".into(),
+            head: "wat::type::Vector".into(),
             args: vec![TypeExpr::Var(0)],
         };
         assert!(unify(&TypeExpr::Var(0), &cyclic, &mut s, &TypeEnv::with_builtins()).is_err());
@@ -25835,7 +25911,7 @@ pub(crate) mod tests {
               :Empty
               :Filled [value <- :T])
 
-            (:wat::core::defn :my::is-empty :- [T] [b <- (:my::Box :- [T])] -> :wat::core::bool
+            (:wat::core::defn :my::is-empty :- [T] [b <- (:my::Box :- [T])] -> wat.type/bool
               (:wat::core::match b
                               [:my::Box.Empty {} true]
                               [:my::Box.Filled {:value _v} false]))
@@ -25860,7 +25936,7 @@ pub(crate) mod tests {
               :Left  [value <- :L]
               :Right [value <- :R])
 
-            (:wat::core::defn :my::is-left :- [L R] [e <- (:my::Either :- [L R])] -> :wat::core::bool
+            (:wat::core::defn :my::is-left :- [L R] [e <- (:my::Either :- [L R])] -> wat.type/bool
               (:wat::core::match e
                               [:my::Either.Left {:value _v} true]
                               [:my::Either.Right {:value _v} false]))
@@ -25909,8 +25985,8 @@ pub(crate) mod tests {
     fn thread_process_still_fail() {
         // unify((Thread' :- [nil keyword]), (Process' :- [nil keyword])) == Err (homogeneity preserved)
         let mut s = Subst::new();
-        let kw = TypeExpr::Path(":wat::core::keyword".into());
-        let nil = TypeExpr::Path(":wat::core::nil".into());
+        let kw = TypeExpr::Path(":wat::type::keyword".into());
+        let nil = TypeExpr::Path(":wat::type::nil".into());
         let thread = TypeExpr::Parametric {
             head: "wat::kernel::Thread".into(),
             args: vec![nil.clone(), kw.clone()],
@@ -26132,7 +26208,7 @@ pub(crate) mod tests {
                 assert_eq!(
                     reason,
                     "the rete enum-equality surface admits ENUM operands only — got \
-:wat::core::i64 and :wat::core::i64. The rete surface is per-type: use the row matching the \
+wat.type/i64 and wat.type/i64. The rete surface is per-type: use the row matching the \
 operand type (:wat::rete::core::{i64,f64,bool,keyword,string}::=), or, for a genuinely mixed \
 comparison, cast explicitly first."
                 );
@@ -26153,9 +26229,9 @@ comparison, cast explicitly first."
     fn stone_251_8c_slash_and_colon_heads_share_the_call_path() {
         fn probe(body: &str) -> Result<(), crate::freeze::StartupError> {
             let src = format!(
-                "(:wat::core::defn :user::f [n <- :wat::core::i64] -> :wat::core::i64 n)\n\
-                 (:wat::core::defn :user::g [x <- :wat::core::i64] -> :wat::core::i64 x)\n\
-                 (:wat::core::defn :user::main [] -> :wat::core::nil\n  {body})\n"
+                "(:wat::core::defn :user::f [n <- wat.type/i64] -> wat.type/i64 n)\n\
+                 (:wat::core::defn :user::g [x <- wat.type/i64] -> wat.type/i64 x)\n\
+                 (:wat::core::defn :user::main [] -> wat.type/nil\n  {body})\n"
             );
             crate::freeze::startup_from_source(
                 &src,
@@ -26202,8 +26278,8 @@ comparison, cast explicitly first."
         const WANT: (&str, &str, &str, &str) = (
             ":user::f",
             "#1",
-            ":wat::core::i64",
-            ":wat::core::String",
+            "wat.type/i64",
+            "wat.type/String",
         );
         fn pair(label: &str, colon_body: &str, slash_body: &str) {
             let colon = type_mismatch_on_f(probe(colon_body).expect_err(label));

@@ -47,11 +47,11 @@ use std::sync::Arc;
 
 // Arc 244 Doctrine 1 — the TYPE keyword spelling of nil (the placeholder elem/ok/err type for
 // an empty Vec/HashMap/HashSet or a payload-less Result arm — a genuinely PARSEABLE type,
-// `TypeExpr::Path(":wat::core::nil")`), distinct from the VALUE literal `WatAST::nil()`/
+// `TypeExpr::Path(":wat::type::nil")`), distinct from the VALUE literal `WatAST::nil()`/
 // `NilLit` `gate_no_nil_keyword_synthesis` guards against (a `NilLit` is not one of
 // `parse_type_node`'s accepted type-position node kinds, so it cannot replace this). Named
 // so every synthesis site below routes through one spelling instead of a repeated literal.
-const NIL_TYPE_PATH_KEYWORD: &str = ":wat::core::nil";
+const NIL_TYPE_PATH_KEYWORD: &str = ":wat::type::nil";
 
 // ─── Public API ─────────────────────────────────────────────────────────
 
@@ -1649,7 +1649,7 @@ fn record_type_refs_in_typeexpr(state: &mut ExtractState<'_>, ty: &TypeExpr) {
             }
         }
         TypeExpr::Parametric { head, args } => {
-            // `head` carries no leading colon (e.g. "wat::core::Vector");
+            // `head` carries no leading colon (e.g. "wat::type::Vector");
             // re-attach for substrate-prefix check + lookup.
             let head_kw = crate::types::parametric_head_fqdn(head);
             if !crate::resolve::is_reserved_prefix(&head_kw)
@@ -2000,7 +2000,7 @@ fn encode_value_with_path(
             // u8 doesn't have a literal form; `(:wat::core::u8 N)`.
             Ok(WatAST::List(
                 vec![
-                    WatAST::Keyword(":wat::core::u8".into(), span.clone()),
+                    WatAST::Keyword(":wat::type::u8".into(), span.clone()),
                     WatAST::IntLit(*n as i64, span.clone()),
                 ],
                 span,
@@ -2044,7 +2044,7 @@ fn encode_value_with_path(
         // encoded. Round-trips cleanly.
         Value::wat__core__List(items) => {
             let mut out = Vec::with_capacity(items.len() + 1);
-            out.push(WatAST::Keyword(":wat::core::List".into(), span.clone()));
+            out.push(WatAST::Keyword(":wat::type::List".into(), span.clone()));
             for (i, it) in items.iter().enumerate() {
                 path.push(format!("[{}]", i));
                 let encoded = encode_value_with_path(it, binding_name, path, state)?;
@@ -2077,7 +2077,7 @@ fn encode_value_with_path(
                 WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone())
             };
             let mut out = Vec::with_capacity(items.len() + 3);
-            out.push(WatAST::Keyword(":wat::core::Vector".into(), span.clone()));
+            out.push(WatAST::Keyword(":wat::type::Vector".into(), span.clone()));
             out.push(WatAST::Keyword(":-".into(), span.clone()));
             out.push(WatAST::Vector(vec![elem_kw], span.clone()));
             for (i, it) in items.iter().enumerate() {
@@ -2090,7 +2090,7 @@ fn encode_value_with_path(
         }
         Value::Tuple(items) => {
             let mut out = Vec::with_capacity(items.len() + 1);
-            out.push(WatAST::Keyword(":wat::core::Tuple".into(), span.clone()));
+            out.push(WatAST::Keyword(":wat::type::Tuple".into(), span.clone()));
             for (i, it) in items.iter().enumerate() {
                 path.push(format!(".{}", i));
                 let encoded = encode_value_with_path(it, binding_name, path, state)?;
@@ -2130,7 +2130,7 @@ fn encode_value_with_path(
             // spelling now; see the `Value::Vec` arm's comment above for why this
             // Rust-side synthesis needed the same update.
             let mut out = Vec::with_capacity(map.len() * 2 + 4);
-            out.push(WatAST::Keyword(":wat::core::HashMap".into(), span.clone()));
+            out.push(WatAST::Keyword(":wat::type::HashMap".into(), span.clone()));
             out.push(WatAST::Keyword(":-".into(), span.clone()));
             out.push(WatAST::Vector(vec![k_kw, v_kw], span.clone()));
             // Stone 216.5d — sort by Value's native Hash for determinism.
@@ -2167,7 +2167,7 @@ fn encode_value_with_path(
             // Arc 109 stone 3 (THE WALL) — `:- [T]` is the ONE legal param-spec
             // spelling now; see the `Value::Vec` arm's comment above.
             let mut out = Vec::with_capacity(set.len() + 3);
-            out.push(WatAST::Keyword(":wat::core::HashSet".into(), span.clone()));
+            out.push(WatAST::Keyword(":wat::type::HashSet".into(), span.clone()));
             out.push(WatAST::Keyword(":-".into(), span.clone()));
             out.push(WatAST::Vector(vec![elem_kw], span.clone()));
             // Stone 216.5d — sort by Value's native Hash for determinism.
@@ -2282,7 +2282,7 @@ fn encode_value_with_path(
             // constructor AST. PersistentMap ctor takes k/v pairs directly (no type header).
             // Arc-278-0a.
             let mut out = Vec::with_capacity(map.len() * 2 + 1);
-            out.push(WatAST::Keyword(":wat::core::PersistentMap".into(), span.clone()));
+            out.push(WatAST::Keyword(":wat::type::PersistentMap".into(), span.clone()));
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
             let value_sort_key = |v: &Value| -> u64 {
@@ -2310,7 +2310,7 @@ fn encode_value_with_path(
             // constructor AST. PersistentVector ctor takes bare elements in order.
             // Arc-278-0b.
             let mut out = Vec::with_capacity(pv.len() + 1);
-            out.push(WatAST::Keyword(":wat::core::PersistentVector".into(), span.clone()));
+            out.push(WatAST::Keyword(":wat::type::PersistentVector".into(), span.clone()));
             for (i, elem) in pv.iter().enumerate() {
                 path.push(format!("[{}]", i));
                 let encoded = encode_value_with_path(elem, binding_name, path, state)?;
@@ -2481,7 +2481,7 @@ fn value_static_type_keyword(
     }
     // Arc 244 Doctrine 1 / Arc 109 ③ — `:wat::core::nil` here is the TYPE keyword (a
     // placeholder elem/ok/err type for an empty Vec/HashMap/HashSet or a `None`/`Err`-less
-    // Result — a genuinely PARSEABLE type, `TypeExpr::Path(":wat::core::nil")`), never the
+    // Result — a genuinely PARSEABLE type, `TypeExpr::Path(":wat::type::nil")`), never the
     // VALUE literal `WatAST::nil()`/`NilLit` `gate_no_nil_keyword_synthesis` guards against —
     // a `NilLit` is not one of `parse_type_node`'s accepted type-position node kinds, so
     // swapping to it here would break every empty-container type-arg. Uses the module-level
@@ -2489,12 +2489,12 @@ fn value_static_type_keyword(
     // position use, not the value-position heresy it hunts.
     let nil_kw = || WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone());
     Ok(match v {
-        Value::bool(_) => WatAST::Keyword(":wat::core::bool".into(), span.clone()),
-        Value::i64(_) => WatAST::Keyword(":wat::core::i64".into(), span.clone()),
-        Value::u8(_) => WatAST::Keyword(":wat::core::u8".into(), span.clone()),
-        Value::f64(_) => WatAST::Keyword(":wat::core::f64".into(), span.clone()),
-        Value::String(_) => WatAST::Keyword(":wat::core::String".into(), span.clone()),
-        Value::wat__core__keyword(_) => WatAST::Keyword(":wat::core::keyword".into(), span.clone()),
+        Value::bool(_) => WatAST::Keyword(":wat::type::bool".into(), span.clone()),
+        Value::i64(_) => WatAST::Keyword(":wat::type::i64".into(), span.clone()),
+        Value::u8(_) => WatAST::Keyword(":wat::type::u8".into(), span.clone()),
+        Value::f64(_) => WatAST::Keyword(":wat::type::f64".into(), span.clone()),
+        Value::String(_) => WatAST::Keyword(":wat::type::String".into(), span.clone()),
+        Value::wat__core__keyword(_) => WatAST::Keyword(":wat::type::keyword".into(), span.clone()),
         Value::Nil => nil_kw(),
         Value::Vec(items) => {
             let inner = if let Some(first) = items.first() {
@@ -2502,17 +2502,17 @@ fn value_static_type_keyword(
             } else {
                 nil_kw()
             };
-            parametric("wat::core::Vector", vec![inner], span)
+            parametric("wat::type::Vector", vec![inner], span)
         }
         Value::Tuple(items) => {
             let mut parts = Vec::with_capacity(items.len());
             for it in items.iter() {
                 parts.push(value_static_type_keyword(it, state, span)?);
             }
-            // `parse_type_form`'s `raw_head == "wat::core::Tuple"` special-case
+            // `parse_type_form`'s `raw_head == "wat::type::Tuple"` special-case
             // (`src/types.rs`) collapses this to `TypeExpr::Tuple` — identical to the
             // retired native `:(...)` string spelling, structurally instead of textually.
-            parametric("wat::core::Tuple", parts, span)
+            parametric("wat::type::Tuple", parts, span)
         }
         Value::Option(opt) => {
             let inner = match &**opt {
@@ -2547,10 +2547,10 @@ fn value_static_type_keyword(
         // path exercises nested-HashMap-in-container through closure extraction;
         // if one arises, the K/V keywords must be derived here (sample first entry
         // like the encode arm above) or emit via a richer type-tag mechanism.
-        Value::wat__std__HashMap(_) => WatAST::Keyword(":wat::core::HashMap".into(), span.clone()),
-        Value::wat__core__PersistentMap(_) => WatAST::Keyword(":wat::core::PersistentMap".into(), span.clone()),
-        Value::wat__core__PersistentVector(_) => WatAST::Keyword(":wat::core::PersistentVector".into(), span.clone()),
-        Value::wat__std__HashSet(_) => WatAST::Keyword(":wat::core::HashSet".into(), span.clone()),
+        Value::wat__std__HashMap(_) => WatAST::Keyword(":wat::type::HashMap".into(), span.clone()),
+        Value::wat__core__PersistentMap(_) => WatAST::Keyword(":wat::type::PersistentMap".into(), span.clone()),
+        Value::wat__core__PersistentVector(_) => WatAST::Keyword(":wat::type::PersistentVector".into(), span.clone()),
+        Value::wat__std__HashSet(_) => WatAST::Keyword(":wat::type::HashSet".into(), span.clone()),
         // Non-portable types — they should not be reaching here through
         // a portable container, but if they do, encoding fails through
         // the value-level path.

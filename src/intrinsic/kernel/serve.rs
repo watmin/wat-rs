@@ -122,8 +122,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     op :T the op value to re-tag; not further constrained at check time
-/// @arg     surface_path :wat::core::keyword the surface Op type path (the runtime discriminator)
-/// @arg     service_path :wat::core::keyword the service Op type path (the result type)
+/// @arg     surface_path :wat::type::keyword the surface Op type path (the runtime discriminator)
+/// @arg     service_path :wat::type::keyword the service Op type path (the result type)
 /// @ret     :T the same variant and fields, re-tagged to `service_path` (or passed through unchanged)
 /// @example (:wat::kernel::retag-op 42 :Foo::SurfaceOp :Foo::Op) #=> 42
 // No registered `TypeScheme` — `check.rs`'s `infer_retag_op` (`:11386`) is
@@ -173,7 +173,7 @@ pub(crate) fn eval_retag_op(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
-/// @arg     clients (:wat::core::Vector :- [(:wat::kernel::Peer :- [S R])]) the connected clients to notify on a handler crash
+/// @arg     clients (:wat::type::Vector :- [(:wat::kernel::Peer :- [S R])]) the connected clients to notify on a handler crash
 /// @arg     listener (:wat::kernel::Listener :- [S R]) the serve loop's listener; pending accepts are notified too
 /// @arg     body :T the op-dispatch form to evaluate (a `(:wat::core::match op ~@arms)`)
 /// @ret     :T `body`'s own result — this primitive is a transparent wrapper (do-style passthrough)

@@ -1209,7 +1209,7 @@ pub fn eval_iowriter_open_file(
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
             }));
         }
@@ -1248,7 +1248,7 @@ pub fn eval_ioreader_open_file(
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: ":wat::core::String",
+                expected: ":wat::type::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
             }));
         }
@@ -1290,7 +1290,7 @@ pub fn eval_iowriter_from_fd(
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: ":wat::core::i64",
+                expected: ":wat::type::i64",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             }));
         }
@@ -1330,7 +1330,7 @@ pub fn eval_ioreader_from_fd(
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: ":wat::core::i64",
+                expected: ":wat::type::i64",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             }));
         }

@@ -20,9 +20,9 @@ use crate::span::Span;
 /// raw callee-path string form named symbols use (empirically confirmed: the
 /// `symbol` field renders as a raw quoted EDN string of the path, e.g. a named
 /// fn renders `":user::compute"` — `tests/services/probe_arc278_journal_service_logs.rs`).
-/// So this renders `":wat::core::Fn"`. The rule: symbol = the FQDN name if
+/// So this renders `":wat::type::Fn"`. The rule: symbol = the FQDN name if
 /// bound, else the FQDN type `:wat::core::Fn`.
-pub(crate) const ANON_FN_SYMBOL: &str = ":wat::core::Fn";
+pub(crate) const ANON_FN_SYMBOL: &str = ":wat::type::Fn";
 
 /// One entry on the wat call stack.
 #[derive(Debug, Clone)]

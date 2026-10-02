@@ -68,7 +68,7 @@ fn row_names() -> Arc<Vec<String>> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @ret (:wat::core::Vector :- [:wat::intrinsic::Example]) a Vector of Example records, one per @example/@example-norun across all registered intrinsics
+/// @ret (:wat::type::Vector :- [:wat::intrinsic::Example]) a Vector of Example records, one per @example/@example-norun across all registered intrinsics
 /// @example-norun (:wat::intrinsic::examples)
 #[wat_intrinsic(":wat::intrinsic::examples")]
 pub(crate) fn eval_intrinsic_examples(
@@ -187,7 +187,7 @@ pub(crate) fn eval_intrinsic_examples(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @ret (:wat::core::Vector :- [:wat::intrinsic::Row]) a Vector of Row records, one per registered entry in the intrinsic registry
+/// @ret (:wat::type::Vector :- [:wat::intrinsic::Row]) a Vector of Row records, one per registered entry in the intrinsic registry
 /// @example-norun (:wat::intrinsic::rows)
 #[wat_intrinsic(":wat::intrinsic::rows")]
 pub(crate) fn eval_intrinsic_rows(
@@ -445,8 +445,8 @@ fn extract_fqdn(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes/to-hex`
-/// @ret :wat::core::String the handler's Rust source (for intrinsics) or the body's wat source (for user forms)
+/// @arg fqdn :wat::type::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::type::Bytes/to-hex`
+/// @ret :wat::type::String the handler's Rust source (for intrinsics) or the body's wat source (for user forms)
 /// @example-norun (:wat::core::show-source :wat::core::Bytes/to-hex) #=> "pub (crate) fn eval_bytes_to_hex ..."
 #[wat_intrinsic(":wat::core::show-source")]
 pub(crate) fn eval_show_source(
@@ -574,8 +574,8 @@ pub(crate) fn eval_show_source(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes/to-hex`
-/// @ret :wat::core::String a plain-text multi-line String rendering the intrinsic's name, prose, and examples
+/// @arg fqdn :wat::type::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::type::Bytes/to-hex`
+/// @ret :wat::type::String a plain-text multi-line String rendering the intrinsic's name, prose, and examples
 /// @example-norun (:wat::core::render-doc :wat::core::Bytes/to-hex) #=> ":wat::core::Bytes/to-hex\n\n..."
 #[wat_intrinsic(":wat::core::render-doc")]
 pub(crate) fn eval_render_doc(
@@ -823,9 +823,9 @@ fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>,
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg params (:wat::core::Vector :- [:wat::WatAST]) the candidate type-param name nodes (Symbols, or Keywords), in declaration order
-/// @arg node :wat::WatAST the AST subtree to search — typically a field/member vector
-/// @ret (:wat::core::Vector :- [:wat::WatAST]) the subset of `params`, in the order given, that appear anywhere in `node`
+/// @arg params (:wat::type::Vector :- [:wat::type::AST]) the candidate type-param name nodes (Symbols, or Keywords), in declaration order
+/// @arg node :wat::type::AST the AST subtree to search — typically a field/member vector
+/// @ret (:wat::type::Vector :- [:wat::type::AST]) the subset of `params`, in the order given, that appear anywhere in `node`
 /// @example (:wat::core::type-params-used-in (:wat::core::Vector :- [:wat::WatAST] (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::Vector<K>")) #=> [K]
 /// @example (:wat::core::type-params-used-in (:wat::core::Vector :- [:wat::WatAST] (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::HashMap<Key,KV>")) #=> []
 /// @example-norun (:wat::core::type-params-used-in (:wat::core::Vector (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::read-string "[cache <- (:wat::cache::Lru :- [K V])]")) #=> Vector[Symbol(K), Symbol(V)]
@@ -860,7 +860,7 @@ pub(crate) fn eval_type_params_used_in(
         other => {
             return Err(RuntimeError::new(node.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::WatAST",
+                    expected: ":wat::type::AST",
                     got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 })
             .into());
@@ -874,7 +874,7 @@ pub(crate) fn eval_type_params_used_in(
             other => {
                 return Err(RuntimeError::new(params.span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "(:wat::core::Vector :- [:wat::WatAST]) of param name nodes",
+                        expected: "(wat.type/Vector :- [wat.type/AST]) of param name nodes",
                         got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                     })
                 .into());
@@ -939,14 +939,14 @@ pub(crate) fn eval_type_params_used_in(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg a :wat::WatAST a type-expression node — keyword, `wat.type/` symbol, parametric form `(Head :- [args])`, or fn-type bracket `[arg… :-> ret]`
-/// @arg b :wat::WatAST the other type-expression node, same surface set
-/// @ret :wat::core::bool true iff `a` and `b` denote the same type
+/// @arg a :wat::type::AST a type-expression node — keyword, `wat.type/` symbol, parametric form `(Head :- [args])`, or fn-type bracket `[arg… :-> ret]`
+/// @arg b :wat::type::AST the other type-expression node, same surface set
+/// @ret :wat::type::bool true iff `a` and `b` denote the same type
 /// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::kernel::Peer<A,B>") '(:wat::kernel::Peer :- [A B])) #=> true
 /// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::core::Vector<wat::core::HashMap<K,V>>") '(:wat::core::Vector :- [(:wat::core::HashMap :- [K V])])) #=> true
 /// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::kernel::Peer<A,B>") (:wat::core::keyword-node ":wat::kernel::Peer<B,A>")) #=> false
-/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::core::i64") (:wat::core::keyword-node ":wat::core::i64")) #=> true
-/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::core::i64") (:wat::core::keyword-node ":wat::core::String")) #=> false
+/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::type::i64") (:wat::core::keyword-node ":wat::type::i64")) #=> true
+/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::type::i64") (:wat::core::keyword-node ":wat::type::String")) #=> false
 #[wat_intrinsic(":wat::core::type-equal?")]
 pub(crate) fn eval_type_equal(
     a: &WatAST,
@@ -964,7 +964,7 @@ pub(crate) fn eval_type_equal(
         other => {
             return Err(RuntimeError::new(a.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::WatAST",
+                    expected: ":wat::type::AST",
                     got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 })
             .into());
@@ -977,7 +977,7 @@ pub(crate) fn eval_type_equal(
         other => {
             return Err(RuntimeError::new(b.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::WatAST",
+                    expected: ":wat::type::AST",
                     got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 })
             .into());
@@ -989,7 +989,7 @@ pub(crate) fn eval_type_equal(
             op: OP.into(),
             expected: ":wat::WatAST (a type expression: keyword, wat.type/ symbol, parametric form, or fn-type bracket)",
             got: Box::new(crate::runtime::ValueSnapshot::described(
-                ":wat::WatAST",
+                ":wat::type::AST",
                 format!("not a type: {e}"),
             )),
         })
@@ -1000,7 +1000,7 @@ pub(crate) fn eval_type_equal(
             op: OP.into(),
             expected: ":wat::WatAST (a type expression: keyword, wat.type/ symbol, parametric form, or fn-type bracket)",
             got: Box::new(crate::runtime::ValueSnapshot::described(
-                ":wat::WatAST",
+                ":wat::type::AST",
                 format!("not a type: {e}"),
             )),
         })
@@ -1045,8 +1045,8 @@ pub(crate) fn eval_type_equal(
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     v :T any value — every `Value` variant has a declared-type arm
-/// @ret     :wat::core::String the value's record-type FQDN
-/// @example (:wat::core::type 3) #=> "wat::core::i64"
+/// @ret     :wat::type::String the value's record-type FQDN
+/// @example (:wat::core::type 3) #=> "wat::type::i64"
 /// @see     :wat::core::type-equal?
 #[wat_intrinsic(":wat::core::type")]
 pub(crate) fn eval_type(

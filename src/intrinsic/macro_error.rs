@@ -74,8 +74,8 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// @Totality         Partial
 /// @ExpandTime    ExpandOnly
 /// @Category      ControlFlow
-/// @arg     msg :wat::core::String the message raised as the macro-abort's `MacroAbort.message`
-/// @ret     :wat::core::nil never returns — always `Err`, on every input
+/// @arg     msg :wat::type::String the message raised as the macro-abort's `MacroAbort.message`
+/// @ret     :wat::type::nil never returns — always `Err`, on every input
 /// @example-norun (:wat::core::macro-error "malformed template") #=> always raises; not a runnable example
 /// @see     :wat::core::Option/expect
 #[wat_intrinsic(":wat::core::macro-error")]
@@ -98,7 +98,7 @@ pub(crate) fn eval_macro_error(
                 list_span.clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::core::String",
+                    expected: ":wat::type::String",
                     got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 },
             ))))

@@ -119,9 +119,9 @@ pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
-/// @arg     expr :wat::WatAST the quoted predicate expression (from `:wat::core::quote`)
-/// @arg     bindings :wat::core::PersistentMap the token's bound `?var`s, visible to `expr` as a fresh child `Environment`
-/// @ret     :wat::core::bool `expr`'s result; raises if it is not a `:wat::core::bool`
+/// @arg     expr :wat::type::AST the quoted predicate expression (from `:wat::core::quote`)
+/// @arg     bindings :wat::type::PersistentMap the token's bound `?var`s, visible to `expr` as a fresh child `Environment`
+/// @ret     :wat::type::bool `expr`'s result; raises if it is not a `:wat::type::bool`
 /// @example-norun (:wat::rete::eval-test (:wat::core::quote (:wat::rete::i64::> ?t 20)) (:wat::core::PersistentMap "?t" 25))
 #[wat_intrinsic(":wat::rete::eval-test")]
 pub(crate) fn eval_test(

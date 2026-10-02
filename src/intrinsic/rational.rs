@@ -56,9 +56,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::rational the left addend
-/// @arg     b :wat::core::rational the right addend
-/// @ret     :wat::core::rational the sum of `a` and `b`
+/// @arg     a :wat::type::rational the left addend
+/// @arg     b :wat::type::rational the right addend
+/// @ret     :wat::type::rational the sum of `a` and `b`
 /// @example (:wat::rational::+ (:wat::i64::to-rational 1) (:wat::i64::to-rational 2)) #=> (:wat::i64::to-rational 3)
 #[wat_intrinsic(":wat::rational::+", value = eval_rational_add_value)]
 pub(crate) fn eval_rational_add(
@@ -92,9 +92,9 @@ fn eval_rational_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::rational the minuend
-/// @arg     b :wat::core::rational the subtrahend
-/// @ret     :wat::core::rational `a` minus `b`
+/// @arg     a :wat::type::rational the minuend
+/// @arg     b :wat::type::rational the subtrahend
+/// @ret     :wat::type::rational `a` minus `b`
 /// @example (:wat::rational::- (:wat::i64::to-rational 5) (:wat::i64::to-rational 3)) #=> (:wat::i64::to-rational 2)
 #[wat_intrinsic(":wat::rational::-", value = eval_rational_sub_value)]
 pub(crate) fn eval_rational_sub(
@@ -124,9 +124,9 @@ fn eval_rational_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::rational the first factor
-/// @arg     b :wat::core::rational the second factor
-/// @ret     :wat::core::rational `a` times `b`
+/// @arg     a :wat::type::rational the first factor
+/// @arg     b :wat::type::rational the second factor
+/// @ret     :wat::type::rational `a` times `b`
 /// @example (:wat::rational::* (:wat::i64::to-rational 3) (:wat::i64::to-rational 4)) #=> (:wat::i64::to-rational 12)
 #[wat_intrinsic(":wat::rational::*", value = eval_rational_mul_value)]
 pub(crate) fn eval_rational_mul(
@@ -157,9 +157,9 @@ fn eval_rational_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Arithmetic
-/// @arg     a :wat::core::rational the dividend
-/// @arg     b :wat::core::rational the divisor
-/// @ret     :wat::core::rational `a` divided by `b`
+/// @arg     a :wat::type::rational the dividend
+/// @arg     b :wat::type::rational the divisor
+/// @ret     :wat::type::rational `a` divided by `b`
 /// @example (:wat::rational::/ (:wat::i64::to-rational 6) (:wat::i64::to-rational 2)) #=> (:wat::i64::to-rational 3)
 #[wat_intrinsic(":wat::rational::/", value = eval_rational_div_value)]
 pub(crate) fn eval_rational_div_intrinsic(
@@ -202,8 +202,8 @@ fn eval_rational_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBre
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::rational the rational to cast
-/// @ret     :wat::core::f64 `n`, cast to f64
+/// @arg     n :wat::type::rational the rational to cast
+/// @ret     :wat::type::f64 `n`, cast to f64
 /// @example (:wat::rational::to-f64 (:wat::i64::to-rational 5)) #=> 5.0
 #[wat_intrinsic(":wat::rational::to-f64")]
 pub(crate) fn eval_rational_to_f64_intrinsic(
@@ -225,8 +225,8 @@ pub(crate) fn eval_rational_to_f64_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::rational the rational to inspect
-/// @ret     :wat::core::i64 the numerator of `n`
+/// @arg     n :wat::type::rational the rational to inspect
+/// @ret     :wat::type::i64 the numerator of `n`
 /// @example (:wat::rational::numerator (:wat::i64::to-rational 5)) #=> 5
 #[wat_intrinsic(":wat::rational::numerator")]
 pub(crate) fn eval_rational_numerator_intrinsic(
@@ -248,8 +248,8 @@ pub(crate) fn eval_rational_numerator_intrinsic(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     n :wat::core::rational the rational to inspect
-/// @ret     :wat::core::i64 the denominator of `n`
+/// @arg     n :wat::type::rational the rational to inspect
+/// @ret     :wat::type::i64 the denominator of `n`
 /// @example (:wat::rational::denominator (:wat::i64::to-rational 5)) #=> 1
 #[wat_intrinsic(":wat::rational::denominator")]
 pub(crate) fn eval_rational_denominator_intrinsic(

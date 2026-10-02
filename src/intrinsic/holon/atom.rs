@@ -130,7 +130,7 @@ use holon::{encode, HolonAST, Similarity};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the HolonAST to decode, alone or with a `-> :T` type-hint suffix
+/// @arg     args… :wat::type::Value the HolonAST to decode, alone or with a `-> :T` type-hint suffix
 /// @ret     :T the decoded wat value
 /// @example (:wat::holon::from-holon (:wat::holon::leaf "role")) #=> (:wat::holon::from-holon (:wat::holon::leaf "role"))
 /// @see     :wat::holon::to-holon
@@ -174,7 +174,7 @@ pub(crate) fn eval_holon_from_holon(
             .into());
         }
         // Check if the type keyword starts with :wat::core::HashMap.
-        // Keywords include the leading colon in their value (":wat::core::HashMap").
+        // Keywords include the leading colon in their value (":wat::type::HashMap").
         //
         // Stone 255.67 mechanism B (same class as the two amendment-named
         // recognizers, found during the search for others): the raw
@@ -189,11 +189,11 @@ pub(crate) fn eval_holon_from_holon(
         // accepted too.
         match &args[2] {
             WatAST::Keyword(k, _) => {
-                crate::types::canonical_type_key(k).starts_with(":wat::core::HashMap")
+                crate::types::canonical_type_key(k).starts_with(":wat::type::HashMap")
             }
             WatAST::Symbol(id, _) if id.is_reference() => {
                 let kw = crate::edn::render::ns_to_wat_path(id.receiver(), id.method());
-                crate::types::canonical_type_key(&kw).starts_with(":wat::core::HashMap")
+                crate::types::canonical_type_key(&kw).starts_with(":wat::type::HashMap")
             }
             other => {
                 return Err(RuntimeError::new(
@@ -586,7 +586,7 @@ pub(crate) fn eval_holon_leaf(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     a :wat::WatAST the quoted form to lower, alone
+/// @arg     a :wat::type::AST the quoted form to lower, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding the form's structure
 /// @example (:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2))) #=> (:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2)))
 /// @see     :wat::holon::to-wat
@@ -635,7 +635,7 @@ pub(crate) fn eval_holon_from_wat(
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST to raise back to a form, alone
-/// @ret     :wat::WatAST the reconstructed quoted form
+/// @ret     :wat::type::AST the reconstructed quoted form
 /// @example (:wat::holon::to-wat (:wat::holon::from-wat (:wat::core::quote x))) #=> (:wat::holon::to-wat (:wat::holon::from-wat (:wat::core::quote x)))
 /// @see     :wat::holon::from-wat
 #[wat_intrinsic(":wat::holon::to-wat")]
@@ -704,9 +704,9 @@ pub(crate) fn eval_holon_literal(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     x :wat::core::Value the value projected
-/// @arg     surface :wat::core::keyword the surface probe `x` is projected onto (a literal keyword, not evaluated)
-/// @ret     :wat::core::Value a `wat::holon::HolonRecord`-classed Aggregate
+/// @arg     x :wat::type::Value the value projected
+/// @arg     surface :wat::type::keyword the surface probe `x` is projected onto (a literal keyword, not evaluated)
+/// @ret     :wat::type::Value a `wat::holon::HolonRecord`-classed Aggregate
 /// @example (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- :wat::core::i64]) (:wat::core::defsurface :probe::Planar :nature :wat::core::Struct :features [x <- :wat::core::i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar)) #=> (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- :wat::core::i64]) (:wat::core::defsurface :probe::Planar :nature :wat::core::Struct :features [x <- :wat::core::i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar))
 #[wat_intrinsic(":wat::holon::to-record")]
 pub(crate) fn eval_to_holon_record(
@@ -751,7 +751,7 @@ pub(crate) fn eval_to_holon_record(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::type::Vector :- [:wat::holon::HolonAST]) the `:wat::type::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))) #=> (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))
 /// @see     :wat::holon::from-holon
@@ -801,7 +801,7 @@ pub(crate) fn eval_algebra_map(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::type::Vector :- [:wat::holon::HolonAST]) the `:wat::type::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Set (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::Set (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
@@ -851,7 +851,7 @@ pub(crate) fn eval_algebra_set(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::type::Vector :- [:wat::holon::HolonAST]) the `:wat::type::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
@@ -905,7 +905,7 @@ pub(crate) fn eval_algebra_vector(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::type::Vector :- [:wat::holon::HolonAST]) the `:wat::type::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::List (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::List (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
@@ -955,7 +955,7 @@ pub(crate) fn eval_algebra_list(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::type::Vector :- [:wat::holon::HolonAST]) the `:wat::type::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Tuple (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))) #=> (:wat::holon::Tuple (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
@@ -1070,7 +1070,7 @@ pub(crate) fn eval_algebra_bind(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Combine
-/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs bundled, alone
+/// @arg     items (:wat::type::Vector :- [:wat::holon::HolonAST]) the `:wat::type::Vector` of child HolonASTs bundled, alone
 /// @ret     (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded]) `Ok` the Bundle composition, or `Err` a `CapacityExceeded`
 /// @example (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::Bundle")]
@@ -1163,7 +1163,7 @@ pub(crate) fn eval_algebra_bundle(
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     h :wat::holon::HolonAST the HolonAST permuted and the integer shift amount, in order
-/// @arg     k :wat::core::i64 the HolonAST permuted and the integer shift amount, in order
+/// @arg     k :wat::type::i64 the HolonAST permuted and the integer shift amount, in order
 /// @ret     :wat::holon::HolonAST the `Permute(h, k)` composition
 /// @example (:wat::holon::Permute (:wat::holon::leaf "role") 1) #=> (:wat::holon::Permute (:wat::holon::leaf "role") 1)
 #[wat_intrinsic(":wat::holon::Permute")]
@@ -1223,9 +1223,9 @@ pub(crate) fn eval_algebra_permute(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     v :wat::core::f64 the value and its `[min, max]` range, in order
-/// @arg     min :wat::core::f64 the value and its `[min, max]` range, in order
-/// @arg     max :wat::core::f64 the value and its `[min, max]` range, in order
+/// @arg     v :wat::type::f64 the value and its `[min, max]` range, in order
+/// @arg     min :wat::type::f64 the value and its `[min, max]` range, in order
+/// @arg     max :wat::type::f64 the value and its `[min, max]` range, in order
 /// @ret     :wat::holon::HolonAST the Thermometer leaf
 /// @example (:wat::holon::Thermometer 5.0 0.0 10.0) #=> (:wat::holon::Thermometer 5.0 0.0 10.0)
 /// @see     :wat::holon::therm-form
@@ -1262,8 +1262,8 @@ pub(crate) fn algebra_thermometer(
 /// @Category      Combine
 /// @arg     a :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
 /// @arg     b :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
-/// @arg     w1 :wat::core::f64 the two HolonAST operands and their two weights, in order
-/// @arg     w2 :wat::core::f64 the two HolonAST operands and their two weights, in order
+/// @arg     w1 :wat::type::f64 the two HolonAST operands and their two weights, in order
+/// @arg     w2 :wat::type::f64 the two HolonAST operands and their two weights, in order
 /// @ret     :wat::holon::HolonAST the `Blend(a, b, w1, w2)` composition
 /// @example (:wat::holon::Blend (:wat::holon::leaf "role") (:wat::holon::leaf "filler") 0.7 0.3) #=> (:wat::holon::Blend (:wat::holon::leaf "role") (:wat::holon::leaf "filler") 0.7 0.3)
 #[wat_intrinsic(":wat::holon::Blend")]
@@ -1305,7 +1305,7 @@ pub(crate) fn algebra_blend(
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     x :wat::holon::HolonAST the HolonAST or Record probed, alone
-/// @ret     (:wat::core::Option :- [:wat::core::String]) the classifier name — a bare `String` (Record) or an `Option` (HolonAST)
+/// @ret     (:wat::core::Option :- [:wat::type::String]) the classifier name — a bare `String` (Record) or an `Option` (HolonAST)
 /// @example (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role")))) #=> (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role"))))
 #[wat_intrinsic(":wat::holon::extract-classifier")]
 pub(crate) fn eval_extract_classifier(
@@ -1479,7 +1479,7 @@ pub(crate) fn require_bundle<'a>(
 /// @ExpandTime    Legal
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
-/// @ret     (:wat::core::Vector :- [:wat::holon::HolonAST]) `h`'s children, in order
+/// @ret     (:wat::type::Vector :- [:wat::holon::HolonAST]) `h`'s children, in order
 /// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result::Ok {:value h} (:wat::holon::Bundle/children h)] (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result::Ok {:value h} (:wat::holon::Bundle/children h)] (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))))
 /// @see     :wat::holon::Bundle/first
 #[wat_intrinsic(":wat::holon::Bundle/children")]
@@ -1587,7 +1587,7 @@ pub(crate) fn eval_bundle_first(
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `Map`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `Map`-classified HolonAST
 /// @example (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))) #=> (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Map?")]
@@ -1616,7 +1616,7 @@ pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `Set`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `Set`-classified HolonAST
 /// @example (:wat::holon::is-Set? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Set? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Set?")]
@@ -1645,7 +1645,7 @@ pub(crate) fn holon_is_set_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `Vector`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `Vector`-classified HolonAST
 /// @example (:wat::holon::is-Vector? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Vector? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Vector?")]
@@ -1674,7 +1674,7 @@ pub(crate) fn holon_is_vector_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `List`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `List`-classified HolonAST
 /// @example (:wat::holon::is-List? (:wat::holon::leaf "role")) #=> (:wat::holon::is-List? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-List?")]
@@ -1703,7 +1703,7 @@ pub(crate) fn holon_is_list_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `Tuple`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `Tuple`-classified HolonAST
 /// @example (:wat::holon::is-Tuple? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Tuple? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Tuple?")]
@@ -1732,7 +1732,7 @@ pub(crate) fn holon_is_tuple_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `Symbol`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `Symbol`-classified HolonAST
 /// @example (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote x))) #=> (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote x)))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Symbol?")]
@@ -1761,7 +1761,7 @@ pub(crate) fn holon_is_symbol_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `Keyword`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `Keyword`-classified HolonAST
 /// @example (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :k))) #=> (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :k)))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Keyword?")]
@@ -1790,7 +1790,7 @@ pub(crate) fn holon_is_keyword_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a `Tag`-classified HolonAST
+/// @ret     :wat::type::bool true iff `x` is a `Tag`-classified HolonAST
 /// @example (:wat::holon::is-Tag? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Tag? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Tag?")]
@@ -1818,7 +1818,7 @@ pub(crate) fn holon_is_tag_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed, alone
-/// @ret     :wat::core::bool true iff `x` is a nil-composition HolonAST
+/// @ret     :wat::type::bool true iff `x` is a nil-composition HolonAST
 /// @example (:wat::holon::is-Nil? (:wat::holon::to-holon nil)) #=> (:wat::holon::is-Nil? (:wat::holon::to-holon nil))
 #[wat_intrinsic(":wat::holon::is-Nil?")]
 pub(crate) fn holon_is_nil_q(x: &Value) -> Result<Value, EvalBreak> {
@@ -1846,8 +1846,8 @@ pub(crate) fn holon_is_nil_q(x: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Legal
 /// @Category      Probe
 /// @arg     x :wat::holon::HolonAST the value probed and the classifier name, in order
-/// @arg     class :wat::core::String the value probed and the classifier name, in order
-/// @ret     :wat::core::bool true iff `x` is a HolonAST classified `class`
+/// @arg     class :wat::type::String the value probed and the classifier name, in order
+/// @ret     :wat::type::bool true iff `x` is a HolonAST classified `class`
 /// @example (:wat::holon::is? (:wat::holon::leaf "role") "Vector") #=> (:wat::holon::is? (:wat::holon::leaf "role") "Vector")
 /// @see     :wat::holon::extract-classifier
 #[wat_intrinsic(":wat::holon::is?")]
@@ -1934,7 +1934,7 @@ pub(crate) fn eval_term_template(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
-/// @ret     (:wat::core::Vector :- [:wat::core::f64]) `h`'s Thermometer leaf values, in pre-order
+/// @ret     (:wat::type::Vector :- [:wat::type::f64]) `h`'s Thermometer leaf values, in pre-order
 /// @example (:wat::holon::term::slots (:wat::holon::Thermometer 5.0 0.0 10.0)) #=> (:wat::holon::term::slots (:wat::holon::Thermometer 5.0 0.0 10.0))
 /// @see     :wat::holon::term::ranges
 #[wat_intrinsic(":wat::holon::term::slots")]
@@ -1975,7 +1975,7 @@ pub(crate) fn eval_term_slots(
 /// @ExpandTime    Unreviewed
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
-/// @ret     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::f64 :wat::core::f64])]) `h`'s Thermometer leaf `[min, max]` ranges, in pre-order
+/// @ret     (:wat::type::Vector :- [(:wat::type::Tuple :- [:wat::type::f64 :wat::type::f64])]) `h`'s Thermometer leaf `[min, max]` ranges, in pre-order
 /// @example (:wat::holon::term::ranges (:wat::holon::Thermometer 5.0 0.0 10.0)) #=> (:wat::holon::term::ranges (:wat::holon::Thermometer 5.0 0.0 10.0))
 /// @see     :wat::holon::term::slots
 #[wat_intrinsic(":wat::holon::term::ranges")]
@@ -2021,7 +2021,7 @@ pub(crate) fn eval_term_ranges(
 /// @Category      Probe
 /// @arg     q :wat::holon::HolonAST the query and subject HolonASTs, in order
 /// @arg     s :wat::holon::HolonAST the query and subject HolonASTs, in order
-/// @ret     :wat::core::bool true iff same template and every slot is within floor
+/// @ret     :wat::type::bool true iff same template and every slot is within floor
 /// @example (:wat::holon::term::matches? (:wat::holon::Thermometer 5.0 0.0 10.0) (:wat::holon::Thermometer 5.0 0.0 10.0)) #=> (:wat::holon::term::matches? (:wat::holon::Thermometer 5.0 0.0 10.0) (:wat::holon::Thermometer 5.0 0.0 10.0))
 #[wat_intrinsic(":wat::holon::term::matches?")]
 pub(crate) fn eval_term_matches_q(
@@ -2104,9 +2104,9 @@ pub(crate) fn eval_term_matches_q(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     low :wat::core::f64 the low bound, high bound, and value, in order
-/// @arg     high :wat::core::f64 the low bound, high bound, and value, in order
-/// @arg     value :wat::core::f64 the low bound, high bound, and value, in order
+/// @arg     low :wat::type::f64 the low bound, high bound, and value, in order
+/// @arg     high :wat::type::f64 the low bound, high bound, and value, in order
+/// @arg     value :wat::type::f64 the low bound, high bound, and value, in order
 /// @ret     :wat::holon::HolonAST the Thermometer leaf
 /// @example (:wat::holon::therm-form 0.0 10.0 5.0) #=> (:wat::holon::therm-form 0.0 10.0 5.0)
 /// @see     :wat::holon::Thermometer
@@ -2196,8 +2196,8 @@ pub(crate) fn eval_therm_form(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     d :wat::core::i64 the vector dimension, alone
-/// @ret     :wat::core::f64 the presence-detection noise floor at dimension `d`
+/// @arg     d :wat::type::i64 the vector dimension, alone
+/// @ret     :wat::type::f64 the presence-detection noise floor at dimension `d`
 /// @example (:wat::holon::presence-floor 4096) #=> (:wat::holon::presence-floor 4096)
 /// @see     :wat::holon::presence?
 #[wat_intrinsic(":wat::holon::presence-floor")]
@@ -2234,8 +2234,8 @@ pub(crate) fn eval_presence_floor(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     d :wat::core::i64 the vector dimension, alone
-/// @ret     :wat::core::f64 the coincident-detection noise floor at dimension `d`
+/// @arg     d :wat::type::i64 the vector dimension, alone
+/// @ret     :wat::type::f64 the coincident-detection noise floor at dimension `d`
 /// @example (:wat::holon::coincident-floor 4096) #=> (:wat::holon::coincident-floor 4096)
 /// @see     :wat::holon::coincident?
 #[wat_intrinsic(":wat::holon::coincident-floor")]
@@ -2286,8 +2286,8 @@ pub(crate) fn eval_coincident_floor(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     a :wat::core::Value the two operands compared, in order
-/// @arg     b :wat::core::Value the two operands compared, in order
+/// @arg     a :wat::type::Value the two operands compared, in order
+/// @arg     b :wat::type::Value the two operands compared, in order
 /// @ret     :wat::holon::CosineOutcome the matchable cosine-similarity outcome
 /// @example (:wat::holon::cosine (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::cosine (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::cosine")]
@@ -2327,7 +2327,7 @@ pub(crate) fn eval_algebra_cosine(
 /// @Category      Probe
 /// @arg     target :wat::holon::HolonAST the target and reference operands, in order
 /// @arg     reference :wat::holon::HolonAST the target and reference operands, in order
-/// @ret     :wat::core::bool true iff `target` clears the presence floor against `reference`
+/// @ret     :wat::type::bool true iff `target` clears the presence floor against `reference`
 /// @example (:wat::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 /// @see     :wat::holon::coincident?
 #[wat_intrinsic(":wat::holon::presence?")]
@@ -2364,9 +2364,9 @@ pub(crate) fn eval_algebra_presence_q(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     a :wat::core::Value the two operands compared, in order
-/// @arg     b :wat::core::Value the two operands compared, in order
-/// @ret     :wat::core::bool true iff `a` clears the coincident floor against `b`
+/// @arg     a :wat::type::Value the two operands compared, in order
+/// @arg     b :wat::type::Value the two operands compared, in order
+/// @ret     :wat::type::bool true iff `a` clears the coincident floor against `b`
 /// @example (:wat::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 /// @see     :wat::holon::presence?
 #[wat_intrinsic(":wat::holon::coincident?")]
@@ -2395,9 +2395,9 @@ pub(crate) fn eval_algebra_coincident_q(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     a :wat::core::Value the two operands compared, in order
-/// @arg     b :wat::core::Value the two operands compared, in order
-/// @ret     :wat::core::Value a `wat::holon::CoincidentExplanation`-classed Aggregate
+/// @arg     a :wat::type::Value the two operands compared, in order
+/// @arg     b :wat::type::Value the two operands compared, in order
+/// @ret     :wat::type::Value a `wat::holon::CoincidentExplanation`-classed Aggregate
 /// @example (:wat::holon::coincident-explain (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::coincident-explain (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::coincident-explain")]
 pub(crate) fn eval_algebra_coincident_explain(
@@ -2471,8 +2471,8 @@ pub(crate) fn eval_algebra_coincident_explain(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @arg     args… :wat::type::Value the two sources compared, in order
+/// @ret     (:wat::core::Result :- [:wat::type::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-coincident?")]
 pub(crate) fn eval_form_ast_coincident_q(
@@ -2517,8 +2517,8 @@ pub(crate) fn eval_form_ast_coincident_q(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @arg     args… :wat::type::Value the two sources compared, in order
+/// @ret     (:wat::core::Result :- [:wat::type::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-edn-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-edn-coincident?")]
 pub(crate) fn eval_form_edn_coincident_q(
@@ -2559,8 +2559,8 @@ pub(crate) fn eval_form_edn_coincident_q(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @arg     args… :wat::type::Value the two sources compared, in order
+/// @ret     (:wat::core::Result :- [:wat::type::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-digest-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-digest-coincident?")]
 pub(crate) fn eval_form_digest_coincident_q(
@@ -2585,8 +2585,8 @@ pub(crate) fn eval_form_digest_coincident_q(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @arg     args… :wat::type::Value the two sources compared, in order
+/// @ret     (:wat::core::Result :- [:wat::type::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-digest-string-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-digest-string-coincident?")]
 pub(crate) fn eval_form_digest_string_coincident_q(
@@ -2611,8 +2611,8 @@ pub(crate) fn eval_form_digest_string_coincident_q(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @arg     args… :wat::type::Value the two sources compared, in order
+/// @ret     (:wat::core::Result :- [:wat::type::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-signed-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-signed-coincident?")]
 pub(crate) fn eval_form_signed_coincident_q(
@@ -2637,8 +2637,8 @@ pub(crate) fn eval_form_signed_coincident_q(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @arg     args… :wat::type::Value the two sources compared, in order
+/// @ret     (:wat::core::Result :- [:wat::type::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-signed-string-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-signed-string-coincident?")]
 pub(crate) fn eval_form_signed_string_coincident_q(
@@ -2672,8 +2672,8 @@ pub(crate) fn eval_form_signed_string_coincident_q(
 /// @Totality         Total
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     a :wat::core::Value the two operands compared, in order
-/// @arg     b :wat::core::Value the two operands compared, in order
+/// @arg     a :wat::type::Value the two operands compared, in order
+/// @arg     b :wat::type::Value the two operands compared, in order
 /// @ret     :wat::holon::DotOutcome the matchable dot-product outcome
 /// @example (:wat::holon::dot (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::dot (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::dot")]
@@ -2703,8 +2703,8 @@ pub(crate) fn eval_algebra_dot(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     target :wat::core::Value the value hashed, alone
-/// @ret     :wat::core::i64 a 64-bit locality-sensitive hash
+/// @arg     target :wat::type::Value the value hashed, alone
+/// @ret     :wat::type::i64 a 64-bit locality-sensitive hash
 /// @example (:wat::holon::simhash (:wat::holon::leaf "role")) #=> (:wat::holon::simhash (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::simhash")]
 pub(crate) fn eval_algebra_simhash(
@@ -2798,7 +2798,7 @@ pub(crate) fn eval_holon_encode(
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
 /// @arg     v :wat::holon::Vector the vector encoded, alone
-/// @ret     :wat::core::Bytes the packed byte representation
+/// @ret     :wat::type::Bytes the packed byte representation
 /// @example (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role")))
 /// @see     :wat::holon::bytes-vector
 #[wat_intrinsic(":wat::holon::vector-bytes")]
@@ -2824,7 +2824,7 @@ pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBr
                 op: OP.into(),
                 expected: "Vector cell in {-1, 0, +1}",
                 got: Box::new(ValueSnapshot::described(
-                    "wat::core::i64",
+                    "wat::type::i64",
                     format!("cell value out of ternary range ({})", value),
                 )),
                 // arc 138: no per-value AST span — cell value from Vector data, not AST; the call span is used instead
@@ -2848,7 +2848,7 @@ pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBr
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Transform
-/// @arg     bs :wat::core::Bytes the packed byte vector decoded, alone
+/// @arg     bs :wat::type::Bytes the packed byte vector decoded, alone
 /// @ret     :wat::holon::VectorDecodeOutcome the matchable decode outcome
 /// @example (:wat::holon::bytes-vector (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role")))) #=> (:wat::holon::bytes-vector (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role"))))
 /// @see     :wat::holon::vector-bytes
@@ -2969,7 +2969,7 @@ pub(crate) fn holon_vector_bind(a: &Value, b: &Value) -> Result<Value, EvalBreak
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
-/// @arg     vs (:wat::core::Vector :- [:wat::holon::Vector]) the `:wat::core::Vector` of raw vectors bundled, alone
+/// @arg     vs (:wat::type::Vector :- [:wat::holon::Vector]) the `:wat::type::Vector` of raw vectors bundled, alone
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
 /// @example (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")))) #=> (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))))
 #[wat_intrinsic(":wat::holon::vector-bundle")]
@@ -3037,8 +3037,8 @@ pub(crate) fn eval_holon_vector_bundle(
 /// @Category      Combine
 /// @arg     a :wat::holon::Vector the two raw vectors and their two weights, in order
 /// @arg     b :wat::holon::Vector the two raw vectors and their two weights, in order
-/// @arg     w1 :wat::core::f64 the two raw vectors and their two weights, in order
-/// @arg     w2 :wat::core::f64 the two raw vectors and their two weights, in order
+/// @arg     w1 :wat::type::f64 the two raw vectors and their two weights, in order
+/// @arg     w2 :wat::type::f64 the two raw vectors and their two weights, in order
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
 /// @example (:wat::holon::vector-blend (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")) 0.7 0.3) #=> (:wat::holon::vector-blend (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")) 0.7 0.3)
 #[wat_intrinsic(":wat::holon::vector-blend")]
@@ -3075,7 +3075,7 @@ pub(crate) fn holon_vector_blend(
 /// @ExpandTime    Unreviewed
 /// @Category      Combine
 /// @arg     v :wat::holon::Vector the raw vector permuted and the integer shift amount, in order
-/// @arg     k :wat::core::i64 the raw vector permuted and the integer shift amount, in order
+/// @arg     k :wat::type::i64 the raw vector permuted and the integer shift amount, in order
 /// @ret     :wat::holon::Vector the shifted vector
 /// @example (:wat::holon::vector-permute (:wat::holon::encode (:wat::holon::leaf "role")) 1) #=> (:wat::holon::vector-permute (:wat::holon::encode (:wat::holon::leaf "role")) 1)
 #[wat_intrinsic(":wat::holon::vector-permute")]
@@ -3127,7 +3127,7 @@ pub(crate) fn eval_holon_vector_permute(
 /// @ExpandTime    Legal
 /// @Category      Transform
 /// @arg     ast :wat::holon::HolonAST the HolonAST measured, alone
-/// @ret     :wat::core::i64 the top-level form's structural size
+/// @ret     :wat::type::i64 the top-level form's structural size
 /// @example (:wat::holon::statement-length (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::statement-length (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::statement-length")]
 pub(crate) fn holon_statement_length(ast: &Value) -> Result<Value, EvalBreak> {

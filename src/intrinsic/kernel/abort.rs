@@ -93,9 +93,9 @@ pub(crate) fn eval_kernel_raise(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
-/// @arg     message :wat::core::String short diagnostic (e.g. "assert-eq failed")
-/// @arg     actual (:wat::core::Option :- [:wat::core::String]) stringified actual value, when the caller has one
-/// @arg     expected (:wat::core::Option :- [:wat::core::String]) stringified expected value, when the caller has one
+/// @arg     message :wat::type::String short diagnostic (e.g. "assert-eq failed")
+/// @arg     actual (:wat::core::Option :- [:wat::type::String]) stringified actual value, when the caller has one
+/// @arg     expected (:wat::core::Option :- [:wat::type::String]) stringified expected value, when the caller has one
 /// @ret     :T never returns — `T` unifies with whatever the caller's context demands
 /// @example-norun (:wat::kernel::assertion-failed!' "assert-eq failed" (Some "1") (Some "2")) #=> never returns
 // Registered `TypeScheme` — `check.rs:16104` — gate LIVE.

@@ -86,7 +86,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the wat source text parsed
+/// @arg     s :wat::type::String the wat source text parsed
 /// @ret     :wat::core::ReadOutcome `Forms[ast]` on success, `Malformed[cause]` otherwise
 /// @example (:wat::core::match (:wat::core::read-string "foo") [:wat::core::ReadOutcome::Forms {:forms ast} (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ast)))] [:wat::core::ReadOutcome::Malformed {:cause _} "parse failed"]) #=> "foo"
 /// @see     :wat::core::ast->source
@@ -114,7 +114,7 @@ pub(crate) fn eval_read_string_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the wat source text parsed
+/// @arg     s :wat::type::String the wat source text parsed
 /// @ret     :wat::core::ReadWithCommentsOutcome `Forms[ast comments]` on success, `Malformed[cause]` otherwise
 /// @example (:wat::core::match (:wat::core::read-string-with-comments ";; c\n(a b)") [:wat::core::ReadWithCommentsOutcome::Forms {:forms _ast :comments cs} (:wat::core::length cs)] [:wat::core::ReadWithCommentsOutcome::Malformed {:cause _} 0]) #=> 1
 /// @see     :wat::core::read-string
@@ -149,8 +149,8 @@ pub(crate) fn eval_read_string_with_comments_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     ast :wat::WatAST the node serialized
-/// @ret     :wat::core::String the verbatim `::`-faithful source text
+/// @arg     ast :wat::type::AST the node serialized
+/// @ret     :wat::type::String the verbatim `::`-faithful source text
 /// @example (:wat::core::ast->source (:wat::core::symbol-node "foo")) #=> "foo"
 /// @see     :wat::core::read-string
 /// @see     :wat::core::ast->children
@@ -182,8 +182,8 @@ pub(crate) fn eval_ast_to_source_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     ast :wat::WatAST the node decomposed
-/// @ret     (:wat::core::Vector :- [:wat::WatAST]) `ast`'s children, in order (empty for a leaf)
+/// @arg     ast :wat::type::AST the node decomposed
+/// @ret     (:wat::type::Vector :- [:wat::type::AST]) `ast`'s children, in order (empty for a leaf)
 /// @example (:wat::core::ast->children (:wat::core::symbol-node "foo")) #=> (:wat::core::Vector :- [:wat::WatAST])
 /// @see     :wat::core::ast->source
 /// @see     :wat::core::ast-kind
@@ -215,8 +215,8 @@ pub(crate) fn eval_ast_children_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     ast :wat::WatAST the node probed
-/// @ret     :wat::core::String `ast`'s kind discriminant
+/// @arg     ast :wat::type::AST the node probed
+/// @ret     :wat::type::String `ast`'s kind discriminant
 /// @example (:wat::core::ast-kind (:wat::core::symbol-node "foo")) #=> "symbol"
 /// @example (:wat::core::ast-kind (:wat::core::keyword-node ":foo")) #=> "keyword"
 /// @see     :wat::core::ast-name
@@ -245,8 +245,8 @@ pub(crate) fn eval_ast_kind_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     ast :wat::WatAST the Symbol, Keyword, or StringLit node probed
-/// @ret     :wat::core::String `ast`'s verbatim name/text
+/// @arg     ast :wat::type::AST the Symbol, Keyword, or StringLit node probed
+/// @ret     :wat::type::String `ast`'s verbatim name/text
 /// @example (:wat::core::ast-name (:wat::core::symbol-node "foo")) #=> "foo"
 /// @example (:wat::core::ast-name (:wat::core::keyword-node ":foo")) #=> ":foo"
 /// @see     :wat::core::ast-kind
@@ -276,8 +276,8 @@ pub(crate) fn eval_ast_name_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     ast :wat::WatAST the node probed
-/// @ret     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) `{:line N :col N}`, `ast`'s start location
+/// @arg     ast :wat::type::AST the node probed
+/// @ret     (:wat::type::HashMap :- [:wat::type::keyword :wat::type::i64]) `{:line N :col N}`, `ast`'s start location
 /// @example (:wat::core::ast-span (:wat::core::symbol-node "foo")) #=> (:wat::core::ast-span (:wat::core::symbol-node "bar"))
 /// @see     :wat::core::ast-end-span
 #[wat_intrinsic(":wat::core::ast-span")]
@@ -305,8 +305,8 @@ pub(crate) fn eval_ast_span_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Projection
-/// @arg     ast :wat::WatAST the node probed
-/// @ret     (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) `{:line N :col N}`, `ast`'s end location
+/// @arg     ast :wat::type::AST the node probed
+/// @ret     (:wat::type::HashMap :- [:wat::type::keyword :wat::type::i64]) `{:line N :col N}`, `ast`'s end location
 /// @example (:wat::core::ast-end-span (:wat::core::symbol-node "foo")) #=> (:wat::core::ast-end-span (:wat::core::symbol-node "bar"))
 /// @see     :wat::core::ast-span
 #[wat_intrinsic(":wat::core::ast-end-span")]
@@ -338,8 +338,8 @@ pub(crate) fn eval_ast_end_span_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the bare symbol text
-/// @ret     :wat::WatAST a Symbol node carrying `s`
+/// @arg     s :wat::type::String the bare symbol text
+/// @ret     :wat::type::AST a Symbol node carrying `s`
 /// @example (:wat::core::ast-kind (:wat::core::symbol-node "foo")) #=> "symbol"
 /// @see     :wat::core::keyword-node
 /// @see     :wat::core::fresh-symbol
@@ -368,8 +368,8 @@ pub(crate) fn eval_symbol_node_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     s :wat::core::String the `:`-prefixed keyword text
-/// @ret     :wat::WatAST a Keyword node carrying `s`
+/// @arg     s :wat::type::String the `:`-prefixed keyword text
+/// @ret     :wat::type::AST a Keyword node carrying `s`
 /// @example (:wat::core::ast-kind (:wat::core::keyword-node ":foo")) #=> "keyword"
 /// @see     :wat::core::symbol-node
 #[wat_intrinsic(":wat::core::keyword-node")]
@@ -403,8 +403,8 @@ pub(crate) fn eval_keyword_node_home(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     base :wat::core::String the base name the fresh symbol's text carries
-/// @ret     :wat::WatAST a Symbol node carrying `base`'s text and a fresh, unique scope
+/// @arg     base :wat::type::String the base name the fresh symbol's text carries
+/// @ret     :wat::type::AST a Symbol node carrying `base`'s text and a fresh, unique scope
 /// @example-norun (:wat::core::fresh-symbol "x") #=> a Symbol node whose identifier carries base "x" plus a fresh globally-unique ScopeId — a different, capture-proof symbol on every call, never equal to a bare user "x"
 /// @see     :wat::core::symbol-node
 #[wat_intrinsic(":wat::core::fresh-symbol")]
@@ -448,8 +448,8 @@ pub(crate) fn eval_fresh_symbol_home(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     ast :wat::WatAST the forms-value to serialize
-/// @ret     :wat::core::String the EDN text (`::` dialected to `.`)
+/// @arg     ast :wat::type::AST the forms-value to serialize
+/// @ret     :wat::type::String the EDN text (`::` dialected to `.`)
 /// @example (:wat::core::write-forms (:wat::core::quote (1 2 3))) #=> "(1 2 3)"
 /// @see     :wat::core::ast->source
 /// @see     :wat::core::with-children
@@ -495,9 +495,9 @@ pub(crate) fn eval_write_forms_home(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     template :wat::WatAST the node whose KIND (List/Vector/Set/Map/leaf) the rebuild preserves
-/// @arg     children (:wat::core::Vector :- [:wat::WatAST]) the new children; raises MalformedForm if the count/kind is incompatible with `template`
-/// @ret     :wat::WatAST a new node of `template`'s kind, carrying `children`
+/// @arg     template :wat::type::AST the node whose KIND (List/Vector/Set/Map/leaf) the rebuild preserves
+/// @arg     children (:wat::type::Vector :- [:wat::type::AST]) the new children; raises MalformedForm if the count/kind is incompatible with `template`
+/// @ret     :wat::type::AST a new node of `template`'s kind, carrying `children`
 /// @example (:wat::core::= (:wat::core::write-forms (:wat::core::quote (1 2 3))) (:wat::core::write-forms (:wat::core::with-children (:wat::core::quote (1 2 3)) (:wat::core::ast->children (:wat::core::quote (1 2 3)))))) #=> true
 /// @see     :wat::core::ast->children
 /// @see     :wat::core::write-forms

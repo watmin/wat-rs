@@ -65,9 +65,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::i64 the left addend
-/// @arg     b :wat::core::i64 the right addend
-/// @ret     :wat::core::i64 the sum of `a` and `b`
+/// @arg     a :wat::type::i64 the left addend
+/// @arg     b :wat::type::i64 the right addend
+/// @ret     :wat::type::i64 the sum of `a` and `b`
 /// @example (:wat::i64::+ 1 2) #=> 3
 #[wat_intrinsic(":wat::i64::+", value = eval_i64_add_value)]
 pub(crate) fn eval_i64_add(
@@ -117,9 +117,9 @@ fn eval_i64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::i64 the minuend
-/// @arg     b :wat::core::i64 the subtrahend
-/// @ret     :wat::core::i64 `a` minus `b`
+/// @arg     a :wat::type::i64 the minuend
+/// @arg     b :wat::type::i64 the subtrahend
+/// @ret     :wat::type::i64 `a` minus `b`
 /// @example (:wat::i64::- 5 3) #=> 2
 #[wat_intrinsic(":wat::i64::-", value = eval_i64_sub_value)]
 pub(crate) fn eval_i64_sub(
@@ -159,9 +159,9 @@ fn eval_i64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::i64 the first factor
-/// @arg     b :wat::core::i64 the second factor
-/// @ret     :wat::core::i64 `a` times `b`
+/// @arg     a :wat::type::i64 the first factor
+/// @arg     b :wat::type::i64 the second factor
+/// @ret     :wat::type::i64 `a` times `b`
 /// @example (:wat::i64::* 3 4) #=> 12
 #[wat_intrinsic(":wat::i64::*", value = eval_i64_mul_value)]
 pub(crate) fn eval_i64_mul(
@@ -202,9 +202,9 @@ fn eval_i64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::i64 the dividend
-/// @arg     b :wat::core::i64 the divisor
-/// @ret     :wat::core::i64 `a` divided by `b`, truncated toward zero
+/// @arg     a :wat::type::i64 the dividend
+/// @arg     b :wat::type::i64 the divisor
+/// @ret     :wat::type::i64 `a` divided by `b`, truncated toward zero
 /// @example (:wat::i64::/ 6 2) #=> 3
 #[wat_intrinsic(":wat::i64::/", value = eval_i64_div_value)]
 pub(crate) fn eval_i64_div(
@@ -249,9 +249,9 @@ fn eval_i64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::i64 the dividend
-/// @arg     b :wat::core::i64 the divisor
-/// @ret     :wat::core::i64 `a` modulo `b`, sign of `b`
+/// @arg     a :wat::type::i64 the dividend
+/// @arg     b :wat::type::i64 the divisor
+/// @ret     :wat::type::i64 `a` modulo `b`, sign of `b`
 /// @example (:wat::i64::mod -7 3) #=> 2
 #[wat_intrinsic(":wat::i64::mod", value = eval_i64_mod_value)]
 pub(crate) fn eval_i64_mod(
@@ -301,9 +301,9 @@ fn eval_i64_mod_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::i64 the dividend
-/// @arg     b :wat::core::i64 the divisor
-/// @ret     :wat::core::i64 `a` divided by `b`, truncated toward zero
+/// @arg     a :wat::type::i64 the dividend
+/// @arg     b :wat::type::i64 the divisor
+/// @ret     :wat::type::i64 `a` divided by `b`, truncated toward zero
 /// @example (:wat::i64::quot -7 3) #=> -2
 #[wat_intrinsic(":wat::i64::quot", value = eval_i64_quot_value)]
 pub(crate) fn eval_i64_quot(
@@ -348,9 +348,9 @@ fn eval_i64_quot_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> 
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Arithmetic
-/// @arg     a :wat::core::i64 the dividend
-/// @arg     b :wat::core::i64 the divisor
-/// @ret     :wat::core::i64 the remainder of `a` divided by `b`, sign of `a`
+/// @arg     a :wat::type::i64 the dividend
+/// @arg     b :wat::type::i64 the divisor
+/// @ret     :wat::type::i64 the remainder of `a` divided by `b`, sign of `a`
 /// @example (:wat::i64::rem -7 3) #=> -1
 #[wat_intrinsic(":wat::i64::rem", value = eval_i64_rem_value)]
 pub(crate) fn eval_i64_rem(
@@ -405,9 +405,9 @@ fn eval_i64_rem_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::i64 the left operand
-/// @arg     b :wat::core::i64 the right operand
-/// @ret     :wat::core::bool true iff `a` is less than `b`
+/// @arg     a :wat::type::i64 the left operand
+/// @arg     b :wat::type::i64 the right operand
+/// @ret     :wat::type::bool true iff `a` is less than `b`
 /// @example (:wat::i64::< 1 2) #=> true
 #[wat_intrinsic(":wat::i64::<")]
 pub(crate) fn eval_i64_lt(
@@ -441,9 +441,9 @@ pub(crate) fn eval_i64_lt(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::i64 the left operand
-/// @arg     b :wat::core::i64 the right operand
-/// @ret     :wat::core::bool true iff `a` is less than or equal to `b`
+/// @arg     a :wat::type::i64 the left operand
+/// @arg     b :wat::type::i64 the right operand
+/// @ret     :wat::type::bool true iff `a` is less than or equal to `b`
 /// @example (:wat::i64::<= 2 2) #=> true
 #[wat_intrinsic(":wat::i64::<=")]
 pub(crate) fn eval_i64_lte(
@@ -477,9 +477,9 @@ pub(crate) fn eval_i64_lte(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::i64 the left operand
-/// @arg     b :wat::core::i64 the right operand
-/// @ret     :wat::core::bool true iff `a` is greater than `b`
+/// @arg     a :wat::type::i64 the left operand
+/// @arg     b :wat::type::i64 the right operand
+/// @ret     :wat::type::bool true iff `a` is greater than `b`
 /// @example (:wat::i64::> 3 2) #=> true
 #[wat_intrinsic(":wat::i64::>")]
 pub(crate) fn eval_i64_gt(
@@ -513,9 +513,9 @@ pub(crate) fn eval_i64_gt(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::i64 the left operand
-/// @arg     b :wat::core::i64 the right operand
-/// @ret     :wat::core::bool true iff `a` is greater than or equal to `b`
+/// @arg     a :wat::type::i64 the left operand
+/// @arg     b :wat::type::i64 the right operand
+/// @ret     :wat::type::bool true iff `a` is greater than or equal to `b`
 /// @example (:wat::i64::>= 2 2) #=> true
 #[wat_intrinsic(":wat::i64::>=")]
 pub(crate) fn eval_i64_gte(
@@ -550,9 +550,9 @@ pub(crate) fn eval_i64_gte(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::i64 the left operand
-/// @arg     b :wat::core::i64 the right operand
-/// @ret     :wat::core::bool true iff `a` equals `b`
+/// @arg     a :wat::type::i64 the left operand
+/// @arg     b :wat::type::i64 the right operand
+/// @ret     :wat::type::bool true iff `a` equals `b`
 /// @example (:wat::i64::= 2 2) #=> true
 #[wat_intrinsic(":wat::i64::=")]
 pub(crate) fn eval_i64_eq(
@@ -587,9 +587,9 @@ pub(crate) fn eval_i64_eq(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Probe
-/// @arg     a :wat::core::i64 the left operand
-/// @arg     b :wat::core::i64 the right operand
-/// @ret     :wat::core::bool true iff `a` does not equal `b`
+/// @arg     a :wat::type::i64 the left operand
+/// @arg     b :wat::type::i64 the right operand
+/// @ret     :wat::type::bool true iff `a` does not equal `b`
 /// @example (:wat::i64::not= 2 3) #=> true
 #[wat_intrinsic(":wat::i64::not=")]
 pub(crate) fn eval_i64_not_eq(
@@ -625,8 +625,8 @@ pub(crate) fn eval_i64_not_eq(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the i64 to promote
-/// @ret     :wat::core::bigint `n`, promoted to bigint
+/// @arg     n :wat::type::i64 the i64 to promote
+/// @ret     :wat::type::bigint `n`, promoted to bigint
 /// @example (:wat::i64::to-bigint 5) #=> (:wat::i64::to-bigint 5)
 #[wat_intrinsic(":wat::i64::to-bigint")]
 pub(crate) fn eval_i64_to_bigint(
@@ -660,8 +660,8 @@ pub(crate) fn eval_i64_to_bigint(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the i64 to cast
-/// @ret     :wat::core::f64 `n`, cast to f64
+/// @arg     n :wat::type::i64 the i64 to cast
+/// @ret     :wat::type::f64 `n`, cast to f64
 /// @example (:wat::i64::to-f64 5) #=> 5.0
 #[wat_intrinsic(":wat::i64::to-f64")]
 pub(crate) fn eval_i64_to_f64(
@@ -687,8 +687,8 @@ pub(crate) fn eval_i64_to_f64(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the i64 to promote
-/// @ret     :wat::core::rational `n`, promoted to rational
+/// @arg     n :wat::type::i64 the i64 to promote
+/// @ret     :wat::type::rational `n`, promoted to rational
 /// @example (:wat::i64::to-rational 5) #=> (:wat::i64::to-rational 5)
 #[wat_intrinsic(":wat::i64::to-rational")]
 pub(crate) fn eval_i64_to_rational(
@@ -721,8 +721,8 @@ pub(crate) fn eval_i64_to_rational(
 /// @Totality         Total
 /// @ExpandTime    Legal
 /// @Category      Transform
-/// @arg     n :wat::core::i64 the i64 to render
-/// @ret     :wat::core::String the base-10 rendering of `n`
+/// @arg     n :wat::type::i64 the i64 to render
+/// @ret     :wat::type::String the base-10 rendering of `n`
 /// @example (:wat::i64::to-string 42) #=> "42"
 #[wat_intrinsic(":wat::i64::to-string")]
 pub(crate) fn eval_i64_to_string(

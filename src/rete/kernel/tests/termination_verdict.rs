@@ -30,19 +30,19 @@ use crate::rete::kernel::stratify::{refuse_non_terminating, TerminationVerdict};
 /// - `:a5d` — the soundness twin: computes, cyclic, and its fence points WITH the step, so it is
 ///   refused. Its terminating sibling is one character away (`<` instead of `>`).
 const WORLD: &str = "\
-(:wat::core::defrecord :a5p::A [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :a5p::B [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :a5p::A [k <- wat.type/i64])\n\
+(:wat::core::defrecord :a5p::B [k <- wat.type/i64])\n\
 (:wat::rete::defrule :a5p::plain\n\
   :when [(:a5p::A (?k :- :k))]\n\
   :then [(:a5p::B :k ?k)])\n\
 \n\
-(:wat::core::defrecord :a5v::In  [k <- :wat::core::i64])\n\
-(:wat::core::defrecord :a5v::Out [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :a5v::In  [k <- wat.type/i64])\n\
+(:wat::core::defrecord :a5v::Out [k <- wat.type/i64])\n\
 (:wat::rete::defrule :a5v::computes\n\
   :when [(:a5v::In (?k :- :k))]\n\
   :then [(:a5v::Out :k (:wat::rete::i64::+ ?k 1 :undefined 0))])\n\
 \n\
-(:wat::core::defrecord :a5d::N [k <- :wat::core::i64])\n\
+(:wat::core::defrecord :a5d::N [k <- wat.type/i64])\n\
 (:wat::rete::defrule :a5d::diverges\n\
   :when [(:a5d::N (?k :- :k))\n\
          (:wat::rete::where (:wat::rete::i64::> ?k 500))]\n\
@@ -201,8 +201,8 @@ fn not_analysable_still_compiles_and_is_not_a_refusal() {
     let world = a5_world();
     let src = format!(
         "(:wat::core::match (:wat::rete::compile-all \
-           (:wat::core::PersistentVector :- [:wat::rete::Rule] {AST_LESS}) \
-           (:wat::core::PersistentVector :- [:wat::rete::Query])) \
+           (wat.type/PersistentVector :- [:wat::rete::Rule] {AST_LESS}) \
+           (wat.type/PersistentVector :- [:wat::rete::Query])) \
            [:wat::rete::CompileOutcome.Compiled {{:session __s}} \"Compiled\"] \
            [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __r :fact-type __f}} \"MayNotTerminate\"])"
     );

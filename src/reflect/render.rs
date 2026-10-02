@@ -369,7 +369,7 @@ pub(crate) fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST
     // fictional sentinel spelled in the retired angle-bracket grammar; the reader
     // refuses it outright. `:wat::WatAST` is the real, already-registered, NON-parametric
     // type (a form IS its own type — no `<T>` wrapper was ever needed).
-    let ast_kw = WatAST::Keyword(":wat::WatAST".into(), span.clone());
+    let ast_kw = WatAST::Keyword(":wat::type::AST".into(), span.clone());
     let mut items: Vec<WatAST> = Vec::new();
     for p in def.params.iter() {
         items.push(WatAST::Symbol(
@@ -401,10 +401,10 @@ pub(crate) fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST
         // `:AST<Vec<wat::WatAST>>` keyword the reader would refuse to read back.
         items.push(WatAST::List(
             vec![
-                WatAST::Keyword(":wat::core::Vector".into(), span.clone()),
+                WatAST::Keyword(":wat::type::Vector".into(), span.clone()),
                 WatAST::Keyword(":-".into(), span.clone()),
                 WatAST::Vector(
-                    vec![WatAST::Keyword(":wat::WatAST".into(), span.clone())],
+                    vec![WatAST::Keyword(":wat::type::AST".into(), span.clone())],
                     span.clone(),
                 ),
             ],
@@ -430,7 +430,7 @@ pub(crate) fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
             WatAST::Symbol(crate::scope::Identifier::bare("->"), span.clone()),
             // STONE-close-the-last-two-channels — same retirement as `macrodef_to_signature_ast`'s
             // `ast_kw`: the real, non-parametric `:wat::WatAST`, not the fictional `:AST<wat::WatAST>`.
-            WatAST::Keyword(":wat::WatAST".into(), span.clone()),
+            WatAST::Keyword(":wat::type::AST".into(), span.clone()),
             body,
         ],
         span,

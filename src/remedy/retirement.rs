@@ -105,7 +105,10 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // Stone 241.11 — defn replaces define.
     RetirementEntry { retired: ":wat::core::define",            replacement: ":wat::core::defn",      note: None },
     // Stone 242.1 — char (lowercase) replaces Char (per Doctrine 2; scalar types lowercase).
-    RetirementEntry { retired: ":wat::core::Char",              replacement: ":wat::core::char",      note: None },
+    // Arc 255.81 superseded the lowercase target itself (`char` is one of the 24
+    // `WAT_TYPE_HARD_PRIMITIVES`) — replacement now points straight at the surviving
+    // surface spelling, `wat.type/char`, same U1 precedent as the Uuid/arc-255.81 rows below.
+    RetirementEntry { retired: ":wat::core::Char",              replacement: "wat.type/char",      note: None },
     // Stone 241.12 — defalias replaces runtime define-alias (native substrate form).
     RetirementEntry { retired: ":wat::runtime::define-alias",   replacement: ":wat::core::defalias",  note: None },
     // Stone 241.13 — defclause replaces define-dispatch.
@@ -138,13 +141,13 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // common reason someone reaches for `vec` post-118.2a is clojure's "coerce a seqable/
     // Stream into a Vector" idiom — that's `(:wat::core::into [] coll)` (ratified: no new
     // name; `into []` is clojure's own materializer).
-    RetirementEntry { retired: ":wat::core::vec", replacement: ":wat::core::Vector",
+    RetirementEntry { retired: ":wat::core::vec", replacement: ":wat::type::Vector",
         note: Some("as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same (Vector :- [T]) value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead") },
     // Arc 109 slice 1g — list retired (was a duplicate of vec; both produced Vec<T>).
-    RetirementEntry { retired: ":wat::core::list", replacement: ":wat::core::Vector",
+    RetirementEntry { retired: ":wat::core::list", replacement: ":wat::type::Vector",
         note: Some("rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same (Vector :- [T]) value") },
     // Arc 109 slice 1g — tuple retired (verb-equals-type playbook).
-    RetirementEntry { retired: ":wat::core::tuple", replacement: ":wat::core::Tuple",
+    RetirementEntry { retired: ":wat::core::tuple", replacement: ":wat::type::Tuple",
         note: Some("rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); the `:(T,U,V)` type spelling is ALSO retired (arc 109 \"the comma dies in the reader\") — use `(:wat::core::Tuple :- [T U V])`") },
     // Arc 109 slice 1h — bare `Some` retired (callable heads must be FQDN keywords).
     RetirementEntry { retired: "Some", replacement: ":wat::core::Some",
@@ -177,9 +180,9 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::Uuid/version",          replacement: ":wat::uuid::version",          note: None },
     RetirementEntry { retired: ":wat::core::Uuid/rfc4122-variant?", replacement: ":wat::uuid::rfc4122-variant?", note: None },
     RetirementEntry { retired: ":wat::core::regex::matches?",       replacement: ":wat::regex::matches?",        note: None },
-    RetirementEntry { retired: ":wat::core::List/of",               replacement: ":wat::core::List",
+    RetirementEntry { retired: ":wat::core::List/of",               replacement: ":wat::type::List",
         note: Some("finishing, not starting — every other collection type is already its own constructor") },
-    RetirementEntry { retired: ":wat::core::char/of",               replacement: ":wat::core::char",
+    RetirementEntry { retired: ":wat::core::char/of",               replacement: ":wat::type::char",
         note: Some("finishing, not starting — the type is already named `:wat::core::char`; the constructor drops the redundant `/of`") },
     // Arc 255 Stone C — "the numerics get their homes": the per-type i64/f64 verbs
     // move off the `:wat::core::` junk-drawer to their own top-level namespace
@@ -397,6 +400,37 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // `wat.holon/HolonAST` shape), unlike every other row above (all verbs, still
     // keyword-FQDN-spelled).
     RetirementEntry { retired: ":wat::core::Uuid", replacement: "wat.uuid/UUID", note: None },
+    // Arc 255.81 — cutover stone 4b, "the new spelling is the key": each of the 24
+    // `WAT_TYPE_HARD_PRIMITIVES`' own TYPE KEY moves off the `:wat::core::` junk-drawer
+    // (AST's old home was `:wat::WatAST`, never `:wat::core::AST`) to `:wat::type::<tail>`
+    // internally. Same U1 precedent as the Uuid row immediately above: the replacement
+    // here is spelled the `.wat` SURFACE form `wat.type/<tail>`, not the internal colon
+    // key, because that is what a human is meant to type back. One row per primitive, not
+    // a loop over `WAT_TYPE_HARD_PRIMITIVES` — this table is a recorded history of ship
+    // events, not a derived projection of the current registry (see "Adding entries" above).
+    RetirementEntry { retired: ":wat::core::i64", replacement: "wat.type/i64", note: None },
+    RetirementEntry { retired: ":wat::core::f64", replacement: "wat.type/f64", note: None },
+    RetirementEntry { retired: ":wat::core::u8", replacement: "wat.type/u8", note: None },
+    RetirementEntry { retired: ":wat::core::bigint", replacement: "wat.type/bigint", note: None },
+    RetirementEntry { retired: ":wat::core::rational", replacement: "wat.type/rational", note: None },
+    RetirementEntry { retired: ":wat::core::String", replacement: "wat.type/String", note: None },
+    RetirementEntry { retired: ":wat::core::bool", replacement: "wat.type/bool", note: None },
+    RetirementEntry { retired: ":wat::core::keyword", replacement: "wat.type/keyword", note: None },
+    RetirementEntry { retired: ":wat::core::nil", replacement: "wat.type/nil", note: None },
+    RetirementEntry { retired: ":wat::core::Value", replacement: "wat.type/Value", note: None },
+    RetirementEntry { retired: ":wat::core::Never", replacement: "wat.type/Never", note: None },
+    RetirementEntry { retired: ":wat::core::Fn", replacement: "wat.type/Fn", note: None },
+    RetirementEntry { retired: ":wat::core::Record", replacement: "wat.type/Record", note: None },
+    RetirementEntry { retired: ":wat::core::Struct", replacement: "wat.type/Struct", note: None },
+    RetirementEntry { retired: ":wat::core::Vector", replacement: "wat.type/Vector", note: None },
+    RetirementEntry { retired: ":wat::core::HashMap", replacement: "wat.type/HashMap", note: None },
+    RetirementEntry { retired: ":wat::core::HashSet", replacement: "wat.type/HashSet", note: None },
+    RetirementEntry { retired: ":wat::core::List", replacement: "wat.type/List", note: None },
+    RetirementEntry { retired: ":wat::core::Tuple", replacement: "wat.type/Tuple", note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector", replacement: "wat.type/PersistentVector", note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap", replacement: "wat.type/PersistentMap", note: None },
+    RetirementEntry { retired: ":wat::core::Bytes", replacement: "wat.type/Bytes", note: None },
+    RetirementEntry { retired: ":wat::WatAST", replacement: "wat.type/AST", note: None },
 ];
 
 /// Look up `needle` in the retirement table.

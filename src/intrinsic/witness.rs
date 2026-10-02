@@ -32,8 +32,8 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg xs… :wat::core::Value the args to count
-/// @ret :wat::core::i64 the number of arguments passed
+/// @arg xs… :wat::type::Value the args to count
+/// @ret :wat::type::i64 the number of arguments passed
 /// @example (:wat::intrinsic::variadic-args-measurement 1 2 3) #=> 3
 /// @example (:wat::intrinsic::variadic-args-measurement) #=> 0
 // `@Category Reflection` is CORRECT here and was weighed (2026-08-15): this verb
@@ -62,9 +62,9 @@ pub(crate) fn eval_variadic_args_measurement(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
-/// @arg f [:wat::core::i64 :-> :wat::core::i64] the fn applied to the yielded value
+/// @arg f [:wat::type::i64 :-> :wat::type::i64] the fn applied to the yielded value
 /// @yields f the value handed to f (always 42 for this witness)
-/// @ret :wat::core::i64 the result of applying f to 42
+/// @ret :wat::type::i64 the result of applying f to 42
 /// @example (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))) #=> 43
 // `@Category ControlFlow` (corrected 2026-08-15; was `Reflection`). This body
 // applies a callable — it directs evaluation, exactly as `if` selects a branch.

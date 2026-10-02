@@ -286,13 +286,38 @@ pub fn run_codemod_batch(wat_binary: &Path, codemod_path: &Path, paths: &[std::p
 /// pathological-input gap the lint's version documents — most literals in a Rust source
 /// file are ordinary prose/fixtures, not wat, and forcing them through the reader must
 /// never crash the driver.
+///
+/// Stone 255.81 — widened twice from the lint's `parse_one_with_file` (exactly ONE form,
+/// erroring on `TrailingContent`):
+///
+/// 1. `parse_all_with_file` (one or more forms). A fixture `const WORLD: &str` that holds a
+///    WHOLE PROGRAM — several top-level `defrecord`/`defrule` forms concatenated — is genuine,
+///    deliberately-authored wat (measured: `src/rete/kernel/tests/mod.rs` and 9 siblings, each
+///    a multi-form world fixture carrying un-converted type-position sites `is_candidate_wat`
+///    never saw, because `parse_one_with_file` returns `Err(TrailingContent)` the moment a
+///    SECOND form follows the first).
+/// 2. The shape check (a List headed by a Keyword/Symbol) now asks of ANY parsed form, not only
+///    `forms[0]`. A `format!`-built literal commonly leads with the interpolated piece itself
+///    (`format!("{}\n(:wat::core::defrecord …)", prelude())` — the literal's OWN text starts
+///    `"{}\n(:wat::core::defrecord …)"`), and `replace_placeholders_preserving_len` turns `{}`
+///    into a same-length run of `x` — a bare SYMBOL, not a List, so form 0 never matches even
+///    though every later form is genuine wat (measured: `src/rete/reachability.rs`'s shared
+///    program-template fixtures, `src/runtime.rs`'s `step_to_terminal_prelude()`-prefixed
+///    literals). Neither widening loosens the net for prose: a single ordinary English
+///    sentence still only matches by the coincidence it always could, since the shape test
+///    itself — a List headed by a Keyword/Symbol — is unchanged. `diff_decoded`/`parse_forms`
+///    (above) already read multi-form text natively — these were the two surviving
+///    single-form/first-form assumptions.
 pub fn is_candidate_wat(placeholder_substituted_text: &str) -> bool {
-    let result = std::panic::catch_unwind(|| crate::parser::parse_one_with_file(placeholder_substituted_text, "<embedded-wat-candidate>"));
-    matches!(
-        result,
-        Ok(Ok(WatAST::List(items, _)))
-            if matches!(items.first(), Some(WatAST::Keyword(..)) | Some(WatAST::Symbol(..)))
-    )
+    let result = std::panic::catch_unwind(|| crate::parser::parse_all_with_file(placeholder_substituted_text, "<embedded-wat-candidate>"));
+    let Ok(Ok(forms)) = result else { return false; };
+    forms.iter().any(|f| {
+        matches!(
+            f,
+            WatAST::List(items, _)
+                if matches!(items.first(), Some(WatAST::Keyword(..)) | Some(WatAST::Symbol(..)))
+        )
+    })
 }
 
 /// One literal's outcome inside a file-level apply.
@@ -456,9 +481,9 @@ mod probe_255_80 {
         // rune:lint(loose-assert) — same targeted-presence reason as above.
         assert!(span.decoded.contains("wat.type/Vector"));
         // rune:lint(loose-assert) — same targeted-absence reason as above.
-        assert!(!span.decoded.contains(":wat::WatAST"), "the old type-position spelling must be gone");
+        assert!(!span.decoded.contains(":wat::type::AST"), "the old type-position spelling must be gone");
         // rune:lint(loose-assert) — same targeted-absence reason as above.
-        assert!(!span.decoded.contains(":wat::core::Vector"), "the old type-position spelling must be gone");
+        assert!(!span.decoded.contains(":wat::type::Vector"), "the old type-position spelling must be gone");
 
         let old_ph = replace_placeholders_preserving_len(&span.decoded);
         assert_eq!(old_ph.chars().count(), span.decoded.chars().count());

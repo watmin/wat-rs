@@ -40,8 +40,8 @@ use crate::value::{EvalBreak, Value};
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     dim :wat::core::i64 the ambient vector dimension
-/// @arg     k :wat::core::i64 the tracked rank
+/// @arg     dim :wat::type::i64 the ambient vector dimension
+/// @arg     k :wat::type::i64 the tracked rank
 /// @ret     :wat::holon::OnlineSubspace a fresh, untrained subspace tracker
 /// @example-norun (:wat::holon::OnlineSubspace/new 4096 8) #=> #wat.holon/OnlineSubspace{}
 #[wat_intrinsic(":wat::holon::OnlineSubspace/new")]
@@ -65,7 +65,7 @@ pub(crate) fn subspace_new(dim: &Value, k: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
-/// @ret     :wat::core::i64 the raw vector dimension
+/// @ret     :wat::type::i64 the raw vector dimension
 /// @example (:wat::holon::OnlineSubspace/dim (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/dim (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/dim")]
 pub(crate) fn subspace_dim(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -85,7 +85,7 @@ pub(crate) fn subspace_dim(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
-/// @ret     :wat::core::i64 the tracked rank
+/// @ret     :wat::type::i64 the tracked rank
 /// @example (:wat::holon::OnlineSubspace/k (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/k (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/k")]
 pub(crate) fn subspace_k(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -105,7 +105,7 @@ pub(crate) fn subspace_k(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
-/// @ret     :wat::core::i64 the number of observations absorbed so far
+/// @ret     :wat::type::i64 the number of observations absorbed so far
 /// @example (:wat::holon::OnlineSubspace/n (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/n (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/n")]
 pub(crate) fn subspace_n(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -125,7 +125,7 @@ pub(crate) fn subspace_n(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
-/// @ret     :wat::core::f64 the current residual threshold
+/// @ret     :wat::type::f64 the current residual threshold
 /// @example (:wat::holon::OnlineSubspace/threshold (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/threshold (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/threshold")]
 pub(crate) fn subspace_threshold(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -145,7 +145,7 @@ pub(crate) fn subspace_threshold(s: &Value, span: &Span) -> Result<Value, EvalBr
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
-/// @ret     (:wat::core::Vector :- [:wat::core::f64]) the tracked basis's current eigenvalues
+/// @ret     (:wat::type::Vector :- [:wat::type::f64]) the tracked basis's current eigenvalues
 /// @example (:wat::holon::OnlineSubspace/eigenvalues (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/eigenvalues (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/eigenvalues")]
 pub(crate) fn subspace_eigenvalues(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -169,7 +169,7 @@ pub(crate) fn subspace_eigenvalues(s: &Value, span: &Span) -> Result<Value, Eval
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace mutated
 /// @arg     v :wat::holon::Vector the raw `f64` vector observed
-/// @ret     :wat::core::f64 `v`'s pre-update residual
+/// @ret     :wat::type::f64 `v`'s pre-update residual
 /// @example-norun (:wat::holon::OnlineSubspace/update s v) #=> 0.31
 #[wat_intrinsic(":wat::holon::OnlineSubspace/update")]
 pub(crate) fn subspace_update(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -197,7 +197,7 @@ pub(crate) fn subspace_update(s: &Value, v: &Value, span: &Span) -> Result<Value
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector scored
-/// @ret     :wat::core::f64 `v`'s residual against `s`'s current basis
+/// @ret     :wat::type::f64 `v`'s residual against `s`'s current basis
 /// @example (:wat::holon::OnlineSubspace/residual (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/residual (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/residual")]
 pub(crate) fn subspace_residual(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -220,7 +220,7 @@ pub(crate) fn subspace_residual(s: &Value, v: &Value, span: &Span) -> Result<Val
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector projected
-/// @ret     (:wat::core::Vector :- [:wat::core::f64]) `v`'s coordinates in the rank-`k` basis
+/// @ret     (:wat::type::Vector :- [:wat::type::f64]) `v`'s coordinates in the rank-`k` basis
 /// @example (:wat::holon::OnlineSubspace/project (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/project (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/project")]
 pub(crate) fn subspace_project(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
@@ -244,7 +244,7 @@ pub(crate) fn subspace_project(s: &Value, v: &Value, span: &Span) -> Result<Valu
 /// @Category      Resource
 /// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @arg     v :wat::holon::Vector the raw `f64` vector reconstructed
-/// @ret     (:wat::core::Vector :- [:wat::core::f64]) `v` projected onto the basis and back
+/// @ret     (:wat::type::Vector :- [:wat::type::f64]) `v` projected onto the basis and back
 /// @example (:wat::holon::OnlineSubspace/reconstruct (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/reconstruct (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/reconstruct")]
 pub(crate) fn subspace_reconstruct(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {

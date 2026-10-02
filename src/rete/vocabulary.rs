@@ -102,9 +102,10 @@
 //! `rete_name_is_core_name_with_rete_inserted_after_wat` going red (three rows, one name — the
 //! exact class the equality trio already needed an exception for). Same fix, same reasoning:
 //! these three also keep their per-container qualifier. `NAMING_RULE_EXCEPTIONS` totals
-//! **fourteen** rows today (six original, plus this three-row `first` trio, plus the later enum
-//! quartet and `Tuple` accessors named beside the list below) — enforced by
-//! `naming_rule_exceptions_are_exactly_the_documented_fourteen`, not restated as a number here.
+//! **nineteen** rows today (six original, plus this three-row `first` trio, plus the later enum
+//! quartet and `Tuple` accessors named beside the list below, plus arc 255.81's 5-row container-
+//! constructor carve-out — see that list's own trailing comment) — enforced by
+//! `naming_rule_exceptions_are_exactly_the_documented_nineteen`, not restated as a number here.
 //! "One core verb serving several rete rows" is not a one-off, it recurs whenever a core op is
 //! polymorphic across something the rete surface wants to monomorphise per-leaf (per-type for
 //! equality, per-container for `first`).
@@ -196,26 +197,26 @@ impl ParamType {
     /// a bare path so a row can name a type variable without the table needing a second column.
     pub(crate) fn to_type_expr(self) -> TypeExpr {
         match self {
-            ParamType::I64 => TypeExpr::Path(":wat::core::i64".into()),
-            ParamType::Bool => TypeExpr::Path(":wat::core::bool".into()),
-            ParamType::Keyword => TypeExpr::Path(":wat::core::keyword".into()),
-            ParamType::String => TypeExpr::Path(":wat::core::String".into()),
-            ParamType::F64 => TypeExpr::Path(":wat::core::f64".into()),
+            ParamType::I64 => TypeExpr::Path(":wat::type::i64".into()),
+            ParamType::Bool => TypeExpr::Path(":wat::type::bool".into()),
+            ParamType::Keyword => TypeExpr::Path(":wat::type::keyword".into()),
+            ParamType::String => TypeExpr::Path(":wat::type::String".into()),
+            ParamType::F64 => TypeExpr::Path(":wat::type::f64".into()),
             ParamType::Var(name) => TypeExpr::Path(format!(":{name}")),
             ParamType::PersistentVectorOf(name) => TypeExpr::Parametric {
-                head: "wat::core::PersistentVector".into(),
+                head: "wat::type::PersistentVector".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
             },
             ParamType::PersistentMapOf(k, v) => TypeExpr::Parametric {
-                head: "wat::core::PersistentMap".into(),
+                head: "wat::type::PersistentMap".into(),
                 args: vec![TypeExpr::Path(format!(":{k}")), TypeExpr::Path(format!(":{v}"))],
             },
             ParamType::VectorOf(name) => TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
+                head: "wat::type::Vector".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
             },
             ParamType::ListOf(name) => TypeExpr::Parametric {
-                head: "wat::core::List".into(),
+                head: "wat::type::List".into(),
                 args: vec![TypeExpr::Path(format!(":{name}"))],
             },
             ParamType::Holon => TypeExpr::Path(":wat::holon::HolonAST".into()),
@@ -826,7 +827,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::core::PersistentVector",
-        core_name: ":wat::core::PersistentVector",
+        core_name: ":wat::type::PersistentVector",
         class: OpClass::Redispatch,
         params: &[],
         ret: Ret::NoScheme,
@@ -835,7 +836,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::core::Vector",
-        core_name: ":wat::core::Vector",
+        core_name: ":wat::type::Vector",
         class: OpClass::Redispatch,
         params: &[],
         ret: Ret::NoScheme,
@@ -844,7 +845,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::core::List",
-        core_name: ":wat::core::List",
+        core_name: ":wat::type::List",
         class: OpClass::Redispatch,
         params: &[],
         ret: Ret::NoScheme,
@@ -853,7 +854,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["K", "V"],
         rete_name: ":wat::rete::core::PersistentMap",
-        core_name: ":wat::core::PersistentMap",
+        core_name: ":wat::type::PersistentMap",
         class: OpClass::Redispatch,
         params: &[],
         ret: Ret::NoScheme,
@@ -862,7 +863,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::Tuple",
-        core_name: ":wat::core::Tuple",
+        core_name: ":wat::type::Tuple",
         class: OpClass::Redispatch,
         params: &[],
         ret: Ret::NoScheme,
@@ -1614,6 +1615,16 @@ pub(crate) const RETE_PREFIX: &str = ":wat::rete::";
 /// `vector::`/`vec::` were forced. Measured (not assumed, per E-i's own `hashmap::` note above):
 /// `RETE_OPS` has NO HashSet row at all, so no `:wat::rete::hashset::` entry is needed here —
 /// adding one anyway would be exactly the unforced entry E-i's `hashmap::` note warns against.
+/// Stone 255.81 (cutover 4b) does NOT add a `:wat::rete::type::` entry here. The 5 container
+/// `Redispatch` rows' `core_name` moved off `:wat::core::` onto the new canonical `:wat::type::`
+/// home, same as E-i/E-ii/E-iii's moves above — but their `rete_name`, the CALLABLE HEAD a rule
+/// author actually types in `:captures`/`:then` (`(:wat::rete::core::PersistentVector …)`
+/// throughout the live corpus), deliberately stays on `:wat::rete::core::` and is listed in
+/// `NAMING_RULE_EXCEPTIONS` below instead. The brief for this stone is explicit that
+/// heads/slash-verbs are "a future stone 5" — a first attempt here DID flip these 5 to
+/// `:wat::rete::type::`, which satisfied the naming-rule test but broke every real `.wat` file
+/// (`wat/rete/compile.wat` itself among them) that still calls the bare constructor under its
+/// old name; reverted once `cargo test --release` (not just `--lib`) surfaced it.
 pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::core::",
     ":wat::rete::holon::",
@@ -1838,6 +1849,17 @@ mod naming_rule_tests {
         ":wat::rete::core::Tuple/first",
         ":wat::rete::core::Tuple/second",
         ":wat::rete::core::Tuple/third",
+        // Arc 255.81 (cutover 4b) — the 5 container `Redispatch` constructors. `core_name`
+        // moved to `:wat::type::<X>` (the type's new home), but `rete_name` — the CALLABLE HEAD
+        // a rule author types in `:captures`/`:then` — deliberately stays on the OLD
+        // `:wat::rete::core::<X>` spelling. Heads/slash-verbs are explicit stone-5 scope for
+        // this cutover, not 4b's; see `RETE_MODULES`'s doc comment for the measured cost of
+        // getting this wrong once (it broke `wat/rete/compile.wat` itself).
+        ":wat::rete::core::PersistentVector",
+        ":wat::rete::core::Vector",
+        ":wat::rete::core::List",
+        ":wat::rete::core::PersistentMap",
+        ":wat::rete::core::Tuple",
     ];
 
     /// ★★ Every row satisfies [`rete_vocabulary_admitted`] over its OWN `rete_name` — the
@@ -1885,15 +1907,15 @@ mod naming_rule_tests {
         }
     }
 
-    /// The exception list itself is exactly the fourteen rows frozen below — no more, no fewer.
+    /// The exception list itself is exactly the nineteen rows frozen below — no more, no fewer.
     /// Catches the exception set silently growing (a real collision nobody explained) or
     /// shrinking without the corresponding row being deleted.
     ///
     /// The exception NAMES are frozen (this list) AND counted. A silent
     /// `+1 new, −1 fixed` fails the equality on the slice, not only the length.
     #[test]
-    fn naming_rule_exceptions_are_exactly_the_documented_fourteen() {
-        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 14);
+    fn naming_rule_exceptions_are_exactly_the_documented_nineteen() {
+        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 19);
         let mut frozen: Vec<&str> = NAMING_RULE_EXCEPTIONS.to_vec();
         frozen.sort_unstable();
         let mut live: Vec<&str> = NAMING_RULE_EXCEPTIONS

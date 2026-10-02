@@ -86,7 +86,7 @@ use std::collections::HashMap;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::macroexpand <form>)
-/// @ret :wat::WatAST `<form>` expanded to fixpoint — every macro call, and every macro call inside the result, applied until nothing changes
+/// @ret :wat::type::AST `<form>` expanded to fixpoint — every macro call, and every macro call inside the result, applied until nothing changes
 /// @example-norun (:wat::core::macroexpand (:wat::core::quote (:some::macro-with-a-template-local-binder arg))) #=> the fully-expanded form, with any template-introduced identifier carrying a freshly-minted `ScopeId` on every call — never guaranteed equal to a prior call's result for the same input
 #[wat_special_form(":wat::core::macroexpand")]
 pub(crate) struct Macroexpand;
@@ -121,11 +121,11 @@ pub(crate) fn infer_macroexpand(
             expected: 1,
             got: args.len()
         } });
-        let ty = TypeExpr::Path(":wat::WatAST".into());
+        let ty = TypeExpr::Path(":wat::type::AST".into());
         return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
     }
     if let Some(arg_ty) = crate::check::infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-        let expected = TypeExpr::Path(":wat::WatAST".into());
+        let expected = TypeExpr::Path(":wat::type::AST".into());
         if !assignable(&arg_ty, &expected, subst, env) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: head.to_string(),
@@ -135,6 +135,6 @@ pub(crate) fn infer_macroexpand(
             } });
         }
     }
-    let ty = TypeExpr::Path(":wat::WatAST".into());
+    let ty = TypeExpr::Path(":wat::type::AST".into());
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }

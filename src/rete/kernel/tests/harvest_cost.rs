@@ -496,8 +496,8 @@ fn harvest_wrap_parts() {
 #[test]
 fn class_scan_harvest_includes_input() {
     const WORLD: &str = "\
-(:wat::core::defrecord :hs::T [x <- :wat::core::i64])\n\
-(:wat::core::defrecord :hs::U [x <- :wat::core::i64])\n\
+(:wat::core::defrecord :hs::T [x <- wat.type/i64])\n\
+(:wat::core::defrecord :hs::U [x <- wat.type/i64])\n\
 (:wat::rete::defrule :hs::never\n\
   :when [(:hs::T (?x :- :x) (:wat::rete::i64::< ?x 0))]\n\
   :then [(:hs::U ?x)])\n\

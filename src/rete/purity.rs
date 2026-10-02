@@ -2205,7 +2205,7 @@ fn axis_violation_names() -> crate::rete::kernel::FieldNames {
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
-/// @arg     expr :wat::WatAST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
+/// @arg     expr :wat::type::AST the quoted expression form (from `:wat::core::quote`), walked structurally, never evaluated
 /// @arg     axis :wat::rete::Axis which of the four fence axes to check (`Pure`/`Deterministic`/`Total`/`RetePrimitive`)
 /// @ret     (:wat::core::Option :- [:wat::rete::AxisViolation]) `None` if `expr` satisfies `axis`; `Some(v)` naming the offending head, the axis, and its span otherwise
 /// @example (:wat::rete::axis-violation (:wat::core::quote (:wat::rete::i64::> ?c 5)) :wat::rete::Axis::Pure) #=> :None

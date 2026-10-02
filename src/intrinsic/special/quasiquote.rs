@@ -69,7 +69,7 @@ use std::collections::HashMap;
 /// @Totality Preserving
 /// @ExpandTime Preserving
 /// @syntax (:wat::core::quasiquote <template>)
-/// @ret :wat::WatAST `<template>` with every unquoted sub-form's VALUE substituted as a literal AST node; all other nodes unevaluated
+/// @ret :wat::type::AST `<template>` with every unquoted sub-form's VALUE substituted as a literal AST node; all other nodes unevaluated
 /// @example (:wat::core::write-forms (:wat::core::quasiquote (:foo (:wat::core::unquote (:wat::i64::+ 1 2))))) #=> "(:foo 3)"
 #[wat_special_form(":wat::core::quasiquote")]
 pub(crate) struct Quasiquote;
@@ -94,5 +94,5 @@ pub(crate) fn infer_quasiquote(
     // a template); unquoted expressions infer into
     // local context but their types don't constrain the
     // outer result.
-    CheckResult::ok(TypeExpr::Path(":wat::WatAST".into()))
+    CheckResult::ok(TypeExpr::Path(":wat::type::AST".into()))
 }

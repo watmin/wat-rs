@@ -1066,7 +1066,20 @@ pub(crate) fn is_holon_arg_canonical(form: &WatAST) -> bool {
                 // Fixed by peeling the param-spec the same way the checker
                 // does — `peel_param_spec` — rather than assuming its
                 // absence; the elements are whatever remains after the peel.
-                k if crate::types::constructor_head_key(k).as_ref() == ":wat::core::Vector" => {
+                k if crate::types::constructor_head_key(k).as_ref() == ":wat::type::Vector" => {
+                    let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
+                    peeled.is_some() && rest.iter().all(is_holon_arg_canonical)
+                }
+                _ => false,
+            },
+            // Stone 255.81 K1 — a symbol-spelled type head (`wat.type/Vector`),
+            // pre-normalization, reaches here when a raw-AST consumer bypasses the
+            // checker (255.80's SCORE: "the K1 door-bypass class" — a Symbol-headed
+            // `wat.type/Vector` never reached this `WatAST::Keyword`-only match).
+            // Route the Symbol through the same keyword-FQDN + `constructor_head_key`
+            // door as the Keyword arm above, so it is recognized identically.
+            Some(sym @ WatAST::Symbol(_, _)) => match crate::types::head_keyword_fqdn(sym) {
+                Some(k) if crate::types::constructor_head_key(&k).as_ref() == ":wat::type::Vector" => {
                     let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
                     peeled.is_some() && rest.iter().all(is_holon_arg_canonical)
                 }

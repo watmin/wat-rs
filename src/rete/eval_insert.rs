@@ -338,9 +338,9 @@ pub(crate) fn resolve_rhs_value(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      ControlFlow
-/// @arg     fact_form :wat::WatAST the quoted fact-form `(:Type arg…)` (from `:wat::core::quote`)
-/// @arg     bindings :wat::core::PersistentMap the token's bound `?var`s, resolved into the fact's args
-/// @ret     :wat::core::Record the derived fact
+/// @arg     fact_form :wat::type::AST the quoted fact-form `(:Type arg…)` (from `:wat::core::quote`)
+/// @arg     bindings :wat::type::PersistentMap the token's bound `?var`s, resolved into the fact's args
+/// @ret     :wat::type::Record the derived fact
 /// @example-norun (:wat::rete::eval-insert (:wat::core::quote (:probe::EvalInsertTemp ?v)) (:wat::core::PersistentMap "?v" 7))
 #[wat_intrinsic(":wat::rete::eval-insert")]
 pub(crate) fn eval_insert(

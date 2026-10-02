@@ -339,7 +339,7 @@ impl WatAST {
             WatAST::List(items, _) => {
                 matches!(
                     items.first(),
-                    Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap"
+                    Some(WatAST::Keyword(k, _)) if k == ":wat::type::HashMap"
                 )
             }
             _ => false,
@@ -359,7 +359,7 @@ impl WatAST {
             WatAST::Map(pairs, _) => Some(pairs.clone()),
             WatAST::List(items, _) => {
                 match items.first() {
-                    Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
+                    Some(WatAST::Keyword(k, _)) if k == ":wat::type::HashMap" => {}
                     _ => return None,
                 }
                 // Legacy layout: [head, K-type, V-type, k0, v0, k1, v1, ...]

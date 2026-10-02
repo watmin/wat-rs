@@ -95,9 +95,9 @@ use wat_macros::wat_special_form;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::>
-/// @arg a :wat::core::i64 the left operand
-/// @arg b :wat::core::i64 the right operand
-/// @ret :wat::core::bool whether `a` is strictly greater than `b` — the target's answer, unchanged
+/// @arg a :wat::type::i64 the left operand
+/// @arg b :wat::type::i64 the right operand
+/// @ret :wat::type::bool whether `a` is strictly greater than `b` — the target's answer, unchanged
 /// @example (:wat::rete::i64::> 2 1) #=> true
 #[wat_special_form(":wat::rete::i64::>")]
 pub(crate) struct ReteI64Gt;
@@ -108,9 +108,9 @@ pub(crate) struct ReteI64Gt;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::<
-/// @arg a :wat::core::i64 the left operand
-/// @arg b :wat::core::i64 the right operand
-/// @ret :wat::core::bool whether `a` is strictly less than `b` — the target's answer, unchanged
+/// @arg a :wat::type::i64 the left operand
+/// @arg b :wat::type::i64 the right operand
+/// @ret :wat::type::bool whether `a` is strictly less than `b` — the target's answer, unchanged
 /// @example (:wat::rete::i64::< 1 2) #=> true
 #[wat_special_form(":wat::rete::i64::<")]
 pub(crate) struct ReteI64Lt;
@@ -121,9 +121,9 @@ pub(crate) struct ReteI64Lt;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::>=
-/// @arg a :wat::core::i64 the left operand
-/// @arg b :wat::core::i64 the right operand
-/// @ret :wat::core::bool whether `a` is greater than or equal to `b` — the target's answer, unchanged
+/// @arg a :wat::type::i64 the left operand
+/// @arg b :wat::type::i64 the right operand
+/// @ret :wat::type::bool whether `a` is greater than or equal to `b` — the target's answer, unchanged
 /// @example (:wat::rete::i64::>= 2 1) #=> true
 #[wat_special_form(":wat::rete::i64::>=")]
 pub(crate) struct ReteI64Ge;
@@ -134,9 +134,9 @@ pub(crate) struct ReteI64Ge;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::<=
-/// @arg a :wat::core::i64 the left operand
-/// @arg b :wat::core::i64 the right operand
-/// @ret :wat::core::bool whether `a` is less than or equal to `b` — the target's answer, unchanged
+/// @arg a :wat::type::i64 the left operand
+/// @arg b :wat::type::i64 the right operand
+/// @ret :wat::type::bool whether `a` is less than or equal to `b` — the target's answer, unchanged
 /// @example (:wat::rete::i64::<= 1 1) #=> true
 #[wat_special_form(":wat::rete::i64::<=")]
 pub(crate) struct ReteI64Le;
@@ -147,9 +147,9 @@ pub(crate) struct ReteI64Le;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::=
-/// @arg a :wat::core::i64 the left operand
-/// @arg b :wat::core::i64 the right operand
-/// @ret :wat::core::bool whether `a` equals `b` — the target's answer, unchanged
+/// @arg a :wat::type::i64 the left operand
+/// @arg b :wat::type::i64 the right operand
+/// @ret :wat::type::bool whether `a` equals `b` — the target's answer, unchanged
 /// @example (:wat::rete::i64::= 1 1) #=> true
 #[wat_special_form(":wat::rete::i64::=")]
 pub(crate) struct ReteI64Eq;
@@ -160,9 +160,9 @@ pub(crate) struct ReteI64Eq;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::not=
-/// @arg a :wat::core::i64 the left operand
-/// @arg b :wat::core::i64 the right operand
-/// @ret :wat::core::bool whether `a` does not equal `b` — the target's answer, unchanged
+/// @arg a :wat::type::i64 the left operand
+/// @arg b :wat::type::i64 the right operand
+/// @ret :wat::type::bool whether `a` does not equal `b` — the target's answer, unchanged
 /// @example (:wat::rete::i64::not= 1 2) #=> true
 #[wat_special_form(":wat::rete::i64::not=")]
 pub(crate) struct ReteI64NotEq;
@@ -173,8 +173,8 @@ pub(crate) struct ReteI64NotEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::to-f64
-/// @arg n :wat::core::i64 the value converted
-/// @ret :wat::core::f64 `n`, cast to f64 — the target's answer, unchanged
+/// @arg n :wat::type::i64 the value converted
+/// @ret :wat::type::f64 `n`, cast to f64 — the target's answer, unchanged
 /// @example (:wat::rete::i64::to-f64 3) #=> 3.0
 #[wat_special_form(":wat::rete::i64::to-f64")]
 pub(crate) struct ReteI64ToF64;
@@ -185,8 +185,8 @@ pub(crate) struct ReteI64ToF64;
 ///
 /// @added 1.0.0
 /// @alias :wat::i64::to-string
-/// @arg n :wat::core::i64 the value rendered
-/// @ret :wat::core::String `n`, rendered as a base-10 string — the target's answer, unchanged
+/// @arg n :wat::type::i64 the value rendered
+/// @ret :wat::type::String `n`, rendered as a base-10 string — the target's answer, unchanged
 /// @example (:wat::rete::i64::to-string 42) #=> "42"
 #[wat_special_form(":wat::rete::i64::to-string")]
 pub(crate) struct ReteI64ToString;
@@ -199,9 +199,9 @@ pub(crate) struct ReteI64ToString;
 ///
 /// @added 1.0.0
 /// @alias :wat::f64::>
-/// @arg a :wat::core::f64 the left operand
-/// @arg b :wat::core::f64 the right operand
-/// @ret :wat::core::bool whether `a` is strictly greater than `b` — the target's answer, unchanged
+/// @arg a :wat::type::f64 the left operand
+/// @arg b :wat::type::f64 the right operand
+/// @ret :wat::type::bool whether `a` is strictly greater than `b` — the target's answer, unchanged
 /// @example (:wat::rete::f64::> 2.0 1.0) #=> true
 #[wat_special_form(":wat::rete::f64::>")]
 pub(crate) struct ReteF64Gt;
@@ -212,9 +212,9 @@ pub(crate) struct ReteF64Gt;
 ///
 /// @added 1.0.0
 /// @alias :wat::f64::<
-/// @arg a :wat::core::f64 the left operand
-/// @arg b :wat::core::f64 the right operand
-/// @ret :wat::core::bool whether `a` is strictly less than `b` — the target's answer, unchanged
+/// @arg a :wat::type::f64 the left operand
+/// @arg b :wat::type::f64 the right operand
+/// @ret :wat::type::bool whether `a` is strictly less than `b` — the target's answer, unchanged
 /// @example (:wat::rete::f64::< 1.0 2.0) #=> true
 #[wat_special_form(":wat::rete::f64::<")]
 pub(crate) struct ReteF64Lt;
@@ -225,9 +225,9 @@ pub(crate) struct ReteF64Lt;
 ///
 /// @added 1.0.0
 /// @alias :wat::f64::>=
-/// @arg a :wat::core::f64 the left operand
-/// @arg b :wat::core::f64 the right operand
-/// @ret :wat::core::bool whether `a` is greater than or equal to `b` — the target's answer, unchanged
+/// @arg a :wat::type::f64 the left operand
+/// @arg b :wat::type::f64 the right operand
+/// @ret :wat::type::bool whether `a` is greater than or equal to `b` — the target's answer, unchanged
 /// @example (:wat::rete::f64::>= 1.0 1.0) #=> true
 #[wat_special_form(":wat::rete::f64::>=")]
 pub(crate) struct ReteF64Ge;
@@ -238,9 +238,9 @@ pub(crate) struct ReteF64Ge;
 ///
 /// @added 1.0.0
 /// @alias :wat::f64::<=
-/// @arg a :wat::core::f64 the left operand
-/// @arg b :wat::core::f64 the right operand
-/// @ret :wat::core::bool whether `a` is less than or equal to `b` — the target's answer, unchanged
+/// @arg a :wat::type::f64 the left operand
+/// @arg b :wat::type::f64 the right operand
+/// @ret :wat::type::bool whether `a` is less than or equal to `b` — the target's answer, unchanged
 /// @example (:wat::rete::f64::<= 1.0 1.0) #=> true
 #[wat_special_form(":wat::rete::f64::<=")]
 pub(crate) struct ReteF64Le;
@@ -251,9 +251,9 @@ pub(crate) struct ReteF64Le;
 ///
 /// @added 1.0.0
 /// @alias :wat::f64::=
-/// @arg a :wat::core::f64 the left operand
-/// @arg b :wat::core::f64 the right operand
-/// @ret :wat::core::bool whether `a` equals `b` — the target's answer, unchanged
+/// @arg a :wat::type::f64 the left operand
+/// @arg b :wat::type::f64 the right operand
+/// @ret :wat::type::bool whether `a` equals `b` — the target's answer, unchanged
 /// @example (:wat::rete::f64::= 1.0 1.0) #=> true
 #[wat_special_form(":wat::rete::f64::=")]
 pub(crate) struct ReteF64Eq;
@@ -264,9 +264,9 @@ pub(crate) struct ReteF64Eq;
 ///
 /// @added 1.0.0
 /// @alias :wat::f64::not=
-/// @arg a :wat::core::f64 the left operand
-/// @arg b :wat::core::f64 the right operand
-/// @ret :wat::core::bool whether `a` does not equal `b` — the target's answer, unchanged
+/// @arg a :wat::type::f64 the left operand
+/// @arg b :wat::type::f64 the right operand
+/// @ret :wat::type::bool whether `a` does not equal `b` — the target's answer, unchanged
 /// @example (:wat::rete::f64::not= 1.0 2.0) #=> true
 #[wat_special_form(":wat::rete::f64::not=")]
 pub(crate) struct ReteF64NotEq;
@@ -277,8 +277,8 @@ pub(crate) struct ReteF64NotEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::f64::to-string
-/// @arg x :wat::core::f64 the value rendered
-/// @ret :wat::core::String `x`, rendered as a string — the target's answer, unchanged
+/// @arg x :wat::type::f64 the value rendered
+/// @ret :wat::type::String `x`, rendered as a string — the target's answer, unchanged
 /// @example (:wat::rete::f64::to-string 1.5) #=> "1.5"
 #[wat_special_form(":wat::rete::f64::to-string")]
 pub(crate) struct ReteF64ToString;
@@ -293,9 +293,9 @@ pub(crate) struct ReteF64ToString;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::concat
-/// @arg a :wat::core::String the first string
-/// @arg b :wat::core::String the second string
-/// @ret :wat::core::String `a` and `b`, concatenated in order — the target's answer, unchanged
+/// @arg a :wat::type::String the first string
+/// @arg b :wat::type::String the second string
+/// @ret :wat::type::String `a` and `b`, concatenated in order — the target's answer, unchanged
 /// @example (:wat::rete::string::concat "a" "b") #=> "ab"
 #[wat_special_form(":wat::rete::string::concat")]
 pub(crate) struct ReteStringConcat;
@@ -307,9 +307,9 @@ pub(crate) struct ReteStringConcat;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::starts-with?
-/// @arg haystack :wat::core::String the string examined
-/// @arg prefix :wat::core::String the prefix sought
-/// @ret :wat::core::bool true iff `haystack` begins with `prefix` — the target's answer, unchanged
+/// @arg haystack :wat::type::String the string examined
+/// @arg prefix :wat::type::String the prefix sought
+/// @ret :wat::type::bool true iff `haystack` begins with `prefix` — the target's answer, unchanged
 /// @example (:wat::rete::string::starts-with? "hello" "he") #=> true
 #[wat_special_form(":wat::rete::string::starts-with?")]
 pub(crate) struct ReteStringStartsWith;
@@ -321,9 +321,9 @@ pub(crate) struct ReteStringStartsWith;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::ends-with?
-/// @arg haystack :wat::core::String the string examined
-/// @arg suffix :wat::core::String the suffix sought
-/// @ret :wat::core::bool true iff `haystack` ends with `suffix` — the target's answer, unchanged
+/// @arg haystack :wat::type::String the string examined
+/// @arg suffix :wat::type::String the suffix sought
+/// @ret :wat::type::bool true iff `haystack` ends with `suffix` — the target's answer, unchanged
 /// @example (:wat::rete::string::ends-with? "hello" "lo") #=> true
 #[wat_special_form(":wat::rete::string::ends-with?")]
 pub(crate) struct ReteStringEndsWith;
@@ -335,9 +335,9 @@ pub(crate) struct ReteStringEndsWith;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::contains?
-/// @arg haystack :wat::core::String the string searched
-/// @arg needle :wat::core::String the substring sought
-/// @ret :wat::core::bool true iff `needle` occurs anywhere in `haystack` — the target's answer, unchanged
+/// @arg haystack :wat::type::String the string searched
+/// @arg needle :wat::type::String the substring sought
+/// @ret :wat::type::bool true iff `needle` occurs anywhere in `haystack` — the target's answer, unchanged
 /// @example (:wat::rete::string::contains? "hello" "ell") #=> true
 #[wat_special_form(":wat::rete::string::contains?")]
 pub(crate) struct ReteStringContains;
@@ -348,8 +348,8 @@ pub(crate) struct ReteStringContains;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::empty?
-/// @arg s :wat::core::String the string to test
-/// @ret :wat::core::bool true iff `s` has zero characters — the target's answer, unchanged
+/// @arg s :wat::type::String the string to test
+/// @ret :wat::type::bool true iff `s` has zero characters — the target's answer, unchanged
 /// @example (:wat::rete::string::empty? "") #=> true
 #[wat_special_form(":wat::rete::string::empty?")]
 pub(crate) struct ReteStringEmpty;
@@ -360,8 +360,8 @@ pub(crate) struct ReteStringEmpty;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::length
-/// @arg s :wat::core::String the string to measure
-/// @ret :wat::core::i64 the number of Unicode scalar values in `s` — the target's answer, unchanged
+/// @arg s :wat::type::String the string to measure
+/// @ret :wat::type::i64 the number of Unicode scalar values in `s` — the target's answer, unchanged
 /// @example (:wat::rete::string::length "hello") #=> 5
 #[wat_special_form(":wat::rete::string::length")]
 pub(crate) struct ReteStringLength;
@@ -372,8 +372,8 @@ pub(crate) struct ReteStringLength;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::trim
-/// @arg s :wat::core::String the string to trim
-/// @ret :wat::core::String the string with leading and trailing whitespace removed — the target's answer, unchanged
+/// @arg s :wat::type::String the string to trim
+/// @ret :wat::type::String the string with leading and trailing whitespace removed — the target's answer, unchanged
 /// @example (:wat::rete::string::trim "  hi  ") #=> "hi"
 #[wat_special_form(":wat::rete::string::trim")]
 pub(crate) struct ReteStringTrim;
@@ -384,8 +384,8 @@ pub(crate) struct ReteStringTrim;
 ///
 /// @added 1.0.0
 /// @alias :wat::string::to-lowercase
-/// @arg s :wat::core::String the string to lowercase
-/// @ret :wat::core::String `s` with every character lowercased — the target's answer, unchanged
+/// @arg s :wat::type::String the string to lowercase
+/// @ret :wat::type::String `s` with every character lowercased — the target's answer, unchanged
 /// @example (:wat::rete::string::to-lowercase "HI") #=> "hi"
 #[wat_special_form(":wat::rete::string::to-lowercase")]
 pub(crate) struct ReteStringToLowercase;
@@ -398,8 +398,8 @@ pub(crate) struct ReteStringToLowercase;
 ///
 /// @added 1.0.0
 /// @alias :wat::vector::length
-/// @arg v (:wat::core::PersistentVector :- [T]) the vector probed
-/// @ret :wat::core::i64 the number of elements in `v` — the target's answer, unchanged
+/// @arg v (:wat::type::PersistentVector :- [T]) the vector probed
+/// @ret :wat::type::i64 the number of elements in `v` — the target's answer, unchanged
 /// @example (:wat::rete::vector::length (:wat::core::PersistentVector 1 2 3)) #=> 3
 #[wat_special_form(":wat::rete::vector::length")]
 pub(crate) struct ReteVectorLength;
@@ -410,9 +410,9 @@ pub(crate) struct ReteVectorLength;
 ///
 /// @added 1.0.0
 /// @alias :wat::vector::contains?
-/// @arg v (:wat::core::PersistentVector :- [T]) the vector probed
+/// @arg v (:wat::type::PersistentVector :- [T]) the vector probed
 /// @arg item :T the candidate element
-/// @ret :wat::core::bool true iff `item` occurs in `v` — the target's answer, unchanged
+/// @ret :wat::type::bool true iff `item` occurs in `v` — the target's answer, unchanged
 /// @example (:wat::rete::vector::contains? (:wat::core::PersistentVector 1 2 3) 2) #=> true
 #[wat_special_form(":wat::rete::vector::contains?")]
 pub(crate) struct ReteVectorContains;
@@ -425,9 +425,9 @@ pub(crate) struct ReteVectorContains;
 ///
 /// @added 1.0.0
 /// @alias :wat::map::contains-key?
-/// @arg m (:wat::core::PersistentMap :- [K V]) the map probed
+/// @arg m (:wat::type::PersistentMap :- [K V]) the map probed
 /// @arg k :K the candidate key
-/// @ret :wat::core::bool true iff `k` occurs as a key in `m` — the target's answer, unchanged
+/// @ret :wat::type::bool true iff `k` occurs as a key in `m` — the target's answer, unchanged
 /// @example (:wat::rete::map::contains-key? (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> true
 #[wat_special_form(":wat::rete::map::contains-key?")]
 pub(crate) struct ReteMapContainsKey;
@@ -442,8 +442,8 @@ pub(crate) struct ReteMapContainsKey;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::not
-/// @arg b :wat::core::bool the operand
-/// @ret :wat::core::bool the logical negation of `b` — the target's answer, unchanged
+/// @arg b :wat::type::bool the operand
+/// @ret :wat::type::bool the logical negation of `b` — the target's answer, unchanged
 /// @example (:wat::rete::core::not false) #=> true
 #[wat_special_form(":wat::rete::core::not")]
 pub(crate) struct ReteCoreNot;
@@ -454,8 +454,8 @@ pub(crate) struct ReteCoreNot;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::bool::to-string
-/// @arg b :wat::core::bool the value rendered
-/// @ret :wat::core::String `b`, rendered as `"true"` or `"false"` — the target's answer, unchanged
+/// @arg b :wat::type::bool the value rendered
+/// @ret :wat::type::String `b`, rendered as `"true"` or `"false"` — the target's answer, unchanged
 /// @example (:wat::rete::core::bool::to-string true) #=> "true"
 #[wat_special_form(":wat::rete::core::bool::to-string")]
 pub(crate) struct ReteCoreBoolToString;
@@ -471,7 +471,7 @@ pub(crate) struct ReteCoreBoolToString;
 /// @alias :wat::holon::presence?
 /// @arg target :wat::holon::HolonAST the target and reference operands, in order
 /// @arg reference :wat::holon::HolonAST the target and reference operands, in order
-/// @ret :wat::core::bool true iff `target` clears the presence floor against `reference` — the target's answer, unchanged
+/// @ret :wat::type::bool true iff `target` clears the presence floor against `reference` — the target's answer, unchanged
 /// @example (:wat::rete::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::rete::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_special_form(":wat::rete::holon::presence?")]
 pub(crate) struct ReteHolonPresence;
@@ -494,8 +494,8 @@ pub(crate) struct ReteHolonPresence;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::and
-/// @arg exprs… :wat::core::bool the operands, evaluated left to right until the first `:false` (or all of them)
-/// @ret :wat::core::bool `:false` at the first `:false` operand, else `:true` (`:true` when there are no operands)
+/// @arg exprs… :wat::type::bool the operands, evaluated left to right until the first `:false` (or all of them)
+/// @ret :wat::type::bool `:false` at the first `:false` operand, else `:true` (`:true` when there are no operands)
 /// @example (:wat::rete::core::and true true) #=> true
 #[wat_special_form(":wat::rete::core::and")]
 pub(crate) struct ReteCoreAnd;
@@ -508,8 +508,8 @@ pub(crate) struct ReteCoreAnd;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::or
-/// @arg exprs… :wat::core::bool the operands, evaluated left to right until the first `:true` (or all of them)
-/// @ret :wat::core::bool `:true` at the first `:true` operand, else `:false` (`:false` when there are no operands)
+/// @arg exprs… :wat::type::bool the operands, evaluated left to right until the first `:true` (or all of them)
+/// @ret :wat::type::bool `:true` at the first `:true` operand, else `:false` (`:false` when there are no operands)
 /// @example (:wat::rete::core::or false true) #=> true
 #[wat_special_form(":wat::rete::core::or")]
 pub(crate) struct ReteCoreOr;
@@ -568,7 +568,7 @@ pub(crate) struct ReteCoreMatch;
 /// @added 1.0.0
 /// @alias :wat::core::fn
 /// @syntax (:wat::rete::core::fn [<param> <- :T ...] -> :RetType <body>+)
-/// @ret :wat::core::Fn the constructed closure, callable with the declared parameter and return types
+/// @ret :wat::type::Fn the constructed closure, callable with the declared parameter and return types
 /// @example ((:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 7) #=> 7
 #[wat_special_form(":wat::rete::core::fn")]
 pub(crate) struct ReteCoreFn;
@@ -587,9 +587,9 @@ pub(crate) struct ReteCoreFn;
 /// is a `List`, copied here instead.
 ///
 /// @added 1.0.0
-/// @alias :wat::core::List
-/// @arg vals… :wat::core::Value the elements of the new list, in order
-/// @ret :wat::core::List a `List` holding each argument, in order
+/// @alias :wat::type::List
+/// @arg vals… :wat::type::Value the elements of the new list, in order
+/// @ret :wat::type::List a `List` holding each argument, in order
 /// @example (:wat::rete::core::List 1 2 3) #=> (:wat::core::List 1 2 3)
 #[wat_special_form(":wat::rete::core::List")]
 pub(crate) struct ReteCoreList;
@@ -600,9 +600,9 @@ pub(crate) struct ReteCoreList;
 ///
 /// @added 1.0.0
 /// @alias :wat::holon::coincident?
-/// @arg a :wat::core::Value the two operands compared, in order
-/// @arg b :wat::core::Value the two operands compared, in order
-/// @ret :wat::core::bool true iff `a` clears the coincident floor against `b`
+/// @arg a :wat::type::Value the two operands compared, in order
+/// @arg b :wat::type::Value the two operands compared, in order
+/// @ret :wat::type::bool true iff `a` clears the coincident floor against `b`
 /// @example (:wat::rete::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::rete::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_special_form(":wat::rete::holon::coincident?")]
 pub(crate) struct ReteHolonCoincident;
@@ -656,9 +656,9 @@ pub(crate) struct ReteHolonCoincident;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::=
-/// @arg a :wat::core::bool the left operand
-/// @arg b :wat::core::bool the right operand
-/// @ret :wat::core::bool true iff `a` structurally equals `b` — the target's answer, unchanged
+/// @arg a :wat::type::bool the left operand
+/// @arg b :wat::type::bool the right operand
+/// @ret :wat::type::bool true iff `a` structurally equals `b` — the target's answer, unchanged
 /// @example (:wat::rete::core::bool::= true true) #=> true
 #[wat_special_form(":wat::rete::core::bool::=")]
 pub(crate) struct ReteCoreBoolEq;
@@ -669,9 +669,9 @@ pub(crate) struct ReteCoreBoolEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::not=
-/// @arg a :wat::core::bool the left operand
-/// @arg b :wat::core::bool the right operand
-/// @ret :wat::core::bool true iff `a` does not structurally equal `b` — the target's answer,
+/// @arg a :wat::type::bool the left operand
+/// @arg b :wat::type::bool the right operand
+/// @ret :wat::type::bool true iff `a` does not structurally equal `b` — the target's answer,
 ///   unchanged
 /// @example (:wat::rete::core::bool::not= true false) #=> true
 #[wat_special_form(":wat::rete::core::bool::not=")]
@@ -683,9 +683,9 @@ pub(crate) struct ReteCoreBoolNotEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::=
-/// @arg a :wat::core::keyword the left operand
-/// @arg b :wat::core::keyword the right operand
-/// @ret :wat::core::bool true iff `a` structurally equals `b` — the target's answer, unchanged
+/// @arg a :wat::type::keyword the left operand
+/// @arg b :wat::type::keyword the right operand
+/// @ret :wat::type::bool true iff `a` structurally equals `b` — the target's answer, unchanged
 /// @example (:wat::rete::core::keyword::= :a :a) #=> true
 #[wat_special_form(":wat::rete::core::keyword::=")]
 pub(crate) struct ReteCoreKeywordEq;
@@ -696,9 +696,9 @@ pub(crate) struct ReteCoreKeywordEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::not=
-/// @arg a :wat::core::keyword the left operand
-/// @arg b :wat::core::keyword the right operand
-/// @ret :wat::core::bool true iff `a` does not structurally equal `b` — the target's answer,
+/// @arg a :wat::type::keyword the left operand
+/// @arg b :wat::type::keyword the right operand
+/// @ret :wat::type::bool true iff `a` does not structurally equal `b` — the target's answer,
 ///   unchanged
 /// @example (:wat::rete::core::keyword::not= :a :b) #=> true
 #[wat_special_form(":wat::rete::core::keyword::not=")]
@@ -710,9 +710,9 @@ pub(crate) struct ReteCoreKeywordNotEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::=
-/// @arg a :wat::core::String the left operand
-/// @arg b :wat::core::String the right operand
-/// @ret :wat::core::bool true iff `a` structurally equals `b` — the target's answer, unchanged
+/// @arg a :wat::type::String the left operand
+/// @arg b :wat::type::String the right operand
+/// @ret :wat::type::bool true iff `a` structurally equals `b` — the target's answer, unchanged
 /// @example (:wat::rete::string::= "a" "a") #=> true
 #[wat_special_form(":wat::rete::string::=")]
 pub(crate) struct ReteStringEq;
@@ -723,9 +723,9 @@ pub(crate) struct ReteStringEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::not=
-/// @arg a :wat::core::String the left operand
-/// @arg b :wat::core::String the right operand
-/// @ret :wat::core::bool true iff `a` does not structurally equal `b` — the target's answer,
+/// @arg a :wat::type::String the left operand
+/// @arg b :wat::type::String the right operand
+/// @ret :wat::type::bool true iff `a` does not structurally equal `b` — the target's answer,
 ///   unchanged
 /// @example (:wat::rete::string::not= "a" "b") #=> true
 #[wat_special_form(":wat::rete::string::not=")]
@@ -740,10 +740,10 @@ pub(crate) struct ReteStringNotEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::=
-/// @arg args :wat::core::Value the left operand (position 0) then the right operand (position
+/// @arg args :wat::type::Value the left operand (position 0) then the right operand (position
 ///   1); the two must be compatible — their types `unify`, one is a subtype of the other, both
 ///   are subtypes of `:wat::core::Record`, or both are numeric
-/// @ret :wat::core::bool true iff position 0 structurally equals position 1 — the target's
+/// @ret :wat::type::bool true iff position 0 structurally equals position 1 — the target's
 ///   answer, unchanged
 /// @example (:wat::rete::core::enum::= 1 1) #=> true
 #[wat_special_form(":wat::rete::core::enum::=")]
@@ -756,9 +756,9 @@ pub(crate) struct ReteCoreEnumEq;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::not=
-/// @arg args :wat::core::Value the left operand (position 0) then the right operand (position
+/// @arg args :wat::type::Value the left operand (position 0) then the right operand (position
 ///   1); same compatibility rule as `enum::=` above
-/// @ret :wat::core::bool true iff position 0 does not structurally equal position 1 — the
+/// @ret :wat::type::bool true iff position 0 does not structurally equal position 1 — the
 ///   target's answer, unchanged
 /// @example (:wat::rete::core::enum::not= 1 2) #=> true
 #[wat_special_form(":wat::rete::core::enum::not=")]
@@ -771,10 +771,10 @@ pub(crate) struct ReteCoreEnumNotEq;
 /// own row (`src/runtime.rs`), per this file's header rule for `Form`/`Redispatch` rows.
 ///
 /// @added 1.0.0
-/// @alias :wat::core::PersistentMap
-/// @arg args… :wat::core::Value alternating key/value pairs, in order — the target's own
+/// @alias :wat::type::PersistentMap
+/// @arg args… :wat::type::Value alternating key/value pairs, in order — the target's own
 ///   argument shape, unchanged
-/// @ret (:wat::core::PersistentMap :- [K V]) a new persistent map holding each pair — the
+/// @ret (:wat::type::PersistentMap :- [K V]) a new persistent map holding each pair — the
 ///   target's answer, unchanged
 /// @example (:wat::rete::core::PersistentMap :a 1 :b 2) #=> (:wat::core::PersistentMap :a 1 :b 2)
 #[wat_special_form(":wat::rete::core::PersistentMap")]
@@ -786,10 +786,10 @@ pub(crate) struct ReteCorePersistentMap;
 /// name. `RETE_OPS` classes this row `Redispatch` — same reasoning as `PersistentMap` above.
 ///
 /// @added 1.0.0
-/// @alias :wat::core::PersistentVector
-/// @arg args… :wat::core::Value the elements, in order (0 or more) — the target's own argument
+/// @alias :wat::type::PersistentVector
+/// @arg args… :wat::type::Value the elements, in order (0 or more) — the target's own argument
 ///   shape, unchanged
-/// @ret (:wat::core::PersistentVector :- [T]) a new persistent vector holding each argument, in
+/// @ret (:wat::type::PersistentVector :- [T]) a new persistent vector holding each argument, in
 ///   order — the target's answer, unchanged
 /// @example (:wat::rete::core::PersistentVector 1 2 3) #=> (:wat::core::PersistentVector 1 2 3)
 #[wat_special_form(":wat::rete::core::PersistentVector")]
@@ -801,10 +801,10 @@ pub(crate) struct ReteCorePersistentVector;
 /// this row `Redispatch` — same reasoning as `PersistentMap` above.
 ///
 /// @added 1.0.0
-/// @alias :wat::core::Tuple
+/// @alias :wat::type::Tuple
 /// @arg args :T one or more heterogeneous element values, or a `:-`-marked leading type-param
 ///   bracket — the target's own argument shape, unchanged
-/// @ret (:wat::core::Tuple :- [T]) the newly constructed heterogeneous tuple — the target's
+/// @ret (:wat::type::Tuple :- [T]) the newly constructed heterogeneous tuple — the target's
 ///   answer, unchanged
 /// @example (:wat::rete::core::Tuple 1 2) #=> (:wat::core::Tuple 1 2)
 #[wat_special_form(":wat::rete::core::Tuple")]
@@ -816,10 +816,10 @@ pub(crate) struct ReteCoreTuple;
 /// name. `RETE_OPS` classes this row `Redispatch` — same reasoning as `PersistentMap` above.
 ///
 /// @added 1.0.0
-/// @alias :wat::core::Vector
+/// @alias :wat::type::Vector
 /// @arg args :T a mandatory leading element-type declaration followed by zero or more elements,
 ///   in order — the target's own argument shape, unchanged
-/// @ret (:wat::core::Vector :- [T]) a new vector holding each argument after the leading type
+/// @ret (:wat::type::Vector :- [T]) a new vector holding each argument after the leading type
 ///   declaration, in order — the target's answer, unchanged
 /// @example (:wat::rete::core::Vector :- [:wat::core::i64] 1 2 3) #=> [1 2 3]
 #[wat_special_form(":wat::rete::core::Vector")]
@@ -832,9 +832,9 @@ pub(crate) struct ReteCoreVector;
 ///
 /// @added 1.0.0
 /// @alias :wat::core::filter
-/// @arg args [:T :-> :wat::core::bool] `pred` (position 0, applied lazily per pulled element)
+/// @arg args [:T :-> :wat::type::bool] `pred` (position 0, applied lazily per pulled element)
 ///   then `coll` (position 1, the receiver) — the target's own argument shape, unchanged
-/// @ret (:wat::core::Vector :- [T]) the target's answer, unchanged — NOTE: as with the target,
+/// @ret (:wat::type::Vector :- [T]) the target's answer, unchanged — NOTE: as with the target,
 ///   the real runtime return is a lazy `(:wat::stream::Stream :- [T])`
 /// @example (:wat::core::stream->vec [] (:wat::rete::core::filter (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3)
 #[wat_special_form(":wat::rete::core::filter")]
@@ -865,7 +865,7 @@ pub(crate) struct ReteCoreFoldl;
 /// @alias :wat::core::map
 /// @arg args [:T :-> :U] `f` (position 0, applied lazily per pulled element) then `coll`
 ///   (position 1, the receiver) — the target's own argument shape, unchanged
-/// @ret (:wat::core::Vector :- [U]) the target's answer, unchanged — NOTE: as with the target,
+/// @ret (:wat::type::Vector :- [U]) the target's answer, unchanged — NOTE: as with the target,
 ///   the real runtime return is a lazy `(:wat::stream::Stream :- [U])`
 /// @example (:wat::core::stream->vec [] (:wat::rete::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)) (:wat::core::Vector 1 2 3))) #=> (:wat::core::Vector 2 3 4)
 #[wat_special_form(":wat::rete::core::map")]

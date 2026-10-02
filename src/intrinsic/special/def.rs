@@ -65,7 +65,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::core::def :name expr)
-/// @ret :wat::core::nil no runtime value in declaration position — the form is consumed at registration and never reaches evaluation there; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
+/// @ret :wat::type::nil no runtime value in declaration position — the form is consumed at registration and never reaches evaluation there; encountered in expression position it raises `DeclarationInExpressionPosition` instead of producing one
 /// @example-norun (:wat::core::def :probe::x 5) #=> registers :probe::x into the symbol table; no runtime value
 #[wat_special_form(":wat::core::def")]
 pub(crate) struct Def;

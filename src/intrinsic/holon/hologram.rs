@@ -50,7 +50,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value, ValueSnapshot, Ru
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
-/// @arg     filter [:wat::core::f64 :-> :wat::core::bool] a therm-routing filter function
+/// @arg     filter [:wat::type::f64 :-> :wat::type::bool] a therm-routing filter function
 /// @yields  filter a candidate key's cosine-similarity score against the probe, computed during `Hologram/get`'s filtered-argmax readout; filter returns whether that candidate counts as a match
 /// @ret     :wat::holon::Hologram a fresh, empty coordinate-cell store
 /// @example-norun (:wat::holon::Hologram/make (fn (x) true)) #=> #wat.holon/Hologram{}
@@ -83,7 +83,7 @@ pub(crate) fn eval_hologram_make(
 /// @arg     store :wat::holon::Hologram the store mutated
 /// @arg     key :wat::holon::HolonAST the key HolonAST
 /// @arg     val :wat::holon::HolonAST the value HolonAST
-/// @ret     :wat::core::nil always `Unit`
+/// @ret     :wat::type::nil always `Unit`
 /// @example-norun (:wat::holon::Hologram/put store key val) #=> nil
 #[wat_intrinsic(":wat::holon::Hologram/put")]
 pub(crate) fn eval_hologram_put(
@@ -294,7 +294,7 @@ pub(crate) fn eval_hologram_remove(
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
-/// @ret     :wat::core::i64 the number of entries currently stored
+/// @ret     :wat::type::i64 the number of entries currently stored
 /// @example (:wat::holon::Hologram/len (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true))) #=> (:wat::holon::Hologram/len (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)))
 #[wat_intrinsic(":wat::holon::Hologram/len")]
 pub(crate) fn hologram_len(store: &Value) -> Result<Value, EvalBreak> {
@@ -315,7 +315,7 @@ pub(crate) fn hologram_len(store: &Value) -> Result<Value, EvalBreak> {
 /// @ExpandTime    Unreviewed
 /// @Category      Resource
 /// @arg     store :wat::holon::Hologram the store probed
-/// @ret     :wat::core::i64 the store's Kanerva capacity
+/// @ret     :wat::type::i64 the store's Kanerva capacity
 /// @example (:wat::holon::Hologram/capacity (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true))) #=> (:wat::holon::Hologram/capacity (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)))
 #[wat_intrinsic(":wat::holon::Hologram/capacity")]
 pub(crate) fn hologram_capacity(store: &Value) -> Result<Value, EvalBreak> {

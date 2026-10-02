@@ -72,7 +72,7 @@ use wat_macros::wat_special_form;
 /// @Totality Partial
 /// @ExpandTime RuntimeOnly
 /// @syntax (:wat::signed-load! <path> :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>)
-/// @ret :wat::core::nil no runtime value — the form is consumed entirely at load-resolution time and never reaches evaluation; its effect is the signature-verified file's forms, spliced into the surrounding program
+/// @ret :wat::type::nil no runtime value — the form is consumed entirely at load-resolution time and never reaches evaluation; its effect is the signature-verified file's forms, spliced into the surrounding program
 /// @example-norun (:wat::signed-load! "lib/util.wat" :wat::verify::signed-ed25519 :wat::verify::string "<base64 64-byte ed25519 sig>" :wat::verify::string "<base64 32-byte ed25519 pubkey>") #=> verifies lib/util.wat's parsed forms against the declared ed25519 signature, then splices its forms in; no runtime value
 #[wat_special_form(":wat::signed-load!")]
 pub(crate) struct SignedLoad;

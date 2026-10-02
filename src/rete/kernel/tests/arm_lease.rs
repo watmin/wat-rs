@@ -324,29 +324,29 @@ fn intern_release_session_wat_mouth_drops_the_lease() {
 /// (`wat-scripts/scratch-pad/wat-grep-with-network-shape.wat`), renamed into `:sw::` so it
 /// cannot collide with any other test world's namespace in this file.
 const SCOPED_WORK_WORLD: &str = "\
-(:wat::core::defrecord :sw::Temp  [location <- :wat::core::String])\n\
-(:wat::core::defrecord :sw::Wind  [location <- :wat::core::String])\n\
-(:wat::core::defrecord :sw::Match [location <- :wat::core::String])\n\
+(:wat::core::defrecord :sw::Temp  [location <- wat.type/String])\n\
+(:wat::core::defrecord :sw::Wind  [location <- wat.type/String])\n\
+(:wat::core::defrecord :sw::Match [location <- wat.type/String])\n\
 \n\
 (:wat::rete::defquery :sw::q-match :params [] :when [(?fact :- :sw::Match)])\n\
 \n\
-(:wat::core::defn :sw::the-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
+(:wat::core::defn :sw::the-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::let\n\
     [c1   (:wat::core::quote (:sw::Temp (?loc :- :location)))\n\
      c2   (:wat::core::quote (:sw::Wind (?loc :- :location)))\n\
      rhs  (:wat::core::quote (:sw::Match ?loc))\n\
      rule (:wat::rete::Rule :name \"temp-and-wind\"\n\
-            :lhs (:wat::core::PersistentVector :- [:wat::WatAST] c1 c2)\n\
-            :rhs (:wat::core::PersistentVector :- [:wat::WatAST] rhs))]\n\
-    (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)))\n\
+            :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2)\n\
+            :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs))]\n\
+    (wat.type/PersistentVector :- [:wat::rete::Rule] rule)))\n\
 \n\
-(:wat::core::defn :sw::the-queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])\n\
-  (:wat::core::PersistentVector :- [:wat::rete::Query] (:sw::q-match)))\n\
+(:wat::core::defn :sw::the-queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])\n\
+  (wat.type/PersistentVector :- [:wat::rete::Query] (:sw::q-match)))\n\
 \n\
 (:wat::core::defn :sw::facts-for\n\
-  [loc <- :wat::core::String]\n\
-  -> (:wat::core::PersistentVector :- [:wat::core::Record])\n\
-  (:wat::core::PersistentVector :- [:wat::core::Record]\n\
+  [loc <- wat.type/String]\n\
+  -> (wat.type/PersistentVector :- [wat.type/Record])\n\
+  (wat.type/PersistentVector :- [wat.type/Record]\n\
     (:sw::Temp :location loc) (:sw::Wind :location loc)))\n\
 ";
 

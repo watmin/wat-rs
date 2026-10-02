@@ -76,8 +76,8 @@ use crate::reflect::render::{
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg     name_ast :wat::core::keyword the binding name whose signature head is reconstructed
-/// @ret     (:wat::core::Option :- [:wat::WatAST]) the signature head, or `:None` if unregistered
+/// @arg     name_ast :wat::type::keyword the binding name whose signature head is reconstructed
+/// @ret     (:wat::core::Option :- [:wat::type::AST]) the signature head, or `:None` if unregistered
 /// @example (:wat::core::= (:wat::runtime::signature-of-defn :wat::core::if) (:wat::runtime::signature-of-defn :wat::core::if)) #=> true
 /// @see     :wat::runtime::lookup-define
 /// @see     :wat::runtime::extract-arg-names
@@ -316,7 +316,7 @@ pub(crate) fn eval_signature_of_defn(
 /// `:wat::holon::HolonAST` (NOT `(:Option :- [HolonAST])`)" — the parenthetical about `Option`
 /// wrapping was right, but the TYPE NAME was already wrong when it was written: the checker's own
 /// registered `TypeScheme` for this FQDN (`check.rs::register_builtins`) has always read
-/// `ret: TypeExpr::Path(":wat::WatAST".into())`, and its neighbouring comment even LABELS it
+/// `ret: TypeExpr::Path(":wat::type::AST".into())`, and its neighbouring comment even LABELS it
 /// "HolonAST" one line above that literal — the same stale terminology, corroborated twice over
 /// (this doc and that comment), never the actual registered type.
 ///
@@ -332,7 +332,7 @@ pub(crate) fn eval_signature_of_defn(
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     fn_expr :wat::core::fn the fn value whose signature is reconstructed
-/// @ret     :wat::WatAST the signature head `(:anonymous (param type)... -> ret-type)`
+/// @ret     :wat::type::AST the signature head `(:anonymous (param type)... -> ret-type)`
 /// @example (:wat::runtime::extract-arg-names (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1)))) #=> [:x]
 /// @see     :wat::runtime::signature-of-defn
 /// @see     :wat::runtime::return-type-of
@@ -399,8 +399,8 @@ pub(crate) fn eval_signature_of_fn(
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
 /// @arg     fn_expr :wat::core::fn the fn value whose declared return type is read
-/// @ret     :wat::core::String the return type's FQDN, colon-free
-/// @example (:wat::runtime::return-type-of (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1))) #=> "wat::core::i64"
+/// @ret     :wat::type::String the return type's FQDN, colon-free
+/// @example (:wat::runtime::return-type-of (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1))) #=> "wat::type::i64"
 /// @see     :wat::runtime::signature-of-fn
 #[wat_intrinsic(":wat::runtime::return-type-of")]
 pub(crate) fn eval_return_type_of(
@@ -491,8 +491,8 @@ pub(crate) fn eval_return_type_of(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg     name_ast :wat::core::keyword the binding name whose body is read
-/// @ret     (:wat::core::Option :- [:wat::WatAST]) the wat body (function or macro template), or `:None` when body-less or unregistered
+/// @arg     name_ast :wat::type::keyword the binding name whose body is read
+/// @ret     (:wat::core::Option :- [:wat::type::AST]) the wat body (function or macro template), or `:None` when body-less or unregistered
 /// @example (:wat::core::match (:wat::runtime::body-of :wat::core::cond) [:wat::core::Option::Some {:value ast} (:wat::core::ast-kind ast)] [:wat::core::Option::None {} "none"]) #=> "list"
 /// @example (:wat::core::match (:wat::runtime::body-of :wat::core::if) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
 /// @see     :wat::runtime::lookup-define
@@ -618,10 +618,10 @@ fn require_ast_children<'a>(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg     head :wat::WatAST the signature head whose name is replaced
-/// @arg     from :wat::core::keyword the expected current name (verified against `head`'s own name)
-/// @arg     to   :wat::core::keyword the replacement name
-/// @ret     :wat::WatAST the rebuilt head, same compound kind as `head`, name replaced
+/// @arg     head :wat::type::AST the signature head whose name is replaced
+/// @arg     from :wat::type::keyword the expected current name (verified against `head`'s own name)
+/// @arg     to   :wat::type::keyword the replacement name
+/// @ret     :wat::type::AST the rebuilt head, same compound kind as `head`, name replaced
 /// @example (:wat::core::ast-name (:wat::core::first (:wat::runtime::rename-callable-name (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1))) :anonymous :probe::renamed))) #=> ":probe::renamed"
 /// @see     :wat::runtime::signature-of-fn
 /// @see     :wat::runtime::extract-arg-names
@@ -816,8 +816,8 @@ pub(crate) fn eval_rename_callable_name(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     head :wat::WatAST the signature head walked
-/// @ret     (:wat::core::Vector :- [:wat::core::keyword]) one keyword per declared arg name, in order
+/// @arg     head :wat::type::AST the signature head walked
+/// @ret     (:wat::type::Vector :- [:wat::type::keyword]) one keyword per declared arg name, in order
 /// @example (:wat::runtime::extract-arg-names (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1)))) #=> [:x]
 /// @see     :wat::runtime::extract-arg-types
 /// @see     :wat::runtime::signature-of-fn
@@ -922,8 +922,8 @@ pub(crate) fn eval_extract_arg_names(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     head :wat::WatAST the signature head walked
-/// @ret     (:wat::core::Vector :- [:wat::WatAST]) one type AST per declared arg, in order
+/// @arg     head :wat::type::AST the signature head walked
+/// @ret     (:wat::type::Vector :- [:wat::type::AST]) one type AST per declared arg, in order
 /// @example (:wat::core::ast->source (:wat::core::first (:wat::runtime::extract-arg-types (:wat::runtime::signature-of-fn (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64/+ x 1)))))) #=> "wat.type/i64"
 /// @see     :wat::runtime::extract-arg-names
 /// @see     :wat::runtime::signature-of-fn
@@ -1031,8 +1031,8 @@ pub(crate) fn eval_extract_arg_types(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field names are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
-/// @ret     (:wat::core::Vector :- [:wat::core::keyword]) each field name as a keyword, in declaration order
+/// @arg     type_kw_ast :wat::type::keyword the struct/record type name whose field names are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @ret     (:wat::type::Vector :- [:wat::type::keyword]) each field name as a keyword, in declaration order
 /// @example (:wat::runtime::field-names-of :wat::program::Env) #=> [:started-at :peer-started-at :process-id :os-thread-id :peer-kind :cpu-count :user-data]
 /// @see     :wat::runtime::field-types-of
 /// @see     :wat::runtime::extract-arg-names
@@ -1089,8 +1089,8 @@ pub(crate) fn eval_field_names_of(
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     type_kw_ast :wat::core::keyword the struct/record type name whose field types are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
-/// @ret     (:wat::core::Vector :- [:wat::WatAST]) each field's type, rendered as a canonical `wat.type/` WatAST node, in declaration order (positionally aligned with `field-names-of`)
+/// @arg     type_kw_ast :wat::type::keyword the struct/record type name whose field types are read (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @ret     (:wat::type::Vector :- [:wat::type::AST]) each field's type, rendered as a canonical `wat.type/` WatAST node, in declaration order (positionally aligned with `field-names-of`)
 /// @example (:wat::core::ast->source (:wat::core::first (:wat::runtime::field-types-of :wat::program::Env))) #=> "wat.time/Instant"
 /// @see     :wat::runtime::field-names-of
 /// @see     :wat::runtime::extract-arg-types
@@ -1481,7 +1481,7 @@ fn type_params_of(def: &TypeDef) -> &[String] {
 /// @Totality         Unreviewed
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     type_kw_ast :wat::core::keyword the type name to interrogate (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @arg     type_kw_ast :wat::type::keyword the type name to interrogate (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
 /// @ret     :wat::runtime::TypeInfo the declared row: kind, name, type-params, and a kind-appropriate body (an Enum body carries each variant's declared field names and types in declaration order)
 /// @example (:wat::runtime::TypeInfo/name (:wat::runtime::type-of :wat::core::Option)) #=> :wat.core/Option
 /// @example-norun (:wat::runtime::type-of :wat::core::Option)
@@ -1602,7 +1602,7 @@ fn asts_from_value(v: &Value, span: &Span, op: &str) -> Result<Vec<WatAST>, Eval
                     span.clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
-                        expected: ":wat::WatAST",
+                        expected: ":wat::type::AST",
                         got: Box::new(ValueSnapshot::of(other)),
                     },
                 )
@@ -1626,7 +1626,7 @@ fn asts_from_value(v: &Value, span: &Span, op: &str) -> Result<Vec<WatAST>, Eval
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     forms_ast (:wat::core::Vector :- [:wat::WatAST]) the program's forms (typically quoted declarations)
+/// @arg     forms_ast (:wat::type::Vector :- [:wat::type::AST]) the program's forms (typically quoted declarations)
 /// @ret     :wat::runtime::DeclaredTypes `Ok` with a TypeInfo row per added type (same construction as `type-of`), or `Refused` naming the form and cause
 /// @example (:wat::core::variant-name (:wat::runtime::declared-types (:wat::core::Vector :- [:wat::WatAST]))) #=> "Ok"
 /// @example-norun (:wat::runtime::declared-types (:wat::core::Vector :- [:wat::WatAST] (:wat::core::quote (:wat::core::defenum :t::E :wat::enum::Pure :A :B))))
@@ -1686,7 +1686,7 @@ pub(crate) fn eval_declared_types(
 /// @Totality      Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     forms_ast (:wat::core::Vector :- [:wat::WatAST]) the stdlib file's forms
+/// @arg     forms_ast (:wat::type::Vector :- [:wat::type::AST]) the stdlib file's forms
 /// @ret     :wat::runtime::DeclaredTypes `Ok` with a TypeInfo row per declared type, or `Refused` naming the form and cause
 /// @example (:wat::core::variant-name (:wat::runtime::declared-stdlib-types (:wat::core::Vector :- [:wat::WatAST]))) #=> "Ok"
 /// @see     :wat::runtime::declared-types
@@ -1749,8 +1749,8 @@ pub(crate) fn eval_declared_stdlib_types(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     type_kw_ast :wat::core::keyword the type name to ask about (a literal keyword, or a keyword-valued expression)
-/// @ret     :wat::core::bool true iff the name is a type (TypeEnv member, runtime primitive, or derive-marker parent)
+/// @arg     type_kw_ast :wat::type::keyword the type name to ask about (a literal keyword, or a keyword-valued expression)
+/// @ret     :wat::type::bool true iff the name is a type (TypeEnv member, runtime primitive, or derive-marker parent)
 /// @example (:wat::runtime::is-type? :wat::core::Option) #=> true
 /// @example (:wat::runtime::is-type? :usr::TotallyMadeUp) #=> false
 /// @see     :wat::runtime::type-of
@@ -1808,8 +1808,8 @@ pub(crate) fn eval_is_type(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     type_kw_ast :wat::core::keyword the candidate variant name to ask about (a literal keyword in type position)
-/// @ret     (:wat::core::Option :- [:wat::core::keyword]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
+/// @arg     type_kw_ast :wat::type::keyword the candidate variant name to ask about (a literal keyword in type position)
+/// @ret     (:wat::core::Option :- [:wat::type::keyword]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::core::Option::Some) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Option
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::cache::Cache::GetRequest) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of (:wat::keyword::from-string "wat::core::Result.Ok")) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Result
@@ -1904,9 +1904,9 @@ pub(crate) fn eval_variant_parent_of(
 /// @Totality      Total
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     enum_kw_ast :wat::core::keyword the enum's namespaced path (a literal keyword, or an expression yielding one)
-/// @arg     variant_kw_ast :wat::core::keyword the bare variant leaf (a literal keyword, or an expression yielding one)
-/// @ret     :wat::core::keyword the composed variant name, `enum_path.variant_leaf` (`wat_reader::identifier::compose_variant`)
+/// @arg     enum_kw_ast :wat::type::keyword the enum's namespaced path (a literal keyword, or an expression yielding one)
+/// @arg     variant_kw_ast :wat::type::keyword the bare variant leaf (a literal keyword, or an expression yielding one)
+/// @ret     :wat::type::keyword the composed variant name, `enum_path.variant_leaf` (`wat_reader::identifier::compose_variant`)
 /// @example (:wat::runtime::compose-variant :wat::cache::Lru :Hit) #=> :wat::cache::Lru.Hit
 /// @example (:wat::runtime::compose-variant (:wat::keyword::from-string "wat::cache::Lru") :Hit) #=> wat::cache::Lru.Hit
 /// @see     :wat::runtime::variant-parent-of
