@@ -57,6 +57,14 @@ false timeouts). **"Pre-existing" needs the prior green floor's line for that te
 
 ### The rulings, newest first (the full record: `FINDING-the-shape-of-a-declared-signature.md`)
 
+- **G1 (2026-10-02):** collection operations exist **only** as polymorphic `wat.core/` verbs (`get`, `conj`, `contains?`,
+  `assoc`, `dissoc`, `keys`, `values`, `length`, `empty?`, `concat`). Every `:wat::core::X/method` collection name and
+  every per-type collection namespace twin (`wat.vector/get`, `wat.hashmap/get`, `wat.hashset/contains?`, ~800 uses)
+  retire. Type-specific operations live in lowercase per-type namespaces (`wat.i64/to-string` precedent: `wat.string/`,
+  `wat.keyword/`, `wat.rational/`, `wat.bytes/`, `wat.record/`). The `of` functions retire into the type constructors.
+- **R-a (2026-10-02):** a `/` join means "member of a type", nothing else. At a non-type parent it is respelled to `::`
+  (a faithful symbol has one `/`, so `:a::b/c` and `:a::b::c` share one image; 8d-ii EIGHTH). Remaining: ~20 test helpers.
+- **Stone 5 = H2 (2026-10-02):** gates first: 5a unbound heads refused, 5b no head decided by spelling, 5c convert, 5d wall.
 - **The Clojure cutover's end state (2026-09-27):** names become symbols (251.8d); **`wat.type/` holds exactly 24 hard
   primitives** (`i64 f64 u8 bigint rational char String bool keyword nil Value Never Fn Record Struct Vector HashMap
   HashSet List Tuple PersistentVector PersistentMap Bytes AST`); other typed things live in their own homes
