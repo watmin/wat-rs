@@ -203,3 +203,110 @@ Summary [ 405.023s] 6388 tests run: 6388 passed (29 slow), 24 skipped
 The baseline `.floor/2026-10-02T19-08-53Z` at `581478c9c` was 6374 passed, 24 skipped. This floor ran 6388. Skipped stays 24.
 
 STOP-1, STOP-2, STOP-3, and STOP-4 do not fire.
+
+## 7. Amend 2 — the committed tree, and the wat-side identities
+
+The cure is `e72efcba4` on top of `e20099ad5`. The exists forms moved into the fixture in `fbd326faa`. Both floors below ran with `git status` clean.
+
+### The corpus list
+
+`.floor/2026-10-02T21-27-53Z` at `e20099ad5` is red and was not re-run: 6387 passed, 1 failed. `whole_body_templates_in_the_corpus_are_pure` asserted at `src/macros/tests.rs:1800`. The left side was the arc 249 fixture plus `probe_arc255_83_qq_whole_kw.wat.bad` and `probe_arc255_83_qq_whole_sym.wat.bad`. The right side was only the arc 249 line. The scan lists tracked files. `.floor/2026-10-02T21-14-00Z` ran before those two fixtures were committed, so it did not see them.
+
+The expected list now names those three refusals. The scan is the same walk. `/tmp/census-25583-corpus2.log`: `macros::tests::whole_body_templates_in_the_corpus_are_pure ... ok`, `RC=0`.
+
+### Identities
+
+These compares go through `:wat::core::canonical-identity`. A keyword, a symbol, and a dotted keyword of the same identity agree. `"->"`, `":-"`, `"&"`, `:from`, `:locus`, `:max-buffer-bytes`, and `"T"` stay text.
+
+- `wat/Record.wat` unquote-splicing, both copies. The kind of the head is whatever `ast-name` already accepted.
+- `wat/core.wat` `:wat::core::agg-positional`.
+- `wat/rete/oracle/stratify.wat` `rule-consumes` head. The `:from` compare is unchanged.
+- `wat/lint.wat` `eq-sym-name` (`:wat::core::=`). `kw-or-sym?` already admitted both kinds.
+- `wat/fix.wat` `annotated-if?` (`:wat::core::if`), `enum-purity-marker?` (`:wat::enum::Pure` and `:wat::enum::Impure`), and `first-of-drop?` (`:wat::core::first`, `:wat::core::drop`). Each kind guard is keyword or symbol, then the identity.
+
+`rename-keyword-exact` (`wat/fix.wat` compare to `old` on a keyword leaf) and `rename-symbol-exact` (the symbol leaf) are not routed. `old` is the caller's exact string, and the edit writes that string as old-text. The splice checks the source against old-text. Matching a different spelling would claim text the file does not contain. The operand arrives as the one spelling the caller wrote.
+
+Driven by `tests/resolve/probe_arc255_83_wat_identities.wat`. `/tmp/census-25583-id4.log`: `spelling_25583_wat_identities_agree ... ok`, `RC=0`. The probe string is `E1e1e.1A1a1a.1X0P1p1p.1U1u1F1f1f.1`:
+
+- `eq-sym-name` returns `x` for `:wat::core::=`, `wat.core/=`, and `:wat.core/=`.
+- `annotated-if?` is true for those three spellings of `if` with a `->` child. It is false for `(:wat::core::Option/expect c -> :T t)`.
+- `enum-purity-marker?` is true for `:wat::enum::Pure`, `wat.enum/Pure`, `:wat.enum/Pure`, `:wat::enum::Impure`, and `wat.enum/Impure`.
+- `first-of-drop?` is true for the keyword pair, the symbol pair, and the dotted-keyword pair.
+
+A `defsurface :probe::Scope` spliced with `~@:probe::Scope` and with `(wat.core/unquote-splicing :probe::Scope)`, through both `:wat::core::defrecord` and `:wat::holon::defrecord`. Each namespace accessor returns `ns`.
+
+`kwargs-lower` of a zero-arg ctor with the positional sentinel returns i64 1 for `:wat::core::agg-positional`, `wat.core/agg-positional`, and `:wat.core/agg-positional`.
+
+`rule-consumes` of `(:wat::rete::exists (:user::T))` and of `(wat.rete/exists (:user::T))` both return `user::T`.
+
+### What the ledger walker misses
+
+The walker was not changed. The `> 300` floor was not lowered. `kw_lit` (`tests/lint/keyword_heresy_ledger.rs`) returns a site only for a bare string literal expression. `== Some(":wat::…")` is a call, so that compare is invisible. `pat_kw_lits` walks `Lit`, `Or`, `Paren`, and `Reference`. It does not walk a tuple-struct pattern, so a match arm or `matches!` pattern `Some(":wat::…")` hides the literal. A method compare (`starts_with`, `ends_with`, `contains`, `strip_prefix`, `strip_suffix`, `eq`, `eq_ignore_ascii_case`, `ne`) sees the literal only when an argument is that same bare string expression.
+
+### Gates
+
+`.floor/2026-10-02T21-44-43Z` at `e72efcba4` is red and was not re-run.
+
+```
+Summary [ 403.763s] 6389 tests run: 6388 passed (28 slow), 1 failed, 24 skipped
+```
+
+The arm is `assert!(violations.is_empty(), …)` at `tests/lint/no_inlined_wat_in_tests.rs:267`, test `no_inlined_wat_in_tests::tests_carry_no_inlined_wat`. The block:
+
+```
+        FAIL [   0.118s] ( 162/6389) wat::lint no_inlined_wat_in_tests::tests_carry_no_inlined_wat
+  stdout ───
+
+    running 1 test
+    test no_inlined_wat_in_tests::tests_carry_no_inlined_wat ... FAILED
+
+    failures:
+
+    failures:
+        no_inlined_wat_in_tests::tests_carry_no_inlined_wat
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 374 filtered out; finished in 0.11s
+
+  stderr ───
+
+    thread 'no_inlined_wat_in_tests::tests_carry_no_inlined_wat' (2873779) panicked at /home/john/work/holon/wat-rs/tests/lint/no_inlined_wat_in_tests.rs:267:5:
+
+
+    🔥🔥🔥 INLINED-WAT IN TESTS — 1 file(s) still carry a string literal that wat's own
+    reader parses as a form (surface-agnostic: rust-scheme `(:wat::core::…)` AND faithful
+    Clojure `(wat.core/…)` both count).
+
+    THE FIX — move the wat into a co-located `.wat` fixture and drive it lint-clean via ONE of
+    two idioms. RUBRIC (which to reach for): docs/CONVENTIONS.md § 'Test idioms — EDN-over-stdio
+    vs just-eval'. In short:
+    • just-eval      — `call_beside_value(file!(), ":user::compute")`: run a fixture's named entry
+    fn in-process, inspect its typed Result<Value, RuntimeError>. For a
+    VALUE/TYPE claim (a fn's return; a compile-time/freeze property, which
+    often needs only `startup_beside(file!())`, no call).
+    • EDN-over-stdio — `run-hermetic` runs `:user::main` as a real process; it `println`s its
+    result as EDN and the test `edn::read`s it back (lossless round-trip).
+    For a PROGRAM claim (a crash/exit + reason, stdio effects, IPC fidelity,
+    cross-loci behavior).
+    One-line: 'the PROGRAM does X' -> EDN-over-stdio ; 'this VALUE/TYPE is X' -> just-eval.
+    A legitimately-inline case (e.g. a parser/reader test) earns a per-site
+    `// rune:lint(no-inlined-wat) — <reason>` (the reason must earn it).
+
+    Drive it to ZERO. Literal-hit breakdown so far: 0 format!-driver, 1 faithful-surface,
+    1 other parse-body. Offenders:
+
+    tests/resolve/probe_arc255_83_wat_identities.rs
+```
+
+The two `exists` forms are `:user::consumes-kw` and `:user::consumes-sym` in the fixture. `/tmp/census-25583-lint3.log`: `tests_carry_no_inlined_wat ... ok`, `RC=0`.
+
+The new floor is `.floor/2026-10-02T21-53-18Z` at `fbd326faa`. Launch log `/tmp/census-25583-floor4-launch.log`, `RC=0`.
+
+```
+Summary [ 405.810s] 6389 tests run: 6389 passed (29 slow), 24 skipped
+```
+
+Clippy `cargo clippy --release --offline --all-targets -- -D warnings`. `/tmp/census-25583-clippy3.log` `RC=0`, `Finished release profile [optimized] target(s) in 12.48s`.
+
+Census `.census/2026-10-02T22-01-37Z.txt`: files=2284, `RC=0`, counts `0:2074, 1:208, 101:2`. Against `.census/2026-10-02T21-01-01Z.txt` the six new files are rc 0: `probe_arc255_83_diff_expect_kw.wat`, `probe_arc255_83_diff_expect_sym.wat`, `probe_arc255_83_qq_preds.wat`, `probe_arc255_83_qq_pure_kw.wat`, `probe_arc255_83_qq_pure_sym.wat`, `probe_arc255_83_wat_identities.wat`. `scripts/replay/census.sh --diff` printed `census-diff: no STOP-8` (`/tmp/census-25583-stop8b.txt`, `RC=0`). No rc went from 0 to nonzero.
+
+STOP-1, STOP-2, STOP-3, and STOP-4 do not fire. A dotted keyword matching the same identity is the amendment. The census shows no keyword program changing rc.
