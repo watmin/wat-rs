@@ -525,10 +525,7 @@ fn rete_fn_body_mints(form: &WatAST, sym: &SymbolTable) -> bool {
 /// Walk a fn body for a CONSTRUCTOR form carrying a computed argument.
 fn body_constructs_computed(ast: &WatAST) -> bool {
     if let WatAST::List(items, _) = ast {
-        if let Some(head) = items.first().and_then(|h| match h {
-            WatAST::Keyword(k, _) => Some(k.as_str()),
-            _ => None,
-        }) {
+        if let Some(head) = items.first().and_then(crate::form_match::spelling_key) {
             // CONSTRUCTOR POSITIONS. A user type or user fn (`:my::N`, `:my::mk`) is one — but so
             // are the two DESUGARED heads, and missing them silently disarmed this whole check:
             // `(:my::N :k <expr>)` is kwargs SUGAR, and by the time it is a stored fn body the

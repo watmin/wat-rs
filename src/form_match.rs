@@ -260,6 +260,21 @@ pub(crate) fn canonical_identity_of(ast: &WatAST) -> Option<String> {
     identity_text(ast).map(crate::edn::render::canonical_identity)
 }
 
+/// Decision key for a name node. The keyword payload is returned unchanged —
+/// `canonical_identity` would rewrite a dotted keyword, and that is a keyword-side
+/// change. A reference symbol goes through `canonical_identity`, so `wat.core/if`
+/// and `:wat::core::if` are one key. A bare symbol is not a second spelling of a
+/// keyword; this returns `None` for it.
+pub(crate) fn spelling_key(ast: &WatAST) -> Option<String> {
+    match ast {
+        WatAST::Keyword(k, _) => Some(k.clone()),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            Some(crate::edn::render::canonical_identity(id.as_str()))
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

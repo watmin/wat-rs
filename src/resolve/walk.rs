@@ -339,8 +339,9 @@ fn slash_spelling_remedy(
     if stem.is_empty() || tail.is_empty() {
         return None;
     }
-    // rune:lint(one-variant-separator, namespace) — dotted namespace `wat.core.Option` becomes the `::` key the door stores; the member stays behind `/`. Not an enum/variant split.
-    let door_key = format!(":{}/{}", stem.replace('.', "::"), tail);
+    // Namespace join is `ns_to_wat_path`; the member join the door stores is the other spelling (`/`).
+    let namespaced = crate::edn::render::ns_to_wat_path(stem, tail);
+    let door_key = crate::types::other_join_spelling(&namespaced).unwrap_or(namespaced);
     if is_resolvable_call_head(&door_key, sym, macros) {
         Some(format!("{stem}/{tail}"))
     } else {

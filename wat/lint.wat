@@ -123,7 +123,7 @@
         false
         (:wat::core::let [head (:wat::core::first ch)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
+            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::if")
             false))))
     false))
 
@@ -320,7 +320,7 @@
       (:wat::core::if (:wat::i64::>= (:wat::core::length children) 1)
         (:wat::core::let [head (:wat::core::first children)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::let [n (:wat::core::ast-name head)]
+            (:wat::core::let [n (:wat::core::canonical-identity (:wat::core::ast-name head))]
               (:wat::core::= n ":wat::string::concat"))
             false))
         false))
@@ -337,7 +337,7 @@
         false
         (:wat::core::let [head (:wat::core::first ch)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::= (:wat::core::ast-name head) ":wat::core::defmacro")
+            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::defmacro")
             false))))
     false))
 

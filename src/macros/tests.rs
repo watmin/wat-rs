@@ -1766,3 +1766,57 @@ fn register_stdlib_duplicate_divergent_body_returns_duplicate_macro_error() {
         err
     );
 }
+
+/// 255.83 amend — every whole-body quasiquote template already in the tree
+/// has pure escapes. A hit is a macro the new definition-time check refuses.
+#[test]
+fn whole_body_templates_in_the_corpus_are_pure() {
+    let output = std::process::Command::new("git")
+        .args(["ls-files", "-z"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("git ls-files");
+    assert!(output.status.success(), "git ls-files failed");
+    let listing = String::from_utf8(output.stdout).expect("utf8");
+    let mut hits = Vec::new();
+    for path in listing.split('\0') {
+        if path.is_empty() || !(path.ends_with(".wat") || path.ends_with(".wat.bad")) {
+            continue;
+        }
+        let src = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let forms = match crate::parse_all_with_file(&src, path) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        for form in &forms {
+            note_template_refusals(form, path, &mut hits);
+        }
+    }
+    // The one hit is the arc 249 fixture written to prove an impure computed unquote
+    // is refused. Anything else is a macro that ran impure code at expand time (STOP-4).
+    assert_eq!(
+        hits,
+        vec![
+            "tests/macros/probe_arc249_macro_engine_impure.wat.bad:1: quasiquote template purity check failed at definition of :my::impure-cu: keyword head `:wat::kernel::stopped?` refused at macro expand time — not on the pure-combinator allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total heads are permitted"
+                .to_string()
+        ]
+    );
+}
+
+fn note_template_refusals(node: &WatAST, path: &str, hits: &mut Vec<String>) {
+    if super::parse::is_defmacro_form(node) {
+        if let Err(err) = super::parse::parse_defmacro_form(node.clone()) {
+            if let MacroErrorKind::MalformedDefmacro { reason } = &err.kind {
+                if reason.contains("quasiquote template purity check failed") {
+                    hits.push(format!("{path}:{}: {reason}", err.span.line));
+                }
+            }
+        }
+    }
+    for child in node.children().iter() {
+        note_template_refusals(child, path, hits);
+    }
+}

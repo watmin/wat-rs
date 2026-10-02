@@ -1,0 +1,1 @@
+(:wat::core::defn :user::p [] -> :fn(wat.type/i64) 1)

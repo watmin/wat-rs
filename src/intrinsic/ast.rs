@@ -260,6 +260,34 @@ pub(crate) fn eval_ast_name_home(
     crate::edn::render::eval_ast_name(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
 }
 
+/// `(:wat::core::canonical-identity s)` → `:wat::type::String`. The one identity of a
+/// name, whatever spelling wrote it. `:wat::core::if` is unchanged. `wat.core/if`
+/// becomes `:wat::core::if`.
+///
+/// **Expand-time ground —** pure function of a string. Safe inside a macro body.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     ast :wat::type::String the keyword text or the symbol spelling
+/// @ret     :wat::type::String that name's canonical identity
+/// @example (:wat::core::canonical-identity "wat.core/if") #=> ":wat::core::if"
+/// @example (:wat::core::canonical-identity ":wat::core::if") #=> ":wat::core::if"
+/// @see     :wat::core::ast-name
+#[wat_intrinsic(":wat::core::canonical-identity")]
+pub(crate) fn eval_canonical_identity_home(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_canonical_identity(std::slice::from_ref(ast), span, env, sym)
+        .map_err(Into::into)
+}
+
 /// `(:wat::core::ast-span ast)` → `(:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])`.
 /// Source START location of any node (Stone 251.5 / Slice 4.2a), `{:line N :col N}`. `:file` is
 /// intentionally excluded — the single-file codemod consumer holds its own path and threads it

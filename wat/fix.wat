@@ -649,9 +649,10 @@
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
         false
-        (:wat::core::let [head (:wat::core::first ch)]
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-            (:wat::core::= (:wat::core::ast-name head) ":wat::core::defmacro")
+        (:wat::core::let [head (:wat::core::first ch)
+                          k (:wat::core::ast-kind head)]
+          (:wat::core::if (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "symbol"))
+            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::defmacro")
             false))))
     false))
 

@@ -182,20 +182,20 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
 fn lower_call(items: &[WatAST]) -> Result<HolonAST, LowerError> {
     // arc 138: no span — empty list has no head element; no AST node to read span from
     let head = items.first().ok_or(LowerError { span: crate::rust_caller_span!(), kind: LowerErrorKind::MalformedCall })?;
+    // Keyword payload is already the identity. A reference symbol goes through
+    // the door. Both arms return that String, so the match is one name.
     let head_name = match head {
-        // Pattern D — head keyword span
-        WatAST::Keyword(k, head_span) => {
-            let _ = head_span; // span available below via head.span()
-            k.as_str()
+        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::canonical_identity(id.as_str())
         }
-        // Pattern B — non-keyword head's span
         _ => return Err(LowerError { span: head.span().clone(), kind: LowerErrorKind::MalformedCall }),
     };
     let args = &items[1..];
     // Pattern D — head keyword span for all dispatch arms
     let head_span = head.span().clone();
 
-    match head_name {
+    match head_name.as_str() {
         ":wat::holon::Atom" => lower_atom(args, head_span),
         ":wat::holon::Bind" => lower_bind(args, head_span),
         ":wat::holon::Bundle" => lower_bundle(args, head_span),
@@ -363,6 +363,16 @@ mod tests {
         let ast = crate::parse_one!("(:wat::holon::Atom 42)").unwrap();
         let holon = lower(&ast).unwrap();
         assert_eq!(holon.as_i64(), Some(42));
+    }
+
+    /// 255.83 — `lower_call` reads the identity door. The keyword Atom still
+    /// lowers to the same leaf. The reference symbol is that same call.
+    #[test]
+    fn spelling_25583_atom_lowers_in_either_spelling() {
+        let kw = crate::parse_one!("(:wat::holon::Atom 7)").unwrap();
+        let sym = crate::parse_one!("(wat.holon/Atom 7)").unwrap();
+        assert_eq!(lower(&kw).unwrap().as_i64(), Some(7));
+        assert_eq!(lower(&sym).unwrap().as_i64(), Some(7));
     }
 
     #[test]

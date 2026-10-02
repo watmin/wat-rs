@@ -1,0 +1,1 @@
+(:wat::core::defn :user::p [] -> wat.type/i64 (:wat::core::lambda [] 1))

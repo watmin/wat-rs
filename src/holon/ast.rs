@@ -918,8 +918,8 @@ pub(crate) fn try_recognize_holon_value(form: &WatAST) -> bool {
             if items.is_empty() {
                 return false;
             }
-            match &items[0] {
-                WatAST::Keyword(k, _) => match k.as_str() {
+            match crate::form_match::spelling_key(&items[0]).as_deref() {
+                Some(k) => match k {
                     ":wat::holon::Atom" if items.len() == 2 => {
                         // Arc 225 Stone 225.1 — `Atom` is now the NARROW constructor:
                         // accepts only a HolonAST value and wraps it as HolonAST::Atom(inner).
@@ -1030,8 +1030,8 @@ pub(crate) fn is_holon_arg_canonical(form: &WatAST) -> bool {
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         | WatAST::Keyword(_, _) => true,
-        WatAST::List(items, _) => match items.first() {
-            Some(WatAST::Keyword(k, _)) => match k.as_str() {
+        WatAST::List(items, _) => match items.first().and_then(crate::form_match::spelling_key) {
+            Some(k) => match k.as_str() {
                 // Arc 225 Stone 225.1 — `to-holon` added (always returns HolonAST).
                 ":wat::holon::Atom"
                 | ":wat::holon::to-holon"
@@ -1072,19 +1072,8 @@ pub(crate) fn is_holon_arg_canonical(form: &WatAST) -> bool {
                 }
                 _ => false,
             },
-            // Stone 255.81 K1 — a symbol-spelled type head (`wat.type/Vector`),
-            // pre-normalization, reaches here when a raw-AST consumer bypasses the
-            // checker (255.80's SCORE: "the K1 door-bypass class" — a Symbol-headed
-            // `wat.type/Vector` never reached this `WatAST::Keyword`-only match).
-            // Route the Symbol through the same keyword-FQDN + `constructor_head_key`
-            // door as the Keyword arm above, so it is recognized identically.
-            Some(sym @ WatAST::Symbol(_, _)) => match crate::types::head_keyword_fqdn(sym) {
-                Some(k) if crate::types::constructor_head_key(&k).as_ref() == ":wat::type::Vector" => {
-                    let (peeled, rest) = crate::types::peel_param_spec(&items[1..]);
-                    peeled.is_some() && rest.iter().all(is_holon_arg_canonical)
-                }
-                _ => false,
-            },
+            // A reference symbol (`wat.type/Vector`, `wat.holon/Atom`) is the same key
+            // as the keyword arm: `spelling_key` above. A bare symbol is not.
             _ => false,
         },
         _ => false,

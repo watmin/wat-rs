@@ -966,9 +966,10 @@ pub(crate) fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, Ev
                 )
                 .into());
             }
-            let head_kw = match &items[0] {
-                WatAST::Keyword(k, _) => k.as_str(),
-                other => {
+            let head_kw = match crate::form_match::spelling_key(&items[0]) {
+                Some(k) => k,
+                None => {
+                    let other = &items[0];
                     return Err(RuntimeError::new(
                         other.span().clone(),
                         RuntimeErrorKind::MalformedForm {
@@ -1048,7 +1049,7 @@ pub(crate) fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, Ev
             // Any other head — Parametric. Strip the leading ':' to
             // recover the head spelling used by `TypeExpr::Parametric`
             // (which stores the FQDN sans-colon, e.g. `wat::core::Option`).
-            let head_no_colon = head_kw.strip_prefix(':').unwrap_or(head_kw).to_string();
+            let head_no_colon = head_kw.strip_prefix(':').unwrap_or(head_kw.as_str()).to_string();
             let p_args = resolve_type_slot_args(&items[1..])?;
             Ok(crate::types::TypeExpr::Parametric {
                 head: head_no_colon,

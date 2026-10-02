@@ -943,9 +943,15 @@ pub(crate) fn eval_tail(
         _ => return eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
     };
     let args = &items[1..];
-    match &items[0] {
-        WatAST::Keyword(k, _) => {
-            let mut head = k.as_str();
+    let named_head = match &items[0] {
+        WatAST::Keyword(k, _) => Some(k.clone()),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            Some(crate::edn::render::canonical_identity(id.as_str()))
+        }
+        _ => None,
+    };
+    if let Some(head_owned) = named_head {
+            let mut head = head_owned.as_str();
             // Arc 278 #56 (S5) phase 1b — mirrors `dispatch_keyword_head_value`'s rete gate
             // (below, at the `RETE_PREFIX` check): a rete `Form` in TAIL POSITION must reach the
             // SAME `*_tail` routine its core twin does, or it silently trades TCO for a native
@@ -1097,7 +1103,8 @@ pub(crate) fn eval_tail(
                 }
                 _ => eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
             }
-        }
+    } else {
+        match &items[0] {
         // Bare-symbol head: a fn-valued local binding. `Some`,
         // `Ok`, `Err` are constructor symbols that are NEVER bound in
         // env, so `env.lookup` returns None for them and we delegate
@@ -1129,6 +1136,7 @@ pub(crate) fn eval_tail(
         // Literal head (int/float/bool/string) — not callable; let
         // eval raise the right error.
         _ => eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
+        }
     }
 }
 
@@ -1685,7 +1693,12 @@ pub(crate) fn eval_inner(
             //
             // Arc 233 Stone 233.2.e: nil/None keyword special-cases carry
             // Provenance::Literal{span} (they appear as keyword literals in source).
-            if k == ":wat::type::nil" {
+            let key = if k.starts_with(':') {
+                k.clone()
+            } else {
+                crate::edn::render::canonical_identity(k)
+            };
+            if key == ":wat::type::nil" {
                 return Ok(TrackedValue::new(
                     Value::Nil,
                     Provenance::Literal { span: span.clone() },
@@ -1714,7 +1727,7 @@ pub(crate) fn eval_inner(
             // `value-type "wat::core::Enum"`. Intercepting the exact qualified string
             // here, ahead of the generic lookup, keeps the qualified spelling on the
             // native `Value::Option` representation like its siblings.
-            if k == ":None" || k == ":wat::core::None" {
+            if key == ":None" || key == ":wat::core::None" {
                 return Err(RuntimeError::new(
                     span.clone(),
                     RuntimeErrorKind::MalformedForm {
@@ -1724,7 +1737,7 @@ pub(crate) fn eval_inner(
                 )
                 .into());
             }
-            if k == ":wat::core::Option.None" {
+            if key == ":wat::core::Option.None" {
                 return Ok(TrackedValue::new(
                     Value::Option(Arc::new(None)),
                     Provenance::Literal { span: span.clone() },
@@ -9097,17 +9110,25 @@ pub(crate) fn try_match_pattern(
         // via the built-in `Option` enum registration in `types.rs`). Additive
         // recognition, same move as `:wat::core::nil` (`types.rs:1056`): a third
         // spelling is added beside the existing two; nothing is removed.
-        WatAST::Keyword(k, span) if k == ":None" || k == ":wat::core::None" => {
+        n if {
+            let key = crate::form_match::spelling_key(n).unwrap_or_default();
+            key == ":None" || key == ":wat::core::None"
+        } =>
+        {
+            let head = crate::form_match::spelling_key(n).unwrap_or_default();
             Err(RuntimeError::new(
-                span.clone(),
+                n.span().clone(),
                 RuntimeErrorKind::MalformedForm {
-                    head: k.clone(),
-                    reason: crate::match_arm::bare_variant_retired_reason(k),
+                    head: head.clone(),
+                    reason: crate::match_arm::bare_variant_retired_reason(&head),
                 },
             )
             .into())
         }
-        WatAST::Keyword(k, _) if k == ":wat::core::Option.None" => match value {
+        n if {
+            let key = crate::form_match::spelling_key(n).unwrap_or_default();
+            key == ":wat::core::Option.None"
+        } => match value {
             Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
@@ -9197,10 +9218,8 @@ pub(crate) fn try_match_pattern(
             // the retired shorthand.
             // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Option::Some`
             // is additive alongside the bare FQDN, same move as the `None` guard above.
-            let head_is_some = matches!(
-                head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Option.Some"
-            );
+            let head_key = crate::form_match::spelling_key(head).unwrap_or_default();
+            let head_is_some = head_key == ":wat::core::Option.Some";
             if head_is_some {
                 if items.len() != 2 {
                     return Err(RuntimeError::new(
@@ -9228,10 +9247,8 @@ pub(crate) fn try_match_pattern(
             // the full rationale; identical for "Ok"/"Err").
             // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Result::Ok`
             // is additive alongside the bare FQDN.
-            let head_is_ok = matches!(
-                head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Result.Ok"
-            );
+            let head_key = crate::form_match::spelling_key(head).unwrap_or_default();
+            let head_is_ok = head_key == ":wat::core::Result.Ok";
             if head_is_ok {
                 if items.len() != 2 {
                     return Err(RuntimeError::new(
@@ -9256,10 +9273,8 @@ pub(crate) fn try_match_pattern(
             }
             // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Result::Err`
             // is additive alongside the bare FQDN.
-            let head_is_err = matches!(
-                head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Result.Err"
-            );
+            let head_key = crate::form_match::spelling_key(head).unwrap_or_default();
+            let head_is_err = head_key == ":wat::core::Result.Err";
             if head_is_err {
                 if items.len() != 2 {
                     return Err(RuntimeError::new(
@@ -13312,6 +13327,9 @@ fn step_list(
     };
     let head_kw = match head {
         WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Symbol(ident, sym_span) if ident.is_reference() => {
+            crate::edn::render::canonical_identity(ident.as_str())
+        }
         WatAST::Symbol(ident, sym_span) => {
             // Bare-symbol heads (inline fn call sites, let-bound
             // function values) need a higher-order step rule that
@@ -13970,7 +13988,7 @@ fn is_match_canonical(form: &WatAST) -> bool {
         WatAST::List(items, _) => {
             // One arm since the bare-symbol arm's removal (below): only the canonical
             // FQDN keyword head names a matchable constructor form.
-            if let Some(WatAST::Keyword(k, _)) = items.first() {
+            if let Some(k) = items.first().and_then(crate::form_match::spelling_key) {
                 // THE THIRD DOOR of the bare-symbol shorthand, closed 2026-08-30.
                 //
                 // A `Some(WatAST::Symbol(..))` arm used to bless a bare-symbol constructor form
@@ -14401,7 +14419,10 @@ pub(crate) fn resolve_verify_payload(
     sym: &SymbolTable,
 ) -> Result<String, EvalBreak> {
     let iface = match iface_ast {
-        WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::canonical_identity(id.as_str())
+        }
         other => {
             return Err(RuntimeError::new(
                 iface_ast.span().clone(),
@@ -14416,7 +14437,7 @@ pub(crate) fn resolve_verify_payload(
             .into());
         }
     };
-    match iface {
+    match iface.as_str() {
         ":wat::verify::string" => match eval_inner(locator_ast, env, sym)?.value_owned() {
             Value::String(s) => Ok((*s).clone()),
             other => Err(RuntimeError::new(locator_ast.span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -14472,7 +14493,10 @@ pub(crate) fn parse_verify_algo_keyword(
     form: &str,
 ) -> Result<String, EvalBreak> {
     let kw = match ast {
-        WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::canonical_identity(id.as_str())
+        }
         other => {
             return Err(RuntimeError::new(
                 ast.span().clone(),
@@ -19741,6 +19765,80 @@ mod tests {
     fn step_lit_bool_is_terminal() {
         let s = step_to_show("(:wat::eval-step! (:wat::core::quote true))");
         assert_eq!(s, "(:wat::eval::StepResult.AlreadyTerminal <WatAST>)");
+    }
+
+    /// 255.83 — `step_list` steps a reference-symbol `if` the way it steps the
+    /// keyword. A true condition reduces to the then-branch literal.
+    #[test]
+    fn spelling_25583_step_if_agrees_on_both_spellings() {
+        let env = Environment::new();
+        let sym = SymbolTable::new();
+        let kw = crate::parse_one!("(:wat::core::if true 1 2)").unwrap();
+        let sym_form = crate::parse_one!("(wat.core/if true 1 2)").unwrap();
+        let next = |form: &WatAST| match step_form(form, &env, &sym).unwrap() {
+            StepValue::Next(WatAST::IntLit(n, _)) => n,
+            other => panic!("expected the then-branch literal, got {other:?}"),
+        };
+        assert_eq!(next(&kw), 1);
+        assert_eq!(next(&sym_form), 1);
+    }
+
+    fn verify_reason(err: EvalBreak) -> String {
+        match err {
+            EvalBreak::Diagnostic(e) => match e.kind() {
+                RuntimeErrorKind::MalformedForm { reason, .. } => format!("malformed:{reason}"),
+                RuntimeErrorKind::NoSourceLoader { op } => format!("no-loader:{op}"),
+                other => panic!("unexpected runtime error {other:?}"),
+            },
+            other => panic!("unexpected break {other:?}"),
+        }
+    }
+
+    /// 255.83 — the runtime twins of the load parsers. Keyword algo text is
+    /// unchanged. A reference symbol extracts the same algo. A bare symbol is
+    /// still "got symbol". File-path with no loader is the same refusal.
+    #[test]
+    fn spelling_25583_verify_runtime_agrees_on_both_spellings() {
+        let kw = crate::parse_one!(":wat::verify::digest-sha256").unwrap();
+        let sym = crate::parse_one!("wat.verify/digest-sha256").unwrap();
+        let bare = crate::parse_one!("sha256").unwrap();
+        assert_eq!(
+            parse_verify_algo_keyword(&kw, "digest-", "form").unwrap(),
+            "sha256"
+        );
+        assert_eq!(
+            parse_verify_algo_keyword(&sym, "digest-", "form").unwrap(),
+            "sha256"
+        );
+        assert_eq!(
+            verify_reason(parse_verify_algo_keyword(&bare, "digest-", "form").unwrap_err()),
+            "malformed:verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got symbol"
+        );
+
+        let env = Environment::new();
+        let table = SymbolTable::new();
+        let loc = crate::parse_one!(r#""deadbeef""#).unwrap();
+        let iface_kw = crate::parse_one!(":wat::verify::string").unwrap();
+        let iface_sym = crate::parse_one!("wat.verify/string").unwrap();
+        assert_eq!(
+            resolve_verify_payload(&iface_kw, &loc, &env, &table).unwrap(),
+            "deadbeef"
+        );
+        assert_eq!(
+            resolve_verify_payload(&iface_sym, &loc, &env, &table).unwrap(),
+            "deadbeef"
+        );
+        let file_kw = crate::parse_one!(":wat::verify::file-path").unwrap();
+        let file_sym = crate::parse_one!("wat.verify/file-path").unwrap();
+        let missing = crate::parse_one!(r#""missing.txt""#).unwrap();
+        assert_eq!(
+            verify_reason(resolve_verify_payload(&file_kw, &missing, &env, &table).unwrap_err()),
+            "no-loader::wat::verify::file-path"
+        );
+        assert_eq!(
+            verify_reason(resolve_verify_payload(&file_sym, &missing, &env, &table).unwrap_err()),
+            "no-loader::wat::verify::file-path"
+        );
     }
 
     #[test]

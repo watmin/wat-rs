@@ -891,7 +891,8 @@ fn walk_free_symbols(
             // the plain-list recursive path would incorrectly treat them as
             // free symbols, causing UnresolvedSymbol failures at extraction
             // time. We walk only the type keyword children for type deps.
-            if let Some((WatAST::Keyword(k, _), rest)) = items.split_first() {
+            if let Some(k) = items.first().and_then(crate::form_match::spelling_key) {
+                let rest = &items[1..];
                 match k.as_str() {
                     ":wat::core::let" => {
                         return walk_let_form(rest, locals, state);
@@ -959,7 +960,7 @@ fn walk_free_symbols(
                 //
                 // This match is EXHAUSTIVE by law: a new `Boundary` variant turns it red until
                 // handled, which is the structural guarantee that the three passes cannot drift.
-                match quote_boundary(k) {
+                match quote_boundary(k.as_str()) {
                     // quote / forms / define / holon::literal — every argument is data.
                     // Nothing inside is a reference; collecting deps from it is meaningless and
                     // demanding that it resolve is the bug.
@@ -2619,7 +2620,10 @@ fn split_body_prelude(body: WatAST) -> (Vec<WatAST>, WatAST) {
     let (do_children, span) = match &body {
         WatAST::List(items, span) => {
             match items.first() {
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::do" => {
+                Some(h) if {
+                    let key = crate::form_match::spelling_key(h).unwrap_or_default();
+                    key == ":wat::core::do"
+                } => {
                     // Children are items[1..] (skip the `:wat::core::do` head).
                     (items[1..].to_vec(), span.clone())
                 }
@@ -2720,7 +2724,7 @@ fn rewrite_with_scope(
 
         WatAST::List(items, span) => {
             // Recognize binding-introducing forms; preserve scope rules.
-            if let Some((WatAST::Keyword(k, _), _)) = items.split_first() {
+            if let Some(k) = items.first().and_then(crate::form_match::spelling_key) {
                 if k == ":wat::core::let" {
                     return rewrite_let(items, by_name, locals, span.clone());
                 }

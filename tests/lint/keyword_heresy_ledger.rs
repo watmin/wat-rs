@@ -759,89 +759,84 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 139; // 255.83 STOP-1: 146 → 139. Gone entirely: `is_unquote_escape` Ax2, `is_where_form` Ax1, `validate_quasiquote_template` Ax3, `validate_pure_total` Ax1 — each decision is `canonical_identity_of`. `is_quasiquote_form` stays Ax1: it is a router, and teaching it the symbol spelling skips `validate_macro_definition`. 255.82: 147 → 146 — `is_resolvable_call_head` was Ax1 and is now 0. A bare symbol head reaches that door through `canonical_identity`, so the parameter is no longer a raw symbol spelling beside the keyword callers. 255.81: 149 → 147 — parse.rs `is_watast` and `parse_defmacro_form` no longer compare a keyword literal; the AST-key decision is `denoted_type_path` plus `retired_hard_primitive_tail`. 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
+const LEDGER_TOTAL: usize = 64; // 255.83 amend (measured ab1): 114 → 64. The A/B rows are gone; what remains is shape E. check_subpattern 19 [Ax7+Ex12] → 12 [Ex12], infer_match 3 [Ax2+Ex1] → 1 [Ex1], infer_polymorphic_time_arith 5 [Ax1+Ex4] → 4 [Ex4]. Gone entirely: check_compound_against_expected, check_legacy_user_main_signature, collect_process_calls, collect_process_stdin_and_joins, collect_splice_defs_ctx, extract_def_binding, extract_redef_setter, infer_defclause, infer_list, infer_node, is_fn_def_form, is_fn_form_expr, is_primitive_type_keyword_in_value_position, preregister_defclause_in_env, validate_def_position_with_wrapper, rewrite_with_scope, split_body_prelude, walk_free_symbols, parse_type_slot, is_holon_arg_canonical, try_recognize_holon_value, builtin_variant, body_constructs_computed, walk_rete_defn_callees, eval_inner, eval_tail, is_match_canonical, try_match_pattern, splice_target. Each decision is spelling_key (keyword text unchanged, reference symbol through canonical_identity) or, for an &str param, canonical_identity only when the string is not already a keyword. 255.83 amend (measured qq7): 119 → 114. Gone entirely: `parse_payload_interface` Ax1, `parse_verify_algo` Ax1, `lower_call` Ax1, `parse_verify_algo_keyword` Ax1, `resolve_verify_payload` Ax1. Each match returns the keyword payload or `canonical_identity` of a reference symbol, as one String. 255.83 amend (measured qq4): 138 → 119. Gone entirely: `walk_for_bare_primitives` Ax5, `source_has_config_setter` Ax2, `classify_expr` Ax3, `effectful_by_prefix` Ax8, `step_list` Ax1. Each remaining decision is `canonical_identity` / `canonical_identity_of` (the prefix table's `&str` is Door because its callers hand it a canonical identity). 255.83 amend: 139 → 138. `is_quasiquote_form` Ax1 → 0; the router reads `canonical_identity_of`, and the template route checks its own escapes. 255.83 STOP-1: 146 → 139. Gone entirely: `is_unquote_escape` Ax2, `is_where_form` Ax1, `validate_quasiquote_template` Ax3, `validate_pure_total` Ax1 — each decision is `canonical_identity_of`. `is_quasiquote_form` stays Ax1: it is a router, and teaching it the symbol spelling skips `validate_macro_definition`. 255.82: 147 → 146 — `is_resolvable_call_head` was Ax1 and is now 0. A bare symbol head reaches that door through `canonical_identity`, so the parameter is no longer a raw symbol spelling beside the keyword callers. 255.81: 149 → 147 — parse.rs `is_watast` and `parse_defmacro_form` no longer compare a keyword literal; the AST-key decision is `denoted_type_path` plus `retired_hard_primitive_tail`. 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
-    ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
-    ("src/check.rs", "check_legacy_user_main_signature", 1, "Ax1"),
+    // 255.83 amend — `check_compound_against_expected` Ax1 → 0, `check_legacy_user_main_signature` Ax1 → 0.
     ("src/check.rs", "check_nested_variant_map", 4, "Ex4"),
-    ("src/check.rs", "check_subpattern", 19, "Ax7+Ex12"),
-    ("src/check.rs", "collect_process_calls", 1, "Ax1"),
-    ("src/check.rs", "collect_process_stdin_and_joins", 1, "Ax1"),
-    ("src/check.rs", "collect_splice_defs_ctx", 1, "Ax1"),
+    ("src/check.rs", "check_subpattern", 12, "Ex12"),
+    // 255.83 amend — collect_process_calls, collect_process_stdin_and_joins, collect_splice_defs_ctx Ax1 → 0.
     ("src/check.rs", "derived_nature", 1, "Ex1"),
-    ("src/check.rs", "extract_def_binding", 1, "Ax1"),
-    ("src/check.rs", "extract_redef_setter", 1, "Ax1"),
+    // 255.83 amend — extract_def_binding, extract_redef_setter Ax1 → 0.
     ("src/check.rs", "infer_accept_prime", 1, "Ex1"),
     ("src/check.rs", "infer_allow_prime", 1, "Ex1"),
 
     ("src/check.rs", "infer_config_set_bool", 1, "Ex1"),
-    ("src/check.rs", "infer_defclause", 1, "Ax1"),
+    // 255.83 amend — infer_defclause Ax1 → 0.
     ("src/check.rs", "infer_deny_prime", 1, "Ex1"),
-    ("src/check.rs", "infer_list", 2, "Ax2"),
-    ("src/check.rs", "infer_match", 3, "Ax2+Ex1"),
+    // 255.83 amend — infer_list Ax2 → 0.
+    ("src/check.rs", "infer_match", 1, "Ex1"),
     // STONE 255.68 — `infer` split into a thin recording wrapper + `infer_node` (the old
     // dispatch body, unrenamed contents): the wrapper calls `type_record::note` when
     // `WAT_CHECK_TYPES=1` recording is on, then delegates. Every recursive call site still goes
     // through the wrapper (`infer`), so these 2 pre-existing sites (`:wat::core::Option.None`,
     // `:wat::core::nil` — unrelated to type_record) now live under the renamed dispatch fn.
     // Total unchanged: 148.
-    ("src/check.rs", "infer_node", 2, "Ax2"),
+    // 255.83 amend — infer_node Ax2 → 0.
     ("src/check.rs", "infer_nth", 1, "Ex1"),
     ("src/check.rs", "infer_option_try", 1, "Ex1"),
 
-    ("src/check.rs", "infer_polymorphic_time_arith", 5, "Ax1+Ex4"),
+    ("src/check.rs", "infer_polymorphic_time_arith", 4, "Ex4"),
     ("src/check.rs", "infer_positional_accessor", 1, "Ex1"),
 
     ("src/check.rs", "infer_signal", 1, "Ex1"),
     ("src/check.rs", "infer_thread_prog_type", 1, "Ex1"),
     ("src/check.rs", "infer_try", 1, "Ex1"),
     ("src/check.rs", "is_atomizable", 1, "Ex1"),
-    ("src/check.rs", "is_fn_def_form", 1, "Ax1"),
-    ("src/check.rs", "is_fn_form_expr", 1, "Ax1"),
+    // 255.83 amend — is_fn_def_form, is_fn_form_expr Ax1 → 0.
     ("src/check.rs", "is_holon_or_record", 1, "Ex1"),
     ("src/check.rs", "is_holon_or_vector", 2, "Ex2"),
     ("src/check.rs", "is_must_use_type", 2, "Ex2"),
-    ("src/check.rs", "is_primitive_type_keyword_in_value_position", 1, "Ax1"),
+    // 255.83 amend — is_primitive_type_keyword_in_value_position Ax1 → 0.
     ("src/check.rs", "is_pure_type", 3, "Ex3"),
 
-    ("src/check.rs", "preregister_defclause_in_env", 1, "Ax1"),
+    // 255.83 amend — preregister_defclause_in_env Ax1 → 0.
 
 
     ("src/check.rs", "transport_marker", 1, "Ex1"),
     ("src/check.rs", "unify", 1, "Ex1"),
-    ("src/check.rs", "validate_def_position_with_wrapper", 1, "Ax1"),
-
-    ("src/check.rs", "walk_for_bare_primitives", 5, "Ax5"),
-    ("src/closure_extract.rs", "rewrite_with_scope", 2, "Ax2"),
-    ("src/closure_extract.rs", "split_body_prelude", 1, "Ax1"),
-    ("src/closure_extract.rs", "walk_free_symbols", 1, "Ax1"),
+    // 255.83 amend — validate_def_position_with_wrapper Ax1 → 0.
+    // 255.83 amend — `walk_for_bare_primitives` Ax5 → 0. The keyword payload and the
+    // reference-symbol spelling join into one `(&str, &Span)` whose symbol arm is
+    // `canonical_identity`.
+    // 255.83 amend — rewrite_with_scope Ax2, split_body_prelude Ax1, walk_free_symbols Ax1 → 0.
     ("src/collection/infer.rs", "extract_lazyable_elem", 2, "Ex2"),
     ("src/collection/infer.rs", "infer_contains", 1, "Ex1"),
     ("src/collection/infer.rs", "infer_get", 1, "Ex1"),
     ("src/collection/seq_container.rs", "of_type", 2, "Ex2"),
-    ("src/declare/parse.rs", "parse_type_slot", 1, "Ax1"),
+    // 255.83 amend — parse_type_slot Ax1 → 0.
     ("src/declare/parse.rs", "try_parse_user_variadic_def_fn_form", 1, "Ex1"),
     ("src/edn/render.rs", "rewrap_option_field", 1, "Ex1"),
     ("src/freeze.rs", "is_deftest_fn", 2, "Ex2"),
 
     ("src/function/subsume.rs", "value_matches_type_by_name", 1, "Ex1"),
-    ("src/holon/ast.rs", "is_holon_arg_canonical", 1, "Ax1"),
-    ("src/holon/ast.rs", "try_recognize_holon_value", 1, "Ax1"),
-    ("src/host/test_runner.rs", "source_has_config_setter", 2, "Ax2"),
-    ("src/load/loader.rs", "parse_payload_interface", 1, "Ax1"),
-    ("src/load/loader.rs", "parse_verify_algo", 1, "Ax1"),
-
-    ("src/lower.rs", "lower_call", 1, "Ax1"),
+    // 255.83 amend — is_holon_arg_canonical, try_recognize_holon_value Ax1 → 0.
+    // 255.83 amend — `source_has_config_setter` Ax2 → 0. The first child is
+    // `canonical_identity_of`, so `:wat::test::` and `:wat::config::set-…!` agree
+    // in both spellings.
+    // 255.83 amend — `parse_payload_interface` Ax1 and `parse_verify_algo` Ax1 → 0.
+    // Keyword payload or `canonical_identity` of a reference symbol, one String.
+    // 255.83 amend — `lower_call` Ax1 → 0. Same join. A reference symbol
+    // `wat.holon/Atom` lowers; the keyword payload is unchanged.
     // 255.83 — `validate_pure_total` (Ax1) and `validate_quasiquote_template` (Ax3) → 0.
     // The remaining decision in `validate_pure_total` (the literal-fn exception, and the
     // template walk) reads `canonical_identity_of`. The quote/quasiquote candidate compares
     // were already covered by the 255.10 head_candidates join.
-    ("src/macros/expand.rs", "is_quasiquote_form", 1, "Ax1"),
+    // 255.83 amend — `is_quasiquote_form` (Ax1) → 0. The head is `canonical_identity_of`.
     // 255.81 — `is_watast` (1 [Ex1]) and `parse_defmacro_form` (1 [Ax1]) → 0.
     // The AST-key check is `denoted_type_path` on both sides, plus the retirement
     // table for `:wat::WatAST`. Neither comparison is a raw keyword literal.
-    ("src/match_arm.rs", "builtin_variant", 1, "Ax1"),
+    // 255.83 amend — builtin_variant Ax1 → 0.
     // 255.83 — `is_unquote_escape` (Ax2) and `is_where_form` (Ax1) → 0. Both read
     // `canonical_identity_of`, so a symbol spelling of the same name is the same escape.
     // 255.82 — `is_resolvable_call_head` was 1 [Ax1] → 0. The bare-symbol caller
@@ -856,16 +851,14 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     // symbol-spelled constructor that the lowering then refused one frame lower. Cured with
     // `canonical_identity` on the Symbol arm (Keyword arm borrows, byte-identical), plus the same
     // door on the constructor's type argument.
-    ("src/rete/kernel/stratify.rs", "body_constructs_computed", 3, "Ax3"),
+    // 255.83 amend — body_constructs_computed Ax3 → 0.
     ("src/rete/kernel/stratify.rs", "domain_cardinality", 1, "Ex1"),
-    ("src/rete/purity.rs", "classify_expr", 3, "Ax3"),
-    // ⭐ 251.8d-ii FIFTH: Bx8 → Ax8. The COUNT did not move; the SHAPE did, and it is the
-    // whole point of this row. `classify_expr` now hands `head_ok` a canonical identity, so
-    // the dual-raw provenance is gone from this path; what is left is
-    // `runtime.rs::step_list`, which reads a `WatAST::Keyword` payload ONLY (its Symbol arm
-    // returns `NoStepRule` before the purity test) and reaches here through
-    // `is_effectful_op`. Keyword-only = shape A. 8d-iii or later owns the A→0 cut.
-    ("src/rete/purity.rs", "effectful_by_prefix", 8, "Ax8"),
+    // 255.83 amend — `classify_expr` Ax3 → 0 and `effectful_by_prefix` Ax8 → 0.
+    // The quote/quasiquote/holon-literal guard reads `canonical_identity_of` only.
+    // `effectful_by_prefix` was not edited: its `&str` is Door because every caller
+    // (`classify_expr`, `step_list`) now hands it a canonical identity. 251.8d-ii
+    // FIFTH had left it Ax8 after `classify_expr`'s symbol arm; the keyword arm of
+    // that same function was the remaining raw feed, and it is gone with the guard.
     // `intrinsic_meta` is GONE (was 3 [Bx3]) — arc 251 stone 251.8d-ii FIFTH draw. Its only
     // non-canonical caller was `head_ok`, fed by `classify_expr`'s raw head read; that read
     // now takes `canonical_identity` on its Symbol arm. The calibration row that used to
@@ -888,17 +881,17 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     // are 255.13 §4.3's own find, the accumulator lowering's dual-raw head, cured with
     // `canonical_identity` on the Symbol arm only. ⭐ CRATE-WIDE SHAPE B: 3 → 1 — the last one
     // is `rete/purity.rs::walk_rete_defn_callees`, which now carries the calibration anchor.
-    ("src/rete/purity.rs", "walk_rete_defn_callees", 1, "Bx1"),
+    // 255.83 amend — walk_rete_defn_callees Bx1 → 0. The shape-B anchor moved to the synthetic test.
     ("src/runtime.rs", "conforms_check", 2, "Ex2"),
-    ("src/runtime.rs", "eval_inner", 3, "Ax3"),
-    ("src/runtime.rs", "eval_tail", 1, "Ax1"),
+    // 255.83 amend — eval_inner Ax3, eval_tail Ax1 → 0.
     ("src/runtime.rs", "is_builtin_primitive", 1, "Ex1"),
-    ("src/runtime.rs", "is_match_canonical", 1, "Ax1"),
-    ("src/runtime.rs", "parse_verify_algo_keyword", 1, "Ax1"),
-    ("src/runtime.rs", "resolve_verify_payload", 1, "Ax1"),
-    ("src/runtime.rs", "step_list", 1, "Ax1"),
-    ("src/runtime.rs", "try_match_pattern", 5, "Ax5"),
-    ("src/types/defstruct.rs", "splice_target", 1, "Ax1"),
+    // 255.83 amend — is_match_canonical Ax1 → 0. A bare `Some` stays unmatched; a reference symbol does not.
+    // 255.83 amend — `parse_verify_algo_keyword` Ax1 and `resolve_verify_payload` Ax1 → 0.
+    // The runtime twins of the loader parsers: keyword payload or `canonical_identity`.
+    // 255.83 amend — `step_list` Ax1 → 0. A reference-symbol head is
+    // `canonical_identity` into the same `String` the keyword arm clones; a bare
+    // symbol still returns `NoStepRule { op: symbol-head:… }`.
+    // 255.83 amend — try_match_pattern Ax5, splice_target Ax1 → 0.
 ];
 
 fn manifest() -> PathBuf {
@@ -1054,6 +1047,45 @@ fn the_discriminator_separates_the_cured_from_the_open() {
         ("src/rete/purity.rs", "is_declaration_derived_construction", ":wat::core::kwargs-construct", "251.8d-ii SEVENTH — the declaration-derived door's VERB read through canonical_identity_of"),
         ("src/rete/purity.rs", "is_declaration_derived_construction", ":wat::core::aggregate-new", "251.8d-ii SEVENTH — the positional twin of the row above, same door, same edit"),
         ("src/rete/expr_ir/mod.rs", "lower_list", ":wat::holon::literal", "251.8d-ii SEVENTH — the ONE expression core's head read takes canonical_identity, so every literal below it can only be handed an identity"),
+        ("src/check.rs", "walk_for_bare_primitives", "", "255.83 amend — the keyword payload and a reference symbol join through canonical_identity"),
+        ("src/host/test_runner.rs", "source_has_config_setter", "", "255.83 amend — the setter head is canonical_identity_of"),
+        ("src/rete/purity.rs", "classify_expr", "", "255.83 amend — the quote/quasiquote/holon-literal guard is canonical_identity_of"),
+        ("src/rete/purity.rs", "effectful_by_prefix", "", "255.83 amend — every caller now hands this prefix table a canonical identity, so the &str parameter is Door"),
+        ("src/runtime.rs", "step_list", "", "255.83 amend — a reference-symbol head is canonical_identity into the same String the keyword arm clones"),
+        ("src/lower.rs", "lower_call", "", "255.83 amend — keyword payload or canonical_identity, one String"),
+        ("src/load/loader.rs", "parse_payload_interface", "", "255.83 amend — keyword payload or canonical_identity, one String"),
+        ("src/load/loader.rs", "parse_verify_algo", "", "255.83 amend — keyword payload or canonical_identity, one String"),
+        ("src/runtime.rs", "parse_verify_algo_keyword", "", "255.83 amend — keyword payload or canonical_identity, one String"),
+        ("src/runtime.rs", "resolve_verify_payload", "", "255.83 amend — keyword payload or canonical_identity, one String"),
+        ("src/check.rs", "check_compound_against_expected", "", "255.83 amend — Tuple head is spelling_key"),
+        ("src/check.rs", "check_legacy_user_main_signature", "", "255.83 amend — defn head is spelling_key; the :user::main name stays a keyword compare"),
+        ("src/check.rs", "collect_process_calls", "", "255.83 amend — process head is spelling_key"),
+        ("src/check.rs", "collect_process_stdin_and_joins", "", "255.83 amend — process head is spelling_key"),
+        ("src/check.rs", "collect_splice_defs_ctx", "", "255.83 amend — splice head is spelling_key"),
+        ("src/check.rs", "extract_def_binding", "", "255.83 amend — def head is spelling_key"),
+        ("src/check.rs", "extract_redef_setter", "", "255.83 amend — setter head is spelling_key"),
+        ("src/check.rs", "infer_defclause", "", "255.83 amend — ensure fn head is spelling_key"),
+        ("src/check.rs", "infer_list", "", "255.83 amend — call head is spelling_key"),
+        ("src/check.rs", "infer_node", "", "255.83 amend — Option.None and the nil type keyword are spelling_key"),
+        ("src/check.rs", "is_fn_def_form", "", "255.83 amend — def head is spelling_key"),
+        ("src/check.rs", "is_fn_form_expr", "", "255.83 amend — fn head is spelling_key"),
+        ("src/check.rs", "is_primitive_type_keyword_in_value_position", "", "255.83 amend — a keyword string is kept; a symbol spelling is canonical_identity"),
+        ("src/check.rs", "preregister_defclause_in_env", "", "255.83 amend — defclause head is spelling_key"),
+        ("src/check.rs", "validate_def_position_with_wrapper", "", "255.83 amend — position head is spelling_key"),
+        ("src/closure_extract.rs", "rewrite_with_scope", "", "255.83 amend — let/fn heads are spelling_key"),
+        ("src/closure_extract.rs", "split_body_prelude", "", "255.83 amend — do head is spelling_key"),
+        ("src/closure_extract.rs", "walk_free_symbols", "", "255.83 amend — binder heads are spelling_key"),
+        ("src/declare/parse.rs", "parse_type_slot", "", "255.83 amend — type-slot head is spelling_key"),
+        ("src/holon/ast.rs", "is_holon_arg_canonical", "", "255.83 amend — holon head is spelling_key"),
+        ("src/holon/ast.rs", "try_recognize_holon_value", "", "255.83 amend — holon head is spelling_key"),
+        ("src/match_arm.rs", "builtin_variant", "", "255.83 amend — a keyword string is kept; a symbol spelling is canonical_identity"),
+        ("src/rete/kernel/stratify.rs", "body_constructs_computed", "", "255.83 amend — constructor head is spelling_key"),
+        ("src/rete/purity.rs", "walk_rete_defn_callees", "", "255.83 amend — keyword payload or canonical_identity, one String"),
+        ("src/runtime.rs", "eval_inner", "", "255.83 amend — nil and Option.None compare a keyword string that was not rewritten"),
+        ("src/runtime.rs", "eval_tail", "", "255.83 amend — keyword payload or canonical_identity, then the rete remap"),
+        ("src/runtime.rs", "is_match_canonical", "", "255.83 amend — constructor head is spelling_key; a bare Some is not a reference"),
+        ("src/runtime.rs", "try_match_pattern", "", "255.83 amend — pattern heads are spelling_key"),
+        ("src/types/defstruct.rs", "splice_target", "", "255.83 amend — unquote-splicing head is spelling_key"),
     ];
     let mut wrongly_flagged = Vec::new();
     for (f, n, lit, why) in CURED {
@@ -1093,8 +1125,6 @@ fn the_discriminator_separates_the_cured_from_the_open() {
     // that provenance reaches `intrinsic_meta` and `effectful_by_prefix`, whose tables are
     // keyword-keyed.
     const OPEN: &[(&str, &str, &str)] = &[
-        ("src/rete/purity.rs", "effectful_by_prefix", "the effect-namespace prefix test — still open, but now shape A: its remaining raw feed is runtime.rs::step_list's keyword-only head, not classify_expr"),
-        ("src/rete/purity.rs", "classify_expr", "the quote/quasiquote/holon-literal data guard, keyword-only"),
         ("src/function/subsume.rs", "value_matches_type_by_name", "the Aggregate arm 255.12 §6.4 left raw and declared 'a reading, not a probe'"),
     ];
     let mut missed = Vec::new();
@@ -1122,27 +1152,18 @@ fn the_discriminator_separates_the_cured_from_the_open() {
     // crate: `rete/purity.rs::walk_rete_defn_callees`, the rete-defn cycle detector, whose
     // one-line dual-raw head read the FIFTH draw named and deliberately did not cure (curing it
     // widens what a cycle detector recurses into, unfixtured, in the permissive direction).
-    // ⛔ When THAT one is cured, shape B is zero and this row cannot be re-anchored — at which
-    // point the honest move is a SYNTHETIC anchor in
-    // `the_discriminator_convicts_a_synthetic_heretic_and_clears_its_cure`, which already
-    // constructs one shape-B heretic, and NOT the deletion of this assertion.
-    let (n, mix) = map
-        .get(&(
-            "src/rete/purity.rs".to_string(),
-            "walk_rete_defn_callees".to_string(),
-        ))
-        .expect(
-            "walk_rete_defn_callees must be in the ledger — it is the shape-B calibration anchor",
-        );
-    // rune:lint(loose-assert) — a targeted PRESENCE check over a shape-MIX summary, deliberately
-    // independent of the count. The exact mix ("Bx1") is already pinned byte-for-byte by
-    // FROZEN_LEDGER two tests over; this row asserts only that the CLASS is still detectable.
+    // 255.83 amend cured `walk_rete_defn_callees`, the last live shape-B row. Shape B is now
+    // zero in src/. The instrument's proof that it can still SEE shape B is the synthetic
+    // heretic in `the_discriminator_convicts_a_synthetic_heretic_and_clears_its_cure`.
+    let live_b: Vec<_> = map
+        .iter()
+        .filter(|(_, (_, mix))| mix.contains('B'))
+        .map(|(k, (n, mix))| format!("  {}  fn {}  {n} [{mix}]", k.0, k.1))
+        .collect();
     assert!(
-        mix.contains('B'),
-        "`rete::kernel::arm::compile_acc_fold` is in the ledger as {n} site(s) [{mix}], but NOT as \
-         shape B. Shape B is the claim that a SYMBOL-spelled head reaches a keyword-keyed table — \
-         the exact mechanism of the `wat.core/<` failure. If no row can carry it, the \
-         discriminator has stopped distinguishing the dangerous class from the blind one."
+        live_b.is_empty(),
+        "shape B came back in src/. The synthetic test is the anchor; a live row is a new heresy.\n{}",
+        live_b.join("\n")
     );
 }
 

@@ -1,0 +1,2 @@
+(wat.core/defn user/p [] -> wat.type/nil
+  (wat.core/do (:wat::core::quasiquote (:wat::core::unquote (foozle 1))) nil))

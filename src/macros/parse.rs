@@ -272,12 +272,12 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     let rest_param: Option<String> = spec.rest_param.map(|(ident, _ty)| ident.as_str().to_owned());
 
     // Hoist: definition-time validation runs ONCE here (not per expansion call) — arc 249 stone O.
-    // `validate_macro_definition` checks hygiene (Gate E) and purity. Both are pure predicates
-    // of the immutable body; running once at definition means a bad program-body macro fails
-    // at definition, not silently at first invocation. Only applies to program-body templates
-    // (non-quasiquote bodies); quasiquote bodies use the walk_template path instead.
-    // `is_quasiquote_form` is the single shared head-only discriminant — see expand.rs.
-    if !super::expand::is_quasiquote_form(&body_item) {
+    // A program body gets hygiene (Gate E) and the F5 purity gate. A whole-body quasiquote
+    // template gets the same escape check a nested template gets (`validate_template_escapes`),
+    // not the program-body check. `is_quasiquote_form` is the shared head discriminant.
+    if super::expand::is_quasiquote_form(&body_item) {
+        super::expand::validate_template_escapes(&body_item, &list_span, &name)?;
+    } else {
         super::expand::validate_macro_definition(&body_item, &list_span, &name)?;
     }
 

@@ -316,7 +316,7 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
 /// rule (nested +1, fire-at-depth-1, peel-deeper) is one contract that must
 /// change in all three in sync; a unifying visitor would obscure three readable
 /// single-purpose walkers.
-fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroError> {
+pub(super) fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroError> {
     match form {
         WatAST::List(items, _) => {
             // The head is a name. Keyword text and the symbol spelling are one escape.

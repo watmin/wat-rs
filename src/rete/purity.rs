@@ -1267,7 +1267,7 @@ fn classify_expr(
 
         // quote / quasiquote / holon-literal sub-forms are DATA — do not recurse into them as calls.
         // Arc 294.b: `:wat::holon::literal` is pure (it captures data, no side-effects).
-        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quote" || k == ":wat::core::quasiquote" || k == ":wat::holon::literal") => {
+        WatAST::List(items, _) if items.first().and_then(crate::form_match::canonical_identity_of).is_some_and(|k| k == ":wat::core::quote" || k == ":wat::core::quasiquote" || k == ":wat::holon::literal") => {
             Ok(())
         }
 
@@ -1771,6 +1771,39 @@ mod purity_head_identity_tests {
         assert_eq!(by_symbol.as_deref(), Some(":wat::core::<"));
     }
 
+    /// 255.83 — `classify_expr` treats quote, quasiquote, and holon-literal as
+    /// data in either spelling. The same `println` outside the quote is refused,
+    /// and both spellings name the same head.
+    #[test]
+    fn spelling_25583_quote_is_data_in_either_spelling() {
+        let table = SymbolTable::new();
+        let impure = call(kw(":wat::kernel::println"));
+        let kw_bad = find_axis_violation(&impure, Axis::Pure, &table);
+        let sym_bad = find_axis_violation(&call(sym_node("wat.kernel/println")), Axis::Pure, &table);
+        assert_eq!(
+            kw_bad.as_ref().map(|v| v.head.as_str()),
+            Some(":wat::kernel::println")
+        );
+        assert_eq!(
+            sym_bad.as_ref().map(|v| v.head.as_str()),
+            Some(":wat::kernel::println")
+        );
+        for head in [
+            kw(":wat::core::quote"),
+            sym_node("wat.core/quote"),
+            kw(":wat::core::quasiquote"),
+            sym_node("wat.core/quasiquote"),
+            kw(":wat::holon::literal"),
+            sym_node("wat.holon/literal"),
+        ] {
+            let quoted = WatAST::List(vec![head, impure.clone()], span());
+            assert!(
+                find_axis_violation(&quoted, Axis::Pure, &table).is_none(),
+                "a quoted println is data"
+            );
+        }
+    }
+
     /// A head that is neither Keyword nor Symbol is still refused by name — the arm the door
     /// sits beside, unchanged.
     #[test]
@@ -2061,15 +2094,17 @@ fn walk_rete_defn_callees(
     match ast {
         WatAST::List(items, list_span) => {
             let head = match items.first() {
-                Some(WatAST::Keyword(k, _)) => Some(k.as_str()),
-                Some(WatAST::Symbol(id, _)) => Some(id.as_str()),
+                Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+                Some(WatAST::Symbol(id, _)) => {
+                    Some(crate::edn::render::canonical_identity(id.as_str()))
+                }
                 _ => None,
             };
             if let Some(head) = head {
-                if matches!(head, ":wat::core::quote" | ":wat::core::quasiquote" | ":wat::holon::literal") {
+                if matches!(head.as_str(), ":wat::core::quote" | ":wat::core::quasiquote" | ":wat::holon::literal") {
                     return None;
                 }
-                let core = crate::rete::vocabulary::resolve_core_name(head);
+                let core = crate::rete::vocabulary::resolve_core_name(head.as_str());
                 if core == ":wat::core::fn" {
                     if let Some(i) = items
                         .iter()
@@ -2100,19 +2135,19 @@ fn walk_rete_defn_callees(
                     }
                     return None;
                 }
-                if let Some(func) = sym.get(head) {
+                if let Some(func) = sym.get(head.as_str()) {
                     if let FunctionBody::Wat(callee_body) = &func.body {
-                        if gray.contains(head) {
+                        if gray.contains(head.as_str()) {
                             return Some((head.to_string(), list_span.clone()));
                         }
-                        if !black.contains(head) {
+                        if !black.contains(head.as_str()) {
                             gray.insert(head.to_string());
                             if let Some(hit) =
                                 walk_rete_defn_callees(callee_body.as_ref(), gray, black, sym)
                             {
                                 return Some(hit);
                             }
-                            gray.remove(head);
+                            gray.remove(head.as_str());
                             black.insert(head.to_string());
                         }
                     }

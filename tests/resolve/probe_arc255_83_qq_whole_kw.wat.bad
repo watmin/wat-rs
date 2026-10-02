@@ -1,0 +1,3 @@
+(:wat::core::defmacro user/m [] -> wat.type/AST
+  (:wat::core::quasiquote (:wat::core::unquote (:wat::kernel::println "x"))))
+(wat.core/defn user/p [] -> wat.type/i64 1)

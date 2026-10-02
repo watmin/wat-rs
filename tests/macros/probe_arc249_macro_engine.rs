@@ -49,9 +49,12 @@ fn mint_impure_computed_unquote_rejected() {
     // bare keyword defmacro's own parser requires for a macro's return type (a macro always
     // expands to a form) — which is also what the working fixtures in this directory use
     // (`probe_arc249_macro_engine_regression.wat`). The gate now fires for real.
+    // 255.83 — the whole-body template checks its escapes at definition. The refusal
+    // is MalformedDefmacro wrapping the same F5 reason, not a RefusedInMacro raised
+    // later when the call site expands.
     wat::assert_startup_error!(result,
-        StartupError::Macro(MacroError { kind: MacroErrorKind::RefusedInMacro { head }, .. })
-            if head == ":wat::kernel::stopped?"
+        StartupError::Macro(MacroError { kind: MacroErrorKind::MalformedDefmacro { reason }, .. })
+            if reason == "quasiquote template purity check failed at definition of :my::impure-cu: keyword head `:wat::kernel::stopped?` refused at macro expand time — not on the pure-combinator allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total heads are permitted"
     );
 }
 

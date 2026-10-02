@@ -187,7 +187,12 @@ pub enum BuiltinVariant {
 }
 
 pub fn builtin_variant(path: &str) -> Option<BuiltinVariant> {
-    match path {
+    let owned = if path.starts_with(':') {
+        path.to_string()
+    } else {
+        crate::edn::render::canonical_identity(path)
+    };
+    match owned.as_str() {
         ":wat::core::Option.Some" => Some(BuiltinVariant::OptionSome),
         ":wat::core::Option.None" => Some(BuiltinVariant::OptionNone),
         ":wat::core::Result.Ok" => Some(BuiltinVariant::ResultOk),

@@ -564,7 +564,7 @@ fn source_has_config_setter(src: &str) -> bool {
     };
     forms.iter().any(|form| {
         if let crate::ast::WatAST::List(items, _) = form {
-            if let Some(crate::ast::WatAST::Keyword(k, _)) = items.first() {
+            if let Some(k) = items.first().and_then(crate::form_match::canonical_identity_of) {
                 return (k.starts_with(":wat::config::set-") && k.ends_with('!'))
                     || k.starts_with(":wat::test::");
             }
@@ -1220,5 +1220,22 @@ mod arc116_diagnostic_tests {
             "  failure: assert-eq failed\n    at:       test.wat:42:13\n    actual:   1\n    expected: 2",
             "text render output mismatch"
         );
+    }
+
+    /// 255.83 — an entry file is a top-level config setter or a `:wat::test::`
+    /// form. The keyword text is unchanged. A reference symbol of the same
+    /// name is an entry too. A plain defn is still a library.
+    #[test]
+    fn spelling_25583_config_setter_agrees_on_both_spellings() {
+        assert!(source_has_config_setter("(:wat::config::set-redef! true)\n"));
+        assert!(source_has_config_setter("(wat.config/set-redef! true)\n"));
+        assert!(source_has_config_setter("(:wat::test::probe 1)\n"));
+        assert!(source_has_config_setter("(wat.test/probe 1)\n"));
+        assert!(!source_has_config_setter(
+            "(:wat::core::defn :user::p [] -> :wat::type::i64 1)\n"
+        ));
+        assert!(!source_has_config_setter(
+            "(wat.core/defn user/p [] -> wat.type/i64 1)\n"
+        ));
     }
 }

@@ -335,14 +335,8 @@ fn splice_target(item: &WatAST) -> Option<String> {
     }
     // `~@` reads as `:wat::core::unquote-splicing`. A converted target is the
     // symbol `wat.service/InvocationCore`; the keyword spelling is the same name.
-    let head_ok = match &items[0] {
-        WatAST::Keyword(k, _) => k == ":wat::core::unquote-splicing",
-        WatAST::Symbol(id, _) if id.is_reference() => {
-            crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
-                == ":wat::core::unquote-splicing"
-        }
-        _ => false,
-    };
+    let head_key = crate::form_match::spelling_key(&items[0]).unwrap_or_default();
+    let head_ok = head_key == ":wat::core::unquote-splicing";
     if !head_ok {
         return None;
     }

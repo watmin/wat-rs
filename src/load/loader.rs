@@ -874,7 +874,10 @@ fn parse_payload_interface(
     form_span: Span,
 ) -> Result<PayloadInterface, LoadError> {
     let iface = match iface_ast {
-        WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::canonical_identity(id.as_str())
+        }
         other => {
             return Err(LoadError::new(
                 form_span.clone(),
@@ -902,7 +905,7 @@ fn parse_payload_interface(
             ));
         }
     };
-    match iface {
+    match iface.as_str() {
         ":wat::verify::string" => Ok(PayloadInterface::String(locator)),
         ":wat::verify::file-path" => Ok(PayloadInterface::FilePath(locator)),
         ":wat::verify::http-path" | ":wat::verify::s3-path" => Err(LoadError::new(
@@ -931,7 +934,10 @@ fn parse_payload_interface(
 /// (`"digest-"` or `"signed-"`) the form requires.
 fn parse_verify_algo(ast: &WatAST, expected_prefix: &str, form_span: Span) -> Result<String, LoadError> {
     let keyword = match ast {
-        WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::canonical_identity(id.as_str())
+        }
         other => {
             return Err(LoadError::new(
                 form_span.clone(),
@@ -2078,5 +2084,43 @@ mod tests {
         let err = ScopedLoader::new("/nonexistent/path/that/does/not/exist-abc")
             .expect_err("should fail");
         assert!(matches!(err, LoadFetchError::NotFound(_)));
+    }
+
+    /// 255.83 — `parse_verify_algo` and `parse_payload_interface`. A keyword
+    /// marker that names a real algo still reaches the file fetch. The
+    /// reference-symbol spelling of that marker does too. A bare symbol is
+    /// still "got symbol".
+    fn load_class(src: &str) -> String {
+        match resolve_mem(src, &[("lib.wat", "1")]) {
+            Ok(_) => "ok".into(),
+            Err(e) => match e.kind() {
+                LoadErrorKind::Fetch(LoadFetchError::NotFound(p)) => format!("not-found:{p}"),
+                LoadErrorKind::MalformedLoadForm { reason } => format!("malformed:{reason}"),
+                LoadErrorKind::VerificationFailed { path, err } => {
+                    format!("verify:{path}:{err}")
+                }
+                other => format!("other:{other}"),
+            },
+        }
+    }
+
+    #[test]
+    fn spelling_25583_verify_markers_agree_on_both_spellings() {
+        let kw = r#"(wat/digest-load! "lib.wat" :wat::verify::digest-sha256 :wat::verify::file-path "sum.txt")"#;
+        let sym = r#"(wat/digest-load! "lib.wat" wat.verify/digest-sha256 wat.verify/file-path "sum.txt")"#;
+        assert_eq!(load_class(kw), "not-found:sum.txt");
+        assert_eq!(load_class(sym), "not-found:sum.txt");
+
+        let kw_bad = r#"(wat/digest-load! "lib.wat" :wat::core::if :wat::verify::string "ab")"#;
+        let sym_bad = r#"(wat/digest-load! "lib.wat" wat.core/if :wat::verify::string "ab")"#;
+        let bad = "malformed:verification algorithm keyword must start with :wat::verify::; got :wat::core::if";
+        assert_eq!(load_class(kw_bad), bad);
+        assert_eq!(load_class(sym_bad), bad);
+
+        let bare = r#"(wat/digest-load! "lib.wat" sha256 :wat::verify::string "ab")"#;
+        assert_eq!(
+            load_class(bare),
+            "malformed:verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got symbol"
+        );
     }
 }

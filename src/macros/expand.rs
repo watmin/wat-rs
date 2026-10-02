@@ -1731,19 +1731,44 @@ pub(super) fn validate_macro_definition(
 /// that a malformed `(:wat::core::quasiquote a b)` (wrong arity) is treated
 /// consistently at both sites instead of silently misrouting at expand time.
 ///
-/// ⛔ 255.11 — DELIBERATELY still keyword-only, and NOT a wall. This is a ROUTER:
-/// `parse_defmacro_form` runs `validate_macro_definition` (hygiene + the F5
-/// default-deny purity gate) only when this returns **false**. Teaching it the
-/// symbol spelling would make a symbol-spelled quasiquote body SKIP that
-/// validation — strictly MORE PERMISSIVE, the red→false-green direction. Reported
-/// for the builder in `SCORE-STONE-255.11`, not cured here. Its partner
-/// `quasiquote_inner` WAS cured, because there the miss costs a refusal.
+/// 255.83 amend — the head is a name. Keyword text and the symbol spelling are
+/// one template route. The template route validates its own unquote escapes
+/// (`validate_template_escapes`); it does not skip the purity gate, and it does
+/// not send the template through the program-body check.
 pub(super) fn is_quasiquote_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items, _)
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote")
+            if items
+                .first()
+                .and_then(crate::form_match::canonical_identity_of)
+                .as_deref()
+                == Some(":wat::core::quasiquote")
     )
+}
+
+/// A whole-body quasiquote template checks the same escapes a nested template
+/// checks. A pure unquote is accepted. An impure one is `MalformedDefmacro`.
+pub(super) fn validate_template_escapes(
+    body: &WatAST,
+    defmacro_span: &Span,
+    macro_name: &str,
+) -> Result<(), MacroError> {
+    let WatAST::List(items, _) = body else {
+        return Ok(());
+    };
+    let Some(template) = quasiquote_inner(items) else {
+        return Ok(());
+    };
+    super::eval::validate_quasiquote_template(template, 1).map_err(|e| MacroError {
+        span: defmacro_span.clone(),
+        kind: MacroErrorKind::MalformedDefmacro {
+            reason: format!(
+                "quasiquote template purity check failed at definition of {macro_name}: {}",
+                e.kind
+            ),
+        },
+    })
 }
 
 /// If `items` is `(:wat::core::quasiquote X)` (exactly 2-element List with
@@ -2152,14 +2177,17 @@ fn walk_template(
     }
 }
 
-/// If `items` is `(head arg)` for the given head keyword, return `arg`.
+/// If `items` is `(head arg)` for the given head, return `arg`.
+/// The head is a name: keyword text and the symbol spelling are one escape.
 fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
     if items.len() != 2 {
         return None;
     }
-    match items.first() {
-        Some(WatAST::Keyword(k, _)) if k == head_kw => items.get(1),
-        _ => None,
+    let head = items.first()?;
+    if crate::form_match::canonical_identity_of(head).as_deref() == Some(head_kw) {
+        items.get(1)
+    } else {
+        None
     }
 }
 

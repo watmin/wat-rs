@@ -92,14 +92,14 @@
                              ":wat::core::recordtype"
                              ;; Arc 293 decl-a — ONE type-reg primitive; nature derived from parent root.
                              ":wat::core::aggregatetype")]
-    (:wat::core::contains? heads nm)))
+    (:wat::core::contains? heads (:wat::core::canonical-identity nm))))
 
 ;; def-head-kind — "defmacro" if the head is defmacro (order-free);
 ;; "eval-dep" for all other recognized def-heads.
 (:wat::core::defn :wat::deporder::def-head-kind
   [nm <- wat.type/String]
   -> wat.type/String
-  (:wat::core::if (:wat::core::= nm ":wat::core::defmacro") "defmacro" "eval-dep"))
+  (:wat::core::if (:wat::core::= (:wat::core::canonical-identity nm) ":wat::core::defmacro") "defmacro" "eval-dep"))
 
 ;; def-form? — true if the top-level form is a definition form
 ;; (a list whose head ast-name is a recognized def-head).

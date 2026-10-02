@@ -1341,6 +1341,37 @@ pub fn eval_ast_name(
     ))
 }
 
+/// `(:wat::core::canonical-identity s)` → the one identity spelling of a name.
+///
+/// Keyword text that already contains `::` is unchanged. `wat.core/if` and
+/// `:wat::core::if` are the same string afterwards.
+pub fn eval_canonical_identity(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::canonical-identity";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let name = match &v {
+        Value::String(s) => s.as_str().to_string(),
+        other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::type::String",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                },
+            ))
+        }
+    };
+    Ok(crate::value::TrackedValue::new(
+        Value::String(std::sync::Arc::new(canonical_identity(&name))),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
 /// `(:wat::core::ast-span <node>)` — Stone 251.5 / Slice 4.2a. Source START location of any node.
 /// Returns `{:line N :col N}` as a `HashMap<keyword, i64>`. `:file` is intentionally excluded because
 /// the single-file codemod consumer holds its own path and threads it directly — NOT because file is

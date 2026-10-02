@@ -1,0 +1,2 @@
+(wat.core/defn user/p [] -> wat.type/i64
+  (wat.core/let* (((a wat.type/i64) 5)) a))

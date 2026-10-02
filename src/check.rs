@@ -523,13 +523,15 @@ pub(crate) type Subst = HashMap<u64, TypeExpr>;
 /// on a function body that `check_function_body` already type-checks (preventing
 /// duplicate `ReturnTypeMismatch :anonymous` diagnostics).
 fn is_fn_form_expr(node: &WatAST) -> bool {
-    matches!(
-        node,
-        WatAST::List(fn_items, _) if matches!(
-            fn_items.first(),
-            Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn"
-        )
-    )
+    let WatAST::List(fn_items, _) = node else {
+        return false;
+    };
+    let Some(h) = fn_items.first() else {
+        return false;
+    };
+    // Bare `==` so the ledger records the door compare. `== Some("…")` hides it.
+    let key = crate::form_match::spelling_key(h).unwrap_or_default();
+    key == ":wat::core::fn"
 }
 
 /// Returns `true` when `form` is a `(:wat::core::def :name (:wat::core::fn ...))` shape
@@ -549,9 +551,12 @@ fn is_fn_def_form(form: &WatAST) -> bool {
     if items.len() != 3 && items.len() != 4 {
         return false;
     }
-    match items.first() {
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::def" => {}
-        _ => return false,
+    let Some(h) = items.first() else {
+        return false;
+    };
+    let key = crate::form_match::spelling_key(h).unwrap_or_default();
+    if key != ":wat::core::def" {
+        return false;
     }
     let expr_idx = if items.len() == 4 { 3 } else { 2 };
     match items.get(expr_idx) {
@@ -881,15 +886,15 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
     if items.is_empty() {
         return;
     }
-    let head = match &items[0] {
-        WatAST::Keyword(k, _) => k.as_str(),
-        _ => return,
+    let head = match crate::form_match::spelling_key(&items[0]) {
+        Some(h) => h,
+        None => return,
     };
 
     // Stone 241.16 — `:wat::core::define` arm DELETED from check_legacy_user_main_signature.
     // The define form is HARD CUT (Stone 241.11 startup-check; Stone 241.16 total);
     // no define-headed form can reach this function post-Stone-241.11.
-    let (main_span, param_types, ret_type) = match head {
+    let (main_span, param_types, ret_type) = match head.as_str() {
         ":wat::core::defn" => {
             // Shape: (:wat::core::defn :user::main [name <- :T ...] -> :Ret body)
             if items.len() < 5 {
@@ -968,7 +973,18 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
 fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>, is_head: bool) {
     // Walker-specific Keyword-head logic — fire diagnostic for legacy
     // keywords; preserved verbatim from pre-arc-212 shape.
-    if let WatAST::Keyword(s, span) = node {
+    // Keyword text is already the identity. A reference symbol's identity is the door.
+    // Both arms return that String (not a tuple: the ledger's match rule only
+    // sees the arm body, and a tuple hides the door).
+    let name = match node {
+        WatAST::Keyword(k, _) => Some(k.clone()),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            Some(crate::edn::render::canonical_identity(id.as_str()))
+        }
+        _ => None,
+    };
+    if let Some(s) = name {
+        let span = node.span();
         // Arc 163 follow-up — re-arm four walkers whose firing
         // bodies were retired post-sweep (arc 153 slice 2 retired
         // BareLegacyUnitName; arc 154 slice 2 retired
@@ -1008,14 +1024,14 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>, is_head
         // etc.) — no privileged paths per `feedback_hard_cut_admits_no_bypasses`.
         if s == ":wat::core::Char" {
             errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
-                head: s.clone(),
+                head: s.to_string(),
                 reason: format!(
                     "'{}' is retired (Stone 242.1, superseded by arc 255.81); use 'wat.type/char' \
                      instead (scalar types lowercase per arc 242 Doctrine 2; 'wat.type/' holds \
                      the 24 hard primitives per arc 255.81)",
                     s
                 ),
-                remedies: crate::remedy::remedies_for(s, std::iter::empty()),
+                remedies: crate::remedy::remedies_for(&s, std::iter::empty()),
             } });
             return;
         }
@@ -1025,14 +1041,14 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>, is_head
         // keyword position, no privileged paths.
         if s == ":wat::core::Uuid" {
             errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
-                head: s.clone(),
+                head: s.to_string(),
                 reason: format!(
                     "'{}' is retired (arc 255.77); use 'wat.uuid/UUID' instead \
                      (wat.type/ holds only the 24 hard primitives; other typed things, like \
                      Uuid, live in their own homes)",
                     s
                 ),
-                remedies: crate::remedy::remedies_for(s, std::iter::empty()),
+                remedies: crate::remedy::remedies_for(&s, std::iter::empty()),
             } });
             return;
         }
@@ -1051,11 +1067,11 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>, is_head
         // today regardless — this arm only decides whether the stop carries a REMEDY or a
         // plain UnknownFunction/UnresolvedReference).
         if !is_head {
-            if let Some(tail) = crate::types::retired_hard_primitive_tail(s) {
+            if let Some(tail) = crate::types::retired_hard_primitive_tail(&s) {
                 errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
-                    head: s.clone(),
-                    reason: crate::types::hard_primitive_retirement_reason(s, tail),
-                    remedies: crate::remedy::remedies_for(s, std::iter::empty()),
+                    head: s.to_string(),
+                    reason: crate::types::hard_primitive_retirement_reason(&s, tail),
+                    remedies: crate::remedy::remedies_for(&s, std::iter::empty()),
                 } });
                 return;
             }
@@ -1070,7 +1086,7 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>, is_head
         // produces `Path(":i64")`, FQDN `:wat::core::i64`
         // produces `Path(":wat::core::i64")` (identity — source spelling
         // preserved; the structural walk distinguishes them).
-        if let Some(ty) = crate::types::parse_type_expr_audit(s) {
+        if let Some(ty) = crate::types::parse_type_expr_audit(&s) {
             walk_type_for_bare(&ty, span, errors);
         }
         return;
@@ -1895,7 +1911,7 @@ fn collect_process_calls(
     // — the walker must NOT descend across let boundaries or it would
     // conflate inner-let Process accessors with the outer scope's tracking.
     if let WatAST::List(items, span) = node {
-        if let Some(WatAST::Keyword(k, _)) = items.first() {
+        if let Some(k) = items.first().and_then(crate::form_match::spelling_key) {
             match k.as_str() {
                 ":wat::kernel::Process/join-result" => {
                     if let Some(WatAST::Symbol(id, _)) = items.get(1) {
@@ -1973,7 +1989,7 @@ fn collect_process_stdin_and_joins(
     // (separate scopes — descending would conflate inner-fn calls with
     // outer scope tracking). The early-return is load-bearing.
     if let WatAST::List(items, span) = node {
-        if let Some(WatAST::Keyword(k, _)) = items.first() {
+        if let Some(k) = items.first().and_then(crate::form_match::spelling_key) {
             match k.as_str() {
                 ":wat::kernel::Process/join-result" => {
                     if let Some(WatAST::Symbol(id, _)) = items.get(1) {
@@ -2139,6 +2155,13 @@ fn check_form(
 /// types, and other registered types are excluded — they may legitimately appear
 /// as keyword arguments to substrate forms like `(:wat::core::struct-new :MyType ...)`.
 fn is_primitive_type_keyword_in_value_position(k: &str) -> bool {
+    // A keyword string is already the identity. A symbol spelling is not.
+    let owned = if k.starts_with(':') {
+        k.to_string()
+    } else {
+        crate::edn::render::canonical_identity(k)
+    };
+    let k = owned.as_str();
     matches!(
         k,
         ":wat::type::nil"
@@ -2221,7 +2244,10 @@ fn infer_node(
                 },
             }])
         }
-        WatAST::Keyword(k, _) if k == ":wat::core::Option.None" => {
+        n if {
+            let key = crate::form_match::spelling_key(n).unwrap_or_default();
+            key == ":wat::core::Option.None"
+        } => {
             CheckResult::ok(TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![fresh.fresh()],
@@ -2306,7 +2332,8 @@ fn infer_node(
         //   - `:wat::core::nil` → "use bare `nil` in value position"
         //   - Other primitive types → "use a value of this type in value position"
         WatAST::Keyword(k, kw_span) if is_primitive_type_keyword_in_value_position(k) => {
-            let reason = if k == ":wat::type::nil" {
+            let nil_key = crate::form_match::spelling_key(ast).unwrap_or_default();
+            let reason = if nil_key == ":wat::type::nil" {
                 format!(
                     "Doctrine 1 (arc 242): '{}' is a TYPE keyword, not a value; \
                      use bare `nil` in value position",
@@ -2905,7 +2932,9 @@ fn infer_list(
         }
     };
 
-    if let WatAST::Keyword(k, head_span) = head {
+    if let Some(k_owned) = crate::form_match::spelling_key(head) {
+        let k = k_owned.as_str();
+        let head_span = head.span();
         let args = &items[1..];
         // Arc 278 #56 (S5) — Form-class rete ops route by `core_name` to the SAME inference
         // helper their mirrored core form uses (`infer_rete_form`, above). Table-driven
@@ -2915,7 +2944,7 @@ fn infer_list(
         // needed the fix (see `infer_rete_form`'s own doc). `match`/`fn` are structural guards in
         // `rete/purity.rs`'s `classify_expr` — a SEPARATE edit from this one (STOP-4), even where
         // `match` also gets an `infer_rete_form` arm for its type inference.
-        if let Some(op) = crate::rete::vocabulary::rete_op_for(k.as_str()) {
+        if let Some(op) = crate::rete::vocabulary::rete_op_for(k) {
             // Arc 278 #57 round 1b — `Redispatch` joins `Form` here: neither carries a
             // `TypeScheme` (the registration loop below skips both), so both route through
             // the SAME `infer_rete_form` dispatch-by-`core_name`, never a hardcoded second
@@ -3592,7 +3621,7 @@ fn infer_list(
                 };
             }
             ":wat::type::Tuple"
-                if !(k_disp.as_ref() != k.as_str()
+                if !(k_disp.as_ref() != k
                     && matches!(
                         split_type_param_bracket(args),
                         Some((inner, _, rest)) if !inner.is_empty() && rest.is_empty()
@@ -4054,7 +4083,7 @@ fn infer_list(
                 // Return HolonAST unconditionally (one arg, HolonAST input, HolonAST output).
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: k.clone(),
+                        callee: k.to_string(),
                         expected: 1,
                         got: args.len()
                     } });
@@ -4065,7 +4094,7 @@ fn infer_list(
                     let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
                     if unify(&arg_ty, &holon, subst, env.types()).is_err() {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: k.clone(),
+                            callee: k.to_string(),
                             param: "#1".into(),
                             expected: ":wat::holon::HolonAST (use :wat::holon::to-holon for other types)".into(),
                             got: format_type(&apply_subst(&arg_ty, subst))
@@ -4091,7 +4120,7 @@ fn infer_list(
                 // predicate as a post-unification check.
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: k.clone(),
+                        callee: k.to_string(),
                         expected: 1,
                         got: args.len()
                     } });
@@ -4108,7 +4137,7 @@ fn infer_list(
                             || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
                     if !is_record_subtype && !is_atomizable(&resolved) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: k.clone(),
+                            callee: k.to_string(),
                             param: "#1".into(),
                             expected: "atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T)".into(),
                             got: format_type(&resolved)
@@ -4128,7 +4157,7 @@ fn infer_list(
                 // Both forms validate the first arg is HolonAST.
                 if args.len() != 1 && args.len() != 3 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: k.clone(),
+                        callee: k.to_string(),
                         expected: 1,
                         got: args.len()
                     } });
@@ -4140,7 +4169,7 @@ fn infer_list(
                     let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
                     if unify(&arg_ty, &holon, subst, env.types()).is_err() {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: k.clone(),
+                            callee: k.to_string(),
                             param: "#1".into(),
                             expected: ":wat::holon::HolonAST".into(),
                             got: format_type(&apply_subst(&arg_ty, subst))
@@ -5472,7 +5501,7 @@ fn infer_list(
                         local_errors.push(CheckError {
                             span: e.span().clone(),
                             kind: CheckErrorKind::MalformedForm {
-                                head: k.clone(),
+                                head: k.to_string(),
                                 reason: format!("malformed type-param argument: {}", e),
                                 remedies: vec![],
                             },
@@ -5704,7 +5733,7 @@ fn infer_list(
                         local_errors.push(CheckError {
                             span: head_span.clone(),
                             kind: CheckErrorKind::ArityMismatch {
-                                callee: k.clone(),
+                                callee: k.to_string(),
                                 expected: expected_arity,
                                 got: args.len(),
                             },
@@ -5718,7 +5747,7 @@ fn infer_list(
                             local_errors.push(CheckError {
                                 span: args[0].span().clone(),
                                 kind: CheckErrorKind::TypeMismatch {
-                                    callee: k.clone(),
+                                    callee: k.to_string(),
                                     param: "#1 (receiver)".into(),
                                     expected: protocol_fqdn.to_string(),
                                     got: format_type(&apply_subst(recv_ty, subst)),
@@ -5739,7 +5768,7 @@ fn infer_list(
                                 local_errors.push(CheckError {
                                     span: args[i + 1].span().clone(),
                                     kind: CheckErrorKind::TypeMismatch {
-                                        callee: k.clone(),
+                                        callee: k.to_string(),
                                         param: format!("#{}", i + 2),
                                         expected: format_type(expected_ty),
                                         got: format_type(&apply_subst(arg_ty, subst)),
@@ -5949,7 +5978,7 @@ fn infer_list(
                     .map(|opt| opt.as_ref().map(format_type).unwrap_or_else(|| "?".into()))
                     .collect();
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::AmbiguousClauseReturnAtCallSite {
-                    name: k.clone(),
+                    name: k.to_string(),
                     called_arg_types,
                     candidate_returns,
                 } });
@@ -5970,7 +5999,7 @@ fn infer_list(
                         .map(|opt| opt.as_ref().map(format_type).unwrap_or_else(|| "?".into()))
                         .collect();
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::NoMatchingClauseAtCallSite {
-                        name: k.clone(),
+                        name: k.to_string(),
                         called_arity,
                         called_arg_types,
                         attempted_clauses: attempted
@@ -6037,7 +6066,7 @@ fn infer_list(
                     if let Some(crate::types::TypeDef::Surface(_)) = env.types().get(surface) {
                         local_errors.push(CheckError {
                             span: head_span.clone(),
-                            kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                            kind: CheckErrorKind::UnknownCallee { callee: k.to_string() },
                         });
                         return CheckResult::errs(local_errors);
                     }
@@ -6089,7 +6118,7 @@ fn infer_list(
                                 if is_record_umbrella(&agg_name) {
                                     return unresolved_accessor_placeholder(fresh, local_errors);
                                 }
-                                let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
+                                let field_name = k.strip_prefix(':').unwrap_or(k);
                                 match fields.iter().find(|(n, _)| n == field_name) {
                                     Some((_, fty)) => {
                                         let ty = apply_subst(fty, subst);
@@ -6108,7 +6137,7 @@ fn infer_list(
                                         local_errors.push(CheckError {
                                             span: head_span.clone(),
                                             kind: CheckErrorKind::MalformedForm {
-                                                head: k.clone(),
+                                                head: k.to_string(),
                                                 reason: format!(
                                                     "keyword accessor: field {:?} is not declared on {} (declared fields: {})",
                                                     field_name, agg_name, declared
@@ -6140,7 +6169,7 @@ fn infer_list(
                     // record/struct/HashMap. Emit check-time UnknownCallee so
                     // the error surfaces before runtime dispatch.
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::UnknownCallee {
-                        callee: k.clone()
+                        callee: k.to_string()
                     } });
                     // HARVEST (236.2): existing diagnostic; straight conversion.
                     return CheckResult::errs(local_errors);
@@ -6172,7 +6201,7 @@ fn infer_list(
                             // the field doesn't exist. Emit a parse-time error.
                             local_errors.push(CheckError {
                                 span: head_span.clone(),
-                                kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                                kind: CheckErrorKind::UnknownCallee { callee: k.to_string() },
                             });
                             return CheckResult::errs(local_errors);
                         }
@@ -6190,7 +6219,7 @@ fn infer_list(
                 let retirement_remedies = crate::remedy::remedies_for(k, std::iter::empty());
                 if retirement_remedies.first().is_some_and(|r| r.score() == 0) {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-                        head: k.clone(),
+                        head: k.to_string(),
                         reason: format!("'{}' is retired; use '{}' instead", k, retirement_remedies[0].form),
                         remedies: retirement_remedies,
                     } });
@@ -6224,7 +6253,7 @@ fn infer_list(
                         if let crate::intrinsic::Arity::Exact(n) = entry.arity {
                             if args.len() != n {
                                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                                    callee: k.clone(),
+                                    callee: k.to_string(),
                                     expected: n,
                                     got: args.len(),
                                 } });
@@ -6253,7 +6282,7 @@ fn infer_list(
                 if !declared {
                     local_errors.push(CheckError {
                         span: head_span.clone(),
-                        kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                        kind: CheckErrorKind::UnknownCallee { callee: k.to_string() },
                     });
                     return CheckResult::errs(local_errors);
                 }
@@ -6273,7 +6302,7 @@ fn infer_list(
                 local_errors.push(CheckError {
                     span: head_span.clone(),
                     kind: CheckErrorKind::MalformedForm {
-                        head: k.clone(),
+                        head: k.to_string(),
                         reason: format!(
                             "{} declares {} type parameter(s) but {} were supplied",
                             k,
@@ -6861,16 +6890,20 @@ fn infer_match(
                             {
                                 match *sub {
                                     WatAST::Vector(sub_items, _)
-                                        if matches!(
-                                            sub_items.first(),
-                                            Some(WatAST::Keyword(k, _))
-                                                if k == ":wat::core::Option.Some"
-                                        ) =>
+                                        if {
+                                            let key = sub_items
+                                                .first()
+                                                .and_then(crate::form_match::spelling_key)
+                                                .unwrap_or_default();
+                                            key == ":wat::core::Option.Some"
+                                        } =>
                                     {
                                         covers_result_ok_inner_some = true;
                                     }
-                                    WatAST::Keyword(k, _)
-                                        if k == ":wat::core::Option.None" =>
+                                    h if {
+                                        let key = crate::form_match::spelling_key(h).unwrap_or_default();
+                                        key == ":wat::core::Option.None"
+                                    } =>
                                     {
                                         covers_result_ok_inner_none = true;
                                     }
@@ -7802,7 +7835,10 @@ fn check_subpattern(
         // a `:None` sub-pattern at that position is refused even though the value
         // genuinely IS an Option (`recursive_patterns::nested_options_three_levels`).
         // A non-variant / already-bare type widens to itself (no-op).
-        WatAST::Keyword(k, _) if k == ":wat::core::Option.None" => match &widen_to_enclosing_enum(expected_ty, env) {
+        n if {
+            let key = crate::form_match::spelling_key(n).unwrap_or_default();
+            key == ":wat::core::Option.None"
+        } => match &widen_to_enclosing_enum(expected_ty, env) {
             TypeExpr::Parametric { head, .. } if head == "wat::core::Option" => Some(false),
             _ => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -7939,11 +7975,15 @@ fn check_subpattern(
                     return None;
                 }
             }
-            let builtin_ident = match head {
-                WatAST::Keyword(k, _) if k == ":wat::core::Option.Some" => Some("Some"),
-                WatAST::Keyword(k, _) if k == ":wat::core::Result.Ok" => Some("Ok"),
-                WatAST::Keyword(k, _) if k == ":wat::core::Result.Err" => Some("Err"),
-                _ => None,
+            let builtin_key = crate::form_match::spelling_key(head).unwrap_or_default();
+            let builtin_ident = if builtin_key == ":wat::core::Option.Some" {
+                Some("Some")
+            } else if builtin_key == ":wat::core::Result.Ok" {
+                Some("Ok")
+            } else if builtin_key == ":wat::core::Result.Err" {
+                Some("Err")
+            } else {
+                None
             };
             // Arc 296 A-2 RELAND-4 loose end ② — widen to the enclosing enum for THIS
             // DISPATCH DECISION and the field-type args it hands to the recursive
@@ -8028,7 +8068,7 @@ fn check_subpattern(
             // path so the diagnostic surfaces cleanly as "(Some _) takes
             // exactly one field" or similar, not a spurious "user enum"
             // mismatch.
-            if let WatAST::Keyword(variant_path, _) = head {
+            if let Some(variant_path) = crate::form_match::spelling_key(head) {
                 let is_builtin_fqdn = variant_path == ":wat::core::Option.Some"
                     || variant_path == ":wat::core::Result.Ok"
                     || variant_path == ":wat::core::Result.Err";
@@ -8066,7 +8106,7 @@ fn check_subpattern(
                         return None;
                     }
                 };
-                let (prefix, variant_name) = match wat_reader::identifier::decompose_variant(variant_path) {
+                let (prefix, variant_name) = match wat_reader::identifier::decompose_variant(&variant_path) {
                     Some(p) => p,
                     None => {
                         errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -8977,7 +9017,10 @@ fn infer_defclause(
             let fn_items = match ensure_ast.as_ref() {
                 WatAST::List(items, _) => {
                     match items.first() {
-                        Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn" => &items[1..],
+                        Some(h) if {
+                            let key = crate::form_match::spelling_key(h).unwrap_or_default();
+                            key == ":wat::core::fn"
+                        } => &items[1..],
                         _ => {
                             local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
@@ -9287,11 +9330,11 @@ fn collect_splice_defs_ctx(
     if items.is_empty() {
         return;
     }
-    let head = match &items[0] {
-        WatAST::Keyword(k, _) => k.as_str(),
-        _ => return,
+    let head = match crate::form_match::spelling_key(&items[0]) {
+        Some(k) => k,
+        None => return,
     };
-    match head {
+    match head.as_str() {
         ":wat::core::def" if is_top => {
             if let Some((name, ty, span)) = extract_def_binding(form, env, fresh, errors) {
                 // Arc 278 BRIEF-scalar-def-reaches-the-gate — THE ONE DOOR.
@@ -9425,7 +9468,10 @@ fn preregister_defclause_in_env(form: &WatAST, env: &mut CheckEnv) {
         _ => return,
     };
     match items.first() {
-        Some(WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause" => {}
+        Some(h) if {
+            let key = crate::form_match::spelling_key(h).unwrap_or_default();
+            key == ":wat::core::defclause"
+        } => {}
         _ => return,
     }
     // Idempotent: first-registration wins; subsequent defclause forms
@@ -9458,7 +9504,10 @@ fn extract_def_binding(
         return None;
     }
     match &items[0] {
-        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
+        h if {
+            let key = crate::form_match::spelling_key(h).unwrap_or_default();
+            key == ":wat::core::def"
+        } => {}
         _ => return None,
     }
     let name = match &items[1] {
@@ -9509,7 +9558,10 @@ fn extract_redef_setter(form: &WatAST) -> Option<bool> {
         return None;
     }
     match &items[0] {
-        WatAST::Keyword(k, _) if k == ":wat::config::set-redef!" => {}
+        h if {
+            let key = crate::form_match::spelling_key(h).unwrap_or_default();
+            key == ":wat::config::set-redef!"
+        } => {}
         _ => return None,
     }
     match &items[1] {
@@ -9588,9 +9640,9 @@ fn validate_def_position_with_wrapper(
         return;
     }
 
-    let head_kw = match &items[0] {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => {
+    let head_kw = match crate::form_match::spelling_key(&items[0]) {
+        Some(k) => k,
+        None => {
             for child in items {
                 validate_def_position_with_wrapper(child, DefCtx::NonTopLevel, wrapper, errors);
             }
@@ -14515,6 +14567,12 @@ fn infer_polymorphic_time_arith(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    let op_owned = if op.starts_with(':') {
+        op.to_string()
+    } else {
+        crate::edn::render::canonical_identity(op)
+    };
+    let op = op_owned.as_str();
     let mut local_errors: Vec<CheckError> = Vec::new();
     let instant_ty = TypeExpr::Path(":wat::time::Instant".into());
     let duration_ty = TypeExpr::Path(":wat::time::Duration".into());
@@ -16735,8 +16793,8 @@ fn check_compound_against_expected(
             // [T1 T2 …] a b ...)` — a constructor call, not a brace literal, so
             // detection is head-keyword-based.
             let head = items.first()?;
-            let WatAST::Keyword(k, _) = head else { return None; };
-            if k != ":wat::type::Tuple" {
+            let head_key = crate::form_match::spelling_key(head).unwrap_or_default();
+            if head_key != ":wat::type::Tuple" {
                 return None;
             }
             // Stone 255.81 — `items[1..]` may carry a leading `:- [T1 T2 …]` param-spec
@@ -21831,6 +21889,10 @@ fn register_builtins(env: &mut CheckEnv) {
         ret: TypeExpr::Path(":wat::type::String".into()), rest_param_type: None });
     env.register(":wat::core::ast-name".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::type::AST".into())],
+        type_param_bounds: vec![],
+        ret: TypeExpr::Path(":wat::type::String".into()), rest_param_type: None });
+    env.register(":wat::core::canonical-identity".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::type::String".into())],
         type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::type::String".into()), rest_param_type: None });
     // Stone 251.5 / Slice 4.2a — source start location: {:line i64 :col i64}.
