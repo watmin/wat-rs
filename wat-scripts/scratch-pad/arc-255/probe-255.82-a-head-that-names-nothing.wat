@@ -1,0 +1,7 @@
+;; probe-255.82 — a call head that names nothing must be refused at check time.
+;; Before 255.82: `wat --check` exits 0 for each of the three heads below; they fail only at run time
+;; (UnboundSymbol). A keyword head that names nothing (`(:my::made::up 1)`) is refused at check today.
+(wat.core/defn user/bare [] :- wat.type/nil (wat.kernel/println (foozle 1)))
+(wat.core/defn user/dotted [] :- wat.type/nil (wat.kernel/println (my.made.up.thing 1)))
+(wat.core/defn user/wrong-join [] :- wat.type/nil (wat.kernel/println (wat.core.Option.zzznope (wat.core.Option.Some 1) "x")))
+(wat.core/defn user/main [] :- wat.type/nil (user/bare))
