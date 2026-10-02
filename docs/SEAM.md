@@ -30,7 +30,9 @@ floor **6257**/6257 at `2ffcdfa3e`; then 255.75 (E3: every probe runs, one test 
 `f12c10995`, heresy ledger **149**. Cutover stone 4 split (S-b + P-surface): 4a = 255.79 (`817e2003f`, every `.wat` type position
 spells `wat.type/`, floor **6349**/6349); its STOP-1 answered by 255.80 (R1/X2: `wat-fix-rust` runs any recorded codemod
 over wat in Rust strings; 506 edits in 39 files; floor **6362**/6362 at `5b4d963b2`; 15 files held for 4b). Then
-4b: flip the key, delete `type_denotation`'s mapping, refuse `:wat::core::X` in type positions, print types as written.
+4b = 255.81 (C1 for the 24: key `:wat::type::X`, door deleted, retired names refused at the checker and the runtime
+doors, types print `wat.type/X`; the keyword fn/tuple type refused): floor **6368**/6368 at `4160bdaf4`, ledger **147**.
+Next: cutover stone 5 (function and form heads).
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
