@@ -288,4 +288,94 @@ budget allows.
 1. `f9a5757ab` — Commits A+B+C, substrate (`src/`, `crates/`).
 2. `d6605a481` — corpus call-site migration (`wat/`, `wat-scripts/`, `wat-tests/`).
 3. `53eef498f` — test golden/fixture recapture (`tests/`).
-4. (this document) — SCORE.
+4. `6f6f702ad` — this SCORE, as first written.
+5. `d07664178` — the amend that ordered the audit below.
+
+## Amend: the recapture audit — STOP-1
+
+`AMEND-STONE-255.81-finish-green.md` item 1, measured against `202eb5533`
+and `53eef498f`. 238 files. No file in that commit is absent at
+`202eb5533`.
+
+The amendment's two pairs (`wat.type/X` ↔ `:wat::core::X`, `wat.type/AST`
+↔ `:wat::WatAST`) leave **112** files different. 54 of those 112 differ
+only by other spellings of the same 24: `:wat::type::X`, `wat::type::X`,
+`:wat.type/X`, `:wat.core/X`, `wat.core/X`, and the AST twins
+(`wat::WatAST`, `wat/WatAST`, `:wat::type::AST`). Counted as the spelling, as is `:wat/WatAST` → `:wat.type/AST`
+(`tests/wat_lang/wat_arc144_lookup_form__macro_head.edn`: both sides are
+the keyword, and the body is the AST rename). 181 files are spelling-only
+once those forms are included.
+
+**STOP-1.** The other 57 are not spelling-only. Work items 2–5 were not
+started.
+
+39 differ only in whitespace after the spelling is normalized (EDN map
+layout). The amendment's diff is not empty:
+
+- `tests/cli/wat_mcp__assertion_panic.edn`
+- `tests/diagnostics/probe_arc243_stone6_checkerror_pattern_a__bare_legacy_container_head_known_span.edn`
+- `tests/diagnostics/probe_arc298_3_runtime_derive_identical__assertion_failed_both_some.edn`
+- `tests/diagnostics/probe_arc298_3_runtime_derive_identical__assertion_failed_expected_none.edn`
+- `tests/diagnostics/probe_stone_233_3_runtime_error_edn__assertion_failed.edn`
+- `tests/function/variadic_define__signature.edn`
+- `tests/reflection/wat_arc201_extract_arg_types__parametric_type.edn`
+- `tests/reflection/wat_arc201_holon_ast_accessors__children_parametric.edn`
+- `tests/reflection/wat_arc201_signature_of_fn__compose_bundle.edn`
+- `tests/reflection/wat_arc201_signature_of_fn__parametric_args.edn`
+- `tests/reflection/wat_arc201_signature_of_fn__ret_parametric.edn`
+- `tests/reflection/wat_arc201_structured_signature_types__parametric_fn.edn`
+- `tests/reflection/wat_arc201_structured_signature_types__tuple.edn`
+- `tests/rete/probe_arc278_field_span__bind.edn`
+- `tests/rete/probe_arc278_field_span__inline.edn`
+- `tests/rete/probe_arc278_field_span__kwargs.edn`
+- `tests/services/probe_arc278_journal__stored_metric.edn`
+- `tests/services/probe_arc278_metric_edn_write__metric.edn`
+- `tests/services/recv_outcome_wall__panic_process_admin.edn`
+- `tests/services/recv_outcome_wall__panic_process_client.edn`
+- `tests/services/recv_outcome_wall__panic_thread_admin.edn`
+- `tests/services/recv_outcome_wall__panic_thread_client.edn`
+- `tests/services/recv_outcome_wall__rterr_process_admin.edn`
+- `tests/services/recv_outcome_wall__rterr_process_client.edn`
+- `tests/services/recv_outcome_wall__rterr_thread_admin.edn`
+- `tests/services/recv_outcome_wall__rterr_thread_client.edn`
+- `tests/types/wat_arc148_ord_buildout__enum_ord_raises_type_mismatch.edn`
+- `tests/types/wat_arc148_ord_buildout__hashmap_ord_raises_type_mismatch.edn`
+- `tests/types/wat_arc148_ord_buildout__hashset_ord_raises_type_mismatch.edn`
+- `tests/types/wat_arc148_ord_buildout__holon_ast_ord_raises_type_mismatch.edn`
+- `tests/types/wat_arc148_ord_buildout__struct_ord_raises_type_mismatch.edn`
+- `tests/types/wat_arc148_ord_buildout__unit_ord_raises_type_mismatch.edn`
+- `tests/value/probe_arc278_a0_uniform_variant__option_some.edn`
+- `tests/value/probe_arc278_a0_uniform_variant__option_some_unit.edn`
+- `tests/value/probe_arc278_a0_uniform_variant__result_err.edn`
+- `tests/value/probe_arc278_a0_uniform_variant__result_ok.edn`
+- `tests/value/probe_arc298_1_option_result_tagged__option_some.edn`
+- `tests/value/probe_arc298_1_option_result_tagged__result_err.edn`
+- `tests/value/probe_arc298_1_option_result_tagged__result_ok.edn`
+
+18 differ in the recorded error, or carry text that is not the 24's
+spelling. The recapture wrote the new refusal over a different failure:
+
+| file | at `202eb5533` | at `53eef498f` |
+|---|---|---|
+| `tests/collection/probe_hashmap_ctor_vector_symmetric__missing_both_type_args.edn` | `ArityMismatch`, HashMap expected 2 got 0 | `MalformedForm`, HashMap retired |
+| `tests/collection/probe_hashmap_ctor_vector_symmetric__missing_v_type_arg.edn` | `ArityMismatch`, HashMap expected 2 got 1 | `MalformedForm`, keyword retired; span column 9 → 29 |
+| `tests/diagnostics/probe_arc241_stone10_remedy__contract_02_retirement_remedy_for_hard_cut_form.edn` | `:wat::core::struct` retired (Stone 241.8) | `i64` retired (arc 255.81); column 2 → 35 |
+| `tests/diagnostics/probe_arc241_stone10_remedy__contract_05_single_remedy_single_line_format.edn` | same struct retirement | same i64 retirement |
+| `tests/diagnostics/probe_arc242_stone2_value_position_doctrine__contract_03_keyword_type_in_body_rejected_with_remedy.edn` | Doctrine 1: type keyword is not a value; remedies empty | 255.81 retirement, with a remedy |
+| `tests/function/fn_rename__lambda_post_retirement_fires_bare_legacy_lambda.edn` | 1 type-check error | 2; an added i64 retirement |
+| `tests/resolve/probe_arc255_5_position_signal.wat` | the fixture | a 255.81 comment added above the form |
+| `tests/services/probe_arc209_c0b3bb_verbs__thread_listener_allow_errors_with_tier_message.edn` | runtime `MalformedForm` on `:wat::kernel::allow` | check `CheckErrors`, 2 errors, i64 retired |
+| `tests/services/probe_arc209_c0b3bc_post_spawn__accessor_typechecks_at_parse_time.edn` | `UnresolvedReferences` | check `CheckErrors`, 2 errors |
+| `tests/types/newtype__distinct_newtypes_over_same_inner_are_distinct_types.edn` | 1 `TypeMismatch` (Price vs Amount) | 2 errors; an added f64 retirement |
+| `tests/types/newtype__newtype_rejected_where_inner_expected.edn` | `TypeMismatch` on `f64/+` | `MalformedForm`, f64 retired; line 6 → 2 |
+| `tests/types/newtype__newtype_rejects_inner_type_at_arg_position.edn` | `TypeMismatch` (Price vs f64) | `MalformedForm`, f64 retired; line 4 → 2 |
+| `tests/value/probe_arc242_stone1_lexeme_role.rs` | Char remedy text from Stone 242.1 | the same sentence plus "superseded by arc 255.81" |
+| `tests/value/probe_arc242_stone1_lexeme_role__contract_03_legacy_char_hard_cut_with_remedy.edn` | that 242.1 reason | the same, with the 255.81 clause |
+| `tests/wat_lang/probe_def_not_special__probe_define_rejected_at_startup_check.edn` | `:wat::core::define` retired (Stone 241.11) | `nil` retired (arc 255.81); column 4 → 52 |
+| `tests/wat_lang/wat_arc153_nil_rename__reverse_mixed_nil_body_with_retired_unit_sig_post_retirement.edn` | 1 type-check error | 2; an added nil retirement |
+| `tests/wat_lang/wat_arc154_kill_let_star__let_star_post_retirement_silently_aliases_to_let.edn` | 1 type-check error | 2; an added i64 retirement |
+| `tests/wat_lang/wat_arc154_kill_let_star__multiple_let_star_sites_post_retirement_silently_alias.edn` | 2 type-check errors | 4; added i64 retirements |
+
+Rule G, the fn-keyword codemod, the parser refusal, the rest of the
+recapture, the census, and a new floor were not run. The floor remains the
+red capture at `.floor/2026-10-02T04-53-55Z`.
