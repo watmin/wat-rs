@@ -28,7 +28,7 @@ pub(super) fn check_quasiquote_template(
     // Only List forms can be unquote/unquote-splicing escapes; check the
     // head keyword for those special forms first.
     if let WatAST::List(items, _) = node {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
+        if let Some(head) = items.first() {
             if is_unquote_escape(head) {
                 // Escape: the argument is live code. Use normal check_form.
                 for arg in items.iter().skip(1) {

@@ -1122,6 +1122,10 @@ fn expand_make_rule_condition(
     let WatAST::List(citems, cspan) = cond else {
         return Ok(cond);
     };
+    // `where` is a name. Keyword text and the symbol spelling open the same code region.
+    // Every other symbol head stays on the symbol arm below: an accumulate bind
+    // (`(?c :- …)`) is a symbol that is not the spelling of a keyword.
+    let is_where = citems.first().is_some_and(crate::resolve::boundary::is_where_form);
     let head_kw: Option<String> = match citems.first() {
         Some(WatAST::Keyword(h, _)) => Some(h.clone()),
         _ => None,
@@ -1130,20 +1134,19 @@ fn expand_make_rule_condition(
     let mut new_c = Vec::with_capacity(citer.len().max(1));
     new_c.extend(citer.next()); // the head — a `where`, a combinator, or a fact type. DATA always.
 
-    match head_kw.as_deref() {
-        // A `where` fence: its body is CODE, expanded to fixpoint. Unchanged.
-        Some(h) if crate::resolve::boundary::is_where_form(h) => {
-            for body in citer {
-                new_c.push(expand_form(
-                    body,
-                    registry,
-                    expansion_depth + 1,
-                    env,
-                    sym,
-                    privilege,
-                )?);
-            }
+    if is_where {
+        for body in citer {
+            new_c.push(expand_form(
+                body,
+                registry,
+                expansion_depth + 1,
+                env,
+                sym,
+                privilege,
+            )?);
         }
+    } else {
+        match head_kw.as_deref() {
         // ⛔ A COMBINATOR'S ITEMS ARE NESTED **CONDITIONS**, NOT CLAUSES — recurse as conditions,
         // never as forms. Expanding one as a form fires the nested pattern's own kwargs companion
         // macro and rewrites `(:Some::Record …)` into `:wat::core::kwargs-construct`, which is
@@ -1191,6 +1194,7 @@ fn expand_make_rule_condition(
                     privilege,
                 )?);
             }
+        }
         }
     }
     Ok(WatAST::List(new_c, cspan))

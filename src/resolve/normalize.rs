@@ -619,7 +619,7 @@ fn normalize_make_rule_condition(
     errors: &mut Vec<UnresolvedReference>,
 ) -> WatAST {
     let WatAST::List(citems, cspan) = cond else { return cond };
-    let is_where = matches!(citems.first(), Some(WatAST::Keyword(h, _)) if is_where_form(h));
+    let is_where = citems.first().is_some_and(is_where_form);
     if !is_where {
         return WatAST::List(citems, cspan);
     }
@@ -647,7 +647,7 @@ fn normalize_quasiquote_template(
     errors: &mut Vec<UnresolvedReference>,
 ) -> WatAST {
     if let WatAST::List(items, span) = node {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
+        if let Some(head) = items.first() {
             if is_unquote_escape(head) {
                 // Escape: argument is live code — full normalization.
                 let new_items = items

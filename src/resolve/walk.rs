@@ -272,7 +272,7 @@ fn check_make_rule_when(
     let Some(WatAST::Vector(conds, _)) = qitems.get(1) else { return };
     for cond in conds {
         let WatAST::List(citems, _) = cond else { continue };
-        let is_where = matches!(citems.first(), Some(WatAST::Keyword(h, _)) if is_where_form(h));
+        let is_where = citems.first().is_some_and(is_where_form);
         if is_where {
             for body in citems.iter().skip(1) {
                 check_form(body, sym, macros, use_decls, scope, unresolved);

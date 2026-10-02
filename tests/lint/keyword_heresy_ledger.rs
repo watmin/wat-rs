@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 146; // 255.82: 147 → 146 — `is_resolvable_call_head` was Ax1 and is now 0. A bare symbol head reaches that door through `canonical_identity`, so the parameter is no longer a raw symbol spelling beside the keyword callers. 255.81: 149 → 147 — parse.rs `is_watast` and `parse_defmacro_form` no longer compare a keyword literal; the AST-key decision is `denoted_type_path` plus `retired_hard_primitive_tail`. 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
+const LEDGER_TOTAL: usize = 139; // 255.83 STOP-1: 146 → 139. Gone entirely: `is_unquote_escape` Ax2, `is_where_form` Ax1, `validate_quasiquote_template` Ax3, `validate_pure_total` Ax1 — each decision is `canonical_identity_of`. `is_quasiquote_form` stays Ax1: it is a router, and teaching it the symbol spelling skips `validate_macro_definition`. 255.82: 147 → 146 — `is_resolvable_call_head` was Ax1 and is now 0. A bare symbol head reaches that door through `canonical_identity`, so the parameter is no longer a raw symbol spelling beside the keyword callers. 255.81: 149 → 147 — parse.rs `is_watast` and `parse_defmacro_form` no longer compare a keyword literal; the AST-key decision is `denoted_type_path` plus `retired_hard_primitive_tail`. 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -833,15 +833,17 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/load/loader.rs", "parse_verify_algo", 1, "Ax1"),
 
     ("src/lower.rs", "lower_call", 1, "Ax1"),
-    ("src/macros/eval.rs", "validate_pure_total", 1, "Ax1"),
-    ("src/macros/eval.rs", "validate_quasiquote_template", 3, "Ax3"),
+    // 255.83 — `validate_pure_total` (Ax1) and `validate_quasiquote_template` (Ax3) → 0.
+    // The remaining decision in `validate_pure_total` (the literal-fn exception, and the
+    // template walk) reads `canonical_identity_of`. The quote/quasiquote candidate compares
+    // were already covered by the 255.10 head_candidates join.
     ("src/macros/expand.rs", "is_quasiquote_form", 1, "Ax1"),
     // 255.81 — `is_watast` (1 [Ex1]) and `parse_defmacro_form` (1 [Ax1]) → 0.
     // The AST-key check is `denoted_type_path` on both sides, plus the retirement
     // table for `:wat::WatAST`. Neither comparison is a raw keyword literal.
     ("src/match_arm.rs", "builtin_variant", 1, "Ax1"),
-    ("src/resolve/boundary.rs", "is_unquote_escape", 2, "Ax2"),
-    ("src/resolve/boundary.rs", "is_where_form", 1, "Ax1"),
+    // 255.83 — `is_unquote_escape` (Ax2) and `is_where_form` (Ax1) → 0. Both read
+    // `canonical_identity_of`, so a symbol spelling of the same name is the same escape.
     // 255.82 — `is_resolvable_call_head` was 1 [Ax1] → 0. The bare-symbol caller
     // passes `canonical_identity` of the name, so the keyword rungs no longer
     // see a raw symbol spelling.

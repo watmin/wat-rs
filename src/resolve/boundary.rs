@@ -34,6 +34,8 @@
 //! observe rather than execute; see `expand_form`'s doc), so folding them into
 //! this same classification is future work, not this fix's scope.
 
+use crate::ast::WatAST;
+
 /// The argument-evaluation shape of a special-form list head.
 ///
 /// Each variant names which child regions are live **code** (to be resolved /
@@ -99,8 +101,12 @@ pub(crate) fn quote_boundary(head: &str) -> Boundary {
 /// Arc 278 — widened `pub(super)` → `pub(crate)`: `crate::closure_extract`'s free-symbol
 /// walk is a THIRD quasiquote-template descent and must use the same language fact, or it
 /// re-creates the drift this function exists to prevent.
-pub(crate) fn is_unquote_escape(head: &str) -> bool {
-    head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing"
+pub(crate) fn is_unquote_escape(head: &WatAST) -> bool {
+    // The head is a name. Keyword text and the symbol spelling name one escape.
+    matches!(
+        crate::form_match::canonical_identity_of(head).as_deref(),
+        Some(":wat::core::unquote") | Some(":wat::core::unquote-splicing")
+    )
 }
 
 /// True if `head` is the rete `where` head — the one place inside a
@@ -117,6 +123,6 @@ pub(crate) fn is_unquote_escape(head: &str) -> bool {
 /// inside `resolve`), the macro expander (`crate::macros::expand`) is a
 /// different module and must consult this too — the whole point is a `where`
 /// body is finally macro-expanded, not just resolved/normalized.
-pub(crate) fn is_where_form(head: &str) -> bool {
-    head == ":wat::rete::where"
+pub(crate) fn is_where_form(head: &WatAST) -> bool {
+    crate::form_match::canonical_identity_of(head).as_deref() == Some(":wat::rete::where")
 }

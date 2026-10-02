@@ -229,10 +229,8 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
                                 let is_literal_fn = matches!(
                                     child,
                                     WatAST::List(fn_items, _)
-                                        if matches!(
-                                            fn_items.first(),
-                                            Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn"
-                                        )
+                                        if fn_items.first().and_then(crate::form_match::canonical_identity_of).as_deref()
+                                            == Some(":wat::core::fn")
                                 );
                                 if !is_literal_fn {
                                     validate_pure_total(child)?;
@@ -321,7 +319,9 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
 fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroError> {
     match form {
         WatAST::List(items, _) => {
-            if let Some(WatAST::Keyword(head, _)) = items.first() {
+            // The head is a name. Keyword text and the symbol spelling are one escape.
+            let head_id = items.first().and_then(crate::form_match::canonical_identity_of);
+            if let Some(head) = head_id.as_deref() {
                 // Nested quasiquote: bump depth, recurse into template.
                 if head == ":wat::core::quasiquote" {
                     if let Some(inner) = items.get(1) {

@@ -1305,7 +1305,7 @@ fn walk_quasiquote_template(
     state: &mut ExtractState<'_>,
 ) -> Result<(), ExtractionError> {
     if let WatAST::List(items, _) = node {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
+        if let Some(head) = items.first() {
             if is_unquote_escape(head) {
                 // An escape: its arguments are live code, and may name real dependencies.
                 for arg in items.iter().skip(1) {
