@@ -41,9 +41,9 @@ over wat in Rust strings; 506 edits in 39 files; floor **6362**/6362 at `5b4d963
 ⛔ **You did not live this.** It is a cache, not your memory. Fetch the grimoire and the four primers (SIGNED MCP),
 run the commands above, then read the **newest WEIGH** in `docs/arc/2026/06/255-builtin-registry/` before you move.
 
-**Executor:** grok's credits ran out on 2026-09-27, so strikes go to **Sonnet subagents** (the Agent tool, `model:
-sonnet`, run in the background, pointed at the brief file). When grok returns: pulsare, as before. **Ask the builder
-which is live.** Either way: draw a BRIEF, **re-run every floor yourself**, write a WEIGH, push.
+**Executor:** **grok via pulsare** (`pulsare_yield kind=briefed`); grok's credits returned 2026-10-01 after a Sonnet
+interlude (255.67-255.81). If the builder says credits are out again, fall back to Sonnet subagents (Agent tool,
+`model: sonnet`, pointed at the brief). A **solo** executor may run the floor; with several running, none does. Either way: draw a BRIEF, **re-run every floor yourself**, write a WEIGH, push.
 
 **The floor rule in every brief (builder's doctrine, refined 2026-09-28):** a red caused by the stone's **own** gap may
 be captured **verbatim**, cured, and a **new** floor run. Any other red is a STOP. Never re-run unchanged code for a
