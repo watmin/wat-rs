@@ -412,6 +412,15 @@ fn extract_fqdn(
             let v = crate::runtime::eval_inner(arg, env, sym)?.value_owned();
             match &v {
                 Value::wat__core__keyword(k) => Ok((**k).clone()),
+                Value::wat__WatAST(ast) => match ast.as_ref() {
+                    WatAST::Keyword(k, _) => Ok(k.clone()),
+                    _ => Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
+                        op: op.into(),
+                        expected: ":wat::core::keyword (an FQDN like :wat::core::Bytes/to-hex)",
+                        got: Box::new(crate::runtime::ValueSnapshot::of(&v)),
+                    })
+                    .into()),
+                },
                 other => Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
                         expected: ":wat::core::keyword (an FQDN like :wat::core::Bytes/to-hex)",
@@ -588,6 +597,15 @@ pub(crate) fn eval_render_doc(
     let _ = span;
     let _ = (env, sym);
     let name = extract_fqdn(OP, fqdn, env, sym)?;
+    // Arc 255.81 — a retired hard-primitive name is a type. "no registered
+    // intrinsic" would hide the retirement.
+    if let Some(tail) = crate::types::retired_hard_primitive_tail(&name) {
+        return Err(RuntimeError::new(fqdn.span().clone(), RuntimeErrorKind::MalformedForm {
+            head: name.clone(),
+            reason: crate::types::hard_primitive_retirement_reason(&name, tail),
+        })
+        .into());
+    }
 
     let entry = match crate::intrinsic::registry().lookup_entry(&name) {
         Some(e) => e,
@@ -983,6 +1001,21 @@ pub(crate) fn eval_type_equal(
             .into());
         }
     };
+
+    if let Some((spelling, tail)) = crate::types::retired_type_node(a_ast) {
+        return Err(RuntimeError::new(a_ast.span().clone(), RuntimeErrorKind::MalformedForm {
+            head: spelling.clone(),
+            reason: crate::types::hard_primitive_retirement_reason(&spelling, tail),
+        })
+        .into());
+    }
+    if let Some((spelling, tail)) = crate::types::retired_type_node(b_ast) {
+        return Err(RuntimeError::new(b_ast.span().clone(), RuntimeErrorKind::MalformedForm {
+            head: spelling.clone(),
+            reason: crate::types::hard_primitive_retirement_reason(&spelling, tail),
+        })
+        .into());
+    }
 
     let a_ty = crate::types::parse_type_node(a_ast).map_err(|e| {
         RuntimeError::new(a_ast.span().clone(), RuntimeErrorKind::TypeMismatch {

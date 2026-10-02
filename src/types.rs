@@ -283,6 +283,43 @@ pub(crate) fn hard_primitive_old_key(tail: &str) -> String {
     }
 }
 
+/// The tail, if `name` (either dialect) is the retired pre-255.81 key of one of
+/// the 24. `wat.core/i64` and `:wat::core::i64` are the same key.
+/// `:wat::type::i64` and `wat.type/i64` are not.
+pub(crate) fn retired_hard_primitive_tail(name: &str) -> Option<&'static str> {
+    let id = crate::edn::render::canonical_identity(name);
+    WAT_TYPE_HARD_PRIMITIVES
+        .iter()
+        .copied()
+        .find(|&tail| id == hard_primitive_old_key(tail))
+}
+
+/// The checker's retirement sentence. Runtime doors that parse a type say the
+/// same thing, so a retired name cannot compare as `false` or miss as a field.
+pub(crate) fn hard_primitive_retirement_reason(spelling: &str, tail: &str) -> String {
+    format!(
+        "'{spelling}' is retired (arc 255.81); use 'wat.type/{tail}' instead \
+         (wat.type/ holds exactly the 24 hard primitives, and this is one \
+         of them — the old :wat::core:: home no longer resolves in a type \
+         position)"
+    )
+}
+
+/// First retired hard-primitive spelling in this type node, if any.
+/// Strings are not walked: a type is not named by a string.
+pub(crate) fn retired_type_node(node: &WatAST) -> Option<(String, &'static str)> {
+    match node {
+        WatAST::Keyword(k, _) => {
+            retired_hard_primitive_tail(k).map(|tail| (k.clone(), tail))
+        }
+        WatAST::Symbol(id, _) => {
+            let spelling = id.as_str().to_string();
+            retired_hard_primitive_tail(&spelling).map(|tail| (spelling, tail))
+        }
+        other => other.children().iter().find_map(retired_type_node),
+    }
+}
+
 /// K1 — a List head may be spelled as a `WatAST::Keyword` FQDN or, pre-normalization
 /// (`normalize_symbol_refs` has not yet run), as a `WatAST::Symbol` (`wat.type/Vector`).
 /// Both denote the same head; this is the ONE place that reads either shape into the

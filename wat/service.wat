@@ -539,16 +539,17 @@
      ephemeral-len  (:wat::core::length (:wat::core::ast->children ephemeral-fields))
      has-ephemeral  (:wat::i64::> ephemeral-len 0)
 
-     ;; :durable-parent — optional, default :wat::core::Record. The user-supplied branch is
-     ;; already a `:wat::WatAST` node (every clause value in this macro is); the default must
-     ;; be minted as one too — `type-equal?` (below) requires a node on both sides, unlike
-     ;; `keyword/to-string`'s old two-representation leniency.
+     ;; :durable-parent — optional, default the base Record as data (`wat.type/Record`).
+     ;; The user-supplied branch is already a `:wat::WatAST` node (every clause value in
+     ;; this macro is); the default must be minted as one too — `type-equal?` (below)
+     ;; requires a node on both sides. A string of the retired `:wat::core::Record` key
+     ;; is the old name itself, and `type-equal?` refuses it.
      state-parent   (:wat::core::if (:wat::hashmap::contains-key? clause-map "durable-parent")
 
                       (:wat::core::Option/expect
                         (:wat::hashmap::get clause-map "durable-parent")
                         "defservice: :durable-parent needs a value")
-                      (:wat::core::keyword-node ":wat::core::Record"))
+                      'wat.type/Record)
 
      ;; ── Arc 278 Stone 1: :max-frame-bytes — the per-service hard frame limit `FOO` ──
      ;; Optional; default DEFAULT_MAX_FRAME_BYTES (512 KiB = 524288). The declared value

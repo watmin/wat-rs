@@ -23,10 +23,10 @@
     ;; row 2 — the variadic splat, prove 3 elements not just dispatch
     (:probe::show "core::List [1 2 3]"
       (:wat::eval-ast! (:wat::core::quote
-        (:wat::core::apply :wat::core::List (wat.type/Vector :- [:wat::core::Any] 1 2 3)))))
+        (:wat::core::apply wat.type/List (wat.type/Vector :- [:wat::core::Any] 1 2 3)))))
     (:probe::show "core::List []"
       (:wat::eval-ast! (:wat::core::quote
-        (:wat::core::apply :wat::core::List (wat.type/Vector :- [:wat::core::Any])))))
+        (:wat::core::apply wat.type/List (wat.type/Vector :- [:wat::core::Any])))))
 
     ;; row 3 — the 0-arg door
     (:probe::show "math::pi"

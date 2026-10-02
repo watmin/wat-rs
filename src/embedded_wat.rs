@@ -279,21 +279,26 @@ pub fn extract_literal_spans(raw_src_chars: &[char]) -> Vec<LiteralSpan> {
 /// `char_map` afterwards): every non-nested `{…}` span is replaced by a
 /// same-length run of `x` so the decoded text's char COUNT — and therefore
 /// every index into it — never moves. `{{` / `}}` (format!'s literal-brace
-/// escapes) are left untouched rather than mistaken for an opening brace.
+/// escapes) become a same-length `{ ` / ` }`, the one brace `format!` builds.
 pub fn replace_placeholders_preserving_len(s: &str) -> String {
     let chars: Vec<char> = s.chars().collect();
     let n = chars.len();
     let mut out = String::with_capacity(s.len());
     let mut i = 0;
     while i < n {
+        // format!'s `{{` / `}}` are ONE brace in the program the macro builds.
+        // Leaving both braces in the decoded text makes `{`:session v}` parse as
+        // `{{:session v}}`, so the whole literal fails candidacy and a constructor
+        // head inside it never reaches the codemod. A same-length space keeps the
+        // decoded offsets aligned with `char_map`.
         if chars[i] == '{' && chars.get(i + 1) == Some(&'{') {
             out.push('{');
-            out.push('{');
+            out.push(' ');
             i += 2;
             continue;
         }
         if chars[i] == '}' && chars.get(i + 1) == Some(&'}') {
-            out.push('}');
+            out.push(' ');
             out.push('}');
             i += 2;
             continue;
@@ -411,9 +416,8 @@ mod tests {
         let s = "{{literal}} {real}";
         let out = replace_placeholders_preserving_len(s);
         assert_eq!(out.chars().count(), s.chars().count());
-        // `{{literal}}` (the format! literal-brace escape) survives untouched; `{real}` (a
-        // genuine placeholder) becomes a same-length `x`-run.
-        assert_eq!(out, "{{literal}} xxxxxx");
+        // `{{literal}}` is format!'s one literal `{literal}`; `{real}` is a placeholder.
+        assert_eq!(out, "{ literal } xxxxxx");
     }
 
     #[test]

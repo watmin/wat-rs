@@ -474,3 +474,58 @@ The arm is the native-fire `expect`. The value is
 
 A STOP means STOP. The remaining printed-spelling reds were not
 re-captured after this floor.
+
+## Amend 3
+
+The defservice default durable parent was a `keyword-node` of the string
+`":wat::core::Record"`. `type-equal?` refused that keyword while expanding
+`wat/cache.wat`, so stdlib startup died before any user test ran. The
+program did name the retired key. The default is now the quoted node
+`'wat.type/Record`. That is not STOP-6.
+
+`type-equal?`, `metadata-of`, and `render-doc` refuse a retired
+hard-primitive name with the checker's retirement sentence. A retired
+constructor head reached through `eval_in_frozen` (the path the rete
+`format!` templates take, which does not type-check) raises the same
+sentence instead of `UnknownField`. A `:-` binder that was peeled on a
+head that is neither a function nor an aggregate is `UnknownFunction`;
+a known aggregate still constructs. The four tests in
+`tests/types/probe_arc255_81_retired_name_refuses.rs` passed on the
+floor below.
+
+`wat/telemetry.wat` compares the four framing types as quoted data
+(`'wat.type/i64`, `'wat.type/f64`, `'wat.uuid/UUID`, `'wat.type/bool`).
+`framing_floor_of_pinned_numbers_hold_across_the_uuid_rename` passed.
+STOP-5 did not fire.
+
+`wat-fix-rust` missed the rete templates because `{{` / `}}` were left
+as doubled braces, so the literal did not parse and was not a candidate.
+Those escapes are now a same-length space plus one brace. Dry-run then
+apply of `types-to-wat-type.wat` over `git ls-files '*.rs'` (1295 files):
+7 changed, 34 edits applied, 0 refused. `native_where_passes` passed.
+
+Rules L (slash dialect), M (a two-element doc vector, and a three-element
+`:args` vector whose last child is a string), and N (`apply`'s function)
+are in `wat-scripts/fixes/types-to-wat-type.wat`. The replay fixture
+matches `after.post`, and `every_recorded_migration_is_fixtured_or_runed`
+passed. The five census files those rules cover were converted and
+`wat --check` returned 0. The char scratch probe keeps the old spelling
+as the string `":wat::core::char"` passed through `keyword-node`; its
+`--check` also returned 0. A staged copy of the other 2155 tracked `.wat`
+files outside `wat-scripts/fixes/` had no further diff.
+
+`cargo clippy --release --all-targets -- -D warnings` finished in 12.44s,
+exit 0.
+
+The new floor is red. Do not re-run `.floor/2026-10-02T07-50-06Z`.
+
+```
+Summary [ 399.682s] 6368 tests run: 6236 passed (26 slow), 132 failed, 24 skipped
+```
+
+Exit 100. The two STOP-2 arms are not in that fail set. The 132 were not
+re-captured under the as-data audit. After this capture,
+`tests_carry_no_inlined_wat` named
+`tests/types/probe_arc255_81_retired_name_refuses.rs`. A
+`rune:lint(no-inlined-wat)` was added on that file and the lint test
+passed in a later focused run; that rune is not in the capture above.

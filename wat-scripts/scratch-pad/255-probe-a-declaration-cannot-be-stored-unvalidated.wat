@@ -34,7 +34,7 @@
 (:wat::core::defn :user::probe-complete
   {:doc "Scratch probe verb — returns its argument unchanged."
    :added "1.0.0"
-   :ret [:wat::core::i64 "x, unchanged"]
+   :ret [wat.type/i64 "x, unchanged"]
    :purity :wat::runtime::Purity.Pure
    :determinism :wat::runtime::Determinism.Deterministic
    :totality :wat::runtime::Totality.Total

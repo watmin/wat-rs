@@ -1374,10 +1374,10 @@ mod tests {
         let sym = parse_surface(
             "(wat.core/defsurface t/Echo :nature wat.kernel/Peer \
                :messages \
-               [(wat.core/recordtype t.Echo/Oops [why :- wat.core/String]) \
-                (wat.core/recordtype t.Echo/Req [msg :- wat.core/String  meta :- t.Echo/Oops])] \
+               [(wat.core/recordtype t.Echo/Oops [why :- wat.type/String]) \
+                (wat.core/recordtype t.Echo/Req [msg :- wat.type/String  meta :- t.Echo/Oops])] \
                :features \
-               [(echo [self :- t/Echo  req :- t.Echo/Req] :- wat.core/String \
+               [(echo [self :- t/Echo  req :- t.Echo/Req] :- wat.type/String \
                   :max-request-bytes 1024)])",
         )
         .expect(
@@ -1465,9 +1465,9 @@ mod tests {
                   :max-request-bytes 1024)])",
             "(wat.core/defsurface t/Bad :nature wat.kernel/Peer \
                :messages \
-               [(wat.core/recordtype t.Bad/Req [msg :- wat.core/String  meta :- t.Bad/Oops])] \
+               [(wat.core/recordtype t.Bad/Req [msg :- wat.type/String  meta :- t.Bad/Oops])] \
                :features \
-               [(echo [self :- t/Bad  req :- t.Bad/Req] :- wat.core/String \
+               [(echo [self :- t/Bad  req :- t.Bad/Req] :- wat.type/String \
                   :max-request-bytes 1024)])",
         ] {
             let err = parse_surface(undeclared_src).expect_err(

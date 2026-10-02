@@ -1051,21 +1051,13 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>, is_head
         // today regardless — this arm only decides whether the stop carries a REMEDY or a
         // plain UnknownFunction/UnresolvedReference).
         if !is_head {
-            for &tail in crate::types::WAT_TYPE_HARD_PRIMITIVES {
-                if *s == crate::types::hard_primitive_old_key(tail) {
-                    errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
-                        head: s.clone(),
-                        reason: format!(
-                            "'{}' is retired (arc 255.81); use 'wat.type/{}' instead \
-                             (wat.type/ holds exactly the 24 hard primitives, and this is one \
-                             of them — the old :wat::core:: home no longer resolves in a type \
-                             position)",
-                            s, tail
-                        ),
-                        remedies: crate::remedy::remedies_for(s, std::iter::empty()),
-                    } });
-                    return;
-                }
+            if let Some(tail) = crate::types::retired_hard_primitive_tail(s) {
+                errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
+                    head: s.clone(),
+                    reason: crate::types::hard_primitive_retirement_reason(s, tail),
+                    remedies: crate::remedy::remedies_for(s, std::iter::empty()),
+                } });
+                return;
             }
         }
         // Try parsing as a type expression. Most keywords aren't

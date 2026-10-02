@@ -16,7 +16,7 @@
   -> wat.type/AST
   (:wat::core::let
     [cv (:wat::core::fresh-symbol "coord")]
-    `((wat.core/fn [~cv :- wat.core/i64] :- wat.core/i64 ~cv) ~x)))
+    `((wat.core/fn [~cv :- wat.type/i64] :- wat.type/i64 ~cv) ~x)))
 
 (:wat::core::defn :user::compute [] -> wat.type/bool
   (:wat::core::= (:my::typed-id 7) 7))

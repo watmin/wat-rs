@@ -3227,7 +3227,8 @@ fn dispatch_keyword_head_value(
             // the callee's declared type params); every consumer below (the Peer-nature
             // send/recv forwarding, the aggregate-dispatch receiver read, and the
             // generic user-function lookup) only needs the REST.
-            let (_, args) = crate::types::peel_param_spec(args);
+            let (peeled, args) = crate::types::peel_param_spec(args);
+            let binder_peeled = peeled.is_some();
 
             if other.contains('/') {
                 let protocol_fqdn = wat_reader::identifier::receiver(other);
@@ -3742,6 +3743,20 @@ fn dispatch_keyword_head_value(
                             .into());
                         }
                     }
+                    // Stone 255.81 — a retired hard-primitive head is a type name that no
+                    // longer denotes. Say so, with the checker's remedy. Falling through
+                    // made `(:wat::core::PersistentVector :- [T] elem)` peel to one arg and
+                    // read the head as a field of that element.
+                    if let Some(tail) = crate::types::retired_hard_primitive_tail(other) {
+                        return Err(RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: other.to_string(),
+                                reason: crate::types::hard_primitive_retirement_reason(other, tail),
+                            },
+                        )
+                        .into());
+                    }
                     // Arc 278 BRIEF-construction-total-three-walls.md #1 — nested surface
                     // aggregate-constructor dispatch. `build_insert_fact` special-cases a
                     // `:then`/`:when` item's OWN top-level `(:Type arg…)` shape before ever
@@ -3771,6 +3786,16 @@ fn dispatch_keyword_head_value(
                             env,
                             sym,
                         );
+                    }
+                    // A `:-` binder was peeled and the head is still not a function and
+                    // not an aggregate. The remaining arg is an element, not a receiver —
+                    // reading it as a field named the head (the PersistentVector misroute).
+                    if binder_peeled {
+                        return Err(RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::UnknownFunction(other.to_string()),
+                        )
+                        .into());
                     }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
                     // When head is an unknown verb AND args.len() == 1 AND receiver is
@@ -7705,6 +7730,16 @@ fn eval_metadata_of(
         WatAST::Keyword(k, _) => k.clone(),
         _ => {
             let v = eval_inner(name_ast, env, sym)?.value_owned();
+            let from_keyword_node = match &v {
+                Value::wat__WatAST(ast) => match ast.as_ref() {
+                    WatAST::Keyword(k, _) => Some(k.clone()),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(k) = from_keyword_node {
+                k
+            } else {
             match crate::reflect::render::name_from_keyword_or_fn(&v) {
                 Some(n) => n,
                 None => {
@@ -7719,8 +7754,21 @@ fn eval_metadata_of(
                     .into());
                 }
             }
+            }
         }
     };
+    // Arc 255.81 — a retired hard-primitive name is a type, not a missing binding.
+    // Answering None would be the silent-zero trap.
+    if let Some(tail) = crate::types::retired_hard_primitive_tail(&name) {
+        return Err(RuntimeError::new(
+            name_ast.span().clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: name.clone(),
+                reason: crate::types::hard_primitive_retirement_reason(&name, tail),
+            },
+        )
+        .into());
+    }
     // Arc 255.1b-iii — the intrinsic branch. If `name` is a registered Rust
     // intrinsic, answer `metadata-of` with the SAME shape as the user path:
     // `Some((HashMap :- [keyword Value]))`, carrying the auto-derived baseline.

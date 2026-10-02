@@ -523,6 +523,14 @@ mod driver_tests {
     use super::*;
 
     #[test]
+    fn format_escaped_braces_keep_the_literal_a_candidate() {
+        let src = "(:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] q) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session])";
+        let ph = crate::embedded_wat::replace_placeholders_preserving_len(src);
+        assert_eq!(ph.chars().count(), src.chars().count());
+        assert!(is_candidate_wat(&ph), "{ph}");
+    }
+
+    #[test]
     fn leaf_rewritten_into_a_bracket_is_one_span_edit() {
         let old = "(:wat::core::defn :t::a [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64 0)\n";
         let new = "(:wat::core::defn :t::a [f <- [wat.type/i64 :-> wat.type/i64]] -> wat.type/i64 0)\n";

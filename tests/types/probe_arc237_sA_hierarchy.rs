@@ -107,11 +107,11 @@ fn probe_05_cycle_rejected() {
 fn probe_06_builtin_roots() {
     let env = TypeEnv::with_builtins();
     assert!(
-        is_subtype(":wat::holon::Record", ":wat::core::Record", &env),
-        "seeded root edge: :wat::holon::Record typesub :wat::core::Record"
+        is_subtype(":wat::holon::Record", ":wat::type::Record", &env),
+        "seeded root edge: :wat::holon::Record typesub :wat::type::Record"
     );
     assert!(
-        !is_subtype(":wat::core::Record", ":wat::holon::Record", &env),
+        !is_subtype(":wat::type::Record", ":wat::holon::Record", &env),
         "directional: base is NOT-a holonic"
     );
 }

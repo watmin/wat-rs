@@ -317,10 +317,10 @@
                   (:wat::core::fn [acc <- wat.type/i64  t <- wat.type/AST] -> wat.type/i64
                     (:wat::i64::+ acc
                       (:wat::core::cond
-                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::core::i64"))  20)
-                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::core::f64"))  24)
-                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::uuid::UUID")) 36)
-                        ((:wat::core::type-equal? t (:wat::core::keyword-node ":wat::core::bool")) 5)
+                        ((:wat::core::type-equal? t 'wat.type/i64)  20)
+                        ((:wat::core::type-equal? t 'wat.type/f64)  24)
+                        ((:wat::core::type-equal? t 'wat.uuid/UUID) 36)
+                        ((:wat::core::type-equal? t 'wat.type/bool) 5)
                         (:else 0))))
                   0 (:wat::runtime::field-types-of ty))
      key-cost   (:wat::core::foldl
