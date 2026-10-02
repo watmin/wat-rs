@@ -16,7 +16,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [m  (:probe::Multi :i 42 :s "hi")
-     ok (:wat::core::ann-form (:probe::Pair2/fst m) :wat::core::i64)]
+     ok (:wat::core::ann-form (:probe::Pair2/fst m) wat.type/i64)]
     (:wat::core::do
       (:wat::test::assert-eq ok 42)
       (:wat::kernel::println "narrowed2"))))

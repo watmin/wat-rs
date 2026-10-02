@@ -9,7 +9,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [b  (:probe::IntBox2 42)
-     ok (:wat::core::ann-form (:probe::Holds2/get b) :wat::core::i64)]
+     ok (:wat::core::ann-form (:probe::Holds2/get b) wat.type/i64)]
     (:wat::core::do
       (:wat::test::assert-eq ok 42)
       (:wat::kernel::println "measured"))))

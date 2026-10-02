@@ -41,7 +41,7 @@
       (:wat::core::let
         [outcome1
           (:wat::holon::bytes-vector
-            (wat.type/Vector :- [wat.type/u8] (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3)))]
+            (wat.type/Vector :- [wat.type/u8] (wat.type/u8 1) (wat.type/u8 2) (wat.type/u8 3)))]
         (:wat::core::match outcome1
           [:wat::holon::VectorDecodeOutcome.TruncatedHeader {:got got}
             (:wat::core::do
@@ -57,8 +57,8 @@
         [outcome2
           (:wat::holon::bytes-vector
             (wat.type/Vector :- [wat.type/u8]
-              (:wat::core::u8 8) (:wat::core::u8 0) (:wat::core::u8 0) (:wat::core::u8 0)
-              (:wat::core::u8 0)))]
+              (wat.type/u8 8) (wat.type/u8 0) (wat.type/u8 0) (wat.type/u8 0)
+              (wat.type/u8 0)))]
         (:wat::core::match outcome2
           [:wat::holon::VectorDecodeOutcome.LengthMismatch {:expected expected :got got}
             (:wat::core::do

@@ -2177,12 +2177,11 @@
   :Ok  [value <- :T]
   :Err [error <- :E])
 
-;; :wat::core::Bytes — arc 296 K. Substrate-general byte buffer. Alias for
-;; `(:wat::core::Vector :- [:wat::core::u8])`. Per arc 062 + /gaze: the universal
-;; name "Bytes" wins across adjacent ecosystems. Lives in `:wat::core::*` because
-;; byte buffers predate every current and future consumer. Both `:wat::core::Bytes`
-;; and `(:wat::core::Vector :- [:wat::core::u8])` work at call sites.
-(:wat::core::typealias :wat::core::Bytes
+;; wat.type/Bytes — arc 296 K, key flipped stone 255.81. Substrate-general byte
+;; buffer. Alias for `(wat.type/Vector :- [wat.type/u8])`. Per arc 062 + /gaze: the
+;; universal name "Bytes" wins across adjacent ecosystems. Both `wat.type/Bytes`
+;; and `(wat.type/Vector :- [wat.type/u8])` work at call sites.
+(:wat::core::typealias wat.type/Bytes
   (wat.type/Vector :- [wat.type/u8]))
 
 ;; Placed here, near the top of core.wat and before :wat::core::Error below:

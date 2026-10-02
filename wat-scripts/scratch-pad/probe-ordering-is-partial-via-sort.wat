@@ -20,7 +20,7 @@
 ;; `probe-eq-generic-instantiation.wat` carries for `=`. It is not run: `sort` on this vector
 ;; raises, which is the point.
 
-(:wat::core::typealias :user::IntFn [:wat::core::i64 :-> wat.type/i64])
+(:wat::core::typealias :user::IntFn [wat.type/i64 :-> wat.type/i64])
 
 (:wat::core::defn :user::sort-fns
   [v <- (wat.type/Vector :- [:user::IntFn])] -> (wat.type/Vector :- [:user::IntFn])

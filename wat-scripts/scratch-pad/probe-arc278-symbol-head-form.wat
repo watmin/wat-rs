@@ -67,7 +67,7 @@
     ;; (3) does the wire's typed door accept it as a WatAST?
     (:wat::kernel::println "3. edn::validate against :wat::WatAST:")
     (:wat::core::match
-      (:wat::edn::validate (:wat::core::quote (wat.core/+ 2 2)) :wat::WatAST)
+      (:wat::edn::validate (:wat::core::quote (wat.core/+ 2 2)) wat.type/AST)
       [:wat::edn::Validation.Valid {} (:wat::kernel::println "   VALID")]
       [:wat::edn::Validation.Invalid {:path path :expected expected :got got}
         (:wat::core::do

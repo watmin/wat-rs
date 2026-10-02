@@ -686,10 +686,10 @@
 (:wat::core::defn :wat::bracket::map-worker :- [D G I O W T]
   [locus         <- (:wat::spawn::Locus :- [T])
    items         <- (wat.type/Vector :- [I])
-   worker-init   <- [:wat::core::i64 :-> W]
+   worker-init   <- [wat.type/i64 :-> W]
    grant-handles <- :G
-   grant-fn      <- [G :wat::core::i64 :-> wat.type/nil]
-   revoke-fn     <- [G :wat::core::i64 :-> wat.type/nil]
+   grant-fn      <- [G wat.type/i64 :-> wat.type/nil]
+   revoke-fn     <- [G wat.type/i64 :-> wat.type/nil]
    setup-carrier        <- (wat.type/Vector :- [D])]
   -> (wat.type/Vector :- [O])
   (:wat::core::let
@@ -786,10 +786,10 @@
 (:wat::core::defn :wat::bracket::each-worker :- [D G I O W T]
   [locus         <- (:wat::spawn::Locus :- [T])
    items         <- (wat.type/Vector :- [I])
-   worker-init   <- [:wat::core::i64 :-> W]
+   worker-init   <- [wat.type/i64 :-> W]
    grant-handles <- :G
-   grant-fn      <- [G :wat::core::i64 :-> wat.type/nil]
-   revoke-fn     <- [G :wat::core::i64 :-> wat.type/nil]
+   grant-fn      <- [G wat.type/i64 :-> wat.type/nil]
+   revoke-fn     <- [G wat.type/i64 :-> wat.type/nil]
    setup-carrier        <- (wat.type/Vector :- [D])]
   -> wat.type/nil
   (:wat::core::do
@@ -811,7 +811,7 @@
 ;; macro's own expansion-time computation, so the F5 purity gate doesn't apply here, unlike a
 ;; direct call from the macro body itself).
 (:wat::core::defn :wat::bracket::const-worker-init :- [W]
-  [work-fn <- :W] -> [:wat::core::i64 :-> W]
+  [work-fn <- :W] -> [wat.type/i64 :-> W]
   (:wat::core::fn [_wid <- wat.type/i64] -> :W work-fn))
 
 ;; ── map — the pool verb, plain OR kwargs-provisioned (arc 170 gap J ratified surface) ──────

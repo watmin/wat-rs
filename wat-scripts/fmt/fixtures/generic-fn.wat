@@ -3,7 +3,7 @@
   -> wat.type/i64
   (:wat::core::foldl
     (wat.core/fn :- [T]
-      [acc :- wat.core/i64
+      [acc :- wat.type/i64
        x   :- T]
       :- wat.type/i64
       acc)

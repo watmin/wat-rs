@@ -87,7 +87,7 @@
 ;; keeps matches, never dedups. fire.wat:316-322's length-as-set-test depends on this.
 (:wat::core::defn :wat::rete::factbag::retain
   [b    <- :wat::rete::FactBag
-   pred <- [:wat::core::Record :-> wat.type/bool]]
+   pred <- [wat.type/Record :-> wat.type/bool]]
   -> :wat::rete::FactBag
   (:wat::rete::FactBag :items
     (:wat::core::foldl

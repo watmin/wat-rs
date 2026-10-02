@@ -6,4 +6,4 @@
 (:wat::core::def :user::main
   (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println
-      (wat.type/Vector :- [[:wat::core::i64 :-> wat.type/bool]]))))
+      (wat.type/Vector :- [[wat.type/i64 :-> wat.type/bool]]))))

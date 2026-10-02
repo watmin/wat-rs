@@ -502,7 +502,7 @@
 ;; the counter across the recursion the way `keep-indexed-stream` did.
 (:wat::core::defn :wat::core::keep-indexed-walk :- [T U]
   [idx <- wat.type/i64
-   f   <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])]
+   f   <- [wat.type/i64 T :-> (:wat::core::Option :- [U])]
    s   <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
@@ -514,7 +514,7 @@
       [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::keep-indexed :- [T U]
-  [f    <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])]
+  [f    <- [wat.type/i64 T :-> (:wat::core::Option :- [U])]
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::core::keep-indexed-walk 0 f (:wat::core::Seqable/seq coll)))
 
@@ -525,7 +525,7 @@
 ;; calls per element traded for not adding a param.
 (:wat::core::defn :wat::core::map-indexed-walk :- [T U]
   [idx <- wat.type/i64
-   f   <- [:wat::core::i64 T :-> U]
+   f   <- [wat.type/i64 T :-> U]
    s   <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
@@ -535,7 +535,7 @@
       [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::map-indexed :- [T U]
-  [f    <- [:wat::core::i64 T :-> U]
+  [f    <- [wat.type/i64 T :-> U]
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::core::map-indexed-walk 0 f (:wat::core::Seqable/seq coll)))
 

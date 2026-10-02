@@ -1,12 +1,12 @@
 (:wat::core::defn :fix::kwargs-pos
-  [f <- [:wat::core::keyword
-         :wat::core::keyword
-         :wat::core::keyword
-         :wat::core::keyword
+  [f <- [wat.type/keyword
+         wat.type/keyword
+         wat.type/keyword
+         wat.type/keyword
          (wat.type/Vector :- [wat.type/i64])
-         :wat::core::keyword
+         wat.type/keyword
          (wat.type/Vector :- [wat.type/i64])
-         :wat::core::keyword
+         wat.type/keyword
          (wat.type/Vector :- [wat.type/i64])
          :-> wat.type/nil]]
   -> wat.type/nil

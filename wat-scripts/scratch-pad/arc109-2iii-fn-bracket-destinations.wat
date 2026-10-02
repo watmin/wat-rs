@@ -51,7 +51,7 @@
   f)
 
 (:wat::core::defn :user::rung-nested-ret
-  [f <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])] i <- wat.type/i64 x <- T]
+  [f <- [wat.type/i64 T :-> (:wat::core::Option :- [U])] i <- wat.type/i64 x <- T]
   -> (:wat::core::Option :- [U])
   (:wat::core::apply f i [x]))
 

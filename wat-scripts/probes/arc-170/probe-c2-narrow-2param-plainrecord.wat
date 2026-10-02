@@ -10,7 +10,7 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [b  (:probe::ISBox :i 42 :s "hi")
-     ok (:wat::core::ann-form (:probe::Pair/fst b) :wat::core::i64)]
+     ok (:wat::core::ann-form (:probe::Pair/fst b) wat.type/i64)]
     (:wat::core::do
       (:wat::test::assert-eq ok 42)
       (:wat::kernel::println "narrowed"))))

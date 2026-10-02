@@ -287,7 +287,7 @@
 ;; `filter-present` / `filter-accept-any`, or a caller-supplied closure). `capacity` is the LRU's
 ;; hard bound on entry count — the same guard Stone 1's `Lru::new` carries (must be positive).
 (:wat::core::defn :wat::cache::HolographicLru/new
-  [filter   <- [:wat::core::f64 :-> wat.type/bool]
+  [filter   <- [wat.type/f64 :-> wat.type/bool]
    capacity <- wat.type/i64]
   -> :wat::cache::HolographicLru
   (:wat::cache::HolographicLru

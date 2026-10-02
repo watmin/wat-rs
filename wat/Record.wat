@@ -192,7 +192,7 @@
     ;; The macro now expands to `(do recordtype companion)` — NOT emptied by `register_types`
     ;; (which strips only the type decl from a `do` body): the companion `defmacro` survives.
     `(:wat::core::do
-       (:wat::core::recordtype ~fqdn ~@binder :wat::core::Record
+       (:wat::core::recordtype ~fqdn ~@binder wat.type/Record
          [~@field-ch])
        (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- (wat.type/Vector :- [wat.type/AST])]

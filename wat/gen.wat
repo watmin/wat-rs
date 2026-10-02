@@ -168,7 +168,7 @@
 
 (:wat::core::defstruct :wat::gen::Gen :- [T]
   [card <- wat.type/i64
-   at   <- [:wat::core::i64 :-> T]])
+   at   <- [wat.type/i64 :-> T]])
 
 ;; THE ONLY CONSTRUCTOR ANY VERB IN THIS FILE USES. A `card` is a COUNT, and a
 ;; count below zero is not a small space -- it is not a space. `(ints 5 2)` is an
@@ -208,7 +208,7 @@
 ;; would prove the floor and say nothing about the twelve callers, which is
 ;; exactly the seam-blindness (FM 24) that let A and B ship.
 (:wat::core::defn :wat::gen::gen :- [T]
-  [card <- wat.type/i64  at <- [:wat::core::i64 :-> T]] -> (:wat::gen::Gen :- [T])
+  [card <- wat.type/i64  at <- [wat.type/i64 :-> T]] -> (:wat::gen::Gen :- [T])
   (:wat::gen::Gen
     :card (:wat::core::if (:wat::core::< card 0) 0 card)
     :at   at))
@@ -465,7 +465,7 @@
 ;; (`with c j v`). That difference is a function, so it becomes a parameter.
 (:wat::core::defn :wat::gen::descend :- [T]
   [start <- wat.type/i64
-   probe <- [:wat::core::i64 :-> T]
+   probe <- [wat.type/i64 :-> T]
    still-fails? <- [T :-> wat.type/bool]]
   -> wat.type/i64
   (:wat::core::foldl

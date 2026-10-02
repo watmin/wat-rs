@@ -151,16 +151,50 @@
 ;; Parent)` both take a bare type in EVERY non-head position (measured: `wat/class.wat`'s 20+
 ;; `(extend-type :wat::core::i64 :wat::core::Equatable)`-shaped leaf-Equatable/Orderable rows —
 ;; a bare, unwrapped, marker-free monomorphic type is real corpus shape, not a hypothetical).
+;; Stone 255.81 — widened to four more ALL-bare-children heads, each measured the same way (a
+;; `wat --check`-clean corpus program naming a real type, not a hypothesized shape):
+;; `subtype?`'s two args (`(subtype? Child Parent)`), and the three single-arg reflection verbs
+;; `is-type?`/`type-of`/`signature-of-defn` (their one arg IS the type being asked about).
+;; Also `recordtype`/`aggregatetype`: `(recordtype :name [:- binder] Parent [fields])` — the
+;; PARENT is a bare type, sitting among otherwise-never-target-name children (`:name` is a
+;; user name, the optional binder's vars are type-PARAMETER names, `[fields]` is itself
+;; structural and walks its OWN field-type positions through the existing marker rules) —
+;; so flagging the WHOLE sequence in-args is inert on every position except the genuine
+;; target-name one. Measured: `tests/types/probe_arc237_sB1_recordtype.wat`,
+;; `tests/types/probe_arc293_decl_a_aggregatetype.wat`, and `src/types.rs`'s own
+;; `expand_then_register` fixtures (8+ `(recordtype … :wat::core::Record […])` rows).
 (:wat::core::defn :t2wt::all-children-are-types-form? [head-name <- wat.type/String] -> wat.type/bool
   (:wat::core::if (:wat::core::= head-name ":wat::core::extend-type") true
-    (:wat::core::= head-name ":wat::core::derive")))
+    (:wat::core::if (:wat::core::= head-name ":wat::core::derive") true
+      (:wat::core::if (:wat::core::= head-name ":wat::core::subtype?") true
+        (:wat::core::if (:wat::core::= head-name ":wat::runtime::is-type?") true
+          (:wat::core::if (:wat::core::= head-name ":wat::runtime::type-of") true
+            (:wat::core::if (:wat::core::= head-name ":wat::runtime::signature-of-defn") true
+              (:wat::core::if (:wat::core::= head-name ":wat::core::recordtype") true
+                (:wat::core::= head-name ":wat::core::aggregatetype")))))))))
 
 ;; (E) `typealias` — ONLY its last child (the body) is a type; `Name` (the child right after
 ;; the head) is the name being DECLARED, never a type, so it must NOT ride rule (D)'s uniform
 ;; eligibility. Measured: `(typealias :my::Coord :wat::core::i64)` — a bare, unwrapped body is
 ;; real corpus shape (10+ hits), not hypothetical.
+;; Stone 255.81 — widened to four more LAST-child-only heads, each the SAME shape (a leading
+;; non-type argument, then the type): `newtype`'s inner type (`(newtype Name InnerType)` — the
+;; same NAME-then-TYPE shape as typealias, measured in `tests/types/probe_arc255_55_newtype.wat`
+;; and 14 siblings); `conforms?`/`ann-form`'s second arg (`(conforms? value Type)`,
+;; `(ann-form value Type)` — a VALUE then the type it's checked/annotated against); and
+;; `:wat::edn::validate`'s second arg (`(validate value Type)`, same shape).
 (:wat::core::defn :t2wt::only-last-child-is-type-form? [head-name <- wat.type/String] -> wat.type/bool
-  (:wat::core::= head-name ":wat::core::typealias"))
+  (:wat::core::if (:wat::core::= head-name ":wat::core::typealias") true
+    (:wat::core::if (:wat::core::= head-name ":wat::core::newtype") true
+      (:wat::core::if (:wat::core::= head-name ":wat::core::conforms?") true
+        (:wat::core::if (:wat::core::= head-name ":wat::core::ann-form") true
+          (:wat::core::if (:wat::core::= head-name ":wat::edn::validate") true
+            ;; (H) `typeunion`'s last child is a VECTOR of member types
+            ;; (`(typeunion :name [T1 T2 …])`), not a bare type itself — this predicate still
+            ;; marks the VECTOR eligible; `node-edits`' structural branch (below) is what
+            ;; then treats a last-eligible VECTOR's own children as in-args, the one place
+            ;; this rule's shape differs from the other four (a bare leaf, not a container).
+            (:wat::core::= head-name ":wat::core::typeunion")))))))
 
 ;; (F) NATURE-VALUE — stone 255.79's added rule. A keyword whose immediately preceding sibling
 ;; is the bare keyword `:nature` (a `defsurface`'s `:nature <type>` clause) is a type position,
@@ -171,6 +205,23 @@
 ;; sibling is never the literal token `:nature`.
 (:wat::core::defn :t2wt::nature-value? [name <- wat.type/String] -> wat.type/bool
   (:wat::core::= name ":nature"))
+
+;; (G) FN-BRACKET ARGS — stone 255.81 (cutover 4b), a residue rule (B)-(F) do not see.
+;; `[A1 A2 … :-> R]` is the fn-type bracket (`[arg… :-> ret]`, arc 251.4c) — the RETURN `R`
+;; already converts via rule (C) (`R`'s previous sibling is literally `:->`, already in
+;; `marker-symbol?`'s set), but an ARG before the arrow (`A1`, `A2`, …) has NO preceding
+;; marker (the arrow comes AFTER it, not before) and is not itself head-of-a-`:-`-bracket — so
+;; rules (A)-(F) all miss it. Measured, not hypothesized: `wat/bracket.wat`/`wat/gen.wat`/
+;; `wat/seq.wat` each still carry a bare `:wat::core::i64` as a multi-arg bracket's FIRST
+;; argument, confirmed by the idempotent codemod's own 0-change dry run finding nothing there —
+;; the existing five rules structurally cannot reach it. A bracket Vector's children are a
+;; type position in their OWN right (same relation `(Head :- [args])`'s args-vector members
+;; already get via rule (B)) the MOMENT any child is literally `:->` — so this is evaluated once
+;; per structural node, over ITS OWN children, not threaded from a parent/sibling relationship.
+(:wat::core::defn :t2wt::seq-is-fn-bracket? [ch <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
+  (:wat::core::if (:wat::core::empty? ch) false
+    (:wat::core::if (:wat::core::= (:t2wt::item-name (:wat::core::first ch)) ":->") true
+      (:t2wt::seq-is-fn-bracket? (:wat::core::rest ch)))))
 
 ;; node-edits — one node's contribution: recurse if structural (this node becomes an
 ;; args-vector for ITS OWN children iff `prev-name` — OUR OWN preceding sibling in the
@@ -194,7 +245,25 @@
                       head-name   (:wat::core::if (:wat::core::empty? ch) "" (:t2wt::item-name (:wat::core::first ch)))
                       child-in-args? (:wat::core::if (:wat::core::= prev-name ":-")
                                        true
-                                       (:t2wt::all-children-are-types-form? head-name))
+                                       (:wat::core::if (:t2wt::all-children-are-types-form? head-name)
+                                         true
+                                         (:wat::core::if
+                                           ;; (G) — this node's OWN children are a fn-bracket
+                                           ;; sequence `[A… :-> R]` iff ANY of them is literally
+                                           ;; `:->`; every non-arrow child (arg or ret) is then
+                                           ;; a type position. Checked over ch itself (not
+                                           ;; prev-name, not head-name) — the one rule keyed on
+                                           ;; the SEQUENCE's own contents rather than its
+                                           ;; relation to a parent/sibling.
+                                           (:t2wt::seq-is-fn-bracket? ch)
+                                           true
+                                           ;; (H) — THIS node arrived already marked
+                                           ;; `last-eligible?` (rule E said so — e.g. it is
+                                           ;; `typeunion`'s last child) AND it is itself a
+                                           ;; Vector (a member-type LIST, not a bare type) —
+                                           ;; so ITS children are the types, not it.
+                                           (:wat::core::and last-eligible?
+                                             (:wat::core::= (:wat::core::ast-kind node) "vector")))))
                       child-only-last? (:t2wt::only-last-child-is-type-form? head-name)]
       (:t2wt::walk-seq ch child-in-args? child-only-last? "" lines src))
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
