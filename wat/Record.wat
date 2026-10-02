@@ -150,7 +150,7 @@
          (:wat::core::let
            [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "defrecord kwargs companion: field-ch index")
             is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
-                        (:wat::core::= (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children item))) ":wat::core::unquote-splicing")
+                        (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children item)))) ":wat::core::unquote-splicing")
                         false)]
            (:wat::core::if is-splice
              acc
@@ -246,7 +246,7 @@
          (:wat::core::let
            [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "holon defrecord kwargs companion: field-ch index")
             is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
-                        (:wat::core::= (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children item))) ":wat::core::unquote-splicing")
+                        (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children item)))) ":wat::core::unquote-splicing")
                         false)]
            (:wat::core::if is-splice
              acc

@@ -1795,13 +1795,22 @@ fn whole_body_templates_in_the_corpus_are_pure() {
             note_template_refusals(form, path, &mut hits);
         }
     }
-    // The one hit is the arc 249 fixture written to prove an impure computed unquote
-    // is refused. Anything else is a macro that ran impure code at expand time (STOP-4).
+    // Deliberate negative proofs: the arc 249 fixture, and the two 255.83
+    // whole-body templates written to refuse an unquoted println. The scan
+    // stays over every tracked .wat and .wat.bad. Anything else is a macro
+    // that ran impure code at expand time (STOP-4).
+    let refused = "keyword head `:wat::kernel::println` refused at macro expand time — not on the pure-combinator allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total heads are permitted";
     assert_eq!(
         hits,
         vec![
             "tests/macros/probe_arc249_macro_engine_impure.wat.bad:1: quasiquote template purity check failed at definition of :my::impure-cu: keyword head `:wat::kernel::stopped?` refused at macro expand time — not on the pure-combinator allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total heads are permitted"
-                .to_string()
+                .to_string(),
+            format!(
+                "tests/resolve/probe_arc255_83_qq_whole_kw.wat.bad:1: quasiquote template purity check failed at definition of :user::m: {refused}"
+            ),
+            format!(
+                "tests/resolve/probe_arc255_83_qq_whole_sym.wat.bad:1: quasiquote template purity check failed at definition of :user::m: {refused}"
+            ),
         ]
     );
 }

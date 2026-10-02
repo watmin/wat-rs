@@ -60,9 +60,9 @@
   (:wat::core::let [k (:wat::core::ast-kind node)]
     (:wat::core::contains? (wat.type/HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
 
-;; annotated-if? — a List whose head is the `:wat::core::if` keyword and whose child[2] is
-;; the bare Symbol `->` (the redundant return annotation). Keys on the EXACT head so an
-;; `Option/expect -> :T` (different head) is never mistaken for an if annotation.
+;; annotated-if? — a List whose head is the identity `:wat::core::if` (either spelling)
+;; and whose child[2] is the bare Symbol `->`. The identity keeps `Option/expect -> :T`
+;; from being read as an annotated if.
 (:wat::core::defn :wat::fix::annotated-if? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
@@ -77,13 +77,14 @@
           ;; 251.8d-i class A — ast-name is partial (Symbol/Keyword/StringLit).
           ;; A list in head position with ≥3 children used to raise here; the
           ;; kind guard matches c2's. wat.core/if is lazy, so this prevents the call.
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-            (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
+          (:wat::core::let [hk (:wat::core::ast-kind head)]
+          (:wat::core::if (:wat::core::or (:wat::core::= hk "keyword") (:wat::core::= hk "symbol"))
+            (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::if")
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
                 (:wat::core::= (:wat::core::ast-name c2) "->")
                 false)
               false)
-            false))))
+            false)))))
     false))
 
 ;; strip-if — rebuild the bare `(if cond then else)` from `(if cond -> :T then else)`,
@@ -966,11 +967,13 @@
     false))
 
 (:wat::core::defn :wat::fix::enum-purity-marker? [n <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::or
-      (:wat::core::= (:wat::core::ast-name n) ":wat::enum::Pure")
-      (:wat::core::= (:wat::core::ast-name n) ":wat::enum::Impure"))
-    false))
+  (:wat::core::let [k (:wat::core::ast-kind n)]
+    (:wat::core::if (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "symbol"))
+      (:wat::core::let [id (:wat::core::canonical-identity (:wat::core::ast-name n))]
+        (:wat::core::or
+          (:wat::core::= id ":wat::enum::Pure")
+          (:wat::core::= id ":wat::enum::Impure")))
+      false)))
 
 (:wat::core::defn :wat::fix::defenum-variant-start
   [ch <- (wat.type/Vector :- [wat.type/AST])]
@@ -1380,19 +1383,21 @@
       (:wat::core::if (:wat::core::= (:wat::core::length ch) 2)
         (:wat::core::let [head (:wat::core::first ch)
                           arg  (:wat::core::first (:wat::core::rest ch))]
-          (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-                            (:wat::core::= (:wat::core::ast-name head) ":wat::core::first")
+          (:wat::core::let [hk (:wat::core::ast-kind head)]
+          (:wat::core::if (:wat::core::if (:wat::core::or (:wat::core::= hk "keyword") (:wat::core::= hk "symbol"))
+                            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::first")
                             false)
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "list")
               (:wat::core::let [ach (:wat::core::ast->children arg)]
                 (:wat::core::if (:wat::core::= (:wat::core::length ach) 3)
-                  (:wat::core::let [ahead (:wat::core::first ach)]
-                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind ahead) "keyword")
-                      (:wat::core::= (:wat::core::ast-name ahead) ":wat::core::drop")
+                  (:wat::core::let [ahead (:wat::core::first ach)
+                                    ak (:wat::core::ast-kind ahead)]
+                    (:wat::core::if (:wat::core::or (:wat::core::= ak "keyword") (:wat::core::= ak "symbol"))
+                      (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name ahead)) ":wat::core::drop")
                       false))
                   false))
               false)
-            false))
+            false)))
         false))
     false))
 

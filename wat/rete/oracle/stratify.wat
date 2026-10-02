@@ -225,7 +225,7 @@
         (:wat::core::let [ch (:wat::core::ast->children form)
                           hd (:wat::core::if (:wat::core::empty? ch)
                                ""
-                               (:wat::core::ast-name (:wat::core::first ch)))
+                               (:wat::core::canonical-identity (:wat::core::ast-name (:wat::core::first ch))))
                           n  (:wat::string::length hd)
                           q? (:wat::core::if (:wat::i64::>= n 1)
                                (:wat::core::= (:wat::string::subs hd 0 1) "?")

@@ -640,7 +640,7 @@
         ;; Arc 294 item 9a — aggregate ctor kwargs mode: when kwargs-ty is the sentinel
         ;; `:wat::core::agg-positional`, emit PURE POSITIONAL to the (prime) ctor `(~impl-kw ~@ovals)`
         ;; — no Kwargs-record wrap. Else defn's shape: positional + a trailing Kwargs record.
-        (:wat::core::if (:wat::core::= (:wat::core::ast-name kwargs-ty) ":wat::core::agg-positional")
+        (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name kwargs-ty)) ":wat::core::agg-positional")
           
           `(~impl-kw ~@pos ~@ovals)
           ;; Arc 294 item 9a — kwargs-lower is the machinery that KNOWS: it holds the reordered

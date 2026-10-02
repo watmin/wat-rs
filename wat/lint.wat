@@ -140,7 +140,7 @@
         (:wat::core::let [head (:wat::core::first ch)
                           c1   (:wat::core::nth ch 1)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::=")
+            (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::=")
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind c1) "symbol")
                 (:wat::core::ast-name c1)
                 "")
