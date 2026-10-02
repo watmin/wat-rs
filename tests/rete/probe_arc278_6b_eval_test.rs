@@ -65,7 +65,7 @@ fn non_bool_result_is_error() {
             RuntimeErrorKind::TypeMismatch { op, expected, got }
                 if op == ":wat::rete::eval-test"
                 && *expected == ":wat::core::bool (a where predicate must return bool)"
-                && got.type_name == "wat::core::i64"
+                && got.type_name == "wat::type::i64"
                 && got.rendered == "3"
         ),
         "expected RuntimeErrorKind::TypeMismatch(eval-test, bool, got i64 `3`); got {:?}",

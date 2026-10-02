@@ -147,7 +147,7 @@ fn select_prime_yields_lost_when_process_child_crashes() {
     // (already live in the stdlib — wat/cache.wat, wat/spawn.wat) is the replacement.
     let select_call = wat::parse_one!(
         r#"
-        (:wat::kernel::select (:wat::core::Vector (:wat::kernel::Process :- [wat.type/nil wat.type/nil]) child))
+        (:wat::kernel::select (wat.type/Vector (:wat::kernel::Process :- [wat.type/nil wat.type/nil]) child))
         "#
     )
     .expect("parse select' call");

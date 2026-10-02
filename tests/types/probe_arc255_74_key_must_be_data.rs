@@ -156,7 +156,7 @@ fn assert_fn_key_refused(case: &str) {
         "fixture `{case}` must be refused by the key-eligibility wall: {hay}"
     );
     assert!(
-        needle_count(&hay, ":wat::core::i64 :-> :wat::core::i64]") >= 1,
+        needle_count(&hay, "wat.type/i64 :-> wat.type/i64]") >= 1,
         "fixture `{case}`'s diagnostic must name the offending Fn type: {hay}"
     );
 }
@@ -222,7 +222,7 @@ fn hashset_fn_element_shallow_wat_bad_is_refused() {
     let (code, hay) = check("wat-scripts/probes/arc-255/probe-255.74-a-key-must-be-data.wat.bad");
     assert_ne!(code, Some(0), "the ORIGINAL shallow probe (255.73's isolation) must be refused: {hay}");
     assert!(needle_count(&hay, WALL_MESSAGE) >= 1, "{hay}");
-    assert!(needle_count(&hay, ":wat::core::HashSet") >= 1, "{hay}");
+    assert!(needle_count(&hay, ":wat::type::HashSet") >= 1, "{hay}");
 }
 
 #[test]
@@ -231,7 +231,7 @@ fn hashset_vector_of_fn_deep_wat_bad_is_refused() {
     assert_ne!(code, Some(0), "the ORIGINAL deep probe (255.73's isolation) must be refused: {hay}");
     assert!(needle_count(&hay, WALL_MESSAGE) >= 1, "{hay}");
     assert!(
-        needle_count(&hay, ":wat::core::Vector :- [[:wat::core::i64 :-> :wat::core::i64]])") >= 1,
+        needle_count(&hay, "wat.type/Vector :- [[wat.type/i64 :-> wat.type/i64]])") >= 1,
         "the diagnostic must name the NESTED Vector<Fn> type, not just \"Fn\" — proving the \
          wall recurses through wat/class.wat's conditional `(Vector :- [T :< Equatable]) :< \
          Equatable` edge (surfaced as a MembershipBound naming T, not a plain TypeMismatch, \

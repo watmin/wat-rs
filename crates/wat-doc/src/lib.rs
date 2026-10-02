@@ -1822,14 +1822,17 @@ mod tests {
         assert_eq!(doc.added, "1.0.0");
         assert_eq!(
             doc.args,
-            vec![DocArg { name: "bs".into(), ty: ":wat::type::Bytes".into(), desc: "the bytes to encode".into(), is_rest: false }]
+            vec![DocArg { name: "bs".into(), ty: ":wat::core::Bytes".into(), desc: "the bytes to encode".into(), is_rest: false }]
         );
-        assert_eq!(doc.ret_type, ":wat::type::String");
+        assert_eq!(doc.ret_type, ":wat::core::String");
         assert_eq!(doc.ret, "the lowercase hex string, two chars per byte, no separators");
         assert_eq!(
             doc.examples,
             vec![DocExample {
-                expr: f("(:wat::core::Bytes/to-hex (wat.type/Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))"),
+                expr: f(concat!(
+                    "(:wat::core::Bytes/to-hex (:wat::core::Vector ",
+                    ":- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))"
+                )),
                 expected: Some(f("\"ff0010\"")),
                 run: true,
             }]
@@ -2463,7 +2466,10 @@ mod arc109_reader_adjudicates_type_tokens {
     fn nested_parametric_type_reference_round_trips() {
         let doc = "A probe.\n\n@added   1.0.0\n@arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the peers\n@ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Totality Unreviewed\n@ExpandTime Unreviewed\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
         let parsed = parse(doc).expect("nested parametric type references must be accepted");
-        assert_eq!(parsed.args[0].ty, "(wat.type/Vector :- [(:wat::kernel::Peer :- [I O])])");
+        assert_eq!(
+            parsed.args[0].ty,
+            concat!("(:wat::core::Vector ", ":- [(:wat::kernel::Peer :- [I O])])")
+        );
         assert_eq!(parsed.args[0].desc, "the peers");
         assert_eq!(parsed.ret_type, "(:wat::core::Option :- [(:wat::kernel::Process :- [I O])])");
         assert_eq!(parsed.ret, "the ret");

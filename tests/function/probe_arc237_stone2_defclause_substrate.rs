@@ -124,8 +124,8 @@ fn probe_07_body_return_type_mismatch_errors() {
     wat::assert_startup_error!(result, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":my::bad/clause#1"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::f64"
+            && expected == "wat.type/i64"
+            && got == "wat.type/f64"
     );
 }
 
@@ -138,7 +138,7 @@ fn probe_08_no_matching_clause_at_call_site_errors() {
         CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
             if name == ":my::only-i64"
             && *called_arity == 1
-            && called_arg_types.as_slice() == [":wat::core::String".to_string()]
+            && called_arg_types.as_slice() == ["wat.type/String".to_string()]
     );
 }
 

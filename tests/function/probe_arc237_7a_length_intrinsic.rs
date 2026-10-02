@@ -74,7 +74,7 @@ fn length_on_noncollection_errors() {
             Err(e) if matches!(
                 e.kind(),
                 RuntimeErrorKind::TypeMismatch { op, got, .. }
-                    if op == ":wat::core::length" && got.type_name == "wat::core::i64"
+                    if op == ":wat::core::length" && got.type_name == "wat::type::i64"
             )
         ),
         "length on non-collection (i64) must error at runtime with RuntimeErrorKind::TypeMismatch{{op: \":wat::core::length\", got: i64}}; got {:?}",

@@ -34,27 +34,27 @@ fn eval_render(src: &str) -> (String, String) {
 
 #[test]
 fn rational_arithmetic_collapses_to_bigint() {
-    assert_eq!(eval_render("(:wat::core::+ 1/2 1/2)"), ("wat::core::bigint".into(), "1N".into()));
-    assert_eq!(eval_render("(:wat::core::- 5/2 3/2)"), ("wat::core::bigint".into(), "1N".into()));
-    assert_eq!(eval_render("(:wat::core::* 1/2 2)"),   ("wat::core::bigint".into(), "1N".into()));
-    assert_eq!(eval_render("(:wat::core::/ 1/2 1/2)"), ("wat::core::bigint".into(), "1N".into()));
+    assert_eq!(eval_render("(:wat::core::+ 1/2 1/2)"), ("wat::type::bigint".into(), "1N".into()));
+    assert_eq!(eval_render("(:wat::core::- 5/2 3/2)"), ("wat::type::bigint".into(), "1N".into()));
+    assert_eq!(eval_render("(:wat::core::* 1/2 2)"),   ("wat::type::bigint".into(), "1N".into()));
+    assert_eq!(eval_render("(:wat::core::/ 1/2 1/2)"), ("wat::type::bigint".into(), "1N".into()));
 }
 
 // ─── stays rational when the denominator survives ───────────────────────────────
 
 #[test]
 fn rational_arithmetic_stays_rational() {
-    assert_eq!(eval_render("(:wat::core::+ 1/2 1/4)"), ("wat::core::rational".into(), "3/4".into()));
-    assert_eq!(eval_render("(:wat::core::* 2/3 3/2)"), ("wat::core::bigint".into(), "1N".into()));
+    assert_eq!(eval_render("(:wat::core::+ 1/2 1/4)"), ("wat::type::rational".into(), "3/4".into()));
+    assert_eq!(eval_render("(:wat::core::* 2/3 3/2)"), ("wat::type::bigint".into(), "1N".into()));
 }
 
 // ─── contagion: ratio ⊕ i64/bigint → rational; ratio ⊕ f64 → f64 ────────────────
 
 #[test]
 fn rational_arithmetic_contagion() {
-    assert_eq!(eval_render("(:wat::core::+ 1/2 1)"),   ("wat::core::rational".into(), "3/2".into()));
-    assert_eq!(eval_render("(:wat::core::+ 1/2 1N)"),  ("wat::core::rational".into(), "3/2".into()));
-    assert_eq!(eval_render("(:wat::core::+ 1/2 1.0)").0, "wat::core::f64"); // float contagion
+    assert_eq!(eval_render("(:wat::core::+ 1/2 1)"),   ("wat::type::rational".into(), "3/2".into()));
+    assert_eq!(eval_render("(:wat::core::+ 1/2 1N)"),  ("wat::type::rational".into(), "3/2".into()));
+    assert_eq!(eval_render("(:wat::core::+ 1/2 1.0)").0, "wat::type::f64"); // float contagion
 }
 
 // ─── comparison + category-aware equality ───────────────────────────────────────

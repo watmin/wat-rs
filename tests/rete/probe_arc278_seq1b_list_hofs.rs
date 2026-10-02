@@ -116,9 +116,9 @@ fn wrong_element_rejected() {
             if callee == ":wat::core::foldl"
             && param == "#1"
             // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
-            && expected == "[:wat::core::String :wat::core::i64 :-> :wat::core::String]"
+            && expected == "[wat.type/String wat.type/i64 :-> wat.type/String]"
             // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
-            && got == "[:wat::core::String :wat::core::String :-> :wat::core::String]"
+            && got == "[wat.type/String wat.type/String :-> wat.type/String]"
     );
 }
 

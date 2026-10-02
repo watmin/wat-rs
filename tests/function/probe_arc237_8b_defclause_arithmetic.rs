@@ -71,7 +71,7 @@ fn gate_2_cross_no_matching_clause() {
         CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
             if name == ":my::add"
             && *called_arity == 2
-            && called_arg_types.as_slice() == [":wat::core::i64".to_string(), ":wat::core::f64".to_string()]
+            && called_arg_types.as_slice() == ["wat.type/i64".to_string(), "wat.type/f64".to_string()]
     );
 }
 

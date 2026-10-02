@@ -67,7 +67,7 @@ fn struct_rejected_where_record_wanted() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":u::wants-record"
             && param == "#1"
-            && expected == ":wat::core::Record"
+            && expected == "wat.type/Record"
             && got == ":geo::SPt"
     );
 }

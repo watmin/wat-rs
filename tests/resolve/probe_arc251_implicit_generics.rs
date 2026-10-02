@@ -18,8 +18,8 @@ fn fact_01_suffix_generic_is_really_checked() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":user::pair-first"
             && param == "#2"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String"
+            && expected == "wat.type/i64"
+            && got == "wat.type/String"
     );
 }
 
@@ -51,8 +51,8 @@ fn bare_var_no_suffix_rejects_illtyped() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":user::pair-first3"
             && param == "#2"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String"
+            && expected == "wat.type/i64"
+            && got == "wat.type/String"
     );
 }
 

@@ -64,7 +64,7 @@ fn probe_03_directional_rejection() {
             if callee == ":my::needs-circle"
             && param == "#1"
             && expected == ":my::Circle"
-            && got == ":wat::core::Record"
+            && got == "wat.type/Record"
     );
 }
 

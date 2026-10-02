@@ -126,7 +126,7 @@
 
   (:wat::test::assert-eq
     (:wat-tests::mal/run (:wat::spawn::thread))
-    "Ok | Malformed[\"items\" \"[0]\"]/:wat::core::String/Integer | Ok"))
+    "Ok | Malformed[\"items\" \"[0]\"]/wat.type/String/Integer | Ok"))
 
 ;; ── process tier ─────────────────────────────────────────────────────────────────────────
 ;; The SAME expectation, one token apart. Tier-generality is the requirement: a Rust-side
@@ -136,4 +136,4 @@
 
   (:wat::test::assert-eq
     (:wat-tests::mal/run (:wat::spawn::process))
-    "Ok | Malformed[\"items\" \"[0]\"]/:wat::core::String/Integer | Ok"))
+    "Ok | Malformed[\"items\" \"[0]\"]/wat.type/String/Integer | Ok"))

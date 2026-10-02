@@ -104,6 +104,6 @@ fn base_hash_consistent() {
 #[test]
 fn base_type_identity() {
     let r = base_pt(1.0, 2.0);
-    assert_eq!(r.type_name(), "wat::core::Record", "base record's static type name");
+    assert_eq!(r.type_name(), "wat::type::Record", "base record's static type name");
     assert_eq!(r.declared_type_name(), "my::Pt", "base record's per-instance class FQDN");
 }

@@ -160,8 +160,8 @@ fn category_roots_are_present_and_admitted() {
         .map(|(_, n)| n)
         .collect();
     for root in [
-        ":wat::core::Struct",
-        ":wat::core::Record",
+        ":wat::type::Struct",
+        ":wat::type::Record",
         ":wat::holon::Record",
     ] {
         assert!(

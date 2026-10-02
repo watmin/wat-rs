@@ -54,10 +54,10 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
     // later `format!`. A textual paren-balancer walks straight out of the literal and into Rust
     // syntax, which is exactly what happened here. No tool that treats a `.rs` file as text can
     // see this form; only a rust-fix that parsed the file could.
-    binds.push_str("  s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector :- [:wat::rete::Rule]");
+    binds.push_str("  s0 (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule]");
     for k in 1..=depth { binds.push_str(&format!(" rule{k}")); }
     binds.push_str(&format!(
-        ") (:wat::core::PersistentVector :- [:wat::rete::Query] (:casc::q-Stage{depth})))\
+        ") (wat.type/PersistentVector :- [:wat::rete::Query] (:casc::q-Stage{depth})))\
            [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session]\
            [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}}\
              (:wat::kernel::assertion-failed! :message \"deep-cascade: rule set may not terminate\")])\n"

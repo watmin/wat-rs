@@ -37,9 +37,9 @@ use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_from_file, StartupError};
 use wat::types::{is_subtype, TypeEnv};
 
-const VALUE: &str = ":wat::core::Value";
-const I64: &str = ":wat::core::i64";
-const STRING: &str = ":wat::core::String";
+const VALUE: &str = ":wat::type::Value";
+const I64: &str = ":wat::type::i64";
+const STRING: &str = ":wat::type::String";
 
 /// Type-check a program through the full freeze pipeline (parse → `check_program` → freeze).
 /// `Ok(())` iff the program type-checks.
@@ -57,7 +57,7 @@ fn up_i64_is_subtype_of_value() {
     let env = TypeEnv::with_builtins();
     assert!(
         is_subtype(I64, VALUE, &env),
-        "UP must be free: i64 <: Value (RED at HEAD — :wat::core::Value not yet registered)"
+        "UP must be free: i64 <: Value"
     );
 }
 
@@ -67,7 +67,7 @@ fn up_string_is_subtype_of_value() {
     let env = TypeEnv::with_builtins();
     assert!(
         is_subtype(STRING, VALUE, &env),
-        "UP must be free: String <: Value (RED at HEAD)"
+        "UP must be free: String <: Value"
     );
 }
 
@@ -120,7 +120,7 @@ fn narrow_value_into_i64_param_is_type_error() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":my::needs-int"
             && param == "#1"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::Value"
+            && expected == "wat.type/i64"
+            && got == "wat.type/Value"
     );
 }

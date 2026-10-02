@@ -1,7 +1,8 @@
 ;; probe-s3b-extract.wat — verify extraction of the concrete arg/return type keywords
 ;; off the fn-forms output, and building the tuple-type keyword strings.
 ;; CLAIM: the hoisted fn-forms def's arg-type node and return-type node are both exactly the
-;; keyword node `:wat::core::i64`. `wat.type/AST` is Equatable (`wat/class.wat`) and PartialEq
+;; i64 type keyword the corpus now spells (`:wat::type::i64`). `wat.type/AST` is Equatable
+;; (`wat/class.wat`) and PartialEq
 ;; on `WatAST` compares structure, skipping span (`crates/wat-reader/src/ast.rs`) — so this is
 ;; asserted as AST-NODE equality against a node built by `:wat::core::keyword-node`, never as a
 ;; pair of ast-kind/ast-name STRING comparisons standing in for the node (coordinator correction,
@@ -22,7 +23,7 @@
      ;; arg-ch = [n-sym, <--sym, argtype-kw]
      arg-ty   (:wat::core::Option/expect (:wat::core::last arg-ch) "no argty")
      ret-ty   (:wat::core::nth fn-ch 3)
-     expected (:wat::core::keyword-node ":wat::core::i64")]
+     expected (:wat::core::keyword-node ":wat::type::i64")]
     (:wat::core::do
       (:wat::test::assert-eq arg-ty expected)
       (:wat::test::assert-eq ret-ty expected)

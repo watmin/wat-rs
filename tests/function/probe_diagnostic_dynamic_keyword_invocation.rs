@@ -154,8 +154,8 @@ fn probe_7_apply_rejects_non_keyword_head() {
                 e.kind(),
                 RuntimeErrorKind::TypeMismatch { op, expected, got, .. }
                     if op == ":wat::core::apply"
-                    && expected == &"wat::core::keyword"
-                    && got.type_name == "wat::core::String"
+                    && expected == &"wat::type::keyword"
+                    && got.type_name == "wat::type::String"
             )
         ),
         "non-keyword head (String) must error at eval with RuntimeErrorKind::TypeMismatch{{op: \":wat::core::apply\", expected: keyword, got: String}}; got {:?}",
@@ -180,8 +180,8 @@ fn probe_8_apply_rejects_non_vector_last_arg() {
                 e.kind(),
                 RuntimeErrorKind::TypeMismatch { op, expected, got, .. }
                     if op == ":wat::core::apply"
-                    && expected == &"wat::core::Vector"
-                    && got.type_name == "wat::core::i64"
+                    && expected == &"wat::type::Vector"
+                    && got.type_name == "wat::type::i64"
             )
         ),
         "non-vector spread arg (i64) must error at eval with RuntimeErrorKind::TypeMismatch{{op: \":wat::core::apply\", expected: Vector, got: i64}}; got {:?}",

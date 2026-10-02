@@ -42,7 +42,7 @@ fn extend_type_surface_collision_is_duplicate_define() {
     );
     wat::assert_startup_error!(result,
         StartupError::Runtime(e) if matches!(e.kind(), RuntimeErrorKind::DuplicateDefine(name)
-            if name == ":wat::core::String/tag")
+            if name == ":wat::type::String/tag")
     );
 }
 
@@ -59,6 +59,6 @@ fn non_extended_foreign_type_is_rejected_at_check_time() {
             if callee == ":t::tag-neg"
             && param == "#1"
             && expected == ":t::TaggedNeg"
-            && got == ":wat::core::i64"
+            && got == "wat.type/i64"
     );
 }

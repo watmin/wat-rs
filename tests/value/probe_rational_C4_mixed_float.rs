@@ -37,7 +37,7 @@ fn mixed_float_arithmetic_promotes_to_f64() {
         "(:wat::core::- 5.0 2)",  // f64 ⊕ i64, -
     ] {
         let (ty, _) = eval_try(s).unwrap_or_else(|e| panic!("{s} should promote to f64: {e}"));
-        assert_eq!(ty, "wat::core::f64", "{s} — float wins the mixed op");
+        assert_eq!(ty, "wat::type::f64", "{s} — float wins the mixed op");
     }
 }
 
@@ -47,7 +47,7 @@ fn mixed_float_arithmetic_promotes_to_f64() {
 fn mixed_numeric_equality_is_category_aware_false() {
     // clj: (= 1 1.0) => false (int vs float — different category; NOT an error, NOT true).
     let (ty, rendered) = eval_try("(:wat::core::= 1 1.0)").expect("= must not error on mixed numerics");
-    assert_eq!(ty, "wat::core::bool");
+    assert_eq!(ty, "wat::type::bool");
     assert_eq!(rendered, "false");
 }
 
@@ -79,7 +79,7 @@ fn mixed_n_ary_is_an_honest_gap() {
                 if name == ":wat::core::+"
                 && *called_arity == 3
                 && called_args.iter().map(|v| v.type_name).collect::<Vec<_>>()
-                    == ["wat::core::i64", "wat::core::f64", "wat::core::i64"]
+                    == ["wat::type::i64", "wat::type::f64", "wat::type::i64"]
         ),
         "expected RuntimeErrorKind::NoMatchingClause(+, arity 3, [i64,f64,i64]); got {:?}",
         err

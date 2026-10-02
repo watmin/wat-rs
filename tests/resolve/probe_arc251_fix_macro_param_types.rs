@@ -24,11 +24,20 @@ fn fix_macro_param_types_rewrites_defmacro_only_comment_faithful() {
         Ok(Value::String(s)) => (*s).clone(),
         other => panic!("expected migrated source String; got {other:?}"),
     };
+    // The golden is what fix-macro-param-types still emits (old spelling). Each retired
+    // keyword is split from the marker that would make it a type position, so
+    // types-to-wat-type does not rewrite the subject. The concatenated value is the emit.
     assert_eq!(
         out,
-        ";; keep me byte-identical\n\
-(:wat::core::defmacro :user::m [a <- wat.type/AST & rest <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST a)\n\
-(:wat::core::defn :user::f [x <- wat.type/i64] -> wat.type/i64 x)",
+        concat!(
+            ";; keep me byte-identical\n(:wat::core::defmacro :user::m [a <- ",
+            ":wat::WatAST & rest <- (:wat::core::Vector ",
+            ":- [",
+            ":wat::WatAST])] -> ",
+            ":wat::WatAST a)\n(:wat::core::defn :user::f [x <- ",
+            ":wat::core::i64] -> ",
+            ":wat::core::i64 x)"
+        ),
         "fix-macro-param-types golden mismatch; comment must survive byte-identical, \
          defmacro params rewritten to :wat::WatAST, defn untouched"
     );

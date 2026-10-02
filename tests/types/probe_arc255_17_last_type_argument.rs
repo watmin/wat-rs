@@ -42,7 +42,7 @@ fn refused(suffix: &str, got_ty: &str, expected_ty: &str) {
             if function == ":probe::k" && expected == expected_ty && got == got_ty);
 }
 
-const I64: &str = ":wat::core::i64";
+const I64: &str = "wat.type/i64";
 
 #[test]
 fn record_first_arg_control() {
@@ -74,7 +74,7 @@ fn record_last_var_after_a_concrete_first_is_checked() {
 
 #[test]
 fn record_concrete_last_arg_control() {
-    refused("rec_concrete_last", ":wat::core::String", I64);
+    refused("rec_concrete_last", "wat.type/String", I64);
 }
 
 #[test]

@@ -36,7 +36,7 @@ fn i64_into_a_string_then_is_refused() {
     assert!(rendered.contains("label"), "must name the field:\n{rendered}");
     // rune:lint(loose-assert) — names both declared types, not rete segments.
     assert!(
-        rendered.contains("wat::core::String") && rendered.contains("wat::core::i64"),
+        rendered.contains("wat.type/String") && rendered.contains("wat.type/i64"),
         "must name declared String and actual i64:\n{rendered}"
     );
 }

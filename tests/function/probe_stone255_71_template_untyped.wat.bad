@@ -9,7 +9,7 @@
 
 (:wat::core::defmacro :user::mk-pair
   [a <- wat.type/AST b <- wat.type/AST] -> wat.type/AST
-  `(:wat::core::Tuple ~a ~b))
+  `(wat.type/Tuple ~a ~b))
 
 (:wat::core::defn :user::use-pair [] -> wat.type/nil
   (:wat::core::do (:user::mk-pair 1 2) nil))

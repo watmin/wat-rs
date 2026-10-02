@@ -8,7 +8,7 @@
 //!   1N => bigint, renders "1N"          (+ 1N 1N) => 2N     (+ 1 1N) => 2N   (contagion)
 //!   (/ 6N 3N) => 2N (bigint)            (/ 1N 2N) => 1/2 (rational)
 //!   (= 1N 1) => true  (= 1N 1.0) => false   (category-aware =)
-//!   scalar types are lowercase: 1/2 -> "wat::core::rational",  \a -> "wat::core::char"
+//!   scalar types are lowercase: 1/2 -> "wat::type::rational",  \a -> "wat::type::char"
 //!
 //! RED at HEAD: `1N` does not lex (InvalidNumber); `1/2` type_name is capital "wat::core::Rational";
 //! `\a` type_name is capital "wat::core::Char".
@@ -38,30 +38,30 @@ fn eval_render(src: &str) -> (String, String) {
 #[test]
 fn bigint_literal_reads_and_renders() {
     let (ty, r) = eval_render("1N");
-    assert_eq!(ty, "wat::core::bigint", "1N must eval to a bigint");
+    assert_eq!(ty, "wat::type::bigint", "1N must eval to a bigint");
     assert_eq!(r, "1N", "bigint renders with the N suffix (pr/edn form)");
 }
 
 #[test]
 fn bigint_arithmetic_stays_bigint_and_is_contagious() {
-    assert_eq!(eval_render("(:wat::core::+ 1N 1N)"), ("wat::core::bigint".into(), "2N".into()));
+    assert_eq!(eval_render("(:wat::core::+ 1N 1N)"), ("wat::type::bigint".into(), "2N".into()));
     // contagion: i64 ⊕ bigint → bigint
-    assert_eq!(eval_render("(:wat::core::+ 1 1N)"), ("wat::core::bigint".into(), "2N".into()));
-    assert_eq!(eval_render("(:wat::core::* 2 3N)"), ("wat::core::bigint".into(), "6N".into()));
+    assert_eq!(eval_render("(:wat::core::+ 1 1N)"), ("wat::type::bigint".into(), "2N".into()));
+    assert_eq!(eval_render("(:wat::core::* 2 3N)"), ("wat::type::bigint".into(), "6N".into()));
 }
 
 #[test]
 fn bigint_arithmetic_never_overflows() {
     // i64::MAX as bigint, times 2 — arbitrary precision, NO wrap/overflow/error.
     let (ty, r) = eval_render("(:wat::core::* 9223372036854775807N 2)");
-    assert_eq!(ty, "wat::core::bigint");
+    assert_eq!(ty, "wat::type::bigint");
     assert_eq!(r, "18446744073709551614N");
 }
 
 #[test]
 fn bigint_division_collapses_like_clj() {
-    assert_eq!(eval_render("(:wat::core::/ 6N 3N)"), ("wat::core::bigint".into(), "2N".into()));
-    assert_eq!(eval_render("(:wat::core::/ 1N 2N)"), ("wat::core::rational".into(), "1/2".into()));
+    assert_eq!(eval_render("(:wat::core::/ 6N 3N)"), ("wat::type::bigint".into(), "2N".into()));
+    assert_eq!(eval_render("(:wat::core::/ 1N 2N)"), ("wat::type::rational".into(), "1/2".into()));
 }
 
 #[test]
@@ -76,11 +76,11 @@ fn bigint_equality_is_category_aware() {
 #[test]
 fn rational_type_name_is_lowercase() {
     // Stone B shipped capital "wat::core::Rational" — a Doctrine-2 mumble. C1 fixes it.
-    assert_eq!(eval_render("1/2").0, "wat::core::rational");
+    assert_eq!(eval_render("1/2").0, "wat::type::rational");
 }
 
 #[test]
 fn char_type_name_is_lowercase() {
     // Doctrine 2 renamed the surface to `char`, but type_name still emits capital "wat::core::Char".
-    assert_eq!(eval_render("\\a").0, "wat::core::char");
+    assert_eq!(eval_render("\\a").0, "wat::type::char");
 }

@@ -71,8 +71,8 @@ fn assoc_hashmap_wrong_key_type_rejected_at_check() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":wat::core::assoc"
             && param == "#2"
-            && expected == ":wat::core::String"
-            && got == ":wat::core::i64"
+            && expected == "wat.type/String"
+            && got == "wat.type/i64"
     );
 }
 
@@ -83,8 +83,8 @@ fn assoc_hashmap_wrong_value_type_rejected_at_check() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":wat::core::assoc"
             && param == "#3"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String"
+            && expected == "wat.type/i64"
+            && got == "wat.type/String"
     );
 }
 
@@ -96,7 +96,7 @@ fn assoc_non_collection_arg0_rejected() {
             if callee == ":wat::core::assoc"
             && param == "#1"
             && expected == "(HashMap :- [K V]) or :wat::core::Record"
-            && got == ":wat::core::i64"
+            && got == "wat.type/i64"
     );
 }
 

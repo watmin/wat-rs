@@ -32,8 +32,8 @@ fn f64_fallback_arithmetic_rejects_an_i64_operand() {
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, param, expected, got }, .. } => {
             assert_eq!(callee, ":wat::rete::f64::+", "wrong callee named in the error");
             assert_eq!(param, "#2", "wrong parameter named in the error");
-            assert_eq!(expected, ":wat::core::f64", "expected type must name f64");
-            assert_eq!(got, ":wat::core::i64", "got type must name the offending i64");
+            assert_eq!(expected, "wat.type/f64", "expected type must name f64");
+            assert_eq!(got, "wat.type/i64", "got type must name the offending i64");
         }
         other => panic!("expected a TypeMismatch naming the rejected f64 param; got {other:?}"),
     }

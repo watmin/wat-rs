@@ -21,7 +21,7 @@ fn nil_is_equatable_and_not_orderable() {
     let result = startup_from_file("tests/types/probe_arc255_56_operators_ord_nil.wat.bad");
     wat::assert_startup_error!(result, check
         CheckErrorKind::TypeMismatch { callee, got, .. }
-            if callee == ":wat::core::<" && got == ":wat::core::nil"
+            if callee == ":wat::core::<" && got == "wat.type/nil"
     );
 }
 
@@ -75,7 +75,7 @@ fn eq_generic_refuses_a_function() {
             && param == "T"
             && bound == ":wat::core::Equatable"
             && *got == {
-                let mut rendered = String::from(":wat::core::i64 :-> :wat::core::i64");
+                let mut rendered = String::from("wat.type/i64 :-> wat.type/i64");
                 rendered.insert(0, '[');
                 rendered.push(']');
                 rendered

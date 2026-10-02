@@ -48,7 +48,7 @@ fn c03_illtyped_generic_call_rejected() {
         CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
             if name == ":user::firstof"
             && *called_arity == 2
-            && called_arg_types.as_slice() == [":wat::core::i64".to_string(), ":wat::core::String".to_string()]
+            && called_arg_types.as_slice() == ["wat.type/i64".to_string(), "wat.type/String".to_string()]
     );
 }
 

@@ -45,7 +45,7 @@ fn surface_splice_conflicting_field_types_rejected() {
         StartupError::Type(e) if matches!(e.kind(), TypeErrorKind::MalformedDecl { head, reason }
             if head == "recordtype"
             && reason == "surface-splice conflict: field `foobar` is installed at conflicting \
-                           types (Path(\":wat::core::i64\") vs Path(\":wat::core::String\")) by \
+                           types (Path(\":wat::type::i64\") vs Path(\":wat::type::String\")) by \
                            two splices (or a splice and an own field) — a field repeated across \
                            splices must carry an identical type")
     );

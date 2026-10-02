@@ -130,7 +130,7 @@ fn probe_05_guard_non_boolean_errors_at_check() {
         CheckErrorKind::GuardExprNotBoolean { defclause_name, clause_index, got_type }
             if defclause_name == ":my::bad"
             && *clause_index == 0
-            && got_type == ":wat::core::i64"
+            && got_type == "wat.type/i64"
     );
 }
 
@@ -186,7 +186,7 @@ fn probe_09_ensure_fn_arg_type_mismatch_errors_at_check() {
             && matches!(
                 reason,
                 EnsureFnInvalidReason::ArgTypeMismatch { arg_type, clause_return_type }
-                    if arg_type == ":wat::core::String" && clause_return_type == ":wat::core::i64"
+                    if arg_type == "wat.type/String" && clause_return_type == "wat.type/i64"
             )
     );
 }
@@ -199,7 +199,7 @@ fn probe_10_ensure_fn_return_not_bool_errors_at_check() {
         CheckErrorKind::EnsureFnInvalid { defclause_name, clause_index, reason }
             if defclause_name == ":my::bad"
             && *clause_index == 0
-            && matches!(reason, EnsureFnInvalidReason::ReturnTypeNotBool { got } if got == ":wat::core::i64")
+            && matches!(reason, EnsureFnInvalidReason::ReturnTypeNotBool { got } if got == "wat.type/i64")
     );
 }
 

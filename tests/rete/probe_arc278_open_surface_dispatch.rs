@@ -91,7 +91,7 @@ fn open_surface_dispatch_ambiguous_return_is_a_compile_error() {
                     // that source order).
                     assert_eq!(
                         candidate_returns,
-                        &vec![":wat::core::String".to_string(), ":wat::core::i64".to_string()],
+                        &vec!["wat.type/String".to_string(), "wat.type/i64".to_string()],
                     );
                 }
                 other => panic!("unreachable — already matched AmbiguousClauseReturnAtCallSite: {other:?}"),

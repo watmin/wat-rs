@@ -81,7 +81,7 @@ fn type_check_rejects_wrong_arg_types() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":rust::test::MathUtils/add"
             && param == "#1"
-            && expected == "Path(\":wat::core::i64\")"
-            && got == "Path(\":wat::core::String\")"
+            && expected == "Path(\":wat::type::i64\")"
+            && got == "Path(\":wat::type::String\")"
     );
 }

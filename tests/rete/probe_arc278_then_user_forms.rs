@@ -139,7 +139,7 @@ fn non_fact_return_type_is_refused() {
             typed.as_ref().map_err(RuntimeError::kind),
             Err(RuntimeErrorKind::MalformedForm { head, reason })
                 if head == ":wat::runtime::field-names-of"
-                && reason == "unknown type ':wat::core::i64'"
+                && reason == "unknown type ':wat::type::i64'"
         ),
         "expected RuntimeErrorKind::MalformedForm(field-names-of, unknown type i64); got {:?}",
         typed
@@ -149,7 +149,7 @@ fn non_fact_return_type_is_refused() {
     // rune:lint(loose-assert) — the diagnostic embeds an absolute file path (Span), which is
     // non-deterministic across machines/CI; assert the load-bearing SUBSTANCE (which type was
     // rejected), not the whole rendered blob.
-    assert!(msg.contains("wat::core::i64"), "must name the offending (non-fact) return type:\n{msg}");
+    assert!(msg.contains(":wat::type::i64"), "must name the offending (non-fact) return type:\n{msg}");
     // rune:lint(loose-assert) — same span/path reason. `:wat::core::i64` is a built-in primitive,
     // not a registered user TypeEnv entry at all, so `field-names-of` reports it "unknown" rather
     // than "not a struct/record type (no fields)" (that second phrasing is reserved for a

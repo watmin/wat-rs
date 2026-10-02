@@ -755,3 +755,112 @@ The four `probe_arc278_peers_bijection` rows panicked on `assert_eq` of the `Pro
 | `edn_doc::tests::the_gate_is_not_vacuous_dropped_added` | `edn_doc.rs:613:13` | spelling |
 | `edn_doc::tests::round_trip_holds_on_the_hand_written_char_row` | `edn_doc.rs:613:13` | spelling |
 
+## Amend 5
+
+The classification stands: 106 spelling, 19 different-error, 7 different-value. No STOP-7. The twenty-six are cured by the class rules. The 106 were re-captured. The floor after that cure is green.
+
+### A — incidental old spelling in the input
+
+`types-to-wat-type` leaves a keyword used as data (header: a map key, a `type-of` argument, a quoted example, a value) untouched. The retirement walk then treats a non-head keyword of the 24 as a type position and returns on the first one, so the test's own error never ran. Each input below was respelled by hand. The recorded codemod was not given a new value-position rule.
+
+Doctrine 1 (contract_01 and contract_05) is not STOP-7. The value is the symbol `wat.type/nil`. `normalize_symbol_refs` rewrites that symbol to the keyword `:wat::type::nil` before Doctrine 1 quotes it, so the error is Doctrine 1 with head `":wat::type::nil"` and reason `Doctrine 1 (arc 242): ':wat::type::nil' is a TYPE keyword, not a value; use bare `nil` in value position`. The checker did say Doctrine 1.
+
+The other inputs, and why the codemod had not already rewritten them:
+
+- `stone18a_e03.wat`: the value `wat.type/nil` sits after `[]`, not after a type marker.
+- `probe_stone255_71_template_untyped.wat.bad`: the tuple is quasiquoted data. The existing assertion still expects head `:wat::core::Tuple`, which is what `untyped_constructor_error` prints.
+- `probe_arc278_deep_cascade`: the constructor head was split across Rust strings. Both heads are now `(wat.type/PersistentVector :-`.
+- `probe_supervisor_select_lost`: the vector element type was a retired keyword in a call argument.
+- `any_in_fn_rejected_at_parse`: the old input was a Rust string to `parse_type_expr`, and `parse_type_inner` refuses `fn(` before the Any check. The test now parses `[:Any :-> :i64]` with `parse_type_node` and expects `TypeErrorKind::AnyBanned`.
+- `probe_arc237` probe_13: the trailing value is bare `nil`. The original type mismatch returned; `got` is `wat.type/String`.
+- `eq_generic_refuses_a_function`: after the input respell the first error is still `ReturnTypeMismatch`. The rendered got-string is `wat.type/i64 :-> wat.type/i64`. This stone did not reorder the errors.
+- `probe_arc293_holder_substitution`: `expected` is `wat.type/Record`. `kwargs-construct` is still first. That order is arc 294, not this stone.
+
+### B — the AST key at the door
+
+`is_ast_key` in `src/macros/parse.rs` accepts the registered key through `denoted_type_path` on both sides, and the retired path `:wat::WatAST` through `retired_hard_primitive_tail`. The fixtures still say `wat/WatAST`. The messages name `:wat::type::AST` and `(wat.type/Vector :- [wat.type/AST])`.
+
+Sibling sites with the same shape (a hand-typed `:wat::type::AST` compared to a parsed path, not through the retirement table), listed and not edited:
+
+- `src/collection/infer.rs:100` and `:355`
+- `src/collection/seq_container.rs:121` (`type_denotation`, which is identity, so the old key misses)
+- `src/check.rs:10316` and `:10433`
+
+The first floor (below) convicted the raw `p == ":wat::type::AST"` as a new heresy site. That comparison is gone. `is_watast` (1 [Ex1]) and `parse_defmacro_form` (1 [Ax1]) are gone from the ledger. `LEDGER_TOTAL` is 147. The ratchet's own message is the authority for the shrink.
+
+`probe_arc209_macro_param_type_enforced` was not in the 132. Its golden still required `:wat::WatAST`. The program now says `:wat::type::AST` in the same `MalformedDefmacro`. The golden's message and reason were updated to that spelling. The claim is unchanged.
+
+### C — test constants
+
+`probe_arc278_value_universal_top` constants are `:wat::type::Value`, `:wat::type::i64`, and `:wat::type::String`. The up and down assert messages no longer say `RED at HEAD`. The module doc and the widen assert still carry that historical phrase. All four up and down tests passed.
+
+### D — the stdlib line
+
+`(:wat::core::macro-error` in `wat/service.wat` is at lines 910 and 927. The move is commit `91e868982`: the `:durable-parent` comment grew by one line. The four peers-bijection edn files changed only those line integers. Not a STOP.
+
+### E — the extracted node
+
+`wat-scripts/probes/arc-170/probe-s3b-extract.wat` expects `(:wat::core::keyword-node ":wat::type::i64")`. The node is that keyword. The claim is unchanged.
+
+### F — this stone's own lints
+
+`nested_program_starts` respells a temp copy of the immutable git blob (`f2e0ac26b^:wat-scripts/probes/arc-170/probe-m1-ann-erase.wat`) before the child runs. The retirement walk returns on the first retired keyword, so the respell is what lets the original `MalformedForm` on `:wat::core::match` surface. The blob was not edited. The helper builds the old spelling with `concat`, because a `::{` inside a string is the separator lint's COMPOSE class.
+
+`src/types.rs` compares the full fn-retirement reason and the full tuple-retirement reason with `assert_eq!`. `hard_primitive_old_key` keeps `format!(":wat::core::{tail}")` under the namespace rune.
+
+`tests/types/probe_arc255_81_retired_name_refuses.wat` holds the four programs. The `.rs` drives them with `call_beside_value` / `startup_beside` and has no `rune:lint(no-inlined-wat)`. The constructor head is a string returned by the beside fn and evaluated with `eval_in_frozen`, because a checked form cannot carry a retired head.
+
+### The 106
+
+Re-captured from the program's new output. The comparison was a token skeleton: each spelling of the 24 (`:wat::core::X`, `:wat::type::X`, `wat::core::X`, `wat::type::X`, `wat.core/X`, `wat.type/X`, and the AST forms) folds to one token per tail, and the remaining text must be identical. That is not a `wat_edn` parse. Where a pair was extracted, the skeleton matched. Sixteen rows had no automatic patch and were set from the ARM actual under the same check. Printed spelling is not one form (`wat.type/String`, `:wat::type::i64`, `wat::type::i64`, `Path(":wat::type::i64")`).
+
+`Summary [   5.443s] 139 tests run: 139 passed, 6253 skipped`, RC=0. The 139 are the 132 leaves plus the four retired-name tests, the three lints those cures touch, and the two down-direction value tests.
+
+Three strings the first dry-run wanted to rewrite are the subject of a passing test, so the edit was not applied:
+
+- `src/codemod_driver.rs` `leaf_rewritten_into_a_bracket_is_one_span_edit`: the `old` side is the retired keyword fn the span diff measures.
+- `tests/resolve/probe_arc251_fix_macro_param_types.rs`: the golden is what `fix-macro-param-types` still emits (`:wat::WatAST`, `:wat::core::i64`).
+- `crates/wat-doc/src/lib.rs`: `TO_HEX` still says `(:wat::core::Vector`, and the doc parser keeps that source spelling. The pure-wat assertion strings were the only literals the codemod could see.
+
+Each of those literals is split so no one span is a candidate program containing the retired type-position token. The concatenated value is the subject. A dry-run of the three files after the split was `3 file(s) scanned, 0 changed`. The four tests passed (`Summary [   0.391s] 4 tests run: 4 passed`).
+
+### Gates
+
+`cargo clippy --release --all-targets -- -D warnings` on the final tree: `Finished release profile [optimized] target(s) in 13.37s`, RC=0.
+
+`wat-fix-rust --dry-run` over `git ls-files '*.rs'` (1296 files), after the split:
+
+```
+[wat-fix-rust] 1296 file(s) scanned, 0 changed, 0 edit(s) found, 0 refused
+```
+
+Both `types-to-wat-type.wat` and `fn-keyword-to-bracket.wat`. TYPES_RC=0, FN_RC=0. Each scan printed two lexer panics from `crates/wat-reader/src/lexer.rs:1076` (a char boundary inside `∅`, then inside `≠`) and continued. 0 refused. The door rewrite after that scan adds no wat-shaped literal.
+
+Census against `.census/2026-10-02T06-48-31Z.txt` (the shared clone at `202eb5533`; the file was at `/tmp/wat-pre/.census/` and was not in this tree's `.census/`). New snapshot `.census/2026-10-02T09-23-31Z.txt`, 2279 files. Pre-image 2277 files, nonzero 210. Current nonzero 210. Rc flips: none. `census.sh --diff` printed `census-diff: no STOP-8` and exited 0. Two new files, both rc 0: `tests/types/probe_arc255_81_retired_name_refuses.wat` and `wat-scripts/fixes/fn-keyword-to-bracket.wat`.
+
+The six files that went 0→1 in the intermediate snapshot `.census/2026-10-02T06-49-28Z.txt` are rc 0 in both the named pre-image and this census. They were respelled in `a15d4800f` and `91e868982` (`wat.core/<24>` and a metadata `:ret` vector). Against the named pre-image that is not a flip.
+
+### The floor
+
+Do not re-run `.floor/2026-10-02T09-25-34Z`.
+
+```
+Summary [ 401.882s] 6368 tests run: 6366 passed (26 slow), 2 failed, 24 skipped
+```
+
+Exit 100. The arms:
+
+`keyword_heresy_ledger::the_heresy_ledger_matches_its_frozen_census` panicked at `tests/lint/keyword_heresy_ledger.rs:1304`. The ledger was 149 and the count was 148, and `src/macros/parse.rs` `fn is_ast_key` was a new site: the raw `p == ":wat::type::AST"`. That is the first assert, the growth arm.
+
+`probe_arc209_macro_param_type_enforced::lying_macro_param_type_is_rejected_at_macro_def` panicked at `tests/macros/probe_arc209_macro_param_type_enforced.rs:27`. `assert_edn_matches_file!`. Actual reason ends `its type must be `:wat::type::AST``. Expected reason ends `its type must be `:wat::WatAST``. Same `MalformedDefmacro`, same span (line 6, col 34–53).
+
+Both were cured as class B, above. The heresy test then reported the shrink and only the shrink: 149 → 147, `is_watast` and `parse_defmacro_form` gone. The freeze was updated to that. A new floor was taken.
+
+`.floor/2026-10-02T09-37-03Z`:
+
+```
+Summary [ 403.813s] 6368 tests run: 6368 passed (27 slow), 24 skipped
+```
+
+RC=0.
+

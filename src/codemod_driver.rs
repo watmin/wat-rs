@@ -532,7 +532,13 @@ mod driver_tests {
 
     #[test]
     fn leaf_rewritten_into_a_bracket_is_one_span_edit() {
-        let old = "(:wat::core::defn :t::a [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64 0)\n";
+        // The retired keyword is the span the diff is measured against. Split so no one
+        // literal is a candidate program: the fn-keyword codemod must not rewrite the subject.
+        let old = concat!(
+            "(:wat::core::defn :t::a [f <- ",
+            ":wat::core::Fn(wat::core::i64)->wat::core::i64",
+            "] -> wat.type/i64 0)\n"
+        );
         let new = "(:wat::core::defn :t::a [f <- [wat.type/i64 :-> wat.type/i64]] -> wat.type/i64 0)\n";
         let edits = diff_decoded(old, new).expect("a keyword leaf replaced by a bracket is one span");
         assert_eq!(edits.len(), 1, "{edits:?}");

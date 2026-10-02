@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 149; // 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
+const LEDGER_TOTAL: usize = 147; // 255.81: 149 → 147 — parse.rs `is_watast` and `parse_defmacro_form` no longer compare a keyword literal; the AST-key decision is `denoted_type_path` plus `retired_hard_primitive_tail`. 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -836,9 +836,9 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/macros/eval.rs", "validate_pure_total", 1, "Ax1"),
     ("src/macros/eval.rs", "validate_quasiquote_template", 3, "Ax3"),
     ("src/macros/expand.rs", "is_quasiquote_form", 1, "Ax1"),
-    ("src/macros/parse.rs", "is_watast", 1, "Ex1"),
-
-    ("src/macros/parse.rs", "parse_defmacro_form", 1, "Ax1"),
+    // 255.81 — `is_watast` (1 [Ex1]) and `parse_defmacro_form` (1 [Ax1]) → 0.
+    // The AST-key check is `denoted_type_path` on both sides, plus the retirement
+    // table for `:wat::WatAST`. Neither comparison is a raw keyword literal.
     ("src/match_arm.rs", "builtin_variant", 1, "Ax1"),
     ("src/resolve/boundary.rs", "is_unquote_escape", 2, "Ax2"),
     ("src/resolve/boundary.rs", "is_where_form", 1, "Ax1"),

@@ -1,5 +1,5 @@
 #wat.macro/MalformedDefmacro {
-  :message "malformed defmacro: macro param `x` is declared `Path(\":wat::type::i64\")`, but a macro param always binds a form — its type must be `:wat::WatAST`"
+  :message "malformed defmacro: macro param `x` is declared `Path(\":wat::type::i64\")`, but a macro param always binds a form — its type must be `:wat::type::AST`"
   :location #wat.core/Span {
     :file "tests/macros/probe_arc209_macro_param_type_enforced.wat.bad"
     :line 6
@@ -12,5 +12,5 @@
     }
   }
   :causes []
-  :reason "macro param `x` is declared `Path(\":wat::type::i64\")`, but a macro param always binds a form — its type must be `:wat::WatAST`"
+  :reason "macro param `x` is declared `Path(\":wat::type::i64\")`, but a macro param always binds a form — its type must be `:wat::type::AST`"
 }

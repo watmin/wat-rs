@@ -77,6 +77,6 @@ fn mint_map_coll_first_is_gone() {
             && param == "#2"
             && expected == "(Vector :- [T]), (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T])"
             // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
-            && got == "[:wat::core::i64 :-> :wat::core::i64]"
+            && got == "[wat.type/i64 :-> wat.type/i64]"
     );
 }

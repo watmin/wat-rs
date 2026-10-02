@@ -21,6 +21,6 @@ fn foreign_nature_is_checked_a_nonholon_cannot_satisfy_a_holon_floor_surface() {
             if callee == ":k1b::use"
             && param == "#1"
             && expected == ":k1b::Vsa"
-            && got == ":wat::core::String"
+            && got == "wat.type/String"
     );
 }

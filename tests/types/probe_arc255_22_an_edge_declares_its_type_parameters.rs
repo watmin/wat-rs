@@ -77,7 +77,7 @@ fn the_lie_is_refused(suffix: &str) {
     assert_eq!(errs.len(), 1, "{suffix}: {errs:?}");
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { callee, expected, got, .. }
-            if callee == ":wat::i64::+" && expected == ":wat::core::i64" && got == ":wat::core::String");
+            if callee == ":wat::i64::+" && expected == "wat.type/i64" && got == "wat.type/String");
 }
 
 #[test]

@@ -580,6 +580,43 @@ fn nested_program_literals_start_on_the_child_path() {
        // cannot split its fields. Not clock-derived. STONE 255.78.
 }
 
+/// The historical erase child still spells the 24 as `:wat::core::…`. This stone
+/// retires those keys before the variant-arm check the gate is measuring, so the
+/// temp copy is respelled onto `wat.type/…` and the arm error is what remains.
+fn respell_retired_hard_primitives(src: &str) -> String {
+    let mut s = src.replace(":wat::WatAST", "wat.type/AST");
+    for tail in [
+        "PersistentVector",
+        "PersistentMap",
+        "HashMap",
+        "HashSet",
+        "String",
+        "bigint",
+        "rational",
+        "keyword",
+        "Vector",
+        "Record",
+        "Struct",
+        "Tuple",
+        "Bytes",
+        "Never",
+        "Value",
+        "List",
+        "char",
+        "bool",
+        "nil",
+        "i64",
+        "f64",
+        "u8",
+        "Fn",
+    ] {
+        let old: String = [":wat::core::", tail].concat();
+        let new: String = ["wat.type/", tail].concat();
+        s = s.replace(&old, &new);
+    }
+    s
+}
+
 #[test]
 fn nested_program_gate_goes_red_on_the_pre_2b_erase_child() {
     let out = Command::new("git")
@@ -591,7 +628,7 @@ fn nested_program_gate_goes_red_on_the_pre_2b_erase_child() {
         .output()
         .expect("git show old erase");
     assert!(out.status.success(), "git show f2e0ac26b^ erase failed");
-    let src = String::from_utf8_lossy(&out.stdout);
+    let src = respell_retired_hard_primitives(&String::from_utf8_lossy(&out.stdout));
     let tmp = std::env::temp_dir().join("nested-program-erase-old.wat");
     std::fs::write(&tmp, src.as_bytes()).expect("write temp erase");
     let path = tmp.to_str().unwrap();
@@ -648,7 +685,9 @@ fn nested_program_gate_refuses_a_rune_whose_test_does_not_exist() {
     let mut needle = String::from(":wat::core::forms");
     needle.insert(0, '(');
     let rune = ";; rune:lint(nested-program, expected) — test(no_such_nested_program_gate_test)\n              ";
-    let src = String::from_utf8_lossy(&out.stdout).replacen(&needle, &format!("{rune}{needle}"), 1);
+    let src = respell_retired_hard_primitives(
+        &String::from_utf8_lossy(&out.stdout).replacen(&needle, &format!("{rune}{needle}"), 1),
+    );
     let tmp = std::env::temp_dir().join("nested-program-missing-rune-test.wat");
     std::fs::write(&tmp, src.as_bytes()).expect("write temp sabotage");
     let path = tmp.to_str().unwrap();

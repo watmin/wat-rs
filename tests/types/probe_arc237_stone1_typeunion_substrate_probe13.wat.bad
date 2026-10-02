@@ -4,4 +4,4 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
     (:my::identity "hello")
-    :wat::core::nil))
+    nil))

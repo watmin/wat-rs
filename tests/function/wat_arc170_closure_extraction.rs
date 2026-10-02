@@ -338,10 +338,10 @@ fn t4_inline_lambda_no_captures() {
     let pairs = fn_form_param_pairs(&shape);
     assert_eq!(
         pairs,
-        vec![("n".to_string(), ":wat::core::i64".to_string())],
+        vec![("n".to_string(), ":wat::type::i64".to_string())],
         "fn-form param signature mismatch"
     );
-    assert_eq!(shape.ret_type_kw, ":wat::core::i64");
+    assert_eq!(shape.ret_type_kw, ":wat::type::i64");
     // Prologue should be empty (no types, no captures, no deps).
     assert!(
         package.prologue.is_empty(),
@@ -370,9 +370,9 @@ fn t5_inline_lambda_captures_let_scope_struct() {
     let pairs = fn_form_param_pairs(&shape);
     assert_eq!(
         pairs,
-        vec![("n".to_string(), ":wat::core::i64".to_string())]
+        vec![("n".to_string(), ":wat::type::i64".to_string())]
     );
-    assert_eq!(shape.ret_type_kw, ":wat::core::i64");
+    assert_eq!(shape.ret_type_kw, ":wat::type::i64");
     let type_decls = collect_type_decl_names(&package.prologue);
     assert!(type_decls.iter().any(|x| x == ":my::Config"));
     let captures = collect_def_names(&package.prologue);

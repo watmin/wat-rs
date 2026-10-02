@@ -92,8 +92,8 @@ fn u8_type_mismatch_rejected_at_check_time() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":my::app::byte-taker"
             && param == "#1"
-            && expected == ":wat::core::u8"
-            && got == ":wat::core::i64"
+            && expected == "wat.type/u8"
+            && got == "wat.type/i64"
     );
 }
 

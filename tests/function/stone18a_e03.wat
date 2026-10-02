@@ -2,5 +2,5 @@
 ;; E03: no `->` symbol between args-vector and return type.
 
 (:wat::core::defn :test::bad [] -> wat.type/nil
-  ((:wat::core::fn [] :wat::core::nil nil)))
+  ((:wat::core::fn [] wat.type/nil nil)))
 

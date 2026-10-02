@@ -48,7 +48,7 @@ fn t1_canonical_main_freezes_and_invokes() {
     assert!(params.is_empty(), "expected zero params; got {}", params.len());
     assert_eq!(
         ret,
-        TypeExpr::Path(":wat::core::nil".into()),
+        TypeExpr::Path(":wat::type::nil".into()),
         "expected nil return (TypeExpr::Path :wat::core::nil)"
     );
 

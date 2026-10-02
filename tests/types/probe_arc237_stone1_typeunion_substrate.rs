@@ -290,7 +290,7 @@ fn probe_13_typeunion_arg_rejects_non_member_value() {
             if callee == ":my::identity"
             && param == "#1"
             && expected == ":my::IorF"
-            && got == ":wat::core::String"
+            && got == "wat.type/String"
     );
 }
 

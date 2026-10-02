@@ -168,7 +168,7 @@ fn probe_5_literal_provenance_renders_source_coordinates() {
     let display = format!("{}", snap);
     assert_eq!(
         display,
-        "wat::core::i64 `42` (from test-source.wat:7:13)",
+        "wat::type::i64 `42` (from test-source.wat:7:13)",
         "Stone 233.2.e: Literal{{span}} provenance must render source-coordinates into Display"
     );
 }

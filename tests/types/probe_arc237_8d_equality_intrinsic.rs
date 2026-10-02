@@ -98,8 +98,8 @@ fn regression_cross_type_is_check_error() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":wat::core::="
             && param == "#2"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String"
+            && expected == "wat.type/i64"
+            && got == "wat.type/String"
     );
 }
 

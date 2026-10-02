@@ -279,6 +279,7 @@ pub(crate) fn hard_primitive_old_key(tail: &str) -> String {
     if tail == "AST" {
         ":wat::WatAST".to_string()
     } else {
+        // rune:lint(one-variant-separator, namespace) — old hard-primitive key, namespace segments, not an enum variant
         format!(":wat::core::{tail}")
     }
 }
@@ -8545,9 +8546,9 @@ mod tests {
         let err = parse_type_expr(":fn()->wat::holon::HolonAST").expect_err("keyword fn type");
         match err.kind() {
             TypeErrorKind::MalformedTypeExpr { reason, .. } => {
-                assert!(
-                    reason.contains("[A :-> R]"),
-                    "remedy must name the bracket, got {reason}"
+                assert_eq!(
+                    reason,
+                    "a keyword-bodied fn type is retired; write the bracket `[A :-> R]` (stone 251.4c). `:fn(A)->R` and `:wat::core::Fn(A)->R` no longer parse"
                 );
             }
             other => panic!("expected MalformedTypeExpr, got {other:?}"),
@@ -8585,9 +8586,9 @@ mod tests {
         let err = parse_type_expr(":(wat.type/i64,wat.type/String)").expect_err("keyword tuple");
         match err.kind() {
             TypeErrorKind::MalformedTypeExpr { reason, .. } => {
-                assert!(
-                    reason.contains("(wat.type/Tuple :- [A B])"),
-                    "remedy must name the binder, got {reason}"
+                assert_eq!(
+                    reason,
+                    "a keyword-bodied tuple `:(A, B)` is retired; write `(wat.type/Tuple :- [A B])`"
                 );
             }
             other => panic!("expected MalformedTypeExpr, got {other:?}"),
@@ -8599,7 +8600,10 @@ mod tests {
         let err = parse_type_expr(":(Holon,wat::holon::HolonAST,Holon)").expect_err("keyword tuple");
         match err.kind() {
             TypeErrorKind::MalformedTypeExpr { reason, .. } => {
-                assert!(reason.contains("(wat.type/Tuple :- [A B])"), "{reason}");
+                assert_eq!(
+                    reason,
+                    "a keyword-bodied tuple `:(A, B)` is retired; write `(wat.type/Tuple :- [A B])`"
+                );
             }
             other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
@@ -8618,7 +8622,10 @@ mod tests {
         let err = parse_type_expr(":(wat.type/i64,)").expect_err("keyword tuple");
         match err.kind() {
             TypeErrorKind::MalformedTypeExpr { reason, .. } => {
-                assert!(reason.contains("(wat.type/Tuple :- [A B])"), "{reason}");
+                assert_eq!(
+                    reason,
+                    "a keyword-bodied tuple `:(A, B)` is retired; write `(wat.type/Tuple :- [A B])`"
+                );
             }
             other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
@@ -8652,7 +8659,10 @@ mod tests {
         .expect_err("keyword tuple");
         match err.kind() {
             TypeErrorKind::MalformedTypeExpr { reason, .. } => {
-                assert!(reason.contains("(wat.type/Tuple :- [A B])"), "{reason}");
+                assert_eq!(
+                    reason,
+                    "a keyword-bodied tuple `:(A, B)` is retired; write `(wat.type/Tuple :- [A B])`"
+                );
             }
             other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
@@ -8675,7 +8685,10 @@ mod tests {
             TypeErrorKind::MalformedTypeExpr { reason, .. } => {
                 // The fn element is parsed before the tuple is accepted, so the
                 // refusal that surfaces is the fn type's, naming the bracket.
-                assert!(reason.contains("[A :-> R]"), "{reason}");
+                assert_eq!(
+                    reason,
+                    "a keyword-bodied fn type is retired; write the bracket `[A :-> R]` (stone 251.4c). `:fn(A)->R` and `:wat::core::Fn(A)->R` no longer parse"
+                );
             }
             other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }

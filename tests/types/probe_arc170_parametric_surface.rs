@@ -58,8 +58,8 @@ fn parametric_surface_return_is_typed_not_any() {
     };
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":wat::core::String"
-            && got == ":wat::core::i64");
+            if expected == "wat.type/String"
+            && got == "wat.type/i64");
 }
 
 #[test]
@@ -78,6 +78,6 @@ fn parametric_surface_rejects_mistyped_satisfier() {
     wat::assert_check_error_present!(errs,
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":probe::BadBox/get"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String");
+            && expected == "wat.type/i64"
+            && got == "wat.type/String");
 }

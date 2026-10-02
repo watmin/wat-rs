@@ -83,7 +83,7 @@ fn probe_2_type_name_returns_wat_record() {
     );
     assert_eq!(
         r.type_name(),
-        "wat::core::Record",
+        "wat::type::Record",
         "Probe 2: type_name() must return \"wat::core::Record\""
     );
 }
@@ -129,7 +129,7 @@ fn probe_5_class_fqdn_extraction_post_rename() {
         "myapp::Voltage",
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
-    assert_eq!(r.type_name(), "wat::core::Record");
+    assert_eq!(r.type_name(), "wat::type::Record");
     match &r {
         Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
             assert_eq!(

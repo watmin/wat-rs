@@ -633,7 +633,7 @@ mod tests {
     #[test]
     fn round_trip_holds_on_the_hand_written_char_row() {
         let src = include_str!("../../../src/intrinsic/char.rs");
-        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::core::char\")]");
+        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::type::char\")]");
         let fence = extract_edn_fence(&raw).expect("char.rs carries an ```edn fence");
         let (tag, map_ast, _) = parse_edn_doc_row(&fence).expect("char fence parses");
         assert_eq!(tag, "Row");
@@ -769,7 +769,7 @@ mod tests {
     #[test]
     fn the_gate_is_not_vacuous_dropped_added() {
         let src = include_str!("../../../src/intrinsic/char.rs");
-        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::core::char\")]");
+        let raw = rust_doc_for_attr(src, "#[wat_intrinsic(\":wat::type::char\")]");
         let fence = extract_edn_fence(&raw).expect("fence");
         let (_, map_ast, _) = parse_edn_doc_row(&fence).expect("parses");
         let doc = wat_doc::from_metadata(&map_ast).expect("valid");

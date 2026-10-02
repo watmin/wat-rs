@@ -257,17 +257,17 @@ fn generic_shipped_runner_cannot_claim_the_abstract_type() {
          repaired: {stderr}"
     );
     assert!(
-        needle_count(&stderr, ":wat::core::Tuple: parameter #2 expects :B; got :wat::core::i64") >= 1,
+        needle_count(&stderr, ":wat::type::Tuple: parameter #2 expects :B; got wat.type/i64") >= 1,
         "the Tuple constructor must refuse the abstract-B slot (out's 2nd element): {stderr}"
     );
     assert!(
-        needle_count(&stderr, ":bracket::__work: parameter #1 expects :wat::core::i64; got :B") >= 1,
+        needle_count(&stderr, ":bracket::__work: parameter #1 expects wat.type/i64; got :B") >= 1,
         "the monomorphic __work call must refuse the abstract-B argument: {stderr}"
     );
     assert!(
         needle_count(
             &stderr,
-            ":wat::kernel::send: parameter payload expects :(wat::core::i64,A); got :(wat::core::i64,B)"
+            ":wat::kernel::send: parameter payload expects :(wat.type/i64,A); got :(wat.type/i64,B)"
         ) >= 1,
         "send must refuse out's (i64,B) payload against self's declared (i64,A) send type: {stderr}"
     );

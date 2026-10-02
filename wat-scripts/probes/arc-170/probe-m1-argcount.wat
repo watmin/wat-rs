@@ -46,8 +46,8 @@
       (:wat::kernel::println (:wat::string::concat "c-e1nm: " c-e1nm))
       (:wat::test::assert-eq c-kind "list")
       (:wat::test::assert-eq c-hname ":wat::kernel::Peer")
-      (:wat::test::assert-eq c-e0nm ":wat::core::i64")
-      (:wat::test::assert-eq c-e1nm ":wat::core::String")
+      (:wat::test::assert-eq c-e0nm ":wat::type::i64")
+      (:wat::test::assert-eq c-e1nm ":wat::type::String")
       (:wat::core::length (:wat::core::ast->children argspec)))))
 
 (:wat::core::defn :user::main [] -> wat.type/nil

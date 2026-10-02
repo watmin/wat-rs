@@ -59,7 +59,7 @@ fn t1_canonical_nil_main_freezes() {
     assert_eq!(params.len(), 0, "expected 0 params (argv is ambient), got {}", params.len());
     assert_eq!(
         ret,
-        TypeExpr::Path(":wat::core::nil".into()),
+        TypeExpr::Path(":wat::type::nil".into()),
         "expected nil (Tuple([])) return"
     );
 }

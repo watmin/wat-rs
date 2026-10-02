@@ -33,7 +33,7 @@ fn raise_bare_integer_is_compile_error() {
             if callee == ":wat::kernel::raise!"
             && param == "#1"
             && expected == ":wat::core::Error"
-            && got == ":wat::core::i64"
+            && got == "wat.type/i64"
     );
     let msg = format!("{}", result.unwrap_err());
     // The error must be the exact type-mismatch diagnostic from the checker (EDN face,

@@ -28,17 +28,17 @@ use wat::freeze::startup_from_file;
 
 #[test]
 fn contract_01_keyword_nil_in_body_rejected() {
-    // (:wat::core::defn :f [] -> :wat::core::nil :wat::core::nil)
-    // Per user direction: ILLEGAL — keyword form in value position.
-    // (Note: the body's :wat::core::nil is the keyword-in-value-position
-    // doctrine violation under test; do NOT migrate to bare nil — that
-    // would defeat the test.)
+    // (:wat::core::defn :test::f [] -> wat.type/nil wat.type/nil)
+    // The body's wat.type/nil is the type-name-in-value-position doctrine
+    // violation under test; do NOT migrate to bare nil — that would defeat
+    // the test. normalize_symbol_refs rewrites the symbol to :wat::type::nil,
+    // and Doctrine 1 quotes that key.
     // Fixture: probe_arc242_stone2_value_position_doctrine_c01.wat.bad
     let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c01.wat.bad");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
-            if head == ":wat::core::nil"
-            && reason == "Doctrine 1 (arc 242): ':wat::core::nil' is a TYPE keyword, not a value; use bare `nil` in value position"
+            if head == ":wat::type::nil"
+            && reason == "Doctrine 1 (arc 242): ':wat::type::nil' is a TYPE keyword, not a value; use bare `nil` in value position"
     );
 }
 
@@ -95,13 +95,15 @@ fn contract_04_bare_value_in_body_passes() {
 
 #[test]
 fn contract_05_keyword_nil_in_let_binding_rejected() {
-    // (:wat::core::let [x :wat::core::nil] x) — ILLEGAL (let-binding value).
+    // (:wat::core::let [x wat.type/nil] x) — ILLEGAL (let-binding value).
+    // Same rewrite as contract_01: the symbol becomes :wat::type::nil
+    // before Doctrine 1 quotes it.
     // Fixture: probe_arc242_stone2_value_position_doctrine_c05.wat.bad
     let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c05.wat.bad");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
-            if head == ":wat::core::nil"
-            && reason == "Doctrine 1 (arc 242): ':wat::core::nil' is a TYPE keyword, not a value; use bare `nil` in value position"
+            if head == ":wat::type::nil"
+            && reason == "Doctrine 1 (arc 242): ':wat::type::nil' is a TYPE keyword, not a value; use bare `nil` in value position"
     );
 }
 

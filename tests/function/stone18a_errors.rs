@@ -56,8 +56,8 @@ fn error_02_fn_body_return_type_mismatch() {
     wat::assert_startup_error!(result, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":anonymous"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String"
+            && expected == "wat.type/i64"
+            && got == "wat.type/String"
     );
 }
 

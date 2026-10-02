@@ -205,7 +205,7 @@
 
   (:wat::test::assert-eq
     (:wat-tests::pcache/run (:wat::spawn::thread))
-    "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/:wat::core::i64/String | [1 2]|33|7"))
+    "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/wat.type/i64/String | [1 2]|33|7"))
 
 ;; ── process tier ────────────────────────────────────────────────────────────────────────────
 ;; The SAME expectation, one token apart — tier-generality is the requirement, not a bonus. This
@@ -219,4 +219,4 @@
 
   (:wat::test::assert-eq
     (:wat-tests::pcache/run (:wat::spawn::process))
-    "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/:wat::core::i64/String | [1 2]|33|7"))
+    "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/wat.type/i64/String | [1 2]|33|7"))

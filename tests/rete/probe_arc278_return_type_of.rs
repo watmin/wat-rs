@@ -40,7 +40,7 @@ fn matches_type_of_a_constructed_value() {
 #[test]
 fn return_type_of_an_inline_fn_is_its_declared_ret() {
     assert_eq!(call(":user::return-type-of-inline-fn"),
-        Value::String(Arc::new("wat::core::bool".to_string())),
+        Value::String(Arc::new("wat::type::bool".to_string())),
         "inline fn → its declared return type FQDN");
 }
 

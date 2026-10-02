@@ -233,7 +233,7 @@ fn probe_7_type_name_returns_generic_kind() {
     );
     assert_eq!(
         r.type_name(),
-        "wat::core::Record",
+        "wat::type::Record",
         "Probe 7: Value::type_name() should return \"wat::core::Record\" (Stone 234.1.5 rename); per-instance FQDN reachable via :wat::core::type"
     );
 }

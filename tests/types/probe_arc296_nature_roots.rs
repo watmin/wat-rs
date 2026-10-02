@@ -86,7 +86,7 @@ fn both_record_umbrellas_are_pure_enough_to_be_held_by_a_record() {
 fn a_record_does_not_satisfy_the_struct_umbrella() {
     assert_type_mismatch(
         "tests/types/probe_arc296_nature_roots__record_is_not_a_struct.wat",
-        ":wat::core::Struct",
+        "wat.type/Struct",
         ":t::Pt",
         "a record must NOT be assignable to a `:wat::core::Struct` slot. If this froze clean, \
          `register_builtin` emitted `:wat::core::Record <: :wat::core::Struct` again — which \
@@ -101,7 +101,7 @@ fn a_record_does_not_satisfy_the_struct_umbrella() {
 fn a_struct_does_not_satisfy_the_record_umbrella() {
     assert_type_mismatch(
         "tests/types/probe_arc296_nature_roots__struct_is_not_a_record.wat",
-        ":wat::core::Record",
+        "wat.type/Record",
         ":t::S",
         "a struct must NOT be assignable to a `:wat::core::Record` slot — records are the \
          wire-friendly holders and a struct may hold resources. A green here would mean the \

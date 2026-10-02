@@ -206,10 +206,17 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     // Validate the SOLE argspec output here so the lie is a `MalformedDefmacro` at definition
     // time, not a confusing failure (or silent wrong behaviour) at first expansion.
     use crate::types::TypeExpr;
+    // K1 — one key. `:wat::type::AST` is the registered key; `wat/WatAST`
+    // still parses as the retired path `:wat::WatAST`. Compare through the
+    // retirement table, not a second hand-typed literal.
+    fn is_ast_key(p: &str) -> bool {
+        // Both sides go through the type-path door, so a raw `== ":wat::type::AST"`
+        // is not a second decision. The retired spelling is the retirement table.
+        crate::types::denoted_type_path(p) == crate::types::denoted_type_path(":wat::type::AST")
+            || crate::types::retired_hard_primitive_tail(p) == Some("AST")
+    }
     fn is_watast(ty: &TypeExpr) -> bool {
-        matches!(ty, TypeExpr::Path(p)
-            if p == ":wat::type::AST"
-                || crate::edn::render::type_denotation(p) == ":wat::type::AST")
+        matches!(ty, TypeExpr::Path(p) if is_ast_key(p))
     }
     fn is_watast_vec(ty: &TypeExpr) -> bool {
         matches!(ty, TypeExpr::Parametric { head, args }
@@ -224,7 +231,7 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
                 kind: MacroErrorKind::MalformedDefmacro {
                     reason: format!(
                         "macro param `{}` is declared `{ty:?}`, but a macro param always binds a \
-                         form — its type must be `:wat::WatAST`",
+                         form — its type must be `:wat::type::AST`",
                         ident.as_str()
                     ),
                 },
@@ -238,7 +245,7 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
                 kind: MacroErrorKind::MalformedDefmacro {
                     reason: format!(
                         "macro rest-param `{}` is declared `{ty:?}`, but a rest param binds a \
-                         sequence of forms — its type must be `(:wat::core::Vector :- [:wat::WatAST])`",
+                         sequence of forms — its type must be `(wat.type/Vector :- [wat.type/AST])`",
                         ident.as_str()
                     ),
                 },
@@ -246,13 +253,13 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         }
     }
     if let WatAST::Keyword(ret_kw, ret_span) = &rettype_item {
-        if ret_kw != ":wat::type::AST" {
+        if !is_ast_key(ret_kw) {
             return Err(MacroError {
                 span: ret_span.clone(),
                 kind: MacroErrorKind::MalformedDefmacro {
                     reason: format!(
                         "macro return type is declared `{ret_kw}`, but a macro always expands to a \
-                         form — its return type must be `:wat::WatAST`"
+                         form — its return type must be `:wat::type::AST`"
                     ),
                 },
             });

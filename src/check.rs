@@ -25755,7 +25755,11 @@ pub(crate) mod tests {
 
     #[test]
     fn any_in_fn_rejected_at_parse() {
-        let err = parse_type_expr(":fn(Any)->i64").unwrap_err();
+        // Arc 255.81 retired the keyword-bodied `:fn(A)->R` string (parse_type_inner
+        // refuses `fn(` before `reject_any` runs). The ban is on the bracket, the
+        // same door the parametric-head sibling above already uses.
+        let form = crate::parse_one!("[:Any :-> :i64]").unwrap();
+        let err = parse_type_node(&form).unwrap_err();
         assert!(matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. }));
     }
 

@@ -61,7 +61,7 @@ fn a_generic_runner_count_is_a_declared_i64() {
     assert_eq!(errs.len(), 1, "{errs:?}");
     wat::assert_check_error_present!(errs,
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
-            if function == ":probe::count" && expected == ":wat::core::String" && got == ":wat::core::i64");
+            if function == ":probe::count" && expected == "wat.type/String" && got == "wat.type/i64");
 }
 
 // rune:lint(no-inlined-wat) — golden rendered TYPE NAMES the checker prints, compared by equality.
