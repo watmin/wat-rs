@@ -2872,6 +2872,15 @@ fn infer_rete_form(
     }
 }
 
+/// 255.82 — a bare `Some`/`Ok`/`Err` that is in the checker's locals map is
+/// that local, not the retired constructor.
+fn bare_symbol_is_local(head: &WatAST, locals: &HashMap<String, TypeExpr>) -> bool {
+    match head {
+        WatAST::Symbol(id, _) => locals.contains_key(crate::scope::env_key(id).as_ref()),
+        _ => false,
+    }
+}
+
 fn infer_list(
     items: &[WatAST],
     list_span: &Span,
@@ -6456,7 +6465,9 @@ fn infer_list(
         head,
         WatAST::Symbol(ident, _) if ident.as_str() == "Some"
     );
-    if head_is_some_bare {
+    // A local named Some/Ok/Err is that local (255.82). The retired-constructor
+    // arms below are the no-local case.
+    if head_is_some_bare && !bare_symbol_is_local(head, locals) {
         let (val, mut errs) = infer_some_constructor(
             items,
             &head.span().clone(),
@@ -6481,7 +6492,7 @@ fn infer_list(
         head,
         WatAST::Symbol(ident, _) if ident.as_str() == "Ok"
     );
-    if head_is_ok_bare {
+    if head_is_ok_bare && !bare_symbol_is_local(head, locals) {
         let (val, mut errs) = infer_ok_constructor(
             items,
             &head.span().clone(),
@@ -6501,7 +6512,7 @@ fn infer_list(
         head,
         WatAST::Symbol(ident, _) if ident.as_str() == "Err"
     );
-    if head_is_err_bare {
+    if head_is_err_bare && !bare_symbol_is_local(head, locals) {
         let (val, mut errs) = infer_err_constructor(
             items,
             &head.span().clone(),

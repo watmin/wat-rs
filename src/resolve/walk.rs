@@ -9,6 +9,7 @@
 use crate::ast::WatAST;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
+use std::collections::HashSet;
 use super::error::{ResolveError, UnresolvedReference};
 use super::boundary::{is_where_form, quote_boundary, Boundary};
 use super::rust_use::collect_use_declarations;
@@ -48,7 +49,7 @@ pub fn resolve_references(
     // Pass 2: walk all call heads, including nested. Every :rust::* call
     // head must be covered by one of the use! declarations from pass 1.
     for form in forms {
-        check_form(form, sym, macros, &use_decls, &mut unresolved);
+        check_form(form, sym, macros, &use_decls, &HashSet::new(), &mut unresolved);
     }
     if unresolved.is_empty() {
         Ok(())
@@ -68,6 +69,7 @@ pub(super) fn check_form(
     sym: &SymbolTable,
     macros: &MacroRegistry,
     use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &HashSet<String>,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
     // Walker-specific List-head logic: call-head resolution and quote-family
@@ -94,6 +96,7 @@ pub(super) fn check_form(
                         "call head — not a builtin, not a registered function"
                     },
                     span: head_span.clone(),
+                    remedy: None,
                 });
             }
 
@@ -112,6 +115,7 @@ pub(super) fn check_form(
                         context:
                             ":rust::* reference not covered by any (:wat::core::use! ...) declaration",
                         span: head_span.clone(),
+                        remedy: None,
                     });
                 }
             }
@@ -133,7 +137,9 @@ pub(super) fn check_form(
                 // quasiquote is treated as opaque data (out of scope for F-2).
                 Boundary::Quasiquote => {
                     if let Some(template) = items.get(1) {
-                        check_quasiquote_template(template, sym, macros, use_decls, unresolved);
+                        check_quasiquote_template(
+                            template, sym, macros, use_decls, scope, unresolved,
+                        );
                     }
                     return;
                 }
@@ -144,33 +150,20 @@ pub(super) fn check_form(
                 // of which are call heads).
                 Boundary::MatchesSubject => {
                     if let Some(subject) = items.get(1) {
-                        check_form(subject, sym, macros, use_decls, unresolved);
+                        check_form(subject, sym, macros, use_decls, scope, unresolved);
                     }
                     return;
                 }
 
                 // match — items[1]=scrutinee (walk), items[2..]=arms.
-                // Each arm is a vector; the BODY is the last element (index 1
-                // for `[_ body]`, index 2 for `[Variant map body]`). The
-                // pattern/map is DSL data owned by check.rs.
+                // The pattern is data. Binders it introduces are in scope for
+                // the body only (stone 255.82).
                 Boundary::Match => {
                     if let Some(scrutinee) = items.get(1) {
-                        check_form(scrutinee, sym, macros, use_decls, unresolved);
+                        check_form(scrutinee, sym, macros, use_decls, scope, unresolved);
                     }
                     for arm in items.iter().skip(2) {
-                        match arm {
-                            WatAST::Vector(arm_items, _) if !arm_items.is_empty() => {
-                                if let Some(body) = arm_items.last() {
-                                    check_form(body, sym, macros, use_decls, unresolved);
-                                }
-                            }
-                            WatAST::List(arm_items, _) => {
-                                if let Some(body) = arm_items.get(1) {
-                                    check_form(body, sym, macros, use_decls, unresolved);
-                                }
-                            }
-                            other => check_form(other, sym, macros, use_decls, unresolved),
-                        }
+                        walk_match_arm(arm, sym, macros, use_decls, scope, unresolved);
                     }
                     return;
                 }
@@ -188,16 +181,46 @@ pub(super) fn check_form(
                 // aggregate-shaped and NOT call heads (STOP-2).
                 Boundary::MakeRule => {
                     if let Some(name) = items.get(1) {
-                        check_form(name, sym, macros, use_decls, unresolved);
+                        check_form(name, sym, macros, use_decls, scope, unresolved);
                     }
                     if let Some(when_arg) = items.get(2) {
-                        check_make_rule_when(when_arg, sym, macros, use_decls, unresolved);
+                        check_make_rule_when(when_arg, sym, macros, use_decls, scope, unresolved);
                     }
                     return;
                 }
 
-                // Not a boundary — fall through to the generic children() walk.
-                Boundary::Ordinary => {}
+                // Not a boundary — a binding form extends scope for its body.
+                // Anything else falls through to the generic children() walk.
+                Boundary::Ordinary => {
+                    if let Some(fq) = items.first().and_then(crate::declare::parse::head_fqdn) {
+                        if fq.as_ref() == ":wat::core::let" {
+                            walk_scoped_let(items, sym, macros, use_decls, scope, unresolved);
+                            return;
+                        }
+                        if fq.as_ref() == ":wat::core::fn" || fq.as_ref() == ":wat::core::lambda" {
+                            walk_scoped_fn(items, sym, macros, use_decls, scope, unresolved);
+                            return;
+                        }
+                        if fq.as_ref() == ":wat::core::defclause" {
+                            walk_scoped_defclause(form, sym, macros, use_decls, scope, unresolved);
+                            return;
+                        }
+                        // 255.82 — `(grant [self pids] body)` inside extend-type is the
+                        // method being defined. The name is not a call. The body is,
+                        // and the param vector is in scope there. defservice emits
+                        // these for Capability/Dialable.
+                        if fq.as_ref() == ":wat::core::extend-type" {
+                            walk_extend_type(form, sym, macros, use_decls, scope, unresolved);
+                            return;
+                        }
+                    }
+                }
+            }
+        } else if let Some(WatAST::Symbol(id, span)) = items.first() {
+            // 255.82 — a symbol call head with no `/`. A reference (it has `/`)
+            // was already rewritten to a keyword by normalize, or refused there.
+            if !id.is_reference() && !is_type_reference {
+                note_unbound_symbol_head(id, span, sym, macros, scope, unresolved);
             }
         }
     }
@@ -207,7 +230,7 @@ pub(super) fn check_form(
     // shapes (e.g., let-binding vector RHSes) are still resolved.
     // children() returns &[] for leaf nodes (no-op).
     for child in form.children().iter() {
-        check_form(child, sym, macros, use_decls, unresolved);
+        check_form(child, sym, macros, use_decls, scope, unresolved);
     }
 }
 
@@ -230,6 +253,7 @@ fn check_make_rule_when(
     sym: &SymbolTable,
     macros: &MacroRegistry,
     use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &HashSet<String>,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
     let WatAST::List(qitems, _) = when_arg else { return };
@@ -251,9 +275,342 @@ fn check_make_rule_when(
         let is_where = matches!(citems.first(), Some(WatAST::Keyword(h, _)) if is_where_form(h));
         if is_where {
             for body in citems.iter().skip(1) {
-                check_form(body, sym, macros, use_decls, unresolved);
+                check_form(body, sym, macros, use_decls, scope, unresolved);
             }
         }
+    }
+}
+
+const BARE_HEAD_CONTEXT: &str = "call head — not a builtin, not a registered function";
+
+/// A no-slash symbol call head. In `scope` → allowed. A retirement-table hit
+/// is refused even though the door returns true for it, and the remedy is the
+/// table's replacement. Otherwise the door decides. A dotted name whose slash
+/// spelling the door accepts carries that spelling as the remedy.
+fn note_unbound_symbol_head(
+    id: &crate::scope::Identifier,
+    span: &crate::span::Span,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    scope: &HashSet<String>,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    let key = crate::scope::env_key(id);
+    if scope.contains(key.as_ref()) {
+        return;
+    }
+    let name = id.as_str();
+    let remedies = crate::remedy::remedies_for(name, std::iter::empty());
+    if let Some(first) = remedies.first() {
+        if matches!(first.kind, crate::remedy::RemedyKind::Retirement) {
+            unresolved.push(UnresolvedReference {
+                path: name.to_string(),
+                context: BARE_HEAD_CONTEXT,
+                span: span.clone(),
+                remedy: Some(first.form.clone()),
+            });
+            return;
+        }
+    }
+    // The door's keyword rungs must not see a raw symbol spelling. `Some`
+    // is unchanged by this door (`canonical_identity` keeps a slash-less
+    // bare name), so the retirement hit still fires on the same string.
+    let key = crate::edn::render::canonical_identity(name);
+    if is_resolvable_call_head(&key, sym, macros) {
+        return;
+    }
+    unresolved.push(UnresolvedReference {
+        path: name.to_string(),
+        context: BARE_HEAD_CONTEXT,
+        span: span.clone(),
+        remedy: slash_spelling_remedy(name, sym, macros),
+    });
+}
+
+/// `wat.core.Option.expect` → `wat.core.Option/expect` when
+/// `:wat::core::Option/expect` is a head the door accepts. The member join is
+/// `/`, not the `::` that `ns_to_wat_path` would insert.
+fn slash_spelling_remedy(
+    name: &str,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+) -> Option<String> {
+    let (stem, tail) = name.rsplit_once('.')?;
+    if stem.is_empty() || tail.is_empty() {
+        return None;
+    }
+    // rune:lint(one-variant-separator, namespace) — dotted namespace `wat.core.Option` becomes the `::` key the door stores; the member stays behind `/`. Not an enum/variant split.
+    let door_key = format!(":{}/{}", stem.replace('.', "::"), tail);
+    if is_resolvable_call_head(&door_key, sym, macros) {
+        Some(format!("{stem}/{tail}"))
+    } else {
+        None
+    }
+}
+
+fn bind_arg_vector_symbols(node: &WatAST, scope: &mut HashSet<String>) {
+    let WatAST::Vector(items, _) = node else { return };
+    for item in items {
+        if let WatAST::Symbol(id, _) = item {
+            if !id.is_reference() && !matches!(id.as_str(), "<-" | "->" | "&" | "_") {
+                insert_binder(scope, id);
+            }
+        }
+    }
+}
+
+fn insert_binder(scope: &mut HashSet<String>, id: &crate::scope::Identifier) {
+    if id.as_str() != "_" {
+        scope.insert(crate::scope::env_key(id).into_owned());
+    }
+}
+
+fn bind_let_pattern(pat: &WatAST, scope: &mut HashSet<String>) {
+    match pat {
+        WatAST::Symbol(id, _) => insert_binder(scope, id),
+        WatAST::Vector(items, _) => {
+            for item in items {
+                if let WatAST::Symbol(id, _) = item {
+                    insert_binder(scope, id);
+                }
+            }
+        }
+        WatAST::Map(pairs, _) => {
+            if let Some(m) = WatAST::classify_map_destructure(pairs) {
+                for (ident, _, _) in &m.bindings {
+                    insert_binder(scope, ident);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Symbols inside a match pattern. A keyword or reference-symbol vector head
+/// is a constructor, not a binder.
+fn bind_pattern_symbols(node: &WatAST, scope: &mut HashSet<String>) {
+    match node {
+        WatAST::Symbol(id, _) if !id.is_reference() => insert_binder(scope, id),
+        WatAST::Vector(items, _) => {
+            let skip = match items.first() {
+                Some(WatAST::Keyword(_, _)) => 1,
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => 1,
+                _ => 0,
+            };
+            for item in items.iter().skip(skip) {
+                bind_pattern_symbols(item, scope);
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items.iter().skip(1) {
+                bind_pattern_symbols(item, scope);
+            }
+        }
+        WatAST::Map(pairs, _) => {
+            for (_, value) in pairs {
+                bind_pattern_symbols(value, scope);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn walk_with(nodes: &[WatAST], sym: &SymbolTable, macros: &MacroRegistry, use_decls: &crate::rust_deps::UseDeclarations, scope: &HashSet<String>, unresolved: &mut Vec<UnresolvedReference>) {
+    for node in nodes {
+        check_form(node, sym, macros, use_decls, scope, unresolved);
+    }
+}
+
+/// Sequential let: each RHS is walked with the binders so far, then the
+/// binder is added, then the body sees the whole vector.
+/// extend-type method clauses: skip the method name, bind the param vector,
+/// walk the body. A malformed shape falls back to the ordinary child walk.
+fn walk_extend_type(
+    form: &WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &HashSet<String>,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    let WatAST::List(items, _) = form else { return };
+    let Ok((_, ops)) = crate::types::extend_type_operands(items) else {
+        walk_with(items, sym, macros, use_decls, scope, unresolved);
+        return;
+    };
+    for op in ops.iter().take(2) {
+        check_form(op, sym, macros, use_decls, scope, unresolved);
+    }
+    for impl_form in ops.iter().skip(2) {
+        let WatAST::List(impl_items, _) = impl_form else {
+            check_form(impl_form, sym, macros, use_decls, scope, unresolved);
+            continue;
+        };
+        let mut extended = scope.clone();
+        if let Some(params) = impl_items.get(1) {
+            bind_arg_vector_symbols(params, &mut extended);
+        }
+        let body = if impl_items.len() > 2 { &impl_items[2..] } else { &[] };
+        walk_with(body, sym, macros, use_decls, &extended, unresolved);
+    }
+}
+
+fn walk_scoped_let(
+    items: &[WatAST],
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &HashSet<String>,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    let Some(bindings) = items.get(1) else {
+        walk_with(&items[1..], sym, macros, use_decls, scope, unresolved);
+        return;
+    };
+    let WatAST::Vector(pairs, _) = bindings else {
+        walk_with(&items[1..], sym, macros, use_decls, scope, unresolved);
+        return;
+    };
+    if pairs.len() % 2 != 0 {
+        walk_with(pairs, sym, macros, use_decls, scope, unresolved);
+        walk_with(&items[2..], sym, macros, use_decls, scope, unresolved);
+        return;
+    }
+    let mut extended = scope.clone();
+    for chunk in pairs.chunks_exact(2) {
+        check_form(&chunk[1], sym, macros, use_decls, &extended, unresolved);
+        bind_let_pattern(&chunk[0], &mut extended);
+    }
+    walk_with(&items[2..], sym, macros, use_decls, &extended, unresolved);
+}
+
+fn walk_scoped_fn(
+    items: &[WatAST],
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &HashSet<String>,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    let mut args: &[WatAST] = if items.len() > 1 { &items[1..] } else { &[] };
+    if args.first().is_some_and(|n| n.is_metadata_map()) {
+        check_form(&args[0], sym, macros, use_decls, scope, unresolved);
+        args = &args[1..];
+    }
+    let (binder, args) = match crate::function::peel_type_binder(args) {
+        Ok(peeled) => peeled,
+        Err(_) => {
+            walk_with(args, sym, macros, use_decls, scope, unresolved);
+            return;
+        }
+    };
+    let _ = binder;
+    if args.len() < 3 {
+        walk_with(args, sym, macros, use_decls, scope, unresolved);
+        return;
+    }
+    let sig3: &[WatAST; 3] = match args[..3].try_into() {
+        Ok(s) => s,
+        Err(_) => {
+            walk_with(args, sym, macros, use_decls, scope, unresolved);
+            return;
+        }
+    };
+    let mut extended = scope.clone();
+    match crate::function::parse_fn_signature_for_check(sig3) {
+        Ok((params, _, _)) => {
+            for name in params {
+                if name != "_" {
+                    extended.insert(name);
+                }
+            }
+        }
+        // Variadic (`& rest`) is outside that parser. Bind the top-level
+        // symbols in the args vector, skipping the argspec markers.
+        Err(()) => bind_arg_vector_symbols(&args[0], &mut extended),
+    }
+    // The signature (args vector, arrow, return type) is not a value scope.
+    // Walk it with the outer scope so a call nested in an annotation is still
+    // seen, and walk the body with the parameters bound.
+    walk_with(&args[..3], sym, macros, use_decls, scope, unresolved);
+    walk_with(&args[3..], sym, macros, use_decls, &extended, unresolved);
+}
+
+fn walk_scoped_defclause(
+    form: &WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &HashSet<String>,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    let Ok((_name, cs)) = crate::function::parse_defclause_form(form, crate::resolve::Privilege::User) else {
+        walk_with(form.children().as_ref(), sym, macros, use_decls, scope, unresolved);
+        return;
+    };
+    for clause in &cs.clauses {
+        let mut extended = scope.clone();
+        for (id, _) in &clause.args.fixed_params {
+            insert_binder(&mut extended, id);
+        }
+        if let Some((id, _)) = &clause.args.rest_param {
+            insert_binder(&mut extended, id);
+        }
+        if let Some(guard) = &clause.guard {
+            check_form(guard, sym, macros, use_decls, &extended, unresolved);
+        }
+        check_form(&clause.body, sym, macros, use_decls, &extended, unresolved);
+        if let Some(ensure) = &clause.ensure_fn {
+            check_form(ensure, sym, macros, use_decls, &extended, unresolved);
+        }
+    }
+}
+
+fn walk_match_arm(
+    arm: &WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &HashSet<String>,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    match crate::match_arm::parse_match_arm(arm) {
+        Ok(parsed) => {
+            let mut arm_scope = scope.clone();
+            match &parsed {
+                crate::match_arm::MatchArm::Binding { ident, .. } => insert_binder(&mut arm_scope, ident),
+                crate::match_arm::MatchArm::HashDestructure { pairs, .. } => {
+                    if let Some(m) = WatAST::classify_map_destructure(pairs) {
+                        for (ident, _, _) in &m.bindings {
+                            insert_binder(&mut arm_scope, ident);
+                        }
+                    }
+                }
+                crate::match_arm::MatchArm::Variant { pairs, path_span, .. } => {
+                    if let Ok(parsed_pairs) = crate::match_arm::parse_key_first_pairs(pairs, path_span) {
+                        for (_, pat) in parsed_pairs {
+                            bind_pattern_symbols(pat, &mut arm_scope);
+                        }
+                    }
+                }
+                crate::match_arm::MatchArm::Wildcard { .. }
+                | crate::match_arm::MatchArm::Literal { .. } => {}
+            }
+            check_form(parsed.body(), sym, macros, use_decls, &arm_scope, unresolved);
+        }
+        Err(_) => match arm {
+            WatAST::Vector(arm_items, _) if !arm_items.is_empty() => {
+                if let Some(body) = arm_items.last() {
+                    check_form(body, sym, macros, use_decls, scope, unresolved);
+                }
+            }
+            WatAST::List(arm_items, _) => {
+                if let Some(body) = arm_items.get(1) {
+                    check_form(body, sym, macros, use_decls, scope, unresolved);
+                }
+            }
+            other => check_form(other, sym, macros, use_decls, scope, unresolved),
+        },
     }
 }
 

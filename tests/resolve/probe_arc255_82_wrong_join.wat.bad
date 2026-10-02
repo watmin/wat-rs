@@ -1,0 +1,5 @@
+;; 255.82 — a dotted wrong-join whose last segment is registered names the slash spelling.
+(wat.core/defn user/main [] -> wat.type/nil
+  (wat.core/do
+    (wat.core.Option.expect (:wat::core::Option.Some {:value 1}) "x")
+    nil))

@@ -798,6 +798,7 @@ fn resolve_namespaced_symbol(
         path: primary.clone(),
         context: "namespaced symbol ref — not a builtin, not a registered function (arc 251)",
         span: span.clone(),
+        remedy: None,
     })
 }
 

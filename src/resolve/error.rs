@@ -19,6 +19,12 @@ pub struct UnresolvedReference {
     /// Source location of the offending keyword reference. `crate::rust_caller_span!()`
     /// when the site genuinely has no recoverable location.
     pub span: Span,
+    /// A replacement spelling, when the refusal has one: the retirement
+    /// table's form (`:wat::core::Some`), or the slash spelling of a dotted
+    /// wrong-join whose last segment is registered (`wat.core.Option/expect`).
+    /// Omitted from the EDN when `None`, so a keyword-head refusal stays
+    /// byte-identical.
+    pub remedy: Option<String>,
 }
 
 /// Name-resolution errors.
@@ -91,11 +97,14 @@ impl crate::edn::contract::ToEdn for ResolveError {
                 let refs: Vec<OwnedValue> = list
                     .iter()
                     .map(|r| {
-                        let fields = vec![
+                        let mut fields = vec![
                             (edn_kw("path"), edn_str(&r.path)),
                             (edn_kw("context"), edn_str(r.context)),
                             (edn_kw("span"), r.span.to_edn()),
                         ];
+                        if let Some(remedy) = &r.remedy {
+                            fields.push((edn_kw("remedy"), edn_str(remedy)));
+                        }
                         OwnedValue::Tagged(Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReference"), Box::new(OwnedValue::Map(fields)))
                     })
                     .collect();

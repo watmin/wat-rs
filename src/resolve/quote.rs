@@ -22,6 +22,7 @@ pub(super) fn check_quasiquote_template(
     sym: &SymbolTable,
     macros: &MacroRegistry,
     use_decls: &crate::rust_deps::UseDeclarations,
+    scope: &std::collections::HashSet<String>,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
     // Only List forms can be unquote/unquote-splicing escapes; check the
@@ -31,7 +32,7 @@ pub(super) fn check_quasiquote_template(
             if is_unquote_escape(head) {
                 // Escape: the argument is live code. Use normal check_form.
                 for arg in items.iter().skip(1) {
-                    check_form(arg, sym, macros, use_decls, unresolved);
+                    check_form(arg, sym, macros, use_decls, scope, unresolved);
                 }
                 return;
             }
@@ -45,7 +46,7 @@ pub(super) fn check_quasiquote_template(
     // miss unquote escapes inside bracketed forms (e.g. let-binding vectors).
     // children() returns &[] for leaf nodes so this is a no-op for atoms.
     for child in node.children().iter() {
-        check_quasiquote_template(child, sym, macros, use_decls, unresolved);
+        check_quasiquote_template(child, sym, macros, use_decls, scope, unresolved);
     }
     // Atoms (symbols, keywords, literals): children() → &[]; loop is a no-op.
 }

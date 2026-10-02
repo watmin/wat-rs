@@ -37,6 +37,7 @@ pub(crate) fn collect_use_declarations(
                     path: head.into_owned(),
                     context: "(:wat::core::use! :rust::Path) expects exactly one keyword argument",
                     span: head_span.clone(),
+                    remedy: None,
                 });
                 return;
             }
@@ -51,6 +52,7 @@ pub(crate) fn collect_use_declarations(
                         path: head.into_owned(),
                         context: "(:wat::core::use! ...) argument must be a keyword path",
                         span: other.span().clone(),
+                        remedy: None,
                     });
                     return;
                 }
@@ -60,6 +62,7 @@ pub(crate) fn collect_use_declarations(
                     path,
                     context: "rust symbol not available in wat; declare it via its shim",
                     span: path_span.clone(),
+                    remedy: None,
                 });
                 return;
             }

@@ -759,7 +759,7 @@ const ALLOWLIST: &[(&str, &str, &str)] = &[
 //
 // ⭐ THE NUMBER IS THE COUNTDOWN TO THE TERMINAL CUT. Keyword call heads become illegal when it
 // reads 0 and the `.wat` corpus is converted — not before.
-const LEDGER_TOTAL: usize = 147; // 255.81: 149 → 147 — parse.rs `is_watast` and `parse_defmacro_form` no longer compare a keyword literal; the AST-key decision is `denoted_type_path` plus `retired_hard_primitive_tail`. 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
+const LEDGER_TOTAL: usize = 146; // 255.82: 147 → 146 — `is_resolvable_call_head` was Ax1 and is now 0. A bare symbol head reaches that door through `canonical_identity`, so the parameter is no longer a raw symbol spelling beside the keyword callers. 255.81: 149 → 147 — parse.rs `is_watast` and `parse_defmacro_form` no longer compare a keyword literal; the AST-key decision is `denoted_type_path` plus `retired_hard_primitive_tail`. 255.77: 148 → 149 — walk_for_bare_primitives' new HARD CUT arm for the retired `:wat::core::Uuid` type key (`s == ":wat::core::Uuid"`, same shape-A idiom as its already-counted let*/lambda/unit/Char siblings in this same fn; the name is a fixed invariant literal at this site, not a dual-spelling decision). 255.67: 149 → 148 — eval_holon_from_holon's HashMap type-hint check routed through canonical_type_key. 255.66: 195 → 149 — constructor heads read through the denotation door. 255.56: 198 → 195.
 const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/check.rs", "assignable", 5, "Ex5"),
     ("src/check.rs", "check_compound_against_expected", 1, "Ax1"),
@@ -842,7 +842,9 @@ const FROZEN_LEDGER: &[(&str, &str, usize, &str)] = &[
     ("src/match_arm.rs", "builtin_variant", 1, "Ax1"),
     ("src/resolve/boundary.rs", "is_unquote_escape", 2, "Ax2"),
     ("src/resolve/boundary.rs", "is_where_form", 1, "Ax1"),
-    ("src/resolve/walk.rs", "is_resolvable_call_head", 1, "Ax1"),
+    // 255.82 — `is_resolvable_call_head` was 1 [Ax1] → 0. The bare-symbol caller
+    // passes `canonical_identity` of the name, so the keyword rungs no longer
+    // see a raw symbol spelling.
     ("src/rete/collect.rs", "eval_collect_rules", 1, "Ex1"),
     // ⭐ 251.8d-ii SEVENTH — `lower_list` was 1 [Ax1] → 0. THE ONE EXPRESSION CORE's dispatcher
     // read its head as a `WatAST::Keyword` payload only and refused every other node as *"call

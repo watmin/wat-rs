@@ -1,0 +1,5 @@
+;; 255.82 — an unquote escape is live code. A bare head there is refused.
+(wat.core/defn user/main [] -> wat.type/nil
+  (wat.core/do
+    (wat.core/quasiquote (:wat::core::unquote (foozle 1)))
+    nil))

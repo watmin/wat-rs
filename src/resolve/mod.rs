@@ -52,10 +52,10 @@
 //!
 //! # What this pass does NOT do
 //!
-//! - It does NOT check bare-symbol (lexical) references. Scope-chain
-//!   tracking is dynamic enough that the runtime catches those at
-//!   call time via `UnboundSymbol`; a static scope walker can layer
-//!   on later if strict startup-time errors are wanted.
+//! - A call head that is a symbol with no `/` is resolved here too (stone
+//!   255.82). Let, fn, match, and defclause binders are in scope for that
+//!   decision; anything else that `is_resolvable_call_head` does not accept
+//!   is an `UnresolvedReference`. Quote data is not walked.
 //! - It does NOT check type-position references. That's the type
 //!   checker's job (see [`crate::check`]); this pass treats type
 //!   annotations and field types as opaque.
