@@ -16,7 +16,7 @@
 
 ;; ─── site 3 — the coerce table ──────────────────────────────────────────
 (:wat::core::defn :p255_12::coerce-core-ok [] -> :wat::edn::Validation
-  (:wat::edn::validate 42 :wat::core::i64))
+  (:wat::edn::validate 42 wat.type/i64))
 
 (:wat::core::defn :p255_12::coerce-type-ok [] -> :wat::edn::Validation
   (:wat::edn::validate 42 :wat::type::i64))

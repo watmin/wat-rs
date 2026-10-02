@@ -24,7 +24,7 @@
 (:wat::core::defn :user::probe-03 [] -> wat.type/i64 (:p03::sum 7 3))
 
 ;; Probe 4 — typeunion-typed arg accepts via bounded existential (Stone 237.1 integration)
-(:wat::core::typeunion :p04::Numeric [:wat::core::i64 :wat::core::f64])
+(:wat::core::typeunion :p04::Numeric [wat.type/i64 wat.type/f64])
 (:wat::core::defclause :p04::identity-num
   ([x <- :p04::Numeric] -> :p04::Numeric x))
 (:wat::core::defn :user::probe-04 [] -> wat.type/nil

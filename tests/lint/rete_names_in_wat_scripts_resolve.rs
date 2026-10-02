@@ -1176,7 +1176,7 @@ mod classifier {
     fn a_field_vector_ending_in_a_nested_type_keeps_its_last_field() {
         assert_eq!(
             declared_field_names(
-                "a <- :wat::core::i64 b <- (:wat::core::PersistentVector :- [:wat::rete::Yy])"
+                "a <- wat.type/i64 b <- (wat.type/PersistentVector :- [:wat::rete::Yy])"
             ),
             Ok(vec!["a".to_string(), "b".to_string()])
         );

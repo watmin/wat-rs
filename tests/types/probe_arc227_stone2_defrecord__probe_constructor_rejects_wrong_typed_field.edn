@@ -23,7 +23,7 @@
       :remedies []
     }
     #wat.check/TypeMismatch {
-      :message ":ns::P: parameter #1 expects :wat::core::i64; got :wat::core::String"
+      :message ":ns::P: parameter #1 expects wat.type/i64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/types/probe_arc227_stone2_defrecord_wrongfield.wat.bad"
         :line 3
@@ -38,8 +38,8 @@
       :causes []
       :callee ":ns::P"
       :param "#1"
-      :expected ":wat::core::i64"
-      :got ":wat::core::String"
+      :expected "wat.type/i64"
+      :got "wat.type/String"
       :remedies []
     }
   ]

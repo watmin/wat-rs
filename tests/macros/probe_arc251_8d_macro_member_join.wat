@@ -13,7 +13,7 @@
 ;; it exists to measure.
 (:wat::core::defrecord :user::Box [n <- wat.type/i64])
 
-(wat.core/defmacro user.Box/of [n :- wat/WatAST] :- wat/WatAST
+(wat.core/defmacro user.Box/of [n :- wat.type/AST] :- wat.type/AST
   `(:user::Box :n ~n))
 
 (:wat::core::defn :user::cure [] -> wat.type/i64

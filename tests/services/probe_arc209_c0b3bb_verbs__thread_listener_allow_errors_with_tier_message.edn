@@ -1,17 +1,57 @@
-#wat.runtime/MalformedForm {
-  :message "malformed :wat::kernel::allow form: allow is a process-tier service gate; a thread listener's handle IS the grant"
-  :location #wat.core/Span {
-    :file "tests/services/probe_arc209_c0b3bb_verbs_thread.wat"
-    :line 6
-    :col 32
-    :end #wat.core/Option.Some {
-      :value #wat.core/Pos {
-        :line 6
-        :col 33
-      }
-    }
-  }
+#wat.check/CheckErrors {
+  :message "2 type-check errors"
+  :location nil
   :causes []
-  :head ":wat::kernel::allow"
-  :reason "allow is a process-tier service gate; a thread listener's handle IS the grant"
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :location #wat.core/Span {
+        :file "tests/services/probe_arc209_c0b3bb_verbs_thread.wat"
+        :line 4
+        :col 57
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 4
+            :col 72
+          }
+        }
+      }
+      :causes []
+      :head ":wat::core::i64"
+      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form "wat.type/i64"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :location #wat.core/Span {
+        :file "tests/services/probe_arc209_c0b3bb_verbs_thread.wat"
+        :line 4
+        :col 73
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 4
+            :col 88
+          }
+        }
+      }
+      :causes []
+      :head ":wat::core::i64"
+      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form "wat.type/i64"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
+    }
+  ]
 }

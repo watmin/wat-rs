@@ -8,7 +8,7 @@
 ;; the BARE type name (parity with records), /new annihilated. `(:b::probe)` => 41 (3 + 38).
 
 (:wat::core::defstruct :b::Pt    [x <- wat.type/i64  y <- wat.type/i64])
-(:wat::core::newtype   :b::Price :wat::core::i64)
+(:wat::core::newtype   :b::Price wat.type/i64)
 
 (:wat::core::defn :b::probe [] -> wat.type/i64
   (:wat::i64::+

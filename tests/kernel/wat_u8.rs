@@ -1,7 +1,7 @@
 //! End-to-end tests for `:wat::core::u8` — arc 008 slice 1.
 //!
 //! Covers:
-//! - `(:wat::core::u8 <i64>)` cast: in-range produces `:wat::core::u8`; out-of-range errors.
+//! - `(wat.type/u8 <i64>)` cast: in-range produces `:wat::core::u8`; out-of-range errors.
 //! - Comparison (`:wat::core::=`) works on `:wat::core::u8` values.
 //! - `:wat::core::Vector<u8>` construction via `(:wat::core::Vector :- [:wat::core::u8] ...)` round-trips.
 //! - Passing `:wat::core::u8` values through function parameters and return types.

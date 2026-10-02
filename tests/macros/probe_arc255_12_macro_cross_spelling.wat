@@ -9,5 +9,5 @@
 ;; The Ngram failure is the `.wat.bad` sibling, and it is not an identity question.
 (:wat::core::defmacro :p255_12::M [x <- wat.type/AST] -> wat.type/AST
   `(:wat::i64::+ ~x 1))
-(:wat::core::defmacro :p255_12::M [x <- wat/WatAST] :- wat/WatAST
+(:wat::core::defmacro :p255_12::M [x <- wat.type/AST] :- wat.type/AST
   `(wat.i64/+ ~x 1))

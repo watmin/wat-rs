@@ -20,11 +20,11 @@
   :Pair [left <- wat.type/i64  right <- wat.type/String]
   :Empty [])
 
-(:wat::core::newtype :probe::Count :wat::core::i64)
+(:wat::core::newtype :probe::Count wat.type/i64)
 
 (:wat::core::typealias :probe::Alias wat.type/i64)
 
-(:wat::core::typeunion :probe::Num [:wat::core::i64 :wat::core::f64])
+(:wat::core::typeunion :probe::Num [wat.type/i64 wat.type/f64])
 
 (:wat::core::defsurface :probe::Surf
   :nature wat.type/Record
@@ -71,9 +71,9 @@
   (:wat::kernel::println
     (:wat::core::first (:wat::runtime::TypeInfo/type-params
                          (:wat::runtime::type-of :wat::core::Option))))
-  (:user::print-kind (:wat::runtime::type-of :wat::core::Vector))
-  (:user::print-kind (:wat::runtime::type-of :wat::core::i64))
-  (:user::print-kind (:wat::runtime::type-of (:wat::keyword::from-string "wat::core::HashMap")))
+  (:user::print-kind (:wat::runtime::type-of wat.type/Vector))
+  (:user::print-kind (:wat::runtime::type-of wat.type/i64))
+  (:user::print-kind (:wat::runtime::type-of (:wat::keyword::from-string "wat::type::HashMap")))
   (:user::print-kind (:wat::runtime::type-of :probe::Marker))
   (:wat::core::match (:wat::runtime::TypeInfo/body (:wat::runtime::type-of :probe::Marker))
     [:wat::runtime::TypeBody.Marker {:children cs}

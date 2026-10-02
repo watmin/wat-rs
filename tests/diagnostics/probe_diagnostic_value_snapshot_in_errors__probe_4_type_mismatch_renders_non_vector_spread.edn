@@ -1,5 +1,5 @@
 #wat.runtime/TypeMismatch {
-  :message ":wat::core::apply: expected wat::core::Vector, got wat::core::i64 `42`"
+  :message ":wat::core::apply: expected wat::type::Vector, got wat::type::i64 `42`"
   :location #wat.core/Span {
     :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p4.wat"
     :line 1
@@ -13,9 +13,9 @@
   }
   :causes []
   :op ":wat::core::apply"
-  :expected "wat::core::Vector"
+  :expected "wat::type::Vector"
   :got {
-    :type "wat::core::i64"
+    :type "wat::type::i64"
     :rendered "42"
     :provenance nil
   }

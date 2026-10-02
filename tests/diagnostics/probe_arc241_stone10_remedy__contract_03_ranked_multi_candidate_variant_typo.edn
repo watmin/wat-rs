@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":test::pick: body produces :wat::core::keyword; signature declares :my::Status"
+      :message ":test::pick: body produces wat.type/keyword; signature declares :my::Status"
       :location #wat.core/Span {
         :file "tests/diagnostics/probe_arc241_stone10_remedy_c03.wat.bad"
         :line 2
@@ -19,7 +19,7 @@
       :causes []
       :function ":test::pick"
       :expected ":my::Status"
-      :got ":wat::core::keyword"
+      :got "wat.type/keyword"
       :remedies [
         #wat.kernel/Remedy {
           :form ":my::Status.Ok"

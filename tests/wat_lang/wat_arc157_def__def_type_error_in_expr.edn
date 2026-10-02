@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":t::helper: parameter #1 expects :wat::core::i64; got :wat::core::String"
+      :message ":t::helper: parameter #1 expects wat.type/i64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc157_def_type_error_in_expr.wat.bad"
         :line 4
@@ -19,12 +19,12 @@
       :causes []
       :callee ":t::helper"
       :param "#1"
-      :expected ":wat::core::i64"
-      :got ":wat::core::String"
+      :expected "wat.type/i64"
+      :got "wat.type/String"
       :remedies []
     }
     #wat.check/TypeMismatch {
-      :message ":t::helper: parameter #1 expects :wat::core::i64; got :wat::core::String"
+      :message ":t::helper: parameter #1 expects wat.type/i64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc157_def_type_error_in_expr.wat.bad"
         :line 4
@@ -39,8 +39,8 @@
       :causes []
       :callee ":t::helper"
       :param "#1"
-      :expected ":wat::core::i64"
-      :got ":wat::core::String"
+      :expected "wat.type/i64"
+      :got "wat.type/String"
       :remedies []
     }
   ]

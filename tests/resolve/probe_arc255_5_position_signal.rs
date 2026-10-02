@@ -7,7 +7,7 @@ use wat::freeze::{startup_beside, startup_from_file};
 fn known_types_in_annotation_and_return_slots_check() {
     assert!(
         startup_beside(file!()).is_ok(),
-        "wat/WatAST, wat.core/i64, wat.time/Instant in :- / -> slots must check"
+        "wat.type/AST, wat.type/i64, wat.time/Instant in :- / -> slots must check"
     );
 }
 

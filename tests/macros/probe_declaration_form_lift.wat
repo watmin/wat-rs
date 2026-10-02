@@ -38,7 +38,7 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
-           (:wat::core::newtype :h::LocalAmount :wat::core::i64)
+           (:wat::core::newtype :h::LocalAmount wat.type/i64)
            (:wat::core::defn :user::main [] -> wat.type/nil
              (:wat::core::let
                [a    (:h::LocalAmount 100)
@@ -90,7 +90,7 @@
            (:wat::core::defenum :h::MixDir :wat::enum::Pure
              :Up
              :Down)
-           (:wat::core::newtype :h::MixAmount :wat::core::i64)
+           (:wat::core::newtype :h::MixAmount wat.type/i64)
            (:wat::core::typealias :h::MixCount wat.type/i64)
            (:wat::core::defn :h::mix-i64 [v <- wat.type/i64] -> :h::MixCount
              v)

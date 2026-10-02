@@ -68,18 +68,18 @@
   (:wat::core::let
     [w (:wat::io::IOWriter/new)
      bytes (wat.type/Vector :- [wat.type/u8]
-             (:wat::core::u8 72)
-             (:wat::core::u8 105)
-             (:wat::core::u8 33))]
+             (wat.type/u8 72)
+             (wat.type/u8 105)
+             (wat.type/u8 33))]
     (:wat::io::IOWriter/write w bytes)))
 
 (:wat::core::defn :my::compute-write-all-to-bytes [] -> (wat.type/Vector :- [wat.type/u8])
   (:wat::core::let
     [w (:wat::io::IOWriter/new)
      bytes (wat.type/Vector :- [wat.type/u8]
-             (:wat::core::u8 65)
-             (:wat::core::u8 66)
-             (:wat::core::u8 67))
+             (wat.type/u8 65)
+             (wat.type/u8 66)
+             (wat.type/u8 67))
      _ (:wat::io::IOWriter/write-all w bytes)]
     (:wat::io::IOWriter/to-bytes w)))
 

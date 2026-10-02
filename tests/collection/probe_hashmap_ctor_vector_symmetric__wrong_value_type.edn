@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::HashMap: parameter value #1 expects :wat::core::i64; got :wat::core::String"
+      :message ":wat::type::HashMap: parameter value #1 expects wat.type/i64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/collection/probe_hashmap_ctor_vector_symmetric_p6.wat.bad"
         :line 6
@@ -17,10 +17,10 @@
         }
       }
       :causes []
-      :callee ":wat::core::HashMap"
+      :callee ":wat::type::HashMap"
       :param "value #1"
-      :expected ":wat::core::i64"
-      :got ":wat::core::String"
+      :expected "wat.type/i64"
+      :got "wat.type/String"
       :remedies []
     }
   ]

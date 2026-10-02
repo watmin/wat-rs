@@ -1,5 +1,5 @@
 ;; newtype_as_struct_field_roundtrip.wat
-(:wat::core::newtype :my::trading::Price :wat::core::f64)
+(:wat::core::newtype :my::trading::Price wat.type/f64)
 (:wat::core::defstruct :my::Order
   [label <- wat.type/String
    price <- :my::trading::Price

@@ -17,10 +17,10 @@ use wat::WatAST;
 /// (file/line/col AND `end`, per `wat_reader::span`'s module docs) — not
 /// synthesized ones.
 const SRC: &str = r#"
-(:wat::core::defn :myapp/add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :myapp/add [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64
   (:wat::core.i64/+ x y))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   nil)
 "#;
 

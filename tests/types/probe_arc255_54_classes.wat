@@ -5,7 +5,7 @@
   (:u::take-eq (:u::Pt :n 1)))
 (:wat::core::defn :user::ord-bigint [] -> wat.type/i64
   (:u::take-ord 1N))
-(:wat::core::newtype :u::Meters :wat::core::i64)
+(:wat::core::newtype :u::Meters wat.type/i64)
 (:wat::core::extend-type :u::Meters :wat::core::Orderable)
 (:wat::core::defn :user::ord-nt [] -> wat.type/i64
   (:u::take-ord (:u::Meters 1)))

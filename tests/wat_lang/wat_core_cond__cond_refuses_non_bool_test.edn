@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::if: parameter cond expects :wat::core::bool; got :wat::core::i64"
+      :message ":wat::core::if: parameter cond expects :wat::type::bool; got wat.type/i64"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_core_cond_non_bool.wat.bad"
         :line 6
@@ -19,8 +19,8 @@
       :causes []
       :callee ":wat::core::if"
       :param "cond"
-      :expected ":wat::core::bool"
-      :got ":wat::core::i64"
+      :expected ":wat::type::bool"
+      :got "wat.type/i64"
       :remedies []
     }
   ]

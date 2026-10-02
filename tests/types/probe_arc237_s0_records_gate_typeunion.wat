@@ -3,6 +3,6 @@
 (:wat::core::defmacro :my::defnum
   [name <- wat.type/AST]
   -> wat.type/AST
-  `(:wat::core::typeunion ~name [:wat::core::i64 :wat::core::f64]))
+  `(:wat::core::typeunion ~name [wat.type/i64 wat.type/f64]))
 
 (:my::defnum :my::g::Num)

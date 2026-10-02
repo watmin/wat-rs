@@ -1,6 +1,6 @@
 #wat.runtime/BadCondition {
   :got {
-    :type "wat::core::i64"
+    :type "wat::type::i64"
     :rendered "0"
     :provenance nil
   }

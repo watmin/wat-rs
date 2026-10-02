@@ -10,7 +10,7 @@
 ;; (the ctor was macro-only) → `(:test::db::BR 7 8)` is unresolved. GREEN after decl-b.1.
 
 ;; A record via the RAW primitive — no macro, so any ctor MUST come from codegen.
-(:wat::core::recordtype :test::db::BR :wat::core::Record [a <- wat.type/i64  b <- wat.type/i64])
+(:wat::core::recordtype :test::db::BR wat.type/Record [a <- wat.type/i64  b <- wat.type/i64])
 
 ;; Construct via the bare ctor (codegen'd) + read field a = 7.
 (:wat::core::defn :user::db-br-a [] -> wat.type/i64

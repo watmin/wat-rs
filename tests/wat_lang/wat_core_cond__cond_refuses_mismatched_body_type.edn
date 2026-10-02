@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::if: parameter else-branch expects :wat::core::i64; got :wat::core::String"
+      :message ":wat::core::if: parameter else-branch expects wat.type/i64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_core_cond_body_mismatch.wat.bad"
         :line 7
@@ -19,8 +19,8 @@
       :causes []
       :callee ":wat::core::if"
       :param "else-branch"
-      :expected ":wat::core::i64"
-      :got ":wat::core::String"
+      :expected "wat.type/i64"
+      :got "wat.type/String"
       :remedies []
     }
   ]

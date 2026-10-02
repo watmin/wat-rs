@@ -23,7 +23,7 @@
       :remedies []
     }
     #wat.check/TypeMismatch {
-      :message ":test::Measured: parameter #1 expects :wat::core::f64; got :wat::core::bool"
+      :message ":test::Measured: parameter #1 expects wat.type/f64; got wat.type/bool"
       :location #wat.core/Span {
         :file "tests/types/probe_arc227_stone2_defrecord_bool.wat.bad"
         :line 3
@@ -38,8 +38,8 @@
       :causes []
       :callee ":test::Measured"
       :param "#1"
-      :expected ":wat::core::f64"
-      :got ":wat::core::bool"
+      :expected "wat.type/f64"
+      :got "wat.type/bool"
       :remedies []
     }
   ]

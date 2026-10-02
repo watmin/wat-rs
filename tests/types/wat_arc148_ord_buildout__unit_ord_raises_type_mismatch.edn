@@ -1,1 +1,27 @@
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::<: parameter #1 expects :wat::core::Orderable; got :wat::core::nil" :location #wat.core/Span {:file "tests/types/ord_unit.wat.bad" :line 3 :col 18 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 3 :col 21}}} :causes [] :callee ":wat::core::<" :param "#1" :expected ":wat::core::Orderable" :got ":wat::core::nil" :remedies []}]}
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::<: parameter #1 expects :wat::core::Orderable; got wat.type/nil"
+      :location #wat.core/Span {
+        :file "tests/types/ord_unit.wat.bad"
+        :line 3
+        :col 18
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 3
+            :col 21
+          }
+        }
+      }
+      :causes []
+      :callee ":wat::core::<"
+      :param "#1"
+      :expected ":wat::core::Orderable"
+      :got "wat.type/nil"
+      :remedies []
+    }
+  ]
+}

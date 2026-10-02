@@ -103,7 +103,7 @@ fn a_toplevel_let_or_do_answers_its_value() {
     assert_eq!(lines.next(), Some("1"), "a top-level let answers its body");
     assert_eq!(lines.next(), Some("3"), "a top-level do answers its last form");
     // The control that kept the bug hidden for so long: a NESTED let always evaluated fine.
-    assert_eq!(lines.next(), Some("\"wat::core::i64\""));
+    assert_eq!(lines.next(), Some("\"wat::type::i64\""));
     assert_eq!(lines.next(), None);
     assert_eq!(code, Some(0));
 }

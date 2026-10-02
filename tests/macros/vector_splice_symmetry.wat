@@ -23,7 +23,7 @@
     `(:wat::core::fn [~@params] -> wat.type/i64
         (:wat::i64::+ ~n0 ~n1))))
 
-(:wat::core::defn :my::adder [] -> [:wat::core::i64 :wat::core::i64 :-> wat.type/i64]
+(:wat::core::defn :my::adder [] -> [wat.type/i64 wat.type/i64 :-> wat.type/i64]
   (:my::make-adder a <- wat.type/i64 b <- wat.type/i64))
 
 (:wat::core::defn :my::compute-hygienic [] -> wat.type/i64

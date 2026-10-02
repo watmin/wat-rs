@@ -39,9 +39,9 @@
 
         Arguments:
           - `session`    — `:wat::rete::Session` (network via `session_network`)
-          - `alpha-id`   — `:wat::core::i64` (the AlphaNode id for this condition)
-          - `bindings`   — `:wat::core::PersistentMap` (the token's accumulated bindings)
-          - `sfact`      — `:wat::core::Record` (the supporting fact for this edge)
+          - `alpha-id`   — `:wat::type::i64` (the AlphaNode id for this condition)
+          - `bindings`   — `:wat::type::PersistentMap` (the token's accumulated bindings)
+          - `sfact`      — `:wat::type::Record` (the supporting fact for this edge)
           - `supporting` — `:wat::rete::DerivationNode` (the pre-computed recursive node)
 
         **Purity ground:** all five args are evaluated by ordinary call-by-value (not itself an
@@ -58,9 +58,9 @@
   :added "1.0.0"
   :args [
     [:session :wat.rete/Session "the compiled session (network read via `session_network`)"]
-    [:alpha_id :wat.core/i64 "the AlphaNode id for this condition"]
-    [:bindings :wat.core/PersistentMap "the token's accumulated bindings"]
-    [:sfact :wat.core/Record "the supporting fact for this edge"]
+    [:alpha_id :wat.type/i64 "the AlphaNode id for this condition"]
+    [:bindings :wat.type/PersistentMap "the token's accumulated bindings"]
+    [:sfact :wat.type/Record "the supporting fact for this edge"]
     [:supporting :wat.rete/DerivationNode "the pre-computed recursive node for `sfact`"]
   ]
   :ret [:wat.rete/DerivationStep "the per-edge explain payload (pattern, per-step bindings, substituted constraints, supporting)"]

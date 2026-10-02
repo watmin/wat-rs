@@ -13,5 +13,5 @@
   (:wat::core::do
     (:wat::kernel::println (:wat::runtime::is-type? :wat::type::Tuple))
     (:wat::kernel::println (:wat::runtime::is-type? :wat::type::i64))
-    (:wat::kernel::println (:wat::runtime::is-type? :wat::core::Tuple))
+    (:wat::kernel::println (:wat::runtime::is-type? wat.type/Tuple))
     (:wat::kernel::println (:wat::runtime::is-type? :wat::type::Infer))))

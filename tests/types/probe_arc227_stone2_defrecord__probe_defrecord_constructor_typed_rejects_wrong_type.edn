@@ -23,7 +23,7 @@
       :remedies []
     }
     #wat.check/TypeMismatch {
-      :message ":test::Voltage: parameter #1 expects :wat::core::f64; got :wat::core::String"
+      :message ":test::Voltage: parameter #1 expects wat.type/f64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/types/probe_arc227_stone2_defrecord_typed.wat.bad"
         :line 3
@@ -38,8 +38,8 @@
       :causes []
       :callee ":test::Voltage"
       :param "#1"
-      :expected ":wat::core::f64"
-      :got ":wat::core::String"
+      :expected "wat.type/f64"
+      :got "wat.type/String"
       :remedies []
     }
   ]

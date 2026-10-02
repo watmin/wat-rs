@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::HashMap form: arity after :K :V type args must be even (alternating key/value pairs); got 1"
+      :message "malformed :wat::type::HashMap form: arity after :K :V type args must be even (alternating key/value pairs); got 1"
       :location #wat.core/Span {
         :file "tests/collection/probe_hashmap_ctor_vector_symmetric_p7.wat.bad"
         :line 5
@@ -17,7 +17,7 @@
         }
       }
       :causes []
-      :head ":wat::core::HashMap"
+      :head ":wat::type::HashMap"
       :reason "arity after :K :V type args must be even (alternating key/value pairs); got 1"
       :remedies []
     }

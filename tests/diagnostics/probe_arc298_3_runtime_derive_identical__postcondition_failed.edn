@@ -3,7 +3,7 @@
   :clause-index 0
   :ensure-expr-snapshot "(> result 0)"
   :returned-value {
-    :type "wat::core::i64"
+    :type "wat::type::i64"
     :rendered "-5"
     :provenance nil
   }

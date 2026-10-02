@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":user::compute: body produces :wat::holon::HolonAST; signature declares :wat::core::nil"
+      :message ":user::compute: body produces :wat::holon::HolonAST; signature declares wat.type/nil"
       :location #wat.core/Span {
         :file "tests/collection/probe_arc216_stone1_hashset_roundtrip_p9.wat.bad"
         :line 4
@@ -18,12 +18,12 @@
       }
       :causes []
       :function ":user::compute"
-      :expected ":wat::core::nil"
+      :expected "wat.type/nil"
       :got ":wat::holon::HolonAST"
       :remedies []
     }
     #wat.check/TypeMismatch {
-      :message ":wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T); got [:wat::core::i64 :-> :wat::core::i64]"
+      :message ":wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T); got [wat.type/i64 :-> wat.type/i64]"
       :location #wat.core/Span {
         :file "tests/collection/probe_arc216_stone1_hashset_roundtrip_p9.wat.bad"
         :line 6
@@ -39,7 +39,7 @@
       :callee ":wat::holon::to-holon"
       :param "#1"
       :expected "atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T)"
-      :got "[:wat::core::i64 :-> :wat::core::i64]"
+      :got "[wat.type/i64 :-> wat.type/i64]"
       :remedies []
     }
   ]

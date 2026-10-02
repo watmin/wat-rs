@@ -7,7 +7,7 @@
     (:wat::program::Env/user-data
       (:wat::program::Env :started-at (:wat::time::now) :peer-started-at (:wat::time::now) :process-id 0 :os-thread-id 0
         :peer-kind :wat::program::PeerKind.process :cpu-count 1 :user-data (:wat::program::EmptyEnv)))
-    :wat::core::Record))
+    wat.type/Record))
 
 ;; seam: run by invoke_user_main; asserts user-data defaults to :wat::program::EmptyEnv.
 (:wat::core::defn :user::main [] -> wat.type/nil

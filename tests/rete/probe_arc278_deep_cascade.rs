@@ -23,8 +23,8 @@ fn gen_world(depth: usize) -> String {
     let mut s = String::new();
     for k in 0..=depth {
         s.push_str(&format!(
-            "(:wat::core::defrecord :casc::Stage{k} [id <- :wat::core::i64])\n\
-             (:wat::core::defrecord :casc::Tag{k}   [id <- :wat::core::i64])\n"
+            "(:wat::core::defrecord :casc::Stage{k} [id <- wat.type/i64])\n\
+             (:wat::core::defrecord :casc::Tag{k}   [id <- wat.type/i64])\n"
         ));
     }
     s.push_str(&format!(
@@ -46,7 +46,7 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
              \n  r{k}c2 (:wat::core::quote (:casc::Tag{p} (?id :- :id)))\
              \n  r{k}t1 (:wat::core::quote (:casc::Stage{k} ?id))\
              \n  r{k}t2 (:wat::core::quote (:casc::Tag{k} ?id))\
-             \n  rule{k} (:wat::rete::Rule :name \"r{k}\" :lhs (:wat::core::PersistentVector :- [:wat::WatAST] r{k}c1 r{k}c2) :rhs (:wat::core::PersistentVector :- [:wat::WatAST] r{k}t1 r{k}t2))\n"
+             \n  rule{k} (:wat::rete::Rule :name \"r{k}\" :lhs (wat.type/PersistentVector :- [wat.type/AST] r{k}c1 r{k}c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] r{k}t1 r{k}t2))\n"
         ));
     }
     // ⛔ HAND-FACED, and the reason is worth keeping: this wat form is SPLIT ACROSS THREE Rust

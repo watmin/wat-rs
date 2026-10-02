@@ -62,8 +62,9 @@ fn contract_03_legacy_char_hard_cut_with_remedy() {
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::core::Char"
-            && reason == "':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' \
-                instead (scalar types lowercase per arc 242 Doctrine 2)"
+            && reason == "':wat::core::Char' is retired (Stone 242.1, superseded by arc 255.81); \
+                use 'wat.type/char' instead (scalar types lowercase per arc 242 Doctrine 2; \
+                'wat.type/' holds the 24 hard primitives per arc 255.81)"
     );
     let msg = format!("{}", result.unwrap_err());
     wat::assert_edn_matches_file!(msg, "probe_arc242_stone1_lexeme_role__contract_03_legacy_char_hard_cut_with_remedy.edn", "retirement remedy must carry exact golden");

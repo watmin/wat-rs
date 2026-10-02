@@ -1,5 +1,5 @@
 #wat.check/CheckErrors {
-  :message "1 type-check error"
+  :message "2 type-check errors"
   :location nil
   :causes []
   :errors [
@@ -18,7 +18,32 @@
       }
       :causes []
       :retired ":wat::core::unit"
-      :fqdn ":wat::core::nil"
+      :fqdn ":wat::type::nil"
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::nil form: ':wat::core::nil' is retired (arc 255.81); use 'wat.type/nil' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_arc153_nil_rename_unit_sig.wat.bad"
+        :line 4
+        :col 52
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 4
+            :col 67
+          }
+        }
+      }
+      :causes []
+      :head ":wat::core::nil"
+      :reason "':wat::core::nil' is retired (arc 255.81); use 'wat.type/nil' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form "wat.type/nil"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
     }
   ]
 }

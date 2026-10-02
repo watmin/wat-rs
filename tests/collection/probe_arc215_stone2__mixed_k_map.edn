@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message "{…} map literal: parameter key #2 expects :wat::core::i64; got :wat::core::String"
+      :message "{…} map literal: parameter key #2 expects wat.type/i64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/collection/probe_arc215_stone2_p13.wat.bad"
         :line 4
@@ -19,8 +19,8 @@
       :causes []
       :callee "{…} map literal"
       :param "key #2"
-      :expected ":wat::core::i64"
-      :got ":wat::core::String"
+      :expected "wat.type/i64"
+      :got "wat.type/String"
       :remedies []
     }
   ]

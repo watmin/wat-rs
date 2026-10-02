@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":user::main: body produces :wat::core::i64; signature declares :wat::core::nil"
+      :message ":user::main: body produces wat.type/i64; signature declares wat.type/nil"
       :location #wat.core/Span {
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 5
@@ -18,8 +18,8 @@
       }
       :causes []
       :function ":user::main"
-      :expected ":wat::core::nil"
-      :got ":wat::core::i64"
+      :expected "wat.type/nil"
+      :got "wat.type/i64"
       :remedies []
     }
     #wat.check/MalformedForm {

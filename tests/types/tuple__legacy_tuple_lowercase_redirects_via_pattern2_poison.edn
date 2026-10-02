@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::tuple: parameter (retired verb) expects :wat::core::Tuple; got :wat::core::tuple"
+      :message ":wat::core::tuple: parameter (retired verb) expects :wat::type::Tuple; got :wat::core::tuple"
       :location #wat.core/Span {
         :file "tests/types/tuple_legacy_lowercase.wat.bad"
         :line 2
@@ -19,11 +19,11 @@
       :causes []
       :callee ":wat::core::tuple"
       :param "(retired verb)"
-      :expected ":wat::core::Tuple"
+      :expected ":wat::type::Tuple"
       :got ":wat::core::tuple"
       :remedies [
         #wat.kernel/Remedy {
-          :form ":wat::core::Tuple"
+          :form ":wat::type::Tuple"
           :kind :retirement
           :score 0
           :note "rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); the `:(T,U,V)` type spelling is ALSO retired (arc 109 \"the comma dies in the reader\") — use `(:wat::core::Tuple :- [T U V])`"

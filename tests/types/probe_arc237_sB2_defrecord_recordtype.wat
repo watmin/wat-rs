@@ -14,7 +14,7 @@
 (:wat::core::defn :user::probe-03 [] -> wat.type/bool (:my::is-Circle? (:my::Square :side 2.0)))
 
 ;; ─── Probe 04: edge wired by emitted recordtype ──────────────────────────────
-(:wat::core::defn :user::probe-04 [] -> wat.type/bool (:wat::core::subtype? :my::Circle :wat::core::Record))
+(:wat::core::defn :user::probe-04 [] -> wat.type/bool (:wat::core::subtype? :my::Circle wat.type/Record))
 
 ;; ─── Probe 05: accessors + constructor still work ─────────────────────────────
 (:wat::core::defn :user::probe-05 [] -> wat.type/f64 (:my::Circle/radius (:my::Circle :radius 1.0)))

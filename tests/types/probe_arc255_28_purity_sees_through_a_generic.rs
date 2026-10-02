@@ -89,7 +89,7 @@ fn a_generic_struct_over_pure_args_is_still_impure() {
     let (aggregate, field, field_ty) = refused_impure_field("generic_struct_field");
     assert_eq!(aggregate, ":probe::HoldsBox");
     assert_eq!(field, "box");
-    assert_eq!(field_ty, "(:probe::Box :- [:wat::core::i64])");
+    assert_eq!(field_ty, "(:probe::Box :- [wat.type/i64])");
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn a_generic_impure_enum_over_pure_args_is_still_impure() {
     let (aggregate, field, field_ty) = refused_impure_field("generic_impure_enum_field");
     assert_eq!(aggregate, ":probe::HoldsLease");
     assert_eq!(field, "lease");
-    assert_eq!(field_ty, "(:probe::Lease :- [:wat::core::i64])");
+    assert_eq!(field_ty, "(:probe::Lease :- [wat.type/i64])");
 }
 
 #[test]

@@ -1,6 +1,6 @@
 #wat.runtime/NotCallable {
   :got {
-    :type "wat::core::String"
+    :type "wat::type::String"
     :rendered "\"not-fn\""
     :provenance nil
   }

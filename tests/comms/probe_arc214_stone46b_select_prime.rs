@@ -94,6 +94,6 @@ fn probe_2_select_wrong_return_annotation_rejected() {
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":user::bad"
             && expected == ":wat::core::String"
-            && got == "(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 _])"
+            && got == "(:wat::spawn::ServiceEvent :- [wat.type/i64 wat.type/i64 _])"
     );
 }

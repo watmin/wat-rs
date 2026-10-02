@@ -4,7 +4,7 @@
 
 (:wat::core::defenum :my::Color :wat::enum::Pure :Red :Blue :Green)
 (:wat::core::defenum :my::Suit :wat::enum::Pure :Hearts :Spades)
-(:wat::core::newtype :my::Price :wat::core::f64)
+(:wat::core::newtype :my::Price wat.type/f64)
 (:wat::core::defstruct :my::Point [x <- wat.type/i64 y <- wat.type/i64])
 (:wat::core::defstruct :my::Pair [a <- wat.type/i64 b <- wat.type/i64])
 (:wat::core::defrecord :my::Circle [radius <- wat.type/f64])
@@ -24,7 +24,7 @@
   (:wat::core::conforms? (:my::Price 1.5) :my::Price))
 
 (:wat::core::defn :user::probe05 [] -> wat.type/bool
-  (:wat::core::conforms? (:my::Price 1.5) :wat::core::f64))
+  (:wat::core::conforms? (:my::Price 1.5) wat.type/f64))
 
 ;; ─── struct ───────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::probe06 [] -> wat.type/bool
@@ -38,7 +38,7 @@
   (:wat::core::conforms? (:my::Circle :radius 1.0) :my::Circle))
 
 (:wat::core::defn :user::probe09 [] -> wat.type/bool
-  (:wat::core::conforms? 1 :wat::core::i64))
+  (:wat::core::conforms? 1 wat.type/i64))
 
 ;; ─── the OTHER consumer: :wat::core::type ────────────────────────────────────
 (:wat::core::defn :user::probe10 [] -> wat.type/String

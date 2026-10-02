@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::i64::+: parameter #2 expects :wat::core::i64; got :wat::core::String"
+      :message ":wat::i64::+: parameter #2 expects wat.type/i64; got wat.type/String"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc168_let_flat_shape_typecheck.wat.bad"
         :line 6
@@ -19,8 +19,8 @@
       :causes []
       :callee ":wat::i64::+"
       :param "#2"
-      :expected ":wat::core::i64"
-      :got ":wat::core::String"
+      :expected "wat.type/i64"
+      :got "wat.type/String"
       :remedies []
     }
   ]

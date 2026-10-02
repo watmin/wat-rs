@@ -27,8 +27,8 @@ fn fix_macro_param_types_rewrites_defmacro_only_comment_faithful() {
     assert_eq!(
         out,
         ";; keep me byte-identical\n\
-(:wat::core::defmacro :user::m [a <- :wat::WatAST & rest <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST a)\n\
-(:wat::core::defn :user::f [x <- :wat::core::i64] -> :wat::core::i64 x)",
+(:wat::core::defmacro :user::m [a <- wat.type/AST & rest <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST a)\n\
+(:wat::core::defn :user::f [x <- wat.type/i64] -> wat.type/i64 x)",
         "fix-macro-param-types golden mismatch; comment must survive byte-identical, \
          defmacro params rewritten to :wat::WatAST, defn untouched"
     );

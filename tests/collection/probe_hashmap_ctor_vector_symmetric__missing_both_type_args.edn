@@ -3,8 +3,8 @@
   :location nil
   :causes []
   :errors [
-    #wat.check/ArityMismatch {
-      :message ":wat::core::HashMap: expected 2 argument(s); got 0"
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::HashMap form: ':wat::core::HashMap' is retired; use 'wat.type/HashMap' instead"
       :location #wat.core/Span {
         :file "tests/collection/probe_hashmap_ctor_vector_symmetric_p8.wat.bad"
         :line 5
@@ -17,9 +17,16 @@
         }
       }
       :causes []
-      :callee ":wat::core::HashMap"
-      :expected 2
-      :got 0
+      :head ":wat::core::HashMap"
+      :reason "':wat::core::HashMap' is retired; use 'wat.type/HashMap' instead"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form "wat.type/HashMap"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
     }
   ]
 }

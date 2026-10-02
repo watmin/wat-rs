@@ -16,12 +16,12 @@
 //!   - Any other Value -> Value::type_name().to_string()
 //!
 //! Probe contracts (8):
-//!   1. primitive — i64 returns "wat::core::i64"
-//!   2. primitive — String returns "wat::core::String"
-//!   3. primitive — bool returns "wat::core::bool"
-//!   4. primitive — keyword returns "wat::core::keyword"
-//!   5. Vector literal returns "wat::core::Vector"
-//!   6. HashMap literal returns "wat::core::HashMap"
+//!   1. primitive — i64 returns "wat::type::i64"
+//!   2. primitive — String returns "wat::type::String"
+//!   3. primitive — bool returns "wat::type::bool"
+//!   4. primitive — keyword returns "wat::type::keyword"
+//!   5. Vector literal returns "wat::type::Vector"
+//!   6. HashMap literal returns "wat::type::HashMap"
 //!   7. defrecord instance (HolonAST classifier-wrap) returns the FQDN
 //!      class name (e.g., "myapp::Voltage"), NOT "wat::holon::HolonAST"
 //!   8. struct instance returns the FQDN type name WITHOUT leading colon
@@ -79,73 +79,73 @@ fn assert_type_contains(probe_label: &str, fixture: &str, expected: &str) {
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 //
-// `(:wat::core::type 5)` on a literal i64 returns "wat::core::i64".
+// `(:wat::core::type 5)` on a literal i64 returns "wat::type::i64".
 #[test]
 fn probe_1_type_on_i64() {
     assert_type_contains(
         "Probe 1 (i64)",
         "tests/reflection/probe_diagnostic_polymorphic_type_p1.wat",
-        "wat::core::i64",
+        "wat::type::i64",
     );
 }
 
 // ─── Probe 2 ────────────────────────────────────────────────────────────────
 //
-// `(:wat::core::type "hello")` on a literal String returns "wat::core::String".
+// `(:wat::core::type "hello")` on a literal String returns "wat::type::String".
 #[test]
 fn probe_2_type_on_string() {
     assert_type_contains(
         "Probe 2 (String)",
         "tests/reflection/probe_diagnostic_polymorphic_type_p2.wat",
-        "wat::core::String",
+        "wat::type::String",
     );
 }
 
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 //
-// `(:wat::core::type true)` on a literal bool returns "wat::core::bool".
+// `(:wat::core::type true)` on a literal bool returns "wat::type::bool".
 #[test]
 fn probe_3_type_on_bool() {
     assert_type_contains(
         "Probe 3 (bool)",
         "tests/reflection/probe_diagnostic_polymorphic_type_p3.wat",
-        "wat::core::bool",
+        "wat::type::bool",
     );
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
 //
-// `(:wat::core::type :foo)` on a literal keyword returns "wat::core::keyword".
+// `(:wat::core::type :foo)` on a literal keyword returns "wat::type::keyword".
 #[test]
 fn probe_4_type_on_keyword() {
     assert_type_contains(
         "Probe 4 (keyword)",
         "tests/reflection/probe_diagnostic_polymorphic_type_p4.wat",
-        "wat::core::keyword",
+        "wat::type::keyword",
     );
 }
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────
 //
-// `(:wat::core::type [1 2 3])` on a Vector literal returns "wat::core::Vector".
+// `(:wat::core::type [1 2 3])` on a Vector literal returns "wat::type::Vector".
 #[test]
 fn probe_5_type_on_vector() {
     assert_type_contains(
         "Probe 5 (Vector)",
         "tests/reflection/probe_diagnostic_polymorphic_type_p5.wat",
-        "wat::core::Vector",
+        "wat::type::Vector",
     );
 }
 
 // ─── Probe 6 ────────────────────────────────────────────────────────────────
 //
-// `(:wat::core::type {:a 1})` on a HashMap literal returns "wat::core::HashMap".
+// `(:wat::core::type {:a 1})` on a HashMap literal returns "wat::type::HashMap".
 #[test]
 fn probe_6_type_on_hashmap() {
     assert_type_contains(
         "Probe 6 (HashMap)",
         "tests/reflection/probe_diagnostic_polymorphic_type_p6.wat",
-        "wat::core::HashMap",
+        "wat::type::HashMap",
     );
 }
 

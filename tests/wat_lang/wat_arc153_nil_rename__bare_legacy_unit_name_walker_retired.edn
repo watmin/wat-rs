@@ -18,7 +18,7 @@
       }
       :causes []
       :retired ":wat::core::unit"
-      :fqdn ":wat::core::nil"
+      :fqdn ":wat::type::nil"
     }
   ]
 }

@@ -43,7 +43,7 @@ fn variant_name(v: &Value) -> String {
 }
 
 const LIVE: &str = r#"
-(:wat::core::defn :user::live-peer [] -> (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
+(:wat::core::defn :user::live-peer [] -> (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])
   (:wat::core::let
     [b (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      a (:wat::spawn::Bound/address b)]
@@ -54,7 +54,7 @@ const LIVE: &str = r#"
       [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
       [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
 
-(:wat::core::defn :user::send-one [p <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::kernel::SendOutcome
+(:wat::core::defn :user::send-one [p <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> :wat::kernel::SendOutcome
   (:wat::kernel::send p 1))
 "#;
 

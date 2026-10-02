@@ -42,9 +42,9 @@ fn contract_01_edn_roundtrip_is_faithful() {
     // reference form, which is if anything MORE representative of "the surface the
     // sweep touches" post-migration. Class 3 (a): subject survives.
     let program = r#"
-        (:wat::core::defn :user::inc [x <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::defn :user::inc [x <- wat.type/i64] -> wat.type/i64
           (:wat::core::i64::+ x 1))
-        (:wat::core::defn :user::sum [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+        (:wat::core::defn :user::sum [xs <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
           (:wat::core::foldl :wat::core::i64::+ 0 xs))
         (:wat::core::def :user::table
           (:wat::core::HashMap-new))

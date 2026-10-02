@@ -14,9 +14,9 @@ use wat::runtime::{Environment, Value};
 // rune:lint(no-inlined-wat) — world parameterized by runtime acc/gate strings — cartesian matrix of combinations cannot be pre-extracted
 fn world(acc: &str, gate: &str) -> String {
     format!(
-        "(:wat::core::defrecord :w::Station  [location <- :wat::core::String])\n\
-         (:wat::core::defrecord :w::Reading  [location <- :wat::core::String  value <- :wat::core::i64])\n\
-         (:wat::core::defrecord :w::Busy     [location <- :wat::core::String  n <- :wat::core::i64])\n\
+        "(:wat::core::defrecord :w::Station  [location <- wat.type/String])\n\
+         (:wat::core::defrecord :w::Reading  [location <- wat.type/String  value <- wat.type/i64])\n\
+         (:wat::core::defrecord :w::Busy     [location <- wat.type/String  n <- wat.type/i64])\n\
          \n\
          (:wat::rete::defrule :w::busy\n\
            :when\n\

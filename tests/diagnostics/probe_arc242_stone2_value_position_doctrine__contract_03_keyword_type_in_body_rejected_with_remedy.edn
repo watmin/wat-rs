@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::i64 form: Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position"
+      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
       :location #wat.core/Span {
         :file "tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03.wat.bad"
         :line 1
@@ -18,8 +18,15 @@
       }
       :causes []
       :head ":wat::core::i64"
-      :reason "Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position"
-      :remedies []
+      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form "wat.type/i64"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
     }
   ]
 }

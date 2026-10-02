@@ -1,5 +1,5 @@
 #wat.kernel/Remedy {
-  :form ":wat::core::Vector"
+  :form ":wat::type::Vector"
   :kind :retirement
   :score 0
   :note "rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same (Vector :- [T]) value"

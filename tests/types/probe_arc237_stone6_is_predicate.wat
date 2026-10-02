@@ -6,7 +6,7 @@
 (:wat::core::defrecord :my::Square [side <- wat.type/f64])
 (:wat::core::typeunion :my::Shape [:my::Circle :my::Square])
 (:wat::core::defenum :my::Color :wat::enum::Pure :Red :Blue :Green)
-(:wat::core::newtype :my::Price :wat::core::f64)
+(:wat::core::newtype :my::Price wat.type/f64)
 (:wat::core::defstruct :my::Point [x <- wat.type/i64 y <- wat.type/i64])
 
 ;; ─── struct ───────────────────────────────────────────────────────────────────

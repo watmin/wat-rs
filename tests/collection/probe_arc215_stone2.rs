@@ -94,7 +94,7 @@ fn probe_5_bool_vec_length() {
 #[test]
 fn probe_6_explicit_infer_vector_form() {
     match call_beside_value(file!(), ":t::p6-explicit-infer-vec-len").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :- [:wat::type::Infer] 1 2 3) must have length 3"),
+        Value::i64(n) => assert_eq!(n, 3, "(wat.type/Vector :- [:wat::type::Infer] 1 2 3) must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 }
@@ -104,7 +104,7 @@ fn probe_6_explicit_infer_vector_form() {
 #[test]
 fn probe_7_explicit_infer_vector_form_empty() {
     match call_beside_value(file!(), ":t::p7-empty-infer-vec-len").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 0, "(:wat::core::Vector :- [:wat::type::Infer]) empty must have length 0"),
+        Value::i64(n) => assert_eq!(n, 0, "(wat.type/Vector :- [:wat::type::Infer]) empty must have length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
 }
@@ -126,7 +126,7 @@ fn probe_8_mixed_type_vector_rejected_at_check() {
 #[test]
 fn probe_9_explicit_type_vector_form_preserved() {
     match call_beside_value(file!(), ":t::p9-explicit-type-vec-len").expect("eval") {
-        Value::i64(n) => assert_eq!(n, 3, "(:wat::core::Vector :- [:wat::core::i64] 1 2 3) must have length 3"),
+        Value::i64(n) => assert_eq!(n, 3, "(wat.type/Vector :- [wat.type/i64] 1 2 3) must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 }

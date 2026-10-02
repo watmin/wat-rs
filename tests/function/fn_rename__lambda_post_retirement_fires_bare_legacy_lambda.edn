@@ -1,5 +1,5 @@
 #wat.check/CheckErrors {
-  :message "1 type-check error"
+  :message "2 type-check errors"
   :location nil
   :causes []
   :errors [
@@ -19,6 +19,31 @@
       :causes []
       :retired ":wat::core::lambda"
       :fqdn ":wat::core::fn"
+    }
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :location #wat.core/Span {
+        :file "tests/function/fn_rename_legacy_lambda.wat"
+        :line 3
+        :col 28
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 3
+            :col 43
+          }
+        }
+      }
+      :causes []
+      :head ":wat::core::i64"
+      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :remedies [
+        #wat.kernel/Remedy {
+          :form "wat.type/i64"
+          :kind :retirement
+          :score 0
+          :note nil
+        }
+      ]
     }
   ]
 }

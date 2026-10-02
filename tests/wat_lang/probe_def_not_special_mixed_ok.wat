@@ -17,7 +17,7 @@
            (:wat::core::defenum :h::MixDir8 :wat::enum::Pure
              :Up
              :Down)
-           (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
+           (:wat::core::newtype :h::MixAmount8 wat.type/i64)
            (:wat::core::typealias :h::MixCount8 wat.type/i64)
            (:wat::core::defn :h::mix-i64-fn8 [v <- wat.type/i64] -> :h::MixCount8
              v)

@@ -26,8 +26,8 @@ fn contract_02_parametric_form_rejects_mismatched_element() {
     wat::assert_startup_error!(r, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":user::mk"
-            && expected == "(:wat::core::Vector :- [:wat::core::i64])"
-            && got == "(:wat::core::Vector :- [:wat::core::String])"
+            && expected == "(wat.type/Vector :- [wat.type/i64])"
+            && got == "(wat.type/Vector :- [wat.type/String])"
     );
 }
 
@@ -48,13 +48,13 @@ fn contract_04_new_form_equiv_to_legacy_angle_bracket() {
     wat::assert_startup_error!(new_form, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":user::mk"
-            && expected == "(:wat::core::Vector :- [:wat::core::i64])"
-            && got == "(:wat::core::Vector :- [:wat::core::String])"
+            && expected == "(wat.type/Vector :- [wat.type/i64])"
+            && got == "(wat.type/Vector :- [wat.type/String])"
     );
     wat::assert_startup_error!(old_form, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":user::mk"
-            && expected == "(:wat::core::Vector :- [:wat::core::i64])"
-            && got == "(:wat::core::Vector :- [:wat::core::String])"
+            && expected == "(wat.type/Vector :- [wat.type/i64])"
+            && got == "(wat.type/Vector :- [wat.type/String])"
     );
 }

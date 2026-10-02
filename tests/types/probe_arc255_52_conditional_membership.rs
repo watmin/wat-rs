@@ -37,7 +37,7 @@ fn a_vector_of_a_non_member_is_refused() {
     let result = startup_from_file("tests/types/probe_arc255_52_conditional_membership_out.wat.bad");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MembershipBound { argument, surface, param, bound, got, slot }
-            if argument == "(:wat::core::Vector :- [:u::Out])"
+            if argument == "(wat.type/Vector :- [:u::Out])"
             && surface == ":u::Mark"
             && param == "T"
             && bound == ":u::Mark"
@@ -51,7 +51,7 @@ fn a_nested_vector_of_a_non_member_is_refused() {
     let result = startup_from_file("tests/types/probe_arc255_52_conditional_membership_nested.wat.bad");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MembershipBound { argument, surface, param, bound, got, slot }
-            if argument == "(:wat::core::Vector :- [(:wat::core::Vector :- [:u::Out])])"
+            if argument == "(wat.type/Vector :- [(wat.type/Vector :- [:u::Out])])"
             && surface == ":u::Mark"
             && param == "T"
             && bound == ":u::Mark"
@@ -68,7 +68,7 @@ fn a_bounded_fn_refuses_a_vector_of_a_non_member() {
             if function == ":u::f"
             && param == "T"
             && bound == ":u::Mark"
-            && got == "(:wat::core::Vector :- [:u::Out])"
+            && got == "(wat.type/Vector :- [:u::Out])"
     );
 }
 

@@ -5,7 +5,7 @@
 (:wat::core::defrecord :my::Circle [radius <- wat.type/f64])
 (:wat::core::defrecord :my::Square [side <- wat.type/f64])
 (:wat::core::typeunion :my::Shape [:my::Circle :my::Square])
-(:wat::core::typeunion :my::Numeric [:wat::core::i64 :wat::core::f64])
+(:wat::core::typeunion :my::Numeric [wat.type/i64 wat.type/f64])
 (:wat::core::typealias :my::Bytes (wat.type/Vector :- [wat.type/u8]))
 
 ;; probe_01: record conforms its own type → true
@@ -18,19 +18,19 @@
 
 ;; probe_03a: i64 value conforms :i64 → true
 (:wat::core::defn :user::probe03a [] -> wat.type/bool
-  (:wat::core::conforms? 1 :wat::core::i64))
+  (:wat::core::conforms? 1 wat.type/i64))
 
 ;; probe_03b: i64 value does NOT conform :f64 → false
 (:wat::core::defn :user::probe03b [] -> wat.type/bool
-  (:wat::core::conforms? 1 :wat::core::f64))
+  (:wat::core::conforms? 1 wat.type/f64))
 
 ;; probe_04a: u8 value conforms :u8 → true
 (:wat::core::defn :user::probe04a [] -> wat.type/bool
-  (:wat::core::conforms? (:wat::core::u8 1) :wat::core::u8))
+  (:wat::core::conforms? (wat.type/u8 1) wat.type/u8))
 
 ;; probe_04b: u8 value does NOT conform :i64 → false (non-erasure)
 (:wat::core::defn :user::probe04b [] -> wat.type/bool
-  (:wat::core::conforms? (:wat::core::u8 1) :wat::core::i64))
+  (:wat::core::conforms? (wat.type/u8 1) wat.type/i64))
 
 ;; probe_05: union member conforms the union → true
 (:wat::core::defn :user::probe05 [] -> wat.type/bool
@@ -51,7 +51,7 @@
 ;; probe_08: all-u8 (Vector :- [u8]) conforms (Vector :- [u8]) → true
 (:wat::core::defn :user::probe08 [] -> wat.type/bool
   (:wat::core::conforms?
-    (wat.type/Vector :- [wat.type/u8] (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3))
+    (wat.type/Vector :- [wat.type/u8] (wat.type/u8 1) (wat.type/u8 2) (wat.type/u8 3))
     (wat.type/Vector :- [wat.type/u8])))
 
 ;; probe_09: i64-vector does NOT conform (Vector :- [u8]) → false (element check recurses)
@@ -63,7 +63,7 @@
 ;; probe_10a: u8-vector conforms :Bytes (= (Vector :- [u8])) → true (alias resolves)
 (:wat::core::defn :user::probe10a [] -> wat.type/bool
   (:wat::core::conforms?
-    (wat.type/Vector :- [wat.type/u8] (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3))
+    (wat.type/Vector :- [wat.type/u8] (wat.type/u8 1) (wat.type/u8 2) (wat.type/u8 3))
     :my::Bytes))
 
 ;; probe_10b: i64-vector does NOT conform :Bytes → false

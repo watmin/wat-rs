@@ -1,4 +1,4 @@
-(:wat::core::newtype :u::T :wat::core::i64)
+(:wat::core::newtype :u::T wat.type/i64)
 (:wat::core::extend-type :u::T :wat::core::Orderable)
 (:wat::core::defstruct :u::St [n <- wat.type/i64])
 (:wat::core::defenum :u::Imp :wat::enum::Impure :A :B)

@@ -29,7 +29,7 @@
 (:wat::core::defn :probe::countdown-ann-form [n <- wat.type/i64] -> wat.type/i64
   (:wat::core::if (:wat::i64::<= n 0)
     0
-    (:wat::core::ann-form (:probe::countdown-ann-form (:wat::i64::- n 1)) :wat::core::i64)))
+    (:wat::core::ann-form (:probe::countdown-ann-form (:wat::i64::- n 1)) wat.type/i64)))
 
 (:wat::core::defn :user::ann-form-tail-tco-survives-depth [] -> wat.type/i64
   (:probe::countdown-ann-form 150000))
@@ -59,7 +59,7 @@
 (:wat::core::defn :user::or-tail-shallow-answer [] -> wat.type/bool
   (:wat::core::or false false true))
 (:wat::core::defn :user::ann-form-tail-shallow-answer [] -> wat.type/i64
-  (:wat::core::ann-form (:wat::i64::+ 2 3) :wat::core::i64))
+  (:wat::core::ann-form (:wat::i64::+ 2 3) wat.type/i64))
 
 ;; ── the RULED weakening, PINNED (obligation #2 of the #59 brief) ───────────────────────────────
 ;; `eval_and_tail`/`eval_or_tail` cannot raise the runtime `TypeMismatch` on a non-bool LAST

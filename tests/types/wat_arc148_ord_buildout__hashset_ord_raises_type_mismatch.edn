@@ -1,1 +1,27 @@
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::<: parameter #1 expects :wat::core::Orderable; got (:wat::core::HashSet :- [:wat::core::i64])" :location #wat.core/Span {:file "tests/types/ord_hashset.wat.bad" :line 6 :col 20 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 6 :col 22}}} :causes [] :callee ":wat::core::<" :param "#1" :expected ":wat::core::Orderable" :got "(:wat::core::HashSet :- [:wat::core::i64])" :remedies []}]}
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::<: parameter #1 expects :wat::core::Orderable; got (wat.type/HashSet :- [wat.type/i64])"
+      :location #wat.core/Span {
+        :file "tests/types/ord_hashset.wat.bad"
+        :line 6
+        :col 20
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 6
+            :col 22
+          }
+        }
+      }
+      :causes []
+      :callee ":wat::core::<"
+      :param "#1"
+      :expected ":wat::core::Orderable"
+      :got "(wat.type/HashSet :- [wat.type/i64])"
+      :remedies []
+    }
+  ]
+}

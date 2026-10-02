@@ -80,7 +80,7 @@ fn harness_main_signature_mismatch() {
     // wall pre-empts the harness's own post-startup validate path.
     let src = format!(
         r##"{}
-        (:wat::core::defn :user::main [] -> :wat::core::i64 42)
+        (:wat::core::defn :user::main [] -> wat.type/i64 42)
         "##,
         DIMS_AND_MODE
     );

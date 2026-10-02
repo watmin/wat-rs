@@ -12,7 +12,7 @@
      s-f64    (wat.type/HashSet :- [wat.type/f64] 1.5 2.5)
      s-str    (wat.type/HashSet :- [wat.type/String] "a" "b")
      s-kw     (wat.type/HashSet :- [wat.type/keyword] :a :b)
-     s-u8     (wat.type/HashSet :- [wat.type/u8] (:wat::core::u8 1) (:wat::core::u8 2))
+     s-u8     (wat.type/HashSet :- [wat.type/u8] (wat.type/u8 1) (wat.type/u8 2))
      s-bigint (wat.type/HashSet :- [wat.type/bigint] (:wat::i64::to-bigint 100))
      s-rat    (wat.type/HashSet :- [wat.type/rational] (:wat::i64::to-rational 3))
      s-inst   (wat.type/HashSet :- [:wat::time::Instant] (:wat::time::now))
@@ -23,7 +23,7 @@
      s-vec    (wat.type/HashSet :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 1 2))
      s-tup    (wat.type/HashSet :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String])] (wat.type/Tuple :- [wat.type/i64 wat.type/String] 1 "x"))
      m-i64    (wat.type/HashMap :- [wat.type/i64 wat.type/String] 1 "one")
-     m-u8     (wat.type/HashMap :- [wat.type/u8 wat.type/String] (:wat::core::u8 1) "one")
+     m-u8     (wat.type/HashMap :- [wat.type/u8 wat.type/String] (wat.type/u8 1) "one")
      set-lit  #{1 2 3}
      map-lit  {:a 1 :b 2}]
     (:wat::kernel::println "acceptance: ok")))

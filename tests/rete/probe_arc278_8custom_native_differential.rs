@@ -17,14 +17,14 @@ use wat::runtime::{Environment, Value};
 // rune:lint(no-inlined-wat) — world parameterized by runtime gate expression — many gate variants tested inline; also has a literal impure-src in fence_rejects_impure_fold
 fn world(gate: &str) -> String {
     format!(
-        "(:wat::core::defrecord :w::Station [location <- :wat::core::String])\n\
-         (:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
-         (:wat::core::defrecord :w::Flagged [location <- :wat::core::String])\n\
+        "(:wat::core::defrecord :w::Station [location <- wat.type/String])\n\
+         (:wat::core::defrecord :w::Reading [location <- wat.type/String  value <- wat.type/i64])\n\
+         (:wat::core::defrecord :w::Flagged [location <- wat.type/String])\n\
          \n\
          ;; a PURE∧DET custom fold: sum of squares of the gathered values\n\
-         (:wat::rete::core::defn :w::sum-of-squares [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64\n\
+         (:wat::rete::core::defn :w::sum-of-squares [xs <- (wat.type/PersistentVector :- [wat.type/i64])] -> wat.type/i64\n\
            (:wat::rete::core::foldl\n\
-             (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64\n\
+             (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64\n\
                (:wat::rete::i64::+ acc (:wat::rete::i64::* x x :undefined 0) :undefined 0))\n\
              0 xs))\n\
          \n\
@@ -97,10 +97,10 @@ fn differential_custom_empty() {
 /// 4 — the compile FENCE rejects an IMPURE custom fold (calls println). The rule must fail to compile.
 #[test]
 fn fence_rejects_impure_fold() {
-    let src = "(:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
-         (:wat::core::defrecord :w::Flagged [location <- :wat::core::String])\n\
+    let src = "(:wat::core::defrecord :w::Reading [location <- wat.type/String  value <- wat.type/i64])\n\
+         (:wat::core::defrecord :w::Flagged [location <- wat.type/String])\n\
          ;; an IMPURE fold — side-effects (println) → must be rejected by the pure∧det fence\n\
-         (:wat::core::defn :w::bad-fold [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64\n\
+         (:wat::core::defn :w::bad-fold [xs <- (wat.type/PersistentVector :- [wat.type/i64])] -> wat.type/i64\n\
            (:wat::core::do\n\
              (:wat::kernel::println \"side effect\")\n\
              (:wat::core::length xs)))\n\

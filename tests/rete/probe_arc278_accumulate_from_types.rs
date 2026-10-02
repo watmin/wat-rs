@@ -124,10 +124,10 @@ fn world(with_threshold: bool, acc: &str, gate: &str) -> String {
     };
     let threshold_when = if with_threshold { "            (:w3::Threshold (?min :- :min))\n" } else { "" };
     format!(
-        "(:wat::core::defrecord :w3::Station [location <- :wat::core::String])\n\
-         (:wat::core::defrecord :w3::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
+        "(:wat::core::defrecord :w3::Station [location <- wat.type/String])\n\
+         (:wat::core::defrecord :w3::Reading [location <- wat.type/String  value <- wat.type/i64])\n\
          {threshold_defrecord}\
-         (:wat::core::defrecord :w3::Busy    [location <- :wat::core::String  n <- :wat::core::i64])\n\
+         (:wat::core::defrecord :w3::Busy    [location <- wat.type/String  n <- wat.type/i64])\n\
          \n\
          (:wat::rete::defrule :w3::busy\n\
            :when\n\

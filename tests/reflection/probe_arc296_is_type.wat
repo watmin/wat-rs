@@ -7,7 +7,7 @@
 (:wat::core::defrecord :usr::Shape [n <- wat.type/i64])
 
 (:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:wat::runtime::is-type? :wat::core::i64))
-  (:wat::kernel::println (:wat::runtime::is-type? :wat::core::Vector))
+  (:wat::kernel::println (:wat::runtime::is-type? wat.type/i64))
+  (:wat::kernel::println (:wat::runtime::is-type? wat.type/Vector))
   (:wat::kernel::println (:wat::runtime::is-type? :usr::Shape))
   (:wat::kernel::println (:wat::runtime::is-type? :usr::TotallyMadeUp)))

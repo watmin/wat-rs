@@ -5,7 +5,7 @@
   :got ":wat::core::String"
   :remedies [
     #wat.kernel/Remedy {
-      :form ":wat::core::Vector"
+      :form ":wat::type::Vector"
       :kind :retirement
       :score 0
       :note "as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same (Vector :- [T]) value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead"

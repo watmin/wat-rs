@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::filter: parameter #1 expects [:u::Op :-> :wat::core::bool]; got [:u::Op.Mark :-> :wat::core::bool]"
+      :message ":wat::core::filter: parameter #1 expects [:u::Op :-> wat.type/bool]; got [:u::Op.Mark :-> wat.type/bool]"
       :location #wat.core/Span {
         :file "tests/types/probe_arc251_one_door_for_the_higher_order_fn_arg__filter_enum_elems_narrow.wat"
         :line 8
@@ -19,8 +19,8 @@
       :causes []
       :callee ":wat::core::filter"
       :param "#1"
-      :expected "[:u::Op :-> :wat::core::bool]"
-      :got "[:u::Op.Mark :-> :wat::core::bool]"
+      :expected "[:u::Op :-> wat.type/bool]"
+      :got "[:u::Op.Mark :-> wat.type/bool]"
       :remedies []
     }
   ]

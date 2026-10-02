@@ -45,7 +45,7 @@
 ;; O = String. The carrier D = (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]); ctx holds the dialed pair.
 (:wat::core::defn :probe::multi-dial-runner
   [self    <- (:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String]) (:wat::bracket::PoolMsg :- [(wat.type/Tuple :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])]) wat.type/String])])
-   work-fn <- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply]) :wat::core::String :-> wat.type/String]
+   work-fn <- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply]) wat.type/String :-> wat.type/String]
    ctx     <- (:wat::core::Option :- [(wat.type/Tuple :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])])])]
   -> wat.type/nil
   (:wat::core::match (:wat::kernel::recv self)

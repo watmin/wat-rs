@@ -2,9 +2,9 @@
   :value (
     :wat.core/defmacro
     :my/ident
-    [x <- :wat/WatAST]
+    [x <- :wat.type/AST]
     ->
-    :wat/WatAST
+    :wat.type/AST
     (
       :wat.core/quasiquote
       (:wat.core/unquote x)

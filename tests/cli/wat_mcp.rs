@@ -644,7 +644,7 @@ fn a_toplevel_let_or_do_answers_its_value() {
     );
     assert_eq!(
         pair(&r[2]),
-        ("\"wat::core::i64\"", false),
+        ("\"wat::type::i64\"", false),
         "the nested-let control must stay green"
     );
 }

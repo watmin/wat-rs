@@ -2,7 +2,7 @@
   :op ":wat::core::+"
   :expected "i64"
   :got {
-    :type "wat::core::i64"
+    :type "wat::type::i64"
     :rendered "42"
     :provenance nil
   }

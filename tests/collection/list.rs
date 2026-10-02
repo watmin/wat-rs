@@ -46,7 +46,7 @@ fn list_constructor_of_returns_list_type() {
         ll.push_back(Value::i64(2));
         Value::wat__core__List(Arc::new(ll))
     };
-    assert_eq!(list_val.type_name(), "wat::core::List");
+    assert_eq!(list_val.type_name(), "wat::type::List");
 }
 
 #[test]

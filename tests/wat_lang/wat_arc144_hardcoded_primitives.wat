@@ -69,28 +69,28 @@
 
 (:wat::core::defn :t::sig-vector [] -> wat.type/bool
   (:wat::core::match
-    (:wat::runtime::signature-of-defn :wat::core::Vector)
+    (:wat::runtime::signature-of-defn wat.type/Vector)
     
     [:wat::core::Option.Some {:value _} true]
     [:wat::core::Option.None {}    false]))
 
 (:wat::core::defn :t::sig-tuple [] -> wat.type/bool
   (:wat::core::match
-    (:wat::runtime::signature-of-defn :wat::core::Tuple)
+    (:wat::runtime::signature-of-defn wat.type/Tuple)
     
     [:wat::core::Option.Some {:value _} true]
     [:wat::core::Option.None {}    false]))
 
 (:wat::core::defn :t::sig-hashmap [] -> wat.type/bool
   (:wat::core::match
-    (:wat::runtime::signature-of-defn :wat::core::HashMap)
+    (:wat::runtime::signature-of-defn wat.type/HashMap)
     
     [:wat::core::Option.Some {:value _} true]
     [:wat::core::Option.None {}    false]))
 
 (:wat::core::defn :t::sig-hashset [] -> wat.type/bool
   (:wat::core::match
-    (:wat::runtime::signature-of-defn :wat::core::HashSet)
+    (:wat::runtime::signature-of-defn wat.type/HashSet)
     
     [:wat::core::Option.Some {:value _} true]
     [:wat::core::Option.None {}    false]))

@@ -47,7 +47,7 @@
 (:wat::core::defn :user::scalars-round-trip [] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:user::id-i64 7) 7)
     (:wat::core::if (:wat::core::= (:user::id-f64 1.5) 1.5)
-      (:wat::core::if (:wat::core::= (:user::id-u8 (:wat::core::u8 9)) (:wat::core::u8 9))
+      (:wat::core::if (:wat::core::= (:user::id-u8 (wat.type/u8 9)) (wat.type/u8 9))
         (:wat::core::if (:wat::core::= (:user::id-bigint (:wat::i64::to-bigint 100)) (:wat::i64::to-bigint 100))
           (:wat::core::if (:wat::core::= (:user::id-char \a) \a)
             (:wat::core::if (:wat::core::= (:user::id-string "hi") "hi")
@@ -72,7 +72,7 @@
 ;; `Bytes` is a `typealias` for `(Vector :- [u8])` (`wat/core.wat`), not its own constructor —
 ;; a Bytes VALUE is a Vector of u8 elements.
 (:wat::core::defn :user::bytes-round-trips [] -> wat.type/bool
-  (:wat::core::let [b (wat.type/Vector :- [wat.type/u8] (:wat::core::u8 1) (:wat::core::u8 2))]
+  (:wat::core::let [b (wat.type/Vector :- [wat.type/u8] (wat.type/u8 1) (wat.type/u8 2))]
     (:wat::core::= (:user::id-bytes b) b)))
 
 (:wat::core::defn :user::ast-round-trips [] -> wat.type/bool

@@ -73,14 +73,14 @@ fn list_hofs_typecheck_parametric() {
     // Haskell, distinct only under laziness wat does not have) — `l-foldr` renamed
     // `l-fold-reverse`, body now `(reduce f init (reverse coll))`.
     let src = format!(
-        "(:wat::core::defn :user::l-foldl  [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 {L123}))\n\
-         (:wat::core::defn :user::l-fold-reverse [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::reverse {L123})))\n\
-         (:wat::core::defn :user::l-map    [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} {L123})))\n\
-         (:wat::core::defn :user::l-filter [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::filter {GT1} {L123})))\n\
-         (:wat::core::defn :user::l-rev    [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::reverse {L123})))\n\
-         (:wat::core::defn :user::l-take   [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::take {L123} 2)))\n\
-         (:wat::core::defn :user::l-drop   [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::drop {L123} 1)))\n\
-         (:wat::core::defn :user::l-concat [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::concat {L123} {L123})))\n\
+        "(:wat::core::defn :user::l-foldl  [] -> wat.type/i64 (:wat::core::foldl {SUM} 0 {L123}))\n\
+         (:wat::core::defn :user::l-fold-reverse [] -> wat.type/i64 (:wat::core::reduce {SUM} 0 (:wat::core::reverse {L123})))\n\
+         (:wat::core::defn :user::l-map    [] -> wat.type/i64 (:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} {L123})))\n\
+         (:wat::core::defn :user::l-filter [] -> wat.type/i64 (:wat::core::reduce {SUM} 0 (:wat::core::filter {GT1} {L123})))\n\
+         (:wat::core::defn :user::l-rev    [] -> wat.type/i64 (:wat::core::foldl {SUM} 0 (:wat::core::reverse {L123})))\n\
+         (:wat::core::defn :user::l-take   [] -> wat.type/i64 (:wat::core::reduce {SUM} 0 (:wat::core::take {L123} 2)))\n\
+         (:wat::core::defn :user::l-drop   [] -> wat.type/i64 (:wat::core::reduce {SUM} 0 (:wat::core::drop {L123} 1)))\n\
+         (:wat::core::defn :user::l-concat [] -> wat.type/i64 (:wat::core::foldl {SUM} 0 (:wat::core::concat {L123} {L123})))\n\
          {MAIN}"
     );
     assert!(check(&src).is_ok(), "all 8 HOFs must type-check on a List/of (parametric). Got: {:?}", check(&src));
@@ -93,9 +93,9 @@ fn list_hofs_typecheck_bare_param() {
     // Arc 118.2a — map-bare's HOF result is a Stream; fold it via `reduce`, not `foldl`
     // (fold-bare/rev-bare are unaffected — raw List fold, and reverse stays eager).
     let src = format!(
-        "(:wat::core::defn :user::fold-bare [xs <- :wat::core::List] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 xs))\n\
-         (:wat::core::defn :user::map-bare  [xs <- :wat::core::List] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} xs)))\n\
-         (:wat::core::defn :user::rev-bare  [xs <- :wat::core::List] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::reverse xs)))\n\
+        "(:wat::core::defn :user::fold-bare [xs <- wat.type/List] -> wat.type/i64 (:wat::core::foldl {SUM} 0 xs))\n\
+         (:wat::core::defn :user::map-bare  [xs <- wat.type/List] -> wat.type/i64 (:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} xs)))\n\
+         (:wat::core::defn :user::rev-bare  [xs <- wat.type/List] -> wat.type/i64 (:wat::core::foldl {SUM} 0 (:wat::core::reverse xs)))\n\
          {MAIN}"
     );
     assert!(check(&src).is_ok(), "HOFs must type-check over a BARE List param. Got: {:?}", check(&src));
@@ -106,7 +106,7 @@ fn wrong_element_rejected() {
     // GUARD — parity != permissiveness. A String reducer folded over an i64 List must be REJECTED.
     let str_sum = "(:wat::core::fn [acc <- wat.type/String x <- wat.type/String] -> wat.type/String \
                      (:wat::core::string::concat acc x))";
-    let src = format!("(:wat::core::defn :user::bad [] -> :wat::core::String (:wat::core::foldl {str_sum} \"\" {L123}))\n{MAIN}");
+    let src = format!("(:wat::core::defn :user::bad [] -> wat.type/String (:wat::core::foldl {str_sum} \"\" {L123}))\n{MAIN}");
     // Not via `check()` here — it collapses the typed error to a Debug-formatted `String`
     // (`.map_err(|e| format!("{e:?}"))`), erasing the discriminant. Call `startup_from_source`
     // directly to keep the typed `StartupError`.
@@ -165,12 +165,12 @@ fn list_hofs_preserve_container() {
     // `list_map_is_not_vector` below for the complementary negative). `reverse`/`concat` are
     // untouched by the flip (still eager) and still preserve List — proven unchanged.
     let src = format!(
-        "(:wat::core::defn :user::p-map  [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::map {DBL} {L123}))\n\
-         (:wat::core::defn :user::p-filt [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::filter {GT1} {L123}))\n\
-         (:wat::core::defn :user::p-rev  [] -> (:wat::core::List :- [:wat::core::i64]) (:wat::core::reverse {L123}))\n\
-         (:wat::core::defn :user::p-take [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::take {L123} 2))\n\
-         (:wat::core::defn :user::p-drop [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::drop {L123} 1))\n\
-         (:wat::core::defn :user::p-cat  [] -> (:wat::core::List :- [:wat::core::i64]) (:wat::core::concat {L123} {L123}))\n\
+        "(:wat::core::defn :user::p-map  [] -> (:wat::stream::Stream :- [wat.type/i64]) (:wat::core::map {DBL} {L123}))\n\
+         (:wat::core::defn :user::p-filt [] -> (:wat::stream::Stream :- [wat.type/i64]) (:wat::core::filter {GT1} {L123}))\n\
+         (:wat::core::defn :user::p-rev  [] -> (wat.type/List :- [wat.type/i64]) (:wat::core::reverse {L123}))\n\
+         (:wat::core::defn :user::p-take [] -> (:wat::stream::Stream :- [wat.type/i64]) (:wat::core::take {L123} 2))\n\
+         (:wat::core::defn :user::p-drop [] -> (:wat::stream::Stream :- [wat.type/i64]) (:wat::core::drop {L123} 1))\n\
+         (:wat::core::defn :user::p-cat  [] -> (wat.type/List :- [wat.type/i64]) (:wat::core::concat {L123} {L123}))\n\
          {MAIN}"
     );
     assert!(check(&src).is_ok(), "map/filter/take/drop must yield Stream<i64> (arc 118.2a); reverse/concat must still preserve List<i64>. Got: {:?}", check(&src));

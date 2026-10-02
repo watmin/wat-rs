@@ -1,6 +1,6 @@
-(:wat::core::newtype :u::T :wat::core::i64)
+(:wat::core::newtype :u::T wat.type/i64)
 (:wat::core::extend-type :u::T :wat::core::Orderable)
-(:wat::core::newtype :u::U :wat::core::i64)
+(:wat::core::newtype :u::U wat.type/i64)
 (:wat::core::defn :user::written [] -> wat.type/bool
   (:wat::core::= (:wat::edn::write (:u::T 7)) "#u/T 7"))
 (:wat::core::defn :user::round [] -> wat.type/bool

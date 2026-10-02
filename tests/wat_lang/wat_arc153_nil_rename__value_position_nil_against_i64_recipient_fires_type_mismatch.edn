@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/ReturnTypeMismatch {
-      :message ":t::probe: body produces :wat::core::nil; signature declares :wat::core::i64"
+      :message ":t::probe: body produces wat.type/nil; signature declares wat.type/i64"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc153_nil_rename_nil_i64.wat.bad"
         :line 4
@@ -18,8 +18,8 @@
       }
       :causes []
       :function ":t::probe"
-      :expected ":wat::core::i64"
-      :got ":wat::core::nil"
+      :expected "wat.type/i64"
+      :got "wat.type/nil"
       :remedies []
     }
   ]
