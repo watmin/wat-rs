@@ -529,3 +529,229 @@ re-captured under the as-data audit. After this capture,
 `tests/types/probe_arc255_81_retired_name_refuses.rs`. A
 `rune:lint(no-inlined-wat)` was added on that file and the lint test
 passed in a later focused run; that rune is not in the capture above.
+
+## Amend 4 — STOP-2
+
+Classified every failure in `.floor/2026-10-02T07-50-06Z` from that log. The floor was not re-run. Its summary stays:
+
+```
+Summary [ 399.682s] 6368 tests run: 6236 passed (26 slow), 132 failed, 24 skipped
+```
+
+Exit 100. A row is `spelling` when the logged left and right become equal once the 24 hard primitives' spellings are folded (`:wat::core::X`, `:wat::type::X`, `wat::core::X`, `wat::type::X`, `wat.core/X`, `wat.type/X`, and `:wat::WatAST` / `wat/WatAST` / `wat.type/AST` all to one token per tail), or when the expected error kind is the actual kind and every string literal in the expected pattern occurs in the actual error after that fold. `different-error` and `different-value` are STOP-2.
+
+106 spelling, 19 different-error, 7 different-value. A STOP means STOP. The 106 were not re-captured. The programs in `tests/types/probe_arc255_81_retired_name_refuses.rs` were not moved to a fixture. Clippy, the `wat-fix-rust` dry run, and `census.sh --diff` did not run.
+
+### The 26 that are not spelling
+
+`nested_program_starts::nested_program_gate_goes_red_on_the_pre_2b_erase_child` panicked at `tests/lint/nested_program_starts.rs:618`. The arm wanted `MalformedForm` head `":wat::core::match"` and reason `arm #1: variant arm head `:probe::CMsg::Setup` is not namespaced; write `<enum>.<Variant>``. The log's errors are `#wat.check/CheckErrors {:message "19 type-check errors"` and the first is `MalformedForm` head `":wat::core::String"`, reason `':wat::core::String' is retired (arc 255.81); use 'wat.type/String' instead ...`.
+
+`nested_program_starts::nested_program_gate_refuses_a_rune_whose_test_does_not_exist` panicked at `tests/lint/nested_program_starts.rs:675`. The arm wanted `MalformedForm` with head `":wat::core::match"`. The log says `{:message "19 type-check errors"` and the first head is `":wat::core::String"` with the same retirement reason, on `/tmp/nested-program-missing-rune-test.wat`.
+
+`no_loose_string_assert::tests_carry_no_loose_string_assert` panicked at `tests/lint/no_loose_string_assert.rs:135`. Offenders named by the log:
+
+```
+src/types.rs:8549
+src/types.rs:8589
+src/types.rs:8602
+src/types.rs:8621
+src/types.rs:8655
+src/types.rs:8678
+```
+
+Those lines are `reason.contains(...)` (`"[A :-> R]"` at 8549 and 8678, `"(wat.type/Tuple :- [A B])"` at the other four). The red is the lint, not a mismatched golden.
+
+`no_inlined_wat_in_tests::tests_carry_no_inlined_wat` panicked at `tests/lint/no_inlined_wat_in_tests.rs:267`. The log's offender is `tests/types/probe_arc255_81_retired_name_refuses.rs`.
+
+`one_variant_separator::only_identifier_rs_spells_the_variant_separator` panicked at `tests/lint/one_variant_separator.rs:260`. The log's offender is `src/types.rs:282  [COMPOSE]  format!(":wat::core::{tail}")`.
+
+`probe_arc278_deep_cascade::deep_cascade_native_matches_wat_depth10` and `deep_cascade_native_matches_wat_depth20` panicked at `tests/rete/probe_arc278_deep_cascade.rs:84`. Both: `eval raised: #wat.runtime/MalformedForm` head `":wat::core::PersistentVector"`, reason `':wat::core::PersistentVector' is retired (arc 255.81); use 'wat.type/PersistentVector' instead ...`.
+
+`check::tests::any_in_fn_rejected_at_parse` panicked at `src/check.rs:25759`:
+
+```
+assertion failed: matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. })
+```
+
+The log does not print `err.kind()`. `Any` is not one of the 24.
+
+`probe_arc242_stone2_value_position_doctrine::contract_01_keyword_nil_in_body_rejected` panicked at `tests/diagnostics/probe_arc242_stone2_value_position_doctrine.rs:38`. The arm wanted head `":wat::core::nil"` and reason `Doctrine 1 (arc 242): ':wat::core::nil' is a TYPE keyword, not a value; use bare `nil` in value position`. The actual error is `MalformedForm` head `":wat::core::nil"`, reason `':wat::core::nil' is retired (arc 255.81); use 'wat.type/nil' instead ...`, `{:message "1 type-check error"`.
+
+`contract_05_keyword_nil_in_let_binding_rejected` panicked at `tests/diagnostics/probe_arc242_stone2_value_position_doctrine.rs:101` on the same expected doctrine sentence. The actual is the same retirement of `":wat::core::nil"`.
+
+`probe_stone255_71_template_untyped::untyped_constructor_in_a_macro_template_is_refused_at_its_use` panicked at `tests/function/probe_stone255_71_template_untyped.rs:38`. The arm wanted a `MalformedForm` naming `:wat::core::Tuple` at line 15. The actual is `MalformedForm` head `":wat::core::Tuple"` at `probe_stone255_71_template_untyped.wat.bad` line 12, reason `':wat::core::Tuple' is retired; use 'wat.type/Tuple' instead`.
+
+`stone18a_errors::error_03_fn_missing_arrow` panicked at `tests/function/stone18a_errors.rs:69`. The arm wanted head `":wat::core::fn"` and reason `fn signature: expected `->` between args-vector and return type; got keyword`. The actual is `MalformedForm` head `":wat::core::nil"` with the 255.81 retirement reason, `{:message "1 type-check error"`, file `tests/function/stone18a_e03.wat` line 5.
+
+`probe_arc255_12_macro_identity::an_arrow_flipped_template_is_still_a_duplicate` panicked at `tests/macros/probe_arc255_12_macro_identity.rs:73`. `expected DuplicateMacro(:p255_12::MA); the freeze DID fail, but on MalformedDefmacro { reason: "macro param `x` is declared `Path(\":wat::WatAST\")`, but a macro param always binds a form — its type must be `:wat::WatAST`" }`.
+
+`a_divergent_template_is_still_a_duplicate` panicked at the same line. `expected DuplicateMacro(:p255_12::MD); the freeze DID fail, but on MalformedDefmacro` with that same `Path(":wat::WatAST")` reason.
+
+`probe_arc251_8d_macro_member_join::a_faithful_macro_name_answers_to_its_keyword_spelling` panicked at `tests/macros/probe_arc251_8d_macro_member_join.rs:121`. `the macro member join answered wrongly on 2 row(s)` and the logged got is `#wat.macro/MalformedDefmacro` whose message starts `macro param `n` is declared `Path(\":wat::WatAST\")`, but a macro param always binds a form — its type must be `:wat::WatAST``. The arm wanted the reason to name `:user::Box/nope`.
+
+`every_probe_runs::probe_wat_scripts_probes_arc_170_probe_s3b_extract` panicked at `target/release/build/wat-69bde1333b909ae2/out/every_probe_runs.rs:41`:
+
+```
+assertion `left == right` failed: wat-scripts/probes/arc-170/probe-s3b-extract.wat must run clean (exit 0)
+left: Some(2)
+right: Some(0)
+```
+
+The probe's own failure, quoted from that stderr: `assert-eq failed` at `wat-scripts/probes/arc-170/probe-s3b-extract.wat:27`, `:actual "<WatAST>" :expected "<WatAST>"`. Those two strings are the same; they are not a spelling of one of the 24.
+
+`probe_supervisor_select_lost::select_prime_yields_lost_when_process_child_crashes` panicked at `tests/process/probe_supervisor_select_lost.rs:227`. `select' raised instead of returning ServiceEvent::Lost`. The raised value is `#wat.runtime/MalformedForm` head `":wat::core::Vector"`, reason `':wat::core::Vector' is retired (arc 255.81); use 'wat.type/Vector' instead ...`.
+
+The four `probe_arc278_peers_bijection` rows panicked on `assert_eq` of the `ProgramBodyEvalFailed` value. After the 24's spellings are folded, the first difference is the span's line integer:
+
+- `peers_bijection_form_spelling_missing_ephemeral_is_rejected` at `tests/services/probe_arc278_peers_bijection.rs:111`: left `Integer(910)`, right `Integer(909)`.
+- `peers_bijection_old_spelling_missing_ephemeral_is_rejected` at line 42 of that file: left `Integer(910)`, right `Integer(909)`.
+- `peers_bijection_form_spelling_undeclared_peer_names_the_surface` at line 160: left `Integer(927)`, right `Integer(926)`.
+- `peers_bijection_old_spelling_undeclared_peer_is_rejected` at line 68: left `Integer(927)`, right `Integer(926)`.
+
+`probe_arc237_stone1_typeunion_substrate::probe_13_typeunion_arg_rejects_non_member_value` panicked at `tests/types/probe_arc237_stone1_typeunion_substrate.rs:288`. The arm wanted `TypeMismatch` callee `":my::identity"` param `"#1"` expected `":my::IorF"` got `":wat::core::String"`. The actual is `MalformedForm` head `":wat::core::nil"` with the 255.81 retirement reason, `{:message "1 type-check error"`.
+
+`probe_arc255_56_operators::eq_generic_refuses_a_function` panicked at `tests/types/probe_arc255_56_operators.rs:72`. The arm wanted `BoundNotSatisfied` on `:user::eq-generic` param `T` bound `":wat::core::Equatable"`. The actual first error is `ReturnTypeMismatch`, message `:user::main: body produces wat.type/bool; signature declares wat.type/nil`, `{:message "2 type-check errors"`.
+
+`probe_arc278_value_universal_top::up_i64_is_subtype_of_value` panicked at `tests/types/probe_arc278_value_universal_top.rs:58`: `UP must be free: i64 <: Value (RED at HEAD — :wat::core::Value not yet registered)`. `is_subtype(I64, VALUE, &env)` was false.
+
+`up_string_is_subtype_of_value` panicked at `tests/types/probe_arc278_value_universal_top.rs:68`: `UP must be free: String <: Value (RED at HEAD)`. `is_subtype(STRING, VALUE, &env)` was false.
+
+`probe_arc293_holder_substitution::struct_rejected_where_record_wanted` panicked at `tests/types/probe_arc293_holder_substitution.rs:66`. The arm wanted `TypeMismatch` callee `":u::wants-record"` expected `":wat::core::Record"` got `":geo::SPt"`. The actual first error is `MalformedForm` head `":wat::core::kwargs-construct"`, message `bare-positional construction of :geo::SPt is retired (the bare name is the kwargs macro); write kwargs `(:geo::SPt :field value …)` or use the positional prime `:geo::SPt'``. `{:message "2 type-check errors"`. `:wat::core::kwargs-construct` is not one of the 24.
+
+### All 132
+
+| test | arm | class |
+| --- | --- | --- |
+| `nested_program_starts::nested_program_gate_goes_red_on_the_pre_2b_erase_child` | `nested_program_starts.rs:618:9` | different-error |
+| `no_hand_written_type_floor::category_roots_are_present_and_admitted` | `no_hand_written_type_floor.rs:167:9` | spelling |
+| `nested_program_starts::nested_program_gate_refuses_a_rune_whose_test_does_not_exist` | `nested_program_starts.rs:675:9` | different-error |
+| `no_loose_string_assert::tests_carry_no_loose_string_assert` | `no_loose_string_assert.rs:135:5` | different-error |
+| `no_inlined_wat_in_tests::tests_carry_no_inlined_wat` | `no_inlined_wat_in_tests.rs:267:5` | different-error |
+| `one_variant_separator::only_identifier_rs_spells_the_variant_separator` | `one_variant_separator.rs:260:5` | different-error |
+| `probe_arc278_6b_eval_test::non_bool_result_is_error` | `probe_arc278_6b_eval_test.rs:62:5` | spelling |
+| `probe_arc278_deep_cascade::deep_cascade_native_matches_wat_depth20` | `probe_arc278_deep_cascade.rs:84:29` | different-error |
+| `probe_arc278_deep_cascade::deep_cascade_native_matches_wat_depth10` | `probe_arc278_deep_cascade.rs:84:29` | different-error |
+| `probe_arc278_open_surface_dispatch::open_surface_dispatch_ambiguous_return_is_a_compile_error` | `probe_arc278_open_surface_dispatch.rs:92:21` | spelling |
+| `probe_arc278_return_type_of::return_type_of_an_inline_fn_is_its_declared_ret` | `probe_arc278_return_type_of.rs:42:5` | spelling |
+| `probe_arc278_seq1b_list_hofs::wrong_element_rejected` | `probe_arc278_seq1b_list_hofs.rs:114:5` | spelling |
+| `probe_arc278_then_user_forms::non_fact_return_type_is_refused` | `probe_arc278_then_user_forms.rs:137:5` | spelling |
+| `check::tests::any_in_fn_rejected_at_parse` | `check.rs:25759:9` | different-error |
+| `probe_then_operand_fits_the_field::i64_into_a_string_then_is_refused` | `probe_then_operand_fits_the_field.rs:38:5` | spelling |
+| `probe_arc278_0d_transform_dispatch_parity::wrong_element_still_rejected` | `probe_arc278_0d_transform_dispatch_parity.rs:46:5` | spelling |
+| `probe_arc214_stone46b_select_prime::probe_2_select_wrong_return_annotation_rejected` | `probe_arc214_stone46b_select_prime.rs:93:5` | spelling |
+| `probe_arc242_stone2_value_position_doctrine::contract_01_keyword_nil_in_body_rejected` | `probe_arc242_stone2_value_position_doctrine.rs:38:5` | different-error |
+| `probe_arc242_stone2_value_position_doctrine::contract_05_keyword_nil_in_let_binding_rejected` | `probe_arc242_stone2_value_position_doctrine.rs:101:5` | different-error |
+| `probe_arc296_raise_gate::raise_bare_integer_is_compile_error` | `probe_arc296_raise_gate.rs:31:5` | spelling |
+| `probe_arc237_7a_length_intrinsic::length_on_noncollection_errors` | `probe_arc237_7a_length_intrinsic.rs:71:5` | spelling |
+| `probe_arc237_7c_assoc_polymorphic::assoc_hashmap_wrong_key_type_rejected_at_check` | `probe_arc237_7c_assoc_polymorphic.rs:70:5` | spelling |
+| `probe_arc237_7c_assoc_polymorphic::assoc_non_collection_arg0_rejected` | `probe_arc237_7c_assoc_polymorphic.rs:94:5` | spelling |
+| `probe_arc237_8b_defclause_arithmetic::gate_2_cross_no_matching_clause` | `probe_arc237_8b_defclause_arithmetic.rs:70:5` | spelling |
+| `probe_arc237_7c_assoc_polymorphic::assoc_hashmap_wrong_value_type_rejected_at_check` | `probe_arc237_7c_assoc_polymorphic.rs:82:5` | spelling |
+| `probe_arc237_stone2_defclause_substrate::probe_07_body_return_type_mismatch_errors` | `probe_arc237_stone2_defclause_substrate.rs:124:5` | spelling |
+| `probe_arc237_stone2_defclause_substrate::probe_08_no_matching_clause_at_call_site_errors` | `probe_arc237_stone2_defclause_substrate.rs:137:5` | spelling |
+| `probe_arc237_stone3_guard_ensure::probe_05_guard_non_boolean_errors_at_check` | `probe_arc237_stone3_guard_ensure.rs:129:5` | spelling |
+| `probe_arc237_stone3_guard_ensure::probe_09_ensure_fn_arg_type_mismatch_errors_at_check` | `probe_arc237_stone3_guard_ensure.rs:182:5` | spelling |
+| `probe_arc237_stone3_guard_ensure::probe_10_ensure_fn_return_not_bool_errors_at_check` | `probe_arc237_stone3_guard_ensure.rs:198:5` | spelling |
+| `probe_arc247_hof_fn_first::mint_map_coll_first_is_gone` | `probe_arc247_hof_fn_first.rs:74:5` | spelling |
+| `probe_diagnostic_dynamic_keyword_invocation::probe_7_apply_rejects_non_keyword_head` | `probe_diagnostic_dynamic_keyword_invocation.rs:150:5` | spelling |
+| `probe_diagnostic_dynamic_keyword_invocation::probe_8_apply_rejects_non_vector_last_arg` | `probe_diagnostic_dynamic_keyword_invocation.rs:176:5` | spelling |
+| `probe_stone255_71_template_untyped::untyped_constructor_in_a_macro_template_is_refused_at_its_use` | `probe_stone255_71_template_untyped.rs:38:5` | different-error |
+| `stone18a_errors::error_03_fn_missing_arrow` | `stone18a_errors.rs:69:5` | different-error |
+| `stone18a_errors::error_02_fn_body_return_type_mismatch` | `stone18a_errors.rs:56:5` | spelling |
+| `wat_arc170_closure_extraction::t4_inline_lambda_no_captures` | `wat_arc170_closure_extraction.rs:339:5` | spelling |
+| `wat_arc170_closure_extraction::t5_inline_lambda_captures_let_scope_struct` | `wat_arc170_closure_extraction.rs:371:5` | spelling |
+| `test::deftest_wat_tests_service_parametric_messages_round_trip_on_thread` | `test_runner.rs:495:17` | spelling |
+| `test::deftest_wat_tests_service_request_malformed_on_thread` | `test_runner.rs:495:17` | spelling |
+| `test::deftest_wat_tests_service_parametric_messages_round_trip_on_process` | `test_runner.rs:495:17` | spelling |
+| `test::deftest_wat_tests_service_request_malformed_on_process` | `test_runner.rs:495:17` | spelling |
+| `wat_dispatch_193a::type_check_rejects_wrong_arg_types` | `wat_dispatch_193a.rs:80:5` | spelling |
+| `wat_u8::u8_type_mismatch_rejected_at_check_time` | `wat_u8.rs:91:5` | spelling |
+| `probe_arc255_12_macro_identity::an_arrow_flipped_template_is_still_a_duplicate` | `probe_arc255_12_macro_identity.rs:73:18` | different-error |
+| `probe_arc255_12_macro_identity::a_divergent_template_is_still_a_duplicate` | `probe_arc255_12_macro_identity.rs:73:18` | different-error |
+| `probe_arc251_8d_macro_member_join::a_faithful_macro_name_answers_to_its_keyword_spelling` | `probe_arc251_8d_macro_member_join.rs:121:5` | different-error |
+| `every_probe_runs::probe_wat_scripts_probes_arc_170_probe_m1_argcount` | `every_probe_runs.rs:41:5` | spelling |
+| `every_probe_runs::probe_wat_scripts_probes_arc_170_probe_s3b_extract` | `every_probe_runs.rs:41:5` | different-value |
+| `probe_supervisor_select_lost::select_prime_yields_lost_when_process_child_crashes` | `probe_supervisor_select_lost.rs:227:13` | different-error |
+| `probe_arc255_75_negative_probes::generic_shipped_runner_cannot_claim_the_abstract_type` | `probe_arc255_75_negative_probes.rs:259:5` | spelling |
+| `wat_arc170_program_contracts::t1_canonical_nil_main_freezes` | `wat_arc170_program_contracts.rs:60:5` | spelling |
+| `wat_arc170_slice_1e_user_main_nil::t1_canonical_main_freezes_and_invokes` | `wat_arc170_slice_1e_user_main_nil.rs:49:5` | spelling |
+| `probe_arc251_fix_macro_param_types::fix_macro_param_types_rewrites_defmacro_only_comment_faithful` | `probe_arc251_fix_macro_param_types.rs:27:5` | spelling |
+| `probe_arc251_implicit_generics::fact_01_suffix_generic_is_really_checked` | `probe_arc251_implicit_generics.rs:17:5` | spelling |
+| `probe_arc251_implicit_generics::bare_var_no_suffix_rejects_illtyped` | `probe_arc251_implicit_generics.rs:50:5` | spelling |
+| `probe_arc255_the_type_position_has_its_own_authority::an_empty_list_gets_a_named_diagnostic_and_never_a_panic` | `probe_arc255_the_type_position_has_its_own_authority.rs:272:5` | spelling |
+| `probe_arc278_peers_bijection::peers_bijection_form_spelling_missing_ephemeral_is_rejected` | `probe_arc278_peers_bijection.rs:111:5` | different-value |
+| `probe_arc278_peers_bijection::peers_bijection_old_spelling_missing_ephemeral_is_rejected` | `probe_arc278_peers_bijection.rs:42:5` | different-value |
+| `probe_arc278_peers_bijection::peers_bijection_form_spelling_undeclared_peer_names_the_surface` | `probe_arc278_peers_bijection.rs:160:5` | different-value |
+| `probe_arc278_peers_bijection::peers_bijection_old_spelling_undeclared_peer_is_rejected` | `probe_arc278_peers_bijection.rs:68:5` | different-value |
+| `probe_arc170_parametric_surface::parametric_surface_return_is_typed_not_any` | `probe_arc170_parametric_surface.rs:59:5` | spelling |
+| `probe_arc170_parametric_surface::parametric_surface_rejects_mistyped_satisfier` | `probe_arc170_parametric_surface.rs:78:5` | spelling |
+| `probe_arc214_stone46i_typed_peer::probe_4_wrong_scalar_return_annotation_rejected` | `probe_arc214_stone46i_typed_peer.rs:103:5` | spelling |
+| `probe_arc234_stone15_namespace_promotion::probe_2_type_name_returns_wat_record` | `probe_arc234_stone15_namespace_promotion.rs:84:5` | spelling |
+| `probe_arc234_stone15_namespace_promotion::probe_5_class_fqdn_extraction_post_rename` | `probe_arc234_stone15_namespace_promotion.rs:132:5` | spelling |
+| `probe_arc237_8c_equality_grid::regression_cross_type_is_check_error` | `probe_arc237_8c_equality_grid.rs:71:5` | spelling |
+| `probe_arc237_8d_equality_intrinsic::regression_cross_type_is_check_error` | `probe_arc237_8d_equality_intrinsic.rs:97:5` | spelling |
+| `probe_arc237_sA1_assignable::probe_03_directional_rejection` | `probe_arc237_sA1_assignable.rs:62:5` | spelling |
+| `probe_arc237_stone1_typeunion_substrate::probe_13_typeunion_arg_rejects_non_member_value` | `probe_arc237_stone1_typeunion_substrate.rs:288:5` | different-error |
+| `probe_arc251_instantiate_the_type_argument::enum_still_does_not_narrow_to_a_variant` | `probe_arc251_instantiate_the_type_argument.rs:127:5` | spelling |
+| `probe_arc255_17_last_type_argument::enum_first_arm_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::bare_var_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::record_first_arg_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::enum_last_arm_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::option_t_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::option_u_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::record_last_var_after_a_concrete_first_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::result_err_arm_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::enum_only_arg_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::option_multi_letter_var_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::record_last_arg_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::record_concrete_last_arg_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::record_only_arg_is_checked` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::the_runtime_reproducer_is_refused_at_check` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::result_ok_arm_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::record_middle_arg_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_17_last_type_argument::result_ok_arm_with_concrete_last_control` | `probe_arc255_17_last_type_argument.rs:40:5` | spelling |
+| `probe_arc255_19_locus_methods_on_the_waist::a_generic_runner_count_is_a_declared_i64` | `probe_arc255_19_locus_methods_on_the_waist.rs:62:5` | spelling |
+| `probe_arc255_22_an_edge_declares_its_type_parameters::the_lie_spelled_elem_is_refused` | `probe_arc255_22_an_edge_declares_its_type_parameters.rs:78:5` | spelling |
+| `probe_arc255_22_an_edge_declares_its_type_parameters::the_lie_spelled_t_is_refused` | `probe_arc255_22_an_edge_declares_its_type_parameters.rs:78:5` | spelling |
+| `probe_arc255_22_an_edge_declares_its_type_parameters::the_lie_through_a_differently_spelled_edge_is_refused_naming_string` | `probe_arc255_22_an_edge_declares_its_type_parameters.rs:78:5` | spelling |
+| `probe_arc255_56_operators::eq_generic_refuses_a_function` | `probe_arc255_56_operators.rs:72:5` | different-error |
+| `probe_arc255_74_key_must_be_data::hashset_vector_of_fn_deep_wat_bad_is_refused` | `probe_arc255_74_key_must_be_data.rs:233:5` | spelling |
+| `probe_arc255_74_key_must_be_data::hashset_fn_element_shallow_wat_bad_is_refused` | `probe_arc255_74_key_must_be_data.rs:225:5` | spelling |
+| `probe_arc255_74_key_must_be_data::hashmap_constructor_fn_key_is_refused` | `probe_arc255_74_key_must_be_data.rs:158:5` | spelling |
+| `probe_arc255_74_key_must_be_data::persistentmap_constructor_fn_key_is_refused` | `probe_arc255_74_key_must_be_data.rs:158:5` | spelling |
+| `probe_arc255_56_operators::nil_is_equatable_and_not_orderable` | `probe_arc255_56_operators.rs:22:5` | spelling |
+| `probe_arc278_value_universal_top::up_i64_is_subtype_of_value` | `probe_arc278_value_universal_top.rs:58:5` | different-value |
+| `probe_arc278_value_universal_top::up_string_is_subtype_of_value` | `probe_arc278_value_universal_top.rs:68:5` | different-value |
+| `probe_arc256_generic_defclause::c03_illtyped_generic_call_rejected` | `probe_arc256_generic_defclause.rs:47:5` | spelling |
+| `probe_arc278_f64_fallback_rejects_i64::f64_fallback_arithmetic_rejects_an_i64_operand` | `probe_arc278_f64_fallback_rejects_i64.rs:35:13` | spelling |
+| `probe_arc278_f64_comparator_rejects_i64::f64_comparator_rejects_an_i64_operand` | `probe_arc278_f64_comparator_rejects_i64.rs:33:13` | spelling |
+| `probe_arc293_4c_extend_type_adapter::extend_type_surface_collision_is_duplicate_define` | `probe_arc293_4c_extend_type_adapter.rs:43:5` | spelling |
+| `probe_arc278_value_universal_top::narrow_value_into_i64_param_is_type_error` | `probe_arc278_value_universal_top.rs:119:5` | spelling |
+| `probe_arc293_4c_extend_type_adapter::non_extended_foreign_type_is_rejected_at_check_time` | `probe_arc293_4c_extend_type_adapter.rs:57:5` | spelling |
+| `probe_arc293_holder_ladder_foreign::foreign_nature_is_checked_a_nonholon_cannot_satisfy_a_holon_floor_surface` | `probe_arc293_holder_ladder_foreign.rs:19:5` | spelling |
+| `probe_arc293_holder_substitution::struct_rejected_where_record_wanted` | `probe_arc293_holder_substitution.rs:66:5` | different-error |
+| `probe_arc293_surface_splice::surface_splice_conflicting_field_types_rejected` | `probe_arc293_surface_splice.rs:44:5` | spelling |
+| `probe_arc296_nature_roots::a_record_does_not_satisfy_the_struct_umbrella` | `probe_arc296_nature_roots.rs:56:5` | spelling |
+| `probe_arc296_nature_roots::a_struct_does_not_satisfy_the_record_umbrella` | `probe_arc296_nature_roots.rs:56:5` | spelling |
+| `probe_arc234_stone1_wat_record_variant::probe_7_type_name_returns_generic_kind` | `probe_arc234_stone1_wat_record_variant.rs:234:5` | spelling |
+| `probe_arc237_sC2c_base_record::base_type_identity` | `probe_arc237_sC2c_base_record.rs:107:5` | spelling |
+| `probe_rational_B_runtime_representation::rational_literal_reduces_and_signs_like_clj` | `probe_rational_B_runtime_representation.rs:54:5` | spelling |
+| `probe_rational_C1_bigint::bigint_arithmetic_stays_bigint_and_is_contagious` | `probe_rational_C1_bigint.rs:47:5` | spelling |
+| `probe_rational_B_runtime_representation::rational_literal_reads_as_runtime_rational` | `probe_rational_B_runtime_representation.rs:47:5` | spelling |
+| `probe_rational_C1_bigint::bigint_division_collapses_like_clj` | `probe_rational_C1_bigint.rs:63:5` | spelling |
+| `probe_stone_233_2_e_ast_derived_provenance::probe_5_literal_provenance_renders_source_coordinates` | `probe_stone_233_2_e_ast_derived_provenance.rs:169:5` | spelling |
+| `probe_rational_C1_bigint::bigint_arithmetic_never_overflows` | `probe_rational_C1_bigint.rs:57:5` | spelling |
+| `probe_rational_C1_bigint::char_type_name_is_lowercase` | `probe_rational_C1_bigint.rs:85:5` | spelling |
+| `probe_rational_C1_bigint::bigint_literal_reads_and_renders` | `probe_rational_C1_bigint.rs:41:5` | spelling |
+| `probe_rational_C1_bigint::rational_type_name_is_lowercase` | `probe_rational_C1_bigint.rs:79:5` | spelling |
+| `probe_rational_C2_arithmetic::rational_arithmetic_collapses_to_bigint` | `probe_rational_C2_arithmetic.rs:37:5` | spelling |
+| `probe_rational_C2_arithmetic::rational_arithmetic_contagion` | `probe_rational_C2_arithmetic.rs:55:5` | spelling |
+| `probe_rational_C2_arithmetic::rational_arithmetic_stays_rational` | `probe_rational_C2_arithmetic.rs:47:5` | spelling |
+| `probe_rational_C4_mixed_float::mixed_float_arithmetic_promotes_to_f64` | `probe_rational_C4_mixed_float.rs:40:9` | spelling |
+| `probe_rational_C4_mixed_float::mixed_n_ary_is_an_honest_gap` | `probe_rational_C4_mixed_float.rs:75:5` | spelling |
+| `probe_rational_C4_mixed_float::mixed_numeric_equality_is_category_aware_false` | `probe_rational_C4_mixed_float.rs:50:5` | spelling |
+| `arc109_reader_adjudicates_type_tokens::nested_parametric_type_reference_round_trips` | `lib.rs:2466:9` | spelling |
+| `tests::parses_the_reference_intrinsic` | `lib.rs:1823:9` | spelling |
+| `edn_doc::tests::the_gate_is_not_vacuous_dropped_added` | `edn_doc.rs:613:13` | spelling |
+| `edn_doc::tests::round_trip_holds_on_the_hand_written_char_row` | `edn_doc.rs:613:13` | spelling |
+
