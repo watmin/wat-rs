@@ -32,7 +32,9 @@ spells `wat.type/`, floor **6349**/6349); its STOP-1 answered by 255.80 (R1/X2: 
 over wat in Rust strings; 506 edits in 39 files; floor **6362**/6362 at `5b4d963b2`; 15 files held for 4b). Then
 4b = 255.81 (C1 for the 24: key `:wat::type::X`, door deleted, retired names refused at the checker and the runtime
 doors, types print `wat.type/X`; the keyword fn/tuple type refused): floor **6368**/6368 at `4160bdaf4`, ledger **147**.
-Next: cutover stone 5 (function and form heads).
+Stone 5 ruled H2 (gates first): 5a = 255.82 (a slash-less call head that names nothing is refused; floor
+**6374**/6374 at `581478c9c`, ledger **146**). Next: 5b, the census of Rust sites that recognize a head by keyword
+text (incl. the keyword-only quasiquote escape detector), then 5c conversion, then 5d the wall.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
