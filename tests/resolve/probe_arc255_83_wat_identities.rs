@@ -5,8 +5,6 @@
 //! identity agree. Markers (`->`, `:from`) stay text. The programs live in the
 //! co-located fixture.
 
-use std::sync::Arc;
-
 use wat::freeze::{startup_from_file, FrozenWorld};
 use wat::runtime::{apply_function, Value};
 
@@ -47,16 +45,8 @@ fn spelling_25583_wat_identities_agree() {
     assert_eq!(call_i64(&world, ":user::kw-agg"), 1);
     assert_eq!(call_i64(&world, ":user::sym-agg"), 1);
     assert_eq!(call_i64(&world, ":user::dot-agg"), 1);
-    let kw = call_string(
-        &world,
-        ":user::consumes",
-        vec![Value::String(Arc::new("(:wat::rete::exists (:user::T))".to_string()))],
-    );
-    let sym = call_string(
-        &world,
-        ":user::consumes",
-        vec![Value::String(Arc::new("(wat.rete/exists (:user::T))".to_string()))],
-    );
+    let kw = call_string(&world, ":user::consumes-kw", vec![]);
+    let sym = call_string(&world, ":user::consumes-sym", vec![]);
     assert_eq!(kw, sym);
     assert_eq!(kw, "user::T");
 }

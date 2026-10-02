@@ -57,6 +57,10 @@
 (:wat::core::defn :user::dot-agg [] -> wat.type/i64
   (:wat::core::kwargs-lower :user::ctor :wat.core/agg-positional [] 0 :user))
 
+(:wat::core::defn :user::consumes-kw [] -> wat.type/String
+  (:user::consumes "(:wat::rete::exists (:user::T))"))
+(:wat::core::defn :user::consumes-sym [] -> wat.type/String
+  (:user::consumes "(wat.rete/exists (:user::T))"))
 (:wat::core::defn :user::consumes [src <- wat.type/String] -> wat.type/String
   (:wat::core::let [form (:user::form src)
                     rule (:wat::rete::Rule
