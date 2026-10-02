@@ -1,5 +1,5 @@
 ;; newtype_rejected_where_inner_expected.wat.bad — Price where f64 expected. Must FAIL.
-(:wat::core::newtype :my::trading::Price :wat::core::f64)
+(:wat::core::newtype :my::trading::Price wat.type/f64)
 (:wat::core::defn :my::probe [] -> wat.type/String
   (:wat::core::let
     [p     (:my::trading::Price 100.0)

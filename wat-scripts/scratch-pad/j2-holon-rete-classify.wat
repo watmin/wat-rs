@@ -9,7 +9,7 @@
 (:wat::core::defrecord :j2::Guess       [name <- wat.type/String])
 
 (:wat::core::defn :j2::table-of
-  [f <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
+  [f <- [wat.type/bool :-> wat.type/bool]]
   -> :wat::holon::HolonAST
   (:wat::holon::to-holon
     (wat.type/Vector :- [wat.type/bool] (f true) (f false))))
@@ -38,7 +38,7 @@
 
 (:wat::core::defn :j2::run
   [fire    <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
-   mystery <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
+   mystery <- [wat.type/bool :-> wat.type/bool]]
   -> wat.type/String
   (:wat::core::let
     [s0    (:wat::core::match (:wat::rete::compile-all

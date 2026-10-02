@@ -234,7 +234,9 @@ pub enum CheckErrorKind {
     #[to_edn(literal(retired = ":wat::core::lambda", fqdn = ":wat::core::fn"))]
     BareLegacyLambda,
     /// Arc 155 — bare `:fn(...)` type-position spelling retired.
-    #[to_edn(literal(retired = ":fn(...)->ret", fqdn = ":wat::core::Fn(...)->ret"))]
+    /// Arc 255.81 — the remedy is the bracket `[A :-> R]`. `:wat::core::Fn(...)`
+    /// is retired in the same stone (`parse_type_inner`).
+    #[to_edn(literal(retired = ":fn(...)->ret", fqdn = "[A :-> R]"))]
     BareLegacyLowercaseFn,
     /// Arc 109 slice 1e — bare substrate-named parametric type head.
     BareLegacyContainerHead { head: String, fqdn: String },
@@ -655,7 +657,7 @@ impl CheckErrorKind {
                 }
                 write!(
                     f,
-                    " is retired (arc 155); canonical FQDN is ':wat::core::Fn(...)'. Cap'd type head per Clojure-faithful capitalization convention: 'Fn' = function type, 'fn' = function value (closes arc 109 slice 1e's last ungrabbed parametric type head). Rename ':fn(args)->ret' -> ':wat::core::Fn(args)->ret' at the offending site."
+                    " is retired (arc 155, superseded by arc 255.81); write the bracket `[A :-> R]` (stone 251.4c). `:wat::core::Fn(A)->R` is retired in the same stone. Rename ':fn(args)->ret' -> '[A :-> R]' at the offending site."
                 )
             }
             CheckErrorKind::BareLegacyContainerHead { head, fqdn } => {

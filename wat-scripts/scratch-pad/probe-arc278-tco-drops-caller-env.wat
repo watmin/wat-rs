@@ -100,14 +100,14 @@
 ;; ── rows 3+4: a NON-service live resource — a raw kernel Listener' ───────────────
 (:wat::core::defn :tco::listener-non-tail [] -> wat.type/nil
   (:wat::core::let
-    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)]
     (:wat::core::do (:tco::dial a "listener: non-tail") nil)))
 
 (:wat::core::defn :tco::listener-let-tail [] -> wat.type/nil
   (:wat::core::let
-    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)]
     (:tco::dial a "listener: let-TAIL")))

@@ -99,10 +99,18 @@ fn contract_05_multi_arg() {
 
 #[test]
 fn contract_06_tuple() {
-    assert_eq!(
-        eval_string(":user::c06").expect("eval_string"),
-        include_str!("probe_arc251_keyword_to_type_form__contract-06-tuple.wat.golden")
-    );
+    // Arc 255.81 — `:(A, B)` no longer parses. The binder form is contract 09.
+    let err = eval_string(":user::c06").expect_err("keyword tuple");
+    match err.kind() {
+        RuntimeErrorKind::MalformedForm { head, reason } => {
+            assert_eq!(head, ":wat::keyword::to-type-form");
+            assert_eq!(
+                reason,
+                "type-keyword parse failed: MalformedTypeExpr { raw: \":(wat::core::i64,wat::core::String)\", reason: \"a keyword-bodied tuple `:(A, B)` is retired; write `(wat.type/Tuple :- [A B])`\" }"
+            );
+        }
+        other => panic!("expected MalformedForm, got {other:?}"),
+    }
 }
 
 #[test]

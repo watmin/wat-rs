@@ -4,7 +4,7 @@
 
 (:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
-    [pair  (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair  (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      l     (:wat::spawn::Bound/listener pair)
      addr  (:wat::spawn::Bound/address pair)
      svc   (:wat::test::spawn-peer (:wat::spawn::thread)

@@ -57,7 +57,7 @@
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
-                    [self (:wat::program::self-peer :wat::core::String
+                    [self (:wat::program::self-peer wat.type/String
                              (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]))
                      addr (:wat::core::match (:wat::kernel::recv self)               ;; A's addr (down)
                             [:wat::kernel::RecvOutcome.Message {:msg m} m]

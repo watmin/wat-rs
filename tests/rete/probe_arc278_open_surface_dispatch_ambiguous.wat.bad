@@ -14,7 +14,7 @@
 ;; successfully start up; `probe_arc278_open_surface_dispatch.rs` asserts the
 ;; specific error variant + message.
 
-(:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
+(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
 (:wat::core::defrecord  :probe::A [x <- wat.type/i64])
 (:wat::core::defrecord  :probe::B [y <- wat.type/i64])
 (:wat::core::extend-type :probe::A :probe::Reason)

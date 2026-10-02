@@ -61,7 +61,7 @@
                         (:probe::serve self held))]))
                 (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
-                    [self (:wat::program::self-peer :wat::core::String :probe::Msg)]
+                    [self (:wat::program::self-peer wat.type/String :probe::Msg)]
                     (:probe::serve self :wat::core::Option.None)))))
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             [:wat::core::Option.Some {:value p}

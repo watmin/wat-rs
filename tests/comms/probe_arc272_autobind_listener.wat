@@ -5,7 +5,7 @@
 ;; Same signature shape as the thread tier: (listener' host :S :R) -> (Bound :- [S R]).
 (:wat::core::defn :user::go [] -> wat.type/bool
   (:wat::core::let
-    [b (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+    [b (:wat::kernel::listener (:wat::spawn::process) wat.type/i64 wat.type/i64)
      l (:wat::spawn::Bound/listener b)
      a (:wat::spawn::Bound/address b)
      c (:wat::core::match (:wat::kernel::connect a) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]

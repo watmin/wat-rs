@@ -22,11 +22,11 @@
 
 (:wat::core::defn :user::orphaned-thread [] -> (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 :wat::kernel::Transport.Shared])
   (:wat::spawn::Bound/address
-    (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)))
+    (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)))
 
 (:wat::core::defn :user::orphaned-process [] -> (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 :wat::kernel::Transport.Wire])
   (:wat::spawn::Bound/address
-    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)))
+    (:wat::kernel::listener (:wat::spawn::process) wat.type/i64 wat.type/i64)))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do

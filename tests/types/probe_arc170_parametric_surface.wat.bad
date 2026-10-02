@@ -2,7 +2,7 @@
 ;; Proves the parametric surface return is genuinely TYPED (resolved to i64 per the IntBox
 ;; satisfier), not bare/any: ascribing it to String must be a located TypeMismatch.
 
-(:wat::core::defsurface :probe::Holds :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Holds :- [T] :nature wat.type/Struct
   :features
   [(get [self <- (:probe::Holds :- [T])] -> :T)])
 
@@ -13,5 +13,5 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [b   (:probe::IntBox 42)
-     bad (:wat::core::ann-form (:probe::Holds/get b) :wat::core::String)]
+     bad (:wat::core::ann-form (:probe::Holds/get b) wat.type/String)]
     (:wat::kernel::println "measured")))

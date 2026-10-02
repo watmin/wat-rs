@@ -3,7 +3,7 @@
 ;; Arc 293.3-core — a struct MISSING the surface member must FAIL.
 
 (:wat::core::defsurface :geo::Shape
-  :nature :wat::core::Struct
+  :nature wat.type/Struct
   :features [color <- wat.type/String])
 
 (:wat::core::defstruct :geo::Bare

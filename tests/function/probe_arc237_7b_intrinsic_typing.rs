@@ -87,8 +87,8 @@ fn contains_q_wrong_element_rejected_at_check() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":wat::core::contains?"
             && param == "#2"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String"
+            && expected == "wat.type/i64"
+            && got == "wat.type/String"
     );
 }
 
@@ -99,7 +99,7 @@ fn conj_wrong_element_rejected_at_check() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":wat::core::conj"
             && param == "#2"
-            && expected == ":wat::core::i64"
-            && got == ":wat::core::String"
+            && expected == "wat.type/i64"
+            && got == "wat.type/String"
     );
 }

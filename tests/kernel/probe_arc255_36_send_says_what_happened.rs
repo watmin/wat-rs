@@ -45,7 +45,7 @@ fn variant_name(v: &Value) -> String {
 const LIVE: &str = r#"
 (:wat::core::defn :user::live-peer [] -> (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])
   (:wat::core::let
-    [b (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [b (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      a (:wat::spawn::Bound/address b)]
     (:wat::core::match (:wat::kernel::connect a)
       [:wat::kernel::ConnectOutcome.Connected {:peer p} p]

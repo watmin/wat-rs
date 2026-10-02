@@ -3,30 +3,25 @@
   :location nil
   :causes []
   :errors [
-    #wat.check/MalformedForm {
-      :message "malformed :wat::core::f64 form: ':wat::core::f64' is retired (arc 255.81); use 'wat.type/f64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+    #wat.check/TypeMismatch {
+      :message ":my::trading::pretty: parameter #1 expects :my::trading::Price; got wat.type/f64"
       :location #wat.core/Span {
         :file "tests/types/newtype_rejects_inner_type.wat.bad"
-        :line 2
-        :col 42
+        :line 4
+        :col 74
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
-            :line 2
-            :col 57
+            :line 4
+            :col 79
           }
         }
       }
       :causes []
-      :head ":wat::core::f64"
-      :reason "':wat::core::f64' is retired (arc 255.81); use 'wat.type/f64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :remedies [
-        #wat.kernel/Remedy {
-          :form "wat.type/f64"
-          :kind :retirement
-          :score 0
-          :note nil
-        }
-      ]
+      :callee ":my::trading::pretty"
+      :param "#1"
+      :expected ":my::trading::Price"
+      :got "wat.type/f64"
+      :remedies []
     }
   ]
 }

@@ -15,5 +15,5 @@
 ;; After 2d: the :wat::program::self-peer producer checks is_pure_type(:w2d::S) → false → CHECK error.
 (:wat::core::defn :w2d::probe-impure-wire-peer [] -> wat.type/nil
   (:wat::core::let
-    [_pair (:wat::program::self-peer :w2d::S :wat::core::i64)]
+    [_pair (:wat::program::self-peer :w2d::S wat.type/i64)]
     nil))

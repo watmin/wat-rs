@@ -9,11 +9,11 @@
               (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::core::let
                   ;; the child mints its OWN rendezvous: autobind, no name (step 2b).
-                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+                  [b    (:wat::kernel::listener (:wat::spawn::process) wat.type/i64 wat.type/i64)
                    addr (:wat::spawn::Bound/address b)
                    ;; the self-peer carries the Address' capability child->parent (S = Address').
                    self (:wat::program::self-peer
-                          (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) :wat::core::i64)
+                          (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) wat.type/i64)
                    ;; hand the parent the capability — the lock-step handoff (it now has perfect knowledge).
                    _    (:wat::core::match (:wat::kernel::send self addr) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget capability handoff; outcome ignored uniformly regardless of cause
                    ;; accept the parent's dial on our own listener; round-trip n -> n+100.

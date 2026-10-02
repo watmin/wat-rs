@@ -66,7 +66,7 @@
              ;; work-fn as a VALUE and threads it through the recursion; NO by-name reference.
              (:wat::core::defn :bracket::pool-runner
                [self    <- (:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (wat.type/Tuple :- [wat.type/i64 wat.type/i64])])
-                work-fn <- :wat::core::Fn(wat::core::i64)->wat::core::i64]
+                work-fn <- [wat.type/i64 :-> wat.type/i64]]
                -> wat.type/nil
                (:wat::core::match (:wat::kernel::recv self)
                  [:wat::kernel::RecvOutcome.Message {:msg pair}

@@ -10,7 +10,7 @@
 ;; same way 255.74 trimmed `probe-compound-upcast.wat`'s retired Set case. Repaired by reporting
 ;; `c-ty`'s structural shape instead, and asserting both functions' claims.
 
-(:wat::core::defn :probe::argcount [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64
+(:wat::core::defn :probe::argcount [f <- [wat.type/i64 :-> wat.type/i64]] -> wat.type/i64
   (:wat::core::let
     [forms   (:wat::kernel::fn-forms f (:wat::keyword::from-string "user::probe::wf"))
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")

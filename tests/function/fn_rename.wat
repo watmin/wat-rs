@@ -10,7 +10,7 @@
              5))
 
 ;; T4: type-position canonical — :wat::core::Fn(...) works
-(:wat::core::defn :user::apply_t4 [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- wat.type/i64] -> wat.type/i64 (f x))
+(:wat::core::defn :user::apply_t4 [f <- [wat.type/i64 :-> wat.type/i64] x <- wat.type/i64] -> wat.type/i64 (f x))
 
 (:wat::core::defn :my::invoke_t4 [] -> wat.type/i64
   (:user::apply_t4
@@ -25,7 +25,7 @@
              7))
 
 ;; T6: :wat::core::Fn(...) type does NOT fire BareLegacyLowercaseFn
-(:wat::core::defn :user::apply_t6 [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- wat.type/i64] -> wat.type/i64 (f x))
+(:wat::core::defn :user::apply_t6 [f <- [wat.type/i64 :-> wat.type/i64] x <- wat.type/i64] -> wat.type/i64 (f x))
 
 (:wat::core::defn :my::invoke_t6 [] -> wat.type/i64
   (:user::apply_t6
@@ -42,7 +42,7 @@
              5))
 
 ;; T9: mixed canonical — fn operator + Fn type together
-(:wat::core::defn :user::apply_t9 [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- wat.type/i64] -> wat.type/i64 (f x))
+(:wat::core::defn :user::apply_t9 [f <- [wat.type/i64 :-> wat.type/i64] x <- wat.type/i64] -> wat.type/i64 (f x))
 
 (:wat::core::defn :my::invoke_t9 [] -> wat.type/i64
   (:user::apply_t9

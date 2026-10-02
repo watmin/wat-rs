@@ -3,4 +3,4 @@
 ;; startup MUST fail.
 
 (:wat::core::defn :user::bad [] -> wat.type/bool
-  (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) "x"))
+  (:wat::core::contains? (wat.type/Vector wat.type/i64 1 2 3) "x"))

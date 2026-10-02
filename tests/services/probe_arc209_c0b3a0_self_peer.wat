@@ -5,7 +5,7 @@
            (:wat::core::forms
              (:wat::core::defn :user::main [] -> wat.type/nil
                (:wat::core::let
-                 [self (:wat::program::self-peer :wat::core::i64 :wat::core::i64)
+                 [self (:wat::program::self-peer wat.type/i64 wat.type/i64)
                   x    (:wat::core::match (:wat::kernel::recv self)
                          [:wat::kernel::RecvOutcome.Message {:msg m} m]
                          [:wat::kernel::RecvOutcome.Lost {:cause cause}

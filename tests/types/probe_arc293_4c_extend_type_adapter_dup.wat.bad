@@ -5,7 +5,7 @@
 ;; because `:<wat::core::String>/tag` was already registered by the first.
 
 (:wat::core::defsurface :t::DupTagged
-  :nature :wat::core::Struct
+  :nature wat.type/Struct
   :features [(tag [self <- :t::DupTagged] -> wat.type/i64)])
 
 ;; First registration — should succeed.

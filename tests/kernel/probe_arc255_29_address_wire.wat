@@ -2,9 +2,9 @@
 ;; The process twin stays true: portable-for-a-process is the socket tier.
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [tb (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [tb (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      ta (:wat::spawn::Bound/address tb)
-     pb (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+     pb (:wat::kernel::listener (:wat::spawn::process) wat.type/i64 wat.type/i64)
      pa (:wat::spawn::Bound/address pb)]
     (:wat::core::do
       (:wat::kernel::println (:wat::kernel::address-wire? ta))

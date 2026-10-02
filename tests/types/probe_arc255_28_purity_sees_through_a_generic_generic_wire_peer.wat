@@ -3,5 +3,5 @@
   :Started [addr <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 T])])
 (:wat::core::defn :probe::generic-wire-peer [] -> wat.type/nil
   (:wat::core::let
-    [_self (:wat::program::self-peer (:probe::E :- [:wat::kernel::Transport.Wire]) :wat::core::i64)]
+    [_self (:wat::program::self-peer (:probe::E :- [:wat::kernel::Transport.Wire]) wat.type/i64)]
     nil))

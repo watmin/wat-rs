@@ -33,9 +33,9 @@
                     [_ nil]))
                 (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
-                    [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+                    [b    (:wat::kernel::listener (:wat::spawn::process) wat.type/i64 wat.type/i64)
                      self (:wat::program::self-peer
-                             (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) :wat::core::i64)
+                             (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) wat.type/i64)
                      _    (:wat::core::match (:wat::kernel::send self (:wat::spawn::Bound/address b)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
                     (:user::serve self (:wat::spawn::Bound/listener b)
                       (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]))))))
@@ -57,7 +57,7 @@
                     (:wat::core::let
                       ;; receive the leaked service address from the owner via our lineage channel.
                       [self (:wat::program::self-peer
-                               :wat::core::i64
+                               wat.type/i64
                                (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]))
                        addr (:wat::core::match (:wat::kernel::recv self)  ;; blocks until parent sends the cap
                               [:wat::kernel::RecvOutcome.Message {:msg m} m]

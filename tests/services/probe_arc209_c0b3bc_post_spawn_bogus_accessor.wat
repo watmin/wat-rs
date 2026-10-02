@@ -2,7 +2,7 @@
 ;; ProcessLaunch has no field `bogus-field` — startup must fail naming it.
 (:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
-    [bound (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [bound (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      addr  (:wat::spawn::Bound/address bound)
      tx    (:wat::core::match (:wat::kernel::connect addr)
              [:wat::kernel::ConnectOutcome.Connected {:peer p} p]

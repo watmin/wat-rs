@@ -69,7 +69,7 @@
 
 (:wat::core::defn :se::row-tail [] -> wat.type/nil
   (:wat::core::let
-    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)

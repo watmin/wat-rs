@@ -8,7 +8,7 @@
      ;; Arc 118.2a — `map` flipped LAZY; `map-worker` needs `items` eagerly ((Vector :- [I]) param).
      (:wat::core::mapv (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64 (:wat::core::+ i 1))
                       (:wat::core::range 0 50))
-     (:wat::core::fn [_wid <- wat.type/i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
+     (:wat::core::fn [_wid <- wat.type/i64] -> [wat.type/i64 :-> wat.type/i64]
        (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
      nil
      (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)

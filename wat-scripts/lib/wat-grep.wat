@@ -70,7 +70,7 @@
 ;; pred signature: WatAST -> bool.
 (:wat::core::defn :user::wat-grep
   [src  <- wat.type/String
-   pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
+   pred <- [wat.type/AST :-> wat.type/bool]]
   ;; Arc 118.2a — `filter` flipped LAZY; this fn's declared return type is `(Vector :- [WatAST])`, so `filterv`.
   -> (wat.type/Vector :- [wat.type/AST])
   (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
@@ -84,7 +84,7 @@
 ;; matched forms' character spans are deleted; everything else survives byte-identical.
 (:wat::core::defn :user::wat-grep-strip
   [src  <- wat.type/String
-   pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
+   pred <- [wat.type/AST :-> wat.type/bool]]
   -> wat.type/String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])

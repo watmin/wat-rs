@@ -7,7 +7,7 @@
 (:wat::core::defn :user::compute [] -> (wat.type/Vector :- [wat.type/i64])
    (:wat::bracket::map-worker (:wat::spawn::thread)
      (:wat::core::range 0 50)
-     (:wat::core::fn [wid <- wat.type/i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
+     (:wat::core::fn [wid <- wat.type/i64] -> [wat.type/i64 :-> wat.type/i64]
        (:wat::core::fn [_item <- wat.type/i64] -> wat.type/i64 wid))
      nil
      (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)

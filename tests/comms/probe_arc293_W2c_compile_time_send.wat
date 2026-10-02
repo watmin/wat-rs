@@ -22,5 +22,5 @@
 ;; The wire peer producer checks that I,O are pure; a struct is impure.
 (:wat::core::defn :w2c::probe-impure-wire-peer [] -> wat.type/nil
   (:wat::core::let
-    [_pair (:wat::program::self-peer :w2c::S :wat::core::i64)]
+    [_pair (:wat::program::self-peer :w2c::S wat.type/i64)]
     nil))

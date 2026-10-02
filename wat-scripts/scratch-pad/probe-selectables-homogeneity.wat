@@ -149,7 +149,7 @@
               (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::core::let
                   [b2   (:wat::kernel::listener (:wat::spawn::process) :probe-homog::Op :probe-homog::Reply)
-                   self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-homog::Op :probe-homog::Reply]) :wat::core::nil)
+                   self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-homog::Op :probe-homog::Reply]) wat.type/nil)
                    _sa  (:wat::kernel::send self (:wat::spawn::Bound/address b2))
                    t    (:wat::kernel::after :wat::program::PeerKind.process
                           (:wat::time::Millisecond 5) (:probe-homog::Op.Tick {}))]

@@ -19,7 +19,7 @@
   (:wat::i64::+ n 1))
 
 (:wat::core::defn :t::test2-apply-twice
-  [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
+  [f <- [wat.type/i64 :-> wat.type/i64]
    x <- wat.type/i64]
   -> wat.type/i64
   (f (f x)))
@@ -32,7 +32,7 @@
 (:wat::core::defn :t::test3-identity :- [T] [x <- :T] -> :T x)
 
 (:wat::core::defn :t::test3-apply
-  [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
+  [f <- [wat.type/i64 :-> wat.type/i64]
    x <- wat.type/i64]
   -> wat.type/i64
   (f x))

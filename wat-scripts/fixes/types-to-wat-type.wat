@@ -146,6 +146,19 @@
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-name new-text))))
 
+;; A value-position `:wat::core::nil` is the symbol `nil`, not `wat.type/nil`.
+;; Two shapes measured to restore a retirement the 255.81 nil arm was hiding:
+;; the body of `:wat::core::define`, and the body after a `:wat::core::unit`
+;; return. Doctrine fixtures that USE the keyword as the subject stay.
+(:wat::core::defn :t2wt::nil-value-edit
+  [node  <- wat.type/AST
+   lines <- (wat.type/Vector :- [wat.type/String])]
+  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
+                    old-name (:wat::core::ast-name node)]
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-name "nil"))))
+
 ;; (D) known BARE-type-taking form heads — a keyword sitting directly after these, with no
 ;; marker and no `:-` wrapper, is still a type: `(extend-type Child Target)`, `(derive Child
 ;; Parent)` both take a bare type in EVERY non-head position (measured: `wat/class.wat`'s 20+
@@ -223,6 +236,134 @@
     (:wat::core::if (:wat::core::= (:t2wt::item-name (:wat::core::first ch)) ":->") true
       (:t2wt::seq-is-fn-bracket? (:wat::core::rest ch)))))
 
+;; (I) BINDING-PAIR — amend 2 of stone 255.81. A two-element LIST `(name type)` whose
+;; first child is a bare binder symbol (`x`, `a`, `p`) and whose second is one of the
+;; 24 is the positional type slot: a lambda parameter, a `let*` binding, a struct or
+;; enum field. No `:-`/`<-` marker, so rules (A)–(H) miss it. LIST, not vector: a
+;; `let` binding is the vector `[name value]`, and `[x :wat::core::nil]` is the nil
+;; VALUE, which this rule must not respell. The first child's name is bare (no `:`,
+;; `/`, or `.`), which a call head is not.
+;; (J) CONSTRUCTOR CALL HEAD — the seven position-door constructors (stone 255.66).
+;; A list head that is one of them and is NOT followed by `:-` is a call, which rules
+;; (A)–(I) leave alone on purpose. After 255.81 that head no longer resolves, so an
+;; arity test of `(HashMap)` becomes a retirement instead of ArityMismatch. The live
+;; constructor spelling is `wat.type/HashMap`. A head followed by `:-` is a type form
+;; and stays on rule (A). This is the closed set of constructors, not a verb list.
+(:wat::core::defn :t2wt::constructor-head-name? [name <- wat.type/String] -> wat.type/bool
+  (:wat::core::or
+    (:wat::core::= name ":wat::core::HashMap")
+    (:wat::core::or
+      (:wat::core::= name ":wat::core::HashSet")
+      (:wat::core::or
+        (:wat::core::= name ":wat::core::Vector")
+        (:wat::core::or
+          (:wat::core::= name ":wat::core::List")
+          (:wat::core::or
+            (:wat::core::= name ":wat::core::Tuple")
+            (:wat::core::or
+              (:wat::core::= name ":wat::core::PersistentVector")
+              (:wat::core::= name ":wat::core::PersistentMap"))))))))
+
+(:wat::core::defn :t2wt::bare-binder-name? [name <- wat.type/String] -> wat.type/bool
+  (:wat::core::and
+    (:wat::core::> (:wat::string::length name) 0)
+    (:wat::core::= (:wat::core::length (:wat::string::split name ":")) 1)
+    (:wat::core::= (:wat::core::length (:wat::string::split name "/")) 1)
+    (:wat::core::= (:wat::core::length (:wat::string::split name ".")) 1)))
+
+;; A constructor call whose head is one of the seven, not already a `:-` type form.
+;; Zero arguments (an arity test, or a zero-arg `List` that must still resolve),
+;; a first argument that is one of the 24 (a positional type arg), or a first
+;; argument that is a vector (`(Tuple [] (List))` — the nested call is itself
+;; zero-arg and converts on its own walk). A first argument that is a list is
+;; NOT this shape: `~a` inside a quasiquote is an unquote list, and that template
+;; is the wall-on-expansion subject. A number or string is the bracket wall.
+(:wat::core::defn :t2wt::constructor-call-shape?
+  [is-last? <- wat.type/bool
+   next-node <- wat.type/AST
+   next-name <- wat.type/String]
+  -> wat.type/bool
+  (:wat::core::if is-last?
+    true
+    (:wat::core::let [k (:wat::core::ast-kind next-node)]
+      (:wat::core::or
+        (:wat::core::and (:wat::core::= k "keyword") (:t2wt::target-name? next-name))
+        (:wat::core::= k "vector")))))
+
+;; Amendment rule G — type arguments of a verb, keyed on the declared signature,
+;; not on a list of verb names. `signature-of-defn` of the call head:
+;;   a bare keyword parameter with no `::` (`:S`, `:R`) is a type variable the
+;;   caller passes, so that argument is a type position (`self-peer`);
+;;   a symbol parameter literally named `<type>` is a type position (`ann-form`,
+;;   already also rule D).
+;; `listener`'s signature is `(:wat::kernel::listener <xs>+)`. That text does not
+;; mark a type position (`extract-arg-types` is empty). The checker
+;; `infer_listener_prime` is the authority: the host is argument 0 and the next
+;; two arguments are types. This one signature is recognized by that printed
+;; form, and only indexes 2 and 3 of the call (the two arguments after the host)
+;; are type positions. A fourth argument is the process frame budget, a value.
+(:wat::core::defn :t2wt::sig-children
+  [head <- wat.type/AST]
+  -> (wat.type/Vector :- [wat.type/AST])
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+    (:wat::core::let [nm  (:wat::core::ast-name head)
+                      kw  (:wat::keyword::from-string (:wat::string::subs nm 1 (:wat::string::length nm)))
+                      sig (:wat::runtime::signature-of-defn kw)]
+      (:wat::core::match sig
+        [:wat::core::Option.Some {:value v}
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind v) "list")
+            (:wat::core::ast->children v)
+            [])]
+        [:wat::core::Option.None {} []]))
+    []))
+
+(:wat::core::defn :t2wt::sig-child-is-type-arg? [child <- wat.type/AST] -> wat.type/bool
+  (:wat::core::let [k  (:wat::core::ast-kind child)
+                    nm (:t2wt::item-name child)]
+    (:wat::core::or
+      (:wat::core::and
+        (:wat::core::= k "keyword")
+        (:wat::core::not (:t2wt::marker-symbol? nm))
+        (:wat::core::= (:wat::core::length (:wat::string::split nm "::")) 1)
+        (:wat::core::= (:wat::core::length (:wat::string::split nm "/")) 1))
+      (:wat::core::and (:wat::core::= k "symbol") (:wat::core::= nm "<type>")))))
+
+(:wat::core::defn :t2wt::listener-sig?
+  [ch <- (wat.type/Vector :- [wat.type/AST])]
+  -> wat.type/bool
+  (:wat::core::let [h (:wat::core::get ch 0)
+                    a (:wat::core::get ch 1)
+                    b (:wat::core::get ch 2)]
+    (:wat::core::and
+      (:wat::core::match b
+        [:wat::core::Option.None {} true]
+        [:wat::core::Option.Some {:value _} false])
+      (:wat::core::match h
+        [:wat::core::Option.Some {:value hv}
+          (:wat::core::= (:t2wt::item-name hv) ":wat::kernel::listener")]
+        [:wat::core::Option.None {} false])
+      (:wat::core::match a
+        [:wat::core::Option.Some {:value av}
+          (:wat::core::= (:t2wt::item-name av) "<xs>+")]
+        [:wat::core::Option.None {} false]))))
+
+(:wat::core::defn :t2wt::verb-type-arg?
+  [ch <- (wat.type/Vector :- [wat.type/AST])
+   idx <- wat.type/i64]
+  -> wat.type/bool
+  (:wat::core::or
+    (:wat::core::and
+      (:t2wt::listener-sig? ch)
+      (:wat::core::or (:wat::core::= idx 2) (:wat::core::= idx 3)))
+    (:wat::core::match (:wat::core::get ch idx)
+      [:wat::core::Option.Some {:value child} (:t2wt::sig-child-is-type-arg? child)]
+      [:wat::core::Option.None {} false])))
+
+;; (K) BROKEN TYPE SLOT — stone 255.81. A target keyword the binder arrow
+;; did not introduce is still the type slot: previous sibling exactly `=`,
+;; or index 2 of `:wat::core::fn` whose previous sibling is a vector (the
+;; return type where `->` is missing). A let binding has no `=`.
+
 ;; node-edits — one node's contribution: recurse if structural (this node becomes an
 ;; args-vector for ITS OWN children iff `prev-name` — OUR OWN preceding sibling in the
 ;; sequence that holds us — is exactly `:-`); else, a leaf keyword converts iff it is a
@@ -235,6 +376,10 @@
   [node          <- wat.type/AST
    in-args?      <- wat.type/bool
    last-eligible? <- wat.type/bool
+   binding-type? <- wat.type/bool
+   ctor-head?    <- wat.type/bool
+   nil-value?    <- wat.type/bool
+   broken-slot?  <- wat.type/bool
    prev-name     <- wat.type/String
    next-name     <- wat.type/String
    lines         <- (wat.type/Vector :- [wat.type/String])
@@ -265,7 +410,7 @@
                                            (:wat::core::and last-eligible?
                                              (:wat::core::= (:wat::core::ast-kind node) "vector")))))
                       child-only-last? (:t2wt::only-last-child-is-type-form? head-name)]
-      (:t2wt::walk-seq ch child-in-args? child-only-last? "" lines src))
+      (:t2wt::walk-seq ch child-in-args? child-only-last? (:wat::core::ast-kind node) 0 "" [] false "" "" lines src))
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
       (:wat::core::if (:t2wt::target-name? (:wat::core::ast-name node))
         (:wat::core::if (:wat::fix::source-matches-name? node lines src)
@@ -279,7 +424,15 @@
                   (:t2wt::conv-edit node lines)
                   (:wat::core::if (:t2wt::nature-value? prev-name)
                     (:t2wt::conv-edit node lines)
-                    (:wat::fix::empty-edits))))))
+                    (:wat::core::if binding-type?
+                      (:t2wt::conv-edit node lines)
+                      (:wat::core::if ctor-head?
+                        (:t2wt::conv-edit node lines)
+                        (:wat::core::if nil-value?
+                          (:t2wt::nil-value-edit node lines)
+                          (:wat::core::if broken-slot?
+                            (:t2wt::conv-edit node lines)
+                            (:wat::fix::empty-edits))))))))))
           ;; reader-synthesized (span text ≠ ast-name) — never convert.
           (:wat::fix::empty-edits))
         (:wat::fix::empty-edits))
@@ -293,7 +446,13 @@
   [items      <- (wat.type/Vector :- [wat.type/AST])
    in-args?   <- wat.type/bool
    only-last? <- wat.type/bool
+   seq-kind   <- wat.type/String
+   idx        <- wat.type/i64
    prev-name  <- wat.type/String
+   sig-ch     <- (wat.type/Vector :- [wat.type/AST])
+   converting-ctor? <- wat.type/bool
+   seq-head   <- wat.type/String
+   prev-kind  <- wat.type/String
    lines      <- (wat.type/Vector :- [wat.type/String])
    src        <- wat.type/String]
   -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
@@ -302,14 +461,53 @@
     (:wat::core::let [h            (:wat::core::first items)
                       tl           (:wat::core::rest items)
                       is-last?     (:wat::core::empty? tl)
+                      next-node    (:wat::core::if is-last? h (:wat::core::first tl))
                       next-name    (:wat::core::if is-last?
                                      ""
-                                     (:t2wt::item-name (:wat::core::first tl)))
+                                     (:t2wt::item-name next-node))
+                      here-sig     (:wat::core::if (:wat::core::and (:wat::core::= idx 0) (:wat::core::= seq-kind "list"))
+                                     (:t2wt::sig-children h)
+                                     sig-ch)
+                      here-ctor?   (:wat::core::if (:wat::core::= idx 0)
+                                     (:wat::core::and
+                                       (:wat::core::= seq-kind "list")
+                                       (:wat::core::not (:wat::core::= next-name ":-"))
+                                       (:t2wt::constructor-head-name? (:t2wt::item-name h))
+                                       (:t2wt::constructor-call-shape? is-last? next-node next-name))
+                                     converting-ctor?)
                       last-eligible? (:wat::core::if only-last? is-last? false)
-                      h-edits      (:t2wt::node-edits h in-args? last-eligible? prev-name next-name lines src)
-                      h-name       (:t2wt::item-name h)]
+                      binding-type? (:wat::core::and is-last?
+                                      (:wat::core::= idx 1)
+                                      (:wat::core::= seq-kind "list")
+                                      (:t2wt::bare-binder-name? prev-name))
+                      ;; Head of a converting constructor, a 24-keyword argument of one,
+                      ;; or a signature-keyed verb type argument. `node-edits` still
+                      ;; requires the leaf to be a target keyword, so a number or a
+                      ;; non-24 keyword passed with this flag set is not rewritten.
+                      call-type?   (:wat::core::or
+                                     (:wat::core::and (:wat::core::= idx 0) here-ctor?)
+                                     (:wat::core::and (:wat::core::> idx 0) here-ctor?)
+                                     (:wat::core::and
+                                       (:wat::core::= seq-kind "list")
+                                       (:t2wt::verb-type-arg? here-sig idx)))
+                      h-name       (:t2wt::item-name h)
+                      here-head    (:wat::core::if (:wat::core::= idx 0) "" seq-head)
+                      nil-value?   (:wat::core::and
+                                     (:wat::core::= h-name ":wat::core::nil")
+                                     (:wat::core::or
+                                       (:wat::core::= prev-name ":wat::core::unit")
+                                       (:wat::core::and is-last?
+                                         (:wat::core::= here-head ":wat::core::define"))))
+                      broken-slot? (:wat::core::or
+                                     (:wat::core::= prev-name "=")
+                                     (:wat::core::and
+                                       (:wat::core::= here-head ":wat::core::fn")
+                                       (:wat::core::= idx 2)
+                                       (:wat::core::= prev-kind "vector")))
+                      h-edits      (:t2wt::node-edits h in-args? last-eligible? binding-type? call-type? nil-value? broken-slot? prev-name next-name lines src)
+                      next-head    (:wat::core::if (:wat::core::= idx 0) h-name seq-head)]
       (:wat::core::concat h-edits
-        (:t2wt::walk-seq tl in-args? only-last? h-name lines src)))))
+        (:t2wt::walk-seq tl in-args? only-last? seq-kind (:wat::core::+ idx 1) h-name here-sig here-ctor? next-head (:wat::core::ast-kind h) lines src)))))
 
 ;; convert — one file's source text, fully converted.
 (:wat::core::defn :t2wt::convert
@@ -323,7 +521,7 @@
                 (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms  (:wat::core::ast->children tree)
      ;; top-level forms are never in-args and have no preceding sibling.
-     edits  (:t2wt::walk-seq forms false false "" lines src)
+     edits  (:t2wt::walk-seq forms false false (:wat::core::ast-kind tree) 0 "" [] false "" "" lines src)
      sorted (:wat::core::sort
               (:wat::core::fn [a <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
                                b <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]

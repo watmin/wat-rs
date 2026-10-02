@@ -4,7 +4,7 @@
 ;; the receiver-satisfaction fix (commit b2360c7a): a mistyped satisfier is caught at check time,
 ;; not silently accepted.
 
-(:wat::core::defsurface :probe::Holds :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Holds :- [T] :nature wat.type/Struct
   :features
   [(get [self <- (:probe::Holds :- [T])] -> :T)])
 

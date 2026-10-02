@@ -3,6 +3,6 @@
 ;; startup must Err. (After the strike the rejection is the nature bound; at HEAD it errs earlier
 ;; at the `:nature :wat::core::Record` parse — either way the struct never satisfies the portable surface.)
 (:wat::core::defstruct :env::Stru [host <- wat.type/String])
-(:wat::core::defsurface :env::Portable :nature :wat::core::Record :features [])
+(:wat::core::defsurface :env::Portable :nature wat.type/Record :features [])
 (:wat::core::defn :env::take [p <- :env::Portable] -> wat.type/i64 42)
 (:wat::core::defn :env::feed-struct [] -> wat.type/i64 (:env::take (:env::Stru "h")))

@@ -255,7 +255,7 @@ const INNER_RENDERER_DRIVER: &str = "tests/lint/probe_c19_nested_type_var_render
 /// second element infers as `(wat::core::List :- [_])`, not a bare var — see the fixture's own
 /// header for why. Updated to the real, measured value; the mutation-proof purpose (both `_`s
 /// still come from `format_type_inner`) is unchanged.
-const INNER_RENDERER_EXPECTED_GOT: &str = ":((wat::core::Vector :- [_]),(wat::core::List :- [_]))";
+const INNER_RENDERER_EXPECTED_GOT: &str = ":((wat.type/Vector :- [_]),(wat.type/List :- [_]))";
 
 fn collect_bad(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };

@@ -118,7 +118,7 @@ fn contract_05_rest_element_type_mismatch_errors() {
                     && matches!(
                         &attempted_clauses[0].failure_reason,
                         ClauseFailureReason::ArgTypeMismatch { position, expected, got }
-                            if *position == 2 && expected == ":wat::core::i64" && got == ":wat::core::String"
+                            if *position == 2 && expected == "wat.type/i64" && got == ":wat::type::String"
                     )
             )
         ),
@@ -135,7 +135,7 @@ fn contract_06_under_supply_below_fixed_errors() {
         CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
             if name == ":my::pair"
             && *called_arity == 1
-            && called_arg_types.as_slice() == [":wat::core::i64".to_string()]
+            && called_arg_types.as_slice() == ["wat.type/i64".to_string()]
     );
 }
 
@@ -148,7 +148,7 @@ fn contract_07_fixed_only_strict_arity_preserved() {
         CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
             if name == ":my::strict"
             && *called_arity == 2
-            && called_arg_types.as_slice() == [":wat::core::i64".to_string(), ":wat::core::i64".to_string()]
+            && called_arg_types.as_slice() == ["wat.type/i64".to_string(), "wat.type/i64".to_string()]
     );
 }
 

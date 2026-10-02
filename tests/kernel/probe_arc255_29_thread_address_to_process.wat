@@ -14,7 +14,7 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [b  (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [b  (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      a  (:wat::spawn::Bound/address b)
      p  (:wat::test::spawn-peer (:wat::spawn::process)
           (:wat::core::forms

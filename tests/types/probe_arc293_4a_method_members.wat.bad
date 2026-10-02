@@ -6,7 +6,7 @@
 ;; because :t::NoMethod does not satisfy :t::Shape's method member `area`).
 
 (:wat::core::defsurface :t::Shape
-  :nature :wat::core::Struct
+  :nature wat.type/Struct
   :features [color <- wat.type/String
    (area [self <- :t::Shape] -> wat.type/f64)])
 

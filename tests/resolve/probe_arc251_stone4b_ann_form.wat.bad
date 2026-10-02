@@ -1,1 +1,1 @@
-(:wat::core::defn :user::f [] -> wat.type/String (:wat::core::ann-form 42 :wat::core::String))
+(:wat::core::defn :user::f [] -> wat.type/String (:wat::core::ann-form 42 wat.type/String))

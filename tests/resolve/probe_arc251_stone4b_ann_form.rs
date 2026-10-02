@@ -30,8 +30,8 @@ fn contract_02_mismatched_ascription_rejected() {
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
             if callee == ":wat::core::ann-form"
             && param == "expr"
-            && expected == ":wat::core::String"
-            && got == ":wat::core::i64"
+            && expected == "wat.type/String"
+            && got == "wat.type/i64"
     );
 }
 

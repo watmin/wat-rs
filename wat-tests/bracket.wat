@@ -51,7 +51,7 @@
   (:wat::test::assert-eq
     (:wat::bracket::map-worker (:wat::spawn::thread)
       (wat.type/Vector :- [wat.type/i64] 1 2 3)
-      (:wat::core::fn [_wid <- wat.type/i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
+      (:wat::core::fn [_wid <- wat.type/i64] -> [wat.type/i64 :-> wat.type/i64]
         (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
       nil
       (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)
@@ -65,7 +65,7 @@
   (:wat::test::assert-eq
     (:wat::bracket::each-worker (:wat::spawn::thread)
       (:wat::core::range 0 5)
-      (:wat::core::fn [_wid <- wat.type/i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
+      (:wat::core::fn [_wid <- wat.type/i64] -> [wat.type/i64 :-> wat.type/i64]
         (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
       nil
       (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)

@@ -1,57 +1,22 @@
-#wat.check/CheckErrors {
-  :message "2 type-check errors"
+#wat.resolve/UnresolvedReferences {
+  :message "1 unresolved reference"
   :location nil
   :causes []
-  :errors [
-    #wat.check/MalformedForm {
-      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :location #wat.core/Span {
+  :unresolved [
+    #wat.resolve/UnresolvedReference {
+      :path ":wat::spawn::ProcessLaunch/bogus-field"
+      :context "call head — not a builtin, not a registered function"
+      :span #wat.core/Span {
         :file "tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat"
-        :line 5
-        :col 58
+        :line 19
+        :col 81
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
-            :line 5
-            :col 73
+            :line 19
+            :col 119
           }
         }
       }
-      :causes []
-      :head ":wat::core::i64"
-      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :remedies [
-        #wat.kernel/Remedy {
-          :form "wat.type/i64"
-          :kind :retirement
-          :score 0
-          :note nil
-        }
-      ]
-    }
-    #wat.check/MalformedForm {
-      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :location #wat.core/Span {
-        :file "tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat"
-        :line 5
-        :col 74
-        :end #wat.core/Option.Some {
-          :value #wat.core/Pos {
-            :line 5
-            :col 89
-          }
-        }
-      }
-      :causes []
-      :head ":wat::core::i64"
-      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :remedies [
-        #wat.kernel/Remedy {
-          :form "wat.type/i64"
-          :kind :retirement
-          :score 0
-          :note nil
-        }
-      ]
     }
   ]
 }

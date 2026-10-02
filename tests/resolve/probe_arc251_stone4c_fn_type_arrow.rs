@@ -2,7 +2,7 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_stone4c_fn_type_arrow`
 
-use wat::freeze::startup_beside;
+use wat::freeze::{startup_beside, startup_from_file};
 
 #[test]
 fn contract_01_fn_type_bracket_checks() {
@@ -13,9 +13,16 @@ fn contract_01_fn_type_bracket_checks() {
 }
 
 #[test]
-fn contract_02_keyword_fn_type_still_checks() {
-    assert!(
-        startup_beside(file!()).is_ok(),
-        ":wat::core::Fn(...)->... keyword fn-type must keep type-checking"
+fn contract_02_keyword_fn_type_is_refused() {
+    let err = match startup_from_file(
+        "tests/resolve/probe_arc251_stone4c_fn_keyword_retired.wat.bad",
+    ) {
+        Err(e) => format!("{:?}", e),
+        Ok(_) => panic!("keyword-bodied fn type must be refused"),
+    };
+    wat::assert_edn_matches_file!(
+        err,
+        "probe_arc251_stone4c_fn_keyword_retired.edn",
+        "255.81 keyword fn type refusal"
     );
 }

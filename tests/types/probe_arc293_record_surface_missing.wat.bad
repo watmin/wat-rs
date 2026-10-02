@@ -2,7 +2,7 @@
 ;;
 ;; Arc 293.3-records — a record MISSING a surface member is rejected.
 
-(:wat::core::defsurface :geo::Shape :nature :wat::core::Struct :features [color <- wat.type/String])
+(:wat::core::defsurface :geo::Shape :nature wat.type/Struct :features [color <- wat.type/String])
 (:wat::core::defrecord :geo::Bare [other <- wat.type/i64])
 (:wat::core::defn :geo::describe [s <- :geo::Shape] -> wat.type/String
   "ok")

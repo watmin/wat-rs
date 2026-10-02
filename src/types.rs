@@ -6696,8 +6696,7 @@ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
 /// Arc 251.4c — parse a function-type bracket `[arg… :-> ret]` → `TypeExpr::Fn`.
 ///
 /// core.typed's function-type surface. Produces the SAME `TypeExpr::Fn { args, ret }`
-/// the keyword form `:wat::core::Fn(args)->ret` yields (`parse_fn_body`), so the two
-/// spellings unify. Args and the return type are each parsed via [`parse_type_node`]
+/// Args and the return type are each parsed via [`parse_type_node`]
 /// (so they inherit the keyword / `wat.type/` / parametric-form surfaces). The lone
 /// `:->` keyword separates the argument types from the single return type.
 fn parse_fn_type_bracket(items: &[WatAST], span: &Span) -> Result<TypeExpr, TypeError> {
@@ -7051,21 +7050,22 @@ fn parse_type_inner(
         let inside = &rest[..rest.len() - 1];
         return parse_tuple_body(inside, original, canonicalize, span);
     }
-    // `fn(args)->ret` function type — detect at the start.
-    // Arc 155 — `:wat::core::Fn(args)->ret` is the canonical FQDN
-    // spelling of the function type (Cap'd type head per the
-    // Clojure-faithful capitalization convention; `Fn` = type,
-    // `fn` = verb). Both the bare `fn(` prefix and the FQDN
-    // `wat::core::Fn(` prefix parse to the same `TypeExpr::Fn`
-    // internal representation (canonical-form invariant: the type
-    // unifier sees one shape). The `walk_for_legacy_lowercase_fn`
-    // walker in `src/check.rs` fires `BareLegacyLowercaseFn` per
-    // bare `:fn(...)` site for sweep 1b's mechanical migration.
-    if let Some(body) = s.strip_prefix("fn(") {
-        return parse_fn_body(body, original, canonicalize, span);
-    }
-    if let Some(body) = s.strip_prefix("wat::core::Fn(") {
-        return parse_fn_body(body, original, canonicalize, span);
+    // Arc 255.81 — the keyword-bodied fn type is retired. The only arrow
+    // is the bracket `[A :-> R]` (stone 251.4c). Both `fn(` and
+    // `wat::core::Fn(` used to parse here via `parse_fn_body`; that
+    // function is gone with the form. Bare `:fn(` still also trips
+    // `BareLegacyLowercaseFn` in `src/check.rs`, whose remedy names the
+    // same bracket.
+    if s.starts_with("fn(") || s.starts_with("wat::core::Fn(") {
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
+                raw: original.into(),
+                reason: "a keyword-bodied fn type is retired; write the bracket `[A :-> R]` \
+                         (stone 251.4c). `:fn(A)->R` and `:wat::core::Fn(A)->R` no longer parse"
+                    .into(),
+            },
+        ));
     }
     // Arc 109 ③ — angle brackets are ILLEGAL for a parametric type
     // REFERENCE / annotation. `Head<args>` used to be sniffed and split
@@ -7179,46 +7179,16 @@ fn parse_tuple_body(
         // `:(T)` is grouping — return the inner type unwrapped.
         return Ok(elements.into_iter().next().unwrap());
     }
-    Ok(TypeExpr::Tuple(elements))
-}
-
-fn parse_fn_body(
-    body: &str,
-    original: &str,
-    canonicalize: bool,
-    span: &Span,
-) -> Result<TypeExpr, TypeError> {
-    // body is `T,U)->R` — find the matching `)` at depth 0.
-    let close = find_matching_close(body, '(', ')').ok_or_else(|| {
-        TypeError::new(
-            span.clone(),
-            TypeErrorKind::MalformedTypeExpr {
-                raw: original.into(),
-                reason: "fn type missing matching ')'".into(),
-            },
-        )
-    })?;
-    let args_part = &body[..close];
-    let tail = &body[close + 1..];
-    let ret_part = tail.strip_prefix("->").ok_or_else(|| {
-        TypeError::new(
-            span.clone(),
-            TypeErrorKind::MalformedTypeExpr {
-                raw: original.into(),
-                reason: "fn type missing '->' before return".into(),
-            },
-        )
-    })?;
-    let args = if args_part.trim().is_empty() {
-        Vec::new()
-    } else {
-        parse_type_list(args_part, original, canonicalize, span)?
-    };
-    let ret = parse_type_inner(ret_part, original, canonicalize, span)?;
-    Ok(TypeExpr::Fn {
-        args,
-        ret: Box::new(ret),
-    })
+    // Arc 255.81 — `:(A, B)` is retired with the keyword-bodied fn type.
+    // The live product is the binder `(wat.type/Tuple :- [A B])`.
+    Err(TypeError::new(
+        span.clone(),
+        TypeErrorKind::MalformedTypeExpr {
+            raw: original.into(),
+            reason: "a keyword-bodied tuple `:(A, B)` is retired; write `(wat.type/Tuple :- [A B])`"
+                .into(),
+        },
+    ))
 }
 
 /// Parse a comma-separated list of types (respecting nested `<>` and `()`).
@@ -7334,23 +7304,6 @@ fn find_top_level_char(s: &str, c: char) -> Option<usize> {
             _ => {}
         }
         prev_char = Some(ch);
-    }
-    None
-}
-
-/// Given a string that has just consumed an `open` bracket, find the
-/// byte index of the matching `close` (accounting for nesting).
-fn find_matching_close(s: &str, open: char, close: char) -> Option<usize> {
-    let mut depth = 1i32; // caller already consumed the opening `open`
-    for (i, c) in s.char_indices() {
-        if c == open {
-            depth += 1;
-        } else if c == close {
-            depth -= 1;
-            if depth == 0 {
-                return Some(i);
-            }
-        }
     }
     None
 }
@@ -7972,17 +7925,13 @@ mod tests {
 
     #[test]
     fn arc115_legal_compound_args_pass() {
-        // Canonical forms — no inner colons. Arc 109 ③ retired angle-bracket parametrics
-        // entirely: there is no flat-string spelling for them any more (the reference
-        // form `(Head :- [args])` only parses from a structural `WatAST::List`, never
-        // from a keyword string via `parse_type_expr`) — so this now covers only the
-        // compounds that still have a legal STRING spelling: non-parametric
-        // `fn(...)->...` and the native tuple `:(...)`. The angle-bracket cases this
-        // used to assert as legal are covered (as REFUSALS) by
-        // `angle_bracket_parametric_head_is_illegal` below.
+        // Arc 109 ③ retired angle-bracket parametrics. Arc 255.81 retires the two
+        // string compounds this test used to accept: `:fn(...)->...` and `:(...)`.
+        // Arc 255.81 — both remaining string spellings are retired. `:fn(A)->R`
+        // names the bracket; `:(A, B)` names the Tuple binder.
         for input in &[":fn(i64)->bool", ":(wat.type/i64,wat.type/String)"] {
             let r = parse_type_expr(input);
-            assert!(r.is_ok(), "expected {} to parse; got: {:?}", input, r);
+            assert!(r.is_err(), "expected {} to be REFUSED; got: {:?}", input, r);
         }
     }
 
@@ -8300,7 +8249,7 @@ mod tests {
     #[test]
     fn typealias_function_type() {
         let (env, _) = collect(
-            r#"(:wat::core::typealias :my::Predicate :fn(wat::holon::HolonAST)->wat::core::bool)"#,
+            r#"(:wat::core::typealias :my::Predicate [:wat::holon::HolonAST :-> wat.type/bool])"#,
         )
         .unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Predicate").unwrap() {
@@ -8308,7 +8257,7 @@ mod tests {
                 TypeExpr::Fn { args, ret } => {
                     assert_eq!(args.len(), 1);
                     assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
-                    assert_eq!(**ret, TypeExpr::Path(":wat::core::bool".into()));
+                    assert_eq!(**ret, TypeExpr::Path(":wat::type::bool".into()));
                 }
                 other => panic!("expected Fn, got {:?}", other),
             }
@@ -8531,11 +8480,11 @@ mod tests {
 
     #[test]
     fn type_expr_parametric_nested() {
-        // Arc 109 ③ — same structural-form migration as `type_expr_parametric` above; the
-        // inner `fn(i32)->i32` stays string-spelled (non-parametric fn args are still legal
-        // in the flat form) as one arg of the outer reference form.
-        let form = crate::parse_one!("(wat.type/HashMap :- [wat.type/String :fn(i32)->i32])")
-            .unwrap();
+        // Arc 255.81 — the inner fn type is the bracket, not `:fn(i32)->i32`.
+        let form = crate::parse_one!(
+            "(wat.type/HashMap :- [wat.type/String [wat.type/i64 :-> wat.type/i64]])"
+        )
+        .unwrap();
         let t = parse_type_node(&form).unwrap();
         match t {
             TypeExpr::Parametric { head, args } => {
@@ -8544,8 +8493,8 @@ mod tests {
                 match &args[1] {
                     TypeExpr::Fn { args: fn_args, ret } => {
                         assert_eq!(fn_args.len(), 1);
-                        assert_eq!(fn_args[0], TypeExpr::Path(":i32".into()));
-                        assert_eq!(**ret, TypeExpr::Path(":i32".into()));
+                        assert_eq!(fn_args[0], TypeExpr::Path(":wat::type::i64".into()));
+                        assert_eq!(**ret, TypeExpr::Path(":wat::type::i64".into()));
                     }
                     _ => panic!("expected inner fn"),
                 }
@@ -8556,13 +8505,24 @@ mod tests {
 
     #[test]
     fn type_expr_fn_no_args() {
-        let t = parse_type_expr(":fn()->wat::holon::HolonAST").unwrap();
+        let err = parse_type_expr(":fn()->wat::holon::HolonAST").expect_err("keyword fn type");
+        match err.kind() {
+            TypeErrorKind::MalformedTypeExpr { reason, .. } => {
+                assert!(
+                    reason.contains("[A :-> R]"),
+                    "remedy must name the bracket, got {reason}"
+                );
+            }
+            other => panic!("expected MalformedTypeExpr, got {other:?}"),
+        }
+        let form = crate::parse_one!("[:-> :wat::holon::HolonAST]").unwrap();
+        let t = parse_type_node(&form).unwrap();
         match t {
             TypeExpr::Fn { args, ret } => {
                 assert!(args.is_empty());
                 assert_eq!(*ret, TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
-            _ => panic!(),
+            other => panic!("expected nullary bracket Fn, got {other:?}"),
         }
     }
 
@@ -8585,23 +8545,26 @@ mod tests {
 
     #[test]
     fn type_expr_tuple_pair() {
-        let t = parse_type_expr(":(wat.type/i64,wat.type/String)").unwrap();
-        match t {
-            TypeExpr::Tuple(elements) => {
-                assert_eq!(elements.len(), 2);
-                assert_eq!(elements[0], TypeExpr::Path(":wat::type::i64".into()));
-                assert_eq!(elements[1], TypeExpr::Path(":wat::type::String".into()));
+        let err = parse_type_expr(":(wat.type/i64,wat.type/String)").expect_err("keyword tuple");
+        match err.kind() {
+            TypeErrorKind::MalformedTypeExpr { reason, .. } => {
+                assert!(
+                    reason.contains("(wat.type/Tuple :- [A B])"),
+                    "remedy must name the binder, got {reason}"
+                );
             }
-            other => panic!("expected Tuple(i64,String), got {:?}", other),
+            other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
     }
 
     #[test]
     fn type_expr_tuple_triple() {
-        let t = parse_type_expr(":(Holon,wat::holon::HolonAST,Holon)").unwrap();
-        match t {
-            TypeExpr::Tuple(elements) => assert_eq!(elements.len(), 3),
-            other => panic!("expected 3-tuple, got {:?}", other),
+        let err = parse_type_expr(":(Holon,wat::holon::HolonAST,Holon)").expect_err("keyword tuple");
+        match err.kind() {
+            TypeErrorKind::MalformedTypeExpr { reason, .. } => {
+                assert!(reason.contains("(wat.type/Tuple :- [A B])"), "{reason}");
+            }
+            other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
     }
 
@@ -8614,14 +8577,13 @@ mod tests {
 
     #[test]
     fn type_expr_tuple_one_element_trailing_comma_is_tuple() {
-        // :(T,) is the explicit 1-tuple.
-        let t = parse_type_expr(":(wat.type/i64,)").unwrap();
-        match t {
-            TypeExpr::Tuple(elements) => {
-                assert_eq!(elements.len(), 1);
-                assert_eq!(elements[0], TypeExpr::Path(":wat::type::i64".into()));
+        // `:(T,)` was the explicit 1-tuple. Arc 255.81 retires every keyword-bodied tuple.
+        let err = parse_type_expr(":(wat.type/i64,)").expect_err("keyword tuple");
+        match err.kind() {
+            TypeErrorKind::MalformedTypeExpr { reason, .. } => {
+                assert!(reason.contains("(wat.type/Tuple :- [A B])"), "{reason}");
             }
-            other => panic!("expected 1-tuple, got {:?}", other),
+            other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
     }
 
@@ -8646,20 +8608,16 @@ mod tests {
 
     #[test]
     fn type_expr_tuple_with_nested_tuple() {
-        // The comma-depth-tracking coverage the retired `type_expr_tuple_with_nested_parametric`
-        // carried, over a shape that is STILL legal: nested tuples via parens. Nested commas at
-        // depth > 0 (inside either inner tuple) must not split the outer tuple.
-        let t = parse_type_expr(
+        // Nested keyword tuples are the same retired form. The live product is the binder.
+        let err = parse_type_expr(
             ":((wat::core::i64,wat::core::String),(wat::core::bool,wat::core::f64))",
         )
-        .unwrap();
-        match t {
-            TypeExpr::Tuple(elements) => {
-                assert_eq!(elements.len(), 2);
-                assert!(matches!(&elements[0], TypeExpr::Tuple(inner) if inner.len() == 2));
-                assert!(matches!(&elements[1], TypeExpr::Tuple(inner) if inner.len() == 2));
+        .expect_err("keyword tuple");
+        match err.kind() {
+            TypeErrorKind::MalformedTypeExpr { reason, .. } => {
+                assert!(reason.contains("(wat.type/Tuple :- [A B])"), "{reason}");
             }
-            other => panic!("expected 2-tuple of tuples, got {:?}", other),
+            other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
     }
 
@@ -8671,38 +8629,18 @@ mod tests {
 
     #[test]
     fn type_expr_tuple_with_fn_element_arrow_not_a_bracket_close() {
-        // Arc 170 W2 regression — a `Fn(...)->T` element in a NON-final tuple position.
-        // Before the fix, `parse_type_list` decremented `depth` on the `>` of the `->` arrow,
-        // underflowing to -1, so the comma AFTER the arrow was never seen as a top-level split:
-        // the whole tail collapsed into one opaque `Path("wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64")`.
-        // It must parse as a 2-element Tuple: [Fn(i64)->i64, i64].
-        let t = parse_type_expr(":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64)")
-            .unwrap();
-        match t {
-            TypeExpr::Tuple(elements) => {
-                assert_eq!(
-                    elements.len(),
-                    2,
-                    "Fn(...)->T arrow must not swallow the trailing comma: {elements:?}"
-                );
-                match &elements[0] {
-                    TypeExpr::Fn { args, ret } => {
-                        assert_eq!(args.len(), 1);
-                        // Arc 255.81 — the input literal above stays the RETIRED
-                        // `:wat::core::Fn(args)->ret` keyword-body spelling, at the builder's
-                        // explicit instruction (it becomes the bracket form by its own codemod
-                        // in its own later stone, not an ad-hoc respelling here). With
-                        // `canonical_type_key` now pure identity, an old-spelled bare path
-                        // inside it parses to an old-spelled `Path`, unchanged — not the new
-                        // `:wat::type::i64` key.
-                        assert_eq!(args[0], TypeExpr::Path(":wat::core::i64".into()));
-                        assert_eq!(**ret, TypeExpr::Path(":wat::core::i64".into()));
-                    }
-                    other => panic!("expected element 0 = Fn(i64)->i64, got {other:?}"),
-                }
-                assert_eq!(elements[1], TypeExpr::Path(":wat::core::i64".into()));
+        // Arc 170 W2 kept a `>`-of-`->` from splitting a keyword tuple. Arc 255.81
+        // retires that tuple and the keyword fn type together, so the string is refused
+        // before the element is stored. The remedy names the Tuple binder.
+        let err = parse_type_expr(":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64)")
+            .expect_err("keyword tuple");
+        match err.kind() {
+            TypeErrorKind::MalformedTypeExpr { reason, .. } => {
+                // The fn element is parsed before the tuple is accepted, so the
+                // refusal that surfaces is the fn type's, naming the bracket.
+                assert!(reason.contains("[A :-> R]"), "{reason}");
             }
-            other => panic!("expected 2-tuple (Fn(i64)->i64, i64), got {other:?}"),
+            other => panic!("expected MalformedTypeExpr, got {other:?}"),
         }
     }
 

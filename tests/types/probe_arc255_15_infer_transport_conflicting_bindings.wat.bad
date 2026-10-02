@@ -3,7 +3,7 @@
 ;; bind DIFFERENT transports: `Th` binds `Shared`, `Pr` binds `Wire`.
 (:wat::core::defrecord :probe::Shared [a <- wat.type/i64])
 (:wat::core::defrecord :probe::Wire [b <- wat.type/String])
-(:wat::core::defsurface :probe::Loc :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Loc :- [T] :nature wat.type/Struct
   :features [(transport [self <- (:probe::Loc :- [T])] -> :T)])
 (:wat::core::defrecord :probe::Th [x <- wat.type/i64])
 (:wat::core::extend-type :probe::Th (:probe::Loc :- [:probe::Shared]) (transport [self] (:probe::Shared :a 1)))

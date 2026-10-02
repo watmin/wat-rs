@@ -1,1 +1,1 @@
-(:wat::core::struct :my::Point (x :wat::core::i64))
+(:wat::core::struct :my::Point (x wat.type/i64))

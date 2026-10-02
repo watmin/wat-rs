@@ -2,5 +2,5 @@
 ;; E05: symbol `=>` where `->` is expected.
 
 (:wat::core::defn :test::bad [] -> wat.type/nil
-  ((:wat::core::fn [] => :wat::core::nil nil)))
+  ((:wat::core::fn [] => wat.type/nil nil)))
 

@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/BareLegacyLowercaseFn {
-      :message "bare ':fn(...)' type is retired (arc 155); canonical FQDN is ':wat::core::Fn(...)'. Cap'd type head per Clojure-faithful capitalization convention: 'Fn' = function type, 'fn' = function value (closes arc 109 slice 1e's last ungrabbed parametric type head). Rename ':fn(args)->ret' -> ':wat::core::Fn(args)->ret' at the offending site."
+      :message "bare ':fn(...)' type is retired (arc 155, superseded by arc 255.81); write the bracket `[A :-> R]` (stone 251.4c). `:wat::core::Fn(A)->R` is retired in the same stone. Rename ':fn(args)->ret' -> '[A :-> R]' at the offending site."
       :location #wat.core/Span {
         :file "tests/function/fn_rename_bare_fn_type.wat"
         :line 4
@@ -18,7 +18,7 @@
       }
       :causes []
       :retired ":fn(...)->ret"
-      :fqdn ":wat::core::Fn(...)->ret"
+      :fqdn "[A :-> R]"
     }
   ]
 }

@@ -6,7 +6,7 @@
 ;; the server end. No spawn, and the ceremony every real consumer pays.
 (:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
-    [bound (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [bound (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      lis   (:wat::spawn::Bound/listener bound)
      addr  (:wat::spawn::Bound/address bound)
      tx    (:wat::core::match (:wat::kernel::connect addr)

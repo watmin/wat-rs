@@ -32,7 +32,7 @@
 ;; scope-exit drops `svc` → :Shutdown → the service terminates and the join completes.
 (:wat::core::defn :user::compute [] -> wat.type/i64
   (:wat::core::let
-    [b    (:wat::kernel::listener (:wat::spawn::thread) :user::Op :wat::core::i64)
+    [b    (:wat::kernel::listener (:wat::spawn::thread) :user::Op wat.type/i64)
      l    (:wat::spawn::Bound/listener b)
      addr (:wat::spawn::Bound/address b)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)

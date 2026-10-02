@@ -2,4 +2,4 @@
 ;; Slot 1 is = not <-. startup MUST fail.
 
 (:wat::core::defn :user::bad [] -> wat.type/i64
-  ((:wat::core::fn [x = :wat::core::i64] -> wat.type/i64 x)))
+  ((:wat::core::fn [x = wat.type/i64] -> wat.type/i64 x)))

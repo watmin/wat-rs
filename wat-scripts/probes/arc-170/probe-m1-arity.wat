@@ -3,7 +3,7 @@
 ;; CLAIM: takes-generic(a 2-arg fn) == 7 (the fn body's own constant; takes-generic never
 ;; calls f — this just proves a generic-W param ACCEPTS a 2-arg fn argument at all).
 
-(:wat::core::defn :probe::takes-1 [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64
+(:wat::core::defn :probe::takes-1 [f <- [wat.type/i64 :-> wat.type/i64]] -> wat.type/i64
   (f 3))
 
 (:wat::core::defn :probe::takes-generic :- [W] [f <- :W] -> wat.type/i64 7)

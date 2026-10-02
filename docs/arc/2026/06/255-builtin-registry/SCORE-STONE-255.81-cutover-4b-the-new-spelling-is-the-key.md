@@ -379,3 +379,98 @@ spelling. The recapture wrote the new refusal over a different failure:
 Rule G, the fn-keyword codemod, the parser refusal, the rest of the
 recapture, the census, and a new floor were not run. The floor remains the
 red capture at `.floor/2026-10-02T04-53-55Z`.
+
+## Amend 2
+
+The 39 whitespace goldens were compared as EDN data (parse both sides,
+normalize the 24, compare values). `edn-cmp` reported `equal=39 unequal=0
+failed=0`. None joined the 18. The 18 themselves are closed in the working
+tree: the input was respelled where the old spelling was incidental, and
+the original error came back. None is STOP-4. The two Char rows and the
+doctrine body that names the keyword as its subject keep the new
+retirement, because that spelling is the claim.
+
+Rule G (a verb argument whose declared signature is a type, plus
+`listener` indexes 2 and 3), narrowed constructor-head rule J, and the
+nil-value rule are in `types-to-wat-type.wat` and were applied to `.wat`.
+`wat-fix-rust --dry-run` of that codemod over 1295 tracked `.rs` files
+found 4 edits in 3 files (`src/types.rs`, `src/types/surface.rs`,
+`tests/kernel/probe_arc255_36_send_says_what_happened.rs`) and was then
+applied. RC=0, 0 refused. The `typealias_function_type` assertion now
+expects `Path(":wat::type::bool")`, which is what `collect` stored.
+
+Rule K is the gap those rules still missed: a target keyword whose
+previous sibling is `=` , and index 2 of `:wat::core::fn` whose previous
+sibling is a vector (the return type where `->` is missing). Replay of
+`types-to-wat-type` against the extended fixture is byte-identical to
+`after.post` and idempotent. Applied to
+`probe_arc241_stone2_c06.wat.bad`, `probe_arc241_stone2_c09.wat.bad`, and
+`probe_arc241_stone3_c05.wat.bad`. `wat --check` then reports the original
+errors: c06 and c09 are `MalformedForm` on `:wat::core::fn` (missing `<-`,
+and missing `->` with `got keyword`); stone 3 is the runtime
+`MalformedForm` on `:wat::core::defclause` for the missing `<-`. Those
+three tests passed.
+
+The keyword-bodied fn type is refused. `fn-keyword-to-bracket.wat`
+rewrites zero or one argument to `[A :-> R]` (nullary `[:-> R]`). A
+multi-arg body, a nested keyword, and a `Malformed` read are left
+unchanged: the STOP-3 assertion aborted `wat-fix-rust` on prose, and the
+only tracked multi-arg code is the unparseable
+`docs/arc/2026/05/130-cache-services-pair-by-index/complected-2026-05-02/substrate.wat.bad`.
+That is not a stone-stopping STOP. The five-line replay matches
+`after.post` and a second run is empty. Applied to 22 `.wat` paths.
+`wat-fix-rust --dry-run` over the same 1295 `.rs` files: `1295 scanned, 1
+changed, 1 edit found, 0 refused`, RC=0. The one edit is the before-side
+of `leaf_rewritten_into_a_bracket_is_one_span_edit` in
+`src/codemod_driver.rs`. It was not applied. That string is the test.
+Lexer panics on `∅` and `≠` still print from `is_candidate_wat`'s
+`catch_unwind` and did not fail the process.
+
+`NAMING_RULE_EXCEPTIONS` stays at 19 (`src/rete/vocabulary.rs`). The five
+entries added for the container constructors keep `rete_name` on
+`:wat::rete::core::<X>` while `core_name` is `:wat::type::<X>`. They do
+not excuse the keyword fn form. Heads are stone 5.
+
+Recorded-migration shards: `Summary [  93.596s] 16 tests run: 16 passed`,
+RC=0. After the fn-keyword header quote was put back on one line,
+`every_recorded_migration_is_fixtured_or_runed` passed (the floor below
+still shows it failing, on the split line).
+
+Census from `git clone --shared` at `202eb5533` (`/tmp/wat-pre`, binary
+built there, RC=0 in 51.03s) against the working tree:
+`.census/2026-10-02T06-48-31Z.txt` and `.census/2026-10-02T06-49-28Z.txt`,
+2277 files each. Non-zero went from 210 to 216. Six files flipped 0→1,
+all a 255.81 retirement of an old spelling the codemod does not rewrite
+(`wat.core/<24>`, a metadata `:ret` vector, `:wat::core::char` passed to
+`metadata-of` / `render-doc`, a quoted `:wat::core::List`). `census.sh
+--diff` exited 8.
+
+`cargo clippy --release --all-targets -- -D warnings` finished in 12.17s,
+RC=0.
+
+## STOP-2
+
+The new floor is red. Do not re-run `.floor/2026-10-02T06-51-40Z`.
+
+```
+Summary [ 398.134s] 6363 tests run: 6206 passed (24 slow), 157 failed, 24 skipped
+```
+
+Exit 100. Against the 6362 passed at `5b4d963b2`, this run executed 6363
+tests. Most of the 157 are the printer's new spelling (`wat::type::X` /
+`wat.type/X` where the assertion still names `:wat::core::X`). These two
+are not that:
+
+`probe_arc255_77_framing_floor_pin::framing_floor_of_pinned_numbers_hold_across_the_uuid_rename`
+panicked at `tests/types/probe_arc255_77_framing_floor_pin.rs:58`. The
+arm is `assert_eq` of the pinned framing-floor numbers. Left
+`["18", "18", "55", "19"]`, right `["38", "42", "55", "24"]`.
+
+`probe_arc278_6b_ii_b_where_native_differential::native_where_passes`
+panicked at `tests/rete/probe_arc278_6b_ii_b_where_native_differential.rs:84`.
+The arm is the native-fire `expect`. The value is
+`UnknownField` field `wat::core::PersistentVector` on record
+`wat::rete::Query`, available `[name, params, lhs]`.
+
+A STOP means STOP. The remaining printed-spelling reds were not
+re-captured after this floor.

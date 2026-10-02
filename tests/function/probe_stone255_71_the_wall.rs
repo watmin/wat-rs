@@ -6,11 +6,13 @@
 //! rows here are a REGRESSION guard, not new behavior. `List`/`PersistentMap`/`PersistentVector`/
 //! `Tuple`'s rows are the wall THIS stone raises.
 //!
-//! Quirk carried over unchanged (out of this stone's scope — `Vector`'s bracket-less error was
-//! already wired before this stone): `infer_list_constructor`'s own bracket-less `MalformedForm`
-//! hardcodes `head: ":wat::core::vec"` (the RETIRED verb spelling) regardless of whether the call
-//! site actually reads `Vector` or the old `vec` name — code wins over what a reader might expect
-//! ("Vector" in the error), so this test asserts what the checker actually emits.
+//! Stone 255.81: a keyword head `:wat::core::<Name>` for one of the seven is the retired
+//! constructor spelling, so that row's `MalformedForm` head is the keyword itself and the
+//! reason is the retirement. The symbol row `(wat.type/<Name> …)` still hits the bracket
+//! wall. `Vector`'s symbol row keeps the pre-existing head `:wat::core::vec`. `HashMap` and
+//! `HashSet`'s symbol rows report head `:wat::type::HashMap` / `:wat::type::HashSet`. The
+//! other four symbol rows keep head `:wat::core::<Name>` with the untyped-constructor
+//! reason. Counts below are that measurement (`wat --check` of this fixture, 14 errors).
 
 use wat::check::error::{CheckErrorKind, CheckErrors};
 use wat::freeze::{startup_from_file, StartupError};
@@ -40,22 +42,24 @@ fn exactly_fourteen_errors_one_per_bracketless_call() {
 
 #[test]
 fn vector_both_spellings_refused() {
-    // Regression guard (arc 109's pre-existing wall) — NOT new this stone. `head` is the
-    // retired `:wat::core::vec` spelling (see module doc); both keyword and symbol calls route
-    // through the same `infer_list_constructor`, so both trip this same head string.
-    assert_eq!(count_with_head(&errors(), ":wat::core::vec"), 2);
+    let errs = errors();
+    // Keyword head retires before the bracket wall. Symbol head is still the vec wall.
+    assert_eq!(count_with_head(&errs, ":wat::core::Vector"), 1);
+    assert_eq!(count_with_head(&errs, ":wat::core::vec"), 1);
 }
 
 #[test]
 fn hashmap_both_spellings_refused() {
-    // Regression guard (arc 109's pre-existing wall) — NOT new this stone.
-    assert_eq!(count_with_head(&errors(), ":wat::core::HashMap"), 2);
+    let errs = errors();
+    assert_eq!(count_with_head(&errs, ":wat::core::HashMap"), 1);
+    assert_eq!(count_with_head(&errs, ":wat::type::HashMap"), 1);
 }
 
 #[test]
 fn hashset_both_spellings_refused() {
-    // Regression guard (arc 109's pre-existing wall) — NOT new this stone.
-    assert_eq!(count_with_head(&errors(), ":wat::core::HashSet"), 2);
+    let errs = errors();
+    assert_eq!(count_with_head(&errs, ":wat::core::HashSet"), 1);
+    assert_eq!(count_with_head(&errs, ":wat::type::HashSet"), 1);
 }
 
 #[test]

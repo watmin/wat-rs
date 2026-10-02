@@ -10,7 +10,7 @@
 ;; GREEN after the flip: result == 42.
 
 (:wat::core::defn :probe::apply-it
-  [& [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
+  [& [f <- [wat.type/i64 :-> wat.type/i64]
       n <- wat.type/i64]]
   -> wat.type/i64
   (:wat::core::apply  f n []))

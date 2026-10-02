@@ -46,7 +46,7 @@
                 (:wat::core::defn :user::main [] -> wat.type/nil
                   (:wat::core::let
                     [self (:wat::program::self-peer
-                            :wat::core::String
+                            wat.type/String
                             (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]))
                      addr (:wat::core::match (:wat::kernel::recv self)
                             [:wat::kernel::RecvOutcome.Message {:msg m} m]

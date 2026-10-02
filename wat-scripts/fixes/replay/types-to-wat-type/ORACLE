@@ -9,6 +9,23 @@ spec (:wat::core::extend-type wat.type/f64 :wat::core::Equatable) :: BARE CHILD 
 spec (:wat::core::typealias :probe::Alias wat.type/bool) :: LAST CHILD OF `typealias`
 spec (:wat::core::defn :probe::g [y :- wat.type/String] :- wat.type/String y) :: `:-` is IN this set too
 spec (:wat::core::defsurface :probe::Store :nature wat.type/Struct :features []) :: the bare keyword `:nature` (a `defsurface`'s `:nature <type>` clause)
+spec (:wat::core::struct :probe::Point (x wat.type/i64)) :: two-element LIST `(name type)`
+spec ((:wat::core::lambda ((n wat.type/i64) -> wat.type/i64) n) 1) :: two-element LIST `(name type)`
+spec (:wat::program::self-peer wat.type/String :probe::PMsg) :: a bare keyword parameter with no `::`
+spec (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64) :: indexes 2 and 3 of the call
+spec (:wat::core::let [m (wat.type/HashMap)] 0) :: Zero arguments
+spec (:wat::core::let [m (wat.type/HashMap wat.type/keyword)] 0) :: a first argument that is one of the 24
+spec (:wat::core::define (:my::inner -> wat.type/nil) nil) :: the body of `:wat::core::define`
+spec (:wat::core::defn :t::probe [] -> :wat::core::unit nil) :: the body after a `:wat::core::unit`
+spec (:wat::core::fn [x = wat.type/i64] -> wat.type/i64 x) :: previous sibling exactly `=`
+spec (:wat::core::fn [x <- wat.type/i64] wat.type/i64 x) :: index 2 of `:wat::core::fn` whose previous sibling is a vector
+
+spec-before (:wat::program::self-peer :wat::core::String :probe::PMsg) :: one of the 24 hard primitives
+spec-before (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64) :: one of the 24 hard primitives
+spec-before (:wat::core::let [m (:wat::core::HashMap)] 0) :: one of the 24 hard primitives
+spec-before (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword)] 0) :: one of the 24 hard primitives
+spec-before (:wat::core::define (:my::inner -> wat.type/nil) :wat::core::nil) :: the body of `:wat::core::define`
+spec-before (:wat::core::defn :t::probe [] -> :wat::core::unit :wat::core::nil) :: the body after a `:wat::core::unit`
 
 spec-before [x <- :wat::core::i64] :: one of the 24 hard primitives
 spec-before -> (:wat::core::Vector :- [:wat::core::i64]) :: one of the 24 hard primitives
@@ -16,3 +33,7 @@ spec-before (:wat::core::extend-type :wat::core::f64 :wat::core::Equatable) :: o
 spec-before (:wat::core::typealias :probe::Alias :wat::core::bool) :: one of the 24 hard primitives
 spec-before (:wat::core::defn :probe::g [y :- :wat::core::String] :- :wat::core::String y) :: one of the 24 hard primitives
 spec-before (:wat::core::defsurface :probe::Store :nature :wat::core::Struct :features []) :: one of the 24 hard primitives
+spec-before (:wat::core::struct :probe::Point (x :wat::core::i64)) :: one of the 24 hard primitives
+spec-before ((:wat::core::lambda ((n :wat::core::i64) -> wat.type/i64) n) 1) :: one of the 24 hard primitives
+spec-before (:wat::core::fn [x = :wat::core::i64] -> wat.type/i64 x) :: one of the 24 hard primitives
+spec-before (:wat::core::fn [x <- wat.type/i64] :wat::core::i64 x) :: one of the 24 hard primitives

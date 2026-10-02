@@ -10,5 +10,5 @@
 ;; :wat::program::self-peer with pure types — must still type-check.
 (:wat::core::defn :w2d_pos::probe-pure-wire-peer [] -> wat.type/nil
   (:wat::core::let
-    [_pair (:wat::program::self-peer :wat::core::i64 :wat::core::i64)]
+    [_pair (:wat::program::self-peer wat.type/i64 wat.type/i64)]
     nil))

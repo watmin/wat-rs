@@ -18,5 +18,5 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::do
-    (:wat::kernel::println (:neg::needs-seqable 0 (:wat::core::HashSet :wat::core::i64 1 2 3)))
-    (:wat::kernel::println (:neg::needs-seqable 0 (:wat::core::Vector :wat::core::String "a" "b")))))
+    (:wat::kernel::println (:neg::needs-seqable 0 (wat.type/HashSet wat.type/i64 1 2 3)))
+    (:wat::kernel::println (:neg::needs-seqable 0 (wat.type/Vector wat.type/String "a" "b")))))

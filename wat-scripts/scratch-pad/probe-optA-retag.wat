@@ -156,7 +156,7 @@
               (:wat::core::defn :user::main [] -> wat.type/nil
                 (:wat::core::let
                   [b2   (:wat::kernel::listener (:wat::spawn::process) :probe-retag::Surface::Op :probe-retag::Surface::Reply)
-                   self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) :wat::core::nil)
+                   self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) wat.type/nil)
                    _sa  (:wat::kernel::send self (:wat::spawn::Bound/address b2))
                    t    (:wat::kernel::after :wat::program::PeerKind.process
                           (:wat::time::Millisecond 5) (:probe-retag::Svc::Op.Tick {}))]

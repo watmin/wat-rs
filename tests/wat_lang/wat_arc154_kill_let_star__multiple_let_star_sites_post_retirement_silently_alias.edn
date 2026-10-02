@@ -1,5 +1,5 @@
 #wat.check/CheckErrors {
-  :message "4 type-check errors"
+  :message "2 type-check errors"
   :location nil
   :causes []
   :errors [
@@ -20,31 +20,6 @@
       :retired ":wat::core::let*"
       :fqdn ":wat::core::let"
     }
-    #wat.check/MalformedForm {
-      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :location #wat.core/Span {
-        :file "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad"
-        :line 5
-        :col 26
-        :end #wat.core/Option.Some {
-          :value #wat.core/Pos {
-            :line 5
-            :col 41
-          }
-        }
-      }
-      :causes []
-      :head ":wat::core::i64"
-      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :remedies [
-        #wat.kernel/Remedy {
-          :form "wat.type/i64"
-          :kind :retirement
-          :score 0
-          :note nil
-        }
-      ]
-    }
     #wat.check/BareLegacyLetStar {
       :message "':wat::core::let*' is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site."
       :location #wat.core/Span {
@@ -61,31 +36,6 @@
       :causes []
       :retired ":wat::core::let*"
       :fqdn ":wat::core::let"
-    }
-    #wat.check/MalformedForm {
-      :message "malformed :wat::core::i64 form: ':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :location #wat.core/Span {
-        :file "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad"
-        :line 7
-        :col 26
-        :end #wat.core/Option.Some {
-          :value #wat.core/Pos {
-            :line 7
-            :col 41
-          }
-        }
-      }
-      :causes []
-      :head ":wat::core::i64"
-      :reason "':wat::core::i64' is retired (arc 255.81); use 'wat.type/i64' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
-      :remedies [
-        #wat.kernel/Remedy {
-          :form "wat.type/i64"
-          :kind :retirement
-          :score 0
-          :note nil
-        }
-      ]
     }
   ]
 }

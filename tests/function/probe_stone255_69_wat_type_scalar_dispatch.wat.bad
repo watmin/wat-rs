@@ -3,5 +3,5 @@
 ;; fix must not widen acceptance beyond the checker's `is_known_type` door).
 ;; `Nope` is declared nowhere, so this is an UnresolvedReference at check
 ;; time — the same refusal the un-generalized code gave, unchanged.
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::kernel::println (:wat::core::str (wat.type/Nope 1))))

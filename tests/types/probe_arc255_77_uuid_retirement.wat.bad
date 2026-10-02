@@ -5,5 +5,5 @@
 (:wat::core::defn :test::needs-uuid [u <- :wat::core::Uuid] -> :wat::core::Uuid
   u)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil
+(:wat::core::defn :user::main [] -> wat.type/nil
   nil)

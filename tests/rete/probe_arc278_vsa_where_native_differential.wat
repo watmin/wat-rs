@@ -10,18 +10,18 @@
 (:wat::core::defrecord :vsa::Hit         [tag <- wat.type/String])
 
 (:wat::core::defn :vsa::table-of
-  [f <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
+  [f <- [wat.type/bool :-> wat.type/bool]]
   -> :wat::holon::HolonAST
   (:wat::holon::to-holon
     (wat.type/Vector :- [wat.type/bool] (f true) (f false))))
 
-(:wat::core::defn :vsa::id-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
+(:wat::core::defn :vsa::id-fn [] -> [wat.type/bool :-> wat.type/bool]
   (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))
-(:wat::core::defn :vsa::not-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
+(:wat::core::defn :vsa::not-fn [] -> [wat.type/bool :-> wat.type/bool]
   (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true)))
-(:wat::core::defn :vsa::const-true-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
+(:wat::core::defn :vsa::const-true-fn [] -> [wat.type/bool :-> wat.type/bool]
   (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true))
-(:wat::core::defn :vsa::const-false-fn [] -> :wat::core::Fn(wat::core::bool)->wat::core::bool
+(:wat::core::defn :vsa::const-false-fn [] -> [wat.type/bool :-> wat.type/bool]
   (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool false))
 
 (:wat::rete::defrule :vsa::classify-cosine
@@ -89,7 +89,7 @@
 (:wat::core::defn :vsa::guess-name
   [fire    <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    rule    <- :wat::rete::Rule
-   mystery <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
+   mystery <- [wat.type/bool :-> wat.type/bool]]
   -> wat.type/String
   (:wat::core::let
     [s0   (:wat::core::match (:wat::rete::compile-all
@@ -169,8 +169,8 @@
 (:wat::core::defn :vsa::presence-pair
   [fire     <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    cat-name <- wat.type/String
-   cat-fn   <- :wat::core::Fn(wat::core::bool)->wat::core::bool
-   mystery  <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
+   cat-fn   <- [wat.type/bool :-> wat.type/bool]
+   mystery  <- [wat.type/bool :-> wat.type/bool]]
   -> wat.type/String
   (:wat::core::let
     [s0    (:wat::core::match (:wat::rete::compile-all

@@ -36,7 +36,7 @@
 
 (:wat::core::defn :dm::counts
   [txt  <- wat.type/String
-   seed <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+   seed <- [:wat::rete::Session :-> :wat::rete::Session]]
   -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [exp   (:wat::edn::read txt)
                     s0    (:wat::rete::import exp)

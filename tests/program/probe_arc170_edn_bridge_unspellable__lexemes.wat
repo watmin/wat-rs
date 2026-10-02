@@ -16,7 +16,7 @@
 (:wat::core::defn :u::tup [] -> (wat.type/Tuple :- [wat.type/i64 wat.type/String]) (wat.type/Tuple :- [wat.type/i64 wat.type/String] 1 "a"))
 
 ;; 4. function type — parens AND `->` inside one keyword token.
-(:wat::core::defn :u::fnty [g <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64 (g 1))
+(:wat::core::defn :u::fnty [g <- [wat.type/i64 :-> wat.type/i64]] -> wat.type/i64 (g 1))
 
 ;; 5. namespace-prefix marker — a TRAILING `::`, so the EDN name is empty.
 (:wat::core::defn :my::kernel::pfx {:restricted-to [:my::kernel::]} [] -> wat.type/i64 1)

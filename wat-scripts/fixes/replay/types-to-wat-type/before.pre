@@ -12,3 +12,25 @@
 (:wat::core::if (:wat::core::= (:wat::core::type-of x) :wat::core::i64) 1 2)
 
 (:wat::core::defsurface :probe::Store :nature :wat::core::Struct :features [])
+
+(:wat::core::struct :probe::Point (x :wat::core::i64))
+
+((:wat::core::lambda ((n :wat::core::i64) -> wat.type/i64) n) 1)
+
+(:wat::program::self-peer :wat::core::String :probe::PMsg)
+
+(:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+
+(:wat::core::let [m (:wat::core::HashMap)] 0)
+
+(:wat::core::let [m (:wat::core::HashMap :wat::core::keyword)] 0)
+
+(:wat::core::Vector 1 2)
+
+(:wat::core::define (:my::inner -> wat.type/nil) :wat::core::nil)
+
+(:wat::core::defn :t::probe [] -> :wat::core::unit :wat::core::nil)
+
+(:wat::core::fn [x = :wat::core::i64] -> wat.type/i64 x)
+
+(:wat::core::fn [x <- wat.type/i64] :wat::core::i64 x)

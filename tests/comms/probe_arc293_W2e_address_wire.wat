@@ -5,8 +5,8 @@
 
 (:wat::core::defn :probe::compute [] -> (wat.type/Vector :- [wat.type/bool])
   (:wat::core::let
-    [tb (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
-     pb (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+    [tb (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
+     pb (:wat::kernel::listener (:wat::spawn::process) wat.type/i64 wat.type/i64)
      ta (:wat::spawn::Bound/address tb)
      pa (:wat::spawn::Bound/address pb)]
     (wat.type/Vector :- [wat.type/bool]

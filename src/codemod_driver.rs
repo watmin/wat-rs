@@ -110,6 +110,23 @@ fn diff_node(
         return Ok(());
     }
 
+    // A leaf token rewritten into a compound form. `fn-keyword-to-bracket`
+    // replaces one keyword (`:wat::core::Fn(A)->R`) with a bracket vector
+    // (`[A :-> R]`). `fix-text-apply` still spliced a single span: the old
+    // leaf's text became the new node's full span text. One edit, taken from
+    // the codemod's own output, not a guessed restructure.
+    if old_children.is_empty() && !new_children.is_empty() {
+        let (old_lo, old_hi) = span_offsets(old.span(), old_lines);
+        let (new_lo, new_hi) = span_offsets(new.span(), new_lines);
+        let new_slice = &new_text[byte_range_for_chars(new_text, new_lo, new_hi)];
+        out.push(Edit {
+            old_lo,
+            old_hi,
+            new_text: new_slice.to_string(),
+        });
+        return Ok(());
+    }
+
     if old_children.len() != new_children.len() {
         return Err(format!(
             "codemod restructured the tree (was {} children, now {}) at old span {:?} — \
@@ -504,6 +521,18 @@ mod probe_255_80 {
 #[cfg(test)]
 mod driver_tests {
     use super::*;
+
+    #[test]
+    fn leaf_rewritten_into_a_bracket_is_one_span_edit() {
+        let old = "(:wat::core::defn :t::a [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64 0)\n";
+        let new = "(:wat::core::defn :t::a [f <- [wat.type/i64 :-> wat.type/i64]] -> wat.type/i64 0)\n";
+        let edits = diff_decoded(old, new).expect("a keyword leaf replaced by a bracket is one span");
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        let old_chars: Vec<char> = old.chars().collect();
+        let slice: String = old_chars[edits[0].old_lo..edits[0].old_hi].iter().collect();
+        assert_eq!(slice, ":wat::core::Fn(wat::core::i64)->wat::core::i64");
+        assert_eq!(edits[0].new_text, "[wat.type/i64 :-> wat.type/i64]");
+    }
 
     fn wat_binary() -> std::path::PathBuf {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/release/wat")

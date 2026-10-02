@@ -1,7 +1,7 @@
 ;; T6: lambda captures multiple values, mixed types.
 (:wat::core::defstruct :my::Cfg
   [label <- wat.type/String])
-(:wat::core::defn :my::make-multi [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
+(:wat::core::defn :my::make-multi [] -> [wat.type/i64 :-> wat.type/i64]
   (:wat::core::let
               [n 7
                cfg (:my::Cfg :label "ok")

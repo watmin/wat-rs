@@ -43,7 +43,7 @@
 
 (:wat::core::defn :probe::thread-timer-in-poll [] -> wat.type/keyword
   (:wat::core::let
-    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::keyword :wat::core::nil)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) wat.type/keyword wat.type/nil)
      l    (:wat::spawn::Bound/listener pair)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/keyword wat.type/nil])]
@@ -83,8 +83,8 @@
                  [_ nil]))
              (:wat::core::defn :user::main [] -> wat.type/nil
                (:wat::core::let
-                 [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::keyword :wat::core::nil)
-                  self (:wat::program::self-peer :wat::core::keyword :wat::core::nil)
+                 [b    (:wat::kernel::listener (:wat::spawn::process) wat.type/keyword wat.type/nil)
+                  self (:wat::program::self-peer wat.type/keyword wat.type/nil)
                   t    (:wat::kernel::after :wat::program::PeerKind.process (:wat::time::Millisecond 30) :tick)]
                  (:probe::serve-proc self (:wat::spawn::Bound/listener b)
                    (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])] t))))))

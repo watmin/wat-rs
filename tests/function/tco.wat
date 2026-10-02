@@ -94,7 +94,7 @@
              21))
 
 ;; T10: named define tail-calls fn param
-(:wat::core::defn :app::invoke [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 n <- wat.type/i64] -> wat.type/i64 (f n))
+(:wat::core::defn :app::invoke [f <- [wat.type/i64 :-> wat.type/i64] n <- wat.type/i64] -> wat.type/i64 (f n))
 
 (:wat::core::defn :user::compute_t10 [] -> wat.type/i64
   (:wat::core::let

@@ -4,7 +4,7 @@
 ;; and is driven from the sibling .rs, because wat has no cascade verb.
 (:wat::core::defn :user::orphaned-listener [] -> (:wat::kernel::Listener :- [wat.type/i64 wat.type/i64])
   (:wat::spawn::Bound/listener
-    (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)))
+    (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::match (:wat::kernel::accept (:user::orphaned-listener))

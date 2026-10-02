@@ -13,7 +13,7 @@
              ;; The child parks forever on its OWN recv (parent never sends) — it must
              ;; never return, or its close would give the parent Closed instead of the
              ;; Stopped outcome under test.
-             (:wat::core::match (:wat::kernel::recv (:wat::program::self-peer :wat::core::i64 :wat::core::i64))
+             (:wat::core::match (:wat::kernel::recv (:wat::program::self-peer wat.type/i64 wat.type/i64))
                [:wat::kernel::RecvOutcome.Message {:msg _m} nil]
                [:wat::kernel::RecvOutcome.Lost {:cause _c} nil]
                ;; same discard as its siblings — this child's body never inspects the

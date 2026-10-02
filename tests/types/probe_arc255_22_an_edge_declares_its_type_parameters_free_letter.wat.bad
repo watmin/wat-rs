@@ -1,6 +1,6 @@
 ;; Stone 255.22 — an extend-type declares its type parameters (arc 255).
 ;; NEGATIVE WALL — the hello-world with NO binder: T is a free letter, not a parameter; refused at registration (EdgeFreeTypeName).
-(:wat::core::defsurface :hello::Greets :- [T] :nature :wat::core::Struct
+(:wat::core::defsurface :hello::Greets :- [T] :nature wat.type/Struct
   :features [(greet [self <- (:hello::Greets :- [T])] -> :T)])
 (:wat::core::defrecord :hello::Box :- [T] [v <- :T])
 (:wat::core::extend-type (:hello::Box :- [T]) (:hello::Greets :- [T])

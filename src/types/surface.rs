@@ -1423,7 +1423,7 @@ mod tests {
             ),
             // `:nature` as a bare symbol → the mandatory nature clause is missing.
             (
-                "(:wat::core::defsurface :t::M3 nature :wat::core::Struct \
+                "(:wat::core::defsurface :t::M3 nature wat.type/Struct \
                    :features [(echo [self <- :t::M3] -> wat.type/String)])",
                 MARKER_NATURE_REASON,
             ),

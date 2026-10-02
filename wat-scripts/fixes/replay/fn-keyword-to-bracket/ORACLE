@@ -1,0 +1,13 @@
+# ORACLE for fn-keyword-to-bracket. Quotes are substrings of the codemod header.
+
+spec (:wat::core::defn :t::a [f <- [wat.type/i64 :-> wat.type/i64]] -> wat.type/i64 0) :: zero or one argument
+spec (:wat::core::defn :t::b [f <- [wat.type/bool :-> wat.type/bool]] -> wat.type/bool true) :: bare `:fn(` is the same bracket
+spec (:wat::core::defn :t::c [f <- [wat.type/AST :-> wat.type/bool]] -> wat.type/bool true) :: `wat::WatAST` renders `wat.type/AST`
+spec (:wat::core::defn :t::d [f <- [:wat::rete::Session :-> :wat::rete::Session]] -> wat.type/nil nil) :: A name that is not one of the 24 stays a keyword
+spec (:wat::core::defn :t::e [f <- [:-> wat.type/i64]] -> wat.type/i64 0) :: nullary body renders `[:-> R]`
+
+spec-before (:wat::core::defn :t::a [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> wat.type/i64 0) :: zero or one argument
+spec-before (:wat::core::defn :t::b [f <- :fn(wat::core::bool)->wat::core::bool] -> wat.type/bool true) :: bare `:fn(` is the same bracket
+spec-before (:wat::core::defn :t::c [f <- :wat::core::Fn(wat::WatAST)->wat::core::bool] -> wat.type/bool true) :: `wat::WatAST` renders `wat.type/AST`
+spec-before (:wat::core::defn :t::d [f <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session] -> wat.type/nil nil) :: A name that is not one of the 24 stays a keyword
+spec-before (:wat::core::defn :t::e [f <- :wat::core::Fn()->wat::core::i64] -> wat.type/i64 0) :: nullary body renders `[:-> R]`

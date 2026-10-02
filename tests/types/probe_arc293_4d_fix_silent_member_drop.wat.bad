@@ -7,7 +7,7 @@
 ;; written as separate top-level forms AFTER the `:features [...]` member vector instead of
 ;; inside it, which USED to be silently dropped and after 293.4d-fix is a hard error.
 
-(:wat::core::defsurface :t::Bad :nature :wat::core::Struct
+(:wat::core::defsurface :t::Bad :nature wat.type/Struct
   :features [color <- wat.type/String]
   (area  [self] -> wat.type/f64)
   (label [self] -> wat.type/String))

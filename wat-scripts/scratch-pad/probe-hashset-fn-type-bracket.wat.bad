@@ -13,4 +13,4 @@
 (:wat::core::def :user::main
   (:wat::core::fn [] -> wat.type/nil
     (:wat::kernel::println
-      (wat.type/HashSet :- [[:wat::core::i64 :-> wat.type/bool]]))))
+      (wat.type/HashSet :- [[wat.type/i64 :-> wat.type/bool]]))))

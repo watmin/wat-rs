@@ -19,7 +19,7 @@
 ;; Peer'.
 (:wat::core::defn :user::connect-happy [] -> (:wat::kernel::ConnectOutcome :- [wat.type/i64 wat.type/i64])
   (:wat::core::let
-    [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
+    [pair (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
      addr (:wat::spawn::Bound/address pair)]
     (:wat::kernel::connect addr)))
 
@@ -28,7 +28,7 @@
 ;; has no live receiver left.
 (:wat::core::defn :user::orphaned-address [] -> (:wat::kernel::Address :- [wat.type/i64 wat.type/i64])
   (:wat::spawn::Bound/address
-    (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)))
+    (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)))
 
 ;; GONE FOR GOOD → ConnectOutcome::Closed[cause]. connect' on an address whose
 ;; listener (the only rendezvous Receiver) was dropped → crossbeam send Disconnected →

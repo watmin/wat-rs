@@ -17,7 +17,7 @@
                   [:wat::kernel::RecvOutcome.Stopped {} nil]
                   [:wat::kernel::RecvOutcome.Closed {} nil]))
               (:wat::core::defn :user::main [] -> wat.type/nil
-                (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64))))))
+                (:probe::runner (:wat::program::self-peer wat.type/i64 wat.type/i64))))))
      _ (:wat::core::match (:wat::kernel::send w 1) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]) _ (:wat::core::match (:wat::kernel::send w 2) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
      ra (:wat::kernel::recv w)
      a  (:wat::core::match ra

@@ -1,4 +1,4 @@
-(:wat::core::defsurface :u::Mark :nature :wat::core::Record :features [])
+(:wat::core::defsurface :u::Mark :nature wat.type/Record :features [])
 (:wat::core::extend-type :- [:u::Mark]
   wat.type/i64
   :u::Mark)

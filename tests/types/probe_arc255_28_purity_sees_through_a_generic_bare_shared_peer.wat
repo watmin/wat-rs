@@ -5,5 +5,5 @@
   (:wat::core::let
     [_self (:wat::program::self-peer
              (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 :wat::kernel::Transport.Shared])
-             :wat::core::i64)]
+             wat.type/i64)]
     nil))

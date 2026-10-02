@@ -38,4 +38,4 @@
 ;; a reader cannot tell them apart from one variable used twice. The cost is not an argument in a
 ;; comment; it is a line of output this repo runs on every floor.
 (:wat::core::defn :user::main [] -> wat.type/bool
-  (:wat::core::Tuple [] (:wat::core::List)))
+  (wat.type/Tuple [] (wat.type/List)))

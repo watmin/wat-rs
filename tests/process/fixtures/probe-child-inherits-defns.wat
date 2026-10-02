@@ -39,7 +39,7 @@
                 _    (:wat::core::match (:wat::kernel::send self (:probe::dbl item)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])]
                (:probe::runner self)))
            (:wat::core::defn :user::main [] -> wat.type/nil
-             (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64)))))
+             (:probe::runner (:wat::program::self-peer wat.type/i64 wat.type/i64)))))
      ;; arc 278 #73 — a stop here is terminal like Lost/Closed for this discard-only send; the
      ;; recv's below face the stop as its own outcome.
      _ (:wat::core::match (:wat::kernel::send w 3) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])

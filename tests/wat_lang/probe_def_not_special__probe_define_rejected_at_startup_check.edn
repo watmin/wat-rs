@@ -4,24 +4,24 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::nil form: ':wat::core::nil' is retired (arc 255.81); use 'wat.type/nil' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :message "malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)"
       :location #wat.core/Span {
         :file "tests/wat_lang/probe_def_not_special_define.wat.bad"
         :line 4
-        :col 52
+        :col 4
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 4
-            :col 67
+            :col 22
           }
         }
       }
       :causes []
-      :head ":wat::core::nil"
-      :reason "':wat::core::nil' is retired (arc 255.81); use 'wat.type/nil' instead (wat.type/ holds exactly the 24 hard primitives, and this is one of them — the old :wat::core:: home no longer resolves in a type position)"
+      :head ":wat::core::define"
+      :reason "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)"
       :remedies [
         #wat.kernel/Remedy {
-          :form "wat.type/nil"
+          :form ":wat::core::defn"
           :kind :retirement
           :score 0
           :note nil
