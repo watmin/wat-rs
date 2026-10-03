@@ -474,8 +474,11 @@ fn session_field_count(src: &str) -> usize {
     let mut n = 0usize;
     for group in fields.chunks(3) {
         let binder = match &group[1] {
+            // Unconverted stdlib writes the symbol `<-`. The faithful spelling `:-`
+            // is a keyword: the lexer takes a leading colon as a keyword.
             wat::WatAST::Symbol(id, _) => id.as_str(),
-            other => panic!("Session field binder is not a symbol: {other:?}"),
+            wat::WatAST::Keyword(text, _) => text.as_str(),
+            other => panic!("Session field binder is not a symbol or keyword: {other:?}"),
         };
         assert!(
             binder == "<-" || binder == ":-",
