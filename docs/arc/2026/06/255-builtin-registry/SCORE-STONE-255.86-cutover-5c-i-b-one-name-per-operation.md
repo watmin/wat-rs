@@ -204,3 +204,49 @@ RC=0
 ```
 
 6394 at the previous green floor, 6397 here. The three new tests are the pin vector, the registry query, and the retirement-row walk. This score commit is the document. It was not floored. Not pushed. 5c-ii, 5c-iii, and 5c-iv are unstarted.
+
+## Amend 4: the pins are data, and the gate is one process
+
+Continues at `fa72b38dd`. The pins and the in-process gate are `c93b83701`. The floor cure is `b819c0379`.
+
+### Pinned values
+
+`tests/cli/probe_stone_25586_one_name.wat` no longer returns strings. `:probe::hold` is `:wat::test::assert-eq` of each Equatable result against the value written as a value. `:user::main` calls `:probe::hold`. `./target/release/wat --check` on that file is RC=0. `./target/release/wat` on that file is RC=0 (`/tmp/g1-pin-run.log`).
+
+HashMap `assoc` of `"b" 2` is the map `(wat.type/HashMap :- [wat.type/String wat.type/i64] "a" 1 "b" 2)`. HashSet `conj` of `2` is the set `(wat.type/HashSet :- [wat.type/i64] 1 2)`. Those are the collections, not a length and a `get` / `contains?`.
+
+PersistentMap is not a member of `:wat::core::Equatable` (`wat/class.wat`). `assert-eq` and `wat.doctest/matches?` both require that bound, so the three map results are not asserted that way and they are not printed. `:probe::pm-got` is assoc of `"b" 2`, dissoc of `"a"`, and dissoc of `"z"`. `:probe::pm-want` is those three maps written as values. The rust test compares the two vectors with `Value`'s `PartialEq`. `one_name_replacements_return_the_pinned_values` passed in the same run as the registry query: `ok. 3 passed` in 1.13s (`/tmp/g1-amend4-tests.log`), before the cure below, which does not touch this fixture.
+
+### Retirement
+
+The shape is one process, not one generated test per row. `stone_rows_are_refused_naming_their_replacement` calls `startup_bare` once, then `check_program` on a separate program per row from `retirement_table_pairs_for_gate`. The same prefix filter as amend 3. A batch of every name in one program is the short-circuit the nextest comment already records, so the rows stay separate programs. Both `slow-timeout` overrides for this test are gone from `.config/nextest.toml`, the default block and the ci block. `retirement_table_is_fully_reachable` is untouched.
+
+Isolated after the cure: `finished in 0.39s`, `ok. 1 passed`, RC=0 (`/tmp/g1-amend4-retire4.log`).
+
+### Census, clippy, floors
+
+Census of the pin tree: `.census/2026-10-03T05-02-40Z.txt`, 2286 files, `0:2076, 1:208, 101:2`. Against `.census/2026-10-03T04-29-41Z.txt`: no rc flips, `census-diff: no STOP-8`, DIFF_RC=0. `tests/cli/probe_stone_25586_one_name.wat` is rc 0. The cure changes no `.wat`.
+
+Clippy of the pin tree, `cargo clippy --release --all-targets -- -D warnings`: `Finished release profile [optimized] target(s) in 12.55s`, RC=0 (`/tmp/g1-clippy-amend4.log`). Clippy of the cure tree: `Finished release profile [optimized] target(s) in 12.65s`, RC=0 (`/tmp/g1-clippy-amend4c.log`).
+
+Do not re-run the red floor.
+
+`c93b83701` is red. `.floor/2026-10-03T05-04-33Z`, log `/tmp/g1-floor-amend4.log`:
+
+```
+Summary [ 403.261s] 6397 tests run: 6396 passed (29 slow), 1 failed, 24 skipped
+RC=100
+```
+
+One arm, cured in `b819c0379`:
+
+`no_error_flattening_helper::tests_carry_no_error_flattening_helper` — `tests/lint/no_error_flattening_helper.rs:213`. The panic is `ERROR-FLATTENING HELPERS — 1 site(s)`. The site is `tests/cli/probe_stone_25586_retirement.rs:34  fn refusal -> Result<Vec<wat::CheckError>, String>`. `refusal` mapped parse and register failures through `format!` into a `String`. The error is now `SetupFail::Parse(ParseError)` or `SetupFail::Register(RuntimeError)`, and the test matches the variant. The lint re-run is `ok. 1 passed` in 0.02s, RC=0 (`/tmp/g1-amend4-lintfix2.log`).
+
+`b819c0379` is green. `.floor/2026-10-03T05-15-58Z`, log `/tmp/g1-floor-amend4b.log`:
+
+```
+Summary [ 403.392s] 6397 tests run: 6397 passed (29 slow), 24 skipped
+RC=0
+```
+
+6397 at the previous green floor, 6397 here. No new test. This score commit is the document. It was not floored. Not pushed. 5c-ii, 5c-iii, and 5c-iv are unstarted.
