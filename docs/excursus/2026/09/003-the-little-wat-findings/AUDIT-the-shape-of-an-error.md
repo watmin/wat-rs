@@ -358,3 +358,24 @@ Builder: *"you've got your 4 YES paths"* (after rejecting a menu: *"we don't use
    leaf (the Stone-Q census pins the hole precisely so this is a deliberate edit); lex kinds carry a
    `char` again. Rename the Rust variant `Other` → `LoadOther` so the derive covers it and the
    hand-written writer retires. Strike after F.
+
+## Strike D, first boundary (`0df5038e2`) — and the four-questions answer to its STOP
+
+`FrameInfo` carries the tail record (`entry_call_site`, `last_tail_caller`, `tail_hops`); the pure
+`reconstruct_frames` → `{fn at tail-elided}` is proven at the Rust level (GD1–GD4, each mutated RED;
+a 10⁶-hop tail loop stays one physical slot). Floor 6379/6379. The executor STOPPED at item 4: 10 of
+40 `RuntimeErrorKind`s carry nothing that names the Rust activation that raised them (`DivisionByZero`,
+`NotCallable`, `BadCondition`, `PatternMatchFailed`, `AssertionFailed`, `MacroAbort`,
+`UserMainMissing`, `EvalVerificationFailed`, `WriteStopped`, three `ReteCeiling` variants).
+
+**Answer (orchestrator, by the four questions):** a frame's identity is a property of the STACK, not
+of the error's content. One thread-local slot names the current native activation — set by the
+intrinsic dispatcher (the registered `#[wat_intrinsic(":…")]` name), the special-form evaluator (the
+form's head), and, before any wat activation exists, the freeze pipeline (its `pass_order` phase
+names) — and `RuntimeError::new` reads it, as it reads `CALL_STACK`. Obvious YES, Simple YES (one
+slot, O(1), zero error-kind changes), Honest YES (names what was executing; never inferred from the
+error), Good UX YES. Rejected: threading name fields onto ~10 kinds (Simple NO — ten wire changes
+for a framing concern, braiding *what went wrong* with *where it ran*); any fallback name (Honest NO).
+
+Side finding: `src/numeric/arith.rs:~88`'s doc claims `DivisionByZero`'s `op` names the caller's
+spelling — `DivisionByZero` has no `op` field. A false comment; correct it.
