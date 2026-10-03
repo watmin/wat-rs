@@ -1,0 +1,16 @@
+tests/function/fn_rename_bare_fn_type.wat ;; negative proof of the retired keyword form :fn(wat::core::i64)->wat::core::i64
+tests/function/fn_rename_mixed_legacy.wat ;; negative proof of the retired keyword form :fn(wat::core::i64)->wat::core::i64
+wat-scripts/fixes/rename-core-bigint-rational-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-core-maps-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-core-numerics-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-core-set-and-list-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-core-string-to-string.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-core-vectors-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-four-families-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-keyword-to-its-home.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-math-stat-seq-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-rete-numerics-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/rename-string-verbs-to-their-home.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
+wat-scripts/fixes/to-faithful-clojure-net.wat ;; recorded codemod: after conversion the replay leaves the keyword fixture, including :wat::core::Tuple(i64)
+wat-scripts/fixes/to-faithful-clojure-rete.wat ;; recorded codemod: after conversion the replay leaves the keyword fixture, including :wat::core::Tuple(i64)
+wat-scripts/fixes/uuid-type-goes-home.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
