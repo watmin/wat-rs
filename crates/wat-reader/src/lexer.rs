@@ -183,10 +183,43 @@ pub enum Token {
 /// line/column reconstruction a diagnostic needs.
 pub type Position = usize;
 
+/// Excursus 003 strike B2, item 4 — the kernel-namespaced tag for `LexError`/
+/// `LexErrorKind`'s wire form, mirroring `wat`'s own `error_ns::PARSE`
+/// convention: a bare Rust path (never a string literal — the derive's
+/// `#[to_edn(namespace = ...)]` forbids that) this crate CAN see, since
+/// `wat`'s own `crate::error_ns` lives one dependency hop away and is not
+/// reachable from here. Must stay in sync with `"wat.lex"` by convention,
+/// same as `"wat.parse"` already does between the two crates (see this
+/// module's own header note, and `wat/lex-errors.wat`'s).
+pub(crate) const LEX_NS: &str = "wat.lex";
+
+/// `UnexpectedChar`/`UnknownEscape` carry the offending `char` itself —
+/// serialized as its one-character `String` form, NOT `:wat::core::char`:
+/// measured (`src/types.rs`'s `TABLE-STONE-Q` test), `:wat::core::char` is a
+/// DELIBERATE hole in the type registry today (constructible as a runtime
+/// `Value` via `(:wat::core::char "x")`, but never a `TypeEnv` member, so a
+/// field declared with it is `UndeclaredFieldType` at decode — driven, not
+/// assumed). A one-character `String` is the honest, already-registered
+/// alternative; `wat/lex-errors.wat`'s own fields type `:wat::core::String`
+/// to match.
+pub(crate) fn char_to_edn_string(c: &char) -> wat_edn::OwnedValue {
+    wat_edn::OwnedValue::String(std::borrow::Cow::Owned(c.to_string()))
+}
+
 /// Lex error. Pattern A (Stone 243.7e): position at the outer struct level;
 /// variant data in [`LexErrorKind`]. Every constructor demands the position
 /// so silent omission is uncompilable.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Excursus 003 strike B2, item 4: now a genuine tagged wire value
+/// (`#[derive(ToEdn)]`, `#wat.lex/LexError {:position :kind}`) — the ONE
+/// place `LexErrorKind`'s structure (the offending character, the kind) used
+/// to be discarded (`ParseErrorKind::Lex.cause` rode as flattened `Display`
+/// prose). `LexError` itself is DATA, not an Error: no `message`/`location`
+/// of its own — `ParseErrorKind::Lex` already supplies the floor at the
+/// outer level, the same shape `LoadFetchError` (excursus 003 strike B2,
+/// item 2, `wat` crate) has.
+#[derive(Debug, Clone, PartialEq, wat_edn::ToEdn)]
+#[to_edn(namespace = crate::lexer::LEX_NS)]
 pub struct LexError {
     pub position: Position,
     pub kind: LexErrorKind,
@@ -194,11 +227,19 @@ pub struct LexError {
 
 /// Variant data for [`LexError`]. The byte position lives in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Excursus 003 strike B2, item 4: ONE wat `defenum`
+/// (`:wat::lex::LexErrorKind`, `wat/lex-errors.wat`), `#[to_edn(qualified)]`
+/// dot-joining every variant's wire tag (`#wat.lex/LexErrorKind.<Variant>`).
+#[derive(Debug, Clone, PartialEq, wat_edn::ToEdn)]
+#[to_edn(namespace = crate::lexer::LEX_NS, qualified)]
 pub enum LexErrorKind {
-    UnexpectedChar(char),
+    #[to_edn(key = "char")]
+    UnexpectedChar(#[to_edn(via = crate::lexer::char_to_edn_string)] char),
     UnterminatedString,
-    UnknownEscape(char),
+    #[to_edn(key = "char")]
+    UnknownEscape(#[to_edn(via = crate::lexer::char_to_edn_string)] char),
+    #[to_edn(key = "literal")]
     InvalidNumber(String),
     /// Whitespace inside an unclosed `(` in a keyword. The spec forbids
     /// internal whitespace in keywords; if we hit one while parens are
@@ -235,6 +276,7 @@ pub enum LexErrorKind {
     /// Invalid character literal. Arc 220 slice 2: `\c` form error
     /// (empty body, supplementary-plane codepoint, unknown named char,
     /// or backslash followed by whitespace).
+    #[to_edn(key = "reason")]
     InvalidChar(String),
     /// Raw control character in source. Stone 249 scope-closure:
     /// identifier names must never contain U+0001 (the env-key separator

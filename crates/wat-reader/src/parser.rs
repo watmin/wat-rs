@@ -148,7 +148,10 @@ impl std::error::Error for ParseError {}
 impl wat_edn::ToEdn for ParseError {
     /// `#wat.parse/<VariantName> {:span {…} <variant fields>}` — Pattern A:
     /// span at the outer struct. The `Lex` variant nests the underlying
-    /// `LexError` message as `:cause`; every other variant is structureless.
+    /// `LexError`'s OWN tagged wire form as `:cause` (excursus 003 strike B2,
+    /// item 4 — `LexError` is now `#[derive(ToEdn)]`, `#wat.lex/LexError
+    /// {:position :kind}`, not flattened `Display` prose); every other
+    /// variant is structureless.
     fn to_edn(&self) -> wat_edn::OwnedValue {
         use std::borrow::Cow;
         use wat_edn::{Keyword, OwnedValue, Tag};
@@ -158,7 +161,7 @@ impl wat_edn::ToEdn for ParseError {
                 "Lex",
                 vec![(
                     OwnedValue::Keyword(Keyword::new("cause")),
-                    OwnedValue::String(Cow::Owned(e.to_string())),
+                    e.to_edn(),
                 )],
             ),
             ParseErrorKind::UnexpectedRParen => ("UnexpectedRParen", vec![]),

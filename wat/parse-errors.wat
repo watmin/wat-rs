@@ -36,51 +36,46 @@
 ;; stay in sync by convention, per `error_ns.rs`'s own header). So
 ;; `:wat::parse::<Name>` is exactly `#wat.parse/<Name>` on the wire.
 ;;
-;; ── `Lex` — a lex error rides inside a parse error as an OPAQUE STRING ────────
+;; ── `Lex` — excursus 003 strike B2, item 4 CLOSED the opaque-string gap ──────
 ;;
 ;; `ParseErrorKind::Lex(LexError)` is the ONE variant whose Rust field is
 ;; itself a further taxonomy (`LexErrorKind`,
-;; `crates/wat-reader/src/lexer.rs:198`, 10 variants, the brief's other S3
-;; taxonomy). Measured: `LexError`/`LexErrorKind` has NO `ToEdn` impl and NO
-;; `WatError` impl anywhere in either crate (grepped both trees) — the ONLY
-;; place a `LexError` ever reaches EDN is `ParseError`'s hand-written
-;; `to_edn()`, which renders it with `OwnedValue::String(e.to_string())` —
-;; `LexError`'s OWN `Display` ("lex error at byte N: <kind message>"),
-;; flattened to prose. No `#wat.lex/…` tag is EVER produced, by any code
-;; path, for any of the 10 `LexErrorKind` variants, today. `Lex`'s own
-;; record below is therefore declared with `cause <- :wat::core::String` (a
-;; plain string field, not `:wat::core::Error` or `:wat::core::Value`) — the
-;; honest mirror of what is actually on the wire.
+;; `crates/wat-reader/src/lexer.rs`, 10 variants, S3's other taxonomy). S3
+;; measured that `LexError`/`LexErrorKind` had NO `ToEdn` impl anywhere, so
+;; the only wire form was `ParseError`'s hand-written `to_edn()` rendering it
+;; as `OwnedValue::String(e.to_string())` — `LexError`'s own `Display`
+;; ("lex error at byte N: <kind message>"), flattened to prose; no
+;; `#wat.lex/…` tag was ever produced (driven proof:
+;; `excursus_003_s3_gates::g_lex_never_produces_a_tag`, `src/parser.rs` —
+;; RETIRED this strike, replaced by the G-list/G-strict pair below it).
 ;;
-;; **No sibling "lex-errors" stdlib file exists — this file declares no
-;; `:wat::lex::*` records at all.** PURE DECLARATION mirrors what
-;; `error_edn()` emits TODAY; since no code path ever calls anything
-;; resembling `error_edn()` on a bare `LexError` (it has no such method, and
-;; no `ToEdn` either), there is no produced tag set for `LexErrorKind` to
-;; mirror — declaring 10 `:wat::lex::<Kind>` records against zero producers
-;; would not be declaration of the wire, it would be invention of a wire
-;; that does not exist. This is measured empirically below
-;; (`excursus_003_s3_gates::g_lex_never_produces_a_tag`,
-;; `crates/wat-reader/src/lexer.rs`), not merely asserted here. Flagged for
-;; the B worklist: a lex failure loses all structure (no offending
-;; character, no error kind, no position) to a caller holding the decoded
-;; `:wat::parse::Lex.cause` string — the SAME information the Rust-side
-;; `LexError` still carries in full, discarded at this one serialization
-;; site.
+;; B2 closes it: `LexErrorKind` is now ONE `defenum`
+;; (`:wat::lex::LexErrorKind`, `wat/lex-errors.wat` — declared in
+;; `crates/wat-reader/src/lexer.rs` itself, the SAME crate that owns the
+;; type, mirroring `ParseError`'s own placement), `#[to_edn(qualified)]`
+;; dot-joining every variant's wire tag (`#wat.lex/LexErrorKind.<Variant>`).
+;; `LexError` (`{position, kind}`) is its own tagged record too
+;; (`#wat.lex/LexError {:position :kind}`). `Lex`'s own record below is
+;; retyped from `cause <- :wat::core::String` to `cause <-
+;; :wat::lex::LexError` — the concrete record, not `:wat::core::Error` (DATA,
+;; not an Error: `LexError` carries no `message`/`location` of its own,
+;; `Lex` already supplies the floor — the same shape `LoadFetchError` has
+;; relative to `LoadErrorKind::Fetch`).
 ;;
-;; Loads after `wat/core.wat` (`:wat::core::Error`/`Span`/`String`). See
+;; Loads after `wat/core.wat` (`:wat::core::Error`/`Span`/`String`) and after
+;; `wat/lex-errors.wat` (needs `:wat::lex::LexError`). See
 ;; `src/load/stdlib.rs`.
 
 ;; ─── The 11 declared `ParseErrorKind` records ────────────────────────────────
 
 ;; Lex failure — the input couldn't be tokenized. `cause` is the LexError's
-;; own `Display` text, flattened to a plain string (see header note above —
-;; the one wire defect this taxonomy carries into strike B).
+;; own `:wat::lex::LexError` record (excursus 003 strike B2, item 4 — see
+;; header note above).
 (:wat::core::defrecord :wat::parse::Lex
   [message <- :wat::core::String
    location <- :wat::core::Span
-   
-   cause <- :wat::core::String])
+
+   cause <- :wat::lex::LexError])
 
 ;; A `)` was found with no matching `(`.
 (:wat::core::defrecord :wat::parse::UnexpectedRParen

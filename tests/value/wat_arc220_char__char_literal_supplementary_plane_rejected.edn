@@ -6,5 +6,10 @@
     :col 50
     :end #wat.core/Option.None {}
   }
-  :cause "lex error at byte 296: invalid character literal: \\😀: supplementary-plane codepoint U+1F600 not supported; wat char literals are BMP-only (U+0000–U+FFFF)"
+  :cause #wat.lex/LexError {
+    :position 296
+    :kind #wat.lex/LexErrorKind.InvalidChar {
+      :reason "\\😀: supplementary-plane codepoint U+1F600 not supported; wat char literals are BMP-only (U+0000–U+FFFF)"
+    }
+  }
 }

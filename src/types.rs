@@ -2775,10 +2775,19 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::ProgramBodyEvalFailed");
     ::wat_source_derive::wat_record_from!(env, "wat/macro-errors.wat", ":wat::macro::MacroEvalRuntimeFailed");
 
+    // ─── Excursus 003 strike B2, item 4 — the LexErrorKind / LexError wat
+    // records ───────────────────────────────────────────────────────────────
+    // Declared in `wat/lex-errors.wat` (sourced from
+    // `crates/wat-reader/src/lexer.rs`, the crate that owns the type).
+    // Registered BEFORE wat/parse-errors.wat's records below: `Lex.cause`
+    // names `:wat::lex::LexError`.
+
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/lex-errors.wat", ":wat::lex::LexErrorKind");
+    ::wat_source_derive::wat_record_from!(env, "wat/lex-errors.wat", ":wat::lex::LexError");
+
     // ─── Excursus 003 sweep S3 — the ParseErrorKind wat records ───────────────
     // Declared in `wat/parse-errors.wat`. All 11 `ParseErrorKind` variants
-    // (`crates/wat-reader/src/parser.rs:37`). No `wat/lex-errors.wat` — see
-    // that file's header: `LexErrorKind` never produces its own wire tag.
+    // (`crates/wat-reader/src/parser.rs:37`).
 
     ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::Lex");
     ::wat_source_derive::wat_record_from!(env, "wat/parse-errors.wat", ":wat::parse::UnexpectedRParen");

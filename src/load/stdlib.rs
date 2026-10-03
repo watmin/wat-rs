@@ -147,11 +147,19 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/macro-errors.wat",
         source: include_str!("../../wat/macro-errors.wat"),
     },
+    // Excursus 003 strike B2, item 4 — `:wat::lex::LexErrorKind` (the 10
+    // structural lex failure modes) and `:wat::lex::LexError` (its wrapper).
+    // Sourced from `crates/wat-reader/src/lexer.rs` (the crate that owns the
+    // type — mirrors `ParseError`'s own placement). After core.wat only.
+    WatSource {
+        path: "wat/lex-errors.wat",
+        source: include_str!("../../wat/lex-errors.wat"),
+    },
     // Excursus 003 sweep S3 — the 11 declared `:wat::parse::<Kind>` records
-    // mirroring `ParseErrorKind`. After core.wat only. No `wat/lex-errors.wat`
-    // exists — measured (see `wat/parse-errors.wat`'s header): `LexErrorKind`
-    // never produces its own wire tag; a lex failure rides inside
-    // `:wat::parse::Lex.cause` as a flattened string.
+    // mirroring `ParseErrorKind`. After `wat/lex-errors.wat`: `Lex.cause`
+    // resolves against `:wat::lex::LexError`, declared there (strike B2, item 4
+    // — closes the gap this comment used to document: `LexErrorKind` used to
+    // never produce its own wire tag).
     WatSource {
         path: "wat/parse-errors.wat",
         source: include_str!("../../wat/parse-errors.wat"),
