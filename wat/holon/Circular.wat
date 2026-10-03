@@ -17,19 +17,19 @@
 ;; `(:wat::math::pi)`; let bindings carry explicit
 ;; `:wat::core::f64` types.
 
-(:wat::core::defmacro :wat::holon::Circular
-  [value  <- wat.type/AST
-   period <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::core::let
+(wat.core/defmacro wat.holon/Circular
+  [value  :- wat.type/AST
+   period :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.core/let
      [frac
-       (:wat::core::/ ~value ~period)
+       (wat.core// ~value ~period)
       two-pi
-       (:wat::core::* 2.0 (:wat::math::pi))
+       (wat.core/* 2.0 (wat.math/pi))
       theta
-       (:wat::core::* two-pi frac)]
-     (:wat::holon::Blend
-       (:wat::holon::to-holon :wat::std::circular-cos-basis)
-       (:wat::holon::to-holon :wat::std::circular-sin-basis)
-       (:wat::math::cos theta)
-       (:wat::math::sin theta))))
+       (wat.core/* two-pi frac)]
+     (wat.holon/Blend
+       (wat.holon/to-holon wat.std/circular-cos-basis)
+       (wat.holon/to-holon wat.std/circular-sin-basis)
+       (wat.math/cos theta)
+       (wat.math/sin theta))))

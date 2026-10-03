@@ -15,16 +15,16 @@
 ;; dedup:   (HashMap :- [String i64]) — maps a structural key to the existing node id;
 ;;          avoids rescanning the network to detect shareable nodes.
 ;; WHY a record: cleaner than a Tuple at call sites; fields are domain nouns.
-(:wat::core::defrecord :wat::rete::CompileState
-  [network <- wat.type/PersistentMap
-   next-id <- wat.type/i64
-   dedup   <- (wat.type/HashMap :- [wat.type/String wat.type/i64])])
+(wat.core/defrecord wat.rete/CompileState
+  [network :- wat.type/PersistentMap
+   next-id :- wat.type/i64
+   dedup   :- (wat.type/HashMap :- [wat.type/String wat.type/i64])])
 
 ;; MintResult — result of find-or-mint: the resolved node id + updated state.
 ;; WHY a record: named fields communicate intent at call sites better than positional.
-(:wat::core::defrecord :wat::rete::MintResult
-  [id    <- wat.type/i64
-   state <- :wat::rete::CompileState])
+(wat.core/defrecord wat.rete/MintResult
+  [id    :- wat.type/i64
+   state :- wat.rete/CompileState])
 
 ;; network-add-child — add child-id to the children of the node at node-id in network.
 ;; Returns the updated PersistentMap.
@@ -34,192 +34,192 @@
 ;; the find-or-mint-* dedup), this keeps the node's out-degree from growing once per rule.
 ;; WHY: wiring edges = conj child-id onto the existing children PersistentVector and
 ;; re-assoc the node; :wat::core::Record/assoc does name-based field update on any Record.
-(:wat::core::defn :wat::rete::network-add-child
-  [network  <- wat.type/PersistentMap
-   node-id  <- wat.type/i64
-   child-id <- wat.type/i64]
-  -> wat.type/PersistentMap
-  (:wat::core::let [node   (:wat::core::Option/expect
-                                  (:wat::core::get network node-id)
+(wat.core/defn wat.rete/network-add-child
+  [network  :- wat.type/PersistentMap
+   node-id  :- wat.type/i64
+   child-id :- wat.type/i64]
+  :- wat.type/PersistentMap
+  (wat.core/let [node   (wat.core.Option/expect
+                                  (wat.core/get network node-id)
                                   "network-add-child: node not found")
-                    old-ch (:wat::rete::node-children-ids node)]
-    (:wat::core::if (:wat::core::contains? old-ch child-id)
+                    old-ch (wat.rete/node-children-ids node)]
+    (wat.core/if (wat.core/contains? old-ch child-id)
       network
-      (:wat::core::let [new-ch   (:wat::core::conj old-ch child-id)
-                        new-node (:wat::core::assoc node :children new-ch)]
-        (:wat::core::assoc network node-id new-node)))))
+      (wat.core/let [new-ch   (wat.core/conj old-ch child-id)
+                        new-node (wat.core/assoc node :children new-ch)]
+        (wat.core/assoc network node-id new-node)))))
 
 ;; find-or-mint-alpha — find an existing AlphaNode whose tests == cond, or mint a new one.
 ;; Dedup key: "alpha:<write-forms cond>".
 ;; Returns a MintResult(id, updated-state).
 ;; WHY write-forms for key: gives a canonical string from the WatAST form; structural
 ;; equality on the form is span-agnostic so identical conditions always produce the same key.
-(:wat::core::defn :wat::rete::find-or-mint-alpha
-  [cond  <- wat.type/AST
-   state <- :wat::rete::CompileState]
-  -> :wat::rete::MintResult
-  (:wat::core::let [cond-text (:wat::core::write-forms cond)
-                    dkey      (:wat::string::interpolate "alpha:{cond-text}" :cond-text cond-text)
-                    network   (:wat::rete::CompileState/network state)
-                    next-id   (:wat::rete::CompileState/next-id state)
-                    dedup     (:wat::rete::CompileState/dedup   state)
-                    found-opt (:wat::core::get dedup dkey)]
-    (:wat::core::match found-opt 
-      [:wat::core::Option.Some {:value existing-id}
-       (:wat::rete::MintResult :id existing-id :state state)]
-      [:wat::core::Option.None {}
-       (:wat::core::let [alpha     (:wat::rete::AlphaNode
+(wat.core/defn wat.rete/find-or-mint-alpha
+  [cond  :- wat.type/AST
+   state :- wat.rete/CompileState]
+  :- wat.rete/MintResult
+  (wat.core/let [cond-text (wat.core/write-forms cond)
+                    dkey      (wat.string/interpolate "alpha:{cond-text}" :cond-text cond-text)
+                    network   (wat.rete.CompileState/network state)
+                    next-id   (wat.rete.CompileState/next-id state)
+                    dedup     (wat.rete.CompileState/dedup   state)
+                    found-opt (wat.core/get dedup dkey)]
+    (wat.core/match found-opt 
+      [wat.core/Option.Some {:value existing-id}
+       (wat.rete/MintResult :id existing-id :state state)]
+      [wat.core/Option.None {}
+       (wat.core/let [alpha     (wat.rete/AlphaNode
                                       :id next-id
                                       :tests (wat.type/PersistentVector :- [wat.type/AST] cond)
                                       :children (wat.type/PersistentVector :- [wat.type/i64]))
-                         new-net   (:wat::core::assoc network next-id alpha)
-                         new-dedup (:wat::core::assoc dedup dkey next-id)
-                         new-state (:wat::rete::CompileState
+                         new-net   (wat.core/assoc network next-id alpha)
+                         new-dedup (wat.core/assoc dedup dkey next-id)
+                         new-state (wat.rete/CompileState
                                       :network new-net
-                                      :next-id (:wat::i64::+ next-id 1)
+                                      :next-id (wat.i64/+ next-id 1)
                                       :dedup new-dedup)]
-         (:wat::rete::MintResult :id next-id :state new-state))])))
+         (wat.rete/MintResult :id next-id :state new-state))])))
 
 ;; exists-uses-alpha-probe? — a fact-shaped inner (Reading(?g), Maintenance(?loc))
 ;; is what alpha already stored. `:where` / `:and` / `:or` / `:not` / `:exists`
 ;; stay on exists-cond-under (where-not-where is eval-test; leftover `?v < ?m`
 ;; after accum is a where, not a reason to scan facts for the fact-shaped case).
-(:wat::core::defn :wat::rete::exists-uses-alpha-probe?
-  [cond <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [head-nm (:wat::core::ast-name
-                              (:wat::core::first (:wat::core::ast->children cond)))]
-    (:wat::core::not
-      (:wat::core::or (:wat::core::= head-nm ":wat::rete::where")
-        (:wat::core::or (:wat::core::= head-nm ":wat::rete::and")
-          (:wat::core::or (:wat::core::= head-nm ":wat::rete::or")
-            (:wat::core::or (:wat::core::= head-nm ":wat::rete::not")
-              (:wat::core::= head-nm ":wat::rete::exists"))))))))
+(wat.core/defn wat.rete/exists-uses-alpha-probe?
+  [cond :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [head-nm (wat.core/ast-name
+                              (wat.core/first (wat.core/ast->children cond)))]
+    (wat.core/not
+      (wat.core/or (wat.core/= head-nm ":wat::rete::where")
+        (wat.core/or (wat.core/= head-nm ":wat::rete::and")
+          (wat.core/or (wat.core/= head-nm ":wat::rete::or")
+            (wat.core/or (wat.core/= head-nm ":wat::rete::not")
+              (wat.core/= head-nm ":wat::rete::exists"))))))))
 
 ;; cond-children — wrapper arms of `(:wat::rete::and …)` / `(:or …)`.
-(:wat::core::defn :wat::rete::cond-children
-  [form <- wat.type/AST]
-  -> (wat.type/PersistentVector :- [wat.type/AST])
-  (:wat::core::let [ch (:wat::core::ast->children form)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/AST])
-                       i   <- wat.type/i64]
-        -> (wat.type/PersistentVector :- [wat.type/AST])
-        (:wat::core::conj acc
-          (:wat::core::Option/expect
-            (:wat::core::get ch i)
+(wat.core/defn wat.rete/cond-children
+  [form :- wat.type/AST]
+  :- (wat.type/PersistentVector :- [wat.type/AST])
+  (wat.core/let [ch (wat.core/ast->children form)]
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/AST])
+                       i   :- wat.type/i64]
+        :- (wat.type/PersistentVector :- [wat.type/AST])
+        (wat.core/conj acc
+          (wat.core.Option/expect
+            (wat.core/get ch i)
             "cond-children")))
       (wat.type/PersistentVector :- [wat.type/AST])
-      (:wat::core::range 1 (:wat::core::length ch)))))
+      (wat.core/range 1 (wat.core/length ch)))))
 
 ;; mint-leaf-alphas — a `:not` / `:exists` inner that is `:and` / `:or` / `:not`
 ;; has no useful single-fact alpha. Mint an alpha for each fact-shaped leaf so
 ;; binding-extensions can probe the right bag instead of the session fact vector.
-(:wat::core::defn :wat::rete::mint-leaf-alphas
-  [cond  <- wat.type/AST
-   state <- :wat::rete::CompileState]
-  -> :wat::rete::CompileState
-  (:wat::core::if (:wat::rete::exists-uses-alpha-probe? cond)
-    (:wat::rete::MintResult/state (:wat::rete::find-or-mint-alpha cond state))
-    (:wat::core::let [head-nm (:wat::core::ast-name
-                                (:wat::core::first (:wat::core::ast->children cond)))]
-      (:wat::core::cond
-        ((:wat::core::= head-nm ":wat::rete::where")
+(wat.core/defn wat.rete/mint-leaf-alphas
+  [cond  :- wat.type/AST
+   state :- wat.rete/CompileState]
+  :- wat.rete/CompileState
+  (wat.core/if (wat.rete/exists-uses-alpha-probe? cond)
+    (wat.rete.MintResult/state (wat.rete/find-or-mint-alpha cond state))
+    (wat.core/let [head-nm (wat.core/ast-name
+                                (wat.core/first (wat.core/ast->children cond)))]
+      (wat.core/cond
+        ((wat.core/= head-nm ":wat::rete::where")
          state)
-        ((:wat::core::or (:wat::core::= head-nm ":wat::rete::and")
-                         (:wat::core::= head-nm ":wat::rete::or"))
-         (:wat::core::foldl
-           (:wat::core::fn [st  <- :wat::rete::CompileState
-                            kid <- wat.type/AST]
-             -> :wat::rete::CompileState
-             (:wat::rete::mint-leaf-alphas kid st))
+        ((wat.core/or (wat.core/= head-nm ":wat::rete::and")
+                         (wat.core/= head-nm ":wat::rete::or"))
+         (wat.core/foldl
+           (wat.core/fn [st  :- wat.rete/CompileState
+                            kid :- wat.type/AST]
+             :- wat.rete/CompileState
+             (wat.rete/mint-leaf-alphas kid st))
            state
-           (:wat::rete::cond-children cond)))
-        ((:wat::core::or (:wat::core::= head-nm ":wat::rete::not")
-                         (:wat::core::= head-nm ":wat::rete::exists"))
-         (:wat::rete::mint-leaf-alphas
-           (:wat::core::second (:wat::core::ast->children cond))
+           (wat.rete/cond-children cond)))
+        ((wat.core/or (wat.core/= head-nm ":wat::rete::not")
+                         (wat.core/= head-nm ":wat::rete::exists"))
+         (wat.rete/mint-leaf-alphas
+           (wat.core/second (wat.core/ast->children cond))
            state))
         (:else
-         (:wat::rete::MintResult/state (:wat::rete::find-or-mint-alpha cond state)))))))
+         (wat.rete.MintResult/state (wat.rete/find-or-mint-alpha cond state)))))))
 
 ;; find-or-mint-root-join — find or mint a RootJoinNode for the first condition.
 ;; Dedup key: "rootjoin:<cond-text>".
 ;; WHY split from hash-join: if-branching between different record types (RootJoinNode vs
 ;; HashJoinNode) cannot be unified by the type checker; two typed fns avoid the mismatch.
-(:wat::core::defn :wat::rete::find-or-mint-root-join
-  [cond  <- wat.type/AST
-   state <- :wat::rete::CompileState]
-  -> :wat::rete::MintResult
-  (:wat::core::let [cond-text (:wat::core::write-forms cond)
-                    dkey      (:wat::string::interpolate "rootjoin:{cond-text}" :cond-text cond-text)
-                    network   (:wat::rete::CompileState/network state)
-                    next-id   (:wat::rete::CompileState/next-id state)
-                    dedup     (:wat::rete::CompileState/dedup   state)
-                    found-opt (:wat::core::get dedup dkey)]
-    (:wat::core::match found-opt 
-      [:wat::core::Option.Some {:value existing-id}
-       (:wat::rete::MintResult :id existing-id :state state)]
-      [:wat::core::Option.None {}
-       (:wat::core::let [join-node (:wat::rete::RootJoinNode
+(wat.core/defn wat.rete/find-or-mint-root-join
+  [cond  :- wat.type/AST
+   state :- wat.rete/CompileState]
+  :- wat.rete/MintResult
+  (wat.core/let [cond-text (wat.core/write-forms cond)
+                    dkey      (wat.string/interpolate "rootjoin:{cond-text}" :cond-text cond-text)
+                    network   (wat.rete.CompileState/network state)
+                    next-id   (wat.rete.CompileState/next-id state)
+                    dedup     (wat.rete.CompileState/dedup   state)
+                    found-opt (wat.core/get dedup dkey)]
+    (wat.core/match found-opt 
+      [wat.core/Option.Some {:value existing-id}
+       (wat.rete/MintResult :id existing-id :state state)]
+      [wat.core/Option.None {}
+       (wat.core/let [join-node (wat.rete/RootJoinNode
                                       :id next-id
                                       :children (wat.type/PersistentVector :- [wat.type/i64]))
-                         new-net   (:wat::core::assoc network next-id join-node)
-                         new-dedup (:wat::core::assoc dedup dkey next-id)
-                         new-state (:wat::rete::CompileState
+                         new-net   (wat.core/assoc network next-id join-node)
+                         new-dedup (wat.core/assoc dedup dkey next-id)
+                         new-state (wat.rete/CompileState
                                       :network new-net
-                                      :next-id (:wat::i64::+ next-id 1)
+                                      :next-id (wat.i64/+ next-id 1)
                                       :dedup new-dedup)]
-         (:wat::rete::MintResult :id next-id :state new-state))])))
+         (wat.rete/MintResult :id next-id :state new-state))])))
 
 ;; find-or-mint-hash-join — find or mint a HashJoinNode for a non-first condition.
 ;; Dedup key: "hashjoin:<parent-id>:<cond-text>" — both condition AND left parent must match.
-(:wat::core::defn :wat::rete::find-or-mint-hash-join
-  [cond      <- wat.type/AST
-   parent-id <- wat.type/i64
-   state     <- :wat::rete::CompileState]
-  -> :wat::rete::MintResult
-  (:wat::core::let [cond-text (:wat::core::write-forms cond)
-                    pid-s     (:wat::i64::to-string parent-id)
-                    dkey      (:wat::string::interpolate "hashjoin:{pid-s}:{cond-text}" :pid-s pid-s :cond-text cond-text)
-                    network   (:wat::rete::CompileState/network state)
-                    next-id   (:wat::rete::CompileState/next-id state)
-                    dedup     (:wat::rete::CompileState/dedup   state)
-                    found-opt (:wat::core::get dedup dkey)]
-    (:wat::core::match found-opt 
-      [:wat::core::Option.Some {:value existing-id}
-       (:wat::rete::MintResult :id existing-id :state state)]
-      [:wat::core::Option.None {}
-       (:wat::core::let [join-node (:wat::rete::HashJoinNode
+(wat.core/defn wat.rete/find-or-mint-hash-join
+  [cond      :- wat.type/AST
+   parent-id :- wat.type/i64
+   state     :- wat.rete/CompileState]
+  :- wat.rete/MintResult
+  (wat.core/let [cond-text (wat.core/write-forms cond)
+                    pid-s     (wat.i64/to-string parent-id)
+                    dkey      (wat.string/interpolate "hashjoin:{pid-s}:{cond-text}" :pid-s pid-s :cond-text cond-text)
+                    network   (wat.rete.CompileState/network state)
+                    next-id   (wat.rete.CompileState/next-id state)
+                    dedup     (wat.rete.CompileState/dedup   state)
+                    found-opt (wat.core/get dedup dkey)]
+    (wat.core/match found-opt 
+      [wat.core/Option.Some {:value existing-id}
+       (wat.rete/MintResult :id existing-id :state state)]
+      [wat.core/Option.None {}
+       (wat.core/let [join-node (wat.rete/HashJoinNode
                                       :id next-id
                                       :children (wat.type/PersistentVector :- [wat.type/i64]))
-                         new-net   (:wat::core::assoc network next-id join-node)
-                         new-dedup (:wat::core::assoc dedup dkey next-id)
-                         new-state (:wat::rete::CompileState
+                         new-net   (wat.core/assoc network next-id join-node)
+                         new-dedup (wat.core/assoc dedup dkey next-id)
+                         new-state (wat.rete/CompileState
                                       :network new-net
-                                      :next-id (:wat::i64::+ next-id 1)
+                                      :next-id (wat.i64/+ next-id 1)
                                       :dedup new-dedup)]
-         (:wat::rete::MintResult :id next-id :state new-state))])))
+         (wat.rete/MintResult :id next-id :state new-state))])))
 
 ;; compile-condition — fold step: process one condition form in a rule.
 ;; acc = (CompileState, PV of parent node-ids). Empty PV = no parent yet (first
 ;; condition → RootJoin). Condition `:or` leaves N arm terminals in the PV;
 ;; the next condition fans out (one HashJoin / one Test / one :not per parent)
 ;; and Clara does not require `:or` to be last.
-(:wat::core::defrecord :wat::rete::CondFoldAcc
-  [state      <- :wat::rete::CompileState
-   parent-ids <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/CondFoldAcc
+  [state      :- wat.rete/CompileState
+   parent-ids :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; wire-parents — hang `child` off every parent (condition `:or` leaves N terminals).
-(:wat::core::defn :wat::rete::wire-parents
-  [network <- wat.type/PersistentMap
-   pids    <- (wat.type/PersistentVector :- [wat.type/i64])
-   child   <- wat.type/i64]
-  -> wat.type/PersistentMap
-  (:wat::core::foldl
-    (:wat::core::fn [net <- wat.type/PersistentMap
-                     pid <- wat.type/i64]
-      -> wat.type/PersistentMap
-      (:wat::rete::network-add-child net pid child))
+(wat.core/defn wat.rete/wire-parents
+  [network :- wat.type/PersistentMap
+   pids    :- (wat.type/PersistentVector :- [wat.type/i64])
+   child   :- wat.type/i64]
+  :- wat.type/PersistentMap
+  (wat.core/foldl
+    (wat.core/fn [net :- wat.type/PersistentMap
+                     pid :- wat.type/i64]
+      :- wat.type/PersistentMap
+      (wat.rete/network-add-child net pid child))
     network
     pids))
 
@@ -238,7 +238,7 @@
 ;; `:wat::runtime::Purity`/`:wat::runtime::Determinism` in runtime-meta.wat). The `:Pure` VARIANT is
 ;; the axis constant meaning "check effect-freedom." Same word, two unrelated things — do not
 ;; conflate them when you read or extend this form.
-(:wat::core::defenum :wat::rete::Axis :wat::enum::Pure
+(wat.core/defenum wat.rete/Axis wat.enum/Pure
   :Pure
   :Deterministic
   :Total
@@ -260,10 +260,10 @@
 ;;   span: the failing call's source Location. Native stubs with no body AST use
 ;;         rust_caller_span so the field is never omitted.
 ;; Fields: head (fqdn), axis (which fence conjunct failed), span (call site).
-(:wat::core::defrecord :wat::rete::AxisViolation
-  [head <- wat.type/String
-   axis <- :wat::rete::Axis
-   span <- :wat::kernel::Location])
+(wat.core/defrecord wat.rete/AxisViolation
+  [head :- wat.type/String
+   axis :- wat.rete/Axis
+   span :- wat.kernel/Location])
 
 ;; first-failing-axis — given the SAME booleans a fence's `and` already computed, names WHICH axis
 ;; to explain, mirroring `and`'s left-to-right short-circuit: report the FIRST conjunct that failed,
@@ -288,22 +288,22 @@
 ;;       ([[300 ALIVS ARGVIT]] — the consumer is the crucible).
 ;; Builder: *"the is-total will have utility beyond rete — prove it works here so we have our
 ;; reliable toolkit for further language usage — this is not a one off."*
-(:wat::core::defn :wat::rete::first-failing-axis
-  [is-pure  <- wat.type/bool
-   is-det   <- wat.type/bool
-   is-total <- wat.type/bool
-   is-rete  <- wat.type/bool]
-  -> :wat::rete::Axis
+(wat.core/defn wat.rete/first-failing-axis
+  [is-pure  :- wat.type/bool
+   is-det   :- wat.type/bool
+   is-total :- wat.type/bool
+   is-rete  :- wat.type/bool]
+  :- wat.rete/Axis
   ;; `cond`, not a nested-`if` ladder — the chain reads top-to-bottom in the SAME order the
   ;; conjunction short-circuits, so the code and the law have one shape. (A nested `if` here would
   ;; also trip our own `lint_finds_the_nested_if_ladder`.) Builder: *"use cond over if chaining."*
   ;; Fourth argument is Law A: `:else` is RetePrimitive, never Total. A wrap that names
   ;; RetePrimitive outside this fn can drop and a core `i64::>` where is refused as Total.
-  (:wat::core::cond
-    ((:wat::core::not is-pure)  :wat::rete::Axis.Pure)
-    ((:wat::core::not is-det)   :wat::rete::Axis.Deterministic)
-    ((:wat::core::not is-total) :wat::rete::Axis.Total)
-    (:else                      :wat::rete::Axis.RetePrimitive)))
+  (wat.core/cond
+    ((wat.core/not is-pure)  wat.rete/Axis.Pure)
+    ((wat.core/not is-det)   wat.rete/Axis.Deterministic)
+    ((wat.core/not is-total) wat.rete/Axis.Total)
+    (:else                      wat.rete/Axis.RetePrimitive)))
 
 ;; axis-violation-message — build a human-actionable fence message from an ALREADY-DECIDED
 ;; rejection. `context` names the fenced site ("where" / "accumulator" / "then"); `failing-axis` is the axis
@@ -319,251 +319,251 @@
 ;; remembering by hand. `total?` is ARMED: `compile-condition` computes a `:Total` `failing-axis`
 ;; via `first-failing-axis` when the first two conjuncts hold and totality fails. The `:Total`
 ;; arm is live. The `:RetePrimitive` arm is live when the first three conjuncts hold.
-(:wat::core::defn :wat::rete::axis-violation-message
-  [context      <- wat.type/String
-   expr         <- wat.type/AST
-   failing-axis <- :wat::rete::Axis]
-  -> wat.type/String
-  (:wat::core::match failing-axis
-    [:wat::rete::Axis.Pure {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.Pure)
-       [:wat::core::Option.Some {:value v}
-        (:wat::string::concat "compile-condition: " context " expr is not pure — '"
-                                     (:wat::rete::AxisViolation/head v) "' is not pure")]
-       [:wat::core::Option.None {}
-        (:wat::core::format "compile-condition: {context} expr is not pure (offending head could not be attributed)" :context context)])]
-    [:wat::rete::Axis.Deterministic {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.Deterministic)
-       [:wat::core::Option.Some {:value v}
-        (:wat::string::concat "compile-condition: " context " expr is not deterministic — '"
-                                     (:wat::rete::AxisViolation/head v) "' is not deterministic")]
-       [:wat::core::Option.None {}
-        (:wat::core::format "compile-condition: {context} expr is not deterministic (offending head could not be attributed)" :context context)])]
-    [:wat::rete::Axis.Total {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.Total)
-       [:wat::core::Option.Some {:value v}
-        (:wat::string::concat "compile-condition: " context " expr is not total — '"
-                                     (:wat::rete::AxisViolation/head v) "' is not total")]
-       [:wat::core::Option.None {}
-        (:wat::core::format "compile-condition: {context} expr is not total (offending head could not be attributed)" :context context)])]
+(wat.core/defn wat.rete/axis-violation-message
+  [context      :- wat.type/String
+   expr         :- wat.type/AST
+   failing-axis :- wat.rete/Axis]
+  :- wat.type/String
+  (wat.core/match failing-axis
+    [wat.rete/Axis.Pure {}
+     (wat.core/match (wat.rete/axis-violation expr wat.rete/Axis.Pure)
+       [wat.core/Option.Some {:value v}
+        (wat.string/concat "compile-condition: " context " expr is not pure — '"
+                                     (wat.rete.AxisViolation/head v) "' is not pure")]
+       [wat.core/Option.None {}
+        (wat.core/format "compile-condition: {context} expr is not pure (offending head could not be attributed)" :context context)])]
+    [wat.rete/Axis.Deterministic {}
+     (wat.core/match (wat.rete/axis-violation expr wat.rete/Axis.Deterministic)
+       [wat.core/Option.Some {:value v}
+        (wat.string/concat "compile-condition: " context " expr is not deterministic — '"
+                                     (wat.rete.AxisViolation/head v) "' is not deterministic")]
+       [wat.core/Option.None {}
+        (wat.core/format "compile-condition: {context} expr is not deterministic (offending head could not be attributed)" :context context)])]
+    [wat.rete/Axis.Total {}
+     (wat.core/match (wat.rete/axis-violation expr wat.rete/Axis.Total)
+       [wat.core/Option.Some {:value v}
+        (wat.string/concat "compile-condition: " context " expr is not total — '"
+                                     (wat.rete.AxisViolation/head v) "' is not total")]
+       [wat.core/Option.None {}
+        (wat.core/format "compile-condition: {context} expr is not total (offending head could not be attributed)" :context context)])]
     ;; #57 LAW A — the sentence the name was CHOSEN for. The three arms above read "is not pure" /
     ;; "is not deterministic" / "is not total"; this one reads "is not a rete primitive", which IS
     ;; the law ("the entire rete query language may only be composed from rete primitives") and
     ;; tells the author what to do without a lookup. The remedy is named explicitly because a
     ;; refusal that withholds the cure makes the reader hunt (R29 RVINA ERVDIT — the checker
     ;; educates); the rete twin of a core op is its name with `rete::` inserted after `wat::`.
-    [:wat::rete::Axis.RetePrimitive {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.RetePrimitive)
-       [:wat::core::Option.Some {:value v}
-        (:wat::string::concat "compile-condition: " context " expr is not a rete primitive — '"
-                                     (:wat::rete::AxisViolation/head v)
+    [wat.rete/Axis.RetePrimitive {}
+     (wat.core/match (wat.rete/axis-violation expr wat.rete/Axis.RetePrimitive)
+       [wat.core/Option.Some {:value v}
+        (wat.string/concat "compile-condition: " context " expr is not a rete primitive — '"
+                                     (wat.rete.AxisViolation/head v)
                                      "' is not a rete primitive; a " context " admits only :wat::rete:: ops")]
-       [:wat::core::Option.None {}
-        (:wat::core::format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context)])]))
+       [wat.core/Option.None {}
+        (wat.core/format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context)])]))
 
-(:wat::core::defn :wat::rete::compile-condition
-  [acc  <- :wat::rete::CondFoldAcc
-   cond <- wat.type/AST]
-  -> :wat::rete::CondFoldAcc
-  (:wat::core::let [state0    (:wat::rete::CondFoldAcc/state     acc)
-                    parent-ids (:wat::rete::CondFoldAcc/parent-ids acc)
+(wat.core/defn wat.rete/compile-condition
+  [acc  :- wat.rete/CondFoldAcc
+   cond :- wat.type/AST]
+  :- wat.rete/CondFoldAcc
+  (wat.core/let [state0    (wat.rete.CondFoldAcc/state     acc)
+                    parent-ids (wat.rete.CondFoldAcc/parent-ids acc)
                     ;; TOP: detect (:wat::rete::where <expr>) form
                     ;; Keyword-headed wrappers (`:where`/`:not`/`:exists`/`:or`/`:and`)
                     ;; or a symbol-headed fact-bind / accumulate. Non-empty list.
-                    cond-ch   (:wat::core::ast->children cond)
-                    head      (:wat::core::first cond-ch)
-                    head-nm        (:wat::core::ast-name head)
-                    is-where       (:wat::core::= head-nm ":wat::rete::where")
-                    is-not         (:wat::core::= head-nm ":wat::rete::not")
-                    is-exists      (:wat::core::= head-nm ":wat::rete::exists")
-                    is-or          (:wat::core::= head-nm ":wat::rete::or")
-                    is-and         (:wat::core::= head-nm ":wat::rete::and")
+                    cond-ch   (wat.core/ast->children cond)
+                    head      (wat.core/first cond-ch)
+                    head-nm        (wat.core/ast-name head)
+                    is-where       (wat.core/= head-nm ":wat::rete::where")
+                    is-not         (wat.core/= head-nm ":wat::rete::not")
+                    is-exists      (wat.core/= head-nm ":wat::rete::exists")
+                    is-or          (wat.core/= head-nm ":wat::rete::or")
+                    is-and         (wat.core/= head-nm ":wat::rete::and")
                     ;; Accumulate: `?` head AND not fact-bind `(?p <- :ns::Type …)`.
                     ;; Fact-bind shares the `?` head; `:from` / a list after `<-` is accumulate.
-                    is-accumulate  (:wat::rete::cond-is-accumulate cond)]
-    (:wat::core::if is-or
+                    is-accumulate  (wat.rete/cond-is-accumulate cond)]
+    (wat.core/if is-or
       ;; Each arm is its own left chain from the SAME incoming parents.
       ;; Terminals of every arm become the outgoing parent-ids (Clara :or
       ;; of activations). Nested `:or` recurses through compile-condition.
-      (:wat::core::let [or-ch (:wat::core::ast->children cond)
-                        arms  (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/AST])
-                                                  i   <- wat.type/i64]
-                                   -> (wat.type/PersistentVector :- [wat.type/AST])
-                                   (:wat::core::conj acc
-                                     (:wat::core::Option/expect
-                                       (:wat::core::get or-ch i)
+      (wat.core/let [or-ch (wat.core/ast->children cond)
+                        arms  (wat.core/foldl
+                                 (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/AST])
+                                                  i   :- wat.type/i64]
+                                   :- (wat.type/PersistentVector :- [wat.type/AST])
+                                   (wat.core/conj acc
+                                     (wat.core.Option/expect
+                                       (wat.core/get or-ch i)
                                        "compile-condition: or arm")))
                                  (wat.type/PersistentVector :- [wat.type/AST])
-                                 (:wat::core::range 1 (:wat::core::length or-ch)))
-                        _or-n (:wat::core::Option/expect
-                                 (:wat::core::if (:wat::i64::> (:wat::core::length arms) 0)
-                                   (:wat::core::Option.Some {:value nil})
-                                   :wat::core::Option.None)
+                                 (wat.core/range 1 (wat.core/length or-ch)))
+                        _or-n (wat.core.Option/expect
+                                 (wat.core/if (wat.i64/> (wat.core/length arms) 0)
+                                   (wat.core/Option.Some {:value nil})
+                                   wat.core/Option.None)
                                  "compile-condition: or of conditions has no arms")
                         incoming parent-ids]
-        (:wat::core::foldl
-          (:wat::core::fn [fold-acc <- :wat::rete::CondFoldAcc
-                           arm      <- wat.type/AST]
-            -> :wat::rete::CondFoldAcc
-            (:wat::core::let [arm-acc (:wat::rete::compile-condition
-                                        (:wat::rete::CondFoldAcc
-                                          :state (:wat::rete::CondFoldAcc/state fold-acc)
+        (wat.core/foldl
+          (wat.core/fn [fold-acc :- wat.rete/CondFoldAcc
+                           arm      :- wat.type/AST]
+            :- wat.rete/CondFoldAcc
+            (wat.core/let [arm-acc (wat.rete/compile-condition
+                                        (wat.rete/CondFoldAcc
+                                          :state (wat.rete.CondFoldAcc/state fold-acc)
                                           :parent-ids incoming)
                                         arm)]
-              (:wat::rete::CondFoldAcc
-                :state (:wat::rete::CondFoldAcc/state arm-acc)
-                :parent-ids (:wat::core::into
-                              (:wat::rete::CondFoldAcc/parent-ids fold-acc)
-                              (:wat::rete::CondFoldAcc/parent-ids arm-acc)))))
-          (:wat::rete::CondFoldAcc :state state0 :parent-ids (wat.type/PersistentVector :- [wat.type/i64]))
+              (wat.rete/CondFoldAcc
+                :state (wat.rete.CondFoldAcc/state arm-acc)
+                :parent-ids (wat.core/into
+                              (wat.rete.CondFoldAcc/parent-ids fold-acc)
+                              (wat.rete.CondFoldAcc/parent-ids arm-acc)))))
+          (wat.rete/CondFoldAcc :state state0 :parent-ids (wat.type/PersistentVector :- [wat.type/i64]))
           arms))
-    (:wat::core::if is-and
+    (wat.core/if is-and
       ;; Sequential group (Clara `:and` inside `:or` / `:not`). Each child
       ;; sees the previous child's terminals — same as listing them in :when.
-      (:wat::core::let [and-ch (:wat::core::ast->children cond)
-                        kids   (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/AST])
-                                                  i   <- wat.type/i64]
-                                   -> (wat.type/PersistentVector :- [wat.type/AST])
-                                   (:wat::core::conj acc
-                                     (:wat::core::Option/expect
-                                       (:wat::core::get and-ch i)
+      (wat.core/let [and-ch (wat.core/ast->children cond)
+                        kids   (wat.core/foldl
+                                 (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/AST])
+                                                  i   :- wat.type/i64]
+                                   :- (wat.type/PersistentVector :- [wat.type/AST])
+                                   (wat.core/conj acc
+                                     (wat.core.Option/expect
+                                       (wat.core/get and-ch i)
                                        "compile-condition: and child")))
                                  (wat.type/PersistentVector :- [wat.type/AST])
-                                 (:wat::core::range 1 (:wat::core::length and-ch)))
-                        _and-n (:wat::core::Option/expect
-                                 (:wat::core::if (:wat::i64::> (:wat::core::length kids) 0)
-                                   (:wat::core::Option.Some {:value nil})
-                                   :wat::core::Option.None)
+                                 (wat.core/range 1 (wat.core/length and-ch)))
+                        _and-n (wat.core.Option/expect
+                                 (wat.core/if (wat.i64/> (wat.core/length kids) 0)
+                                   (wat.core/Option.Some {:value nil})
+                                   wat.core/Option.None)
                                  "compile-condition: and of conditions has no children")]
-        (:wat::core::foldl :wat::rete::compile-condition acc kids))
-    (:wat::core::if is-where
+        (wat.core/foldl wat.rete/compile-condition acc kids))
+    (wat.core/if is-where
       ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
-      (:wat::core::let [expr      (:wat::core::second cond-ch)
+      (wat.core/let [expr      (wat.core/second cond-ch)
                         ;; ★ THE FULL CHAIN OF RESTRICTIONS — pure ∧ deterministic ∧ total ∧ rete.
                         ;; Each measured STRICTLY and separately; see `first-failing-axis` for why
                         ;; none is folded into another. Raise at compile if any fails. The message
                         ;; names the offending head + axis (BRIEF-the-fence-names-the-head); it is
                         ;; computed lazily by `Option/expect` (only on the None/reject branch), so
                         ;; the diagnostic walk never runs on an accepted expr.
-                        is-pure   (:wat::rete::pure? expr)
-                        is-det    (:wat::rete::deterministic? expr)
+                        is-pure   (wat.rete/pure? expr)
+                        is-det    (wat.rete/deterministic? expr)
                         ;; TOTAL, ARMED — the first real consumer of `total?`, which shipped with
                         ;; T1 callable and unarmed. A partial op inside a `where` is the hazard the
                         ;; whole endeavour exists to remove: there is no jump-table opcode for
                         ;; "raises", so #49a's compiled executor cannot dispatch one.
-                        is-total  (:wat::rete::total? expr)
+                        is-total  (wat.rete/total? expr)
                         ;; #57 LAW A, ARMED on this arm (`where` / accumulate / `:then`).
                         ;; Fact-pattern constraints: freeze wall (`validate.rs` NonReteConstraint)
                         ;; AND native `compile_condition_local` (arm-session / compile-all intern)
                         ;; refuse CoreGeneric — this fenced expr is the same axis.
-                        is-rete   (:wat::rete::primitive? expr)
-                        _fence    (:wat::core::Option/expect
-                                      (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                        (:wat::core::Option.Some {:value nil})
-                                        :wat::core::Option.None)
-                                      (:wat::rete::axis-violation-message "where" expr
+                        is-rete   (wat.rete/primitive? expr)
+                        _fence    (wat.core.Option/expect
+                                      (wat.core/if (wat.core/and is-pure is-det is-total is-rete)
+                                        (wat.core/Option.Some {:value nil})
+                                        wat.core/Option.None)
+                                      (wat.rete/axis-violation-message "where" expr
                                         ;; the axis is EXACT: first-failing-axis walks all four
                                         ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
-                                        (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
+                                        (wat.rete/first-failing-axis is-pure is-det is-total is-rete)))
                         ;; #49 — lower at rule-compile. A form that cannot lower never
                         ;; enters the network. Fire only executes the circuit.
-                        _lowered  (:wat::rete::lower expr)
+                        _lowered  (wat.rete/lower expr)
                         ;; mint the TestNode
-                        network0  (:wat::rete::CompileState/network state0)
-                        next-id0  (:wat::rete::CompileState/next-id state0)
-                        dedup0    (:wat::rete::CompileState/dedup   state0)
-                        test-node (:wat::rete::TestNode :id next-id0 :expr expr :children (wat.type/PersistentVector :- [wat.type/i64]))
-                        net1      (:wat::core::assoc network0 next-id0 test-node)
-                        state1    (:wat::rete::CompileState
+                        network0  (wat.rete.CompileState/network state0)
+                        next-id0  (wat.rete.CompileState/next-id state0)
+                        dedup0    (wat.rete.CompileState/dedup   state0)
+                        test-node (wat.rete/TestNode :id next-id0 :expr expr :children (wat.type/PersistentVector :- [wat.type/i64]))
+                        net1      (wat.core/assoc network0 next-id0 test-node)
+                        state1    (wat.rete/CompileState
                                      :network net1
-                                     :next-id (:wat::i64::+ next-id0 1)
+                                     :next-id (wat.i64/+ next-id0 1)
                                      :dedup dedup0)
                         ;; wire every parent → test (`:or` may leave N terminals)
-                        net2      (:wat::rete::wire-parents
-                                     (:wat::rete::CompileState/network state1)
+                        net2      (wat.rete/wire-parents
+                                     (wat.rete.CompileState/network state1)
                                      parent-ids
                                      next-id0)
-                        state2    (:wat::rete::CompileState
+                        state2    (wat.rete/CompileState
                                      :network net2
-                                     :next-id (:wat::rete::CompileState/next-id state1)
-                                     :dedup (:wat::rete::CompileState/dedup   state1))]
-        (:wat::rete::CondFoldAcc :state state2
-          :parent-ids (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64]) next-id0)))
-      (:wat::core::if is-not
+                                     :next-id (wat.rete.CompileState/next-id state1)
+                                     :dedup (wat.rete.CompileState/dedup   state1))]
+        (wat.rete/CondFoldAcc :state state2
+          :parent-ids (wat.core/conj (wat.type/PersistentVector :- [wat.type/i64]) next-id0)))
+      (wat.core/if is-not
         ;; ── :not branch (7-a) ───────────────────────────────────────────────────
         ;; Leading :not is legal (Clara negated conjunction matches the empty world).
         ;; Empty parent-ids: filter seeds one empty-binding token.
-        (:wat::core::let [;; Extract <inner> — the 2nd child of (:wat::rete::not <inner>)
-                          inner       (:wat::core::second cond-ch)
+        (wat.core/let [;; Extract <inner> — the 2nd child of (:wat::rete::not <inner>)
+                          inner       (wat.core/second cond-ch)
                           ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
-                          alpha-res   (:wat::rete::find-or-mint-alpha inner state0)
-                          neg-alpha-id (:wat::rete::MintResult/id    alpha-res)
-                          state1      (:wat::rete::mint-leaf-alphas inner
-                                        (:wat::rete::MintResult/state alpha-res))
+                          alpha-res   (wat.rete/find-or-mint-alpha inner state0)
+                          neg-alpha-id (wat.rete.MintResult/id    alpha-res)
+                          state1      (wat.rete/mint-leaf-alphas inner
+                                        (wat.rete.MintResult/state alpha-res))
                           ;; mint the NegationNode
-                          network1    (:wat::rete::CompileState/network state1)
-                          next-id1    (:wat::rete::CompileState/next-id state1)
-                          dedup1      (:wat::rete::CompileState/dedup   state1)
-                          neg-node    (:wat::rete::NegationNode :id next-id1 :negated-alpha-id neg-alpha-id :children (wat.type/PersistentVector :- [wat.type/i64]))
-                          net2        (:wat::core::assoc network1 next-id1 neg-node)
-                          state2      (:wat::rete::CompileState
+                          network1    (wat.rete.CompileState/network state1)
+                          next-id1    (wat.rete.CompileState/next-id state1)
+                          dedup1      (wat.rete.CompileState/dedup   state1)
+                          neg-node    (wat.rete/NegationNode :id next-id1 :negated-alpha-id neg-alpha-id :children (wat.type/PersistentVector :- [wat.type/i64]))
+                          net2        (wat.core/assoc network1 next-id1 neg-node)
+                          state2      (wat.rete/CompileState
                                          :network net2
-                                         :next-id (:wat::i64::+ next-id1 1)
+                                         :next-id (wat.i64/+ next-id1 1)
                                          :dedup dedup1)
-                          net3        (:wat::rete::wire-parents
-                                          (:wat::rete::CompileState/network state2)
+                          net3        (wat.rete/wire-parents
+                                          (wat.rete.CompileState/network state2)
                                           parent-ids
                                           next-id1)
-                          state3      (:wat::rete::CompileState
+                          state3      (wat.rete/CompileState
                                          :network net3
-                                         :next-id (:wat::rete::CompileState/next-id state2)
-                                         :dedup (:wat::rete::CompileState/dedup   state2))]
-          (:wat::rete::CondFoldAcc :state state3
-            :parent-ids (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64]) next-id1)))
-        (:wat::core::if is-exists
+                                         :next-id (wat.rete.CompileState/next-id state2)
+                                         :dedup (wat.rete.CompileState/dedup   state2))]
+          (wat.rete/CondFoldAcc :state state3
+            :parent-ids (wat.core/conj (wat.type/PersistentVector :- [wat.type/i64]) next-id1)))
+        (wat.core/if is-exists
           ;; ── :exists branch (7-exists) ────────────────────────────────────────────
           ;; Leading :exists is legal (Clara test-simple-exists). Empty parent-ids:
           ;; filter emits one token per distinct inner binding, not a dummy seed.
-          (:wat::core::let [;; Extract <inner> — the 2nd child of (:wat::rete::exists <inner>)
-                            inner        (:wat::core::second cond-ch)
+          (wat.core/let [;; Extract <inner> — the 2nd child of (:wat::rete::exists <inner>)
+                            inner        (wat.core/second cond-ch)
                             ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
-                            alpha-res    (:wat::rete::find-or-mint-alpha inner state0)
-                            ex-alpha-id  (:wat::rete::MintResult/id    alpha-res)
-                            state1       (:wat::rete::mint-leaf-alphas inner
-                                           (:wat::rete::MintResult/state alpha-res))
+                            alpha-res    (wat.rete/find-or-mint-alpha inner state0)
+                            ex-alpha-id  (wat.rete.MintResult/id    alpha-res)
+                            state1       (wat.rete/mint-leaf-alphas inner
+                                           (wat.rete.MintResult/state alpha-res))
                             ;; mint the ExistsNode
-                            network1     (:wat::rete::CompileState/network state1)
-                            next-id1     (:wat::rete::CompileState/next-id state1)
-                            dedup1       (:wat::rete::CompileState/dedup   state1)
-                            ex-node      (:wat::rete::ExistsNode :id next-id1 :exists-alpha-id ex-alpha-id :children (wat.type/PersistentVector :- [wat.type/i64]))
-                            net2         (:wat::core::assoc network1 next-id1 ex-node)
-                            state2       (:wat::rete::CompileState
+                            network1     (wat.rete.CompileState/network state1)
+                            next-id1     (wat.rete.CompileState/next-id state1)
+                            dedup1       (wat.rete.CompileState/dedup   state1)
+                            ex-node      (wat.rete/ExistsNode :id next-id1 :exists-alpha-id ex-alpha-id :children (wat.type/PersistentVector :- [wat.type/i64]))
+                            net2         (wat.core/assoc network1 next-id1 ex-node)
+                            state2       (wat.rete/CompileState
                                            :network net2
-                                           :next-id (:wat::i64::+ next-id1 1)
+                                           :next-id (wat.i64/+ next-id1 1)
                                            :dedup dedup1)
-                            net3         (:wat::rete::wire-parents
-                                            (:wat::rete::CompileState/network state2)
+                            net3         (wat.rete/wire-parents
+                                            (wat.rete.CompileState/network state2)
                                             parent-ids
                                             next-id1)
-                            state3       (:wat::rete::CompileState
+                            state3       (wat.rete/CompileState
                                            :network net3
-                                           :next-id (:wat::rete::CompileState/next-id state2)
-                                           :dedup (:wat::rete::CompileState/dedup   state2))]
-            (:wat::rete::CondFoldAcc :state state3
-              :parent-ids (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64]) next-id1)))
-        (:wat::core::if is-accumulate
+                                           :next-id (wat.rete.CompileState/next-id state2)
+                                           :dedup (wat.rete.CompileState/dedup   state2))]
+            (wat.rete/CondFoldAcc :state state3
+              :parent-ids (wat.core/conj (wat.type/PersistentVector :- [wat.type/i64]) next-id1)))
+        (wat.core/if is-accumulate
           ;; ── accumulate branch (8-a) ─────────────────────────────────────────────
           ;; Form: (?result-var <- (<acc-form>) :from (<inner>))
           ;; children: [?result-var, <-, acc-form, :from, inner]
           ;; Leading accumulate is legal (Clara test-count: empty world → count 0).
           ;; Empty parent-ids: accumulate-pass seeds one empty-binding token.
-          (:wat::core::let [;; result-var: stored WITH the `?` prefix (`head-nm` as bound).
+          (wat.core/let [;; result-var: stored WITH the `?` prefix (`head-nm` as bound).
                             result-var   head-nm
                             ;; acc-form: items[2]
-                            acc-form     (:wat::core::Option/expect  
-                                             (:wat::core::get cond-ch 2)
+                            acc-form     (wat.core.Option/expect  
+                                             (wat.core/get cond-ch 2)
                                              "compile-condition: accumulate missing acc-form")
                             ;; 8-custom FENCE: the acc-form head selects the fold. A built-in
                             ;; head (:wat::rete::acc::*) is trusted (skip the fence wholesale).
@@ -572,12 +572,12 @@
                             ;; synthetic call `(<acc-hd> __acc__)` and run the four predicates
                             ;; on it — head_ok classifies the user fn transitively
                             ;; (purity.rs:classify_fn).
-                            acc-ch       (:wat::core::ast->children acc-form)
-                            acc-hd       (:wat::core::first acc-ch)
-                            acc-hd-nm    (:wat::core::ast-name acc-hd)
-                            is-builtin   (:wat::string::starts-with? acc-hd-nm ":wat::rete::acc::")
-                            fence-call   (:wat::core::quasiquote
-                                            ((:wat::core::unquote acc-hd) __acc__))
+                            acc-ch       (wat.core/ast->children acc-form)
+                            acc-hd       (wat.core/first acc-ch)
+                            acc-hd-nm    (wat.core/ast-name acc-hd)
+                            is-builtin   (wat.string/starts-with? acc-hd-nm ":wat::rete::acc::")
+                            fence-call   (wat.core/quasiquote
+                                            ((wat.core/unquote acc-hd) __acc__))
                             ;; fence: pure ∧ det ∧ total ∧ rete (skipped for :wat::rete::acc::*
                             ;; builtins, which are trusted). The four predicates are computed
                             ;; unconditionally — same
@@ -586,12 +586,12 @@
                             ;; head, never panic. The message names the offending head + axis
                             ;; (BRIEF-the-fence-names-the-head, "accumulator" not "where"); it is
                             ;; computed lazily by `Option/expect` (only on the None/reject branch).
-                            is-pure      (:wat::rete::pure? fence-call)
-                            is-det       (:wat::rete::deterministic? fence-call)
+                            is-pure      (wat.rete/pure? fence-call)
+                            is-det       (wat.rete/deterministic? fence-call)
                             ;; TOTAL, ARMED — the accumulator fence is the `where` fence's sibling
                             ;; (the stone scopes the vocabulary to "a `where` (and the accumulator
                             ;; fence)"), so it measures the same chain.
-                            is-total     (:wat::rete::total? fence-call)
+                            is-total     (wat.rete/total? fence-call)
                             ;; #83 LAW A, ARMED HERE TOO — the fourth conjunct, closing the gap that
                             ;; left this fence at three where `where` and `:then` had four. The prior
                             ;; revision of this comment said "`is-rete` is NOT added here … widening it
@@ -604,100 +604,100 @@
                             ;; here is exactly the USER fold fn — which stays admissible transitively
                             ;; whenever its body bottoms out in rete primitives (the composition door,
                             ;; purity.rs:classify_fn). What it now refuses is a core-spelled fold.
-                            is-rete      (:wat::rete::primitive? fence-call)
-                            _acc-fence   (:wat::core::Option/expect
-                                             (:wat::core::if is-builtin
-                                               (:wat::core::Option.Some {:value nil})
-                                               (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                                 (:wat::core::Option.Some {:value nil})
-                                                 :wat::core::Option.None))
-                                             (:wat::rete::axis-violation-message "accumulator" fence-call
+                            is-rete      (wat.rete/primitive? fence-call)
+                            _acc-fence   (wat.core.Option/expect
+                                             (wat.core/if is-builtin
+                                               (wat.core/Option.Some {:value nil})
+                                               (wat.core/if (wat.core/and is-pure is-det is-total is-rete)
+                                                 (wat.core/Option.Some {:value nil})
+                                                 wat.core/Option.None))
+                                             (wat.rete/axis-violation-message "accumulator" fence-call
                                                ;; the axis is EXACT: first-failing-axis walks all four
                                                ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
-                                               (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
+                                               (wat.rete/first-failing-axis is-pure is-det is-total is-rete)))
                             ;; assert items[3] is :from (structural validation)
-                            from-kw      (:wat::core::Option/expect  
-                                             (:wat::core::get cond-ch 3)
+                            from-kw      (wat.core.Option/expect  
+                                             (wat.core/get cond-ch 3)
                                              "compile-condition: accumulate missing :from")
-                            _from-check  (:wat::core::Option/expect  
-                                             (:wat::core::if (:wat::core::= (:wat::core::ast-name from-kw) ":from")
-                                               (:wat::core::Option.Some {:value nil})
-                                               :wat::core::Option.None)
+                            _from-check  (wat.core.Option/expect  
+                                             (wat.core/if (wat.core/= (wat.core/ast-name from-kw) ":from")
+                                               (wat.core/Option.Some {:value nil})
+                                               wat.core/Option.None)
                                              "compile-condition: accumulate expected :from at position 3")
                             ;; inner: items[4] — the :from fact-pattern condition
-                            inner        (:wat::core::Option/expect  
-                                             (:wat::core::get cond-ch 4)
+                            inner        (wat.core.Option/expect  
+                                             (wat.core/get cond-ch 4)
                                              "compile-condition: accumulate missing :from inner condition")
                             ;; find-or-mint an AlphaNode for the :from inner condition
-                            alpha-res    (:wat::rete::find-or-mint-alpha inner state0)
-                            from-alpha-id (:wat::rete::MintResult/id    alpha-res)
-                            state1       (:wat::rete::MintResult/state alpha-res)
+                            alpha-res    (wat.rete/find-or-mint-alpha inner state0)
+                            from-alpha-id (wat.rete.MintResult/id    alpha-res)
+                            state1       (wat.rete.MintResult/state alpha-res)
                             ;; mint the AccumulateNode
-                            network1     (:wat::rete::CompileState/network state1)
-                            next-id1     (:wat::rete::CompileState/next-id state1)
-                            dedup1       (:wat::rete::CompileState/dedup   state1)
-                            acc-node     (:wat::rete::AccumulateNode
+                            network1     (wat.rete.CompileState/network state1)
+                            next-id1     (wat.rete.CompileState/next-id state1)
+                            dedup1       (wat.rete.CompileState/dedup   state1)
+                            acc-node     (wat.rete/AccumulateNode
                                              :id next-id1
                                              :result-var result-var
                                              :acc-form acc-form
                                              :from-alpha-id from-alpha-id
                                              :children (wat.type/PersistentVector :- [wat.type/i64]))
-                            net2         (:wat::core::assoc network1 next-id1 acc-node)
-                            state2       (:wat::rete::CompileState
+                            net2         (wat.core/assoc network1 next-id1 acc-node)
+                            state2       (wat.rete/CompileState
                                             :network net2
-                                            :next-id (:wat::i64::+ next-id1 1)
+                                            :next-id (wat.i64/+ next-id1 1)
                                             :dedup dedup1)
-                            net3         (:wat::rete::wire-parents
-                                             (:wat::rete::CompileState/network state2)
+                            net3         (wat.rete/wire-parents
+                                             (wat.rete.CompileState/network state2)
                                              parent-ids
                                              next-id1)
-                            state3       (:wat::rete::CompileState
+                            state3       (wat.rete/CompileState
                                             :network net3
-                                            :next-id (:wat::rete::CompileState/next-id state2)
-                                            :dedup (:wat::rete::CompileState/dedup   state2))]
-            (:wat::rete::CondFoldAcc :state state3
-              :parent-ids (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64]) next-id1)))
+                                            :next-id (wat.rete.CompileState/next-id state2)
+                                            :dedup (wat.rete.CompileState/dedup   state2))]
+            (wat.rete/CondFoldAcc :state state3
+              :parent-ids (wat.core/conj (wat.type/PersistentVector :- [wat.type/i64]) next-id1)))
           ;; ── alpha+join: first condition → RootJoin; later → one HashJoin per parent
-          (:wat::core::let [alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
-                        alpha-id   (:wat::rete::MintResult/id    alpha-res)
-                        state1     (:wat::rete::MintResult/state alpha-res)
-                        is-first   (:wat::core::= (:wat::core::length parent-ids) 0)]
-            (:wat::core::if is-first
-              (:wat::core::let [join-res (:wat::rete::find-or-mint-root-join cond state1)
-                                join-id  (:wat::rete::MintResult/id    join-res)
-                                state2   (:wat::rete::MintResult/state join-res)
-                                net3     (:wat::rete::network-add-child
-                                           (:wat::rete::CompileState/network state2)
+          (wat.core/let [alpha-res  (wat.rete/find-or-mint-alpha cond state0)
+                        alpha-id   (wat.rete.MintResult/id    alpha-res)
+                        state1     (wat.rete.MintResult/state alpha-res)
+                        is-first   (wat.core/= (wat.core/length parent-ids) 0)]
+            (wat.core/if is-first
+              (wat.core/let [join-res (wat.rete/find-or-mint-root-join cond state1)
+                                join-id  (wat.rete.MintResult/id    join-res)
+                                state2   (wat.rete.MintResult/state join-res)
+                                net3     (wat.rete/network-add-child
+                                           (wat.rete.CompileState/network state2)
                                            alpha-id
                                            join-id)
-                                state3   (:wat::rete::CompileState
+                                state3   (wat.rete/CompileState
                                            :network net3
-                                           :next-id (:wat::rete::CompileState/next-id state2)
-                                           :dedup (:wat::rete::CompileState/dedup state2))]
-                (:wat::rete::CondFoldAcc :state state3
-                  :parent-ids (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64]) join-id)))
-              (:wat::core::let [fan (:wat::core::foldl
-                                      (:wat::core::fn [acc <- :wat::rete::CondFoldAcc
-                                                       pid <- wat.type/i64]
-                                        -> :wat::rete::CondFoldAcc
-                                        (:wat::core::let [st0 (:wat::rete::CondFoldAcc/state acc)
-                                                          jr  (:wat::rete::find-or-mint-hash-join cond pid st0)
-                                                          jid (:wat::rete::MintResult/id jr)
-                                                          st1 (:wat::rete::MintResult/state jr)
-                                                          n1  (:wat::rete::network-add-child
-                                                                (:wat::rete::CompileState/network st1)
+                                           :next-id (wat.rete.CompileState/next-id state2)
+                                           :dedup (wat.rete.CompileState/dedup state2))]
+                (wat.rete/CondFoldAcc :state state3
+                  :parent-ids (wat.core/conj (wat.type/PersistentVector :- [wat.type/i64]) join-id)))
+              (wat.core/let [fan (wat.core/foldl
+                                      (wat.core/fn [acc :- wat.rete/CondFoldAcc
+                                                       pid :- wat.type/i64]
+                                        :- wat.rete/CondFoldAcc
+                                        (wat.core/let [st0 (wat.rete.CondFoldAcc/state acc)
+                                                          jr  (wat.rete/find-or-mint-hash-join cond pid st0)
+                                                          jid (wat.rete.MintResult/id jr)
+                                                          st1 (wat.rete.MintResult/state jr)
+                                                          n1  (wat.rete/network-add-child
+                                                                (wat.rete.CompileState/network st1)
                                                                 alpha-id
                                                                 jid)
-                                                          n2  (:wat::rete::network-add-child n1 pid jid)
-                                                          st2 (:wat::rete::CompileState
+                                                          n2  (wat.rete/network-add-child n1 pid jid)
+                                                          st2 (wat.rete/CompileState
                                                                 :network n2
-                                                                :next-id (:wat::rete::CompileState/next-id st1)
-                                                                :dedup (:wat::rete::CompileState/dedup st1))]
-                                          (:wat::rete::CondFoldAcc :state st2
-                                            :parent-ids (:wat::core::conj
-                                                          (:wat::rete::CondFoldAcc/parent-ids acc)
+                                                                :next-id (wat.rete.CompileState/next-id st1)
+                                                                :dedup (wat.rete.CompileState/dedup st1))]
+                                          (wat.rete/CondFoldAcc :state st2
+                                            :parent-ids (wat.core/conj
+                                                          (wat.rete.CondFoldAcc/parent-ids acc)
                                                           jid))))
-                                      (:wat::rete::CondFoldAcc :state state1
+                                      (wat.rete/CondFoldAcc :state state1
                                         :parent-ids (wat.type/PersistentVector :- [wat.type/i64]))
                                       parent-ids)]
                 fan)))))))))))
@@ -734,31 +734,31 @@
 ;; STONE-the-fence-refuses-what-it-cannot-prove: a match's exhaustiveness is
 ;; form-level; the fence's totality axis is head-level and cannot see arms.
 ;; The fence therefore refuses match outright — exhaustive or not (STOP-1).
-(:wat::core::defn :wat::rete::then-item-contains-match?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::if (:wat::core::= k "list")
-      (:wat::core::let [ch (:wat::core::ast->children node)]
-        (:wat::core::if (:wat::i64::= (:wat::core::length ch) 0)
+(wat.core/defn wat.rete/then-item-contains-match?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/let [k (wat.core/ast-kind node)]
+    (wat.core/if (wat.core/= k "list")
+      (wat.core/let [ch (wat.core/ast->children node)]
+        (wat.core/if (wat.i64/= (wat.core/length ch) 0)
           false
-          (:wat::core::let [h (:wat::core::first ch)
-                            hnm (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
-                                   (:wat::core::ast-name h)
+          (wat.core/let [h (wat.core/first ch)
+                            hnm (wat.core/if (wat.core/= (wat.core/ast-kind h) "keyword")
+                                   (wat.core/ast-name h)
                                    "")]
-            (:wat::core::if (:wat::core::= hnm ":wat::rete::core::match")
+            (wat.core/if (wat.core/= hnm ":wat::rete::core::match")
               true
-              (:wat::core::foldl
-                (:wat::core::fn [acc <- wat.type/bool  c <- wat.type/AST] -> wat.type/bool
-                  (:wat::core::if acc true (:wat::rete::then-item-contains-match? c)))
+              (wat.core/foldl
+                (wat.core/fn [acc :- wat.type/bool  c :- wat.type/AST] :- wat.type/bool
+                  (wat.core/if acc true (wat.rete/then-item-contains-match? c)))
                 false
                 ch)))))
-      (:wat::core::if (:wat::core::= k "vector")
-        (:wat::core::foldl
-          (:wat::core::fn [acc <- wat.type/bool  c <- wat.type/AST] -> wat.type/bool
-            (:wat::core::if acc true (:wat::rete::then-item-contains-match? c)))
+      (wat.core/if (wat.core/= k "vector")
+        (wat.core/foldl
+          (wat.core/fn [acc :- wat.type/bool  c :- wat.type/AST] :- wat.type/bool
+            (wat.core/if acc true (wat.rete/then-item-contains-match? c)))
           false
-          (:wat::core::ast->children node))
+          (wat.core/ast->children node))
         false))))
 
 ;; foldl-compatible: `(acc, item) -> acc`, so `compile-rule` folds this straight over `rhs`
@@ -766,15 +766,15 @@
 ;; foldl's shape; every check here is a side-effecting raise (an axis violation panics via
 ;; `Option/expect`, exactly like `where`'s fence; "does not return a fact" raises normally,
 ;; via `field-names-of`'s own diagnostic — both are freeze-time-only, never per derived fact).
-(:wat::core::defn :wat::rete::then-item-fence
-  [acc  <- wat.type/i64
-   item <- wat.type/AST]
-  -> wat.type/i64
-  (:wat::core::let [is-pure   (:wat::rete::pure? item)
-                    is-det    (:wat::rete::deterministic? item)
+(wat.core/defn wat.rete/then-item-fence
+  [acc  :- wat.type/i64
+   item :- wat.type/AST]
+  :- wat.type/i64
+  (wat.core/let [is-pure   (wat.rete/pure? item)
+                    is-det    (wat.rete/deterministic? item)
                     ;; TOTAL, ARMED. A `:then` item that can raise aborts the fire mid-derivation,
                     ;; which is the same hazard by a different door.
-                    is-total  (:wat::rete::total? item)
+                    is-total  (wat.rete/total? item)
                     ;; ★ LAW A, ARMED ON THE RHS TOO (2026-08-05, the builder's call after the
                     ;; measurement below). The `where` fence got `is-rete` first and this one was
                     ;; deliberately left at three conjuncts — which MEASURED as a real gap:
@@ -792,222 +792,222 @@
                     ;; constructor is admitted by the declaration-derived constructor door, which
                     ;; law A never consults a namespace for (`head_ok`'s first door). What it
                     ;; refuses is core-spelled COMPUTATION inside the item.
-                    is-rete   (:wat::rete::primitive? item)
-                    _fence    (:wat::core::Option/expect
-                                  (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                    (:wat::core::Option.Some {:value nil})
-                                    :wat::core::Option.None)
-                                  (:wat::rete::axis-violation-message "then" item
+                    is-rete   (wat.rete/primitive? item)
+                    _fence    (wat.core.Option/expect
+                                  (wat.core/if (wat.core/and is-pure is-det is-total is-rete)
+                                    (wat.core/Option.Some {:value nil})
+                                    wat.core/Option.None)
+                                  (wat.rete/axis-violation-message "then" item
                                     ;; exact: first-failing-axis walks all four conjuncts;
                                     ;; `:else` is Law A (RetePrimitive), never Total.
-                                    (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
+                                    (wat.rete/first-failing-axis is-pure is-det is-total is-rete)))
                     ;; C — match is total as a HEAD; exhaustiveness is a property of ITS ARMS
                     ;; (form-level). A head-level axis cannot tell exhaustive from partial, so
                     ;; the fence admits neither. cond is NOT in this refusal (row 4): it is
                     ;; already guarded at expand.
-                    _no-match (:wat::core::Option/expect
-                                (:wat::core::if (:wat::rete::then-item-contains-match? item)
-                                  :wat::core::Option.None
-                                  (:wat::core::Option.Some {:value nil}))
+                    _no-match (wat.core.Option/expect
+                                (wat.core/if (wat.rete/then-item-contains-match? item)
+                                  wat.core/Option.None
+                                  (wat.core/Option.Some {:value nil}))
                                 "a :then admits only what the fence can prove TOTAL. `match` is total as a HEAD, but a match's exhaustiveness is a property of ITS ARMS — form-level, which a head-level axis cannot see. Use :wat::rete::core::variant-name for a variant's name, or bind the value in :when.")
-                    item-ch   (:wat::core::ast->children item)
-                    head      (:wat::core::first item-ch)
-                    head-val0 (:wat::core::Result/expect
-                                  (:wat::eval-ast! head)
+                    item-ch   (wat.core/ast->children item)
+                    head      (wat.core/first item-ch)
+                    head-val0 (wat.core.Result/expect
+                                  (wat/eval-ast! head)
                                   "compile-rule: :then item head failed to evaluate")
                     ;; `:wat::core::type` returns the COLON-FREE FQDN (`Value::declared_type_name`)
                     ;; — compare against "wat::core::fn", not ":wat::core::fn".
-                    is-fn-val (:wat::core::= (:wat::core::type head-val0) "wat::core::fn")
+                    is-fn-val (wat.core/= (wat.core/type head-val0) "wat::core::fn")
                     ;; A bare record-type keyword evaluates to a KEYWORD — re-resolve through its
                     ;; PRIME `:T'` to reach the constructor fn (see this defn's doc). A plain
                     ;; `defn` already resolved to a fn above and takes the `is-fn-val` branch.
-                    prime-kw  (:wat::core::keyword-node
-                                  (:wat::string::concat (:wat::core::ast-name head) "'"))
-                    head-fn   (:wat::core::if is-fn-val
+                    prime-kw  (wat.core/keyword-node
+                                  (wat.string/concat (wat.core/ast-name head) "'"))
+                    head-fn   (wat.core/if is-fn-val
                                   head-val0
-                                  (:wat::core::Result/expect
-                                     (:wat::eval-ast! prime-kw)
+                                  (wat.core.Result/expect
+                                     (wat/eval-ast! prime-kw)
                                      "compile-rule: :then item head failed to resolve to a fn"))
                     ;; return-type-of raises "unknown type" itself if head-fn is STILL a bare
                     ;; keyword (a genuinely unrecognised head) — no separate check needed here.
-                    ret-ty    (:wat::runtime::return-type-of head-fn)
+                    ret-ty    (wat.runtime/return-type-of head-fn)
                     ;; `keyword/from-string` wants COLON-FREE input (it adds the sigil itself);
                     ;; `return-type-of` already returns a colon-free FQDN — do not re-prepend one.
-                    ret-kw    (:wat::keyword::from-string ret-ty)
+                    ret-kw    (wat.keyword/from-string ret-ty)
                     ;; raises unless ret-kw names a registered record/struct — "produces a fact."
-                    _fact-ty  (:wat::runtime::field-names-of ret-kw)]
+                    _fact-ty  (wat.runtime/field-names-of ret-kw)]
     acc))
 
 ;; ast-qvars — every `?var` symbol under a condition AST (binds and uses).
-(:wat::core::defn :wat::rete::ast-qvars
-  [ast <- wat.type/AST]
-  -> (wat.type/PersistentVector :- [wat.type/String])
-  (:wat::core::let [k (:wat::core::ast-kind ast)]
-    (:wat::core::if (:wat::core::= k "symbol")
-      (:wat::core::let [nm (:wat::core::ast-name ast)]
-        (:wat::core::if (:wat::string::starts-with? nm "?")
-          (:wat::core::conj (wat.type/PersistentVector :- [wat.type/String]) nm)
+(wat.core/defn wat.rete/ast-qvars
+  [ast :- wat.type/AST]
+  :- (wat.type/PersistentVector :- [wat.type/String])
+  (wat.core/let [k (wat.core/ast-kind ast)]
+    (wat.core/if (wat.core/= k "symbol")
+      (wat.core/let [nm (wat.core/ast-name ast)]
+        (wat.core/if (wat.string/starts-with? nm "?")
+          (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) nm)
           (wat.type/PersistentVector :- [wat.type/String])))
-      (:wat::core::if
-        (:wat::core::if (:wat::core::= k "list")
+      (wat.core/if
+        (wat.core/if (wat.core/= k "list")
           true
-          (:wat::core::= k "vector"))
-        (:wat::core::let [ch (:wat::core::ast->children ast)
-                          n  (:wat::core::length ch)]
-          (:wat::core::foldl
-            (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
-                             i   <- wat.type/i64]
-              -> (wat.type/PersistentVector :- [wat.type/String])
-              (:wat::core::let [kid (:wat::core::Option/expect
-                                      (:wat::core::get ch i)
+          (wat.core/= k "vector"))
+        (wat.core/let [ch (wat.core/ast->children ast)
+                          n  (wat.core/length ch)]
+          (wat.core/foldl
+            (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                             i   :- wat.type/i64]
+              :- (wat.type/PersistentVector :- [wat.type/String])
+              (wat.core/let [kid (wat.core.Option/expect
+                                      (wat.core/get ch i)
                                       "ast-qvars")]
-                (:wat::core::foldl
-                  (:wat::core::fn [out <- (wat.type/PersistentVector :- [wat.type/String])
-                                   nm  <- wat.type/String]
-                    -> (wat.type/PersistentVector :- [wat.type/String])
-                    (:wat::core::if (:wat::core::contains? out nm)
+                (wat.core/foldl
+                  (wat.core/fn [out :- (wat.type/PersistentVector :- [wat.type/String])
+                                   nm  :- wat.type/String]
+                    :- (wat.type/PersistentVector :- [wat.type/String])
+                    (wat.core/if (wat.core/contains? out nm)
                       out
-                      (:wat::core::conj out nm)))
+                      (wat.core/conj out nm)))
                   acc
-                  (:wat::rete::ast-qvars kid))))
+                  (wat.rete/ast-qvars kid))))
             (wat.type/PersistentVector :- [wat.type/String])
-            (:wat::core::range 0 n)))
+            (wat.core/range 0 n)))
         (wat.type/PersistentVector :- [wat.type/String])))))
 
 ;; bind-arrow? — wat-side of `is_binder_marker`: the node is `:-` (keyword or
 ;; symbol). Rete field/fact/accum bindings use this spelling only.
-(:wat::core::defn :wat::rete::bind-arrow? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::if (:wat::core::if (:wat::core::= k "keyword") true (:wat::core::= k "symbol"))
-      (:wat::core::= (:wat::core::ast-name node) ":-")
+(wat.core/defn wat.rete/bind-arrow? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [k (wat.core/ast-kind node)]
+    (wat.core/if (wat.core/if (wat.core/= k "keyword") true (wat.core/= k "symbol"))
+      (wat.core/= (wat.core/ast-name node) ":-")
       false)))
 
 ;; cond-bind-keys — `?var` names this condition BINDS (`(?v :- :field)`,
 ;; fact-bind `(?p :- :ns::Type …)`, accum result, `:from` inner, `:exists`
 ;; inner). `:not` / `:where` bind nothing.
-(:wat::core::defn :wat::rete::cond-bind-keys
-  [cond <- wat.type/AST]
-  -> (wat.type/PersistentVector :- [wat.type/String])
-  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind cond) "list"))
+(wat.core/defn wat.rete/cond-bind-keys
+  [cond :- wat.type/AST]
+  :- (wat.type/PersistentVector :- [wat.type/String])
+  (wat.core/if (wat.core/not (wat.core/= (wat.core/ast-kind cond) "list"))
     (wat.type/PersistentVector :- [wat.type/String])
-    (:wat::core::let [ch (:wat::core::ast->children cond)
-                      n  (:wat::core::length ch)]
-      (:wat::core::if (:wat::core::= n 0)
+    (wat.core/let [ch (wat.core/ast->children cond)
+                      n  (wat.core/length ch)]
+      (wat.core/if (wat.core/= n 0)
         (wat.type/PersistentVector :- [wat.type/String])
-        (:wat::core::let [head   (:wat::core::first ch)
-                          head-k (:wat::core::ast-kind head)]
-          (:wat::core::if (:wat::core::= head-k "symbol")
-            (:wat::core::let [hnm (:wat::core::ast-name head)]
-              (:wat::core::if (:wat::rete::cond-is-fact-bind cond)
-                (:wat::core::foldl
-                  (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
-                                   i   <- wat.type/i64]
-                    -> (wat.type/PersistentVector :- [wat.type/String])
-                    (:wat::core::let [kid (:wat::core::Option/expect
-                                            (:wat::core::get ch i)
+        (wat.core/let [head   (wat.core/first ch)
+                          head-k (wat.core/ast-kind head)]
+          (wat.core/if (wat.core/= head-k "symbol")
+            (wat.core/let [hnm (wat.core/ast-name head)]
+              (wat.core/if (wat.rete/cond-is-fact-bind cond)
+                (wat.core/foldl
+                  (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                   i   :- wat.type/i64]
+                    :- (wat.type/PersistentVector :- [wat.type/String])
+                    (wat.core/let [kid (wat.core.Option/expect
+                                            (wat.core/get ch i)
                                             "cond-bind-keys: fact-bind clause")]
-                      (:wat::core::foldl
-                        (:wat::core::fn [out <- (wat.type/PersistentVector :- [wat.type/String])
-                                         nm  <- wat.type/String]
-                          -> (wat.type/PersistentVector :- [wat.type/String])
-                          (:wat::core::if (:wat::core::contains? out nm)
+                      (wat.core/foldl
+                        (wat.core/fn [out :- (wat.type/PersistentVector :- [wat.type/String])
+                                         nm  :- wat.type/String]
+                          :- (wat.type/PersistentVector :- [wat.type/String])
+                          (wat.core/if (wat.core/contains? out nm)
                             out
-                            (:wat::core::conj out nm)))
+                            (wat.core/conj out nm)))
                         acc
-                        (:wat::rete::cond-bind-keys kid))))
-                  (:wat::core::conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
-                  (:wat::core::range 3 n))
-                (:wat::core::if
-                  (:wat::core::if (:wat::string::starts-with? hnm "?")
-                    (:wat::core::if (:wat::core::= n 3)
-                      (:wat::rete::bind-arrow?
-                        (:wat::core::Option/expect
-                          (:wat::core::get ch 1)
+                        (wat.rete/cond-bind-keys kid))))
+                  (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
+                  (wat.core/range 3 n))
+                (wat.core/if
+                  (wat.core/if (wat.string/starts-with? hnm "?")
+                    (wat.core/if (wat.core/= n 3)
+                      (wat.rete/bind-arrow?
+                        (wat.core.Option/expect
+                          (wat.core/get ch 1)
                           "cond-bind-keys: bind arrow"))
                       false)
                     false)
-                  (:wat::core::conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
-                  (:wat::core::if
-                    (:wat::core::if (:wat::string::starts-with? hnm "?")
-                      (:wat::core::if (:wat::core::= n 5)
-                        (:wat::core::= (:wat::core::ast-name
-                                        (:wat::core::Option/expect
-                                          (:wat::core::get ch 3)
+                  (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
+                  (wat.core/if
+                    (wat.core/if (wat.string/starts-with? hnm "?")
+                      (wat.core/if (wat.core/= n 5)
+                        (wat.core/= (wat.core/ast-name
+                                        (wat.core.Option/expect
+                                          (wat.core/get ch 3)
                                           "cond-bind-keys: :from"))
                                       ":from")
                         false)
                       false)
-                    (:wat::core::foldl
-                      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
-                                       nm  <- wat.type/String]
-                        -> (wat.type/PersistentVector :- [wat.type/String])
-                        (:wat::core::if (:wat::core::contains? acc nm)
+                    (wat.core/foldl
+                      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                       nm  :- wat.type/String]
+                        :- (wat.type/PersistentVector :- [wat.type/String])
+                        (wat.core/if (wat.core/contains? acc nm)
                           acc
-                          (:wat::core::conj acc nm)))
-                      (:wat::core::conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
-                      (:wat::rete::cond-bind-keys
-                        (:wat::core::Option/expect
-                          (:wat::core::get ch 4)
+                          (wat.core/conj acc nm)))
+                      (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
+                      (wat.rete/cond-bind-keys
+                        (wat.core.Option/expect
+                          (wat.core/get ch 4)
                           "cond-bind-keys: :from inner")))
                     (wat.type/PersistentVector :- [wat.type/String])))))
-            (:wat::core::if (:wat::core::= head-k "keyword")
-              (:wat::core::let [hnm (:wat::core::ast-name head)]
-                (:wat::core::cond
-                  ((:wat::core::= hnm ":wat::rete::not")
+            (wat.core/if (wat.core/= head-k "keyword")
+              (wat.core/let [hnm (wat.core/ast-name head)]
+                (wat.core/cond
+                  ((wat.core/= hnm ":wat::rete::not")
                    (wat.type/PersistentVector :- [wat.type/String]))
-                  ((:wat::core::= hnm ":wat::rete::where")
+                  ((wat.core/= hnm ":wat::rete::where")
                    (wat.type/PersistentVector :- [wat.type/String]))
-                  ((:wat::core::= hnm ":wat::rete::exists")
-                   (:wat::rete::cond-bind-keys
-                     (:wat::core::second ch)))
+                  ((wat.core/= hnm ":wat::rete::exists")
+                   (wat.rete/cond-bind-keys
+                     (wat.core/second ch)))
                   (:else
-                   (:wat::core::foldl
-                     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
-                                      i   <- wat.type/i64]
-                       -> (wat.type/PersistentVector :- [wat.type/String])
-                       (:wat::core::let [kid (:wat::core::Option/expect
-                                               (:wat::core::get ch i)
+                   (wat.core/foldl
+                     (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                      i   :- wat.type/i64]
+                       :- (wat.type/PersistentVector :- [wat.type/String])
+                       (wat.core/let [kid (wat.core.Option/expect
+                                               (wat.core/get ch i)
                                                "cond-bind-keys: child")]
-                         (:wat::core::foldl
-                           (:wat::core::fn [out <- (wat.type/PersistentVector :- [wat.type/String])
-                                            nm  <- wat.type/String]
-                             -> (wat.type/PersistentVector :- [wat.type/String])
-                             (:wat::core::if (:wat::core::contains? out nm)
+                         (wat.core/foldl
+                           (wat.core/fn [out :- (wat.type/PersistentVector :- [wat.type/String])
+                                            nm  :- wat.type/String]
+                             :- (wat.type/PersistentVector :- [wat.type/String])
+                             (wat.core/if (wat.core/contains? out nm)
                                out
-                               (:wat::core::conj out nm)))
+                               (wat.core/conj out nm)))
                            acc
-                           (:wat::rete::cond-bind-keys kid))))
+                           (wat.rete/cond-bind-keys kid))))
                      (wat.type/PersistentVector :- [wat.type/String])
-                     (:wat::core::range 1 n)))))
+                     (wat.core/range 1 n)))))
               (wat.type/PersistentVector :- [wat.type/String]))))))))
 
 ;; cond-is-fact-bind — `(?p :- :ns::Type …)` (Clara `[?p <- Type]`). Type keyword has `::`.
-(:wat::core::defn :wat::rete::cond-is-fact-bind
-  [cond <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind cond) "list"))
+(wat.core/defn wat.rete/cond-is-fact-bind
+  [cond :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.core/not (wat.core/= (wat.core/ast-kind cond) "list"))
     false
-    (:wat::core::let [ch (:wat::core::ast->children cond)]
-      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
+    (wat.core/let [ch (wat.core/ast->children cond)]
+      (wat.core/if (wat.core/< (wat.core/length ch) 3)
         false
-        (:wat::core::if
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "symbol")
-            (:wat::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
+        (wat.core/if
+          (wat.core/if (wat.core/= (wat.core/ast-kind (wat.core/first ch)) "symbol")
+            (wat.string/starts-with? (wat.core/ast-name (wat.core/first ch)) "?")
             false)
-          (:wat::core::if
-            (:wat::rete::bind-arrow?
-              (:wat::core::Option/expect
-                (:wat::core::get ch 1)
+          (wat.core/if
+            (wat.rete/bind-arrow?
+              (wat.core.Option/expect
+                (wat.core/get ch 1)
                 "cond-is-fact-bind: arrow"))
-            (:wat::core::if (:wat::core::= (:wat::core::ast-kind
-                                            (:wat::core::Option/expect
-                                              (:wat::core::get ch 2)
+            (wat.core/if (wat.core/= (wat.core/ast-kind
+                                            (wat.core.Option/expect
+                                              (wat.core/get ch 2)
                                               "cond-is-fact-bind: type"))
                                           "keyword")
-              (:wat::string::contains?
-                (:wat::core::ast-name
-                  (:wat::core::Option/expect
-                    (:wat::core::get ch 2)
+              (wat.string/contains?
+                (wat.core/ast-name
+                  (wat.core.Option/expect
+                    (wat.core/get ch 2)
                     "cond-is-fact-bind: type"))
                 "::")
               false)
@@ -1015,91 +1015,91 @@
           false)))))
 
 ;; cond-is-accumulate — `?result` head that is NOT a fact-bind.
-(:wat::core::defn :wat::rete::cond-is-accumulate
-  [cond <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::rete::cond-is-fact-bind cond)
+(wat.core/defn wat.rete/cond-is-accumulate
+  [cond :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.rete/cond-is-fact-bind cond)
     false
-    (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind cond) "list"))
+    (wat.core/if (wat.core/not (wat.core/= (wat.core/ast-kind cond) "list"))
       false
-      (:wat::core::let [ch (:wat::core::ast->children cond)]
-        (:wat::core::if (:wat::core::= (:wat::core::length ch) 0)
+      (wat.core/let [ch (wat.core/ast->children cond)]
+        (wat.core/if (wat.core/= (wat.core/length ch) 0)
           false
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "symbol")
-            (:wat::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
+          (wat.core/if (wat.core/= (wat.core/ast-kind (wat.core/first ch)) "symbol")
+            (wat.string/starts-with? (wat.core/ast-name (wat.core/first ch)) "?")
             false))))))
 
 ;; sort-lhs — Clara defers accumulators so a later fact can bind the group
 ;; key (test-count-none-joined: Wind first, then count Temps at ?loc → 0).
 ;; Non-accums that mention an accum result-var stay after the accum (`:where`
 ;; on ?c). Relative order inside each partition is preserved.
-(:wat::core::defn :wat::rete::sort-lhs
-  [lhs <- (wat.type/PersistentVector :- [wat.type/AST])]
-  -> (wat.type/PersistentVector :- [wat.type/AST])
-  (:wat::core::let [result-vars
-                    (:wat::core::foldl
-                      (:wat::core::fn [acc  <- (wat.type/PersistentVector :- [wat.type/String])
-                                       cond <- wat.type/AST]
-                        -> (wat.type/PersistentVector :- [wat.type/String])
-                        (:wat::core::if (:wat::rete::cond-is-accumulate cond)
-                          (:wat::core::let [ch (:wat::core::ast->children cond)]
-                            (:wat::core::conj
+(wat.core/defn wat.rete/sort-lhs
+  [lhs :- (wat.type/PersistentVector :- [wat.type/AST])]
+  :- (wat.type/PersistentVector :- [wat.type/AST])
+  (wat.core/let [result-vars
+                    (wat.core/foldl
+                      (wat.core/fn [acc  :- (wat.type/PersistentVector :- [wat.type/String])
+                                       cond :- wat.type/AST]
+                        :- (wat.type/PersistentVector :- [wat.type/String])
+                        (wat.core/if (wat.rete/cond-is-accumulate cond)
+                          (wat.core/let [ch (wat.core/ast->children cond)]
+                            (wat.core/conj
                               acc
-                              (:wat::core::ast-name (:wat::core::first ch))))
+                              (wat.core/ast-name (wat.core/first ch))))
                           acc))
                       (wat.type/PersistentVector :- [wat.type/String])
                       lhs)
                     uses-result?
-                    (:wat::core::fn [cond <- wat.type/AST] -> wat.type/bool
-                      (:wat::core::let [qs (:wat::rete::ast-qvars cond)]
-                        (:wat::core::foldl
-                          (:wat::core::fn [hit <- wat.type/bool
-                                           rv  <- wat.type/String]
-                            -> wat.type/bool
-                            (:wat::core::if hit
+                    (wat.core/fn [cond :- wat.type/AST] :- wat.type/bool
+                      (wat.core/let [qs (wat.rete/ast-qvars cond)]
+                        (wat.core/foldl
+                          (wat.core/fn [hit :- wat.type/bool
+                                           rv  :- wat.type/String]
+                            :- wat.type/bool
+                            (wat.core/if hit
                               true
-                              (:wat::core::contains? qs rv)))
+                              (wat.core/contains? qs rv)))
                           false
                           result-vars)))
                     independent
-                    (:wat::core::foldl
-                      (:wat::core::fn [acc  <- (wat.type/PersistentVector :- [wat.type/AST])
-                                       cond <- wat.type/AST]
-                        -> (wat.type/PersistentVector :- [wat.type/AST])
-                        (:wat::core::if
-                          (:wat::core::if (:wat::rete::cond-is-accumulate cond)
+                    (wat.core/foldl
+                      (wat.core/fn [acc  :- (wat.type/PersistentVector :- [wat.type/AST])
+                                       cond :- wat.type/AST]
+                        :- (wat.type/PersistentVector :- [wat.type/AST])
+                        (wat.core/if
+                          (wat.core/if (wat.rete/cond-is-accumulate cond)
                             false
-                            (:wat::core::not (uses-result? cond)))
-                          (:wat::core::conj acc cond)
+                            (wat.core/not (uses-result? cond)))
+                          (wat.core/conj acc cond)
                           acc))
                       (wat.type/PersistentVector :- [wat.type/AST])
                       lhs)
                     accums
-                    (:wat::core::foldl
-                      (:wat::core::fn [acc  <- (wat.type/PersistentVector :- [wat.type/AST])
-                                       cond <- wat.type/AST]
-                        -> (wat.type/PersistentVector :- [wat.type/AST])
-                        (:wat::core::if (:wat::rete::cond-is-accumulate cond)
-                          (:wat::core::conj acc cond)
+                    (wat.core/foldl
+                      (wat.core/fn [acc  :- (wat.type/PersistentVector :- [wat.type/AST])
+                                       cond :- wat.type/AST]
+                        :- (wat.type/PersistentVector :- [wat.type/AST])
+                        (wat.core/if (wat.rete/cond-is-accumulate cond)
+                          (wat.core/conj acc cond)
                           acc))
                       (wat.type/PersistentVector :- [wat.type/AST])
                       lhs)
                     rest
-                    (:wat::core::foldl
-                      (:wat::core::fn [acc  <- (wat.type/PersistentVector :- [wat.type/AST])
-                                       cond <- wat.type/AST]
-                        -> (wat.type/PersistentVector :- [wat.type/AST])
-                        (:wat::core::if
-                          (:wat::core::if (:wat::rete::cond-is-accumulate cond)
+                    (wat.core/foldl
+                      (wat.core/fn [acc  :- (wat.type/PersistentVector :- [wat.type/AST])
+                                       cond :- wat.type/AST]
+                        :- (wat.type/PersistentVector :- [wat.type/AST])
+                        (wat.core/if
+                          (wat.core/if (wat.rete/cond-is-accumulate cond)
                             false
                             (uses-result? cond))
-                          (:wat::core::conj acc cond)
+                          (wat.core/conj acc cond)
                           acc))
                       (wat.type/PersistentVector :- [wat.type/AST])
                       lhs)]
-    (:wat::core::into
+    (wat.core/into
       independent
-      (:wat::core::into accums rest))))
+      (wat.core/into accums rest))))
 
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
@@ -1110,87 +1110,87 @@
 ;; `lhs`, so a malformed RHS is caught before any network nodes are minted for this rule. Mirrors
 ;; how `where`/accumulate are fenced inline during the LHS fold — this is the RHS's own
 ;; freeze-time-only pass, over the SAME `rule` this fn already receives.
-(:wat::core::defn :wat::rete::compile-rule
-  [state <- :wat::rete::CompileState
-   rule  <- :wat::rete::Rule]
-  -> :wat::rete::CompileState
-  (:wat::core::let [lhs        (:wat::rete::Rule/lhs rule)
-                    rhs        (:wat::rete::Rule/rhs rule)
-                    rname      (:wat::rete::Rule/name rule)
-                    _rhs-fence (:wat::core::foldl :wat::rete::then-item-fence 0 rhs)
-                    lhs-sorted (:wat::rete::sort-lhs lhs)
-                    init-acc   (:wat::rete::CondFoldAcc
+(wat.core/defn wat.rete/compile-rule
+  [state :- wat.rete/CompileState
+   rule  :- wat.rete/Rule]
+  :- wat.rete/CompileState
+  (wat.core/let [lhs        (wat.rete.Rule/lhs rule)
+                    rhs        (wat.rete.Rule/rhs rule)
+                    rname      (wat.rete.Rule/name rule)
+                    _rhs-fence (wat.core/foldl wat.rete/then-item-fence 0 rhs)
+                    lhs-sorted (wat.rete/sort-lhs lhs)
+                    init-acc   (wat.rete/CondFoldAcc
                                  :state state
                                  :parent-ids (wat.type/PersistentVector :- [wat.type/i64]))
-                    final-acc  (:wat::core::foldl :wat::rete::compile-condition init-acc lhs-sorted)
-                    state2     (:wat::rete::CondFoldAcc/state      final-acc)
-                    pids       (:wat::rete::CondFoldAcc/parent-ids final-acc)
-                    network2   (:wat::rete::CompileState/network state2)
-                    next-id2   (:wat::rete::CompileState/next-id state2)
-                    prod       (:wat::rete::ProductionNode :id next-id2 :rule-name rname)
-                    net3       (:wat::core::assoc network2 next-id2 prod)
-                    net4       (:wat::rete::wire-parents net3 pids next-id2)]
-    (:wat::rete::CompileState :network net4 :next-id (:wat::i64::+ next-id2 1)
-      :dedup (:wat::rete::CompileState/dedup state2))))
+                    final-acc  (wat.core/foldl wat.rete/compile-condition init-acc lhs-sorted)
+                    state2     (wat.rete.CondFoldAcc/state      final-acc)
+                    pids       (wat.rete.CondFoldAcc/parent-ids final-acc)
+                    network2   (wat.rete.CompileState/network state2)
+                    next-id2   (wat.rete.CompileState/next-id state2)
+                    prod       (wat.rete/ProductionNode :id next-id2 :rule-name rname)
+                    net3       (wat.core/assoc network2 next-id2 prod)
+                    net4       (wat.rete/wire-parents net3 pids next-id2)]
+    (wat.rete/CompileState :network net4 :next-id (wat.i64/+ next-id2 1)
+      :dedup (wat.rete.CompileState/dedup state2))))
 
 ;; compile-query — same LHS fold as compile-rule; terminal is a QueryNode.
-(:wat::core::defn :wat::rete::compile-query
-  [state <- :wat::rete::CompileState
-   q     <- :wat::rete::Query]
-  -> :wat::rete::CompileState
-  (:wat::core::let [lhs        (:wat::rete::sort-lhs (:wat::rete::Query/lhs q))
-                    qname      (:wat::rete::Query/name q)
-                    init-acc   (:wat::rete::CondFoldAcc
+(wat.core/defn wat.rete/compile-query
+  [state :- wat.rete/CompileState
+   q     :- wat.rete/Query]
+  :- wat.rete/CompileState
+  (wat.core/let [lhs        (wat.rete/sort-lhs (wat.rete.Query/lhs q))
+                    qname      (wat.rete.Query/name q)
+                    init-acc   (wat.rete/CondFoldAcc
                                  :state state
                                  :parent-ids (wat.type/PersistentVector :- [wat.type/i64]))
-                    final-acc  (:wat::core::foldl :wat::rete::compile-condition init-acc lhs)
-                    state2     (:wat::rete::CondFoldAcc/state      final-acc)
-                    pids       (:wat::rete::CondFoldAcc/parent-ids final-acc)
-                    network2   (:wat::rete::CompileState/network state2)
-                    next-id2   (:wat::rete::CompileState/next-id state2)
-                    qnode      (:wat::rete::QueryNode
+                    final-acc  (wat.core/foldl wat.rete/compile-condition init-acc lhs)
+                    state2     (wat.rete.CondFoldAcc/state      final-acc)
+                    pids       (wat.rete.CondFoldAcc/parent-ids final-acc)
+                    network2   (wat.rete.CompileState/network state2)
+                    next-id2   (wat.rete.CompileState/next-id state2)
+                    qnode      (wat.rete/QueryNode
                                  :id next-id2
                                  :query-name qname
-                                 :param-keys (:wat::rete::Query/params q))
-                    net3       (:wat::core::assoc network2 next-id2 qnode)
-                    net4       (:wat::rete::wire-parents net3 pids next-id2)]
-    (:wat::rete::CompileState :network net4 :next-id (:wat::i64::+ next-id2 1)
-      :dedup (:wat::rete::CompileState/dedup state2))))
+                                 :param-keys (wat.rete.Query/params q))
+                    net3       (wat.core/assoc network2 next-id2 qnode)
+                    net4       (wat.rete/wire-parents net3 pids next-id2)]
+    (wat.rete/CompileState :network net4 :next-id (wat.i64/+ next-id2 1)
+      :dedup (wat.rete.CompileState/dedup state2))))
 
 ;; compile — rules only (existing callers). Use compile-all to add queries.
 ;; ⛔ ANSWERS `(:wat::rete::CompileOutcome)` — a pure pass-through of `compile-all`'s verdict.
-(:wat::core::defn :wat::rete::compile
-  [rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])]
-  -> :wat::rete::CompileOutcome
-  (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query])))
+(wat.core/defn wat.rete/compile
+  [rules :- (wat.type/PersistentVector :- [wat.rete/Rule])]
+  :- wat.rete/CompileOutcome
+  (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query])))
 
 ;; compile-all — rules + queries (Clara mk-session mixes both).
 ;; ⛔ ANSWERS `(:wat::rete::CompileOutcome)`, NOT a bare Session. `compile-all` is the one door
 ;; every rule passes, so it is where the termination verifier runs — and for rules built at RUNTIME
 ;; the verdict depends on data, which makes it a VALUE rather than a raise. A pure pass-through of
 ;; `arm-session`'s answer; there is nothing to unwrap here.
-(:wat::core::defn :wat::rete::compile-all
-  [rules   <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   queries <- (wat.type/PersistentVector :- [:wat::rete::Query])]
-  -> :wat::rete::CompileOutcome
-  (:wat::core::let [init-state (:wat::rete::CompileState
+(wat.core/defn wat.rete/compile-all
+  [rules   :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   queries :- (wat.type/PersistentVector :- [wat.rete/Query])]
+  :- wat.rete/CompileOutcome
+  (wat.core/let [init-state (wat.rete/CompileState
                                   :network (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
                                   :next-id 0
                                   :dedup (wat.type/HashMap :- [wat.type/String wat.type/i64]))
-                    after-rules (:wat::core::foldl :wat::rete::compile-rule init-state rules)
-                    final-state (:wat::core::foldl :wat::rete::compile-query after-rules queries)
-                    network  (:wat::rete::CompileState/network final-state)
-                    next-id  (:wat::rete::CompileState/next-id final-state)
+                    after-rules (wat.core/foldl wat.rete/compile-rule init-state rules)
+                    final-state (wat.core/foldl wat.rete/compile-query after-rules queries)
+                    network  (wat.rete.CompileState/network final-state)
+                    next-id  (wat.rete.CompileState/next-id final-state)
                     empty-pm (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])]
     ;; Intern the rust InternedNetwork under the network identity so first fire-rules HIT
     ;; (`DESIGN-STONE-arm-at-compile`). Session bytes unchanged.
-    (:wat::rete::arm-session
-      (:wat::rete::Session
+    (wat.rete/arm-session
+      (wat.rete/Session
          :network network
          :rules rules
          :alpha-memory empty-pm
          :beta-memory empty-pm
          :production-memory empty-pm
-         :facts (:wat::rete::factbag::empty)
+         :facts (wat.rete.factbag/empty)
          :next-id next-id
          :query-memory empty-pm))))

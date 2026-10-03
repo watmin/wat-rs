@@ -10,7 +10,7 @@
 ;; May be placed anywhere after wat/core.wat.
 
 ;; Kind — what kind of callable is this?
-(:wat::core::defenum :wat::runtime::Kind :wat::enum::Pure
+(wat.core/defenum wat.runtime/Kind wat.enum/Pure
 ;; A user-defined `:wat::core::defmacro` — expands at compile time.
   :Macro
 ;; A user-defined `:wat::core::defn`.
@@ -23,21 +23,21 @@
   :SpecialForm)
 
 ;; DefinedIn — implementation language.
-(:wat::core::defenum :wat::runtime::DefinedIn :wat::enum::Pure
+(wat.core/defenum wat.runtime/DefinedIn wat.enum/Pure
 ;; Written in wat — a user `defn` or `defmacro`.
   :Wat
 ;; Written in Rust — every intrinsic.
   :Rust)
 
 ;; Layer — where in the system stack does this live?
-(:wat::core::defenum :wat::runtime::Layer :wat::enum::Pure
+(wat.core/defenum wat.runtime/Layer wat.enum/Pure
 ;; The kernel/stdlib layer — every intrinsic.
   :Substrate
 ;; User-written code above the substrate.
   :Userland)
 
 ;; Purity — declared purity of an intrinsic or special form.
-(:wat::core::defenum :wat::runtime::Purity :wat::enum::Pure
+(wat.core/defenum wat.runtime/Purity wat.enum/Pure
 ;; Same output for the same input, with no observable side effect.
   :Pure
 ;; Has an observable side effect — I/O, mutation, a signal.
@@ -53,7 +53,7 @@
   :Unevaluated)
 
 ;; Determinism — declared determinism of an intrinsic or special form.
-(:wat::core::defenum :wat::runtime::Determinism :wat::enum::Pure
+(wat.core/defenum wat.runtime/Determinism wat.enum/Pure
 ;; The same input always produces the same output.
   :Deterministic
 ;; The output may differ across calls — a clock read, a UUID, entropy.
@@ -120,7 +120,7 @@
 ;; test code); the one NON-match mirror, `CATEGORY_LEGAL_VALUES`, is covered by that gate.
 ;; Build green + test-build green + that gate passing = every mirror reached. Say THAT,
 ;; not that there is no second list.
-(:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
+(wat.core/defenum wat.runtime/Category wat.enum/Pure
 ;; Returns the SAME value in another form — `Bytes::to-hex`, `epoch-seconds`,
 ;; `string::trim`. Was `:Encoding` until 2026-08-15: half its members were not
 ;; encodings at all (`trim` discards data, `to-lowercase` folds case, `split`
@@ -232,7 +232,7 @@
 ;; partial" into "never looked at" is the failure `feedback_none_means_skip_
 ;; conflates_cannot_with_did_not_look` names, and a GUESSED `:Total` is a lie in a
 ;; fence that admits code into a `where`.
-(:wat::core::defenum :wat::runtime::Totality :wat::enum::Pure
+(wat.core/defenum wat.runtime/Totality wat.enum/Pure
 ;; Defined on EVERY input of its declared domain — measured, by reading the
 ;; implementation, never inferred from the name. `f64::>` is total: its output is
 ;; a bool for any pair of floats.
@@ -271,7 +271,7 @@
 ;; and it was never built; a hand-curated allow-list carried it instead, and grew a
 ;; measured 174-verb gap that nothing could see — a false refusal only surfaces when
 ;; some macro body happens to call the verb.
-(:wat::core::defenum :wat::runtime::ExpandTime :wat::enum::Pure
+(wat.core/defenum wat.runtime/ExpandTime wat.enum/Pure
 ;; May be called inside a `defmacro` body during expansion. Says nothing about
 ;; purity, determinism or totality — a partial or nondeterministic verb can be
 ;; perfectly legal here, and three of them are.

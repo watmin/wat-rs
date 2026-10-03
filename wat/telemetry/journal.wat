@@ -20,304 +20,304 @@
 ;; ── small pure helpers ──────────────────────────────────────────────────────────
 ;; sk = #inst "<iso8601 with 9 fixed fractional digits, Z>" — CONSTANT WIDTH, so it sorts
 ;; lexicographically = chronologically (the store's `sort-by Row/sk` is the range order).
-(:wat::core::defn :wat::telemetry::time-sk [ns <- wat.type/i64] -> wat.type/String
-  (:wat::string::concat
-    (:wat::string::concat "#inst \"" (:wat::time::to-iso8601 (:wat::time::at-nanos ns) 9))
+(wat.core/defn wat.telemetry/time-sk [ns :- wat.type/i64] :- wat.type/String
+  (wat.string/concat
+    (wat.string/concat "#inst \"" (wat.time/to-iso8601 (wat.time/at-nanos ns) 9))
     "\""))
 
 ;; the uuid correlation GSI's index-keys for a scope uuid + the row's sk.
-(:wat::core::defn :wat::telemetry::uuid-index-keys
-  [uuid <- wat.uuid/UUID  sk <- wat.type/String]
-  -> (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey])
-  (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey]
-    "by-uuid" (:wat::query::IndexKey :ipk (:wat::edn::write uuid) :isk sk)))
+(wat.core/defn wat.telemetry/uuid-index-keys
+  [uuid :- wat.uuid/UUID  sk :- wat.type/String]
+  :- (wat.type/HashMap :- [wat.type/String wat.query/IndexKey])
+  (wat.type/HashMap :- [wat.type/String wat.query/IndexKey]
+    "by-uuid" (wat.query/IndexKey :ipk (wat.edn/write uuid) :isk sk)))
 
 ;; Metric -> StoredRow (pk = namespace+:Metric; sk = #inst; data = the tagged Metric EDN).
-(:wat::core::defn :wat::telemetry::metric->row
-  [m <- :wat::telemetry::Metric] -> :wat::query::StoredRow
-  (:wat::core::let
-    [sk (:wat::telemetry::time-sk (:wat::telemetry::Metric/time-ns m))]
-    (:wat::query::StoredRow
-      :pk (:wat::edn::write (:wat::telemetry::PartitionKey
-                              :namespace (:wat::telemetry::Metric/namespace m)
-                              :kind :wat::telemetry::Kind.Metric))
+(wat.core/defn wat.telemetry/metric->row
+  [m :- wat.telemetry/Metric] :- wat.query/StoredRow
+  (wat.core/let
+    [sk (wat.telemetry/time-sk (wat.telemetry.Metric/time-ns m))]
+    (wat.query/StoredRow
+      :pk (wat.edn/write (wat.telemetry/PartitionKey
+                              :namespace (wat.telemetry.Metric/namespace m)
+                              :kind wat.telemetry/Kind.Metric))
       :sk sk
-      :data (:wat::edn::write m)
-      :index-keys (:wat::telemetry::uuid-index-keys (:wat::telemetry::Metric/uuid m) sk))))
+      :data (wat.edn/write m)
+      :index-keys (wat.telemetry/uuid-index-keys (wat.telemetry.Metric/uuid m) sk))))
 
 ;; Log -> StoredRow (pk = namespace+:Log; sk = #inst; data = the tagged Log EDN).
-(:wat::core::defn :wat::telemetry::log->row
-  [l <- :wat::telemetry::Log] -> :wat::query::StoredRow
-  (:wat::core::let
-    [sk (:wat::telemetry::time-sk (:wat::telemetry::Log/time-ns l))]
-    (:wat::query::StoredRow
-      :pk (:wat::edn::write (:wat::telemetry::PartitionKey
-                              :namespace (:wat::telemetry::Log/namespace l)
-                              :kind :wat::telemetry::Kind.Log))
+(wat.core/defn wat.telemetry/log->row
+  [l :- wat.telemetry/Log] :- wat.query/StoredRow
+  (wat.core/let
+    [sk (wat.telemetry/time-sk (wat.telemetry.Log/time-ns l))]
+    (wat.query/StoredRow
+      :pk (wat.edn/write (wat.telemetry/PartitionKey
+                              :namespace (wat.telemetry.Log/namespace l)
+                              :kind wat.telemetry/Kind.Log))
       :sk sk
-      :data (:wat::edn::write l)
-      :index-keys (:wat::telemetry::uuid-index-keys (:wat::telemetry::Log/uuid l) sk))))
+      :data (wat.edn/write l)
+      :index-keys (wat.telemetry/uuid-index-keys (wat.telemetry.Log/uuid l) sk))))
 
 ;; ── the service ─────────────────────────────────────────────────────────────────
-(:wat::service::defservice :wat::telemetry::journal
-  :satisfies :wat::telemetry::Journal
+(wat.service/defservice wat.telemetry/journal
+  :satisfies wat.telemetry/Journal
   ;; arc 278 Stone 1b — the per-service hard frame limit FOO (bytes-per-read): the journal accepts
   ;; BULK log writes, so it declares 10 MiB (the 512 KiB default would reject a real batch). Threaded
   ;; to this service's accepted-connection receivers; a frame over this → a reasoned 400 + close, not mute.
   :max-frame-bytes 10485760
   :durable   []
   ;; the dialed backend peer — a client (Peer' :- [Store::Op Store::Reply]), held as a ROOT ephemeral field
-  :ephemeral [store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
+  :ephemeral [store :- (wat.kernel/Peer :- [wat.query.Store/Op wat.query.Store/Reply])]
   ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
-  :peers     [:wat::query::Store]
+  :peers     [wat.query/Store]
   ;; :init connects to the given store (its Address' is a start operating-input, EDN — crosses a fork),
   ;; then ENSURES the store's schema ONCE: the base table (pk, sk) + the by-uuid correlation GSI.
   ;; journal' owns the schema because the store is domain-blind. A no-op on mem-store'; on
   ;; sqlite-store' this CREATEs the table + index, so the later `put`s succeed (mem hid this need).
-  :init (:wat::core::fn
-          [record     <- :wat::telemetry::journal::Record
-           store-addr <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])]
-          -> :wat::telemetry::journal::State
-          (:wat::core::let
+  :init (wat.core/fn
+          [record     :- wat.telemetry.journal/Record
+           store-addr :- (wat.kernel/Address :- [wat.query.Store/Op wat.query.Store/Reply])]
+          :- wat.telemetry.journal/State
+          (wat.core/let
             ;; arc 278 the connect'-outcome wall — face all four arms. ::Connected → bind
             ;; the store Peer'; ::Closed/::Undialable/::WrongPeer/::Failed → assertion-failed! (fatal,
             ;; preserving the pre-wall raise-unwind: a service whose store dial fails at
             ;; :init cannot start). Sibling pattern: spawn.wat's recv'/send' fatal arms.
-            [store (:wat::core::match (:wat::kernel::connect store-addr)
-                     [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-                     [:wat::kernel::ConnectOutcome.Closed {:cause c}
-                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-                     [:wat::kernel::ConnectOutcome.Undialable {:cause c}
-                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c}
-                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-                     [:wat::kernel::ConnectOutcome.Failed {:cause c}
-                       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
+            [store (wat.core/match (wat.kernel/connect store-addr)
+                     [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+                     [wat.kernel/ConnectOutcome.Closed {:cause c}
+                       (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+                     [wat.kernel/ConnectOutcome.Undialable {:cause c}
+                       (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c}
+                       (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+                     [wat.kernel/ConnectOutcome.Failed {:cause c}
+                       (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])]
             ;; A failed schema setup is a failed start. The same arms connect
             ;; already uses: the reason reaches the owner, the service does not
             ;; come up with a store it cannot write.
-            (:wat::core::match (:wat::query::Store/ensure-schema store
-                                 (:wat::query::Store::EnsureSchemaRequest
-                                   :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-                                   :indexes (wat.type/Vector :- [:wat::query::IndexSchema]
-                                              (:wat::query::IndexSchema
+            (wat.core/match (wat.query.Store/ensure-schema store
+                                 (wat.query.Store/EnsureSchemaRequest
+                                   :table   (wat.query/TableSchema :pk "pk" :sk "sk")
+                                   :indexes (wat.type/Vector :- [wat.query/IndexSchema]
+                                              (wat.query/IndexSchema
                                                 :name "by-uuid" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
-              [:wat::kernel::RecvOutcome.Message {:msg sresp}
-                (:wat::core::match sresp
-                  [:wat::query::Store::EnsureSchemaResponse.Success {}
-                    (:wat::telemetry::journal::State :durable record :store store)]
-                  [:wat::query::Store::EnsureSchemaResponse.Constraint {:err err}
-                    (:wat::kernel::assertion-failed!
-                      :message (:wat::string::concat "journal ensure-schema constraint: "
-                                 (:wat::edn::write err)))]
-                  [:wat::query::Store::EnsureSchemaResponse.Fatal {:err err}
-                    (:wat::kernel::assertion-failed!
-                      :message (:wat::string::concat "journal ensure-schema fatal: "
-                                 (:wat::query::Fault/message (:wat::query::Fatal/reason err))))]
-                  [:wat::query::Store::EnsureSchemaResponse.RequestTooLarge {:bytes bytes :cap cap}
-                    (:wat::kernel::assertion-failed!
-                      :message (:wat::core::format "journal ensure-schema: request too large ({bytes} > {cap})" :bytes bytes :cap cap))]
-                  [:wat::query::Store::EnsureSchemaResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                    (:wat::kernel::assertion-failed!
+              [wat.kernel/RecvOutcome.Message {:msg sresp}
+                (wat.core/match sresp
+                  [wat.query.Store/EnsureSchemaResponse.Success {}
+                    (wat.telemetry.journal/State :durable record :store store)]
+                  [wat.query.Store/EnsureSchemaResponse.Constraint {:err err}
+                    (wat.kernel/assertion-failed!
+                      :message (wat.string/concat "journal ensure-schema constraint: "
+                                 (wat.edn/write err)))]
+                  [wat.query.Store/EnsureSchemaResponse.Fatal {:err err}
+                    (wat.kernel/assertion-failed!
+                      :message (wat.string/concat "journal ensure-schema fatal: "
+                                 (wat.query.Fault/message (wat.query.Fatal/reason err))))]
+                  [wat.query.Store/EnsureSchemaResponse.RequestTooLarge {:bytes bytes :cap cap}
+                    (wat.kernel/assertion-failed!
+                      :message (wat.core/format "journal ensure-schema: request too large ({bytes} > {cap})" :bytes bytes :cap cap))]
+                  [wat.query.Store/EnsureSchemaResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                    (wat.kernel/assertion-failed!
                       :message "journal ensure-schema: request malformed")])]
-              [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-              [:wat::kernel::RecvOutcome.Stopped {}
-                (:wat::kernel::assertion-failed!
+              [wat.kernel/RecvOutcome.Lost {:cause cause}
+                (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+              [wat.kernel/RecvOutcome.Stopped {}
+                (wat.kernel/assertion-failed!
                   :message "journal ensure-schema: stop requested — the store peer was ALIVE")]
-              [:wat::kernel::RecvOutcome.Closed {}
-                (:wat::kernel::assertion-failed!
+              [wat.kernel/RecvOutcome.Closed {}
+                (wat.kernel/assertion-failed!
                   :message "journal ensure-schema: store peer closed")])))
   :impls
   [(write-metrics [s ctx req]
-     (:wat::core::let
-       [store (:wat::telemetry::journal::State/store s)
-        batch (:wat::telemetry::Journal::WriteMetricsRequest/batch req)
-        rows  (:wat::core::foldl
-                (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::query::StoredRow])
-                                 m   <- :wat::telemetry::Metric]
-                  -> (wat.type/Vector :- [:wat::query::StoredRow])
-                  (:wat::core::conj acc (:wat::telemetry::metric->row m)))
-                (wat.type/Vector :- [:wat::query::StoredRow])
+     (wat.core/let
+       [store (wat.telemetry.journal.State/store s)
+        batch (wat.telemetry.Journal.WriteMetricsRequest/batch req)
+        rows  (wat.core/foldl
+                (wat.core/fn [acc :- (wat.type/Vector :- [wat.query/StoredRow])
+                                 m   :- wat.telemetry/Metric]
+                  :- (wat.type/Vector :- [wat.query/StoredRow])
+                  (wat.core/conj acc (wat.telemetry/metric->row m)))
+                (wat.type/Vector :- [wat.query/StoredRow])
                 batch)
-        put-resp (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
-        wresp (:wat::core::match put-resp
-                [:wat::kernel::RecvOutcome.Message {:msg sresp}
-                  (:wat::core::match sresp
-                    [:wat::query::Store::PutResponse.Success {}
-                      (:wat::telemetry::Journal::WriteMetricsResponse.Success {})]
-                    [:wat::query::Store::PutResponse.Constraint {:err err}
-                      (:wat::telemetry::Journal::WriteMetricsResponse.Constraint {:err err})]
-                    [:wat::query::Store::PutResponse.Transient {:err err}
-                      (:wat::telemetry::Journal::WriteMetricsResponse.Transient {:err err})]
-                    [:wat::query::Store::PutResponse.Fatal {:err err}
-                      (:wat::telemetry::Journal::WriteMetricsResponse.Fatal {:err err})]
+        put-resp (wat.query.Store/put store (wat.query.Store/PutRequest rows))
+        wresp (wat.core/match put-resp
+                [wat.kernel/RecvOutcome.Message {:msg sresp}
+                  (wat.core/match sresp
+                    [wat.query.Store/PutResponse.Success {}
+                      (wat.telemetry.Journal/WriteMetricsResponse.Success {})]
+                    [wat.query.Store/PutResponse.Constraint {:err err}
+                      (wat.telemetry.Journal/WriteMetricsResponse.Constraint {:err err})]
+                    [wat.query.Store/PutResponse.Transient {:err err}
+                      (wat.telemetry.Journal/WriteMetricsResponse.Transient {:err err})]
+                    [wat.query.Store/PutResponse.Fatal {:err err}
+                      (wat.telemetry.Journal/WriteMetricsResponse.Fatal {:err err})]
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
-                    [:wat::query::Store::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
-                      (:wat::telemetry::Journal::WriteMetricsResponse.RequestTooLarge {:bytes bytes :cap cap})]
-                    [:wat::query::Store::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                      (:wat::telemetry::Journal::WriteMetricsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
+                    [wat.query.Store/PutResponse.RequestTooLarge {:bytes bytes :cap cap}
+                      (wat.telemetry.Journal/WriteMetricsResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                    [wat.query.Store/PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                      (wat.telemetry.Journal/WriteMetricsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
-                [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                  (:wat::telemetry::Journal::WriteMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))})]
+                [wat.kernel/RecvOutcome.Lost {:cause cause}
+                  (wat.telemetry.Journal/WriteMetricsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message (wat.kernel.LociDiedError/message cause)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
-                [:wat::kernel::RecvOutcome.Stopped {}
-                  (:wat::telemetry::Journal::WriteMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
-                [:wat::kernel::RecvOutcome.Closed {}
-                  (:wat::telemetry::Journal::WriteMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))})])]
-       (:wat::service::Outcome.Reply {:state s :reply wresp})))
+                [wat.kernel/RecvOutcome.Stopped {}
+                  (wat.telemetry.Journal/WriteMetricsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
+                [wat.kernel/RecvOutcome.Closed {}
+                  (wat.telemetry.Journal/WriteMetricsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: store peer closed"))})])]
+       (wat.service/Outcome.Reply {:state s :reply wresp})))
 
    (write-logs [s ctx req]
-     (:wat::core::let
-       [store (:wat::telemetry::journal::State/store s)
-        batch (:wat::telemetry::Journal::WriteLogsRequest/batch req)
-        rows  (:wat::core::foldl
-                (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::query::StoredRow])
-                                 l   <- :wat::telemetry::Log]
-                  -> (wat.type/Vector :- [:wat::query::StoredRow])
-                  (:wat::core::conj acc (:wat::telemetry::log->row l)))
-                (wat.type/Vector :- [:wat::query::StoredRow])
+     (wat.core/let
+       [store (wat.telemetry.journal.State/store s)
+        batch (wat.telemetry.Journal.WriteLogsRequest/batch req)
+        rows  (wat.core/foldl
+                (wat.core/fn [acc :- (wat.type/Vector :- [wat.query/StoredRow])
+                                 l   :- wat.telemetry/Log]
+                  :- (wat.type/Vector :- [wat.query/StoredRow])
+                  (wat.core/conj acc (wat.telemetry/log->row l)))
+                (wat.type/Vector :- [wat.query/StoredRow])
                 batch)
-        put-resp (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
-        wresp (:wat::core::match put-resp
-                [:wat::kernel::RecvOutcome.Message {:msg sresp}
-                  (:wat::core::match sresp
-                    [:wat::query::Store::PutResponse.Success {}
-                      (:wat::telemetry::Journal::WriteLogsResponse.Success {})]
-                    [:wat::query::Store::PutResponse.Constraint {:err err}
-                      (:wat::telemetry::Journal::WriteLogsResponse.Constraint {:err err})]
-                    [:wat::query::Store::PutResponse.Transient {:err err}
-                      (:wat::telemetry::Journal::WriteLogsResponse.Transient {:err err})]
-                    [:wat::query::Store::PutResponse.Fatal {:err err}
-                      (:wat::telemetry::Journal::WriteLogsResponse.Fatal {:err err})]
+        put-resp (wat.query.Store/put store (wat.query.Store/PutRequest rows))
+        wresp (wat.core/match put-resp
+                [wat.kernel/RecvOutcome.Message {:msg sresp}
+                  (wat.core/match sresp
+                    [wat.query.Store/PutResponse.Success {}
+                      (wat.telemetry.Journal/WriteLogsResponse.Success {})]
+                    [wat.query.Store/PutResponse.Constraint {:err err}
+                      (wat.telemetry.Journal/WriteLogsResponse.Constraint {:err err})]
+                    [wat.query.Store/PutResponse.Transient {:err err}
+                      (wat.telemetry.Journal/WriteLogsResponse.Transient {:err err})]
+                    [wat.query.Store/PutResponse.Fatal {:err err}
+                      (wat.telemetry.Journal/WriteLogsResponse.Fatal {:err err})]
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
-                    [:wat::query::Store::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
-                      (:wat::telemetry::Journal::WriteLogsResponse.RequestTooLarge {:bytes bytes :cap cap})]
-                    [:wat::query::Store::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                      (:wat::telemetry::Journal::WriteLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
+                    [wat.query.Store/PutResponse.RequestTooLarge {:bytes bytes :cap cap}
+                      (wat.telemetry.Journal/WriteLogsResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                    [wat.query.Store/PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                      (wat.telemetry.Journal/WriteLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
-                [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                  (:wat::telemetry::Journal::WriteLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))})]
+                [wat.kernel/RecvOutcome.Lost {:cause cause}
+                  (wat.telemetry.Journal/WriteLogsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message (wat.kernel.LociDiedError/message cause)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
-                [:wat::kernel::RecvOutcome.Stopped {}
-                  (:wat::telemetry::Journal::WriteLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
-                [:wat::kernel::RecvOutcome.Closed {}
-                  (:wat::telemetry::Journal::WriteLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))})])]
-       (:wat::service::Outcome.Reply {:state s :reply wresp})))
+                [wat.kernel/RecvOutcome.Stopped {}
+                  (wat.telemetry.Journal/WriteLogsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
+                [wat.kernel/RecvOutcome.Closed {}
+                  (wat.telemetry.Journal/WriteLogsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: store peer closed"))})])]
+       (wat.service/Outcome.Reply {:state s :reply wresp})))
 
    ;; query-metrics — scan the namespace's Metric partition over [time-lo, time-hi], hydrate each
    ;; stored row back to a Metric (:wat::edn::read off the tag), page via cursor. NO rete.
    (query-metrics [s ctx req]
-     (:wat::core::let
-       [store (:wat::telemetry::journal::State/store s)
-        ns   (:wat::telemetry::Journal::QueryMetricsRequest/namespace req)
-        lo   (:wat::telemetry::Journal::QueryMetricsRequest/time-lo req)
-        hi   (:wat::telemetry::Journal::QueryMetricsRequest/time-hi req)
-        lim  (:wat::telemetry::Journal::QueryMetricsRequest/limit req)
-        cur  (:wat::telemetry::Journal::QueryMetricsRequest/cursor req)
-        pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind.Metric))
-        resp (:wat::query::Store/scan store
-               (:wat::query::Store::ScanRequest :pk pk
-                 :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+     (wat.core/let
+       [store (wat.telemetry.journal.State/store s)
+        ns   (wat.telemetry.Journal.QueryMetricsRequest/namespace req)
+        lo   (wat.telemetry.Journal.QueryMetricsRequest/time-lo req)
+        hi   (wat.telemetry.Journal.QueryMetricsRequest/time-hi req)
+        lim  (wat.telemetry.Journal.QueryMetricsRequest/limit req)
+        cur  (wat.telemetry.Journal.QueryMetricsRequest/cursor req)
+        pk   (wat.edn/write (wat.telemetry/PartitionKey :namespace ns :kind wat.telemetry/Kind.Metric))
+        resp (wat.query.Store/scan store
+               (wat.query.Store/ScanRequest :pk pk
+                 :sk-lo (wat.telemetry/time-sk lo) :sk-hi (wat.telemetry/time-sk hi)
                  :limit lim :cursor cur))
-        qresp (:wat::core::match resp
-                [:wat::kernel::RecvOutcome.Message {:msg sresp}
-                  (:wat::core::match sresp
-                    [:wat::query::Store::ScanResponse.Success {:rows rows :cursor next-cur}
-                      (:wat::telemetry::Journal::QueryMetricsResponse.Success
-                        {:metrics (:wat::core::foldl
-                          (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::telemetry::Metric]) row <- :wat::query::Row]
-                            -> (wat.type/Vector :- [:wat::telemetry::Metric])
-                            (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
-                          (wat.type/Vector :- [:wat::telemetry::Metric])
+        qresp (wat.core/match resp
+                [wat.kernel/RecvOutcome.Message {:msg sresp}
+                  (wat.core/match sresp
+                    [wat.query.Store/ScanResponse.Success {:rows rows :cursor next-cur}
+                      (wat.telemetry.Journal/QueryMetricsResponse.Success
+                        {:metrics (wat.core/foldl
+                          (wat.core/fn [acc :- (wat.type/Vector :- [wat.telemetry/Metric]) row :- wat.query/Row]
+                            :- (wat.type/Vector :- [wat.telemetry/Metric])
+                            (wat.core/conj acc (wat.edn/read (wat.query.Row/data row))))
+                          (wat.type/Vector :- [wat.telemetry/Metric])
                           rows)
                         :cursor next-cur})]
-                    [:wat::query::Store::ScanResponse.Transient {:err err}
-                      (:wat::telemetry::Journal::QueryMetricsResponse.Transient {:err err})]
-                    [:wat::query::Store::ScanResponse.Fatal {:err err}
-                      (:wat::telemetry::Journal::QueryMetricsResponse.Fatal {:err err})]
+                    [wat.query.Store/ScanResponse.Transient {:err err}
+                      (wat.telemetry.Journal/QueryMetricsResponse.Transient {:err err})]
+                    [wat.query.Store/ScanResponse.Fatal {:err err}
+                      (wat.telemetry.Journal/QueryMetricsResponse.Fatal {:err err})]
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
-                    [:wat::query::Store::ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
-                      (:wat::telemetry::Journal::QueryMetricsResponse.RequestTooLarge {:bytes bytes :cap cap})]
-                    [:wat::query::Store::ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                      (:wat::telemetry::Journal::QueryMetricsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
+                    [wat.query.Store/ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
+                      (wat.telemetry.Journal/QueryMetricsResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                    [wat.query.Store/ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                      (wat.telemetry.Journal/QueryMetricsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
-                [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                  (:wat::telemetry::Journal::QueryMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))})]
+                [wat.kernel/RecvOutcome.Lost {:cause cause}
+                  (wat.telemetry.Journal/QueryMetricsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message (wat.kernel.LociDiedError/message cause)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
-                [:wat::kernel::RecvOutcome.Stopped {}
-                  (:wat::telemetry::Journal::QueryMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
-                [:wat::kernel::RecvOutcome.Closed {}
-                  (:wat::telemetry::Journal::QueryMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))})])]
-       (:wat::service::Outcome.Reply {:state s :reply qresp})))
+                [wat.kernel/RecvOutcome.Stopped {}
+                  (wat.telemetry.Journal/QueryMetricsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
+                [wat.kernel/RecvOutcome.Closed {}
+                  (wat.telemetry.Journal/QueryMetricsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: store peer closed"))})])]
+       (wat.service/Outcome.Reply {:state s :reply qresp})))
 
    ;; query-logs — the same for the Log partition.
    (query-logs [s ctx req]
-     (:wat::core::let
-       [store (:wat::telemetry::journal::State/store s)
-        ns   (:wat::telemetry::Journal::QueryLogsRequest/namespace req)
-        lo   (:wat::telemetry::Journal::QueryLogsRequest/time-lo req)
-        hi   (:wat::telemetry::Journal::QueryLogsRequest/time-hi req)
-        lim  (:wat::telemetry::Journal::QueryLogsRequest/limit req)
-        cur  (:wat::telemetry::Journal::QueryLogsRequest/cursor req)
-        pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind.Log))
-        resp (:wat::query::Store/scan store
-               (:wat::query::Store::ScanRequest :pk pk
-                 :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+     (wat.core/let
+       [store (wat.telemetry.journal.State/store s)
+        ns   (wat.telemetry.Journal.QueryLogsRequest/namespace req)
+        lo   (wat.telemetry.Journal.QueryLogsRequest/time-lo req)
+        hi   (wat.telemetry.Journal.QueryLogsRequest/time-hi req)
+        lim  (wat.telemetry.Journal.QueryLogsRequest/limit req)
+        cur  (wat.telemetry.Journal.QueryLogsRequest/cursor req)
+        pk   (wat.edn/write (wat.telemetry/PartitionKey :namespace ns :kind wat.telemetry/Kind.Log))
+        resp (wat.query.Store/scan store
+               (wat.query.Store/ScanRequest :pk pk
+                 :sk-lo (wat.telemetry/time-sk lo) :sk-hi (wat.telemetry/time-sk hi)
                  :limit lim :cursor cur))
-        qresp (:wat::core::match resp
-                [:wat::kernel::RecvOutcome.Message {:msg sresp}
-                  (:wat::core::match sresp
-                    [:wat::query::Store::ScanResponse.Success {:rows rows :cursor next-cur}
-                      (:wat::telemetry::Journal::QueryLogsResponse.Success
-                        {:logs (:wat::core::foldl
-                          (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::telemetry::Log]) row <- :wat::query::Row]
-                            -> (wat.type/Vector :- [:wat::telemetry::Log])
-                            (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
-                          (wat.type/Vector :- [:wat::telemetry::Log])
+        qresp (wat.core/match resp
+                [wat.kernel/RecvOutcome.Message {:msg sresp}
+                  (wat.core/match sresp
+                    [wat.query.Store/ScanResponse.Success {:rows rows :cursor next-cur}
+                      (wat.telemetry.Journal/QueryLogsResponse.Success
+                        {:logs (wat.core/foldl
+                          (wat.core/fn [acc :- (wat.type/Vector :- [wat.telemetry/Log]) row :- wat.query/Row]
+                            :- (wat.type/Vector :- [wat.telemetry/Log])
+                            (wat.core/conj acc (wat.edn/read (wat.query.Row/data row))))
+                          (wat.type/Vector :- [wat.telemetry/Log])
                           rows)
                         :cursor next-cur})]
-                    [:wat::query::Store::ScanResponse.Transient {:err err}
-                      (:wat::telemetry::Journal::QueryLogsResponse.Transient {:err err})]
-                    [:wat::query::Store::ScanResponse.Fatal {:err err}
-                      (:wat::telemetry::Journal::QueryLogsResponse.Fatal {:err err})]
+                    [wat.query.Store/ScanResponse.Transient {:err err}
+                      (wat.telemetry.Journal/QueryLogsResponse.Transient {:err err})]
+                    [wat.query.Store/ScanResponse.Fatal {:err err}
+                      (wat.telemetry.Journal/QueryLogsResponse.Fatal {:err err})]
                     ;; wire-breach at the store peer propagates outward as our own op's breach.
-                    [:wat::query::Store::ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
-                      (:wat::telemetry::Journal::QueryLogsResponse.RequestTooLarge {:bytes bytes :cap cap})]
-                    [:wat::query::Store::ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                      (:wat::telemetry::Journal::QueryLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
+                    [wat.query.Store/ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
+                      (wat.telemetry.Journal/QueryLogsResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                    [wat.query.Store/ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                      (wat.telemetry.Journal/QueryLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
                 ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
-                [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                  (:wat::telemetry::Journal::QueryLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))})]
+                [wat.kernel/RecvOutcome.Lost {:cause cause}
+                  (wat.telemetry.Journal/QueryLogsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message (wat.kernel.LociDiedError/message cause)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
-                [:wat::kernel::RecvOutcome.Stopped {}
-                  (:wat::telemetry::Journal::QueryLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
-                [:wat::kernel::RecvOutcome.Closed {}
-                  (:wat::telemetry::Journal::QueryLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))})])]
-       (:wat::service::Outcome.Reply {:state s :reply qresp})))
+                [wat.kernel/RecvOutcome.Stopped {}
+                  (wat.telemetry.Journal/QueryLogsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
+                [wat.kernel/RecvOutcome.Closed {}
+                  (wat.telemetry.Journal/QueryLogsResponse.Fatal
+                    {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: store peer closed"))})])]
+       (wat.service/Outcome.Reply {:state s :reply qresp})))
 
    ;; sift-logs — arc 278 Stone 2: query-logs + server-side filtering. The predicate (a `Sieve`'s
    ;; `::`-source) is compiled ONCE (read-string -> unwrap -> verify
@@ -326,132 +326,132 @@
    ;; with a Fault, never a silent pass (no-hidden-failures). `total?` is the third
    ;; language axis (DESIGN-STONE-total-the-third-axis); journal is a consumer beyond rete.
    (sift-logs [s ctx req]
-     (:wat::core::let
-       [store    (:wat::telemetry::journal::State/store s)
-        pred-src (:wat::core::match (:wat::telemetry::Journal::SiftLogsRequest/sieve req) 
-                   [:wat::query::Sieve.Predicate {:pred pred} pred])
-        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
-        purep    (:wat::rete::pure? pform)
-        detp     (:wat::rete::deterministic? pform)
-        totp     (:wat::rete::total? pform)
-        qresp    (:wat::core::if (:wat::core::and purep (:wat::core::and detp totp))
-                   (:wat::core::let
-                     [pfn  (:wat::core::Result/expect (:wat::eval-ast! pform) "sift-logs: eval predicate")
-                      ns   (:wat::telemetry::Journal::SiftLogsRequest/namespace req)
-                      lo   (:wat::telemetry::Journal::SiftLogsRequest/time-lo req)
-                      hi   (:wat::telemetry::Journal::SiftLogsRequest/time-hi req)
-                      lim  (:wat::telemetry::Journal::SiftLogsRequest/limit req)
-                      cur  (:wat::telemetry::Journal::SiftLogsRequest/cursor req)
-                      pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind.Log))
-                      resp (:wat::query::Store/scan store
-                             (:wat::query::Store::ScanRequest :pk pk
-                               :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+     (wat.core/let
+       [store    (wat.telemetry.journal.State/store s)
+        pred-src (wat.core/match (wat.telemetry.Journal.SiftLogsRequest/sieve req) 
+                   [wat.query/Sieve.Predicate {:pred pred} pred])
+        pform    (wat.core/first (wat.core/ast->children (wat.core/match (wat.core/read-string pred-src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])))
+        purep    (wat.rete/pure? pform)
+        detp     (wat.rete/deterministic? pform)
+        totp     (wat.rete/total? pform)
+        qresp    (wat.core/if (wat.core/and purep (wat.core/and detp totp))
+                   (wat.core/let
+                     [pfn  (wat.core.Result/expect (wat/eval-ast! pform) "sift-logs: eval predicate")
+                      ns   (wat.telemetry.Journal.SiftLogsRequest/namespace req)
+                      lo   (wat.telemetry.Journal.SiftLogsRequest/time-lo req)
+                      hi   (wat.telemetry.Journal.SiftLogsRequest/time-hi req)
+                      lim  (wat.telemetry.Journal.SiftLogsRequest/limit req)
+                      cur  (wat.telemetry.Journal.SiftLogsRequest/cursor req)
+                      pk   (wat.edn/write (wat.telemetry/PartitionKey :namespace ns :kind wat.telemetry/Kind.Log))
+                      resp (wat.query.Store/scan store
+                             (wat.query.Store/ScanRequest :pk pk
+                               :sk-lo (wat.telemetry/time-sk lo) :sk-hi (wat.telemetry/time-sk hi)
                                :limit lim :cursor cur))]
-                     (:wat::core::match resp
-                       [:wat::kernel::RecvOutcome.Message {:msg sresp}
-                         (:wat::core::match sresp
-                           [:wat::query::Store::ScanResponse.Success {:rows rows :cursor next-cur}
-                             (:wat::telemetry::Journal::SiftLogsResponse.Success
-                               {:logs (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::telemetry::Log]) row <- :wat::query::Row]
-                                   -> (wat.type/Vector :- [:wat::telemetry::Log])
-                                   (:wat::core::let [log (:wat::edn::read (:wat::query::Row/data row))]
-                                     (:wat::core::if (:wat::core::apply  pfn log [])
-                                       (:wat::core::conj acc log)
+                     (wat.core/match resp
+                       [wat.kernel/RecvOutcome.Message {:msg sresp}
+                         (wat.core/match sresp
+                           [wat.query.Store/ScanResponse.Success {:rows rows :cursor next-cur}
+                             (wat.telemetry.Journal/SiftLogsResponse.Success
+                               {:logs (wat.core/foldl
+                                 (wat.core/fn [acc :- (wat.type/Vector :- [wat.telemetry/Log]) row :- wat.query/Row]
+                                   :- (wat.type/Vector :- [wat.telemetry/Log])
+                                   (wat.core/let [log (wat.edn/read (wat.query.Row/data row))]
+                                     (wat.core/if (wat.core/apply  pfn log [])
+                                       (wat.core/conj acc log)
                                        acc)))
-                                 (wat.type/Vector :- [:wat::telemetry::Log])
+                                 (wat.type/Vector :- [wat.telemetry/Log])
                                  rows)
                                :cursor next-cur})]
-                           [:wat::query::Store::ScanResponse.Transient {:err err}
-                             (:wat::telemetry::Journal::SiftLogsResponse.Transient {:err err})]
-                           [:wat::query::Store::ScanResponse.Fatal {:err err}
-                             (:wat::telemetry::Journal::SiftLogsResponse.Fatal {:err err})]
+                           [wat.query.Store/ScanResponse.Transient {:err err}
+                             (wat.telemetry.Journal/SiftLogsResponse.Transient {:err err})]
+                           [wat.query.Store/ScanResponse.Fatal {:err err}
+                             (wat.telemetry.Journal/SiftLogsResponse.Fatal {:err err})]
                            ;; wire-breach at the store peer propagates outward as our own op's breach.
-                           [:wat::query::Store::ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
-                             (:wat::telemetry::Journal::SiftLogsResponse.RequestTooLarge {:bytes bytes :cap cap})]
-                           [:wat::query::Store::ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                             (:wat::telemetry::Journal::SiftLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
+                           [wat.query.Store/ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
+                             (wat.telemetry.Journal/SiftLogsResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                           [wat.query.Store/ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                             (wat.telemetry.Journal/SiftLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
                        ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
-                       [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                         (:wat::telemetry::Journal::SiftLogsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))})]
+                       [wat.kernel/RecvOutcome.Lost {:cause cause}
+                         (wat.telemetry.Journal/SiftLogsResponse.Fatal
+                           {:err (wat.query/Fatal :reason (wat.query/Fault :message (wat.kernel.LociDiedError/message cause)))})]
                        ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                        ;; (the operation cannot complete either way) with the TRUE reason: the
                        ;; store peer was alive and the substrate was asked to stop.
-                       [:wat::kernel::RecvOutcome.Stopped {}
-                         (:wat::telemetry::Journal::SiftLogsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
-                       [:wat::kernel::RecvOutcome.Closed {}
-                         (:wat::telemetry::Journal::SiftLogsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))})]))
-                   (:wat::telemetry::Journal::SiftLogsResponse.Fatal
-                     {:err (:wat::query::Fatal :reason
-                       (:wat::query::Fault :message "sift-logs: predicate must be pure, deterministic, and total"))}))]
-       (:wat::service::Outcome.Reply {:state s :reply qresp})))
+                       [wat.kernel/RecvOutcome.Stopped {}
+                         (wat.telemetry.Journal/SiftLogsResponse.Fatal
+                           {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
+                       [wat.kernel/RecvOutcome.Closed {}
+                         (wat.telemetry.Journal/SiftLogsResponse.Fatal
+                           {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: store peer closed"))})]))
+                   (wat.telemetry.Journal/SiftLogsResponse.Fatal
+                     {:err (wat.query/Fatal :reason
+                       (wat.query/Fault :message "sift-logs: predicate must be pure, deterministic, and total"))}))]
+       (wat.service/Outcome.Reply {:state s :reply qresp})))
 
    ;; sift-metrics — the mechanical twin, over the Metric partition.
    (sift-metrics [s ctx req]
-     (:wat::core::let
-       [store    (:wat::telemetry::journal::State/store s)
-        pred-src (:wat::core::match (:wat::telemetry::Journal::SiftMetricsRequest/sieve req) 
-                   [:wat::query::Sieve.Predicate {:pred pred} pred])
-        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
-        purep    (:wat::rete::pure? pform)
-        detp     (:wat::rete::deterministic? pform)
-        totp     (:wat::rete::total? pform)
-        qresp    (:wat::core::if (:wat::core::and purep (:wat::core::and detp totp))
-                   (:wat::core::let
-                     [pfn  (:wat::core::Result/expect (:wat::eval-ast! pform) "sift-metrics: eval predicate")
-                      ns   (:wat::telemetry::Journal::SiftMetricsRequest/namespace req)
-                      lo   (:wat::telemetry::Journal::SiftMetricsRequest/time-lo req)
-                      hi   (:wat::telemetry::Journal::SiftMetricsRequest/time-hi req)
-                      lim  (:wat::telemetry::Journal::SiftMetricsRequest/limit req)
-                      cur  (:wat::telemetry::Journal::SiftMetricsRequest/cursor req)
-                      pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind.Metric))
-                      resp (:wat::query::Store/scan store
-                             (:wat::query::Store::ScanRequest :pk pk
-                               :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+     (wat.core/let
+       [store    (wat.telemetry.journal.State/store s)
+        pred-src (wat.core/match (wat.telemetry.Journal.SiftMetricsRequest/sieve req) 
+                   [wat.query/Sieve.Predicate {:pred pred} pred])
+        pform    (wat.core/first (wat.core/ast->children (wat.core/match (wat.core/read-string pred-src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])))
+        purep    (wat.rete/pure? pform)
+        detp     (wat.rete/deterministic? pform)
+        totp     (wat.rete/total? pform)
+        qresp    (wat.core/if (wat.core/and purep (wat.core/and detp totp))
+                   (wat.core/let
+                     [pfn  (wat.core.Result/expect (wat/eval-ast! pform) "sift-metrics: eval predicate")
+                      ns   (wat.telemetry.Journal.SiftMetricsRequest/namespace req)
+                      lo   (wat.telemetry.Journal.SiftMetricsRequest/time-lo req)
+                      hi   (wat.telemetry.Journal.SiftMetricsRequest/time-hi req)
+                      lim  (wat.telemetry.Journal.SiftMetricsRequest/limit req)
+                      cur  (wat.telemetry.Journal.SiftMetricsRequest/cursor req)
+                      pk   (wat.edn/write (wat.telemetry/PartitionKey :namespace ns :kind wat.telemetry/Kind.Metric))
+                      resp (wat.query.Store/scan store
+                             (wat.query.Store/ScanRequest :pk pk
+                               :sk-lo (wat.telemetry/time-sk lo) :sk-hi (wat.telemetry/time-sk hi)
                                :limit lim :cursor cur))]
-                     (:wat::core::match resp
-                       [:wat::kernel::RecvOutcome.Message {:msg sresp}
-                         (:wat::core::match sresp
-                           [:wat::query::Store::ScanResponse.Success {:rows rows :cursor next-cur}
-                             (:wat::telemetry::Journal::SiftMetricsResponse.Success
-                               {:metrics (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::telemetry::Metric]) row <- :wat::query::Row]
-                                   -> (wat.type/Vector :- [:wat::telemetry::Metric])
-                                   (:wat::core::let [m (:wat::edn::read (:wat::query::Row/data row))]
-                                     (:wat::core::if (:wat::core::apply  pfn m [])
-                                       (:wat::core::conj acc m)
+                     (wat.core/match resp
+                       [wat.kernel/RecvOutcome.Message {:msg sresp}
+                         (wat.core/match sresp
+                           [wat.query.Store/ScanResponse.Success {:rows rows :cursor next-cur}
+                             (wat.telemetry.Journal/SiftMetricsResponse.Success
+                               {:metrics (wat.core/foldl
+                                 (wat.core/fn [acc :- (wat.type/Vector :- [wat.telemetry/Metric]) row :- wat.query/Row]
+                                   :- (wat.type/Vector :- [wat.telemetry/Metric])
+                                   (wat.core/let [m (wat.edn/read (wat.query.Row/data row))]
+                                     (wat.core/if (wat.core/apply  pfn m [])
+                                       (wat.core/conj acc m)
                                        acc)))
-                                 (wat.type/Vector :- [:wat::telemetry::Metric])
+                                 (wat.type/Vector :- [wat.telemetry/Metric])
                                  rows)
                                :cursor next-cur})]
-                           [:wat::query::Store::ScanResponse.Transient {:err err}
-                             (:wat::telemetry::Journal::SiftMetricsResponse.Transient {:err err})]
-                           [:wat::query::Store::ScanResponse.Fatal {:err err}
-                             (:wat::telemetry::Journal::SiftMetricsResponse.Fatal {:err err})]
+                           [wat.query.Store/ScanResponse.Transient {:err err}
+                             (wat.telemetry.Journal/SiftMetricsResponse.Transient {:err err})]
+                           [wat.query.Store/ScanResponse.Fatal {:err err}
+                             (wat.telemetry.Journal/SiftMetricsResponse.Fatal {:err err})]
                            ;; wire-breach at the store peer propagates outward as our own op's breach.
-                           [:wat::query::Store::ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
-                             (:wat::telemetry::Journal::SiftMetricsResponse.RequestTooLarge {:bytes bytes :cap cap})]
-                           [:wat::query::Store::ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                             (:wat::telemetry::Journal::SiftMetricsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
+                           [wat.query.Store/ScanResponse.RequestTooLarge {:bytes bytes :cap cap}
+                             (wat.telemetry.Journal/SiftMetricsResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                           [wat.query.Store/ScanResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                             (wat.telemetry.Journal/SiftMetricsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])]
                        ;; a lost/closed store peer must NOT kill the shared journal service — map to our own
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
-                       [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                         (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))})]
+                       [wat.kernel/RecvOutcome.Lost {:cause cause}
+                         (wat.telemetry.Journal/SiftMetricsResponse.Fatal
+                           {:err (wat.query/Fatal :reason (wat.query/Fault :message (wat.kernel.LociDiedError/message cause)))})]
                        ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                        ;; (the operation cannot complete either way) with the TRUE reason: the
                        ;; store peer was alive and the substrate was asked to stop.
-                       [:wat::kernel::RecvOutcome.Stopped {}
-                         (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
-                       [:wat::kernel::RecvOutcome.Closed {}
-                         (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))})]))
-                   (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
-                     {:err (:wat::query::Fatal :reason
-                       (:wat::query::Fault :message "sift-metrics: predicate must be pure, deterministic, and total"))}))]
-       (:wat::service::Outcome.Reply {:state s :reply qresp})))])
+                       [wat.kernel/RecvOutcome.Stopped {}
+                         (wat.telemetry.Journal/SiftMetricsResponse.Fatal
+                           {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE"))})]
+                       [wat.kernel/RecvOutcome.Closed {}
+                         (wat.telemetry.Journal/SiftMetricsResponse.Fatal
+                           {:err (wat.query/Fatal :reason (wat.query/Fault :message "journal.wat: store peer closed"))})]))
+                   (wat.telemetry.Journal/SiftMetricsResponse.Fatal
+                     {:err (wat.query/Fatal :reason
+                       (wat.query/Fault :message "sift-metrics: predicate must be pure, deterministic, and total"))}))]
+       (wat.service/Outcome.Reply {:state s :reply qresp})))])

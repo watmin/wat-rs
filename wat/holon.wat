@@ -62,12 +62,12 @@
 ;; passed by the caller. The filter captures the floor at the call
 ;; site's ambient d; pass through `Hologram/make` once and the entire
 ;; store carries the same threshold.
-(:wat::core::defn :wat::holon::filter-coincident [] -> [wat.type/f64 :-> wat.type/bool]
-  (:wat::core::let
+(wat.core/defn wat.holon/filter-coincident [] :- [wat.type/f64 :-> wat.type/bool]
+  (wat.core/let
       [floor
-        (:wat::holon::coincident-floor (:wat::config::dim-count))]
-      (:wat::core::fn [cos <- wat.type/f64] -> wat.type/bool
-        (:wat::core::< (:wat::core::- 1.0 cos) floor))))
+        (wat.holon/coincident-floor (wat.config/dim-count))]
+      (wat.core/fn [cos :- wat.type/f64] :- wat.type/bool
+        (wat.core/< (wat.core/- 1.0 cos) floor))))
 
 ;; ─── filter-present — looser, "signal detected above noise" ───────
 ;;
@@ -77,12 +77,12 @@
 ;; lookup rather than "did I see this exact form before."
 ;;
 ;; d is read from the ambient `:wat::config::dim-count`.
-(:wat::core::defn :wat::holon::filter-present [] -> [wat.type/f64 :-> wat.type/bool]
-  (:wat::core::let
+(wat.core/defn wat.holon/filter-present [] :- [wat.type/f64 :-> wat.type/bool]
+  (wat.core/let
       [floor
-        (:wat::holon::presence-floor (:wat::config::dim-count))]
-      (:wat::core::fn [cos <- wat.type/f64] -> wat.type/bool
-        (:wat::core::> cos floor))))
+        (wat.holon/presence-floor (wat.config/dim-count))]
+      (wat.core/fn [cos :- wat.type/f64] :- wat.type/bool
+        (wat.core/> cos floor))))
 
 ;; ─── filter-accept-any — null gate, returns whatever scored best ──
 ;;
@@ -90,7 +90,7 @@
 ;; population's nearest neighbor without any floor — e.g., taking the
 ;; cell's argmax for a soft scoring loop where the consumer applies
 ;; their own gate downstream.
-(:wat::core::defn :wat::holon::filter-accept-any [] -> [wat.type/f64 :-> wat.type/bool] (:wat::core::fn [_ <- wat.type/f64] -> wat.type/bool true))
+(wat.core/defn wat.holon/filter-accept-any [] :- [wat.type/f64 :-> wat.type/bool] (wat.core/fn [_ :- wat.type/f64] :- wat.type/bool true))
 
 ;; ─── Arc 296: :wat::holon::CapacityExceeded — moving the source of truth to wat ───
 ;;
@@ -103,9 +103,9 @@
 ;; frame's constituent count exceeds `floor(sqrt(dims))` (Kanerva's capacity
 ;; budget). `cost` is what the Bundle was asked to hold; `budget` is what the
 ;; substrate could hold. Both i64 because wat integer literals are i64.
-(:wat::core::defstruct :wat::holon::CapacityExceeded
-  [cost   <- wat.type/i64
-   budget <- wat.type/i64])
+(wat.core/defstruct wat.holon/CapacityExceeded
+  [cost   :- wat.type/i64
+   budget :- wat.type/i64])
 
 ;; ─── Arc 296: :wat::holon::CoincidentExplanation — moving the source of truth to wat ───
 ;;
@@ -117,13 +117,13 @@
 ;; raw cosine, the current coincident floor, the dim where comparison
 ;; happened, the sigma feeding the floor, the same boolean `coincident?` would
 ;; have returned, and the smallest sigma at which the pair would coincide.
-(:wat::core::defstruct :wat::holon::CoincidentExplanation
-  [cosine             <- wat.type/f64
-   floor              <- wat.type/f64
-   dim                <- wat.type/i64
-   sigma              <- wat.type/i64
-   coincident         <- wat.type/bool
-   min-sigma-to-pass  <- wat.type/i64])
+(wat.core/defstruct wat.holon/CoincidentExplanation
+  [cosine             :- wat.type/f64
+   floor              :- wat.type/f64
+   dim                :- wat.type/i64
+   sigma              :- wat.type/i64
+   coincident         :- wat.type/bool
+   min-sigma-to-pass  :- wat.type/i64])
 
 ;; ─── Arc 296: :wat::holon::Match — moving the source of truth to wat ───────
 ;;
@@ -137,9 +137,9 @@
 ;; floor. `Match` carries that asymmetry in its name; `get` answers "what
 ;; value did my probe reach?" and discards the matched key, while `find`
 ;; exists so a caller can name the key that actually matched and act on it.
-(:wat::core::defrecord :wat::holon::Match
-  [key   <- :wat::holon::HolonAST
-   value <- :wat::holon::HolonAST])
+(wat.core/defrecord wat.holon/Match
+  [key   :- wat.holon/HolonAST
+   value :- wat.holon/HolonAST])
 
 
 ;; :wat::holon::VectorDecodeOutcome — Arc 278 the dimension-heresy strike
@@ -177,12 +177,12 @@
 ;; it), and every other field is a bare `i64`. Registered as a builtin
 ;; (peer with the other outcome walls) for load-order robustness, though
 ;; `bytes-vector` itself has zero wat-corpus callers today.
-(:wat::core::defenum :wat::holon::VectorDecodeOutcome :wat::enum::Pure
-  :Decoded [vector <- :wat::holon::Vector]
-  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64]
-  :TruncatedHeader [got <- wat.type/i64]
-  :LengthMismatch [expected <- wat.type/i64  got <- wat.type/i64]
-  :InvalidCell [at <- wat.type/i64])
+(wat.core/defenum wat.holon/VectorDecodeOutcome wat.enum/Pure
+  :Decoded [vector :- wat.holon/Vector]
+  :DimensionMismatch [expected :- wat.type/i64  got :- wat.type/i64]
+  :TruncatedHeader [got :- wat.type/i64]
+  :LengthMismatch [expected :- wat.type/i64  got :- wat.type/i64]
+  :InvalidCell [at :- wat.type/i64])
 
 ;; :wat::holon::CombineOutcome — Arc 278 the dimension-heresy strike, part
 ;; 2. `vector-bind` / `vector-bundle` / `vector-blend` each RAISED a
@@ -207,9 +207,9 @@
 ;;                        cross a boundary.
 ;; PURE, for the same reason `VectorDecodeOutcome` is: a bare `Vector` +
 ;; two `i64`s, all EDN-reconstructable.
-(:wat::core::defenum :wat::holon::CombineOutcome :wat::enum::Pure
-  :Combined [vector <- :wat::holon::Vector]
-  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64])
+(wat.core/defenum wat.holon/CombineOutcome wat.enum/Pure
+  :Combined [vector :- wat.holon/Vector]
+  :DimensionMismatch [expected :- wat.type/i64  got :- wat.type/i64])
 
 ;; :wat::holon::DegenerateSide — Arc 278 the cosine outcome wall
 ;; (BRIEF-cosine-outcome-wall.md, DESIGN-STONE-where-admits-only-rete-ops.md
@@ -225,7 +225,7 @@
 ;; operand names (mirroring `pair_values_to_vectors`'s `target`/`reference`
 ;; callers use), not invented ones.
 ;; PURE — three nullary variants, no fields at all.
-(:wat::core::defenum :wat::holon::DegenerateSide :wat::enum::Pure
+(wat.core/defenum wat.holon/DegenerateSide wat.enum/Pure
   :Target
   :Reference
   :Both)
@@ -259,10 +259,10 @@
 ;; (itself pure), and two i64s. Fully EDN-reconstructable / wire-crossable;
 ;; marking it Impure would lie. Registered as a builtin, peer with the
 ;; other outcome walls in this family (`CombineOutcome`, `VectorDecodeOutcome`).
-(:wat::core::defenum :wat::holon::CosineOutcome :wat::enum::Pure
-  :Similarity [similarity <- wat.type/f64]
-  :Degenerate [side <- :wat::holon::DegenerateSide]
-  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64])
+(wat.core/defenum wat.holon/CosineOutcome wat.enum/Pure
+  :Similarity [similarity :- wat.type/f64]
+  :Degenerate [side :- wat.holon/DegenerateSide]
+  :DimensionMismatch [expected :- wat.type/i64  got :- wat.type/i64])
 
 ;; :wat::holon::DotOutcome — Arc 278 the cosine outcome wall's sibling for
 ;; `dot`. TWO enums, not one shared with `CosineOutcome` — `dot` performs
@@ -279,9 +279,9 @@
 ;;                        (one fact reached by two routes through the
 ;;                        shared `pair_values_to_vectors` guard).
 ;; PURE, for the same reason `CosineOutcome` is.
-(:wat::core::defenum :wat::holon::DotOutcome :wat::enum::Pure
-  :Computed [product <- wat.type/f64]
-  :DimensionMismatch [expected <- wat.type/i64  got <- wat.type/i64])
+(wat.core/defenum wat.holon/DotOutcome wat.enum/Pure
+  :Computed [product :- wat.type/f64]
+  :DimensionMismatch [expected :- wat.type/i64  got :- wat.type/i64])
 
 ;; ─── Arc 296 K: aliases that wat uses, declared in wat ──────────────────────
 ;;
@@ -290,6 +290,6 @@
 ;; Bundle's Ok arm is always HolonAST; CapacityExceeded is the algebra's only
 ;; capacity-failure shape. Callers can write either form; alias resolution
 ;; unifies them as the same type at the checker layer.
-(:wat::core::typealias :wat::holon::BundleResult
-  (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded]))
+(wat.core/typealias wat.holon/BundleResult
+  (wat.core/Result :- [wat.holon/HolonAST wat.holon/CapacityExceeded]))
 

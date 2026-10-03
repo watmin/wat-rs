@@ -26,8 +26,8 @@
 ;; 512 × 1024 = 524 288 bytes (512 KiB) — mirrors DEFAULT_MAX_FRAME_BYTES in
 ;; src/edn/render.rs (kept for the Receiver/from-pipe channel path which has
 ;; no macro layer).
-(:wat::core::def :wat::kernel::MAX-READLN-BYTES
-  (:wat::i64::* 512 1024))
+(wat.core/def wat.kernel/MAX-READLN-BYTES
+  (wat.i64/* 512 1024))
 
 ;; ─── readln macro ─────────────────────────────────────────────────────────
 ;;
@@ -56,46 +56,46 @@
 ;; `readln'` is a Rust intrinsic (always available at expand time — no
 ;; load-order dependency on any wat file). This macro therefore has no
 ;; load-order constraint and lives in readln.wat, the file named for what it holds.
-(:wat::core::defmacro :wat::kernel::readln
-  [& args <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let
-    [n-args    (:wat::core::length args)
+(wat.core/defmacro wat.kernel/readln
+  [& args :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let
+    [n-args    (wat.core/length args)
      ;; Check whether the first form is the :max-buffer-bytes keyword.
      ;; Use get (safe on empty vector) and compare by ast-kind + ast-name.
-     first-opt (:wat::core::get args 0)]
-    (:wat::core::if
+     first-opt (wat.core/get args 0)]
+    (wat.core/if
       ;; Is there a first arg AND is it a keyword?
-      (:wat::core::if
-        (:wat::core::= n-args 0)
+      (wat.core/if
+        (wat.core/= n-args 0)
 
         false
-        (:wat::core::= (:wat::core::ast-kind
-                         (:wat::core::Option/expect
+        (wat.core/= (wat.core/ast-kind
+                         (wat.core.Option/expect
                            first-opt
                            "readln macro: internal error — first-opt is None but n-args > 0"))
                        "keyword"))
 
       ;; First arg is a keyword. Check if it's :max-buffer-bytes.
-      (:wat::core::let
-        [first-node (:wat::core::Option/expect
+      (wat.core/let
+        [first-node (wat.core.Option/expect
                        first-opt
                        "readln macro: internal error — first-node")]
-        (:wat::core::if
-          (:wat::core::= (:wat::core::ast-name first-node) ":max-buffer-bytes")
+        (wat.core/if
+          (wat.core/= (wat.core/ast-name first-node) ":max-buffer-bytes")
 
           ;; :max-buffer-bytes N  →  (readln' N)  (arc 258 — no `-> :T`; the
           ;; self-describing EDN wire types the value, not the caller)
-          (:wat::core::let
-            [cap-expr (:wat::core::Option/expect
-                          (:wat::core::get args 1)
+          (wat.core/let
+            [cap-expr (wat.core.Option/expect
+                          (wat.core/get args 1)
                           "readln: :max-buffer-bytes requires a value (e.g. :max-buffer-bytes (* 2 1024 1024))")
-             rest     (:wat::core::rest (:wat::core::rest args))]
-            `(:wat::kernel::readln' ~cap-expr ~@rest))
+             rest     (wat.core/rest (wat.core/rest args))]
+            `(wat.kernel/readln' ~cap-expr ~@rest))
           ;; Unknown keyword as first arg — pass through to readln' for a clean error.
-          `(:wat::kernel::readln' ~@args)))
+          `(wat.kernel/readln' ~@args)))
       ;; First arg is not a keyword (or args is empty) — plain form:
       ;; (readln) → (readln' :wat::kernel::MAX-READLN-BYTES)  (arc 258 — no `-> :T`;
       ;; readln reads what the self-describing EDN wire says, the caller does not attest).
       ;; The macro injects the default cap so readln' always gets an explicit max.
-      `(:wat::kernel::readln' :wat::kernel::MAX-READLN-BYTES ~@args))))
+      `(wat.kernel/readln' wat.kernel/MAX-READLN-BYTES ~@args))))

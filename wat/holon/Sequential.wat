@@ -21,25 +21,25 @@
 ;; `(fn coll)`), the closure's own params flip (was `(item, index)`, now `(index, item)`), and
 ;; the result is a LAZY Stream, not an eager Vector — `(into [] ...)` forces it back to a
 ;; Vector so `get`/`rest` below (both Vector ops) keep working unchanged.
-(:wat::core::defmacro :wat::holon::Sequential
-  [items <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::core::let
+(wat.core/defmacro wat.holon/Sequential
+  [items :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.core/let
      [positioned
-       (:wat::core::into []
-         (:wat::core::map-indexed
-           (:wat::core::fn [i <- wat.type/i64 item <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
-             (:wat::core::if (:wat::core::= i 0)
+       (wat.core/into []
+         (wat.core/map-indexed
+           (wat.core/fn [i :- wat.type/i64 item :- wat.holon/HolonAST] :- wat.holon/HolonAST
+             (wat.core/if (wat.core/= i 0)
                item
-               (:wat::holon::Permute item i)))
+               (wat.holon/Permute item i)))
            ~items))]
      ;; use get for the Option-returning safe path; arc-278 flipped first to bare-raising.
      ;; Sequential expects non-empty input by contract; the :None arm is defensive.
-     (:wat::core::match (:wat::core::get positioned 0) 
-       [:wat::core::Option.Some {:value head}
-         (:wat::core::foldl
-           (:wat::core::fn [acc <- :wat::holon::HolonAST x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
-             (:wat::holon::Bind acc x))
+     (wat.core/match (wat.core/get positioned 0) 
+       [wat.core/Option.Some {:value head}
+         (wat.core/foldl
+           (wat.core/fn [acc :- wat.holon/HolonAST x :- wat.holon/HolonAST] :- wat.holon/HolonAST
+             (wat.holon/Bind acc x))
            head
-           (:wat::core::rest positioned))]
-       [:wat::core::Option.None {} (:wat::holon::to-holon "Sequential-empty-input")])))
+           (wat.core/rest positioned))]
+       [wat.core/Option.None {} (wat.holon/to-holon "Sequential-empty-input")])))

@@ -56,32 +56,32 @@
 ;; ════════════════════════════════════════════════════════════════════════════════════
 
 ;; structural? — a node whose children we recurse into (list/vector/set/map).
-(:wat::core::defn :wat::fix::structural? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::contains? (wat.type/HashSet :- [:wat::type::Infer] "list" "vector" "map" "set") k)))
+(wat.core/defn wat.fix/structural? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [k (wat.core/ast-kind node)]
+    (wat.core/contains? (wat.type/HashSet :- [wat.type/Infer] "list" "vector" "map" "set") k)))
 
 ;; annotated-if? — a List whose head is the identity `:wat::core::if` (either spelling)
 ;; and whose child[2] is the bare Symbol `->`. The identity keeps `Option/expect -> :T`
 ;; from being read as an annotated if.
-(:wat::core::defn :wat::fix::annotated-if? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
+(wat.core/defn wat.fix/annotated-if? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
       ;; Stone 118.B4-iii — THE WALL: was `(empty? (drop ch 2))`. `drop` returns a lazy
       ;; Stream (arc 118.2a), and `empty?` no longer accepts one. `ch` is a Vector (eager,
       ;; `ast->children`'s return type) so `length` answers the identical question — "does ch
       ;; have fewer than 3 elements" — in O(1) without ever going lazy. Same boolean, no `drop`.
-      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
+      (wat.core/if (wat.core/< (wat.core/length ch) 3)
         false
-        (:wat::core::let [head (:wat::core::first ch)
-                          c2   (:wat::core::nth ch 2)]
+        (wat.core/let [head (wat.core/first ch)
+                          c2   (wat.core/nth ch 2)]
           ;; 251.8d-i class A — ast-name is partial (Symbol/Keyword/StringLit).
           ;; A list in head position with ≥3 children used to raise here; the
           ;; kind guard matches c2's. wat.core/if is lazy, so this prevents the call.
-          (:wat::core::let [hk (:wat::core::ast-kind head)]
-          (:wat::core::if (:wat::core::or (:wat::core::= hk "keyword") (:wat::core::= hk "symbol"))
-            (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::if")
-              (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
-                (:wat::core::= (:wat::core::ast-name c2) "->")
+          (wat.core/let [hk (wat.core/ast-kind head)]
+          (wat.core/if (wat.core/or (wat.core/= hk "keyword") (wat.core/= hk "symbol"))
+            (wat.core/if (wat.core/= (wat.core/canonical-identity (wat.core/ast-name head)) ":wat::core::if")
+              (wat.core/if (wat.core/= (wat.core/ast-kind c2) "symbol")
+                (wat.core/= (wat.core/ast-name c2) "->")
                 false)
               false)
             false)))))
@@ -91,73 +91,73 @@
 ;; dropping children [2] (`->`) and [3] (the type).
 ;; Arc 118.2a — `take`/`drop` flipped LAZY (return Stream); `concat` (unchanged, Vector/
 ;; PersistentVector/List-only) needs both sides eager.
-(:wat::core::defn :wat::fix::strip-if [node <- wat.type/AST] -> wat.type/AST
-  (:wat::core::with-children node
-    (:wat::core::concat (:wat::core::into [] (:wat::core::take (:wat::core::ast->children node) 2))
-                        (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children node) 4)))))
+(wat.core/defn wat.fix/strip-if [node :- wat.type/AST] :- wat.type/AST
+  (wat.core/with-children node
+    (wat.core/concat (wat.core/into [] (wat.core/take (wat.core/ast->children node) 2))
+                        (wat.core/into [] (wat.core/drop (wat.core/ast->children node) 4)))))
 
 ;; head-keyword? — a `::`-namespaced keyword: a rust-scheme call head / reference, the kind
 ;; `keyword/to-symbol` converts. Bare data keywords (`:else`) have no `::` and are left alone.
-(:wat::core::defn :wat::fix::head-keyword? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::string::contains? (:wat::core::ast-name node) "::")
+(wat.core/defn wat.fix/head-keyword? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+    (wat.string/contains? (wat.core/ast-name node) "::")
     false))
 
 ;; marker-keyword? — a keyword whose name ENDS in `::`. Data, not a call head:
 ;; the namespace-prefix marker in `{:restricted-to [:my::kernel::]}`.
 ;; `keyword/to-symbol` correctly refuses these; we convert them ourselves.
-(:wat::core::defn :wat::fix::marker-keyword? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::string::ends-with? (:wat::core::ast-name node) "::")
+(wat.core/defn wat.fix/marker-keyword? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+    (wat.string/ends-with? (wat.core/ast-name node) "::")
     false))
 
 ;; `:my::kernel::` → `my.kernel` (symbol, no `/` ⇒ a namespace).
 ;; Trailing empty split-piece (the final `::`) is dropped; interior `::` become `.`.
-(:wat::core::defn :wat::fix::marker-to-namespace-text [node <- wat.type/AST] -> wat.type/String
-  (:wat::core::let [nm   (:wat::core::ast-name node)
-                    body (:wat::core::if (:wat::string::starts-with? nm ":")
-                            (:wat::string::subs nm 1 (:wat::string::length nm))
+(wat.core/defn wat.fix/marker-to-namespace-text [node :- wat.type/AST] :- wat.type/String
+  (wat.core/let [nm   (wat.core/ast-name node)
+                    body (wat.core/if (wat.string/starts-with? nm ":")
+                            (wat.string/subs nm 1 (wat.string/length nm))
                             nm)
-                    parts (:wat::string::split body "::")
-                    n     (:wat::core::length parts)
-                    last  (:wat::core::nth parts (:wat::i64::- n 1))
-                    kept  (:wat::core::if (:wat::core::= last "")
-                            (:wat::core::into [] (:wat::core::take parts (:wat::i64::- n 1)))
+                    parts (wat.string/split body "::")
+                    n     (wat.core/length parts)
+                    last  (wat.core/nth parts (wat.i64/- n 1))
+                    kept  (wat.core/if (wat.core/= last "")
+                            (wat.core/into [] (wat.core/take parts (wat.i64/- n 1)))
                             parts)]
-    (:wat::string::join "." kept)))
+    (wat.string/join "." kept)))
 
 ;; arrow? — a bare `<-` / `->` SYMBOL. The threading-macro head is the KEYWORD
 ;; `:wat::core::->`. Every such symbol converts to `:-` (the arrow syntax is gone).
-(:wat::core::defn :wat::fix::arrow? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
-    (:wat::core::if (:wat::core::= (:wat::core::ast-name node) "<-") true
-      (:wat::core::= (:wat::core::ast-name node) "->"))
+(wat.core/defn wat.fix/arrow? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "symbol")
+    (wat.core/if (wat.core/= (wat.core/ast-name node) "<-") true
+      (wat.core/= (wat.core/ast-name node) "->"))
     false))
 
 ;; rete-var? — a symbol whose name starts with `?`. Measured: every `?`-prefixed
 ;; binder in CODE sits inside `(` and is a rete field binding, never an annotation
 ;; (`[?x <- …]` hits are comments). Unquoted annotation names (`~x`) do not match.
-(:wat::core::defn :wat::fix::rete-var? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
-    (:wat::string::starts-with? (:wat::core::ast-name node) "?")
+(wat.core/defn wat.fix/rete-var? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "symbol")
+    (wat.string/starts-with? (wat.core/ast-name node) "?")
     false))
 
 ;; carry-rete-var? — the field-name sits AFTER the arrow, so the bit must survive
 ;; the arrow token: if this node is the arrow, keep the incoming flag, else take
 ;; rete-var? of this node. `(?k <- :k)` then sees prev-rete-var? at `:k`.
-(:wat::core::defn :wat::fix::carry-rete-var?
-  [node <- wat.type/AST  prev-rete-var? <- wat.type/bool] -> wat.type/bool
-  (:wat::core::if (:wat::fix::arrow? node)
+(wat.core/defn wat.fix/carry-rete-var?
+  [node :- wat.type/AST  prev-rete-var? :- wat.type/bool] :- wat.type/bool
+  (wat.core/if (wat.fix/arrow? node)
     prev-rete-var?
-    (:wat::fix::rete-var? node)))
+    (wat.fix/rete-var? node)))
 
 ;; retired-keyword-fn? — `:fn(A)->R`, the keyword-bodied fn type stone 251.4c retired.
 ;; `keyword/to-type-form` refuses that spelling by name (`MalformedTypeExpr`). The corpus
 ;; walk leaves the keyword in place so one retired token does not abort the file; the
 ;; fixture that still writes it is the negative proof of that refusal.
-(:wat::core::defn :wat::fix::retired-keyword-fn? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::string::starts-with? (:wat::core::ast-name node) ":fn(")
+(wat.core/defn wat.fix/retired-keyword-fn? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+    (wat.string/starts-with? (wat.core/ast-name node) ":fn(")
     false))
 
 ;; type-shaped-keyword? — a keyword STRUCTURALLY a type: a parametric `Head<...>` or a
@@ -167,15 +167,15 @@
 ;; `keyword/to-type-form` (the neighbour this predicate feeds) asks
 ;; `WAT_TYPE_HARD_PRIMITIVES` in `src/types.rs`: a member renders `wat.type/<tail>`; every
 ;; other type keeps its home spelling. This file does not keep a second copy of that list.
-(:wat::core::defn :wat::fix::type-shaped-keyword? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::core::let [name (:wat::core::ast-name node)]
-      (:wat::core::if (:wat::core::if (:wat::string::contains? name "<")
-                        (:wat::string::contains? name ">")
+(wat.core/defn wat.fix/type-shaped-keyword? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+    (wat.core/let [name (wat.core/ast-name node)]
+      (wat.core/if (wat.core/if (wat.string/contains? name "<")
+                        (wat.string/contains? name ">")
                         false)
         true
-        (:wat::core::if (:wat::string::contains? name "(")
-          (:wat::string::contains? name ")")
+        (wat.core/if (wat.string/contains? name "(")
+          (wat.string/contains? name ")")
           false)))
     false))
 
@@ -183,43 +183,43 @@
 ;; prev-arrow? and prev-rete-var?. Order matters: post-arrow type (gated by
 ;; NOT prev-rete-var?), then structural type, then arrow (unconditional), then
 ;; head/ref, then recurse.
-(:wat::core::defn :wat::fix::fix-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   prev-arrow? <- wat.type/bool
-   prev-rete-var? <- wat.type/bool]
-  -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/fix-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   prev-arrow? :- wat.type/bool
+   prev-rete-var? :- wat.type/bool]
+  :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [wat.type/AST])
-    (:wat::core::let [h   (:wat::core::first items)
-                      tl  (:wat::core::rest items)
-                      is-arrow? (:wat::fix::arrow? h)
-                      as-type? (:wat::core::if prev-arrow?
-                                 (:wat::core::if prev-rete-var?
+    (wat.core/let [h   (wat.core/first items)
+                      tl  (wat.core/rest items)
+                      is-arrow? (wat.fix/arrow? h)
+                      as-type? (wat.core/if prev-arrow?
+                                 (wat.core/if prev-rete-var?
                                    false
-                                   (:wat::core::= (:wat::core::ast-kind h) "keyword"))
+                                   (wat.core/= (wat.core/ast-kind h) "keyword"))
                                  false)
-                      out (:wat::core::if (:wat::fix::retired-keyword-fn? h)
+                      out (wat.core/if (wat.fix/retired-keyword-fn? h)
                             h
-                          (:wat::core::if as-type?
-                            (:wat::keyword::to-type-form h)
-                          (:wat::core::if (:wat::fix::type-shaped-keyword? h)
-                            (:wat::keyword::to-type-form h)
-                          (:wat::core::if is-arrow?
-                            (:wat::core::keyword-node ":-")
-                          (:wat::core::if (:wat::fix::marker-keyword? h)
-                            (:wat::core::symbol-node (:wat::fix::marker-to-namespace-text h))
-                          (:wat::core::if (:wat::fix::head-keyword? h)
-                            (:wat::keyword::to-symbol h)
-                            (:wat::fix::fix-source h)))))))]
-      (:wat::core::concat (wat.type/Vector :- [wat.type/AST] out)
-                          (:wat::fix::fix-seq tl is-arrow? (:wat::fix::carry-rete-var? h prev-rete-var?))))))
+                          (wat.core/if as-type?
+                            (wat.keyword/to-type-form h)
+                          (wat.core/if (wat.fix/type-shaped-keyword? h)
+                            (wat.keyword/to-type-form h)
+                          (wat.core/if is-arrow?
+                            (wat.core/keyword-node ":-")
+                          (wat.core/if (wat.fix/marker-keyword? h)
+                            (wat.core/symbol-node (wat.fix/marker-to-namespace-text h))
+                          (wat.core/if (wat.fix/head-keyword? h)
+                            (wat.keyword/to-symbol h)
+                            (wat.fix/fix-source h)))))))]
+      (wat.core/concat (wat.type/Vector :- [wat.type/AST] out)
+                          (wat.fix/fix-seq tl is-arrow? (wat.fix/carry-rete-var? h prev-rete-var?))))))
 
 ;; fix-source — strip an if-annotation (recognises the ::if KEYWORD head, so BEFORE the head
 ;; gets symbol-ised), then the position-aware walk.
-(:wat::core::defn :wat::fix::fix-source [node <- wat.type/AST] -> wat.type/AST
-  (:wat::core::if (:wat::fix::structural? node)
-    (:wat::core::let [stripped (:wat::core::if (:wat::fix::annotated-if? node) (:wat::fix::strip-if node) node)]
-      (:wat::core::with-children stripped (:wat::fix::fix-seq (:wat::core::ast->children stripped) false false)))
+(wat.core/defn wat.fix/fix-source [node :- wat.type/AST] :- wat.type/AST
+  (wat.core/if (wat.fix/structural? node)
+    (wat.core/let [stripped (wat.core/if (wat.fix/annotated-if? node) (wat.fix/strip-if node) node)]
+      (wat.core/with-children stripped (wat.fix/fix-seq (wat.core/ast->children stripped) false false)))
     node))
 
 ;; ─── Stone 251.5 / Slice 4.2 — comment-faithful span-edit codemod ───────────
@@ -245,47 +245,47 @@
 ;; fix-text-line-start — char offset of the first character of line N (1-indexed).
 ;; lines = result of (string::split src "\n"); each element excludes the newline.
 ;; line 1 starts at 0; line N starts at: sum over k=1..N-1 of (length(lines[k-1]) + 1).
-(:wat::core::defn :wat::fix::fix-text-line-start
-  [n     <- wat.type/i64
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::core::if (:wat::core::= n 1)
+(wat.core/defn wat.fix/fix-text-line-start
+  [n     :- wat.type/i64
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.core/if (wat.core/= n 1)
     0
-    (:wat::core::let [fst (:wat::core::first lines)]
-      (:wat::core::+ (:wat::string::length fst)
-        (:wat::core::+ 1
-          (:wat::fix::fix-text-line-start
-            (:wat::core::- n 1)
-            (:wat::core::rest lines)))))))
+    (wat.core/let [fst (wat.core/first lines)]
+      (wat.core/+ (wat.string/length fst)
+        (wat.core/+ 1
+          (wat.fix/fix-text-line-start
+            (wat.core/- n 1)
+            (wat.core/rest lines)))))))
 
 ;; fix-text-offset-of — convert an ast-span {:line N :col C} map to a flat char offset.
 ;; loc is the (HashMap :- [keyword i64]) from (ast-span node); lines = (split src "\n").
 ;; offset = line-start(line) + (col - 1)  (col is 1-indexed char count from line start).
-(:wat::core::defn :wat::fix::fix-text-offset-of
-  [loc   <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::core::let [ln (:wat::core::Option/expect  
-                           (:wat::core::get loc :line)
+(wat.core/defn wat.fix/fix-text-offset-of
+  [loc   :- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.core/let [ln (wat.core.Option/expect  
+                           (wat.core/get loc :line)
                            "fix-text-offset-of: :line")
-                    co (:wat::core::Option/expect  
-                           (:wat::core::get loc :col)
+                    co (wat.core.Option/expect  
+                           (wat.core/get loc :col)
                            "fix-text-offset-of: :col")]
-    (:wat::core::+ (:wat::fix::fix-text-line-start ln lines)
-                   (:wat::core::- co 1))))
+    (wat.core/+ (wat.fix/fix-text-line-start ln lines)
+                   (wat.core/- co 1))))
 
 ;; fix-text-span-len — compute the char length of a source span (end offset minus start offset).
 ;; start-span and end-span are {:line N :col N} HashMaps (same shape as (ast-span node) /
 ;; (ast-end-span node)); lines = (string::split src "\n").
 ;; Returns offset-of(end) - offset-of(start): the number of chars the span covers.
-(:wat::core::defn :wat::fix::fix-text-span-len
-  [start-span <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-   end-span   <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-   lines      <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::i64::-
-    (:wat::fix::fix-text-offset-of end-span lines)
-    (:wat::fix::fix-text-offset-of start-span lines)))
+(wat.core/defn wat.fix/fix-text-span-len
+  [start-span :- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+   end-span   :- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+   lines      :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.i64/-
+    (wat.fix/fix-text-offset-of end-span lines)
+    (wat.fix/fix-text-offset-of start-span lines)))
 
 ;; fix-text-span-text — arc 282, STONE: an edit carries what it CLAIMS to replace.
 ;;
@@ -305,15 +305,15 @@
 ;; 18-char canonical token). Filling old-text from THIS function in that situation makes
 ;; fix-text-apply's check compare a slice against itself — vacuous, catching nothing. Use the
 ;; NAME (or a captured "old" value) directly as old-text instead; never this.
-(:wat::core::defn :wat::fix::fix-text-span-text
-  [start-span <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-   end-span   <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-   lines      <- (wat.type/Vector :- [wat.type/String])
-   src        <- wat.type/String]
-  -> wat.type/String
-  (:wat::string::subs src
-    (:wat::fix::fix-text-offset-of start-span lines)
-    (:wat::fix::fix-text-offset-of end-span lines)))
+(wat.core/defn wat.fix/fix-text-span-text
+  [start-span :- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+   end-span   :- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
+   lines      :- (wat.type/Vector :- [wat.type/String])
+   src        :- wat.type/String]
+  :- wat.type/String
+  (wat.string/subs src
+    (wat.fix/fix-text-offset-of start-span lines)
+    (wat.fix/fix-text-offset-of end-span lines)))
 
 ;; source-matches-name? — 251.8d-i class B. Edit a leaf only when the source
 ;; text at its span EQUALS its ast-name. Where they disagree the node is
@@ -321,32 +321,32 @@
 ;; skip it, edit nothing. This USES fix-text-span-text as a GUARD comparison,
 ;; then declines — the opposite of filling old-text from the span (which would
 ;; make fix-text-apply's check vacuous). The guard at fix-text-apply stays.
-(:wat::core::defn :wat::fix::source-matches-name?
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> wat.type/bool
-  (:wat::core::= (:wat::fix::fix-text-span-text
-                   (:wat::core::ast-span node)
-                   (:wat::core::ast-end-span node)
+(wat.core/defn wat.fix/source-matches-name?
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- wat.type/bool
+  (wat.core/= (wat.fix/fix-text-span-text
+                   (wat.core/ast-span node)
+                   (wat.core/ast-end-span node)
                    lines
                    src)
-                 (:wat::core::ast-name node)))
+                 (wat.core/ast-name node)))
 
 ;; fix-text-deletion-edit — a one-element Vector holding a deletion edit for node.
 ;; Deletion covers exactly the token text (ast-name char length); surrounding whitespace stays.
-(:wat::core::defn :wat::fix::fix-text-deletion-edit
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                    old-len (:wat::core::ast-name node)]
+(wat.core/defn wat.fix/fix-text-deletion-edit
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [off     (wat.fix/fix-text-offset-of (wat.core/ast-span node) lines)
+                    old-len (wat.core/ast-name node)]
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len ""))))
 
 ;; empty-edits — no-op edit list (class B skip; bare data keyword; non-arrow symbol).
-(:wat::core::defn :wat::fix::empty-edits []
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn wat.fix/empty-edits []
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
 ;; fix-text-leaf-edits — apply the same rule order as fix-seq to a leaf node,
@@ -354,127 +354,127 @@
 ;; retired `:fn(` (left in place; `keyword/to-type-form` would abort the file) >
 ;; post-arrow type (not after a rete-var) > structural type > marker > head-keyword > arrow > no-op.
 ;; 251.8d-i: a leaf whose span text ≠ ast-name is reader-synthesized — skip it.
-(:wat::core::defn :wat::fix::fix-text-leaf-edits
-  [node           <- wat.type/AST
-   prev-arrow?    <- wat.type/bool
-   prev-rete-var? <- wat.type/bool
-   lines          <- (wat.type/Vector :- [wat.type/String])
-   src            <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [kind (:wat::core::ast-kind node)]
-    (:wat::core::if (:wat::core::= kind "keyword")
-      (:wat::core::if (:wat::fix::source-matches-name? node lines src)
+(wat.core/defn wat.fix/fix-text-leaf-edits
+  [node           :- wat.type/AST
+   prev-arrow?    :- wat.type/bool
+   prev-rete-var? :- wat.type/bool
+   lines          :- (wat.type/Vector :- [wat.type/String])
+   src            :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [kind (wat.core/ast-kind node)]
+    (wat.core/if (wat.core/= kind "keyword")
+      (wat.core/if (wat.fix/source-matches-name? node lines src)
         ;; keyword leaf — check type-annotation, marker, and head-keyword rules
-        (:wat::core::let [span    (:wat::core::ast-span node)
-                          off     (:wat::fix::fix-text-offset-of span lines)
-                          nm      (:wat::core::ast-name node)
+        (wat.core/let [span    (wat.core/ast-span node)
+                          off     (wat.fix/fix-text-offset-of span lines)
+                          nm      (wat.core/ast-name node)
                           old-len nm]
-          (:wat::core::if (:wat::fix::retired-keyword-fn? node)
+          (wat.core/if (wat.fix/retired-keyword-fn? node)
             ;; `:fn(A)->R` stays. Calling `keyword/to-type-form` aborts the file.
-            (:wat::fix::empty-edits)
-          (:wat::core::if (:wat::core::if prev-arrow? (:wat::core::not prev-rete-var?) false)
+            (wat.fix/empty-edits)
+          (wat.core/if (wat.core/if prev-arrow? (wat.core/not prev-rete-var?) false)
             ;; post-arrow keyword is a type annotation → convert to type form
             ;; (not a rete field name: prev-rete-var? carried across the arrow)
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
-                (:wat::core::write-forms (:wat::keyword::to-type-form node))))
-            (:wat::core::if (:wat::fix::type-shaped-keyword? node)
+                (wat.core/write-forms (wat.keyword/to-type-form node))))
+            (wat.core/if (wat.fix/type-shaped-keyword? node)
               ;; parametric/tuple keyword → type form
               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                 (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
-                  (:wat::core::write-forms (:wat::keyword::to-type-form node))))
-              (:wat::core::if (:wat::fix::marker-keyword? node)
+                  (wat.core/write-forms (wat.keyword/to-type-form node))))
+              (wat.core/if (wat.fix/marker-keyword? node)
                 ;; trailing-`::` namespace-prefix marker → namespace symbol
                 (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                   (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
-                    (:wat::fix::marker-to-namespace-text node)))
-                (:wat::core::if (:wat::fix::head-keyword? node)
+                    (wat.fix/marker-to-namespace-text node)))
+                (wat.core/if (wat.fix/head-keyword? node)
                   ;; ::-namespaced call head → faithful-Clojure symbol
                   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
-                      (:wat::core::ast-name (:wat::keyword::to-symbol node))))
+                      (wat.core/ast-name (wat.keyword/to-symbol node))))
                   ;; bare data keyword (no ::, not type-shaped) — no edit
-                  (:wat::fix::empty-edits)))))))
+                  (wat.fix/empty-edits)))))))
         ;; class B — reader-synthesized; span ≠ name. Skip, edit nothing.
-        (:wat::fix::empty-edits))
-      (:wat::core::if (:wat::core::= kind "symbol")
+        (wat.fix/empty-edits))
+      (wat.core/if (wat.core/= kind "symbol")
         ;; symbol leaf — every bare <- / -> converts to :-
-        (:wat::core::if (:wat::core::if (:wat::fix::arrow? node)
-                          (:wat::fix::source-matches-name? node lines src)
+        (wat.core/if (wat.core/if (wat.fix/arrow? node)
+                          (wat.fix/source-matches-name? node lines src)
                           false)
-          (:wat::core::let [span    (:wat::core::ast-span node)
-                            off     (:wat::fix::fix-text-offset-of span lines)
-                            nm      (:wat::core::ast-name node)
+          (wat.core/let [span    (wat.core/ast-span node)
+                            off     (wat.fix/fix-text-offset-of span lines)
+                            nm      (wat.core/ast-name node)
                             old-len nm]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len ":-")))
           ;; non-arrow symbol, or synthesized arrow — no edit
-          (:wat::fix::empty-edits))
+          (wat.fix/empty-edits))
         ;; int, float, bool, string, nil — no edit
-        (:wat::fix::empty-edits)))))
+        (wat.fix/empty-edits)))))
 
 ;; fix-text-node-edits — dispatch: structural nodes → fix-text-struct-edits;
 ;; leaf nodes → fix-text-leaf-edits with position context.
-(:wat::core::defn :wat::fix::fix-text-node-edits
-  [node           <- wat.type/AST
-   prev-arrow?    <- wat.type/bool
-   prev-rete-var? <- wat.type/bool
-   lines          <- (wat.type/Vector :- [wat.type/String])
-   src            <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:wat::fix::fix-text-struct-edits node lines src)
-    (:wat::fix::fix-text-leaf-edits node prev-arrow? prev-rete-var? lines src)))
+(wat.core/defn wat.fix/fix-text-node-edits
+  [node           :- wat.type/AST
+   prev-arrow?    :- wat.type/bool
+   prev-rete-var? :- wat.type/bool
+   lines          :- (wat.type/Vector :- [wat.type/String])
+   src            :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
+    (wat.fix/fix-text-struct-edits node lines src)
+    (wat.fix/fix-text-leaf-edits node prev-arrow? prev-rete-var? lines src)))
 
 ;; fix-text-seq-edits — position-aware left-to-right walk over a child sequence.
 ;; Mirrors fix-seq's rule order; collects edits in ascending offset order.
-(:wat::core::defn :wat::fix::fix-text-seq-edits
-  [items          <- (wat.type/Vector :- [wat.type/AST])
-   prev-arrow?    <- wat.type/bool
-   prev-rete-var? <- wat.type/bool
-   lines          <- (wat.type/Vector :- [wat.type/String])
-   src            <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
-    (:wat::fix::empty-edits)
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)
-                      is-arrow? (:wat::fix::arrow? h)]
-      (:wat::core::concat
-        (:wat::fix::fix-text-node-edits h prev-arrow? prev-rete-var? lines src)
-        (:wat::fix::fix-text-seq-edits tl is-arrow? (:wat::fix::carry-rete-var? h prev-rete-var?) lines src)))))
+(wat.core/defn wat.fix/fix-text-seq-edits
+  [items          :- (wat.type/Vector :- [wat.type/AST])
+   prev-arrow?    :- wat.type/bool
+   prev-rete-var? :- wat.type/bool
+   lines          :- (wat.type/Vector :- [wat.type/String])
+   src            :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
+    (wat.fix/empty-edits)
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)
+                      is-arrow? (wat.fix/arrow? h)]
+      (wat.core/concat
+        (wat.fix/fix-text-node-edits h prev-arrow? prev-rete-var? lines src)
+        (wat.fix/fix-text-seq-edits tl is-arrow? (wat.fix/carry-rete-var? h prev-rete-var?) lines src)))))
 
 ;; fix-text-struct-edits — collect edits from a structural node.
 ;; For annotated-if: emit deletion edits for child[2](arrow) + child[3](type),
 ;; and leaf-edit for the head keyword; recurse into cond and branches normally.
 ;; For all other structural nodes: delegate to fix-text-seq-edits on children.
-(:wat::core::defn :wat::fix::fix-text-struct-edits
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::annotated-if? node)
+(wat.core/defn wat.fix/fix-text-struct-edits
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/annotated-if? node)
     ;; strip-if: manually process children to emit deletions for -> and :T
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::let [head     (:wat::core::first ch)
-                        c1       (:wat::core::first (:wat::core::rest ch))
-                        c2       (:wat::core::nth ch 2)
-                        c3       (:wat::core::nth ch 3)
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/let [head     (wat.core/first ch)
+                        c1       (wat.core/first (wat.core/rest ch))
+                        c2       (wat.core/nth ch 2)
+                        c3       (wat.core/nth ch 3)
                         ;; Arc 118.2a — `drop` flipped LAZY; `branches` feeds
                         ;; `fix-text-seq-edits`, which declares a `(Vector :- [WatAST])` param.
-                        branches (:wat::core::into [] (:wat::core::drop ch 4))]
+                        branches (wat.core/into [] (wat.core/drop ch 4))]
         ;; edits in ascending text order: head, cond, arrow-del, type-del, branches
-        (:wat::core::concat
-          (:wat::fix::fix-text-leaf-edits head false false lines src)
-          (:wat::core::concat
-            (:wat::fix::fix-text-node-edits c1 false false lines src)
-            (:wat::core::concat
-              (:wat::fix::fix-text-deletion-edit c2 lines)
-              (:wat::core::concat
-                (:wat::fix::fix-text-deletion-edit c3 lines)
-                (:wat::fix::fix-text-seq-edits branches false false lines src)))))))
+        (wat.core/concat
+          (wat.fix/fix-text-leaf-edits head false false lines src)
+          (wat.core/concat
+            (wat.fix/fix-text-node-edits c1 false false lines src)
+            (wat.core/concat
+              (wat.fix/fix-text-deletion-edit c2 lines)
+              (wat.core/concat
+                (wat.fix/fix-text-deletion-edit c3 lines)
+                (wat.fix/fix-text-seq-edits branches false false lines src)))))))
     ;; normal structural node — walk children with fix-text-seq-edits
-    (:wat::fix::fix-text-seq-edits (:wat::core::ast->children node) false false lines src)))
+    (wat.fix/fix-text-seq-edits (wat.core/ast->children node) false false lines src)))
 
 ;; fix-text-apply — apply a list of edits (in right-to-left order) to src.
 ;;
@@ -488,70 +488,70 @@
 ;; VERIFY BEFORE SPLICE: before overwriting src[off..off+len(old-text)], compare it against
 ;; old-text. On a match, splice as before. On disagreement — RAISE, naming the offset, the
 ;; claim, and what is actually there, so a codemod author can tell which rule lied.
-(:wat::core::defn :wat::fix::fix-text-apply
-  [src   <- wat.type/String
-   edits <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::empty? edits)
+(wat.core/defn wat.fix/fix-text-apply
+  [src   :- wat.type/String
+   edits :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
+  :- wat.type/String
+  (wat.core/if (wat.core/empty? edits)
     src
-    (:wat::core::let [edit     (:wat::core::first edits)
-                      off      (:wat::core::first edit)
-                      old-text (:wat::core::second edit)
-                      new-text (:wat::core::third edit)
-                      tl       (:wat::core::rest edits)
-                      old-len  (:wat::string::length old-text)
-                      src-len  (:wat::string::length src)
-                      end      (:wat::core::+ off old-len)
+    (wat.core/let [edit     (wat.core/first edits)
+                      off      (wat.core/first edit)
+                      old-text (wat.core/second edit)
+                      new-text (wat.core/third edit)
+                      tl       (wat.core/rest edits)
+                      old-len  (wat.string/length old-text)
+                      src-len  (wat.string/length src)
+                      end      (wat.core/+ off old-len)
                       ;; bounds-check BEFORE slicing — a claim whose length overruns the
                       ;; source is itself a disagreement (never let `subs` raise its own
                       ;; index-out-of-range instead of the diagnostic below; that would name
                       ;; the wrong mechanism and hide which rule lied).
-                      in-bounds? (:wat::core::if (:wat::core::>= off 0)
-                                   (:wat::core::<= end src-len)
+                      in-bounds? (wat.core/if (wat.core/>= off 0)
+                                   (wat.core/<= end src-len)
                                    false)
                       ;; clamped display range — what's ACTUALLY there, for the raise message,
                       ;; even when the claim overruns the source (never let the diagnostic
                       ;; itself need a second, safe `subs` call after already proving off is
                       ;; sane; clamp once, here).
-                      safe-off (:wat::core::if (:wat::core::< off 0) 0 (:wat::core::if (:wat::core::> off src-len) src-len off))
-                      safe-end (:wat::core::if (:wat::core::> end src-len) src-len (:wat::core::if (:wat::core::< end safe-off) safe-off end))
-                      display-actual (:wat::string::subs src safe-off safe-end)
-                      actual   (:wat::core::if in-bounds? display-actual "")]
-      (:wat::core::if (:wat::core::if in-bounds? (:wat::core::= actual old-text) false)
-        (:wat::core::let [new-src (:wat::string::concat
-                                     (:wat::string::subs src 0 off)
+                      safe-off (wat.core/if (wat.core/< off 0) 0 (wat.core/if (wat.core/> off src-len) src-len off))
+                      safe-end (wat.core/if (wat.core/> end src-len) src-len (wat.core/if (wat.core/< end safe-off) safe-off end))
+                      display-actual (wat.string/subs src safe-off safe-end)
+                      actual   (wat.core/if in-bounds? display-actual "")]
+      (wat.core/if (wat.core/if in-bounds? (wat.core/= actual old-text) false)
+        (wat.core/let [new-src (wat.string/concat
+                                     (wat.string/subs src 0 off)
                                      new-text
-                                     (:wat::string::subs src end src-len))]
-          (:wat::fix::fix-text-apply new-src tl))
-        (:wat::core::let
+                                     (wat.string/subs src end src-len))]
+          (wat.fix/fix-text-apply new-src tl))
+        (wat.core/let
           [q  "\""
-           overrun-note (:wat::core::if in-bounds? ""
+           overrun-note (wat.core/if in-bounds? ""
                           " — the claim OVERRUNS the source (only that much remains from the offset)")
-           what-is-there (:wat::string::concat q
-                           (:wat::string::concat display-actual
-                             (:wat::string::concat q
-                               (:wat::string::concat overrun-note
+           what-is-there (wat.string/concat q
+                           (wat.string/concat display-actual
+                             (wat.string/concat q
+                               (wat.string/concat overrun-note
                                  " — the rule's belief and the source disagree; refusing to splice."))))
-           msg (:wat::core::format "fix-text-apply: edit at offset {o} claims old-text {c} ({l} char(s)) but the source there is {w}"
-                 :o (:wat::i64::to-string off)
-                 :c (:wat::string::concat q (:wat::string::concat old-text q))
-                 :l (:wat::i64::to-string old-len)
+           msg (wat.core/format "fix-text-apply: edit at offset {o} claims old-text {c} ({l} char(s)) but the source there is {w}"
+                 :o (wat.i64/to-string off)
+                 :c (wat.string/concat q (wat.string/concat old-text q))
+                 :l (wat.i64/to-string old-len)
                  :w what-is-there)]
-          (:wat::kernel::assertion-failed! :message msg))))))
+          (wat.kernel/assertion-failed! :message msg))))))
 
 ;; fix-text — comment-faithful codemod: src string → migrated-src string.
 ;; Parses src to collect span-located edits (left-to-right / ascending offset),
 ;; reverses the list to right-to-left, then splices the ORIGINAL text for each edit.
 ;; Comments and formatting between edited tokens survive byte-identical.
-(:wat::core::defn :wat::fix::fix-text
-  [src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:wat::fix::fix-text-seq-edits forms false false lines src)
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+(wat.core/defn wat.fix/fix-text
+  [src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (wat.fix/fix-text-seq-edits forms false false lines src)
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ─── Arc 258 — generic `-> :T` ascription stripper (reusable refactor tool) ──────────
 ;;
@@ -564,77 +564,77 @@
 ;; is per-form; THIS is the shared call-site rewriter every such kill reuses.
 
 ;; str-in? — String membership in a (Vector :- [String]) (explicit; not index-contains?).
-(:wat::core::defn :wat::fix::str-in?
-  [s <- wat.type/String  xs <- (wat.type/Vector :- [wat.type/String])] -> wat.type/bool
-  (:wat::core::if (:wat::core::empty? xs)
+(wat.core/defn wat.fix/str-in?
+  [s :- wat.type/String  xs :- (wat.type/Vector :- [wat.type/String])] :- wat.type/bool
+  (wat.core/if (wat.core/empty? xs)
     false
-    (:wat::core::if (:wat::core::= s (:wat::core::first xs))
+    (wat.core/if (wat.core/= s (wat.core/first xs))
       true
-      (:wat::fix::str-in? s (:wat::core::rest xs)))))
+      (wat.fix/str-in? s (wat.core/rest xs)))))
 
 ;; strip-arrow-scan — within a HEAD-MATCHED list's children, delete each `->` SYMBOL and
 ;; the child immediately after it (the type keyword); recurse (strip-arrow-edits) into
 ;; every other child so NESTED matched forms are caught too.
-(:wat::core::defn :wat::fix::strip-arrow-scan
-  [items       <- (wat.type/Vector :- [wat.type/AST])
-   prev-arrow? <- wat.type/bool
-   heads       <- (wat.type/Vector :- [wat.type/String])
-   lines       <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/strip-arrow-scan
+  [items       :- (wat.type/Vector :- [wat.type/AST])
+   prev-arrow? :- wat.type/bool
+   heads       :- (wat.type/Vector :- [wat.type/String])
+   lines       :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)]
-      (:wat::core::if prev-arrow?
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)]
+      (wat.core/if prev-arrow?
         ;; h is the type keyword after `->` → delete; do NOT recurse into it
-        (:wat::core::concat (:wat::fix::fix-text-deletion-edit h lines)
-                            (:wat::fix::strip-arrow-scan tl false heads lines))
-        (:wat::core::if (:wat::fix::right-arrow? h)
+        (wat.core/concat (wat.fix/fix-text-deletion-edit h lines)
+                            (wat.fix/strip-arrow-scan tl false heads lines))
+        (wat.core/if (wat.fix/right-arrow? h)
           ;; h is the `->` → delete; mark prev-arrow for the next child
-          (:wat::core::concat (:wat::fix::fix-text-deletion-edit h lines)
-                              (:wat::fix::strip-arrow-scan tl true heads lines))
+          (wat.core/concat (wat.fix/fix-text-deletion-edit h lines)
+                              (wat.fix/strip-arrow-scan tl true heads lines))
           ;; normal child → recurse for nested matched forms, no deletion here
-          (:wat::core::concat (:wat::fix::strip-arrow-edits h heads lines)
-                              (:wat::fix::strip-arrow-scan tl false heads lines)))))))
+          (wat.core/concat (wat.fix/strip-arrow-edits h heads lines)
+                              (wat.fix/strip-arrow-scan tl false heads lines)))))))
 
 ;; strip-arrow-seq — recurse strip-arrow-edits over each child (non-matched nodes).
-(:wat::core::defn :wat::fix::strip-arrow-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   heads <- (wat.type/Vector :- [wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/strip-arrow-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   heads :- (wat.type/Vector :- [wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat (:wat::fix::strip-arrow-edits (:wat::core::first items) heads lines)
-                        (:wat::fix::strip-arrow-seq (:wat::core::rest items) heads lines))))
+    (wat.core/concat (wat.fix/strip-arrow-edits (wat.core/first items) heads lines)
+                        (wat.fix/strip-arrow-seq (wat.core/rest items) heads lines))))
 
 ;; strip-arrow-edits — node → deletion edits for `-> :T` in lists headed by `heads`.
-(:wat::core::defn :wat::fix::strip-arrow-edits
-  [node  <- wat.type/AST
-   heads <- (wat.type/Vector :- [wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn wat.fix/strip-arrow-edits
+  [node  :- wat.type/AST
+   heads :- (wat.type/Vector :- [wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/if (wat.core/empty? ch)
                         false
-                        (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "keyword")
-                          (:wat::fix::str-in? (:wat::core::ast-name (:wat::core::first ch)) heads)
+                        (wat.core/if (wat.core/= (wat.core/ast-kind (wat.core/first ch)) "keyword")
+                          (wat.fix/str-in? (wat.core/ast-name (wat.core/first ch)) heads)
                           false))
-        (:wat::fix::strip-arrow-scan ch false heads lines)
-        (:wat::fix::strip-arrow-seq ch heads lines)))
+        (wat.fix/strip-arrow-scan ch false heads lines)
+        (wat.fix/strip-arrow-seq ch heads lines)))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
 ;; strip-arrow-ascription — src → migrated-src for the given head-set.
-(:wat::core::defn :wat::fix::strip-arrow-ascription
-  [src   <- wat.type/String
-   heads <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:wat::fix::strip-arrow-seq forms heads lines)]
-    (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
+(wat.core/defn wat.fix/strip-arrow-ascription
+  [src   :- wat.type/String
+   heads :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (wat.fix/strip-arrow-seq forms heads lines)]
+    (wat.fix/fix-text-apply src (wat.core/reverse all-edits))))
 
 ;; ─── Stone 251.5 / Slice 4.2b — fix-macro-param-types: the first migration RULE ──────────
 ;;
@@ -651,27 +651,27 @@
 ;; Rides fix-text-apply + fix-text-offset-of; the EDIT-COLLECTION is the new work.
 
 ;; right-arrow? — a bare `->` SYMBOL (return-type annotation arrow, not `<-`).
-(:wat::core::defn :wat::fix::right-arrow? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
-    (:wat::core::= (:wat::core::ast-name node) "->")
+(wat.core/defn wat.fix/right-arrow? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "symbol")
+    (wat.core/= (wat.core/ast-name node) "->")
     false))
 
 ;; amp? — the bare `&` SYMBOL (rest-param marker in argvec).
-(:wat::core::defn :wat::fix::amp? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
-    (:wat::core::= (:wat::core::ast-name node) "&")
+(wat.core/defn wat.fix/amp? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "symbol")
+    (wat.core/= (wat.core/ast-name node) "&")
     false))
 
 ;; defmacro? — a List whose head keyword name is ":wat::core::defmacro".
-(:wat::core::defn :wat::fix::defmacro? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn wat.fix/defmacro? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         false
-        (:wat::core::let [head (:wat::core::first ch)
-                          k (:wat::core::ast-kind head)]
-          (:wat::core::if (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "symbol"))
-            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::defmacro")
+        (wat.core/let [head (wat.core/first ch)
+                          k (wat.core/ast-kind head)]
+          (wat.core/if (wat.core/or (wat.core/= k "keyword") (wat.core/= k "symbol"))
+            (wat.core/= (wat.core/canonical-identity (wat.core/ast-name head)) ":wat::core::defmacro")
             false))))
     false))
 
@@ -679,86 +679,86 @@
 ;; Tracks prev-arrow? (previous token was `<-`) and after-amp? (a `&` has been seen).
 ;; When prev-arrow? AND kind=="keyword" → type slot: emit a replacement edit.
 ;; The new-text depends on after-amp?: rest param → (Vector :- [wat::WatAST]), fixed → WatAST.
-(:wat::core::defn :wat::fix::argspec-type-edits-walk
-  [items       <- (wat.type/Vector :- [wat.type/AST])
-   prev-arrow? <- wat.type/bool
-   after-amp?  <- wat.type/bool
-   lines       <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/argspec-type-edits-walk
+  [items       :- (wat.type/Vector :- [wat.type/AST])
+   prev-arrow? :- wat.type/bool
+   after-amp?  :- wat.type/bool
+   lines       :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)
                       ;; is this token a type-slot?
-                      is-type-slot? (:wat::core::if prev-arrow?
-                                      (:wat::core::= (:wat::core::ast-kind h) "keyword")
+                      is-type-slot? (wat.core/if prev-arrow?
+                                      (wat.core/= (wat.core/ast-kind h) "keyword")
                                       false)
                       ;; emit one edit if it's a type-slot
-                      head-edits (:wat::core::if is-type-slot?
-                                   (:wat::core::let [span    (:wat::core::ast-span h)
-                                                     off     (:wat::fix::fix-text-offset-of span lines)
-                                                     old-len (:wat::core::ast-name h)
-                                                     new-text (:wat::core::if after-amp?
+                      head-edits (wat.core/if is-type-slot?
+                                   (wat.core/let [span    (wat.core/ast-span h)
+                                                     off     (wat.fix/fix-text-offset-of span lines)
+                                                     old-len (wat.core/ast-name h)
+                                                     new-text (wat.core/if after-amp?
                                                                  "(:wat::core::Vector :- [:wat::WatAST])"
                                                                  ":wat::WatAST")]
                                      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                                        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len new-text)))
                                    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
                       ;; update after-amp?: set when current token is `&`
-                      next-after-amp? (:wat::core::if (:wat::fix::amp? h) true after-amp?)
+                      next-after-amp? (wat.core/if (wat.fix/amp? h) true after-amp?)
                       ;; update prev-arrow?: set when current token is `<-`
-                      next-prev-arrow? (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "symbol")
-                                         (:wat::core::= (:wat::core::ast-name h) "<-")
+                      next-prev-arrow? (wat.core/if (wat.core/= (wat.core/ast-kind h) "symbol")
+                                         (wat.core/= (wat.core/ast-name h) "<-")
                                          false)]
-      (:wat::core::concat head-edits
-        (:wat::fix::argspec-type-edits-walk tl next-prev-arrow? next-after-amp? lines)))))
+      (wat.core/concat head-edits
+        (wat.fix/argspec-type-edits-walk tl next-prev-arrow? next-after-amp? lines)))))
 
 ;; rettype-edit-walk — walk top-level defmacro form children looking for the return-type
 ;; keyword (the keyword immediately following the `->` symbol at this level, NOT inside
 ;; the argvec). Emits at most one replacement edit → `:wat::WatAST`.
-(:wat::core::defn :wat::fix::rettype-edit-walk
-  [items            <- (wat.type/Vector :- [wat.type/AST])
-   prev-right-arrow? <- wat.type/bool
-   lines            <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/rettype-edit-walk
+  [items            :- (wat.type/Vector :- [wat.type/AST])
+   prev-right-arrow? :- wat.type/bool
+   lines            :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)
                       ;; is this the return-type keyword slot?
-                      is-rettype? (:wat::core::if prev-right-arrow?
-                                    (:wat::core::= (:wat::core::ast-kind h) "keyword")
+                      is-rettype? (wat.core/if prev-right-arrow?
+                                    (wat.core/= (wat.core/ast-kind h) "keyword")
                                     false)]
-      (:wat::core::if is-rettype?
+      (wat.core/if is-rettype?
         ;; emit the single rettype replacement edit; stop (return type consumed)
-        (:wat::core::let [span    (:wat::core::ast-span h)
-                          off     (:wat::fix::fix-text-offset-of span lines)
-                          old-len (:wat::core::ast-name h)]
+        (wat.core/let [span    (wat.core/ast-span h)
+                          off     (wat.fix/fix-text-offset-of span lines)
+                          old-len (wat.core/ast-name h)]
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len ":wat::WatAST")))
         ;; not yet — recurse tracking whether current token is `->`
-        (:wat::fix::rettype-edit-walk tl (:wat::fix::right-arrow? h) lines)))))
+        (wat.fix/rettype-edit-walk tl (wat.fix/right-arrow? h) lines)))))
 
 ;; defmacro-edits — collect all type-replacement edits for one defmacro form.
 ;; Detects 6-item (no metadata) vs 7-item (with metadata map at index 2) shapes.
 ;; argvec: ch[2] if kind=="vector", else ch[3] (metadata-map at ch[2]).
 ;; return type: first keyword after `->` in the form's top-level children.
-(:wat::core::defn :wat::fix::defmacro-edits
-  [form  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [ch     (:wat::core::ast->children form)
+(wat.core/defn wat.fix/defmacro-edits
+  [form  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [ch     (wat.core/ast->children form)
                     ;; ch[2]: if it's a vector, argvec is here (6-item); else ch[3] (7-item)
-                    c2     (:wat::core::nth ch 2)
-                    argvec (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "vector")
+                    c2     (wat.core/nth ch 2)
+                    argvec (wat.core/if (wat.core/= (wat.core/ast-kind c2) "vector")
                               c2
-                              (:wat::core::nth ch 3))
-                    argvec-children (:wat::core::ast->children argvec)
+                              (wat.core/nth ch 3))
+                    argvec-children (wat.core/ast->children argvec)
                     ;; collect argvec type edits
-                    av-edits   (:wat::fix::argspec-type-edits-walk argvec-children false false lines)
+                    av-edits   (wat.fix/argspec-type-edits-walk argvec-children false false lines)
                     ;; collect rettype edit — walk form's top-level children
-                    ret-edits  (:wat::fix::rettype-edit-walk ch false lines)]
-    (:wat::core::concat av-edits ret-edits)))
+                    ret-edits  (wat.fix/rettype-edit-walk ch false lines)]
+    (wat.core/concat av-edits ret-edits)))
 
 ;; collect-defmacro-edits-deep — RECURSIVE: find defmacro forms at ANY depth (incl. ones
 ;; nested inside quasiquote templates — a defmacro-generating-defmacro like make-deftest,
@@ -766,43 +766,43 @@
 ;; unquote desugar to Lists (no distinct ast-kind), and ast->children is TOTAL (atoms → []),
 ;; so the recursion descends through templates and bottoms out on leaves. Mutually recursive
 ;; with macro-param-edits (which maps this over a vector of children).
-(:wat::core::defn :wat::fix::collect-defmacro-edits-deep
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [here (:wat::core::if (:wat::fix::defmacro? node)
-                           (:wat::fix::defmacro-edits node lines)
+(wat.core/defn wat.fix/collect-defmacro-edits-deep
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [here (wat.core/if (wat.fix/defmacro? node)
+                           (wat.fix/defmacro-edits node lines)
                            (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
-    (:wat::core::concat here
-      (:wat::fix::macro-param-edits (:wat::core::ast->children node) lines))))
+    (wat.core/concat here
+      (wat.fix/macro-param-edits (wat.core/ast->children node) lines))))
 
 ;; macro-param-edits — map the deep collector over a vector of forms; concat all edits.
 ;; Each form is walked to ALL depths, so a defmacro nested in another macro's template is
 ;; found and fixed, not just top-level defmacros.
-(:wat::core::defn :wat::fix::macro-param-edits
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? forms)
+(wat.core/defn wat.fix/macro-param-edits
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? forms)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [form (:wat::core::first forms)
-                      rest-forms (:wat::core::rest forms)]
-      (:wat::core::concat (:wat::fix::collect-defmacro-edits-deep form lines)
-        (:wat::fix::macro-param-edits rest-forms lines)))))
+    (wat.core/let [form (wat.core/first forms)
+                      rest-forms (wat.core/rest forms)]
+      (wat.core/concat (wat.fix/collect-defmacro-edits-deep form lines)
+        (wat.fix/macro-param-edits rest-forms lines)))))
 
 ;; fix-macro-param-types — comment-faithful defmacro param/return type migrator.
 ;; Parses src → collects type-replacement edits for defmacro forms only →
 ;; reverses to right-to-left → splices the ORIGINAL text via fix-text-apply.
 ;; Comments, formatting, and defn/fn real types survive byte-identical.
-(:wat::core::defn :wat::fix::fix-macro-param-types
-  [src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:wat::fix::macro-param-edits forms lines)
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+(wat.core/defn wat.fix/fix-macro-param-types
+  [src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (wat.fix/macro-param-edits forms lines)
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ─── Stone 269 vehicle — rename-keyword-prefix: comment-faithful keyword PREFIX rename ───────
 ;;
@@ -824,51 +824,51 @@
 
 ;; rename-ident-char? — true if the single-char string c is an identifier-continuation char.
 ;; [a-zA-Z0-9_-] — right-INVALID chars that signal the match bleeds into a sibling name.
-(:wat::core::defn :wat::fix::rename-ident-char? [c <- wat.type/String] -> wat.type/bool
-  (:wat::string::contains? "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" c))
+(wat.core/defn wat.fix/rename-ident-char? [c :- wat.type/String] :- wat.type/bool
+  (wat.string/contains? "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" c))
 
 ;; rename-strip-colon — thin alias over :wat::core::string::strip-leading-colon.
 ;; ":t::Old" → "t::Old"; "t::Old" → "t::Old" (idempotent on bare strings).
 ;; Promoted to core in Arc 260.1b Part A; kept here so call sites at lines 722/723 are untouched.
-(:wat::core::defn :wat::fix::rename-strip-colon [s <- wat.type/String] -> wat.type/String
-  (:wat::string::strip-leading-colon s))
+(wat.core/defn wat.fix/rename-strip-colon [s :- wat.type/String] :- wat.type/String
+  (wat.string/strip-leading-colon s))
 
 ;; rename-valid-match? — true iff old-bare (colon-stripped prefix) matches at index i in name
 ;; with a valid left and right boundary.
 ;;   present:     subs(name,i,i+old-len) == old-bare
 ;;   left-valid:  (i==1 && char-at(name,0)==":") OR char-at(name,i-1) ∈ {"<",","," "}
 ;;   right-valid: i+old-len==len(name) OR char-at(name,i+old-len) ∉ ident-chars
-(:wat::core::defn :wat::fix::rename-valid-match?
-  [name     <- wat.type/String
-   i        <- wat.type/i64
-   old-bare <- wat.type/String
-   old-len  <- wat.type/i64
-   name-len <- wat.type/i64]
-  -> wat.type/bool
-  (:wat::core::let [end (:wat::core::+ i old-len)]
-    (:wat::core::if (:wat::core::> end name-len)
+(wat.core/defn wat.fix/rename-valid-match?
+  [name     :- wat.type/String
+   i        :- wat.type/i64
+   old-bare :- wat.type/String
+   old-len  :- wat.type/i64
+   name-len :- wat.type/i64]
+  :- wat.type/bool
+  (wat.core/let [end (wat.core/+ i old-len)]
+    (wat.core/if (wat.core/> end name-len)
       ;; not enough chars to match — absent
       false
-      (:wat::core::if (:wat::core::= (:wat::string::subs name i end) old-bare)
+      (wat.core/if (wat.core/= (wat.string/subs name i end) old-bare)
         ;; present — check left-valid
-        (:wat::core::let [left-ok (:wat::core::if (:wat::core::= i 1)
+        (wat.core/let [left-ok (wat.core/if (wat.core/= i 1)
                                     ;; head case: i==1 and name[0]==":"
-                                    (:wat::core::= (:wat::string::subs name 0 1) ":")
+                                    (wat.core/= (wat.string/subs name 0 1) ":")
                                     ;; type-arg case: preceded by "<", ",", or " "
-                                    (:wat::core::if (:wat::core::< i 1)
+                                    (wat.core/if (wat.core/< i 1)
                                       false
-                                      (:wat::core::let [prev (:wat::string::subs name (:wat::core::- i 1) i)]
-                                        (:wat::core::if (:wat::core::= prev "<") true
-                                          (:wat::core::if (:wat::core::= prev ",") true
-                                            (:wat::core::if (:wat::core::= prev " ") true
+                                      (wat.core/let [prev (wat.string/subs name (wat.core/- i 1) i)]
+                                        (wat.core/if (wat.core/= prev "<") true
+                                          (wat.core/if (wat.core/= prev ",") true
+                                            (wat.core/if (wat.core/= prev " ") true
                                               ;; "(" — the tuple-type opener `:(A,B,C)`; its FIRST element is a
                                               ;; boundary-valid embedded name, like "<" for a parametric arg.
-                                              (:wat::core::= prev "(")))))))]
-          (:wat::core::if left-ok
+                                              (wat.core/= prev "(")))))))]
+          (wat.core/if left-ok
             ;; check right-valid: at-end or not an ident char
-            (:wat::core::if (:wat::core::= end name-len)
+            (wat.core/if (wat.core/= end name-len)
               true
-              (:wat::core::not (:wat::fix::rename-ident-char? (:wat::string::subs name end (:wat::core::+ end 1)))))
+              (wat.core/not (wat.fix/rename-ident-char? (wat.string/subs name end (wat.core/+ end 1)))))
             false))
         ;; substr doesn't match — absent
         false))))
@@ -876,71 +876,71 @@
 ;; rename-in-name — char-walk that rewrites every valid occurrence of old-bare → new-bare.
 ;; Returns the fully rewritten name string. If no occurrences are valid, returns name unchanged.
 ;; i is the current index; acc accumulates the output. Tail-recursive.
-(:wat::core::defn :wat::fix::rename-in-name
-  [name     <- wat.type/String
-   old-bare <- wat.type/String
-   new-bare <- wat.type/String
-   old-len  <- wat.type/i64
-   name-len <- wat.type/i64
-   i        <- wat.type/i64
-   acc      <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::>= i name-len)
+(wat.core/defn wat.fix/rename-in-name
+  [name     :- wat.type/String
+   old-bare :- wat.type/String
+   new-bare :- wat.type/String
+   old-len  :- wat.type/i64
+   name-len :- wat.type/i64
+   i        :- wat.type/i64
+   acc      :- wat.type/String]
+  :- wat.type/String
+  (wat.core/if (wat.core/>= i name-len)
     acc
-    (:wat::core::if (:wat::fix::rename-valid-match? name i old-bare old-len name-len)
+    (wat.core/if (wat.fix/rename-valid-match? name i old-bare old-len name-len)
       ;; valid match — emit new-bare, advance by old-len
-      (:wat::fix::rename-in-name name old-bare new-bare old-len name-len
-        (:wat::core::+ i old-len)
-        (:wat::string::concat acc new-bare))
+      (wat.fix/rename-in-name name old-bare new-bare old-len name-len
+        (wat.core/+ i old-len)
+        (wat.string/concat acc new-bare))
       ;; no match — emit one char, advance by 1
-      (:wat::fix::rename-in-name name old-bare new-bare old-len name-len
-        (:wat::core::+ i 1)
-        (:wat::string::concat acc (:wat::string::subs name i (:wat::core::+ i 1)))))))
+      (wat.fix/rename-in-name name old-bare new-bare old-len name-len
+        (wat.core/+ i 1)
+        (wat.string/concat acc (wat.string/subs name i (wat.core/+ i 1)))))))
 
 ;; rename-prefix-edits-walk — walk a vector of nodes, concating prefix-swap edits.
 ;; Internal helper mirroring macro-param-edits; not a public API.
-(:wat::core::defn :wat::fix::rename-prefix-edits-walk
-  [items      <- (wat.type/Vector :- [wat.type/AST])
-   old-prefix <- wat.type/String
-   new-prefix <- wat.type/String
-   lines      <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/rename-prefix-edits-walk
+  [items      :- (wat.type/Vector :- [wat.type/AST])
+   old-prefix :- wat.type/String
+   new-prefix :- wat.type/String
+   lines      :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)]
-      (:wat::core::concat
-        (:wat::fix::rename-prefix-edits h old-prefix new-prefix lines)
-        (:wat::fix::rename-prefix-edits-walk tl old-prefix new-prefix lines)))))
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)]
+      (wat.core/concat
+        (wat.fix/rename-prefix-edits h old-prefix new-prefix lines)
+        (wat.fix/rename-prefix-edits-walk tl old-prefix new-prefix lines)))))
 
 ;; rename-prefix-edits — boundary-aware whole-name rewrite: for every keyword leaf, compute
 ;; new-name by rewriting every valid occurrence of old-bare → new-bare within the name;
 ;; if new-name != name, emit (off, length(name), new-name). Structural nodes recurse.
 ;; structural? dispatch: (structural? node) = list/vector/map/set (fix.wat:23).
-(:wat::core::defn :wat::fix::rename-prefix-edits
-  [node       <- wat.type/AST
-   old-prefix <- wat.type/String
-   new-prefix <- wat.type/String
-   lines      <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
+(wat.core/defn wat.fix/rename-prefix-edits
+  [node       :- wat.type/AST
+   old-prefix :- wat.type/String
+   new-prefix :- wat.type/String
+   lines      :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
     ;; structural: recurse into children
-    (:wat::fix::rename-prefix-edits-walk (:wat::core::ast->children node) old-prefix new-prefix lines)
+    (wat.fix/rename-prefix-edits-walk (wat.core/ast->children node) old-prefix new-prefix lines)
     ;; leaf: keyword → boundary-aware whole-name rewrite
-    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-      (:wat::core::let [name     (:wat::core::ast-name node)
-                        old-bare (:wat::fix::rename-strip-colon old-prefix)
-                        new-bare (:wat::fix::rename-strip-colon new-prefix)
-                        old-len  (:wat::string::length old-bare)
-                        name-len (:wat::string::length name)
-                        new-name (:wat::fix::rename-in-name name old-bare new-bare old-len name-len 0 "")]
-        (:wat::core::if (:wat::core::= new-name name)
+    (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+      (wat.core/let [name     (wat.core/ast-name node)
+                        old-bare (wat.fix/rename-strip-colon old-prefix)
+                        new-bare (wat.fix/rename-strip-colon new-prefix)
+                        old-len  (wat.string/length old-bare)
+                        name-len (wat.string/length name)
+                        new-name (wat.fix/rename-in-name name old-bare new-bare old-len name-len 0 "")]
+        (wat.core/if (wat.core/= new-name name)
           ;; no change — no edit
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
           ;; changed — emit whole-token replace edit. old-text is `name` itself (the node's
           ;; OWN ast-name — the rule's belief), never name-len (a length, kept only for
           ;; rename-in-name's char-walk arithmetic below).
-          (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
+          (wat.core/let [off (wat.fix/fix-text-offset-of (wat.core/ast-span node) lines)]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off name new-name)))))
       ;; non-keyword leaf (symbol, int, float, bool, string, nil) — no edit
@@ -950,17 +950,17 @@
 ;; Parses src → collects prefix-swap edits for every matching keyword leaf →
 ;; reverses to right-to-left → splices the ORIGINAL text via fix-text-apply.
 ;; Comments, formatting, and non-matching keywords survive byte-identical.
-(:wat::core::defn :wat::fix::rename-keyword-prefix
-  [old-prefix <- wat.type/String
-   new-prefix <- wat.type/String
-   src        <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:wat::fix::rename-prefix-edits-walk forms old-prefix new-prefix lines)
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+(wat.core/defn wat.fix/rename-keyword-prefix
+  [old-prefix :- wat.type/String
+   new-prefix :- wat.type/String
+   src        :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (wat.fix/rename-prefix-edits-walk forms old-prefix new-prefix lines)
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ── rename-keyword-exact — WHOLE-TOKEN keyword rename (the idempotent sibling of
 ;; rename-keyword-prefix). Renames a keyword leaf ONLY when its FULL name EQUALS `old`
@@ -979,127 +979,127 @@
 ;; name being bound. A whole-file keyword rename that treats it as a use of
 ;; `:None` / `:Some` / … corrupts the enum (296 N RELAND 8: Option's unit
 ;; variant became `:wat::core::Option::None`). Position rule, not a name list.
-(:wat::core::defn :wat::fix::binder-marker? [n <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::= (:wat::core::ast-name n) ":-")
+(wat.core/defn wat.fix/binder-marker? [n :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "keyword")
+    (wat.core/= (wat.core/ast-name n) ":-")
     false))
 
-(:wat::core::defn :wat::fix::enum-purity-marker? [n <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [k (:wat::core::ast-kind n)]
-    (:wat::core::if (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "symbol"))
-      (:wat::core::let [id (:wat::core::canonical-identity (:wat::core::ast-name n))]
-        (:wat::core::or
-          (:wat::core::= id ":wat::enum::Pure")
-          (:wat::core::= id ":wat::enum::Impure")))
+(wat.core/defn wat.fix/enum-purity-marker? [n :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [k (wat.core/ast-kind n)]
+    (wat.core/if (wat.core/or (wat.core/= k "keyword") (wat.core/= k "symbol"))
+      (wat.core/let [id (wat.core/canonical-identity (wat.core/ast-name n))]
+        (wat.core/or
+          (wat.core/= id ":wat::enum::Pure")
+          (wat.core/= id ":wat::enum::Impure")))
       false)))
 
-(:wat::core::defn :wat::fix::defenum-variant-start
-  [ch <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/i64
-  (:wat::core::let
-    [n  (:wat::core::length ch)
+(wat.core/defn wat.fix/defenum-variant-start
+  [ch :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/i64
+  (wat.core/let
+    [n  (wat.core/length ch)
      i0 2
-     i1 (:wat::core::if (:wat::core::if (:wat::core::< i0 n)
-                            (:wat::fix::binder-marker?
-                              (:wat::core::Option/expect (:wat::core::get ch i0) "defenum :-"))
+     i1 (wat.core/if (wat.core/if (wat.core/< i0 n)
+                            (wat.fix/binder-marker?
+                              (wat.core.Option/expect (wat.core/get ch i0) "defenum :-"))
                             false)
-          (:wat::core::let [j (:wat::i64::+ i0 1)]
-            (:wat::core::if (:wat::core::if (:wat::core::< j n)
-                                (:wat::core::= (:wat::core::ast-kind
-                                  (:wat::core::Option/expect (:wat::core::get ch j) "defenum params"))
+          (wat.core/let [j (wat.i64/+ i0 1)]
+            (wat.core/if (wat.core/if (wat.core/< j n)
+                                (wat.core/= (wat.core/ast-kind
+                                  (wat.core.Option/expect (wat.core/get ch j) "defenum params"))
                                   "vector")
                                 false)
-              (:wat::i64::+ j 1)
+              (wat.i64/+ j 1)
               j))
           i0)
-     i2 (:wat::core::if (:wat::core::if (:wat::core::< i1 n)
-                            (:wat::fix::enum-purity-marker?
-                              (:wat::core::Option/expect (:wat::core::get ch i1) "defenum purity"))
+     i2 (wat.core/if (wat.core/if (wat.core/< i1 n)
+                            (wat.fix/enum-purity-marker?
+                              (wat.core.Option/expect (wat.core/get ch i1) "defenum purity"))
                             false)
-          (:wat::i64::+ i1 1)
+          (wat.i64/+ i1 1)
           i1)]
-    (:wat::core::if (:wat::core::if (:wat::core::< i2 n)
-                        (:wat::core::= (:wat::core::ast-kind
-                          (:wat::core::Option/expect (:wat::core::get ch i2) "defenum meta"))
+    (wat.core/if (wat.core/if (wat.core/< i2 n)
+                        (wat.core/= (wat.core/ast-kind
+                          (wat.core.Option/expect (wat.core/get ch i2) "defenum meta"))
                           "map")
                         false)
-      (:wat::i64::+ i2 1)
+      (wat.i64/+ i2 1)
       i2)))
 
-(:wat::core::defn :wat::fix::rename-exact-edits-defenum-variants
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/rename-exact-edits-defenum-variants
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)]
-      (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
-        (:wat::core::if (:wat::core::if (:wat::core::not (:wat::core::empty? tl))
-                            (:wat::core::= (:wat::core::ast-kind (:wat::core::first tl)) "vector")
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)]
+      (wat.core/if (wat.core/= (wat.core/ast-kind h) "keyword")
+        (wat.core/if (wat.core/if (wat.core/not (wat.core/empty? tl))
+                            (wat.core/= (wat.core/ast-kind (wat.core/first tl)) "vector")
                             false)
-          (:wat::core::concat
-            (:wat::fix::rename-exact-edits (:wat::core::first tl) old new lines)
-            (:wat::fix::rename-exact-edits-defenum-variants (:wat::core::rest tl) old new lines))
-          (:wat::fix::rename-exact-edits-defenum-variants tl old new lines))
-        (:wat::core::concat
-          (:wat::fix::rename-exact-edits h old new lines)
-          (:wat::fix::rename-exact-edits-defenum-variants tl old new lines))))))
+          (wat.core/concat
+            (wat.fix/rename-exact-edits (wat.core/first tl) old new lines)
+            (wat.fix/rename-exact-edits-defenum-variants (wat.core/rest tl) old new lines))
+          (wat.fix/rename-exact-edits-defenum-variants tl old new lines))
+        (wat.core/concat
+          (wat.fix/rename-exact-edits h old new lines)
+          (wat.fix/rename-exact-edits-defenum-variants tl old new lines))))))
 
-(:wat::core::defn :wat::fix::rename-exact-edits-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/rename-exact-edits-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)]
-      (:wat::core::concat
-        (:wat::fix::rename-exact-edits h old new lines)
-        (:wat::fix::rename-exact-edits-walk tl old new lines)))))
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)]
+      (wat.core/concat
+        (wat.fix/rename-exact-edits h old new lines)
+        (wat.fix/rename-exact-edits-walk tl old new lines)))))
 
 ;; rename-exact-edits — for a keyword leaf whose full name EQUALS old, emit one whole-token
 ;; replace edit (off, length(old), new). Structural nodes recurse; every other leaf: no edit.
-(:wat::core::defn :wat::fix::rename-exact-edits
-  [node  <- wat.type/AST
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::defenum")
-    (:wat::core::let
-      [ch    (:wat::core::ast->children node)
-       start (:wat::fix::defenum-variant-start ch)
-       pre   (:wat::core::into [] (:wat::core::take ch start))
-       body  (:wat::core::into [] (:wat::core::drop ch start))]
-      (:wat::core::concat
-        (:wat::fix::rename-exact-edits-walk pre old new lines)
-        (:wat::fix::rename-exact-edits-defenum-variants body old new lines)))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::fix::rename-exact-edits-walk (:wat::core::ast->children node) old new lines)
-      (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-        (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
-          (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
+(wat.core/defn wat.fix/rename-exact-edits
+  [node  :- wat.type/AST
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/calls-to? node ":wat::core::defenum")
+    (wat.core/let
+      [ch    (wat.core/ast->children node)
+       start (wat.fix/defenum-variant-start ch)
+       pre   (wat.core/into [] (wat.core/take ch start))
+       body  (wat.core/into [] (wat.core/drop ch start))]
+      (wat.core/concat
+        (wat.fix/rename-exact-edits-walk pre old new lines)
+        (wat.fix/rename-exact-edits-defenum-variants body old new lines)))
+    (wat.core/if (wat.fix/structural? node)
+      (wat.fix/rename-exact-edits-walk (wat.core/ast->children node) old new lines)
+      (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+        (wat.core/if (wat.core/= (wat.core/ast-name node) old)
+          (wat.core/let [off (wat.fix/fix-text-offset-of (wat.core/ast-span node) lines)]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))))
 
-(:wat::core::defn :wat::fix::rename-keyword-exact
-  [old <- wat.type/String
-   new <- wat.type/String
-   src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:wat::fix::rename-exact-edits-walk forms old new lines)
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+(wat.core/defn wat.fix/rename-keyword-exact
+  [old :- wat.type/String
+   new :- wat.type/String
+   src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (wat.fix/rename-exact-edits-walk forms old new lines)
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ── rename-symbol-exact — the SYMBOL-kind sibling of rename-keyword-exact. A defsurface
 ;; `:features` member and a defservice `:impls` arm both spell their op HEAD as a bare
@@ -1112,50 +1112,50 @@
 ;; FULL name EQUALS `old` (whole-name equality, no boundary walk) — idempotent by construction
 ;; once `new` no longer contains `old` as its full name. Does not touch rename-keyword-exact/
 ;; rename-keyword-prefix or any existing call site.
-(:wat::core::defn :wat::fix::rename-symbol-exact-edits-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/rename-symbol-exact-edits-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)]
-      (:wat::core::concat
-        (:wat::fix::rename-symbol-exact-edits h old new lines)
-        (:wat::fix::rename-symbol-exact-edits-walk tl old new lines)))))
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)]
+      (wat.core/concat
+        (wat.fix/rename-symbol-exact-edits h old new lines)
+        (wat.fix/rename-symbol-exact-edits-walk tl old new lines)))))
 
 ;; rename-symbol-exact-edits — for a symbol leaf whose full name EQUALS old, emit one
 ;; whole-token replace edit (off, length(old), new). Structural nodes recurse; every other
 ;; leaf (keyword/int/float/bool/string/nil): no edit.
-(:wat::core::defn :wat::fix::rename-symbol-exact-edits
-  [node  <- wat.type/AST
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:wat::fix::rename-symbol-exact-edits-walk (:wat::core::ast->children node) old new lines)
-    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
-      (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
-        (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
+(wat.core/defn wat.fix/rename-symbol-exact-edits
+  [node  :- wat.type/AST
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
+    (wat.fix/rename-symbol-exact-edits-walk (wat.core/ast->children node) old new lines)
+    (wat.core/if (wat.core/= (wat.core/ast-kind node) "symbol")
+      (wat.core/if (wat.core/= (wat.core/ast-name node) old)
+        (wat.core/let [off (wat.fix/fix-text-offset-of (wat.core/ast-span node) lines)]
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
-(:wat::core::defn :wat::fix::rename-symbol-exact
-  [old <- wat.type/String
-   new <- wat.type/String
-   src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:wat::fix::rename-symbol-exact-edits-walk forms old new lines)
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+(wat.core/defn wat.fix/rename-symbol-exact
+  [old :- wat.type/String
+   new :- wat.type/String
+   src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (wat.fix/rename-symbol-exact-edits-walk forms old new lines)
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ══════════════════════════════════════════════════════════════════════════════════════
 ;;  THE WRAP FAMILY — wrap every call to a verb in an outcome `match`.
@@ -1189,125 +1189,125 @@
 ;; Edit — one span splice: (offset, chars-to-replace, replacement-text).
 ;; A 0-length edit is an INSERT. Collected ascending, applied high-offset-first so a low
 ;; splice never shifts a pending higher one.
-(:wat::core::typealias :wat::fix::Edit (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]))
+(wat.core/typealias wat.fix/Edit (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]))
 
 ;; kw-name — a keyword node's name; "" for anything else (so callers never branch on kind).
-(:wat::core::defn :wat::fix::kw-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::ast-name n) ""))
+(wat.core/defn wat.fix/kw-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "keyword")
+    (wat.core/ast-name n) ""))
 
 ;; head-name — a LIST's head-keyword name; "" for a non-list or a non-keyword head.
-(:wat::core::defn :wat::fix::head-name [node <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch) "" (:wat::fix::kw-name (:wat::core::first ch))))
+(wat.core/defn wat.fix/head-name [node :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch) "" (wat.fix/kw-name (wat.core/first ch))))
     ""))
 
 ;; calls-to? — is this node a call to EXACTLY `head`? (whole-name equality, never a prefix)
-(:wat::core::defn :wat::fix::calls-to?
-  [node <- wat.type/AST  head <- wat.type/String] -> wat.type/bool
-  (:wat::core::= (:wat::fix::head-name node) head))
+(wat.core/defn wat.fix/calls-to?
+  [node :- wat.type/AST  head :- wat.type/String] :- wat.type/bool
+  (wat.core/= (wat.fix/head-name node) head))
 
 ;; node-start-offset / node-end-offset — a node's span endpoints as flat char offsets.
-(:wat::core::defn :wat::fix::node-start-offset
-  [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])] -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
+(wat.core/defn wat.fix/node-start-offset
+  [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])] :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-span n) lines))
 
-(:wat::core::defn :wat::fix::node-end-offset
-  [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])] -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
+(wat.core/defn wat.fix/node-end-offset
+  [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])] :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-end-span n) lines))
 
 ;; arm-head-name — a match arm is `(pattern body…)`. A TAGGED-variant pattern is a list
 ;; `(:Enum::Variant binder…)`; a UNIT-variant pattern is a BARE keyword. Handles both.
-(:wat::core::defn :wat::fix::arm-head-name [arm <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "list")
-    (:wat::core::let [ch (:wat::core::ast->children arm)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn wat.fix/arm-head-name [arm :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind arm) "list")
+    (wat.core/let [ch (wat.core/ast->children arm)]
+      (wat.core/if (wat.core/empty? ch)
         ""
-        (:wat::core::let [pat (:wat::core::first ch)]
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind pat) "list")
-            (:wat::core::let [pch (:wat::core::ast->children pat)]
-              (:wat::core::if (:wat::core::empty? pch) "" (:wat::fix::kw-name (:wat::core::first pch))))
-            (:wat::fix::kw-name pat)))))
+        (wat.core/let [pat (wat.core/first ch)]
+          (wat.core/if (wat.core/= (wat.core/ast-kind pat) "list")
+            (wat.core/let [pch (wat.core/ast->children pat)]
+              (wat.core/if (wat.core/empty? pch) "" (wat.fix/kw-name (wat.core/first pch))))
+            (wat.fix/kw-name pat)))))
     ""))
 
 ;; arm-heads-contain? — does ANY arm's head name contain `needle`?
-(:wat::core::defn :wat::fix::arm-heads-contain?
-  [arms <- (wat.type/Vector :- [wat.type/AST])  needle <- wat.type/String] -> wat.type/bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/bool  arm <- wat.type/AST] -> wat.type/bool
-      (:wat::core::if acc true
-        (:wat::string::contains? (:wat::fix::arm-head-name arm) needle)))
+(wat.core/defn wat.fix/arm-heads-contain?
+  [arms :- (wat.type/Vector :- [wat.type/AST])  needle :- wat.type/String] :- wat.type/bool
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/bool  arm :- wat.type/AST] :- wat.type/bool
+      (wat.core/if acc true
+        (wat.string/contains? (wat.fix/arm-head-name arm) needle)))
     false arms))
 
 ;; wrapped-in-match? — a `match` whose arm heads already mention `needle`: our prior output.
-(:wat::core::defn :wat::fix::wrapped-in-match?
-  [node <- wat.type/AST  needle <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::fix::head-name node) ":wat::core::match")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
+(wat.core/defn wat.fix/wrapped-in-match?
+  [node :- wat.type/AST  needle :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.fix/head-name node) ":wat::core::match")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/< (wat.core/length ch) 3)
         false
-        (:wat::fix::arm-heads-contain? (:wat::core::into [] (:wat::core::drop ch 2)) needle)))
+        (wat.fix/arm-heads-contain? (wat.core/into [] (wat.core/drop ch 2)) needle)))
     false))
 
 ;; wrap-edits — the two inserts that bracket one call: `before` at its start, `after` at its end.
-(:wat::core::defn :wat::fix::wrap-edits
-  [node <- wat.type/AST  before <- wat.type/String  after <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (wat.type/Vector :- [:wat::fix::Edit]
-    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-start-offset node lines) "" before)
-    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-end-offset   node lines) "" after)))
+(wat.core/defn wat.fix/wrap-edits
+  [node :- wat.type/AST  before :- wat.type/String  after :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.type/Vector :- [wat.fix/Edit]
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (wat.fix/node-start-offset node lines) "" before)
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (wat.fix/node-end-offset   node lines) "" after)))
 
 ;; wrap-node-edits — one node's edits plus its descendants'.
 ;; The idempotency cut lives HERE, not in the matcher: for an already-wrapped match we skip
 ;; child[1] (the scrutinee we produced last run) and walk the rest, so a call nested inside an
 ;; ARM body is still reachable. Skipping the whole node would strand those.
-(:wat::core::defn :wat::fix::wrap-node-edits
-  [node <- wat.type/AST  head <- wat.type/String  needle <- wat.type/String
-   before <- wat.type/String  after <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::fix::wrapped-in-match? node needle)
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::fix::wrap-seq-edits
-        (:wat::core::concat
-          (:wat::core::into [] (:wat::core::take ch 1))
-          (:wat::core::into [] (:wat::core::drop ch 2)))
+(wat.core/defn wat.fix/wrap-node-edits
+  [node :- wat.type/AST  head :- wat.type/String  needle :- wat.type/String
+   before :- wat.type/String  after :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (wat.fix/wrapped-in-match? node needle)
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.fix/wrap-seq-edits
+        (wat.core/concat
+          (wat.core/into [] (wat.core/take ch 1))
+          (wat.core/into [] (wat.core/drop ch 2)))
         head needle before after lines))
-    (:wat::core::let
-      [this (:wat::core::if (:wat::fix::calls-to? node head)
-              (:wat::fix::wrap-edits node before after lines)
-              (wat.type/Vector :- [:wat::fix::Edit]))]
-      (:wat::core::if (:wat::fix::structural? node)
-        (:wat::core::concat this
-          (:wat::fix::wrap-seq-edits (:wat::core::ast->children node) head needle before after lines))
+    (wat.core/let
+      [this (wat.core/if (wat.fix/calls-to? node head)
+              (wat.fix/wrap-edits node before after lines)
+              (wat.type/Vector :- [wat.fix/Edit]))]
+      (wat.core/if (wat.fix/structural? node)
+        (wat.core/concat this
+          (wat.fix/wrap-seq-edits (wat.core/ast->children node) head needle before after lines))
         this))))
 
-(:wat::core::defn :wat::fix::wrap-seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])  head <- wat.type/String  needle <- wat.type/String
-   before <- wat.type/String  after <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::fix::Edit])  it <- wat.type/AST]
-      -> (wat.type/Vector :- [:wat::fix::Edit])
-      (:wat::core::concat acc (:wat::fix::wrap-node-edits it head needle before after lines)))
-    (wat.type/Vector :- [:wat::fix::Edit])
+(wat.core/defn wat.fix/wrap-seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])  head :- wat.type/String  needle :- wat.type/String
+   before :- wat.type/String  after :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [wat.fix/Edit])  it :- wat.type/AST]
+      :- (wat.type/Vector :- [wat.fix/Edit])
+      (wat.core/concat acc (wat.fix/wrap-node-edits it head needle before after lines)))
+    (wat.type/Vector :- [wat.fix/Edit])
     items))
 
 ;; wrap-calls-in-match — THE ENTRY POINT. src in, migrated src out; comment- and
 ;; layout-faithful (it splices the ORIGINAL text at spans, it does not re-print the tree).
-(:wat::core::defn :wat::fix::wrap-calls-in-match
-  [src <- wat.type/String  head <- wat.type/String  needle <- wat.type/String
-   before <- wat.type/String  after <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
-     eds   (:wat::fix::wrap-seq-edits forms head needle before after lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn wat.fix/wrap-calls-in-match
+  [src :- wat.type/String  head :- wat.type/String  needle :- wat.type/String
+   before :- wat.type/String  after :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     forms (wat.core/ast->children (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))
+     eds   (wat.fix/wrap-seq-edits forms head needle before after lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ══════════════════════════════════════════════════════════════════════════════════════
 ;; RE-HEAD A NAMED SET OF `defn`s  — arc 278 #88, the rete-defn migration.
@@ -1323,54 +1323,54 @@
 ;; spans). Recursion covers nested declarations; a non-matching form is untouched.
 
 ;; rehead-defn-target? — is this list a `(:wat::core::defn :NAME …)` whose NAME is in `names`?
-(:wat::core::defn :wat::fix::rehead-defn-target?
-  [kids  <- (wat.type/Vector :- [wat.type/AST])
-   names <- (wat.type/Vector :- [wat.type/String])] -> wat.type/bool
-  (:wat::core::if (:wat::core::< (:wat::core::length kids) 2)
+(wat.core/defn wat.fix/rehead-defn-target?
+  [kids  :- (wat.type/Vector :- [wat.type/AST])
+   names :- (wat.type/Vector :- [wat.type/String])] :- wat.type/bool
+  (wat.core/if (wat.core/< (wat.core/length kids) 2)
     false
-    (:wat::core::if (:wat::core::= (:wat::fix::kw-name (:wat::core::first kids)) ":wat::core::defn")
-      (:wat::fix::str-in? (:wat::fix::kw-name (:wat::core::nth kids 1)) names)
+    (wat.core/if (wat.core/= (wat.fix/kw-name (wat.core/first kids)) ":wat::core::defn")
+      (wat.fix/str-in? (wat.fix/kw-name (wat.core/nth kids 1)) names)
       false)))
 
-(:wat::core::defn :wat::fix::rehead-rete-defn-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   names <- (wat.type/Vector :- [wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])] -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::core::empty? items)
-    (wat.type/Vector :- [:wat::fix::Edit])
-    (:wat::core::concat
-      (:wat::fix::rehead-rete-defn-edits (:wat::core::first items) names lines)
-      (:wat::fix::rehead-rete-defn-walk (:wat::core::rest items) names lines))))
+(wat.core/defn wat.fix/rehead-rete-defn-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   names :- (wat.type/Vector :- [wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])] :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (wat.core/empty? items)
+    (wat.type/Vector :- [wat.fix/Edit])
+    (wat.core/concat
+      (wat.fix/rehead-rete-defn-edits (wat.core/first items) names lines)
+      (wat.fix/rehead-rete-defn-walk (wat.core/rest items) names lines))))
 
-(:wat::core::defn :wat::fix::rehead-rete-defn-edits
-  [node  <- wat.type/AST
-   names <- (wat.type/Vector :- [wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])] -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:wat::core::let [kids  (:wat::core::ast->children node)
-                      inner (:wat::fix::rehead-rete-defn-walk kids names lines)]
-      (:wat::core::if (:wat::fix::rehead-defn-target? kids names)
-        (:wat::core::concat
-          (wat.type/Vector :- [:wat::fix::Edit]
+(wat.core/defn wat.fix/rehead-rete-defn-edits
+  [node  :- wat.type/AST
+   names :- (wat.type/Vector :- [wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])] :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (wat.fix/structural? node)
+    (wat.core/let [kids  (wat.core/ast->children node)
+                      inner (wat.fix/rehead-rete-defn-walk kids names lines)]
+      (wat.core/if (wat.fix/rehead-defn-target? kids names)
+        (wat.core/concat
+          (wat.type/Vector :- [wat.fix/Edit]
             (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
-              (:wat::fix::fix-text-offset-of (:wat::core::ast-span (:wat::core::first kids)) lines)
+              (wat.fix/fix-text-offset-of (wat.core/ast-span (wat.core/first kids)) lines)
               ":wat::core::defn"
               ":wat::rete::core::defn"))
           inner)
         inner))
-    (wat.type/Vector :- [:wat::fix::Edit])))
+    (wat.type/Vector :- [wat.fix/Edit])))
 
 ;; rehead-rete-defn — the entry point. `names` is the EXPLICIT worklist: the checker names
 ;; each offender ("':X' is not a rete primitive"), and only those move.
-(:wat::core::defn :wat::fix::rehead-rete-defn
-  [names <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     eds   (:wat::fix::rehead-rete-defn-walk (:wat::core::ast->children tree) names lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn wat.fix/rehead-rete-defn
+  [names :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     eds   (wat.fix/rehead-rete-defn-walk (wat.core/ast->children tree) names lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ══════════════════════════════════════════════════════════════════════════════════════
 ;; STONE 118.B4-ii — `(first (drop X n))` → `(nth X n)`, the general-positional-lookup fold
@@ -1394,24 +1394,24 @@
 ;; List headed :wat::core::drop with EXACTLY TWO arguments (head + X + n = 3 children).
 ;; Both arities are checked (not just the heads) so a malformed/different-shaped call is
 ;; left alone rather than mis-edited — see census-first-of-drop.wat's own malformed guard.
-(:wat::core::defn :wat::fix::first-of-drop?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::= (:wat::core::length ch) 2)
-        (:wat::core::let [head (:wat::core::first ch)
-                          arg  (:wat::core::first (:wat::core::rest ch))]
-          (:wat::core::let [hk (:wat::core::ast-kind head)]
-          (:wat::core::if (:wat::core::if (:wat::core::or (:wat::core::= hk "keyword") (:wat::core::= hk "symbol"))
-                            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::first")
+(wat.core/defn wat.fix/first-of-drop?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/= (wat.core/length ch) 2)
+        (wat.core/let [head (wat.core/first ch)
+                          arg  (wat.core/first (wat.core/rest ch))]
+          (wat.core/let [hk (wat.core/ast-kind head)]
+          (wat.core/if (wat.core/if (wat.core/or (wat.core/= hk "keyword") (wat.core/= hk "symbol"))
+                            (wat.core/= (wat.core/canonical-identity (wat.core/ast-name head)) ":wat::core::first")
                             false)
-            (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "list")
-              (:wat::core::let [ach (:wat::core::ast->children arg)]
-                (:wat::core::if (:wat::core::= (:wat::core::length ach) 3)
-                  (:wat::core::let [ahead (:wat::core::first ach)
-                                    ak (:wat::core::ast-kind ahead)]
-                    (:wat::core::if (:wat::core::or (:wat::core::= ak "keyword") (:wat::core::= ak "symbol"))
-                      (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name ahead)) ":wat::core::drop")
+            (wat.core/if (wat.core/= (wat.core/ast-kind arg) "list")
+              (wat.core/let [ach (wat.core/ast->children arg)]
+                (wat.core/if (wat.core/= (wat.core/length ach) 3)
+                  (wat.core/let [ahead (wat.core/first ach)
+                                    ak (wat.core/ast-kind ahead)]
+                    (wat.core/if (wat.core/or (wat.core/= ak "keyword") (wat.core/= ak "symbol"))
+                      (wat.core/= (wat.core/canonical-identity (wat.core/ast-name ahead)) ":wat::core::drop")
                       false))
                   false))
               false)
@@ -1432,27 +1432,27 @@
 ;;   3. the drop-list's own closing paren — old-text = ")" literal: a List node's own
 ;;      last character is structurally guaranteed to be its close-paren by the parser,
 ;;      independent of the (dl-end-1) offset arithmetic used to locate it.
-(:wat::core::defn :wat::fix::first-of-drop-edits
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::let
-    [ch        (:wat::core::ast->children node)
-     head      (:wat::core::first ch)
-     drop-list (:wat::core::first (:wat::core::rest ch))
-     ach       (:wat::core::ast->children drop-list)
-     drop-head (:wat::core::first ach)
-     head-off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span head) lines)
-     head-name (:wat::core::ast-name head)
-     head-end  (:wat::core::+ head-off (:wat::string::length head-name))
-     dh-end-span (:wat::core::ast-end-span drop-head)
-     gap-text  (:wat::fix::fix-text-span-text (:wat::core::ast-end-span head) dh-end-span lines src)
-     dl-end    (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span drop-list) lines)]
-    (wat.type/Vector :- [:wat::fix::Edit]
+(wat.core/defn wat.fix/first-of-drop-edits
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/let
+    [ch        (wat.core/ast->children node)
+     head      (wat.core/first ch)
+     drop-list (wat.core/first (wat.core/rest ch))
+     ach       (wat.core/ast->children drop-list)
+     drop-head (wat.core/first ach)
+     head-off  (wat.fix/fix-text-offset-of (wat.core/ast-span head) lines)
+     head-name (wat.core/ast-name head)
+     head-end  (wat.core/+ head-off (wat.string/length head-name))
+     dh-end-span (wat.core/ast-end-span drop-head)
+     gap-text  (wat.fix/fix-text-span-text (wat.core/ast-end-span head) dh-end-span lines src)
+     dl-end    (wat.fix/fix-text-offset-of (wat.core/ast-end-span drop-list) lines)]
+    (wat.type/Vector :- [wat.fix/Edit]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-off head-name ":wat::core::nth")
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-end gap-text "")
-      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::i64::- dl-end 1) ")" ""))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (wat.i64/- dl-end 1) ")" ""))))
 
 ;; first-of-drop-scan — recursive walk. A match emits its 3 edits AND still recurses into
 ;; X and n (a nested hit inside either operand is a SEPARATE hit, per the census's own
@@ -1460,47 +1460,47 @@
 ;; every structural child as usual. Edits come back in ascending-offset order per subtree,
 ;; but a matched node's own 3rd edit (its drop-list's closing paren) sits textually AFTER
 ;; any nested hit inside X/n — collected via reverse+sort at the entry point, not here.
-(:wat::core::defn :wat::fix::first-of-drop-scan
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::fix::first-of-drop? node)
-    (:wat::core::let
-      [ch        (:wat::core::ast->children node)
-       drop-list (:wat::core::first (:wat::core::rest ch))
-       operands  (:wat::core::rest (:wat::core::ast->children drop-list))]
-      (:wat::core::concat
-        (:wat::fix::first-of-drop-edits node src lines)
-        (:wat::fix::first-of-drop-walk (:wat::core::into [] operands) src lines)))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::fix::first-of-drop-walk (:wat::core::ast->children node) src lines)
-      (wat.type/Vector :- [:wat::fix::Edit]))))
+(wat.core/defn wat.fix/first-of-drop-scan
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (wat.fix/first-of-drop? node)
+    (wat.core/let
+      [ch        (wat.core/ast->children node)
+       drop-list (wat.core/first (wat.core/rest ch))
+       operands  (wat.core/rest (wat.core/ast->children drop-list))]
+      (wat.core/concat
+        (wat.fix/first-of-drop-edits node src lines)
+        (wat.fix/first-of-drop-walk (wat.core/into [] operands) src lines)))
+    (wat.core/if (wat.fix/structural? node)
+      (wat.fix/first-of-drop-walk (wat.core/ast->children node) src lines)
+      (wat.type/Vector :- [wat.fix/Edit]))))
 
-(:wat::core::defn :wat::fix::first-of-drop-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::core::empty? items)
-    (wat.type/Vector :- [:wat::fix::Edit])
-    (:wat::core::concat
-      (:wat::fix::first-of-drop-scan (:wat::core::first items) src lines)
-      (:wat::fix::first-of-drop-walk (:wat::core::rest items) src lines))))
+(wat.core/defn wat.fix/first-of-drop-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (wat.core/empty? items)
+    (wat.type/Vector :- [wat.fix/Edit])
+    (wat.core/concat
+      (wat.fix/first-of-drop-scan (wat.core/first items) src lines)
+      (wat.fix/first-of-drop-walk (wat.core/rest items) src lines))))
 
 ;; first-of-drop-to-nth — the entry point. src in, migrated src out; comment- and
 ;; layout-faithful (splices the ORIGINAL text at spans). `sort` before `reverse` because a
 ;; matched node's edits are not strictly ascending against its own nested operand edits
 ;; (see first-of-drop-scan's note) — the same shape `wrap-calls-in-match` /
 ;; `rehead-rete-defn` already use for exactly this reason.
-(:wat::core::defn :wat::fix::first-of-drop-to-nth
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     eds   (:wat::fix::first-of-drop-walk (:wat::core::ast->children tree) src lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn wat.fix/first-of-drop-to-nth
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     eds   (wat.fix/first-of-drop-walk (wat.core/ast->children tree) src lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ─── 2a2 — one door: a program's enums ∪ stdlib, once per program ────────────
 ;;
@@ -1515,246 +1515,246 @@
 ;; its own program: ask this door on its children and apply that map
 ;; within that subtree only.
 
-(:wat::core::defrecord :wat::fix::EnumFields
-  [fields   <- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-   answered <- (wat.type/Vector :- [wat.type/String])])
+(wat.core/defrecord wat.fix/EnumFields
+  [fields   :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+   answered :- (wat.type/Vector :- [wat.type/String])])
 
-(:wat::core::defn :wat::fix::join-sep
-  [xs  <- (wat.type/Vector :- [wat.type/String])
-   sep <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::empty? xs)
+(wat.core/defn wat.fix/join-sep
+  [xs  :- (wat.type/Vector :- [wat.type/String])
+   sep :- wat.type/String]
+  :- wat.type/String
+  (wat.core/if (wat.core/empty? xs)
     ""
-    (:wat::core::let [h (:wat::core::first xs) tl (:wat::core::rest xs)]
-      (:wat::core::if (:wat::core::empty? tl)
+    (wat.core/let [h (wat.core/first xs) tl (wat.core/rest xs)]
+      (wat.core/if (wat.core/empty? tl)
         h
-        (:wat::string::concat h (:wat::string::concat sep (:wat::fix::join-sep tl sep)))))))
+        (wat.string/concat h (wat.string/concat sep (wat.fix/join-sep tl sep)))))))
 
-(:wat::core::defn :wat::fix::parent-path [vpath <- wat.type/String] -> wat.type/String
-  (:wat::core::let [parts (:wat::string::split vpath "::")
-                    n     (:wat::core::length parts)]
-    (:wat::core::if (:wat::core::< n 2)
+(wat.core/defn wat.fix/parent-path [vpath :- wat.type/String] :- wat.type/String
+  (wat.core/let [parts (wat.string/split vpath "::")
+                    n     (wat.core/length parts)]
+    (wat.core/if (wat.core/< n 2)
       vpath
-      (:wat::fix::join-sep (:wat::core::into [] (:wat::core::take parts (:wat::i64::- n 1))) "::"))))
+      (wat.fix/join-sep (wat.core/into [] (wat.core/take parts (wat.i64/- n 1))) "::"))))
 
-(:wat::core::defn :wat::fix::leaf-of [vpath <- wat.type/String] -> wat.type/String
-  (:wat::core::let [parts (:wat::string::split vpath "::")]
-    (:wat::core::Option/expect
-      (:wat::core::get parts (:wat::i64::- (:wat::core::length parts) 1))
+(wat.core/defn wat.fix/leaf-of [vpath :- wat.type/String] :- wat.type/String
+  (wat.core/let [parts (wat.string/split vpath "::")]
+    (wat.core.Option/expect
+      (wat.core/get parts (wat.i64/- (wat.core/length parts) 1))
       "variant leaf")))
 
-(:wat::core::defn :wat::fix::kw-text [k <- wat.type/keyword] -> wat.type/String
-  (:wat::string::concat ":" (:wat::keyword::to-string k)))
+(wat.core/defn wat.fix/kw-text [k :- wat.type/keyword] :- wat.type/String
+  (wat.string/concat ":" (wat.keyword/to-string k)))
 
-(:wat::core::defn :wat::fix::name->kw [s <- wat.type/String] -> wat.type/keyword
-  (:wat::keyword::from-string (:wat::fix::rename-strip-colon s)))
+(wat.core/defn wat.fix/name->kw [s :- wat.type/String] :- wat.type/keyword
+  (wat.keyword/from-string (wat.fix/rename-strip-colon s)))
 
-(:wat::core::defn :wat::fix::cause-tag [cause <- wat.type/String] -> wat.type/String
-  (:wat::core::let [head (:wat::core::first (:wat::string::split cause "{"))
-                    slash (:wat::string::split head "/")]
-    (:wat::core::if (:wat::core::< (:wat::core::length slash) 2)
-      (:wat::core::first (:wat::string::split head " "))
-      (:wat::core::first
-        (:wat::string::split
-          (:wat::core::Option/expect
-            (:wat::core::get slash (:wat::i64::- (:wat::core::length slash) 1))
+(wat.core/defn wat.fix/cause-tag [cause :- wat.type/String] :- wat.type/String
+  (wat.core/let [head (wat.core/first (wat.string/split cause "{"))
+                    slash (wat.string/split head "/")]
+    (wat.core/if (wat.core/< (wat.core/length slash) 2)
+      (wat.core/first (wat.string/split head " "))
+      (wat.core/first
+        (wat.string/split
+          (wat.core.Option/expect
+            (wat.core/get slash (wat.i64/- (wat.core/length slash) 1))
             "cause-tag")
           " ")))))
 
-(:wat::core::defn :wat::fix::span-line [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::match (:wat::core::get (:wat::core::ast-span n) :line)
-    [:wat::core::Option.Some {:value v} v]
-    [:wat::core::Option.None {} 0]))
+(wat.core/defn wat.fix/span-line [n :- wat.type/AST] :- wat.type/i64
+  (wat.core/match (wat.core/get (wat.core/ast-span n) :line)
+    [wat.core/Option.Some {:value v} v]
+    [wat.core/Option.None {} 0]))
 
-(:wat::core::defn :wat::fix::span-col [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::match (:wat::core::get (:wat::core::ast-span n) :col)
-    [:wat::core::Option.Some {:value v} v]
-    [:wat::core::Option.None {} 0]))
+(wat.core/defn wat.fix/span-col [n :- wat.type/AST] :- wat.type/i64
+  (wat.core/match (wat.core/get (wat.core/ast-span n) :col)
+    [wat.core/Option.Some {:value v} v]
+    [wat.core/Option.None {} 0]))
 
-(:wat::core::defn :wat::fix::same-form? [a <- wat.type/AST b <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::fix::span-line a) (:wat::fix::span-line b))
-    (:wat::core::= (:wat::fix::span-col a) (:wat::fix::span-col b))
+(wat.core/defn wat.fix/same-form? [a :- wat.type/AST b :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.fix/span-line a) (wat.fix/span-line b))
+    (wat.core/= (wat.fix/span-col a) (wat.fix/span-col b))
     false))
 
-(:wat::core::defn :wat::fix::drop-form
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   refused <- wat.type/AST]
-  -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::let
-    [kept (:wat::core::into []
-            (:wat::core::filter
-              (:wat::core::fn [n <- wat.type/AST] -> wat.type/bool
-                (:wat::core::not (:wat::fix::same-form? n refused)))
+(wat.core/defn wat.fix/drop-form
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   refused :- wat.type/AST]
+  :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/let
+    [kept (wat.core/into []
+            (wat.core/filter
+              (wat.core/fn [n :- wat.type/AST] :- wat.type/bool
+                (wat.core/not (wat.fix/same-form? n refused)))
               forms))]
-    (:wat::core::if (:wat::core::= (:wat::core::length kept) (:wat::core::length forms))
-      (:wat::core::if (:wat::core::empty? forms)
+    (wat.core/if (wat.core/= (wat.core/length kept) (wat.core/length forms))
+      (wat.core/if (wat.core/empty? forms)
         forms
-        (:wat::core::into [] (:wat::core::rest forms)))
+        (wat.core/into [] (wat.core/rest forms)))
       kept)))
 
 ;; Which form the exclusion loop actually drops, and whether it fell back
 ;; to the first form (refused span did not match any top-level form).
-(:wat::core::defn :wat::fix::dropped-form-info
-  [forms   <- (wat.type/Vector :- [wat.type/AST])
-   refused <- wat.type/AST]
-  -> (wat.type/Tuple :- [wat.type/AST wat.type/bool])
-  (:wat::core::let
-    [hits (:wat::core::into []
-            (:wat::core::filter
-              (:wat::core::fn [n <- wat.type/AST] -> wat.type/bool
-                (:wat::fix::same-form? n refused))
+(wat.core/defn wat.fix/dropped-form-info
+  [forms   :- (wat.type/Vector :- [wat.type/AST])
+   refused :- wat.type/AST]
+  :- (wat.type/Tuple :- [wat.type/AST wat.type/bool])
+  (wat.core/let
+    [hits (wat.core/into []
+            (wat.core/filter
+              (wat.core/fn [n :- wat.type/AST] :- wat.type/bool
+                (wat.fix/same-form? n refused))
               forms))]
-    (:wat::core::if (:wat::core::empty? hits)
+    (wat.core/if (wat.core/empty? hits)
       (wat.type/Tuple :- [wat.type/AST wat.type/bool]
-        (:wat::core::if (:wat::core::empty? forms) refused (:wat::core::first forms))
+        (wat.core/if (wat.core/empty? forms) refused (wat.core/first forms))
         true)
-      (wat.type/Tuple :- [wat.type/AST wat.type/bool] (:wat::core::first hits) false))))
+      (wat.type/Tuple :- [wat.type/AST wat.type/bool] (wat.core/first hits) false))))
 
-(:wat::core::defn :wat::fix::variant-field-names
-  [v <- :wat::runtime::TypeVariant]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::into []
-    (:wat::core::map
-      (:wat::core::fn [f <- :wat::runtime::TypeField] -> wat.type/String
-        (:wat::keyword::to-string (:wat::runtime::TypeField/name f)))
-      (:wat::runtime::TypeVariant/fields v))))
+(wat.core/defn wat.fix/variant-field-names
+  [v :- wat.runtime/TypeVariant]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/into []
+    (wat.core/map
+      (wat.core/fn [f :- wat.runtime/TypeField] :- wat.type/String
+        (wat.keyword/to-string (wat.runtime.TypeField/name f)))
+      (wat.runtime.TypeVariant/fields v))))
 
-(:wat::core::defn :wat::fix::names-eq?
-  [a <- (wat.type/Vector :- [wat.type/String])
-   b <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::length a) (:wat::core::length b)))
+(wat.core/defn wat.fix/names-eq?
+  [a :- (wat.type/Vector :- [wat.type/String])
+   b :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/bool
+  (wat.core/if (wat.core/not (wat.core/= (wat.core/length a) (wat.core/length b)))
     false
-    (:wat::core::foldl
-      (:wat::core::fn [ok <- wat.type/bool i <- wat.type/i64] -> wat.type/bool
-        (:wat::core::if ok
-          (:wat::core::=
-            (:wat::core::Option/expect (:wat::core::get a i) "names-eq a")
-            (:wat::core::Option/expect (:wat::core::get b i) "names-eq b"))
+    (wat.core/foldl
+      (wat.core/fn [ok :- wat.type/bool i :- wat.type/i64] :- wat.type/bool
+        (wat.core/if ok
+          (wat.core/=
+            (wat.core.Option/expect (wat.core/get a i) "names-eq a")
+            (wat.core.Option/expect (wat.core/get b i) "names-eq b"))
           false))
       true
-      (:wat::core::range 0 (:wat::core::length a)))))
+      (wat.core/range 0 (wat.core/length a)))))
 
-(:wat::core::defn :wat::fix::index-leaf
-  [m      <- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-   leaf   <- wat.type/String
-   fields <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-  (:wat::core::match (:wat::core::get m leaf)
-    [:wat::core::Option.None {} (:wat::core::assoc m leaf fields)]
-    [:wat::core::Option.Some {:value existing}
-      (:wat::core::if (:wat::fix::names-eq? existing fields) m m)]
-    [_ (:wat::core::assoc m leaf fields)]))
+(wat.core/defn wat.fix/index-leaf
+  [m      :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+   leaf   :- wat.type/String
+   fields :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+  (wat.core/match (wat.core/get m leaf)
+    [wat.core/Option.None {} (wat.core/assoc m leaf fields)]
+    [wat.core/Option.Some {:value existing}
+      (wat.core/if (wat.fix/names-eq? existing fields) m m)]
+    [_ (wat.core/assoc m leaf fields)]))
 
-(:wat::core::defn :wat::fix::fill-enum
-  [m         <- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-   info      <- :wat::runtime::TypeInfo
-   enum-path <- wat.type/String]
-  -> (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-  (:wat::core::match (:wat::runtime::TypeInfo/body info)
-    [:wat::runtime::TypeBody.Enum {:purity _ :variants vs}
-      (:wat::core::foldl
-        (:wat::core::fn
-          [acc <- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-           v   <- :wat::runtime::TypeVariant]
-          -> (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-          (:wat::core::let
-            [leaf   (:wat::keyword::to-string (:wat::runtime::TypeVariant/name v))
-             fields (:wat::fix::variant-field-names v)
-             fq     (:wat::string::concat enum-path (:wat::string::concat "::" leaf))
-             acc2   (:wat::core::assoc acc fq fields)
-             acc3   (:wat::fix::index-leaf acc2 leaf fields)
-             short  (:wat::string::concat (:wat::fix::leaf-of enum-path) (:wat::string::concat "::" leaf))
-             acc4   (:wat::fix::index-leaf acc3 short fields)]
-            (:wat::core::if (:wat::core::or
-                              (:wat::core::= enum-path ":wat::core::Option")
-                              (:wat::core::= enum-path ":wat::core::Result"))
-              (:wat::core::assoc acc4 (:wat::string::concat ":wat::core::" leaf) fields)
+(wat.core/defn wat.fix/fill-enum
+  [m         :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+   info      :- wat.runtime/TypeInfo
+   enum-path :- wat.type/String]
+  :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+  (wat.core/match (wat.runtime.TypeInfo/body info)
+    [wat.runtime/TypeBody.Enum {:purity _ :variants vs}
+      (wat.core/foldl
+        (wat.core/fn
+          [acc :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+           v   :- wat.runtime/TypeVariant]
+          :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+          (wat.core/let
+            [leaf   (wat.keyword/to-string (wat.runtime.TypeVariant/name v))
+             fields (wat.fix/variant-field-names v)
+             fq     (wat.string/concat enum-path (wat.string/concat "::" leaf))
+             acc2   (wat.core/assoc acc fq fields)
+             acc3   (wat.fix/index-leaf acc2 leaf fields)
+             short  (wat.string/concat (wat.fix/leaf-of enum-path) (wat.string/concat "::" leaf))
+             acc4   (wat.fix/index-leaf acc3 short fields)]
+            (wat.core/if (wat.core/or
+                              (wat.core/= enum-path ":wat::core::Option")
+                              (wat.core/= enum-path ":wat::core::Result"))
+              (wat.core/assoc acc4 (wat.string/concat ":wat::core::" leaf) fields)
               acc4)))
         m vs)]
     [_ m]))
 
-(:wat::core::defn :wat::fix::enum-kind? [info <- :wat::runtime::TypeInfo] -> wat.type/bool
-  (:wat::core::match (:wat::runtime::TypeInfo/kind info)
-    [:wat::runtime::TypeKind.Enum {} true]
+(wat.core/defn wat.fix/enum-kind? [info :- wat.runtime/TypeInfo] :- wat.type/bool
+  (wat.core/match (wat.runtime.TypeInfo/kind info)
+    [wat.runtime/TypeKind.Enum {} true]
     [_ false]))
 
 ;; Variant singletons are registered as Enum rows named `E.V` (dot). `parent-path`
 ;; splits on `::` and would call `:usr::E.Variant`'s parent `:usr`. Strip from the
 ;; last `.` first; fall back to `::` when the name has no dot.
-(:wat::core::defn :wat::fix::dotted-parent [nm <- wat.type/String] -> wat.type/String
-  (:wat::core::let [parts (:wat::string::split nm ".")]
-    (:wat::core::if (:wat::core::< (:wat::core::length parts) 2)
-      (:wat::fix::parent-path nm)
-      (:wat::fix::join-sep
-        (:wat::core::into [] (:wat::core::take parts (:wat::i64::- (:wat::core::length parts) 1)))
+(wat.core/defn wat.fix/dotted-parent [nm :- wat.type/String] :- wat.type/String
+  (wat.core/let [parts (wat.string/split nm ".")]
+    (wat.core/if (wat.core/< (wat.core/length parts) 2)
+      (wat.fix/parent-path nm)
+      (wat.fix/join-sep
+        (wat.core/into [] (wat.core/take parts (wat.i64/- (wat.core/length parts) 1)))
         "."))))
 
-(:wat::core::defn :wat::fix::singleton-enum?
-  [info <- :wat::runtime::TypeInfo
-   enum-names <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/bool
-  (:wat::core::let [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))]
-    (:wat::core::match
-      (:wat::runtime::variant-parent-of (:wat::fix::name->kw nm))
-      [:wat::core::Option.Some {:value _} true]
-      [:wat::core::Option.None {}
-        (:wat::core::contains? enum-names (:wat::fix::dotted-parent nm))])))
+(wat.core/defn wat.fix/singleton-enum?
+  [info :- wat.runtime/TypeInfo
+   enum-names :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/bool
+  (wat.core/let [nm (wat.fix/kw-text (wat.runtime.TypeInfo/name info))]
+    (wat.core/match
+      (wat.runtime/variant-parent-of (wat.fix/name->kw nm))
+      [wat.core/Option.Some {:value _} true]
+      [wat.core/Option.None {}
+        (wat.core/contains? enum-names (wat.fix/dotted-parent nm))])))
 
-(:wat::core::defn :wat::fix::enum-row-names
-  [types <- (wat.type/Vector :- [:wat::runtime::TypeInfo])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::foldl
-    (:wat::core::fn
-      [acc  <- (wat.type/Vector :- [wat.type/String])
-       info <- :wat::runtime::TypeInfo]
-      -> (wat.type/Vector :- [wat.type/String])
-      (:wat::core::if (:wat::fix::enum-kind? info)
-        (:wat::core::conj acc (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info)))
+(wat.core/defn wat.fix/enum-row-names
+  [types :- (wat.type/Vector :- [wat.runtime/TypeInfo])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/foldl
+    (wat.core/fn
+      [acc  :- (wat.type/Vector :- [wat.type/String])
+       info :- wat.runtime/TypeInfo]
+      :- (wat.type/Vector :- [wat.type/String])
+      (wat.core/if (wat.fix/enum-kind? info)
+        (wat.core/conj acc (wat.fix/kw-text (wat.runtime.TypeInfo/name info)))
         acc))
     (wat.type/Vector :- [wat.type/String])
     types))
 
-(:wat::core::defn :wat::fix::fill-enum-rows
-  [m          <- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-   filled     <- (wat.type/Vector :- [wat.type/String])
-   types      <- (wat.type/Vector :- [:wat::runtime::TypeInfo])
-   enum-names <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::EnumFields
-  (:wat::core::let
-    [pair (:wat::core::foldl
-            (:wat::core::fn
-              [acc  <- (wat.type/Tuple :-
+(wat.core/defn wat.fix/fill-enum-rows
+  [m          :- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+   filled     :- (wat.type/Vector :- [wat.type/String])
+   types      :- (wat.type/Vector :- [wat.runtime/TypeInfo])
+   enum-names :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/EnumFields
+  (wat.core/let
+    [pair (wat.core/foldl
+            (wat.core/fn
+              [acc  :- (wat.type/Tuple :-
                          [(wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
                           (wat.type/Vector :- [wat.type/String])])
-               info <- :wat::runtime::TypeInfo]
-              -> (wat.type/Tuple :-
+               info :- wat.runtime/TypeInfo]
+              :- (wat.type/Tuple :-
                    [(wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
                     (wat.type/Vector :- [wat.type/String])])
-              (:wat::core::if
-                (:wat::core::if (:wat::fix::enum-kind? info)
-                  (:wat::core::not (:wat::fix::singleton-enum? info enum-names))
+              (wat.core/if
+                (wat.core/if (wat.fix/enum-kind? info)
+                  (wat.core/not (wat.fix/singleton-enum? info enum-names))
                   false)
-                (:wat::core::let [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))]
+                (wat.core/let [nm (wat.fix/kw-text (wat.runtime.TypeInfo/name info))]
                   (wat.type/Tuple :- [(wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])]) (wat.type/Vector :- [wat.type/String])]
-                    (:wat::fix::fill-enum (:wat::core::first acc) info nm)
-                    (:wat::core::if (:wat::core::contains? (:wat::core::second acc) nm)
-                      (:wat::core::second acc)
-                      (:wat::core::conj (:wat::core::second acc) nm))))
+                    (wat.fix/fill-enum (wat.core/first acc) info nm)
+                    (wat.core/if (wat.core/contains? (wat.core/second acc) nm)
+                      (wat.core/second acc)
+                      (wat.core/conj (wat.core/second acc) nm))))
                 acc))
             (wat.type/Tuple :- [(wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])]) (wat.type/Vector :- [wat.type/String])] m filled)
             types)]
-    (:wat::fix::EnumFields
-      :fields   (:wat::core::first pair)
-      :answered (:wat::core::second pair))))
+    (wat.fix/EnumFields
+      :fields   (wat.core/first pair)
+      :answered (wat.core/second pair))))
 
-(:wat::core::defn :wat::fix::decl-type-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::let [ch (:wat::core::ast->children n)]
-    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
+(wat.core/defn wat.fix/decl-type-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/let [ch (wat.core/ast->children n)]
+    (wat.core/if (wat.core/< (wat.core/length ch) 2)
       ""
-      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get ch 1) "decl name")]
-        (:wat::core::if (:wat::core::= (:wat::core::ast-kind a) "keyword")
-          (:wat::core::ast-name a)
+      (wat.core/let [a (wat.core.Option/expect (wat.core/get ch 1) "decl name")]
+        (wat.core/if (wat.core/= (wat.core/ast-kind a) "keyword")
+          (wat.core/ast-name a)
           "")))))
 
 ;; A stdlib source path is a repo-relative `wat/…` (the include_str! home).
@@ -1765,145 +1765,145 @@
 ;; those take the user door. A loud refuse of absolute paths was dropped:
 ;; `{FILE}` fixtures and convert.sh context pass absolute paths, and refuse
 ;; killed positional-ctor-to-map / match-arm / variant-separator replay.
-(:wat::core::defn :wat::fix::stdlib-source-path? [path <- wat.type/String] -> wat.type/bool
-  (:wat::string::starts-with? path "wat/"))
+(wat.core/defn wat.fix/stdlib-source-path? [path :- wat.type/String] :- wat.type/bool
+  (wat.string/starts-with? path "wat/"))
 
-(:wat::core::defn :wat::fix::register-loop
-  [tag   <- wat.type/String
-   path  <- wat.type/String
-   forms <- (wat.type/Vector :- [wat.type/AST])
-   n     <- wat.type/i64]
-  -> (wat.type/Vector :- [:wat::runtime::TypeInfo])
-  (:wat::core::if (:wat::core::or (:wat::core::empty? forms) (:wat::core::< n 0))
-    (wat.type/Vector :- [:wat::runtime::TypeInfo])
-    (:wat::core::match
-      (:wat::core::if (:wat::fix::stdlib-source-path? path)
-        (:wat::runtime::declared-stdlib-types forms)
-        (:wat::runtime::declared-types forms))
-      [:wat::runtime::DeclaredTypes.Ok {:types ts} ts]
-      [:wat::runtime::DeclaredTypes.Refused {:form f :cause c}
-        (:wat::core::let
-          [info (:wat::fix::dropped-form-info forms f)
-           dropped (:wat::core::first info)
-           fallback? (:wat::core::second info)]
-          (:wat::core::do
-            (:wat::kernel::println
-              (:wat::string::concat
+(wat.core/defn wat.fix/register-loop
+  [tag   :- wat.type/String
+   path  :- wat.type/String
+   forms :- (wat.type/Vector :- [wat.type/AST])
+   n     :- wat.type/i64]
+  :- (wat.type/Vector :- [wat.runtime/TypeInfo])
+  (wat.core/if (wat.core/or (wat.core/empty? forms) (wat.core/< n 0))
+    (wat.type/Vector :- [wat.runtime/TypeInfo])
+    (wat.core/match
+      (wat.core/if (wat.fix/stdlib-source-path? path)
+        (wat.runtime/declared-stdlib-types forms)
+        (wat.runtime/declared-types forms))
+      [wat.runtime/DeclaredTypes.Ok {:types ts} ts]
+      [wat.runtime/DeclaredTypes.Refused {:form f :cause c}
+        (wat.core/let
+          [info (wat.fix/dropped-form-info forms f)
+           dropped (wat.core/first info)
+           fallback? (wat.core/second info)]
+          (wat.core/do
+            (wat.kernel/println
+              (wat.string/concat
                 "["
-                (:wat::string::concat tag
-                  (:wat::string::concat "] UNREGISTERABLE "
-                    (:wat::string::concat path
-                      (:wat::string::concat " "
-                        (:wat::string::concat (:wat::fix::cause-tag c)
-                          (:wat::string::concat " head="
-                            (:wat::string::concat (:wat::fix::head-name dropped)
-                              (:wat::string::concat " name="
-                                (:wat::string::concat (:wat::fix::decl-type-name dropped)
-                                  (:wat::string::concat " line="
-                                    (:wat::string::concat
-                                      (:wat::i64::to-string (:wat::fix::span-line dropped))
-                                      (:wat::core::if fallback? " fallback" ""))))))))))))))
-            (:wat::fix::register-loop tag path (:wat::fix::drop-form forms f) (:wat::i64::- n 1))))])))
+                (wat.string/concat tag
+                  (wat.string/concat "] UNREGISTERABLE "
+                    (wat.string/concat path
+                      (wat.string/concat " "
+                        (wat.string/concat (wat.fix/cause-tag c)
+                          (wat.string/concat " head="
+                            (wat.string/concat (wat.fix/head-name dropped)
+                              (wat.string/concat " name="
+                                (wat.string/concat (wat.fix/decl-type-name dropped)
+                                  (wat.string/concat " line="
+                                    (wat.string/concat
+                                      (wat.i64/to-string (wat.fix/span-line dropped))
+                                      (wat.core/if fallback? " fallback" ""))))))))))))))
+            (wat.fix/register-loop tag path (wat.fix/drop-form forms f) (wat.i64/- n 1))))])))
 
-(:wat::core::defn :wat::fix::answered-enum?
-  [filled <- (wat.type/Vector :- [wat.type/String])
-   ep     <- wat.type/String]
-  -> wat.type/bool
-  (:wat::core::or
-    (:wat::core::contains? filled ep)
-    (:wat::core::contains? filled (:wat::fix::parent-path ep))))
+(wat.core/defn wat.fix/answered-enum?
+  [filled :- (wat.type/Vector :- [wat.type/String])
+   ep     :- wat.type/String]
+  :- wat.type/bool
+  (wat.core/or
+    (wat.core/contains? filled ep)
+    (wat.core/contains? filled (wat.fix/parent-path ep))))
 
-(:wat::core::defn :wat::fix::fill-stdlib-one
-  [ef <- :wat::fix::EnumFields
-   ep <- wat.type/String]
-  -> :wat::fix::EnumFields
-  (:wat::core::if (:wat::fix::answered-enum? (:wat::fix::EnumFields/answered ef) ep)
+(wat.core/defn wat.fix/fill-stdlib-one
+  [ef :- wat.fix/EnumFields
+   ep :- wat.type/String]
+  :- wat.fix/EnumFields
+  (wat.core/if (wat.fix/answered-enum? (wat.fix.EnumFields/answered ef) ep)
     ef
-    (:wat::core::if (:wat::runtime::is-type? (:wat::fix::name->kw ep))
-      (:wat::core::let [info (:wat::runtime::type-of (:wat::fix::name->kw ep))]
-        (:wat::core::if
-          (:wat::core::if (:wat::fix::enum-kind? info)
-            (:wat::core::not
-              (:wat::fix::singleton-enum? info (wat.type/Vector :- [wat.type/String])))
+    (wat.core/if (wat.runtime/is-type? (wat.fix/name->kw ep))
+      (wat.core/let [info (wat.runtime/type-of (wat.fix/name->kw ep))]
+        (wat.core/if
+          (wat.core/if (wat.fix/enum-kind? info)
+            (wat.core/not
+              (wat.fix/singleton-enum? info (wat.type/Vector :- [wat.type/String])))
             false)
-          (:wat::core::let
-            [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))
-             m2 (:wat::fix::fill-enum (:wat::fix::EnumFields/fields ef) info nm)
-             fl (:wat::fix::EnumFields/answered ef)]
-            (:wat::fix::EnumFields
+          (wat.core/let
+            [nm (wat.fix/kw-text (wat.runtime.TypeInfo/name info))
+             m2 (wat.fix/fill-enum (wat.fix.EnumFields/fields ef) info nm)
+             fl (wat.fix.EnumFields/answered ef)]
+            (wat.fix/EnumFields
               :fields m2
               :answered
-                (:wat::core::if (:wat::core::contains? fl nm) fl (:wat::core::conj fl nm))))
+                (wat.core/if (wat.core/contains? fl nm) fl (wat.core/conj fl nm))))
           ef))
       ef)))
 
-(:wat::core::defn :wat::fix::fill-stdlib
-  [ef         <- :wat::fix::EnumFields
-   candidates <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::EnumFields
-  (:wat::core::foldl
-    (:wat::core::fn
-      [acc <- :wat::fix::EnumFields
-       ep  <- wat.type/String]
-      -> :wat::fix::EnumFields
-      (:wat::fix::fill-stdlib-one acc ep))
+(wat.core/defn wat.fix/fill-stdlib
+  [ef         :- wat.fix/EnumFields
+   candidates :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/EnumFields
+  (wat.core/foldl
+    (wat.core/fn
+      [acc :- wat.fix/EnumFields
+       ep  :- wat.type/String]
+      :- wat.fix/EnumFields
+      (wat.fix/fill-stdlib-one acc ep))
     ef
     candidates))
 
-(:wat::core::defn :wat::fix::type-decl-head? [h <- wat.type/String] -> wat.type/bool
-  (:wat::core::or
-    (:wat::core::= h ":wat::core::defenum")
-    (:wat::core::or
-      (:wat::core::= h ":wat::core::defrecord")
-      (:wat::core::or
-        (:wat::core::= h ":wat::holon::defrecord")
-        (:wat::core::or
-          (:wat::core::= h ":wat::core::defstruct")
-          (:wat::core::or
-            (:wat::core::= h ":wat::core::defsurface")
-            (:wat::core::or
-              (:wat::core::= h ":wat::core::newtype")
-              (:wat::core::or
-                (:wat::core::= h ":wat::core::typealias")
-                (:wat::core::or
-                  (:wat::core::= h ":wat::core::typeunion")
-                  (:wat::core::or
-                    (:wat::core::= h ":wat::core::recordtype")
-                    (:wat::core::or
-                      (:wat::core::= h ":wat::service::defservice")
-                      (:wat::core::or
-                        (:wat::core::= h ":wat::query::sift-rules-defsvc")
-                        (:wat::core::= h ":wat::core::defmacro")))))))))))))
+(wat.core/defn wat.fix/type-decl-head? [h :- wat.type/String] :- wat.type/bool
+  (wat.core/or
+    (wat.core/= h ":wat::core::defenum")
+    (wat.core/or
+      (wat.core/= h ":wat::core::defrecord")
+      (wat.core/or
+        (wat.core/= h ":wat::holon::defrecord")
+        (wat.core/or
+          (wat.core/= h ":wat::core::defstruct")
+          (wat.core/or
+            (wat.core/= h ":wat::core::defsurface")
+            (wat.core/or
+              (wat.core/= h ":wat::core::newtype")
+              (wat.core/or
+                (wat.core/= h ":wat::core::typealias")
+                (wat.core/or
+                  (wat.core/= h ":wat::core::typeunion")
+                  (wat.core/or
+                    (wat.core/= h ":wat::core::recordtype")
+                    (wat.core/or
+                      (wat.core/= h ":wat::service::defservice")
+                      (wat.core/or
+                        (wat.core/= h ":wat::query::sift-rules-defsvc")
+                        (wat.core/= h ":wat::core::defmacro")))))))))))))
 
-(:wat::core::defn :wat::fix::collect-decl-names
-  [acc   <- (wat.type/Vector :- [wat.type/String])
-   items <- (wat.type/Vector :- [wat.type/AST])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn wat.fix/collect-decl-names
+  [acc   :- (wat.type/Vector :- [wat.type/String])
+   items :- (wat.type/Vector :- [wat.type/AST])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.core/empty? items)
     acc
-    (:wat::core::let
-      [n  (:wat::core::first items)
-       tl (:wat::core::rest items)
-       acc2 (:wat::core::if (:wat::fix::type-decl-head? (:wat::fix::head-name n))
-              (:wat::core::let [nm (:wat::fix::decl-type-name n)]
-                (:wat::core::if (:wat::core::= nm "") acc (:wat::core::conj acc nm)))
+    (wat.core/let
+      [n  (wat.core/first items)
+       tl (wat.core/rest items)
+       acc2 (wat.core/if (wat.fix/type-decl-head? (wat.fix/head-name n))
+              (wat.core/let [nm (wat.fix/decl-type-name n)]
+                (wat.core/if (wat.core/= nm "") acc (wat.core/conj acc nm)))
               acc)]
-      (:wat::fix::collect-decl-names acc2 tl))))
+      (wat.fix/collect-decl-names acc2 tl))))
 
-(:wat::core::defn :wat::fix::nested-decl-names-node
-  [acc  <- (wat.type/Vector :- [wat.type/String])
-   node <- wat.type/AST]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
-    (:wat::fix::collect-decl-names acc (:wat::core::ast->children node))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::foldl :wat::fix::nested-decl-names-node acc (:wat::core::ast->children node))
+(wat.core/defn wat.fix/nested-decl-names-node
+  [acc  :- (wat.type/Vector :- [wat.type/String])
+   node :- wat.type/AST]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.fix/calls-to? node ":wat::core::forms")
+    (wat.fix/collect-decl-names acc (wat.core/ast->children node))
+    (wat.core/if (wat.fix/structural? node)
+      (wat.core/foldl wat.fix/nested-decl-names-node acc (wat.core/ast->children node))
       acc)))
 
-(:wat::core::defn :wat::fix::nested-decl-names
-  [tree <- wat.type/AST]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::fix::nested-decl-names-node (wat.type/Vector :- [wat.type/String]) tree))
+(wat.core/defn wat.fix/nested-decl-names
+  [tree :- wat.type/AST]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.fix/nested-decl-names-node (wat.type/Vector :- [wat.type/String]) tree))
 
 ;; ─── 2a4d — a STEP's stdlib files are ONE world, asked ONCE per SET ──────────
 ;;
@@ -1949,159 +1949,159 @@
 ;; `register-loop` turn, so the printed path IS that member (it starts `wat/`, so
 ;; convert.sh's STOP-9 grep still fires) and the dropped form is that member's alone.
 
-(:wat::core::defrecord :wat::fix::StdlibWorld
-  [paths <- (wat.type/Vector :- [wat.type/String])
-   types <- (wat.type/Vector :- [:wat::runtime::TypeInfo])])
+(wat.core/defrecord wat.fix/StdlibWorld
+  [paths :- (wat.type/Vector :- [wat.type/String])
+   types :- (wat.type/Vector :- [wat.runtime/TypeInfo])])
 
-(:wat::core::defn :wat::fix::empty-world [] -> :wat::fix::StdlibWorld
-  (:wat::fix::StdlibWorld
+(wat.core/defn wat.fix/empty-world [] :- wat.fix/StdlibWorld
+  (wat.fix/StdlibWorld
     :paths (wat.type/Vector :- [wat.type/String])
-    :types (wat.type/Vector :- [:wat::runtime::TypeInfo])))
+    :types (wat.type/Vector :- [wat.runtime/TypeInfo])))
 
-(:wat::core::defn :wat::fix::world-covers?
-  [world <- :wat::fix::StdlibWorld
-   path  <- wat.type/String]
-  -> wat.type/bool
-  (:wat::core::contains? (:wat::fix::StdlibWorld/paths world) path))
+(wat.core/defn wat.fix/world-covers?
+  [world :- wat.fix/StdlibWorld
+   path  :- wat.type/String]
+  :- wat.type/bool
+  (wat.core/contains? (wat.fix.StdlibWorld/paths world) path))
 
-(:wat::core::defn :wat::fix::src-forms [src <- wat.type/String]
-  -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::ast->children
-    (:wat::core::match (:wat::core::read-string src)
-      [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-      [:wat::core::ReadOutcome.Malformed {:cause __cause}
-        (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
+(wat.core/defn wat.fix/src-forms [src :- wat.type/String]
+  :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/ast->children
+    (wat.core/match (wat.core/read-string src)
+      [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+      [wat.core/ReadOutcome.Malformed {:cause __cause}
+        (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])))
 
-(:wat::core::defn :wat::fix::type-name-of [info <- :wat::runtime::TypeInfo] -> wat.type/String
-  (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info)))
+(wat.core/defn wat.fix/type-name-of [info :- wat.runtime/TypeInfo] :- wat.type/String
+  (wat.fix/kw-text (wat.runtime.TypeInfo/name info)))
 
 ;; The set's world grows one MEMBER at a time: a later member's declaration replaces
 ;; an earlier member's row of the same name (the door's divergent-replace, across the
 ;; set), and every other earlier row survives.
-(:wat::core::defn :wat::fix::union-types
-  [acc  <- (wat.type/Vector :- [:wat::runtime::TypeInfo])
-   rows <- (wat.type/Vector :- [:wat::runtime::TypeInfo])]
-  -> (wat.type/Vector :- [:wat::runtime::TypeInfo])
-  (:wat::core::let
-    [names (:wat::core::into [] (:wat::core::map :wat::fix::type-name-of rows))]
-    (:wat::core::concat
-      (:wat::core::into []
-        (:wat::core::filter
-          (:wat::core::fn [info <- :wat::runtime::TypeInfo] -> wat.type/bool
-            (:wat::core::not
-              (:wat::core::contains? names (:wat::fix::type-name-of info))))
+(wat.core/defn wat.fix/union-types
+  [acc  :- (wat.type/Vector :- [wat.runtime/TypeInfo])
+   rows :- (wat.type/Vector :- [wat.runtime/TypeInfo])]
+  :- (wat.type/Vector :- [wat.runtime/TypeInfo])
+  (wat.core/let
+    [names (wat.core/into [] (wat.core/map wat.fix/type-name-of rows))]
+    (wat.core/concat
+      (wat.core/into []
+        (wat.core/filter
+          (wat.core/fn [info :- wat.runtime/TypeInfo] :- wat.type/bool
+            (wat.core/not
+              (wat.core/contains? names (wat.fix/type-name-of info))))
           acc))
       rows)))
 
 ;; The set's stdlib world. `paths` and `srcs` are parallel; the members are the
 ;; entries `stdlib-source-path?` admits (the door re-derives them, so a caller that
 ;; hands over its whole set is answered the same as one that pre-filtered).
-(:wat::core::defn :wat::fix::stdlib-world
-  [tag   <- wat.type/String
-   paths <- (wat.type/Vector :- [wat.type/String])
-   srcs  <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::StdlibWorld
-  (:wat::core::let
-    [idx (:wat::core::into []
-           (:wat::core::filter
-             (:wat::core::fn [i <- wat.type/i64] -> wat.type/bool
-               (:wat::fix::stdlib-source-path?
-                 (:wat::core::Option/expect (:wat::core::get paths i) "world path")))
-             (:wat::core::range 0 (:wat::core::length paths))))]
-    (:wat::core::if (:wat::core::empty? idx)
-      (:wat::fix::empty-world)
-      (:wat::core::let
-        [mpaths (:wat::core::into []
-                  (:wat::core::map
-                    (:wat::core::fn [i <- wat.type/i64] -> wat.type/String
-                      (:wat::core::Option/expect (:wat::core::get paths i) "world path"))
+(wat.core/defn wat.fix/stdlib-world
+  [tag   :- wat.type/String
+   paths :- (wat.type/Vector :- [wat.type/String])
+   srcs  :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/StdlibWorld
+  (wat.core/let
+    [idx (wat.core/into []
+           (wat.core/filter
+             (wat.core/fn [i :- wat.type/i64] :- wat.type/bool
+               (wat.fix/stdlib-source-path?
+                 (wat.core.Option/expect (wat.core/get paths i) "world path")))
+             (wat.core/range 0 (wat.core/length paths))))]
+    (wat.core/if (wat.core/empty? idx)
+      (wat.fix/empty-world)
+      (wat.core/let
+        [mpaths (wat.core/into []
+                  (wat.core/map
+                    (wat.core/fn [i :- wat.type/i64] :- wat.type/String
+                      (wat.core.Option/expect (wat.core/get paths i) "world path"))
                     idx))
-         per   (:wat::core::into []
-                 (:wat::core::map
-                   (:wat::core::fn [i <- wat.type/i64]
-                     -> (wat.type/Vector :- [wat.type/AST])
-                     (:wat::fix::src-forms
-                       (:wat::core::Option/expect (:wat::core::get srcs i) "world src")))
+         per   (wat.core/into []
+                 (wat.core/map
+                   (wat.core/fn [i :- wat.type/i64]
+                     :- (wat.type/Vector :- [wat.type/AST])
+                     (wat.fix/src-forms
+                       (wat.core.Option/expect (wat.core/get srcs i) "world src")))
                    idx))
-         types (:wat::core::foldl
-                 (:wat::core::fn
-                   [acc <- (wat.type/Vector :- [:wat::runtime::TypeInfo])
-                    i   <- wat.type/i64]
-                   -> (wat.type/Vector :- [:wat::runtime::TypeInfo])
-                   (:wat::core::let
-                     [mforms (:wat::core::Option/expect (:wat::core::get per i) "member forms")]
-                     (:wat::fix::union-types acc
-                       (:wat::fix::register-loop tag
-                         (:wat::core::Option/expect (:wat::core::get mpaths i) "member path")
+         types (wat.core/foldl
+                 (wat.core/fn
+                   [acc :- (wat.type/Vector :- [wat.runtime/TypeInfo])
+                    i   :- wat.type/i64]
+                   :- (wat.type/Vector :- [wat.runtime/TypeInfo])
+                   (wat.core/let
+                     [mforms (wat.core.Option/expect (wat.core/get per i) "member forms")]
+                     (wat.fix/union-types acc
+                       (wat.fix/register-loop tag
+                         (wat.core.Option/expect (wat.core/get mpaths i) "member path")
                          mforms
-                         (:wat::core::length mforms)))))
-                 (wat.type/Vector :- [:wat::runtime::TypeInfo])
-                 (:wat::core::range 0 (:wat::core::length mpaths)))]
-        (:wat::fix::StdlibWorld :paths mpaths :types types)))))
+                         (wat.core/length mforms)))))
+                 (wat.type/Vector :- [wat.runtime/TypeInfo])
+                 (wat.core/range 0 (wat.core/length mpaths)))]
+        (wat.fix/StdlibWorld :paths mpaths :types types)))))
 
-(:wat::core::defn :wat::fix::enum-fields-of-types
-  [types      <- (wat.type/Vector :- [:wat::runtime::TypeInfo])
-   candidates <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::EnumFields
-  (:wat::core::let
-    [names (:wat::fix::enum-row-names types)
+(wat.core/defn wat.fix/enum-fields-of-types
+  [types      :- (wat.type/Vector :- [wat.runtime/TypeInfo])
+   candidates :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/EnumFields
+  (wat.core/let
+    [names (wat.fix/enum-row-names types)
      empty (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-     ef    (:wat::fix::fill-enum-rows empty (wat.type/Vector :- [wat.type/String]) types names)]
-    (:wat::fix::fill-stdlib ef candidates)))
+     ef    (wat.fix/fill-enum-rows empty (wat.type/Vector :- [wat.type/String]) types names)]
+    (wat.fix/fill-stdlib ef candidates)))
 
-(:wat::core::defn :wat::fix::enum-fields
-  [tag        <- wat.type/String
-   path       <- wat.type/String
-   forms      <- (wat.type/Vector :- [wat.type/AST])
-   candidates <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::EnumFields
-  (:wat::fix::enum-fields-of-types
-    (:wat::fix::register-loop tag path forms (:wat::core::length forms))
+(wat.core/defn wat.fix/enum-fields
+  [tag        :- wat.type/String
+   path       :- wat.type/String
+   forms      :- (wat.type/Vector :- [wat.type/AST])
+   candidates :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/EnumFields
+  (wat.fix/enum-fields-of-types
+    (wat.fix/register-loop tag path forms (wat.core/length forms))
     candidates))
 
 ;; A file of the SET, answered from the set's ONE world when the set holds it as a
 ;; stdlib member; otherwise exactly today's per-file door.
-(:wat::core::defn :wat::fix::enum-fields-in
-  [tag        <- wat.type/String
-   path       <- wat.type/String
-   world      <- :wat::fix::StdlibWorld
-   forms      <- (wat.type/Vector :- [wat.type/AST])
-   candidates <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::EnumFields
-  (:wat::core::if (:wat::fix::world-covers? world path)
-    (:wat::fix::enum-fields-of-types (:wat::fix::StdlibWorld/types world) candidates)
-    (:wat::fix::enum-fields tag path forms candidates)))
+(wat.core/defn wat.fix/enum-fields-in
+  [tag        :- wat.type/String
+   path       :- wat.type/String
+   world      :- wat.fix/StdlibWorld
+   forms      :- (wat.type/Vector :- [wat.type/AST])
+   candidates :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/EnumFields
+  (wat.core/if (wat.fix/world-covers? world path)
+    (wat.fix/enum-fields-of-types (wat.fix.StdlibWorld/types world) candidates)
+    (wat.fix/enum-fields tag path forms candidates)))
 
 ;; The set's world with no file of its own — a corpus-invariant map (positional-ctor's
 ;; PASS 1). An empty world answers from the baked snapshot, as `"<stdlib>"` did.
-(:wat::core::defn :wat::fix::enum-fields-of-world
-  [world      <- :wat::fix::StdlibWorld
-   candidates <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::EnumFields
-  (:wat::fix::enum-fields-of-types (:wat::fix::StdlibWorld/types world) candidates))
+(wat.core/defn wat.fix/enum-fields-of-world
+  [world      :- wat.fix/StdlibWorld
+   candidates :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/EnumFields
+  (wat.fix/enum-fields-of-types (wat.fix.StdlibWorld/types world) candidates))
 
-(:wat::core::defn :wat::fix::enum-fields-get
-  [ef <- :wat::fix::EnumFields
-   k  <- wat.type/String]
-  -> (:wat::core::Option :- [(wat.type/Vector :- [wat.type/String])])
-  (:wat::core::get (:wat::fix::EnumFields/fields ef) k))
+(wat.core/defn wat.fix/enum-fields-get
+  [ef :- wat.fix/EnumFields
+   k  :- wat.type/String]
+  :- (wat.core/Option :- [(wat.type/Vector :- [wat.type/String])])
+  (wat.core/get (wat.fix.EnumFields/fields ef) k))
 
-(:wat::core::defn :wat::fix::known-enum?
-  [ef     <- :wat::fix::EnumFields
-   parent <- wat.type/String]
-  -> wat.type/bool
-  (:wat::core::contains? (:wat::fix::EnumFields/answered ef) parent))
+(wat.core/defn wat.fix/known-enum?
+  [ef     :- wat.fix/EnumFields
+   parent :- wat.type/String]
+  :- wat.type/bool
+  (wat.core/contains? (wat.fix.EnumFields/answered ef) parent))
 
-(:wat::core::defn :wat::fix::forms-children [node <- wat.type/AST]
-  -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
-    (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children node) 1))
+(wat.core/defn wat.fix/forms-children [node :- wat.type/AST]
+  :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/if (wat.fix/calls-to? node ":wat::core::forms")
+    (wat.core/into [] (wat.core/drop (wat.core/ast->children node) 1))
     (wat.type/Vector :- [wat.type/AST])))
 
-(:wat::core::defn :wat::fix::enum-fields-for-forms
-  [tag        <- wat.type/String
-   path       <- wat.type/String
-   node       <- wat.type/AST
-   candidates <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::EnumFields
-  (:wat::fix::enum-fields tag path (:wat::fix::forms-children node) candidates))
+(wat.core/defn wat.fix/enum-fields-for-forms
+  [tag        :- wat.type/String
+   path       :- wat.type/String
+   node       :- wat.type/AST
+   candidates :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/EnumFields
+  (wat.fix/enum-fields tag path (wat.fix/forms-children node) candidates))

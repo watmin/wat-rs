@@ -6,8 +6,8 @@
 ;; The canonical `Blend(_, _, 1, -1)` idiom. An earlier `Difference`
 ;; name was REJECTED — one name per operation; Subtract wins.
 
-(:wat::core::defmacro :wat::holon::Subtract
-  [x <- wat.type/AST
-   y <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::holon::Blend ~x ~y 1.0 -1.0))
+(wat.core/defmacro wat.holon/Subtract
+  [x :- wat.type/AST
+   y :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.holon/Blend ~x ~y 1.0 -1.0))

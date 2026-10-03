@@ -29,28 +29,28 @@
 ;; ORIGINAL behavior (a raise) via the established `Result/expect`-on-a-
 ;; freshly-built-`Err` idiom (see `wat-tests/core/result-expect.wat`), rather
 ;; than fabricating a weight.
-(:wat::core::defmacro :wat::holon::Reject
-  [x <- wat.type/AST
-   y <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::holon::Blend
+(wat.core/defmacro wat.holon/Reject
+  [x :- wat.type/AST
+   y :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.holon/Blend
      ~x
      ~y
      1.0
-     (:wat::core::- 0.0
-       (:wat::core::let
-         [dot-xy (:wat::holon::dot ~x ~y)
-          dot-yy (:wat::holon::dot ~y ~y)]
-         (:wat::core::match dot-xy
-           [:wat::holon::DotOutcome.Computed {:product nxy}
-             (:wat::core::match dot-yy
-               [:wat::holon::DotOutcome.Computed {:product nyy}
-                 (:wat::core::/ nxy nyy)]
-               [:wat::holon::DotOutcome.DimensionMismatch {:expected _e :got _g}
-                 (:wat::core::Result/expect
-                   (:wat::core::Result.Err {:error "Reject: dot(y, y) dimension mismatch — unreachable, a value's dimension always equals itself"})
+     (wat.core/- 0.0
+       (wat.core/let
+         [dot-xy (wat.holon/dot ~x ~y)
+          dot-yy (wat.holon/dot ~y ~y)]
+         (wat.core/match dot-xy
+           [wat.holon/DotOutcome.Computed {:product nxy}
+             (wat.core/match dot-yy
+               [wat.holon/DotOutcome.Computed {:product nyy}
+                 (wat.core// nxy nyy)]
+               [wat.holon/DotOutcome.DimensionMismatch {:expected _e :got _g}
+                 (wat.core.Result/expect
+                   (wat.core/Result.Err {:error "Reject: dot(y, y) dimension mismatch — unreachable, a value's dimension always equals itself"})
                    "Reject: dot(y, y) dimension mismatch")])]
-           [:wat::holon::DotOutcome.DimensionMismatch {:expected _e :got _g}
-             (:wat::core::Result/expect
-               (:wat::core::Result.Err {:error "Reject: dot(x, y) dimension mismatch — x and y must share the same dimension"})
+           [wat.holon/DotOutcome.DimensionMismatch {:expected _e :got _g}
+             (wat.core.Result/expect
+               (wat.core/Result.Err {:error "Reject: dot(x, y) dimension mismatch — x and y must share the same dimension"})
                "Reject: dot(x, y) dimension mismatch")])))))

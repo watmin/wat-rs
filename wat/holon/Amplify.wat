@@ -8,9 +8,9 @@
 ;; macro expansion commits the `1` and captures whatever the caller
 ;; wrote for `s`.
 
-(:wat::core::defmacro :wat::holon::Amplify
-  [x <- wat.type/AST
-   y <- wat.type/AST
-   s <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::holon::Blend ~x ~y 1.0 ~s))
+(wat.core/defmacro wat.holon/Amplify
+  [x :- wat.type/AST
+   y :- wat.type/AST
+   s :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.holon/Blend ~x ~y 1.0 ~s))

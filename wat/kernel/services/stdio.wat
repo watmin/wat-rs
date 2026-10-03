@@ -29,63 +29,63 @@
 ;; (the verb appends "\n" before fragmenting — see stdio-write-out). `:max-request-bytes 524288` stays
 ;; as the DEFENSIVE FLOOR for a direct >budget caller; the `write-batched` client helper CHUNKS so this
 ;; is never tripped by println's own (possibly oversized) output — a program's output isn't a self-DoS.
-(:wat::core::defsurface :wat::kernel::StdOut :nature :wat::kernel::Peer
+(wat.core/defsurface wat.kernel/StdOut :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat::kernel::StdOut::WriteRequest [bytes <- wat.type/String])
-   (:wat::core::defenum :wat::kernel::StdOut::WriteResponse :wat::enum::Pure
+  [(wat.core/defrecord wat.kernel.StdOut/WriteRequest [bytes :- wat.type/String])
+   (wat.core/defenum wat.kernel.StdOut/WriteResponse wat.enum/Pure
      :Ok              []
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(write [self <- :wat::kernel::StdOut  req <- :wat::kernel::StdOut::WriteRequest]
-     -> :wat::kernel::StdOut::WriteResponse :max-request-bytes 524288)])
+  [(write [self :- wat.kernel/StdOut  req :- wat.kernel.StdOut/WriteRequest]
+     :- wat.kernel.StdOut/WriteResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :wat::kernel::stdout-svc
-  :satisfies :wat::kernel::StdOut
+(wat.service/defservice wat.kernel/stdout-svc
+  :satisfies wat.kernel/StdOut
   :durable   []
-  :ephemeral [out <- :wat::io::IOWriter]
-  :init (:wat::core::fn [record <- :wat::kernel::stdout-svc::Record  fd <- wat.type/i64]
-          -> :wat::kernel::stdout-svc::State
-          (:wat::kernel::stdout-svc::State :durable record :out (:wat::io::IOWriter/from-fd fd)))
+  :ephemeral [out :- wat.io/IOWriter]
+  :init (wat.core/fn [record :- wat.kernel.stdout-svc/Record  fd :- wat.type/i64]
+          :- wat.kernel.stdout-svc/State
+          (wat.kernel.stdout-svc/State :durable record :out (wat.io.IOWriter/from-fd fd)))
   :impls
   [(write [s ctx req]
-     (:wat::core::let [_bytes (:wat::io::IOWriter/write-string (:wat::kernel::stdout-svc::State/out s)
-                                (:wat::kernel::StdOut::WriteRequest/bytes req))]
-       (:wat::service::Outcome.Reply {:state s :reply (:wat::kernel::StdOut::WriteResponse.Ok {})})))])
+     (wat.core/let [_bytes (wat.io.IOWriter/write-string (wat.kernel.stdout-svc.State/out s)
+                                (wat.kernel.StdOut.WriteRequest/bytes req))]
+       (wat.service/Outcome.Reply {:state s :reply (wat.kernel.StdOut/WriteResponse.Ok {})})))])
 
 ;; ─── StdErr (raw write-serializer — identical to StdOut; the eprintln TERMINATE stays the verb's own
 ;;     act, never the service loop's — see DESIGN §3) ────────────────────────────────────────────
-(:wat::core::defsurface :wat::kernel::StdErr :nature :wat::kernel::Peer
+(wat.core/defsurface wat.kernel/StdErr :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat::kernel::StdErr::WriteRequest [bytes <- wat.type/String])
-   (:wat::core::defenum :wat::kernel::StdErr::WriteResponse :wat::enum::Pure
+  [(wat.core/defrecord wat.kernel.StdErr/WriteRequest [bytes :- wat.type/String])
+   (wat.core/defenum wat.kernel.StdErr/WriteResponse wat.enum/Pure
      :Ok              []
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(write [self <- :wat::kernel::StdErr  req <- :wat::kernel::StdErr::WriteRequest]
-     -> :wat::kernel::StdErr::WriteResponse :max-request-bytes 524288)])
+  [(write [self :- wat.kernel/StdErr  req :- wat.kernel.StdErr/WriteRequest]
+     :- wat.kernel.StdErr/WriteResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :wat::kernel::stderr-svc
-  :satisfies :wat::kernel::StdErr
+(wat.service/defservice wat.kernel/stderr-svc
+  :satisfies wat.kernel/StdErr
   :durable   []
-  :ephemeral [out <- :wat::io::IOWriter]
-  :init (:wat::core::fn [record <- :wat::kernel::stderr-svc::Record  fd <- wat.type/i64]
-          -> :wat::kernel::stderr-svc::State
-          (:wat::kernel::stderr-svc::State :durable record :out (:wat::io::IOWriter/from-fd fd)))
+  :ephemeral [out :- wat.io/IOWriter]
+  :init (wat.core/fn [record :- wat.kernel.stderr-svc/Record  fd :- wat.type/i64]
+          :- wat.kernel.stderr-svc/State
+          (wat.kernel.stderr-svc/State :durable record :out (wat.io.IOWriter/from-fd fd)))
   :impls
   [(write [s ctx req]
-     (:wat::core::let [_bytes (:wat::io::IOWriter/write-string (:wat::kernel::stderr-svc::State/out s)
-                                (:wat::kernel::StdErr::WriteRequest/bytes req))]
-       (:wat::service::Outcome.Reply {:state s :reply (:wat::kernel::StdErr::WriteResponse.Ok {})})))])
+     (wat.core/let [_bytes (wat.io.IOWriter/write-string (wat.kernel.stderr-svc.State/out s)
+                                (wat.kernel.StdErr.WriteRequest/bytes req))]
+       (wat.service/Outcome.Reply {:state s :reply (wat.kernel.StdErr/WriteResponse.Ok {})})))])
 
 ;; ─── StdIn (EOF-as-matchable-value upgrade: today's EOF panics-kills-the-loop; here it is a
 ;;     matchable `ReadFrameResponse::Eof`, no-hidden-failures R55/R57 — DESIGN §7(c)) ─────────────
-(:wat::core::defsurface :wat::kernel::StdIn :nature :wat::kernel::Peer
+(wat.core/defsurface wat.kernel/StdIn :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat::kernel::StdIn::ReadFrameRequest [max-buffer-bytes <- wat.type/i64])
-   (:wat::core::defenum :wat::kernel::StdIn::ReadFrameResponse :wat::enum::Pure
-     :Frame            [line <- wat.type/String]
+  [(wat.core/defrecord wat.kernel.StdIn/ReadFrameRequest [max-buffer-bytes :- wat.type/i64])
+   (wat.core/defenum wat.kernel.StdIn/ReadFrameResponse wat.enum/Pure
+     :Frame            [line :- wat.type/String]
      :Eof             []                                     ;; NULLARY (matchable), constructed (::Eof) — mirrors ::Ok
      ;; Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested while
      ;; the read was blocked. NOT ::Eof (the peer didn't close) and NOT a
@@ -95,32 +95,32 @@
      ;; already has `(:wat::kernel::stopped?)` for this fact, and nothing is
      ;; shutting down here — a stop was merely requested.
      :Stopped         []
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(read-frame [self <- :wat::kernel::StdIn  req <- :wat::kernel::StdIn::ReadFrameRequest]
-     -> :wat::kernel::StdIn::ReadFrameResponse :max-request-bytes 524288)])
+  [(read-frame [self :- wat.kernel/StdIn  req :- wat.kernel.StdIn/ReadFrameRequest]
+     :- wat.kernel.StdIn/ReadFrameResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :wat::kernel::stdin-svc
-  :satisfies :wat::kernel::StdIn
+(wat.service/defservice wat.kernel/stdin-svc
+  :satisfies wat.kernel/StdIn
   :durable   []
-  :ephemeral [in <- :wat::io::IOReader]
-  :init (:wat::core::fn [record <- :wat::kernel::stdin-svc::Record  fd <- wat.type/i64]
-          -> :wat::kernel::stdin-svc::State
-          (:wat::kernel::stdin-svc::State :durable record :in (:wat::io::IOReader/from-fd fd)))
+  :ephemeral [in :- wat.io/IOReader]
+  :init (wat.core/fn [record :- wat.kernel.stdin-svc/Record  fd :- wat.type/i64]
+          :- wat.kernel.stdin-svc/State
+          (wat.kernel.stdin-svc/State :durable record :in (wat.io.IOReader/from-fd fd)))
   :impls
   [(read-frame [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat::core::match (:wat::io::IOReader/read-frame (:wat::kernel::stdin-svc::State/in s)
-                            (:wat::kernel::StdIn::ReadFrameRequest/max-buffer-bytes req))
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat.core/match (wat.io.IOReader/read-frame (wat.kernel.stdin-svc.State/in s)
+                            (wat.kernel.StdIn.ReadFrameRequest/max-buffer-bytes req))
          ;; a full line read → ::Line; EOF → the matchable ::Eof value (NOT a panic that
          ;; kills the serve loop — the no-hidden-failures upgrade). Arc 170: IOReader/read-frame's
          ;; return became :wat::io::IOReader::ReadFrameOutcome (was (Option :- [String])) so a stop
          ;; request could get its OWN outcome rather than being folded into ::Eof — ::Stopped
          ;; carries it straight through.
-         [:wat::io::IOReader::ReadFrameOutcome.Frame {:text line} (:wat::kernel::StdIn::ReadFrameResponse.Frame {:line line})]
-         [:wat::io::IOReader::ReadFrameOutcome.Eof {}          (:wat::kernel::StdIn::ReadFrameResponse.Eof {})]
-         [:wat::io::IOReader::ReadFrameOutcome.Stopped {}      (:wat::kernel::StdIn::ReadFrameResponse.Stopped {})])}))])
+         [wat.io.IOReader/ReadFrameOutcome.Frame {:text line} (wat.kernel.StdIn/ReadFrameResponse.Frame {:line line})]
+         [wat.io.IOReader/ReadFrameOutcome.Eof {}          (wat.kernel.StdIn/ReadFrameResponse.Eof {})]
+         [wat.io.IOReader/ReadFrameOutcome.Stopped {}      (wat.kernel.StdIn/ReadFrameResponse.Stopped {})])}))])
 
 ;; ─── freeze-bootstrap helper (arc 170 PHASE 1) ──────────────────────────────────────────────────
 ;; Called ONCE from Rust (src/freeze.rs `bootstrap_wat_vm_process`) via `apply_function` with the
@@ -130,15 +130,15 @@
 ;; mis-resolves the companion's `$impl` keyword to a live fn). Rust holds the returned tuple (keeping
 ;; each admin lineage Peer' — hence each service — alive for the process lifetime) and extracts each
 ;; Handle's `addr` into the `PrimedStdio` carrier for Strike 2's verb flip.
-(:wat::core::defn :wat::kernel::start-primed-stdio
-  [stdin-fd  <- wat.type/i64
-   stdout-fd <- wat.type/i64
-   stderr-fd <- wat.type/i64]
-  -> (wat.type/Tuple :- [:wat::kernel::stdin-svc::Handle :wat::kernel::stdout-svc::Handle :wat::kernel::stderr-svc::Handle])
-  (wat.type/Tuple :- [(:wat::kernel::stdin-svc::Handle :- [:wat::kernel::Transport.Shared]) (:wat::kernel::stdout-svc::Handle :- [:wat::kernel::Transport.Shared]) (:wat::kernel::stderr-svc::Handle :- [:wat::kernel::Transport.Shared])]
-    (:wat::kernel::stdin-svc/start  :locus (:wat::spawn::thread) :record (:wat::kernel::stdin-svc::Record)  :fd stdin-fd)
-    (:wat::kernel::stdout-svc/start :locus (:wat::spawn::thread) :record (:wat::kernel::stdout-svc::Record) :fd stdout-fd)
-    (:wat::kernel::stderr-svc/start :locus (:wat::spawn::thread) :record (:wat::kernel::stderr-svc::Record) :fd stderr-fd)))
+(wat.core/defn wat.kernel/start-primed-stdio
+  [stdin-fd  :- wat.type/i64
+   stdout-fd :- wat.type/i64
+   stderr-fd :- wat.type/i64]
+  :- (wat.type/Tuple :- [wat.kernel.stdin-svc/Handle wat.kernel.stdout-svc/Handle wat.kernel.stderr-svc/Handle])
+  (wat.type/Tuple :- [(wat.kernel.stdin-svc/Handle :- [wat.kernel/Transport.Shared]) (wat.kernel.stdout-svc/Handle :- [wat.kernel/Transport.Shared]) (wat.kernel.stderr-svc/Handle :- [wat.kernel/Transport.Shared])]
+    (wat.kernel.stdin-svc/start  :locus (wat.spawn/thread) :record (wat.kernel.stdin-svc/Record)  :fd stdin-fd)
+    (wat.kernel.stdout-svc/start :locus (wat.spawn/thread) :record (wat.kernel.stdout-svc/Record) :fd stdout-fd)
+    (wat.kernel.stderr-svc/start :locus (wat.spawn/thread) :record (wat.kernel.stderr-svc/Record) :fd stderr-fd)))
 
 ;; ─── Strike 3 client-side helpers (arc 170 PHASE 2 — the verb flip) ──────────────────────────────
 ;; The five caller verbs (eval_kernel_{println,pprintln,eprintln,epprintln,readln}, src/services/verbs.rs)
@@ -150,32 +150,32 @@
 
 ;; connect' the shared Address' → this thread's OWN client Peer' (raise on any failure arm — a stdio
 ;; service that cannot be dialed is fatal, mirroring the old path's ChannelDisconnected).
-(:wat::core::defn :wat::kernel::stdio-connect-out
-  [addr <- (:wat::kernel::Address :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply])]
-  -> (:wat::kernel::Peer :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply])
-  (:wat::core::match (:wat::kernel::connect addr)
-    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
+(wat.core/defn wat.kernel/stdio-connect-out
+  [addr :- (wat.kernel/Address :- [wat.kernel.StdOut/Op wat.kernel.StdOut/Reply])]
+  :- (wat.kernel/Peer :- [wat.kernel.StdOut/Op wat.kernel.StdOut/Reply])
+  (wat.core/match (wat.kernel/connect addr)
+    [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+    [wat.kernel/ConnectOutcome.Closed {:cause c}  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Failed {:cause c}   (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]))
 
-(:wat::core::defn :wat::kernel::stdio-connect-err
-  [addr <- (:wat::kernel::Address :- [:wat::kernel::StdErr::Op :wat::kernel::StdErr::Reply])]
-  -> (:wat::kernel::Peer :- [:wat::kernel::StdErr::Op :wat::kernel::StdErr::Reply])
-  (:wat::core::match (:wat::kernel::connect addr)
-    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
+(wat.core/defn wat.kernel/stdio-connect-err
+  [addr :- (wat.kernel/Address :- [wat.kernel.StdErr/Op wat.kernel.StdErr/Reply])]
+  :- (wat.kernel/Peer :- [wat.kernel.StdErr/Op wat.kernel.StdErr/Reply])
+  (wat.core/match (wat.kernel/connect addr)
+    [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+    [wat.kernel/ConnectOutcome.Closed {:cause c}  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Failed {:cause c}   (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]))
 
-(:wat::core::defn :wat::kernel::stdio-connect-in
-  [addr <- (:wat::kernel::Address :- [:wat::kernel::StdIn::Op :wat::kernel::StdIn::Reply])]
-  -> (:wat::kernel::Peer :- [:wat::kernel::StdIn::Op :wat::kernel::StdIn::Reply])
-  (:wat::core::match (:wat::kernel::connect addr)
-    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
+(wat.core/defn wat.kernel/stdio-connect-in
+  [addr :- (wat.kernel/Address :- [wat.kernel.StdIn/Op wat.kernel.StdIn/Reply])]
+  :- (wat.kernel/Peer :- [wat.kernel.StdIn/Op wat.kernel.StdIn/Reply])
+  (wat.core/match (wat.kernel/connect addr)
+    [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+    [wat.kernel/ConnectOutcome.Closed {:cause c}  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Failed {:cause c}   (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]))
 
 ;; ─── write-batched fragmentation (arc 170) ────────────────────────────────────────────────────────
 ;; A program's own output isn't a self-DoS: an oversized `println` must FIT the op budget by CHUNKING,
@@ -193,101 +193,101 @@
 ;; String/subs + String/length are CHAR-indexed and the budget is CHAR-measured, so chunking by chars is
 ;; internally consistent (no split UTF-8 scalar). A single ≤budget println = ONE chunk = identical bytes
 ;; to the pre-fragmentation writeln path.
-(:wat::core::def :wat::kernel::STDIO-WRITE-CHUNK-CHARS 65536)
+(wat.core/def wat.kernel/STDIO-WRITE-CHUNK-CHARS 65536)
 
 ;; stdio-write-out — emit the full `payload` to the primed StdOut peer as in-order ≤budget raw `write`s
 ;; (tail-recursive over the remaining suffix; empty payload → nil, the terminating base case). Each
 ;; chunk's ::Ok → recurse on the rest; ::RequestTooLarge (impossible under this chunking — the defensive
 ;; floor) / a lost/closed peer → SURFACE (never silently drop — a stdio write failure is loud).
-(:wat::core::defn :wat::kernel::stdio-write-out
-  [peer    <- (:wat::kernel::Peer :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply])
-   payload <- wat.type/String]
-  -> wat.type/nil
-  (:wat::core::let [len (:wat::string::length payload)]
-    (:wat::core::if (:wat::core::= len 0)
+(wat.core/defn wat.kernel/stdio-write-out
+  [peer    :- (wat.kernel/Peer :- [wat.kernel.StdOut/Op wat.kernel.StdOut/Reply])
+   payload :- wat.type/String]
+  :- wat.type/nil
+  (wat.core/let [len (wat.string/length payload)]
+    (wat.core/if (wat.core/= len 0)
       nil
-      (:wat::core::let
-        [take  (:wat::core::if (:wat::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
-         chunk (:wat::string::subs payload 0 take)
-         rest  (:wat::string::subs payload take len)
-         _ack  (:wat::core::match (:wat::kernel::StdOut/write peer (:wat::kernel::StdOut::WriteRequest :bytes chunk))
-                 [:wat::kernel::RecvOutcome.Message {:msg resp}
-                   (:wat::core::match resp
-                     [:wat::kernel::StdOut::WriteResponse.Ok {} nil]
-                     [:wat::kernel::StdOut::WriteResponse.RequestTooLarge {:bytes b :cap cap}
-                       (:wat::kernel::assertion-failed! :message "println: stdout write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)")]
-                     [:wat::kernel::StdOut::WriteResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                       (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                   (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+      (wat.core/let
+        [take  (wat.core/if (wat.i64/< len wat.kernel/STDIO-WRITE-CHUNK-CHARS) len wat.kernel/STDIO-WRITE-CHUNK-CHARS)
+         chunk (wat.string/subs payload 0 take)
+         rest  (wat.string/subs payload take len)
+         _ack  (wat.core/match (wat.kernel.StdOut/write peer (wat.kernel.StdOut/WriteRequest :bytes chunk))
+                 [wat.kernel/RecvOutcome.Message {:msg resp}
+                   (wat.core/match resp
+                     [wat.kernel.StdOut/WriteResponse.Ok {} nil]
+                     [wat.kernel.StdOut/WriteResponse.RequestTooLarge {:bytes b :cap cap}
+                       (wat.kernel/assertion-failed! :message "println: stdout write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)")]
+                     [wat.kernel.StdOut/WriteResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                       (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+                 [wat.kernel/RecvOutcome.Lost {:cause cause}
+                   (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
                  ;; arc 278 #73 — a stop, not a close. The stdout service was ALIVE.
-                 [:wat::kernel::RecvOutcome.Stopped {}
-                   (:wat::kernel::assertion-failed! :message "println: stop requested — the stdout service was ALIVE and the channel open")]
-                 [:wat::kernel::RecvOutcome.Closed {}
-                   (:wat::kernel::assertion-failed! :message "println: stdout service peer closed")])]
-        (:wat::kernel::stdio-write-out peer rest)))))
+                 [wat.kernel/RecvOutcome.Stopped {}
+                   (wat.kernel/assertion-failed! :message "println: stop requested — the stdout service was ALIVE and the channel open")]
+                 [wat.kernel/RecvOutcome.Closed {}
+                   (wat.kernel/assertion-failed! :message "println: stdout service peer closed")])]
+        (wat.kernel/stdio-write-out peer rest)))))
 
 ;; stdio-write-err — the StdErr twin of stdio-write-out (same chunking; fd 2).
-(:wat::core::defn :wat::kernel::stdio-write-err
-  [peer    <- (:wat::kernel::Peer :- [:wat::kernel::StdErr::Op :wat::kernel::StdErr::Reply])
-   payload <- wat.type/String]
-  -> wat.type/nil
-  (:wat::core::let [len (:wat::string::length payload)]
-    (:wat::core::if (:wat::core::= len 0)
+(wat.core/defn wat.kernel/stdio-write-err
+  [peer    :- (wat.kernel/Peer :- [wat.kernel.StdErr/Op wat.kernel.StdErr/Reply])
+   payload :- wat.type/String]
+  :- wat.type/nil
+  (wat.core/let [len (wat.string/length payload)]
+    (wat.core/if (wat.core/= len 0)
       nil
-      (:wat::core::let
-        [take  (:wat::core::if (:wat::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
-         chunk (:wat::string::subs payload 0 take)
-         rest  (:wat::string::subs payload take len)
-         _ack  (:wat::core::match (:wat::kernel::StdErr/write peer (:wat::kernel::StdErr::WriteRequest :bytes chunk))
-                 [:wat::kernel::RecvOutcome.Message {:msg resp}
-                   (:wat::core::match resp
-                     [:wat::kernel::StdErr::WriteResponse.Ok {} nil]
-                     [:wat::kernel::StdErr::WriteResponse.RequestTooLarge {:bytes b :cap cap}
-                       (:wat::kernel::assertion-failed! :message "eprintln: stderr write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)")]
-                     [:wat::kernel::StdErr::WriteResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                       (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                   (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+      (wat.core/let
+        [take  (wat.core/if (wat.i64/< len wat.kernel/STDIO-WRITE-CHUNK-CHARS) len wat.kernel/STDIO-WRITE-CHUNK-CHARS)
+         chunk (wat.string/subs payload 0 take)
+         rest  (wat.string/subs payload take len)
+         _ack  (wat.core/match (wat.kernel.StdErr/write peer (wat.kernel.StdErr/WriteRequest :bytes chunk))
+                 [wat.kernel/RecvOutcome.Message {:msg resp}
+                   (wat.core/match resp
+                     [wat.kernel.StdErr/WriteResponse.Ok {} nil]
+                     [wat.kernel.StdErr/WriteResponse.RequestTooLarge {:bytes b :cap cap}
+                       (wat.kernel/assertion-failed! :message "eprintln: stderr write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)")]
+                     [wat.kernel.StdErr/WriteResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                       (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+                 [wat.kernel/RecvOutcome.Lost {:cause cause}
+                   (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
                  ;; arc 278 #73 — a stop, not a close. The stderr service was ALIVE.
-                 [:wat::kernel::RecvOutcome.Stopped {}
-                   (:wat::kernel::assertion-failed! :message "eprintln: stop requested — the stderr service was ALIVE and the channel open")]
-                 [:wat::kernel::RecvOutcome.Closed {}
-                   (:wat::kernel::assertion-failed! :message "eprintln: stderr service peer closed")])]
-        (:wat::kernel::stdio-write-err peer rest)))))
+                 [wat.kernel/RecvOutcome.Stopped {}
+                   (wat.kernel/assertion-failed! :message "eprintln: stop requested — the stderr service was ALIVE and the channel open")]
+                 [wat.kernel/RecvOutcome.Closed {}
+                   (wat.kernel/assertion-failed! :message "eprintln: stderr service peer closed")])]
+        (wat.kernel/stdio-write-err peer rest)))))
 
 ;; read one line via the primed StdIn peer, returning the RAW line String (Rust decodes it via the
 ;; self-describing EDN wire, exactly as the old readln' did). ::Line → the line; ::Eof → reproduce the
 ;; old EOF-on-fd0 behavior EXACTLY: a terminal raise (the old StdInService/handle assertion-failed!'d on
 ;; EOF → the caller saw ChannelDisconnected; the matchable ::Eof variant is BANKED, not yet exposed to
 ;; the 72 readln callers). ::RequestTooLarge → SURFACE.
-(:wat::core::defn :wat::kernel::stdio-read
-  [peer <- (:wat::kernel::Peer :- [:wat::kernel::StdIn::Op :wat::kernel::StdIn::Reply])
-   cap  <- wat.type/i64]
-  -> wat.type/String
-  (:wat::core::match (:wat::kernel::StdIn/read-frame peer (:wat::kernel::StdIn::ReadFrameRequest :max-buffer-bytes cap))
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::core::match resp
-        [:wat::kernel::StdIn::ReadFrameResponse.Frame {:line line} line]
-        [:wat::kernel::StdIn::ReadFrameResponse.Eof {}
-          (:wat::kernel::assertion-failed! :message "readln: EOF on stdin — client (parent process or pipe writer) disconnected")]
+(wat.core/defn wat.kernel/stdio-read
+  [peer :- (wat.kernel/Peer :- [wat.kernel.StdIn/Op wat.kernel.StdIn/Reply])
+   cap  :- wat.type/i64]
+  :- wat.type/String
+  (wat.core/match (wat.kernel.StdIn/read-frame peer (wat.kernel.StdIn/ReadFrameRequest :max-buffer-bytes cap))
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.core/match resp
+        [wat.kernel.StdIn/ReadFrameResponse.Frame {:line line} line]
+        [wat.kernel.StdIn/ReadFrameResponse.Eof {}
+          (wat.kernel/assertion-failed! :message "readln: EOF on stdin — client (parent process or pipe writer) disconnected")]
         ;; Arc 170 — honest about WHY: `readln` raises on every non-Line outcome (it
         ;; reproduces the pre-arc-170 EOF-on-fd0 behavior for its 72 callers, and there
         ;; is no caller-facing value form for "raise" to hand a stop through), but the
         ;; message must NOT say "EOF" — that is the exact defect this brief removes.
-        [:wat::kernel::StdIn::ReadFrameResponse.Stopped {}
-          (:wat::kernel::assertion-failed! :message "readln: a stop was requested while blocked reading stdin")]
-        [:wat::kernel::StdIn::ReadFrameResponse.RequestTooLarge {:bytes b :cap cap2}
-          (:wat::kernel::assertion-failed! :message "readln: stdin read exceeded max-buffer-bytes (RequestTooLarge)")]
-        [:wat::kernel::StdIn::ReadFrameResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+        [wat.kernel.StdIn/ReadFrameResponse.Stopped {}
+          (wat.kernel/assertion-failed! :message "readln: a stop was requested while blocked reading stdin")]
+        [wat.kernel.StdIn/ReadFrameResponse.RequestTooLarge {:bytes b :cap cap2}
+          (wat.kernel/assertion-failed! :message "readln: stdin read exceeded max-buffer-bytes (RequestTooLarge)")]
+        [wat.kernel.StdIn/ReadFrameResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
     ;; arc 278 #73 — a stop, not a close. The stdin service was ALIVE.
-    [:wat::kernel::RecvOutcome.Stopped {}
-      (:wat::kernel::assertion-failed! :message "readln: stop requested — the stdin service was ALIVE and the channel open")]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::assertion-failed! :message "readln: stdin service peer closed")]))
+    [wat.kernel/RecvOutcome.Stopped {}
+      (wat.kernel/assertion-failed! :message "readln: stop requested — the stdin service was ALIVE and the channel open")]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/assertion-failed! :message "readln: stdin service peer closed")]))
 
 ;; read one frame via the primed StdIn peer, returning the MATCHABLE outcome rather than the raw
 ;; String — the honest sibling of `stdio-read` above. Where `stdio-read` collapses every non-happy
@@ -301,28 +301,28 @@
 ;; arms that are unreachable by construction. (An over-cap READ is a different thing entirely — it
 ;; surfaces from inside `IOReader/read-frame` — which is why `stdio-read`'s ::RequestTooLarge message
 ;; mentioning max-buffer-bytes is itself misleading; noted, not fixed here.)
-(:wat::core::defn :wat::kernel::stdio-read-frame
-  [peer <- (:wat::kernel::Peer :- [:wat::kernel::StdIn::Op :wat::kernel::StdIn::Reply])
-   cap  <- wat.type/i64]
-  -> :wat::kernel::ReadFrameOutcome
-  (:wat::core::match (:wat::kernel::StdIn/read-frame peer (:wat::kernel::StdIn::ReadFrameRequest :max-buffer-bytes cap))
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::core::match resp
-        [:wat::kernel::StdIn::ReadFrameResponse.Frame {:line line}
-          (:wat::kernel::ReadFrameOutcome.Frame {:text line})]
-        [:wat::kernel::StdIn::ReadFrameResponse.Eof {}
+(wat.core/defn wat.kernel/stdio-read-frame
+  [peer :- (wat.kernel/Peer :- [wat.kernel.StdIn/Op wat.kernel.StdIn/Reply])
+   cap  :- wat.type/i64]
+  :- wat.kernel/ReadFrameOutcome
+  (wat.core/match (wat.kernel.StdIn/read-frame peer (wat.kernel.StdIn/ReadFrameRequest :max-buffer-bytes cap))
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.core/match resp
+        [wat.kernel.StdIn/ReadFrameResponse.Frame {:line line}
+          (wat.kernel/ReadFrameOutcome.Frame {:text line})]
+        [wat.kernel.StdIn/ReadFrameResponse.Eof {}
           ;; a unit variant is a bare keyword, not a call — it evaluates straight to its
           ;; pre-built EnumValue via the SymbolTable's unit_variants table
-          :wat::kernel::ReadFrameOutcome.Eof]
+          wat.kernel/ReadFrameOutcome.Eof]
         ;; Arc 170 — carried straight through, not collapsed into ::Eof. Same bare-keyword
         ;; shape as ::Eof (both are Rust builtin-registered unit variants). Named `Stopped`
         ;; on both sides by the arc-170 intueri cast — see StdIn::ReadFrameResponse above.
-        [:wat::kernel::StdIn::ReadFrameResponse.Stopped {}
-          :wat::kernel::ReadFrameOutcome.Stopped]
-        [:wat::kernel::StdIn::ReadFrameResponse.RequestTooLarge {:bytes b :cap cap2}
-          (:wat::kernel::assertion-failed! :message "read-frame: stdin request framing rejected (RequestTooLarge) — unreachable for a kernel-built request")]
-        [:wat::kernel::StdIn::ReadFrameResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "read-frame: stdin request framing rejected (RequestMalformed) — unreachable for a kernel-built request")])]
+        [wat.kernel.StdIn/ReadFrameResponse.Stopped {}
+          wat.kernel/ReadFrameOutcome.Stopped]
+        [wat.kernel.StdIn/ReadFrameResponse.RequestTooLarge {:bytes b :cap cap2}
+          (wat.kernel/assertion-failed! :message "read-frame: stdin request framing rejected (RequestTooLarge) — unreachable for a kernel-built request")]
+        [wat.kernel.StdIn/ReadFrameResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.kernel/assertion-failed! :message "read-frame: stdin request framing rejected (RequestMalformed) — unreachable for a kernel-built request")])]
     ;; ★ arc 278 #73 — THIS SITE IS THE WHOLE STONE, VISIBLE IN ONE PLACE.
     ;;
     ;; Arc 170 already knew a stop is not a death: the client's `recv'` wakes on the
@@ -336,12 +336,12 @@
     ;; gone, and so is its `_` wildcard — which was a doctrine violation
     ;; (`109/NOTE-full-enum-match-mandatory-no-wildcard-arm.md`) that only existed
     ;; because the outer arm was carrying two unrelated facts at once.
-    [:wat::kernel::RecvOutcome.Stopped {} :wat::kernel::ReadFrameOutcome.Stopped]
+    [wat.kernel/RecvOutcome.Stopped {} wat.kernel/ReadFrameOutcome.Stopped]
     ;; `Lost` now means what it says: the peer died. Raise its own cause.
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::assertion-failed! :message "read-frame: stdin service peer closed")]))
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/assertion-failed! :message "read-frame: stdin service peer closed")]))
 
 ;; ─── write-fd-raw (arc 170) — the RAW, un-terminated write-side sibling of `from-fd`: emit `payload`
 ;;     verbatim to a whitelisted fd (no framing, no newline, no op budget), returning the byte count. ─
@@ -358,11 +358,11 @@
 ;; may call it. The gate is SAFE: the reserved-prefix gate forbids `:user::` code from authoring a
 ;; `:wat::` caller, so no user program can construct a passing call site. A `:user::` flood child reaches
 ;; the raw write only through the NARROW fixed-fd `flood-stdout-raw` below.
-(:wat::core::defn :wat::kernel::write-fd-raw
-  {:restricted-to [:wat::kernel:: :wat::test::]}
-  [fd <- wat.type/i64  payload <- wat.type/String]
-  -> wat.type/i64
-  (:wat::io::IOWriter/write-string (:wat::io::IOWriter/from-fd fd) payload))
+(wat.core/defn wat.kernel/write-fd-raw
+  {:restricted-to [wat.kernel wat.test]}
+  [fd :- wat.type/i64  payload :- wat.type/String]
+  :- wat.type/i64
+  (wat.io.IOWriter/write-string (wat.io.IOWriter/from-fd fd) payload))
 
 ;; flood-stdout-raw — the NARROW flood entry: fd is HARDCODED to 1 (the caller's OWN stdout / peer
 ;; wire), so it can never be abused for arbitrary-fd writes (that danger stays sealed in the gated
@@ -372,21 +372,21 @@
 ;; kernel/test code; the select'-flood probe's child reaches it through a `:wat::test::` flood body.
 ;; (Lives in stdio.wat — not wat/test.wat, which loads BEFORE this file — so the defn→defn
 ;; eval-dep on write-fd-raw stays intra-file / correctly ordered.)
-(:wat::core::defn :wat::kernel::flood-stdout-raw
-  {:restricted-to [:wat::kernel:: :wat::test::]}
-  [payload <- wat.type/String]
-  -> wat.type/i64
-  (:wat::kernel::write-fd-raw 1 payload))
+(wat.core/defn wat.kernel/flood-stdout-raw
+  {:restricted-to [wat.kernel wat.test]}
+  [payload :- wat.type/String]
+  :- wat.type/i64
+  (wat.kernel/write-fd-raw 1 payload))
 
 ;; str-double — internal (kernel/test-gated) pure helper: `2^n` copies of `s` via repeated concat.
 ;; Gated so it is NOT a user-callable knob; it exists only to build flood-own-stdout's fixed payload.
-(:wat::core::defn :wat::kernel::str-double
-  {:restricted-to [:wat::kernel:: :wat::test::]}
-  [s <- wat.type/String  n <- wat.type/i64]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::= n 0)
+(wat.core/defn wat.kernel/str-double
+  {:restricted-to [wat.kernel wat.test]}
+  [s :- wat.type/String  n :- wat.type/i64]
+  :- wat.type/String
+  (wat.core/if (wat.core/= n 0)
     s
-    (:wat::kernel::str-double (:wat::string::concat s s) (:wat::core::- n 1))))
+    (wat.kernel/str-double (wat.string/concat s s) (wat.core/- n 1))))
 
 ;; flood-own-stdout — the TEST-namespaced entry, the ONLY flood path a `:user::` program can reach.
 ;; CHOKED DOWN so it cannot be exploited: ZERO ARGS, no knobs, fully HARDCODED behavior — flood the
@@ -402,6 +402,6 @@
 ;; (Lives in stdio.wat, not wat/test.wat: test.wat loads earlier, so a defn there would
 ;; eval-depend on the later kernel helpers — a deporder violation. Namespace ≠ file; a baked stdlib
 ;; source may define `:wat::test::` here under stdlib privilege.)
-(:wat::core::defn :wat::test::flood-own-stdout
-  [] -> wat.type/i64
-  (:wat::kernel::flood-stdout-raw (:wat::kernel::str-double "x" 20)))
+(wat.core/defn wat.test/flood-own-stdout
+  [] :- wat.type/i64
+  (wat.kernel/flood-stdout-raw (wat.kernel/str-double "x" 20)))

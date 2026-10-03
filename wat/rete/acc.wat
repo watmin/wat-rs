@@ -28,23 +28,23 @@
 ;; v1: numeric folds are i64; distinct element type is i64 (the probe stores i64 port/bytes).
 
 ;; acc::count — length els. ALWAYS concrete (length [] = 0) → bare i64, never Option.
-(:wat::core::defn :wat::rete::acc::count
-  [els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> wat.type/i64
-  (:wat::core::length els))
+(wat.core/defn wat.rete.acc/count
+  [els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- wat.type/i64
+  (wat.core/length els))
 
 ;; acc::sum — Σ bindings[var]. Empty sum = 0 → bare i64, never Option.
-(:wat::core::defn :wat::rete::acc::sum
-  [var <- wat.type/String
-   els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/i64
-                     e   <- :wat::rete::Element]
-      -> wat.type/i64
-      (:wat::core::+ acc
-        (:wat::core::Option/expect  
-          (:wat::core::get (:wat::rete::Element/bindings e) var)
+(wat.core/defn wat.rete.acc/sum
+  [var :- wat.type/String
+   els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/i64
+                     e   :- wat.rete/Element]
+      :- wat.type/i64
+      (wat.core/+ acc
+        (wat.core.Option/expect  
+          (wat.core/get (wat.rete.Element/bindings e) var)
           "acc: var unbound")))
     0
     els))
@@ -52,107 +52,107 @@
 ;; acc::min — Some(min bindings[var]) via a < fold starting from None.
 ;; None seed: first element sets the initial value; subsequent elements narrow down.
 ;; empty → None.
-(:wat::core::defn :wat::rete::acc::min
-  [var <- wat.type/String
-   els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> (:wat::core::Option :- [wat.type/i64])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Option :- [wat.type/i64])
-                     e   <- :wat::rete::Element]
-      -> (:wat::core::Option :- [wat.type/i64])
-      (:wat::core::let [v (:wat::core::Option/expect  
-                             (:wat::core::get (:wat::rete::Element/bindings e) var)
+(wat.core/defn wat.rete.acc/min
+  [var :- wat.type/String
+   els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- (wat.core/Option :- [wat.type/i64])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.core/Option :- [wat.type/i64])
+                     e   :- wat.rete/Element]
+      :- (wat.core/Option :- [wat.type/i64])
+      (wat.core/let [v (wat.core.Option/expect  
+                             (wat.core/get (wat.rete.Element/bindings e) var)
                              "acc: var unbound")]
-        (:wat::core::match acc 
-          [:wat::core::Option.Some {:value cur}
-           (:wat::core::Option.Some {:value (:wat::core::if (:wat::core::< v cur) v cur)})]
-          [:wat::core::Option.None {} (:wat::core::Option.Some {:value v})])))
-    :wat::core::Option.None
+        (wat.core/match acc 
+          [wat.core/Option.Some {:value cur}
+           (wat.core/Option.Some {:value (wat.core/if (wat.core/< v cur) v cur)})]
+          [wat.core/Option.None {} (wat.core/Option.Some {:value v})])))
+    wat.core/Option.None
     els))
 
 ;; acc::max — Some(max bindings[var]) via a > fold starting from None. empty → None.
-(:wat::core::defn :wat::rete::acc::max
-  [var <- wat.type/String
-   els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> (:wat::core::Option :- [wat.type/i64])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Option :- [wat.type/i64])
-                     e   <- :wat::rete::Element]
-      -> (:wat::core::Option :- [wat.type/i64])
-      (:wat::core::let [v (:wat::core::Option/expect  
-                             (:wat::core::get (:wat::rete::Element/bindings e) var)
+(wat.core/defn wat.rete.acc/max
+  [var :- wat.type/String
+   els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- (wat.core/Option :- [wat.type/i64])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.core/Option :- [wat.type/i64])
+                     e   :- wat.rete/Element]
+      :- (wat.core/Option :- [wat.type/i64])
+      (wat.core/let [v (wat.core.Option/expect  
+                             (wat.core/get (wat.rete.Element/bindings e) var)
                              "acc: var unbound")]
-        (:wat::core::match acc 
-          [:wat::core::Option.Some {:value cur}
-           (:wat::core::Option.Some {:value (:wat::core::if (:wat::core::> v cur) v cur)})]
-          [:wat::core::Option.None {} (:wat::core::Option.Some {:value v})])))
-    :wat::core::Option.None
+        (wat.core/match acc 
+          [wat.core/Option.Some {:value cur}
+           (wat.core/Option.Some {:value (wat.core/if (wat.core/> v cur) v cur)})]
+          [wat.core/Option.None {} (wat.core/Option.Some {:value v})])))
+    wat.core/Option.None
     els))
 
 ;; acc::mean — COMPOSITION: (/ sum count). empty → None (count = 0 → no token).
 ;; Calls acc::sum and acc::count on the SAME element set — no re-fold; the ops are the oracle.
-(:wat::core::defn :wat::rete::acc::mean
-  [var <- wat.type/String
-   els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> (:wat::core::Option :- [wat.type/i64])
+(wat.core/defn wat.rete.acc/mean
+  [var :- wat.type/String
+   els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- (wat.core/Option :- [wat.type/i64])
   ;; sum + count now return bare i64 (always concrete) — no Option/expect needed.
-  (:wat::core::let [s (:wat::rete::acc::sum var els)
-                    n (:wat::rete::acc::count els)]
-    (:wat::core::if (:wat::core::= n 0)
-      :wat::core::Option.None
-      (:wat::core::Option.Some {:value (:wat::core::/ s n)}))))
+  (wat.core/let [s (wat.rete.acc/sum var els)
+                    n (wat.rete.acc/count els)]
+    (wat.core/if (wat.core/= n 0)
+      wat.core/Option.None
+      (wat.core/Option.Some {:value (wat.core// s n)}))))
 
 ;; acc::distinct — dedup bindings[var] via fold + contains?. empty → [] → bare PV, never Option.
 ;; v1: element type is i64 (the probe stores i64 port/bytes values).
-(:wat::core::defn :wat::rete::acc::distinct
-  [var <- wat.type/String
-   els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
-                     e   <- :wat::rete::Element]
-      -> (wat.type/PersistentVector :- [wat.type/i64])
-      (:wat::core::let [v (:wat::core::Option/expect  
-                             (:wat::core::get (:wat::rete::Element/bindings e) var)
+(wat.core/defn wat.rete.acc/distinct
+  [var :- wat.type/String
+   els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/i64])
+                     e   :- wat.rete/Element]
+      :- (wat.type/PersistentVector :- [wat.type/i64])
+      (wat.core/let [v (wat.core.Option/expect  
+                             (wat.core/get (wat.rete.Element/bindings e) var)
                              "acc: var unbound")]
-        (:wat::core::if (:wat::core::contains? acc v)
+        (wat.core/if (wat.core/contains? acc v)
           acc
-          (:wat::core::conj acc v))))
+          (wat.core/conj acc v))))
     (wat.type/PersistentVector :- [wat.type/i64])
     els))
 
 ;; acc::all — PV of each element's fact. empty → [] → bare PV, never Option.
-(:wat::core::defn :wat::rete::acc::all
-  [els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])
-                     e   <- :wat::rete::Element]
-      -> (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::conj acc (:wat::rete::Element/fact e)))
+(wat.core/defn wat.rete.acc/all
+  [els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- (wat.type/PersistentVector :- [wat.type/Record])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])
+                     e   :- wat.rete/Element]
+      :- (wat.type/PersistentVector :- [wat.type/Record])
+      (wat.core/conj acc (wat.rete.Element/fact e)))
     (wat.type/PersistentVector :- [wat.type/Record])
     els))
 
 ;; acc::group-by — map bindings[var] → (PV :- [fact]) via foldl into a PersistentMap.
 ;; Each key is the bound var's value; each value is a PV of matching element facts.
 ;; empty → {} → bare PersistentMap, never Option.
-(:wat::core::defn :wat::rete::acc::group-by
-  [var <- wat.type/String
-   els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> :wat::rete::GroupByMap
-  (:wat::core::foldl
-    (:wat::core::fn [acc  <- :wat::rete::GroupByMap
-                     e    <- :wat::rete::Element]
-      -> :wat::rete::GroupByMap
-      (:wat::core::let [k    (:wat::core::Option/expect  
-                                (:wat::core::get (:wat::rete::Element/bindings e) var)
+(wat.core/defn wat.rete.acc/group-by
+  [var :- wat.type/String
+   els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- wat.rete/GroupByMap
+  (wat.core/foldl
+    (wat.core/fn [acc  :- wat.rete/GroupByMap
+                     e    :- wat.rete/Element]
+      :- wat.rete/GroupByMap
+      (wat.core/let [k    (wat.core.Option/expect  
+                                (wat.core/get (wat.rete.Element/bindings e) var)
                                 "acc: var unbound")
-                        fact (:wat::rete::Element/fact e)
-                        pv   (:wat::core::match (:wat::core::get acc k)
+                        fact (wat.rete.Element/fact e)
+                        pv   (wat.core/match (wat.core/get acc k)
                                
-                               [:wat::core::Option.Some {:value existing} existing]
-                               [:wat::core::Option.None {} (wat.type/PersistentVector :- [wat.type/Record])])]
-        (:wat::core::assoc acc k (:wat::core::conj pv fact))))
+                               [wat.core/Option.Some {:value existing} existing]
+                               [wat.core/Option.None {} (wat.type/PersistentVector :- [wat.type/Record])])]
+        (wat.core/assoc acc k (wat.core/conj pv fact))))
     (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/Record])])
     els))
 
@@ -160,17 +160,17 @@
 ;; (NO dedup; the custom fold fn sees every value). A `Vector` (not PV) so it splices via
 ;; `~@` into the synthetic call AST (`unquote-splicing` flattens a Value::Vec element-wise).
 ;; This is the oracle mirror of the native `other` arm's PV gather.
-(:wat::core::defn :wat::rete::acc::gather-vals
-  [var <- wat.type/String
-   els <- (wat.type/PersistentVector :- [:wat::rete::Element])]
-  -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/i64])
-                     e   <- :wat::rete::Element]
-      -> (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::conj acc
-        (:wat::core::Option/expect  
-          (:wat::core::get (:wat::rete::Element/bindings e) var)
+(wat.core/defn wat.rete.acc/gather-vals
+  [var :- wat.type/String
+   els :- (wat.type/PersistentVector :- [wat.rete/Element])]
+  :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/i64])
+                     e   :- wat.rete/Element]
+      :- (wat.type/Vector :- [wat.type/i64])
+      (wat.core/conj acc
+        (wat.core.Option/expect  
+          (wat.core/get (wat.rete.Element/bindings e) var)
           "acc: var unbound")))
     (wat.type/Vector :- [wat.type/i64])
     els))

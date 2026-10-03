@@ -13,11 +13,11 @@
 ;; uniformly — `coordinate` hands back the handle's dial address as a bare
 ;; :wat::kernel::Address', so ONE vector of handles carries both grant and dial. grant/revoke
 ;; return nil; coordinate returns the bare address.
-(:wat::core::defsurface :wat::capability::Capability :nature wat.type/Struct
+(wat.core/defsurface wat.capability/Capability :nature wat.type/Struct
   :features
-  [(grant      [self <- :wat::capability::Capability  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)
-   (revoke     [self <- :wat::capability::Capability  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)
-   (coordinate [self <- :wat::capability::Capability] -> :wat::kernel::Address)])
+  [(grant      [self :- wat.capability/Capability  pids :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/nil)
+   (revoke     [self :- wat.capability/Capability  pids :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/nil)
+   (coordinate [self :- wat.capability/Capability] :- wat.kernel/Address)])
 
 ;; `as-capability` (arc 170 N-service kwargs stone) — RETIRED. It forced a Handle's
 ;; up-cast to Capability at the scalar call boundary before tupling, because a `Tuple`
@@ -46,9 +46,9 @@
 ;; returns `(Address :- [S R T])`. The `T` is the one the satisfying Handle already carries
 ;; (defservice's dialable-extend binds `(Handle :- [… T])` to `(Dialable :- [Op Reply T])`), so a
 ;; thread handle's coord is a Shared address and a process handle's a Wire one — never either.
-(:wat::core::defsurface :wat::capability::Dialable :- [S R T] :nature wat.type/Struct
+(wat.core/defsurface wat.capability/Dialable :- [S R T] :nature wat.type/Struct
   :features
-  [(coord [self <- (:wat::capability::Dialable :- [S R T])] -> (:wat::kernel::Address :- [S R T]))])
+  [(coord [self :- (wat.capability/Dialable :- [S R T])] :- (wat.kernel/Address :- [S R T]))])
 
 ;; TypedCapability :- [S R T] (arc 170 C2 candidate D; T since 255.21) — a THIRD, combined surface every service's
 ;; `<fqdn>::Handle` also satisfies, via a THIRD auto-emitted extend-type that is deliberately
@@ -69,8 +69,8 @@
 ;; qualified surface at a time; there is no unqualified-call ambiguity to resolve.
 ;;
 ;; Stone 255.21 (C-b1b): `TypedCapability :- [S R T]` — the Handle's own transport, as Dialable.
-(:wat::core::defsurface :wat::capability::TypedCapability :- [S R T] :nature wat.type/Struct
+(wat.core/defsurface wat.capability/TypedCapability :- [S R T] :nature wat.type/Struct
   :features
-  [(coord  [self <- (:wat::capability::TypedCapability :- [S R T])] -> (:wat::kernel::Address :- [S R T]))
-   (grant  [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)
-   (revoke [self <- (:wat::capability::TypedCapability :- [S R T])  pids <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/nil)])
+  [(coord  [self :- (wat.capability/TypedCapability :- [S R T])] :- (wat.kernel/Address :- [S R T]))
+   (grant  [self :- (wat.capability/TypedCapability :- [S R T])  pids :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/nil)
+   (revoke [self :- (wat.capability/TypedCapability :- [S R T])  pids :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/nil)])

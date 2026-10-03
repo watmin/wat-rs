@@ -26,6 +26,6 @@
 ;; purely additive — no existing verb moves, no call site migrates onto `next` yet.
 ;; (Stone 118.B3 has since DELETED the `forced: OnceLock` memo this comment used to say was
 ;; untouched; the migration it anticipated happened in 118.B2/B2b. Both are done.)
-(:wat::core::defenum :wat::stream::NextOutcome :- [T] :wat::enum::Impure
-  :Item [value <- :T  rest <- (:wat::stream::Stream :- [:T])]
+(wat.core/defenum wat.stream/NextOutcome :- [T] wat.enum/Impure
+  :Item [value :- T  rest :- (wat.stream/Stream :- [:T])]
   :Exhausted)

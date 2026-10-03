@@ -7,71 +7,71 @@
 
 ;; harvest-support — first-producer-wins index: derived-fact → Support{rule, token}.
 ;; Replay on a session whose beta is still live (fire-once$oracle of the closure).
-(:wat::core::defn :wat::rete::harvest-support
-  [network  <- wat.type/PersistentMap
-   beta-mem <- wat.type/PersistentMap
-   rules    <- (wat.type/PersistentVector :- [:wat::rete::Rule])]
-  -> wat.type/PersistentMap
-  (:wat::core::foldl
-    (:wat::core::fn [sup     <- wat.type/PersistentMap
-                     node-id <- wat.type/i64]
-      -> wat.type/PersistentMap
-      (:wat::core::let [node (:wat::core::Option/expect
-                                (:wat::core::get network node-id)
+(wat.core/defn wat.rete/harvest-support
+  [network  :- wat.type/PersistentMap
+   beta-mem :- wat.type/PersistentMap
+   rules    :- (wat.type/PersistentVector :- [wat.rete/Rule])]
+  :- wat.type/PersistentMap
+  (wat.core/foldl
+    (wat.core/fn [sup     :- wat.type/PersistentMap
+                     node-id :- wat.type/i64]
+      :- wat.type/PersistentMap
+      (wat.core/let [node (wat.core.Option/expect
+                                (wat.core/get network node-id)
                                 "harvest-support: node")]
-        (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode")
-          (:wat::core::let [rname (:wat::rete::ProductionNode/rule-name node)
-                            rule  (:wat::rete::rule-by-name rules rname)
-                            rhs   (:wat::rete::Rule/rhs rule)
-                            toks  (:wat::rete::tokens-from-parents beta-mem
-                                    (:wat::rete::node-parents node-id network))]
-            (:wat::core::foldl
-              (:wat::core::fn [s   <- wat.type/PersistentMap
-                               tok <- :wat::rete::Token]
-                -> wat.type/PersistentMap
-                (:wat::core::foldl
-                  (:wat::core::fn [s2   <- wat.type/PersistentMap
-                                   form <- wat.type/AST]
-                    -> wat.type/PersistentMap
-                    (:wat::core::let [derived (:wat::rete::eval-insert form
-                                                 (:wat::rete::Token/bindings tok))]
-                      (:wat::core::match (:wat::core::get s2 derived)
-                        [:wat::core::Option.Some {:value _} s2]
-                        [:wat::core::Option.None {}
-                         (:wat::core::assoc s2 derived
-                           (:wat::rete::Support :rule rname :token tok))])))
+        (wat.core/if (wat.core/= (wat.rete/node-kind-label node) "ProductionNode")
+          (wat.core/let [rname (wat.rete.ProductionNode/rule-name node)
+                            rule  (wat.rete/rule-by-name rules rname)
+                            rhs   (wat.rete.Rule/rhs rule)
+                            toks  (wat.rete/tokens-from-parents beta-mem
+                                    (wat.rete/node-parents node-id network))]
+            (wat.core/foldl
+              (wat.core/fn [s   :- wat.type/PersistentMap
+                               tok :- wat.rete/Token]
+                :- wat.type/PersistentMap
+                (wat.core/foldl
+                  (wat.core/fn [s2   :- wat.type/PersistentMap
+                                   form :- wat.type/AST]
+                    :- wat.type/PersistentMap
+                    (wat.core/let [derived (wat.rete/eval-insert form
+                                                 (wat.rete.Token/bindings tok))]
+                      (wat.core/match (wat.core/get s2 derived)
+                        [wat.core/Option.Some {:value _} s2]
+                        [wat.core/Option.None {}
+                         (wat.core/assoc s2 derived
+                           (wat.rete/Support :rule rname :token tok))])))
                   s
                   rhs))
               sup
               toks))
           sup)))
-    (wat.type/PersistentMap :- [wat.type/Record :wat::rete::Support])
-    (:wat::rete::topological-node-ids network)))
+    (wat.type/PersistentMap :- [wat.type/Record wat.rete/Support])
+    (wat.rete/topological-node-ids network)))
 
 ;; fire-rules-explain$oracle — wat reference for explain. Same session as
 ;; fire-rules$oracle; support harvested from a fire-once$oracle replay of the
 ;; closure so beta is live. First-producer-wins over topological-node-ids,
 ;; matching the native index (`sorted_node_ids`).
-(:wat::core::defn :wat::rete::fire-rules-explain$oracle
-  [session <- :wat::rete::Session]
+(wat.core/defn wat.rete/fire-rules-explain$oracle
+  [session :- wat.rete/Session]
   ;; ⛔ SAME TYPE AS THE NATIVE, by the dual-impl contract — `(FireOutcome :- [Explained])`. The
   ;; oracle enforces no ceilings, so it can only ever answer `Fired`; answering a bare `Explained`
   ;; would make the differential harness unwrap one side and not the other, i.e. compare two
   ;; different things.
-  -> (:wat::rete::FireOutcome :- [:wat::rete::Explained])
-  (:wat::core::let [input       (:wat::rete::factbag::items (:wat::rete::factbag::of session))
+  :- (wat.rete/FireOutcome :- [wat.rete/Explained])
+  (wat.core/let [input       (wat.rete.factbag/items (wat.rete.factbag/of session))
                     ;; HAND-FACED (arc 278 the fire-outcome wall) — stdlib, per-site semantic.
                     ;; The oracle enforces no ceilings, so only `Fired` is reachable; the other
                     ;; arms say so loudly rather than being swallowed.
-                    oracle-sess (:wat::core::match (:wat::rete::fire-rules$oracle session)
-                                  [:wat::rete::FireOutcome.Fired {:value __f} __f]
-                                  [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-                                    (:wat::kernel::assertion-failed! :message "fire-rules-explain$oracle: memory ceiling — the oracle enforces none")]
-                                  [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-                                    (:wat::kernel::assertion-failed! :message "fire-rules-explain$oracle: round cap — the oracle enforces none")])
-                    derived     (:wat::rete::collect-derived
-                                  (:wat::rete::Session/production-memory oracle-sess))
-                    closed      (:wat::rete::merge-facts input derived)
+                    oracle-sess (wat.core/match (wat.rete/fire-rules$oracle session)
+                                  [wat.rete/FireOutcome.Fired {:value __f} __f]
+                                  [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+                                    (wat.kernel/assertion-failed! :message "fire-rules-explain$oracle: memory ceiling — the oracle enforces none")]
+                                  [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+                                    (wat.kernel/assertion-failed! :message "fire-rules-explain$oracle: round cap — the oracle enforces none")])
+                    derived     (wat.rete/collect-derived
+                                  (wat.rete.Session/production-memory oracle-sess))
+                    closed      (wat.rete/merge-facts input derived)
                     empty       (wat.type/PersistentMap :- [wat.type/String wat.type/Value])
                     ;; ⛔ HAND-FACED, not codemod'd — arc 278 the fire-outcome wall. This is a
                     ;; STDLIB site with per-site semantics (the oracle's own replay), and the
@@ -85,26 +85,26 @@
                     ;; never runs"). The other two arms are therefore UNREACHABLE HERE, and they
                     ;; say so loudly rather than being swallowed: if one ever fires, the oracle has
                     ;; grown a ceiling and this comment is the thing that was wrong.
-                    replay      (:wat::core::match
-                                  (:wat::rete::fire-once$oracle
-                                    (:wat::rete::Session
-                                      :network (:wat::rete::Session/network session)
-                                      :rules (:wat::rete::Session/rules session)
+                    replay      (wat.core/match
+                                  (wat.rete/fire-once$oracle
+                                    (wat.rete/Session
+                                      :network (wat.rete.Session/network session)
+                                      :rules (wat.rete.Session/rules session)
                                       :alpha-memory empty
                                       :beta-memory empty
                                       :production-memory empty
-                                      :facts (:wat::rete::FactBag :items closed)
-                                      :next-id (:wat::rete::Session/next-id session)
+                                      :facts (wat.rete/FactBag :items closed)
+                                      :next-id (wat.rete.Session/next-id session)
                                       :query-memory empty))
-                                  [:wat::rete::FireOutcome.Fired {:value __replayed} __replayed]
-                                  [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-                                    (:wat::kernel::assertion-failed! :message "fire-rules-explain$oracle: the oracle replay hit a memory ceiling — the oracle enforces none")]
-                                  [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-                                    (:wat::kernel::assertion-failed! :message "fire-rules-explain$oracle: the oracle replay hit a round cap — the oracle enforces none")])
-                    support     (:wat::rete::harvest-support
-                                  (:wat::rete::Session/network replay)
-                                  (:wat::rete::Session/beta-memory replay)
-                                  (:wat::rete::Session/rules session))]
-    (:wat::rete::FireOutcome.Fired
-      {:value (:wat::rete::Explained :session oracle-sess :support support)})))
+                                  [wat.rete/FireOutcome.Fired {:value __replayed} __replayed]
+                                  [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                                    (wat.kernel/assertion-failed! :message "fire-rules-explain$oracle: the oracle replay hit a memory ceiling — the oracle enforces none")]
+                                  [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                                    (wat.kernel/assertion-failed! :message "fire-rules-explain$oracle: the oracle replay hit a round cap — the oracle enforces none")])
+                    support     (wat.rete/harvest-support
+                                  (wat.rete.Session/network replay)
+                                  (wat.rete.Session/beta-memory replay)
+                                  (wat.rete.Session/rules session))]
+    (wat.rete/FireOutcome.Fired
+      {:value (wat.rete/Explained :session oracle-sess :support support)})))
 

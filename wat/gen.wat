@@ -166,9 +166,9 @@
 ;; Until it lands, DO NOT rely on the checker to stop a Gen crossing a boundary — nothing does.
 ;;
 
-(:wat::core::defstruct :wat::gen::Gen :- [T]
-  [card <- wat.type/i64
-   at   <- [wat.type/i64 :-> T]])
+(wat.core/defstruct wat.gen/Gen :- [T]
+  [card :- wat.type/i64
+   at   :- [wat.type/i64 :-> T]])
 
 ;; THE ONLY CONSTRUCTOR ANY VERB IN THIS FILE USES. A `card` is a COUNT, and a
 ;; count below zero is not a small space -- it is not a space. `(ints 5 2)` is an
@@ -207,10 +207,10 @@
 ;; gate, and it drives the PRODUCERS, never this function -- a law aimed here
 ;; would prove the floor and say nothing about the twelve callers, which is
 ;; exactly the seam-blindness (FM 24) that let A and B ship.
-(:wat::core::defn :wat::gen::gen :- [T]
-  [card <- wat.type/i64  at <- [wat.type/i64 :-> T]] -> (:wat::gen::Gen :- [T])
-  (:wat::gen::Gen
-    :card (:wat::core::if (:wat::core::< card 0) 0 card)
+(wat.core/defn wat.gen/gen :- [T]
+  [card :- wat.type/i64  at :- [wat.type/i64 :-> T]] :- (wat.gen/Gen :- [T])
+  (wat.gen/Gen
+    :card (wat.core/if (wat.core/< card 0) 0 card)
     :at   at))
 
 ;; ── index arithmetic ─────────────────────────────────────────────────────────
@@ -226,18 +226,18 @@
 ;; already corrected it — I inherited the retired version into the stdlib while
 ;; citing the very files where the correction lived. Verified equal on
 ;; (0,3) (7,3) (8,4) (1234,10) before the swap.
-(:wat::core::defn :wat::gen::digit [i <- wat.type/i64  base <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::rem i base))
+(wat.core/defn wat.gen/digit [i :- wat.type/i64  base :- wat.type/i64] :- wat.type/i64
+  (wat.i64/rem i base))
 
-(:wat::core::defn :wat::gen::shift [i <- wat.type/i64  base <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::/ i base))
+(wat.core/defn wat.gen/shift [i :- wat.type/i64  base :- wat.type/i64] :- wat.type/i64
+  (wat.i64// i base))
 
 ;; ── the primitive generator ──────────────────────────────────────────────────
-(:wat::core::defn :wat::gen::ints [lo <- wat.type/i64  hi <- wat.type/i64]
-  -> (:wat::gen::Gen :- [wat.type/i64])
-  (:wat::gen::gen (:wat::i64::- hi lo)
-              (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64
-                      (:wat::i64::+ lo i))))
+(wat.core/defn wat.gen/ints [lo :- wat.type/i64  hi :- wat.type/i64]
+  :- (wat.gen/Gen :- [wat.type/i64])
+  (wat.gen/gen (wat.i64/- hi lo)
+              (wat.core/fn [i :- wat.type/i64] :- wat.type/i64
+                      (wat.i64/+ lo i))))
 
 ;; ── bools — the TOTAL generator, and why it is the only one ─────────────────
 ;;
@@ -263,17 +263,17 @@
 ;; `u8` (card 256 — small enough to enumerate). NEITHER IS BUILT: they have no
 ;; caller, and a verb with no caller is a claim, not a capability. When one
 ;; appears, this comment is the argument for building it.
-(:wat::core::defn :wat::gen::bools [] -> (:wat::gen::Gen :- [wat.type/bool])
-  (:wat::gen::gen 2
-    (:wat::core::fn [i <- wat.type/i64] -> wat.type/bool
-      (:wat::core::= i 1))))
+(wat.core/defn wat.gen/bools [] :- (wat.gen/Gen :- [wat.type/bool])
+  (wat.gen/gen 2
+    (wat.core/fn [i :- wat.type/i64] :- wat.type/bool
+      (wat.core/= i 1))))
 
 ;; ── fmap: reshape what a generator yields, keeping its cardinality ────────────
-(:wat::core::defn :wat::gen::fmap :- [A B]
-  [f <- [A :-> B]  g <- (:wat::gen::Gen :- [A])] -> (:wat::gen::Gen :- [B])
-  (:wat::core::let [inner (:wat::gen::Gen/at g)]
-    (:wat::gen::gen (:wat::gen::Gen/card g)
-                (:wat::core::fn [i <- wat.type/i64] -> B (f (inner i))))))
+(wat.core/defn wat.gen/fmap :- [A B]
+  [f :- [A :-> B]  g :- (wat.gen/Gen :- [A])] :- (wat.gen/Gen :- [B])
+  (wat.core/let [inner (wat.gen.Gen/at g)]
+    (wat.gen/gen (wat.gen.Gen/card g)
+                (wat.core/fn [i :- wat.type/i64] :- B (f (inner i))))))
 
 ;; ── the workhorse: a COORDINATE generator over mixed bases ───────────────────
 ;; `gen-coords [b0 b1 b2]` has card b0*b1*b2 and yields [d0 d1 d2] with di < bi —
@@ -304,16 +304,16 @@
 ;; The name is `Coord`, singular, deliberately: `wat/core.wat:1096` already generates
 ;; a `<fqdn>::Coords` record for the service-pool carrier, and two different `Coords`
 ;; in one substrate is the collision this comment exists to avoid.
-(:wat::core::typealias :wat::gen::Coord
+(wat.core/typealias wat.gen/Coord
   (wat.type/PersistentVector :- [wat.type/i64]))
 
-(:wat::core::typealias :wat::gen::Bases
+(wat.core/typealias wat.gen/Bases
   (wat.type/PersistentVector :- [wat.type/i64]))
 
 
-(:wat::core::defrecord :wat::gen::GenAcc
-  [rem <- wat.type/i64
-   out <- :wat::gen::Coord])
+(wat.core/defrecord wat.gen/GenAcc
+  [rem :- wat.type/i64
+   out :- wat.gen/Coord])
 
 ;; CARDINALITY OVERFLOW NEEDS NO GUARD HERE, and that is a substrate fact worth
 ;; recording rather than a shortcut. A wrapped `card` would be the worst kind of
@@ -327,26 +327,26 @@
 ;; type under you) and C-family arithmetic would wrap in silence. A hand-rolled
 ;; checked multiply here was written and then DELETED — it was unreachable, because
 ;; the multiply inside it raised first.
-(:wat::core::defn :wat::gen::card-of [bases <- :wat::gen::Bases]
-  -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
-      (:wat::i64::* a b))
+(wat.core/defn wat.gen/card-of [bases :- wat.gen/Bases]
+  :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [a :- wat.type/i64  b :- wat.type/i64] :- wat.type/i64
+      (wat.i64/* a b))
     1 bases))
 
-(:wat::core::defn :wat::gen::coords [bases <- :wat::gen::Bases]
-  -> (:wat::gen::Gen :- [:wat::gen::Coord])
-  (:wat::gen::gen
-    (:wat::gen::card-of bases)
-    (:wat::core::fn [i <- wat.type/i64] -> :wat::gen::Coord
-          (:wat::gen::GenAcc/out
-            (:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::gen::GenAcc  b <- wat.type/i64] -> :wat::gen::GenAcc
-                (:wat::gen::GenAcc
-                  :rem (:wat::gen::shift (:wat::gen::GenAcc/rem acc) b)
-                  :out (:wat::core::conj (:wat::gen::GenAcc/out acc)
-                         (:wat::gen::digit (:wat::gen::GenAcc/rem acc) b))))
-              (:wat::gen::GenAcc :rem i :out (wat.type/PersistentVector :- [wat.type/i64]))
+(wat.core/defn wat.gen/coords [bases :- wat.gen/Bases]
+  :- (wat.gen/Gen :- [wat.gen/Coord])
+  (wat.gen/gen
+    (wat.gen/card-of bases)
+    (wat.core/fn [i :- wat.type/i64] :- wat.gen/Coord
+          (wat.gen.GenAcc/out
+            (wat.core/foldl
+              (wat.core/fn [acc :- wat.gen/GenAcc  b :- wat.type/i64] :- wat.gen/GenAcc
+                (wat.gen/GenAcc
+                  :rem (wat.gen/shift (wat.gen.GenAcc/rem acc) b)
+                  :out (wat.core/conj (wat.gen.GenAcc/out acc)
+                         (wat.gen/digit (wat.gen.GenAcc/rem acc) b))))
+              (wat.gen/GenAcc :rem i :out (wat.type/PersistentVector :- [wat.type/i64]))
               bases)))))
 
 ;; ── the driver ───────────────────────────────────────────────────────────────
@@ -400,40 +400,40 @@
 ;; caller that needs why must look at the generator it built rather than the outcome
 ;; it got back. If a consumer ever appears that must branch on the reason, this is
 ;; the note to overturn — the cost above is the price, and it was not paid blind.
-(:wat::core::defenum :wat::gen::CheckOutcome :wat::enum::Pure
-  :Checked    [points <- wat.type/i64
-               violations <- wat.type/i64
-               first-failure <- (:wat::core::Option :- [wat.type/i64])]
+(wat.core/defenum wat.gen/CheckOutcome wat.enum/Pure
+  :Checked    [points :- wat.type/i64
+               violations :- wat.type/i64
+               first-failure :- (wat.core/Option :- [wat.type/i64])]
   :EmptySpace)
 
-(:wat::core::defrecord :wat::gen::CheckAcc
-  [bad <- wat.type/i64  first <- (:wat::core::Option :- [wat.type/i64])])
+(wat.core/defrecord wat.gen/CheckAcc
+  [bad :- wat.type/i64  first :- (wat.core/Option :- [wat.type/i64])])
 
-(:wat::core::defn :wat::gen::check :- [T]
-  [g <- (:wat::gen::Gen :- [T])  prop <- [T :-> wat.type/bool]] -> :wat::gen::CheckOutcome
-  (:wat::core::let [card (:wat::gen::Gen/card g)
-                    at   (:wat::gen::Gen/at g)]
-    (:wat::core::if (:wat::core::= card 0)
-      :wat::gen::CheckOutcome.EmptySpace
-      (:wat::core::let
-        [acc (:wat::core::foldl
-               (:wat::core::fn [a <- :wat::gen::CheckAcc  i <- wat.type/i64] -> :wat::gen::CheckAcc
+(wat.core/defn wat.gen/check :- [T]
+  [g :- (wat.gen/Gen :- [T])  prop :- [T :-> wat.type/bool]] :- wat.gen/CheckOutcome
+  (wat.core/let [card (wat.gen.Gen/card g)
+                    at   (wat.gen.Gen/at g)]
+    (wat.core/if (wat.core/= card 0)
+      wat.gen/CheckOutcome.EmptySpace
+      (wat.core/let
+        [acc (wat.core/foldl
+               (wat.core/fn [a :- wat.gen/CheckAcc  i :- wat.type/i64] :- wat.gen/CheckAcc
                  ;; `true` = the property HELD at this point (the QuickCheck reading).
                  ;; A failing point contributes EXACTLY 1 — see the type note above
                  ;; `prop`: a weight is not expressible, so `violations` cannot exceed
                  ;; `points` and cannot go negative.
-                 (:wat::core::if (prop (at i))
+                 (wat.core/if (prop (at i))
                      a
-                     (:wat::gen::CheckAcc
-                       :bad (:wat::i64::+ (:wat::gen::CheckAcc/bad a) 1)
-                       :first (:wat::core::match (:wat::gen::CheckAcc/first a)
-                                [:wat::core::Option.Some {:value f} (:wat::core::Option.Some {:value f})]
-                                [:wat::core::Option.None {} (:wat::core::Option.Some {:value i})]))))
-               (:wat::gen::CheckAcc :bad 0 :first :wat::core::Option.None)
-               (:wat::core::range 0 card))]
-        (:wat::gen::CheckOutcome.Checked {:points card
-          :violations (:wat::gen::CheckAcc/bad acc)
-          :first-failure (:wat::gen::CheckAcc/first acc)})))))
+                     (wat.gen/CheckAcc
+                       :bad (wat.i64/+ (wat.gen.CheckAcc/bad a) 1)
+                       :first (wat.core/match (wat.gen.CheckAcc/first a)
+                                [wat.core/Option.Some {:value f} (wat.core/Option.Some {:value f})]
+                                [wat.core/Option.None {} (wat.core/Option.Some {:value i})]))))
+               (wat.gen/CheckAcc :bad 0 :first wat.core/Option.None)
+               (wat.core/range 0 card))]
+        (wat.gen/CheckOutcome.Checked {:points card
+          :violations (wat.gen.CheckAcc/bad acc)
+          :first-failure (wat.gen.CheckAcc/first acc)})))))
 
 ;; ── shrink-index — GENERATOR-INDEPENDENT, unlike the coordinate shrink ──────
 ;;
@@ -463,31 +463,31 @@
 ;; one thing: what a candidate index MEANS. For `shrink-index` it is a point of a
 ;; generator (`Gen/at`); for `shrink-dim` it is a value of one coordinate dimension
 ;; (`with c j v`). That difference is a function, so it becomes a parameter.
-(:wat::core::defn :wat::gen::descend :- [T]
-  [start <- wat.type/i64
-   probe <- [wat.type/i64 :-> T]
-   still-fails? <- [T :-> wat.type/bool]]
-  -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [best <- wat.type/i64  i <- wat.type/i64] -> wat.type/i64
-      (:wat::core::if (:wat::core::and (:wat::core::= best start) (still-fails? (probe i)))
+(wat.core/defn wat.gen/descend :- [T]
+  [start :- wat.type/i64
+   probe :- [wat.type/i64 :-> T]
+   still-fails? :- [T :-> wat.type/bool]]
+  :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [best :- wat.type/i64  i :- wat.type/i64] :- wat.type/i64
+      (wat.core/if (wat.core/and (wat.core/= best start) (still-fails? (probe i)))
         i best))
     start
-    (:wat::core::range 0 start)))
+    (wat.core/range 0 start)))
 
-(:wat::core::defn :wat::gen::shrink-index :- [T]
-  [g <- (:wat::gen::Gen :- [T])  k <- wat.type/i64  still-fails? <- [T :-> wat.type/bool]]
-  -> wat.type/i64
-  (:wat::gen::descend k (:wat::gen::Gen/at g) still-fails?))
+(wat.core/defn wat.gen/shrink-index :- [T]
+  [g :- (wat.gen/Gen :- [T])  k :- wat.type/i64  still-fails? :- [T :-> wat.type/bool]]
+  :- wat.type/i64
+  (wat.gen/descend k (wat.gen.Gen/at g) still-fails?))
 
 ;; ── gen-elements: pick from a value vector ───────────────────────────────────
 ;; The most-used combinator in the QuickCheck tradition (`gen/elements`), and the
 ;; one every non-numeric dimension reaches for first.
-(:wat::core::defn :wat::gen::elements :- [T]
-  [vs <- (wat.type/PersistentVector :- [T])] -> (:wat::gen::Gen :- [T])
-  (:wat::gen::gen (:wat::core::length vs)
-              (:wat::core::fn [i <- wat.type/i64] -> T
-                      (:wat::core::Option/expect (:wat::core::get vs i)
+(wat.core/defn wat.gen/elements :- [T]
+  [vs :- (wat.type/PersistentVector :- [T])] :- (wat.gen/Gen :- [T])
+  (wat.gen/gen (wat.core/length vs)
+              (wat.core/fn [i :- wat.type/i64] :- T
+                      (wat.core.Option/expect (wat.core/get vs i)
                         "elements: index outside the vector it was built from"))))
 
 ;; ── gen-such-that: an EXACT filter, with no retries ──────────────────────────
@@ -499,16 +499,16 @@
 ;;
 ;; The cost is honest and bounded: it materializes one i64 per surviving index, and
 ;; it evaluates `at` over the whole source space once at construction.
-(:wat::core::defn :wat::gen::such-that :- [T]
-  [pred <- [T :-> wat.type/bool]  g <- (:wat::gen::Gen :- [T])] -> (:wat::gen::Gen :- [T])
-  (:wat::core::let [at   (:wat::gen::Gen/at g)
-                    keep (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
-                           (:wat::core::filter
-                             (:wat::core::fn [i <- wat.type/i64] -> wat.type/bool (pred (at i)))
-                             (:wat::core::range 0 (:wat::gen::Gen/card g))))]
-    (:wat::gen::gen (:wat::core::length keep)
-                (:wat::core::fn [j <- wat.type/i64] -> T
-                        (at (:wat::core::Option/expect (:wat::core::get keep j)
+(wat.core/defn wat.gen/such-that :- [T]
+  [pred :- [T :-> wat.type/bool]  g :- (wat.gen/Gen :- [T])] :- (wat.gen/Gen :- [T])
+  (wat.core/let [at   (wat.gen.Gen/at g)
+                    keep (wat.core/into (wat.type/PersistentVector :- [wat.type/i64])
+                           (wat.core/filter
+                             (wat.core/fn [i :- wat.type/i64] :- wat.type/bool (pred (at i)))
+                             (wat.core/range 0 (wat.gen.Gen/card g))))]
+    (wat.gen/gen (wat.core/length keep)
+                (wat.core/fn [j :- wat.type/i64] :- T
+                        (at (wat.core.Option/expect (wat.core/get keep j)
                               "such-that: index outside the surviving set"))))))
 
 ;; ── gen-one-of: the SUM, where gen-coords is the PRODUCT ─────────────────────
@@ -516,12 +516,12 @@
 ;; so branch k occupies a contiguous block of indices. Enumeration therefore walks
 ;; branch 0 exhaustively, then branch 1, and so on — which means a failure's
 ;; coordinate still localizes it, exactly as with a product space.
-(:wat::core::defrecord :wat::gen::Pick :- [T]
-  [rest <- wat.type/i64
-   got  <- (:wat::core::Option :- [T])])
+(wat.core/defrecord wat.gen/Pick :- [T]
+  [rest :- wat.type/i64
+   got  :- (wat.core/Option :- [T])])
 
-(:wat::core::defn :wat::gen::one-of :- [T]
-  [gs <- (wat.type/PersistentVector :- [(:wat::gen::Gen :- [T])])] -> (:wat::gen::Gen :- [T])
+(wat.core/defn wat.gen/one-of :- [T]
+  [gs :- (wat.type/PersistentVector :- [(wat.gen/Gen :- [T])])] :- (wat.gen/Gen :- [T])
   ;; THE ONE DISPATCH IN THIS FILE. `bind` is expressed over it: once a bind has
   ;; materialised its branch generators, choosing among them by subtracting
   ;; cardinalities IS this function, and it used to be written out a second time
@@ -535,39 +535,39 @@
   ;; measured +9% on the rete fuzzer's space (~265 -> ~288 us/point). Hoisting
   ;; `cards` here — one pass at construction, one read per branch — recovers it and
   ;; speeds up every `one-of` caller besides.
-  (:wat::core::let
-    [n     (:wat::core::length gs)
-     cards (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
-             (:wat::core::mapv
-               (:wat::core::fn [g <- (:wat::gen::Gen :- [T])] -> wat.type/i64
-                 (:wat::gen::Gen/card g))
+  (wat.core/let
+    [n     (wat.core/length gs)
+     cards (wat.core/into (wat.type/PersistentVector :- [wat.type/i64])
+             (wat.core/mapv
+               (wat.core/fn [g :- (wat.gen/Gen :- [T])] :- wat.type/i64
+                 (wat.gen.Gen/card g))
                gs))]
-    (:wat::gen::gen
-      (:wat::core::foldl
-        (:wat::core::fn [a <- wat.type/i64  c <- wat.type/i64] -> wat.type/i64
-          (:wat::i64::+ a c))
+    (wat.gen/gen
+      (wat.core/foldl
+        (wat.core/fn [a :- wat.type/i64  c :- wat.type/i64] :- wat.type/i64
+          (wat.i64/+ a c))
         0 cards)
-      (:wat::core::fn [i <- wat.type/i64] -> T
-        (:wat::core::Option/expect
-          (:wat::gen::Pick/got
-            (:wat::core::foldl
-              (:wat::core::fn [acc <- (:wat::gen::Pick :- [T])  j <- wat.type/i64]
-                              -> (:wat::gen::Pick :- [T])
-                (:wat::core::match (:wat::gen::Pick/got acc)
-                  [:wat::core::Option.Some {:value _v} acc]
-                  [:wat::core::Option.None {}
-                    (:wat::core::let [c (:wat::gen::nth cards j)
-                                      r (:wat::gen::Pick/rest acc)]
-                      (:wat::core::if (:wat::core::< r c)
-                        (:wat::gen::Pick :rest r
-                          :got (:wat::core::Option.Some
-                                 {:value ((:wat::gen::Gen/at
-                                    (:wat::core::Option/expect (:wat::core::get gs j)
+      (wat.core/fn [i :- wat.type/i64] :- T
+        (wat.core.Option/expect
+          (wat.gen.Pick/got
+            (wat.core/foldl
+              (wat.core/fn [acc :- (wat.gen/Pick :- [T])  j :- wat.type/i64]
+                              :- (wat.gen/Pick :- [T])
+                (wat.core/match (wat.gen.Pick/got acc)
+                  [wat.core/Option.Some {:value _v} acc]
+                  [wat.core/Option.None {}
+                    (wat.core/let [c (wat.gen/nth cards j)
+                                      r (wat.gen.Pick/rest acc)]
+                      (wat.core/if (wat.core/< r c)
+                        (wat.gen/Pick :rest r
+                          :got (wat.core/Option.Some
+                                 {:value ((wat.gen.Gen/at
+                                    (wat.core.Option/expect (wat.core/get gs j)
                                       "one-of: branch index outside the generator vector")) r)}))
-                        (:wat::gen::Pick :rest (:wat::i64::- r c)
-                          :got :wat::core::Option.None)))]))
-              (:wat::gen::Pick :rest i :got :wat::core::Option.None)
-              (:wat::core::range 0 n)))
+                        (wat.gen/Pick :rest (wat.i64/- r c)
+                          :got wat.core/Option.None)))]))
+              (wat.gen/Pick :rest i :got wat.core/Option.None)
+              (wat.core/range 0 n)))
           "one-of: index outside the summed cardinality")))))
 
 ;; ── nth: total indexed read, at ONE type ────────────────────────────────────
@@ -578,9 +578,9 @@
 ;; that is not a coordinate at all. So the narrow type was not buying the safety its
 ;; message implied, and the message ("coordinate digit out of range") was wrong at
 ;; those call sites.
-(:wat::core::defn :wat::gen::nth :- [T]
-  [v <- (wat.type/PersistentVector :- [T])  i <- wat.type/i64] -> T
-  (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
+(wat.core/defn wat.gen/nth :- [T]
+  [v :- (wat.type/PersistentVector :- [T])  i :- wat.type/i64] :- T
+  (wat.core.Option/expect (wat.core/get v i) "nth: index out of range"))
 
 ;; ── gen-record: a generator for a RECORD, from one generator per field ───────
 ;;
@@ -644,15 +644,15 @@
 ;; The expansion now opens with a `let` that binds every generator argument to its
 ;; own hygienic `fresh-symbol`, and both the `card` and the `at` reference that
 ;; binding. A caller may inline `such-that` (or any enumerating combinator) freely.
-(:wat::core::defmacro :wat::gen::record
-  [T <- wat.type/AST  & gens <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let
+(wat.core/defmacro wat.gen/record
+  [T :- wat.type/AST  & gens :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let
     [;; HYGIENIC binder. A literal `c` in binder position is REFUSED by the macro
      ;; system (hygiene bound gate E, arc 249 stone 249.2b-ii) because it could
      ;; capture a caller-site name. `fresh-symbol` stamps a fresh unique scope, and
      ;; the name is spliced with `~` at both its binding and its uses.
-     cv    (:wat::core::fresh-symbol "coord")
+     cv    (wat.core/fresh-symbol "coord")
      ;; The POSITIONAL constructor is the PRIME name: bare-positional construction
      ;; is retired (the bare name is the kwargs macro), so `:user::Point` becomes
      ;; `:user::Point'`. Same node-building idiom `:wat::core::kwargs-lower` uses.
@@ -664,47 +664,47 @@
      ;; "the format macro, but interpolates at call time → expand-time-legal in macro
      ;; bodies" (arc 284, src/macros/eval.rs). `wat/core.wat:704` uses it in the same
      ;; position for the same reason.
-     ctor  (:wat::core::keyword-node
-             (:wat::string::interpolate "{n}'" :n (:wat::core::ast-name T)))
-     n     (:wat::core::length gens)
+     ctor  (wat.core/keyword-node
+             (wat.string/interpolate "{n}'" :n (wat.core/ast-name T)))
+     n     (wat.core/length gens)
      ;; ONE hygienic binder per generator argument — this is what stops the `at`
      ;; copy re-evaluating its whole expression on every generated point.
-     syms  (:wat::core::foldl
-             (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST])  _i <- wat.type/i64]
-                             -> (wat.type/Vector :- [wat.type/AST])
-               (:wat::core::conj acc (:wat::core::fresh-symbol "gen")))
+     syms  (wat.core/foldl
+             (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST])  _i :- wat.type/i64]
+                             :- (wat.type/Vector :- [wat.type/AST])
+               (wat.core/conj acc (wat.core/fresh-symbol "gen")))
              (wat.type/Vector :- [wat.type/AST])
-             (:wat::core::range 0 n))
+             (wat.core/range 0 n))
      ;; the `let` binder vector, flat: sym expr sym expr ...
-     binds (:wat::core::foldl
-             (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST])  i <- wat.type/i64]
-                             -> (wat.type/Vector :- [wat.type/AST])
-               (:wat::core::conj
-                 (:wat::core::conj acc
-                   (:wat::core::Option/expect (:wat::core::get syms i) "record: sym index"))
-                 (:wat::core::Option/expect (:wat::core::get gens i) "record: gen index")))
+     binds (wat.core/foldl
+             (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST])  i :- wat.type/i64]
+                             :- (wat.type/Vector :- [wat.type/AST])
+               (wat.core/conj
+                 (wat.core/conj acc
+                   (wat.core.Option/expect (wat.core/get syms i) "record: sym index"))
+                 (wat.core.Option/expect (wat.core/get gens i) "record: gen index")))
              (wat.type/Vector :- [wat.type/AST])
-             (:wat::core::range 0 n))
+             (wat.core/range 0 n))
      ;; both `card` and `at` now reference the BINDING, never the expression
-     cards (:wat::core::foldl
-             (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST])  g <- wat.type/AST]
-                             -> (wat.type/Vector :- [wat.type/AST])
-               (:wat::core::conj acc `(:wat::gen::Gen/card ~g)))
+     cards (wat.core/foldl
+             (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST])  g :- wat.type/AST]
+                             :- (wat.type/Vector :- [wat.type/AST])
+               (wat.core/conj acc `(wat.gen.Gen/card ~g)))
              (wat.type/Vector :- [wat.type/AST])
              syms)
-     args  (:wat::core::foldl
-             (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST])  i <- wat.type/i64]
-                             -> (wat.type/Vector :- [wat.type/AST])
-               (:wat::core::conj acc
-                 `((:wat::gen::Gen/at ~(:wat::core::Option/expect (:wat::core::get syms i) "record: sym index"))
-                   (:wat::gen::nth ~cv ~i))))
+     args  (wat.core/foldl
+             (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST])  i :- wat.type/i64]
+                             :- (wat.type/Vector :- [wat.type/AST])
+               (wat.core/conj acc
+                 `((wat.gen.Gen/at ~(wat.core.Option/expect (wat.core/get syms i) "record: sym index"))
+                   (wat.gen/nth ~cv ~i))))
              (wat.type/Vector :- [wat.type/AST])
-             (:wat::core::range 0 n))]
-    `(:wat::core::let [~@binds]
-       (:wat::gen::fmap
-         (:wat::core::fn [~cv <- :wat::gen::Coord] -> ~T
+             (wat.core/range 0 n))]
+    `(wat.core/let [~@binds]
+       (wat.gen/fmap
+         (wat.core/fn [~cv :- wat.gen/Coord] :- ~T
            (~ctor ~@args))
-         (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64] ~@cards))))))
+         (wat.gen/coords (wat.type/PersistentVector :- [wat.type/i64] ~@cards))))))
 
 ;; ── gen-lift2 / gen-lift3: apply an N-ary FUNCTION across N generators ───────
 ;;
@@ -725,9 +725,9 @@
 ;; result type could not be known statically) — but that was never the language's
 ;; answer. The constructor value is, and it is strictly better: fully typed, and
 ;; not limited to records.
-(:wat::core::defn :wat::gen::lift2 :- [A B R]
-  [f <- [A B :-> R]  ga <- (:wat::gen::Gen :- [A])  gb <- (:wat::gen::Gen :- [B])]
-  -> (:wat::gen::Gen :- [R])
+(wat.core/defn wat.gen/lift2 :- [A B R]
+  [f :- [A B :-> R]  ga :- (wat.gen/Gen :- [A])  gb :- (wat.gen/Gen :- [B])]
+  :- (wat.gen/Gen :- [R])
   ;; EXPRESSED OVER `coords`, not over a second hand-written mixed radix. Until
   ;; 2026-08-26 this encoded the radix itself with `digit`/`shift`, which made it a
   ;; SECOND implementation of what `coords` already does — and the two disagreed
@@ -737,31 +737,31 @@
   ;; between two encodings of one idea is a defect whichever side is "right".
   ;; `coords` survives because `record`, `vector-of` and `coords-scattered` all
   ;; already go through it; there is now exactly one mixed-radix encoding in the file.
-  (:wat::core::let [fa (:wat::gen::Gen/at ga)
-                    fb (:wat::gen::Gen/at gb)]
-    (:wat::gen::fmap
-      (:wat::core::fn [c <- :wat::gen::Coord] -> R
-        (f (fa (:wat::gen::nth c 0)) (fb (:wat::gen::nth c 1))))
-      (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64]
-                           (:wat::gen::Gen/card ga)
-                           (:wat::gen::Gen/card gb))))))
+  (wat.core/let [fa (wat.gen.Gen/at ga)
+                    fb (wat.gen.Gen/at gb)]
+    (wat.gen/fmap
+      (wat.core/fn [c :- wat.gen/Coord] :- R
+        (f (fa (wat.gen/nth c 0)) (fb (wat.gen/nth c 1))))
+      (wat.gen/coords (wat.type/PersistentVector :- [wat.type/i64]
+                           (wat.gen.Gen/card ga)
+                           (wat.gen.Gen/card gb))))))
 
-(:wat::core::defn :wat::gen::lift3 :- [A B C R]
-  [f <- [A B C :-> R]  ga <- (:wat::gen::Gen :- [A])  gb <- (:wat::gen::Gen :- [B])  gc <- (:wat::gen::Gen :- [C])]
-  -> (:wat::gen::Gen :- [R])
+(wat.core/defn wat.gen/lift3 :- [A B C R]
+  [f :- [A B C :-> R]  ga :- (wat.gen/Gen :- [A])  gb :- (wat.gen/Gen :- [B])  gc :- (wat.gen/Gen :- [C])]
+  :- (wat.gen/Gen :- [R])
   ;; over `coords`, for the same reason as `lift2` above.
-  (:wat::core::let [fa (:wat::gen::Gen/at ga)
-                    fb (:wat::gen::Gen/at gb)
-                    fc (:wat::gen::Gen/at gc)]
-    (:wat::gen::fmap
-      (:wat::core::fn [c <- :wat::gen::Coord] -> R
-        (f (fa (:wat::gen::nth c 0))
-           (fb (:wat::gen::nth c 1))
-           (fc (:wat::gen::nth c 2))))
-      (:wat::gen::coords (wat.type/PersistentVector :- [wat.type/i64]
-                           (:wat::gen::Gen/card ga)
-                           (:wat::gen::Gen/card gb)
-                           (:wat::gen::Gen/card gc))))))
+  (wat.core/let [fa (wat.gen.Gen/at ga)
+                    fb (wat.gen.Gen/at gb)
+                    fc (wat.gen.Gen/at gc)]
+    (wat.gen/fmap
+      (wat.core/fn [c :- wat.gen/Coord] :- R
+        (f (fa (wat.gen/nth c 0))
+           (fb (wat.gen/nth c 1))
+           (fc (wat.gen/nth c 2))))
+      (wat.gen/coords (wat.type/PersistentVector :- [wat.type/i64]
+                           (wat.gen.Gen/card ga)
+                           (wat.gen.Gen/card gb)
+                           (wat.gen.Gen/card gc))))))
 
 ;; ── SAMPLING, as composition rather than a second driver ─────────────────────
 ;;
@@ -778,35 +778,35 @@
 ;; still a coordinate.
 
 ;; A PREFIX of a generator. Refuses to invent points it does not have.
-(:wat::core::defn :wat::gen::take :- [T]
-  [n <- wat.type/i64  g <- (:wat::gen::Gen :- [T])] -> (:wat::gen::Gen :- [T])
-  (:wat::gen::gen
-    (:wat::core::if (:wat::core::< n (:wat::gen::Gen/card g)) n (:wat::gen::Gen/card g))
-    (:wat::gen::Gen/at g)))
+(wat.core/defn wat.gen/take :- [T]
+  [n :- wat.type/i64  g :- (wat.gen/Gen :- [T])] :- (wat.gen/Gen :- [T])
+  (wat.gen/gen
+    (wat.core/if (wat.core/< n (wat.gen.Gen/card g)) n (wat.gen.Gen/card g))
+    (wat.gen.Gen/at g)))
 
 ;; MIXED-RADIX DIGIT REVERSAL — van der Corput / Halton, adapted to mixed bases.
 ;; Digit j of k sits at position (n-1-j) of the reversed sequence, whose place
 ;; value is the product of the bases AFTER j — that is card / (b0*..*bj). A
 ;; running prefix product gives each digit its reversed place in ONE fold, with no
 ;; vector reversal.
-(:wat::core::defrecord :wat::gen::GenRev
-  [rem <- wat.type/i64  idx <- wat.type/i64  pref <- wat.type/i64])
+(wat.core/defrecord wat.gen/GenRev
+  [rem :- wat.type/i64  idx :- wat.type/i64  pref :- wat.type/i64])
 
-(:wat::core::defn :wat::gen::reverse-index
-  [bases <- :wat::gen::Bases  k <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::core::let [card (:wat::gen::card-of bases)]
-    (:wat::gen::GenRev/idx
-      (:wat::core::foldl
-        (:wat::core::fn [a <- :wat::gen::GenRev  b <- wat.type/i64] -> :wat::gen::GenRev
-          (:wat::core::let [d  (:wat::gen::digit (:wat::gen::GenRev/rem a) b)
-                            pf (:wat::i64::* (:wat::gen::GenRev/pref a) b)]
-            (:wat::gen::GenRev
-              :rem  (:wat::gen::shift (:wat::gen::GenRev/rem a) b)
-              :idx  (:wat::i64::+ (:wat::gen::GenRev/idx a)
-                      (:wat::i64::* d (:wat::i64::/ card pf)))
+(wat.core/defn wat.gen/reverse-index
+  [bases :- wat.gen/Bases  k :- wat.type/i64]
+  :- wat.type/i64
+  (wat.core/let [card (wat.gen/card-of bases)]
+    (wat.gen.GenRev/idx
+      (wat.core/foldl
+        (wat.core/fn [a :- wat.gen/GenRev  b :- wat.type/i64] :- wat.gen/GenRev
+          (wat.core/let [d  (wat.gen/digit (wat.gen.GenRev/rem a) b)
+                            pf (wat.i64/* (wat.gen.GenRev/pref a) b)]
+            (wat.gen/GenRev
+              :rem  (wat.gen/shift (wat.gen.GenRev/rem a) b)
+              :idx  (wat.i64/+ (wat.gen.GenRev/idx a)
+                      (wat.i64/* d (wat.i64// card pf)))
               :pref pf)))
-        (:wat::gen::GenRev :rem k :idx 0 :pref 1)
+        (wat.gen/GenRev :rem k :idx 0 :pref 1)
         bases))))
 
 ;; The same coordinate space, visited so the SLOWEST-varying dimensions move
@@ -817,15 +817,15 @@
 ;; images — this one under-covers the fastest-varying dimensions at very small K —
 ;; so it is the right default only because a prefix is what sampling takes, and a
 ;; prefix that never varies a dimension has not sampled that dimension at all.
-(:wat::core::defn :wat::gen::coords-scattered
-  [bases <- :wat::gen::Bases]
-  -> (:wat::gen::Gen :- [:wat::gen::Coord])
-  (:wat::core::let [g (:wat::gen::coords bases)
-                    at (:wat::gen::Gen/at g)]
-    (:wat::gen::gen (:wat::gen::Gen/card g)
-                (:wat::core::fn [k <- wat.type/i64]
-                                    -> :wat::gen::Coord
-                      (at (:wat::gen::reverse-index bases k))))))
+(wat.core/defn wat.gen/coords-scattered
+  [bases :- wat.gen/Bases]
+  :- (wat.gen/Gen :- [wat.gen/Coord])
+  (wat.core/let [g (wat.gen/coords bases)
+                    at (wat.gen.Gen/at g)]
+    (wat.gen/gen (wat.gen.Gen/card g)
+                (wat.core/fn [k :- wat.type/i64]
+                                    :- wat.gen/Coord
+                      (at (wat.gen/reverse-index bases k))))))
 
 ;; ── SHRINKING — coordinate descent, and GENERATOR-INDEPENDENT ────────────────
 ;;
@@ -846,44 +846,44 @@
 ;; Replace digit `j` of a coordinate. Written as a rebuild because index-`assoc`
 ;; on a PersistentVector is not shipped (the collections campaign's open
 ;; index-assoc item); `assoc` reaches maps, not vector positions.
-(:wat::core::defn :wat::gen::with
-  [c <- :wat::gen::Coord
-   j <- wat.type/i64  v <- wat.type/i64]
-  -> :wat::gen::Coord
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::gen::Coord  i <- wat.type/i64]
-                    -> :wat::gen::Coord
-      (:wat::core::conj acc
-        (:wat::core::if (:wat::core::= i j) v (:wat::gen::nth c i))))
+(wat.core/defn wat.gen/with
+  [c :- wat.gen/Coord
+   j :- wat.type/i64  v :- wat.type/i64]
+  :- wat.gen/Coord
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.gen/Coord  i :- wat.type/i64]
+                    :- wat.gen/Coord
+      (wat.core/conj acc
+        (wat.core/if (wat.core/= i j) v (wat.gen/nth c i))))
     (wat.type/PersistentVector :- [wat.type/i64])
-    (:wat::core::range 0 (:wat::core::length c))))
+    (wat.core/range 0 (wat.core/length c))))
 
 ;; Lower ONE dimension as far as it will go while still failing.
-(:wat::core::defn :wat::gen::shrink-dim
-  [c <- :wat::gen::Coord
-   j <- wat.type/i64
-   still-fails? <- [:wat::gen::Coord :-> wat.type/bool]]
-  -> :wat::gen::Coord
+(wat.core/defn wat.gen/shrink-dim
+  [c :- wat.gen/Coord
+   j :- wat.type/i64
+   still-fails? :- [wat.gen/Coord :-> wat.type/bool]]
+  :- wat.gen/Coord
   ;; the SAME descent as `shrink-index`, differing only in what a candidate means:
   ;; here it is a value of dimension `j`, so the probe rebuilds the coordinate.
-  (:wat::core::let [cur  (:wat::gen::nth c j)
-                    best (:wat::gen::descend cur
-                           (:wat::core::fn [v <- wat.type/i64] -> :wat::gen::Coord
-                             (:wat::gen::with c j v))
+  (wat.core/let [cur  (wat.gen/nth c j)
+                    best (wat.gen/descend cur
+                           (wat.core/fn [v :- wat.type/i64] :- wat.gen/Coord
+                             (wat.gen/with c j v))
                            still-fails?)]
-    (:wat::gen::with c j best)))
+    (wat.gen/with c j best)))
 
 ;; Descend every dimension, left to right.
-(:wat::core::defn :wat::gen::shrink
-  [c <- :wat::gen::Coord
-   still-fails? <- [:wat::gen::Coord :-> wat.type/bool]]
-  -> :wat::gen::Coord
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::gen::Coord  j <- wat.type/i64]
-                    -> :wat::gen::Coord
-      (:wat::gen::shrink-dim acc j still-fails?))
+(wat.core/defn wat.gen/shrink
+  [c :- wat.gen/Coord
+   still-fails? :- [wat.gen/Coord :-> wat.type/bool]]
+  :- wat.gen/Coord
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.gen/Coord  j :- wat.type/i64]
+                    :- wat.gen/Coord
+      (wat.gen/shrink-dim acc j still-fails?))
     c
-    (:wat::core::range 0 (:wat::core::length c))))
+    (wat.core/range 0 (wat.core/length c))))
 
 ;; ── bind: DEPENDENT generation — the shape of B depends on the VALUE of A ────
 ;;
@@ -909,9 +909,9 @@
 ;; actually takes — and it is why `cards` is precomputed rather than recomputed:
 ;; without the cache, `card` alone would rebuild every branch generator on every
 ;; call.
-(:wat::core::defn :wat::gen::bind :- [A B]
-  [ga <- (:wat::gen::Gen :- [A])  f <- [A :-> (:wat::gen::Gen :- [B])]]
-  -> (:wat::gen::Gen :- [B])
+(wat.core/defn wat.gen/bind :- [A B]
+  [ga :- (wat.gen/Gen :- [A])  f :- [A :-> (wat.gen/Gen :- [B])]]
+  :- (wat.gen/Gen :- [B])
   ;; `f` RUNS EXACTLY ONCE PER BRANCH, HERE, and the Gen it returns is KEPT.
   ;; It used to compute a `cards` vector by calling `f` and THROWING THE GEN AWAY,
   ;; so the dispatch had to call `f` again on every lookup — measured at 29-35% of
@@ -947,13 +947,13 @@
   ;; anyway — so the cost temperare priced is now already paid, and what is left is
   ;; one dispatch instead of two. Re-measured after the collapse to confirm it is free,
   ;; not assumed.
-  (:wat::core::let [ga-at (:wat::gen::Gen/at ga)]
-    (:wat::gen::one-of
-      (:wat::core::into (wat.type/PersistentVector :- [(:wat::gen::Gen :- [:B])])
-        (:wat::core::mapv
-          (:wat::core::fn [i <- wat.type/i64] -> (:wat::gen::Gen :- [B])
+  (wat.core/let [ga-at (wat.gen.Gen/at ga)]
+    (wat.gen/one-of
+      (wat.core/into (wat.type/PersistentVector :- [(wat.gen/Gen :- [:B])])
+        (wat.core/mapv
+          (wat.core/fn [i :- wat.type/i64] :- (wat.gen/Gen :- [B])
             (f (ga-at i)))
-          (:wat::core::range 0 (:wat::gen::Gen/card ga)))))))
+          (wat.core/range 0 (wat.gen.Gen/card ga)))))))
 
 ;; ── bounded collections ──────────────────────────────────────────────────────
 ;;
@@ -965,28 +965,28 @@
 ;; the element space depends on a generated length. Its card is the SUM over
 ;; lengths, so short vectors are enumerated before long ones and a failing index
 ;; still names a length.
-(:wat::core::defn :wat::gen::vector-of :- [T]
-  [g <- (:wat::gen::Gen :- [T])  n <- wat.type/i64]
-  -> (:wat::gen::Gen :- [(wat.type/PersistentVector :- [T])])
-  (:wat::core::let
-    [c     (:wat::gen::Gen/card g)
-     at    (:wat::gen::Gen/at g)
-     bases (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
-             (:wat::core::mapv
-               (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64 c)
-               (:wat::core::range 0 n)))
-     coords (:wat::gen::coords bases)
-     cat    (:wat::gen::Gen/at coords)]
-    (:wat::gen::gen
-      (:wat::gen::Gen/card coords)
-      (:wat::core::fn [k <- wat.type/i64] -> (wat.type/PersistentVector :- [T])
-            (:wat::core::into (wat.type/PersistentVector :- [:T])
-              (:wat::core::mapv at (cat k)))))))
+(wat.core/defn wat.gen/vector-of :- [T]
+  [g :- (wat.gen/Gen :- [T])  n :- wat.type/i64]
+  :- (wat.gen/Gen :- [(wat.type/PersistentVector :- [T])])
+  (wat.core/let
+    [c     (wat.gen.Gen/card g)
+     at    (wat.gen.Gen/at g)
+     bases (wat.core/into (wat.type/PersistentVector :- [wat.type/i64])
+             (wat.core/mapv
+               (wat.core/fn [i :- wat.type/i64] :- wat.type/i64 c)
+               (wat.core/range 0 n)))
+     coords (wat.gen/coords bases)
+     cat    (wat.gen.Gen/at coords)]
+    (wat.gen/gen
+      (wat.gen.Gen/card coords)
+      (wat.core/fn [k :- wat.type/i64] :- (wat.type/PersistentVector :- [T])
+            (wat.core/into (wat.type/PersistentVector :- [:T])
+              (wat.core/mapv at (cat k)))))))
 
-(:wat::core::defn :wat::gen::vector-upto :- [T]
-  [g <- (:wat::gen::Gen :- [T])  lo <- wat.type/i64  hi <- wat.type/i64]
-  -> (:wat::gen::Gen :- [(wat.type/PersistentVector :- [T])])
-  (:wat::gen::bind (:wat::gen::ints lo (:wat::i64::+ hi 1))
-    (:wat::core::fn [n <- wat.type/i64]
-                    -> (:wat::gen::Gen :- [(wat.type/PersistentVector :- [T])])
-      (:wat::gen::vector-of g n))))
+(wat.core/defn wat.gen/vector-upto :- [T]
+  [g :- (wat.gen/Gen :- [T])  lo :- wat.type/i64  hi :- wat.type/i64]
+  :- (wat.gen/Gen :- [(wat.type/PersistentVector :- [T])])
+  (wat.gen/bind (wat.gen/ints lo (wat.i64/+ hi 1))
+    (wat.core/fn [n :- wat.type/i64]
+                    :- (wat.gen/Gen :- [(wat.type/PersistentVector :- [T])])
+      (wat.gen/vector-of g n))))

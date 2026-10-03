@@ -27,11 +27,11 @@
 ;; Preconditions: n > 0, value > 0. Caller enforces; Thermometer over
 ;; `ln(non-positive)` produces undefined behavior.
 
-(:wat::core::defmacro :wat::holon::ReciprocalLog
-  [n     <- wat.type/AST
-   value <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::holon::Log
+(wat.core/defmacro wat.holon/ReciprocalLog
+  [n     :- wat.type/AST
+   value :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.holon/Log
      ~value
-     (:wat::core::/ 1.0 ~n)
+     (wat.core// 1.0 ~n)
      ~n))

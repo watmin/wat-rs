@@ -20,24 +20,24 @@
 ;; file's stdlib.rs manifest slot now ALSO depends on wat/query.wat and must load after it.
 
 ;; ─── Tags — the dimension map every scope carries (keyword → string). ────────────
-(:wat::core::typealias :wat::telemetry::Tags
+(wat.core/typealias wat.telemetry/Tags
   (wat.type/HashMap :- [wat.type/keyword wat.type/String]))
 
 ;; ─── Samples — a span's duration samples (nanos) under one name. A bare keyword alias so it
 ;; can name a HashMap value type + a `match ->` annotation (compound types can't sit there). ─
-(:wat::core::typealias :wat::telemetry::Samples
+(wat.core/typealias wat.telemetry/Samples
   (wat.type/Vector :- [wat.type/i64]))
 
 ;; ─── Numeric — a metric's value: an i64 count or an f64 gauge (fielded variants). ─
 ;; Variant names are :I64/:F64 (capitalized, per the sqlite Cell/Param exemplar): the
 ;; lowercase :i64/:f64 the design doc sketched collide with the RETIRED bare primitives
 ;; :i64/:f64 (arc-109) and are rejected as enum-variant names.
-(:wat::core::defenum :wat::telemetry::Numeric :wat::enum::Pure
-  :I64 [val <- wat.type/i64]
-  :F64 [val <- wat.type/f64])
+(wat.core/defenum wat.telemetry/Numeric wat.enum/Pure
+  :I64 [val :- wat.type/i64]
+  :F64 [val :- wat.type/f64])
 
 ;; ─── Unit — the unit a metric's value is measured in (bare variants). ────────────
-(:wat::core::defenum :wat::telemetry::Unit :wat::enum::Pure
+(wat.core/defenum wat.telemetry/Unit wat.enum/Pure
   :Count
   :Nanos
   :Millis
@@ -45,7 +45,7 @@
   :Percent)
 
 ;; ─── Level — a log record's severity (bare variants). ────────────────────────────
-(:wat::core::defenum :wat::telemetry::Level :wat::enum::Pure
+(wat.core/defenum wat.telemetry/Level wat.enum/Pure
   :Debug
   :Info
   :Warn
@@ -55,7 +55,7 @@
 ;; Discriminates the two record shapes at the partition-key level (metrics and logs
 ;; are different shapes; the pk carries the kind so a namespace's metrics and logs
 ;; partition distinctly).
-(:wat::core::defenum :wat::telemetry::Kind :wat::enum::Pure
+(wat.core/defenum wat.telemetry/Kind wat.enum/Pure
   :Metric
   :Log)
 
@@ -64,38 +64,38 @@
 ;; — self-describing AND round-trippable (an EDN reader hydrates it back to this record),
 ;; unlike a `#`-delimited flat string which cannot be read back. Fields render in
 ;; declaration order, so the partition groups hierarchically (namespace, then kind).
-(:wat::core::defrecord :wat::telemetry::PartitionKey
-  [namespace <- wat.type/String
-   kind      <- :wat::telemetry::Kind])
+(wat.core/defrecord wat.telemetry/PartitionKey
+  [namespace :- wat.type/String
+   kind      :- wat.telemetry/Kind])
 
 ;; ─── Scope — the EXACT surface every telemetry record satisfies (identity + when). ─
 ;; namespace (facility), uuid (correlation id), tags (dimensions), time-ns (event time).
 ;; Spliced into Metric/Log via `~@:wat::telemetry'::Scope`.
-(:wat::core::defsurface :wat::telemetry::Scope
+(wat.core/defsurface wat.telemetry/Scope
   :nature wat.type/Record
-  :features [namespace <- wat.type/String
-             uuid      <- wat.uuid/UUID
-             tags      <- :wat::telemetry::Tags
-             time-ns   <- wat.type/i64])
+  :features [namespace :- wat.type/String
+             uuid      :- wat.uuid/UUID
+             tags      :- wat.telemetry/Tags
+             time-ns   :- wat.type/i64])
 
 ;; ─── Metric — a measurement. Splices Scope (4 fields), then 4 own. ───────────────
 ;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  start-time-ns name value unit.
-(:wat::core::defrecord :wat::telemetry::Metric
-  [~@:wat::telemetry::Scope
-   start-time-ns <- wat.type/i64
-   name          <- wat.type/keyword
-   value         <- :wat::telemetry::Numeric
-   unit          <- :wat::telemetry::Unit])
+(wat.core/defrecord wat.telemetry/Metric
+  [~@wat.telemetry/Scope
+   start-time-ns :- wat.type/i64
+   name          :- wat.type/keyword
+   value         :- wat.telemetry/Numeric
+   unit          :- wat.telemetry/Unit])
 
 ;; ─── Log — a log event. Splices Scope (4 fields), then 3 own. ────────────────────
 ;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  emitted-from level message.
-(:wat::core::defrecord :wat::telemetry::Log
-  [~@:wat::telemetry::Scope
-   emitted-from  <- :wat::kernel::Frame
-   level   <- :wat::telemetry::Level
+(wat.core/defrecord wat.telemetry/Log
+  [~@wat.telemetry/Scope
+   emitted-from  :- wat.kernel/Frame
+   level   :- wat.telemetry/Level
    ;; message is OPAQUE (arc 278 Stone B): EDN text the producer `edn::write`s at the call site;
    ;; the sink stores/returns it verbatim and never decodes (no `UnknownTag` across a fork).
-   message <- wat.type/String])
+   message :- wat.type/String])
 
 ;; ─── Journal — arc 278 stone T1b.1: the telemetry sink's S4c contract, write half. ─
 ;; A `:nature :wat::kernel::Peer'` surface — a dialed `(Peer' :- [Journal::Op Journal::Reply])` IS a
@@ -112,116 +112,116 @@
 ;; The minimal-CloudWatch contract: write + query, for metrics + logs. `write-*` persist a batch;
 ;; `query-*` read a namespace back over a time window (a filtered store scan, hydrating the rows to
 ;; Metric/Log — NO rete: rete is a CONSUMER that instruments itself and queries back, not the engine).
-(:wat::core::defsurface :wat::telemetry::Journal :nature :wat::kernel::Peer
+(wat.core/defsurface wat.telemetry/Journal :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat::telemetry::Journal::WriteMetricsRequest
-     [batch <- (wat.type/Vector :- [:wat::telemetry::Metric])])
-   (:wat::core::defenum :wat::telemetry::Journal::WriteMetricsResponse :wat::enum::Pure
+  [(wat.core/defrecord wat.telemetry.Journal/WriteMetricsRequest
+     [batch :- (wat.type/Vector :- [wat.telemetry/Metric])])
+   (wat.core/defenum wat.telemetry.Journal/WriteMetricsResponse wat.enum/Pure
      :Success        []
-     :Constraint     [err <- :wat::query::Constraint]
-     :Transient      [err <- :wat::query::Transient]
-     :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+     :Constraint     [err :- wat.query/Constraint]
+     :Transient      [err :- wat.query/Transient]
+     :Fatal          [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
-   (:wat::core::defrecord :wat::telemetry::Journal::WriteLogsRequest
-     [batch <- (wat.type/Vector :- [:wat::telemetry::Log])])
-   (:wat::core::defenum :wat::telemetry::Journal::WriteLogsResponse :wat::enum::Pure
+   (wat.core/defrecord wat.telemetry.Journal/WriteLogsRequest
+     [batch :- (wat.type/Vector :- [wat.telemetry/Log])])
+   (wat.core/defenum wat.telemetry.Journal/WriteLogsResponse wat.enum/Pure
      :Success        []
-     :Constraint     [err <- :wat::query::Constraint]
-     :Transient      [err <- :wat::query::Transient]
-     :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+     :Constraint     [err :- wat.query/Constraint]
+     :Transient      [err :- wat.query/Transient]
+     :Fatal          [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
    ;; ── query (CloudWatch read side): a namespace + time window [lo,hi] in epoch nanos, paged. ──
-   (:wat::core::defrecord :wat::telemetry::Journal::QueryMetricsRequest
-     [namespace <- wat.type/String
-      time-lo   <- wat.type/i64
-      time-hi   <- wat.type/i64
-      limit     <- wat.type/i64
-      cursor    <- (:wat::core::Option :- [wat.type/String])])
+   (wat.core/defrecord wat.telemetry.Journal/QueryMetricsRequest
+     [namespace :- wat.type/String
+      time-lo   :- wat.type/i64
+      time-hi   :- wat.type/i64
+      limit     :- wat.type/i64
+      cursor    :- (wat.core/Option :- [wat.type/String])])
    ;; scan yields Success/Transient/Fatal only (a read can't constraint-fail) — mirror that.
-   (:wat::core::defenum :wat::telemetry::Journal::QueryMetricsResponse :wat::enum::Pure
-     :Success   [metrics <- (wat.type/Vector :- [:wat::telemetry::Metric])
-                 cursor  <- (:wat::core::Option :- [wat.type/String])]
-     :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (wat.core/defenum wat.telemetry.Journal/QueryMetricsResponse wat.enum/Pure
+     :Success   [metrics :- (wat.type/Vector :- [wat.telemetry/Metric])
+                 cursor  :- (wat.core/Option :- [wat.type/String])]
+     :Transient [err :- wat.query/Transient]
+     :Fatal     [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
-   (:wat::core::defrecord :wat::telemetry::Journal::QueryLogsRequest
-     [namespace <- wat.type/String
-      time-lo   <- wat.type/i64
-      time-hi   <- wat.type/i64
-      limit     <- wat.type/i64
-      cursor    <- (:wat::core::Option :- [wat.type/String])])
-   (:wat::core::defenum :wat::telemetry::Journal::QueryLogsResponse :wat::enum::Pure
-     :Success   [logs   <- (wat.type/Vector :- [:wat::telemetry::Log])
-                 cursor <- (:wat::core::Option :- [wat.type/String])]
-     :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (wat.core/defrecord wat.telemetry.Journal/QueryLogsRequest
+     [namespace :- wat.type/String
+      time-lo   :- wat.type/i64
+      time-hi   :- wat.type/i64
+      limit     :- wat.type/i64
+      cursor    :- (wat.core/Option :- [wat.type/String])])
+   (wat.core/defenum wat.telemetry.Journal/QueryLogsResponse wat.enum/Pure
+     :Success   [logs   :- (wat.type/Vector :- [wat.telemetry/Log])
+                 cursor :- (wat.core/Option :- [wat.type/String])]
+     :Transient [err :- wat.query/Transient]
+     :Fatal     [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
    ;; ── sift (arc 278 Stone 2 — server-side filtering, DESIGN-sift-server-side-filter.md): the
    ;; same namespace + time-window page as query-*, PLUS a `Sieve` (the pure filter spec — this
    ;; stone only ships `Sieve::Predicate`). The op compiles the predicate ONCE, applies it per
    ;; row, and returns only survivors; an impure/non-deterministic predicate is REJECTED —
    ;; `::Fatal` with a Fault, never a silent pass. ──
-   (:wat::core::defrecord :wat::telemetry::Journal::SiftLogsRequest
-     [namespace <- wat.type/String
-      time-lo   <- wat.type/i64
-      time-hi   <- wat.type/i64
-      limit     <- wat.type/i64
-      cursor    <- (:wat::core::Option :- [wat.type/String])
-      sieve     <- :wat::query::Sieve])
-   (:wat::core::defenum :wat::telemetry::Journal::SiftLogsResponse :wat::enum::Pure
-     :Success   [logs   <- (wat.type/Vector :- [:wat::telemetry::Log])
-                 cursor <- (:wat::core::Option :- [wat.type/String])]
-     :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+   (wat.core/defrecord wat.telemetry.Journal/SiftLogsRequest
+     [namespace :- wat.type/String
+      time-lo   :- wat.type/i64
+      time-hi   :- wat.type/i64
+      limit     :- wat.type/i64
+      cursor    :- (wat.core/Option :- [wat.type/String])
+      sieve     :- wat.query/Sieve])
+   (wat.core/defenum wat.telemetry.Journal/SiftLogsResponse wat.enum/Pure
+     :Success   [logs   :- (wat.type/Vector :- [wat.telemetry/Log])
+                 cursor :- (wat.core/Option :- [wat.type/String])]
+     :Transient [err :- wat.query/Transient]
+     :Fatal     [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
-   (:wat::core::defrecord :wat::telemetry::Journal::SiftMetricsRequest
-     [namespace <- wat.type/String
-      time-lo   <- wat.type/i64
-      time-hi   <- wat.type/i64
-      limit     <- wat.type/i64
-      cursor    <- (:wat::core::Option :- [wat.type/String])
-      sieve     <- :wat::query::Sieve])
-   (:wat::core::defenum :wat::telemetry::Journal::SiftMetricsResponse :wat::enum::Pure
-     :Success   [metrics <- (wat.type/Vector :- [:wat::telemetry::Metric])
-                 cursor  <- (:wat::core::Option :- [wat.type/String])]
-     :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+   (wat.core/defrecord wat.telemetry.Journal/SiftMetricsRequest
+     [namespace :- wat.type/String
+      time-lo   :- wat.type/i64
+      time-hi   :- wat.type/i64
+      limit     :- wat.type/i64
+      cursor    :- (wat.core/Option :- [wat.type/String])
+      sieve     :- wat.query/Sieve])
+   (wat.core/defenum wat.telemetry.Journal/SiftMetricsResponse wat.enum/Pure
+     :Success   [metrics :- (wat.type/Vector :- [wat.telemetry/Metric])
+                 cursor  :- (wat.core/Option :- [wat.type/String])]
+     :Transient [err :- wat.query/Transient]
+     :Fatal     [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
-   (write-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteMetricsRequest]
-     -> :wat::telemetry::Journal::WriteMetricsResponse :max-request-bytes 10485760)
+   (write-metrics [self :- wat.telemetry/Journal  req :- wat.telemetry.Journal/WriteMetricsRequest]
+     :- wat.telemetry.Journal/WriteMetricsResponse :max-request-bytes 10485760)
 
    ;; write a logs batch (>=1, homogeneous) ATOMICALLY through the owned store.
-   (write-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteLogsRequest]
-     -> :wat::telemetry::Journal::WriteLogsResponse :max-request-bytes 10485760)
+   (write-logs [self :- wat.telemetry/Journal  req :- wat.telemetry.Journal/WriteLogsRequest]
+     :- wat.telemetry.Journal/WriteLogsResponse :max-request-bytes 10485760)
 
    ;; query metrics in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
-   (query-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::QueryMetricsRequest]
-     -> :wat::telemetry::Journal::QueryMetricsResponse :max-request-bytes 524288)
+   (query-metrics [self :- wat.telemetry/Journal  req :- wat.telemetry.Journal/QueryMetricsRequest]
+     :- wat.telemetry.Journal/QueryMetricsResponse :max-request-bytes 524288)
 
    ;; query logs in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
-   (query-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::QueryLogsRequest]
-     -> :wat::telemetry::Journal::QueryLogsResponse :max-request-bytes 524288)
+   (query-logs [self :- wat.telemetry/Journal  req :- wat.telemetry.Journal/QueryLogsRequest]
+     :- wat.telemetry.Journal/QueryLogsResponse :max-request-bytes 524288)
 
    ;; sift logs — query-logs + server-side filtering (Sieve compiled once, applied per row).
-   (sift-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::SiftLogsRequest]
-     -> :wat::telemetry::Journal::SiftLogsResponse :max-request-bytes 524288)
+   (sift-logs [self :- wat.telemetry/Journal  req :- wat.telemetry.Journal/SiftLogsRequest]
+     :- wat.telemetry.Journal/SiftLogsResponse :max-request-bytes 524288)
 
    ;; sift metrics — the mechanical twin, over the Metric partition.
-   (sift-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::SiftMetricsRequest]
-     -> :wat::telemetry::Journal::SiftMetricsResponse :max-request-bytes 524288)])
+   (sift-metrics [self :- wat.telemetry/Journal  req :- wat.telemetry.Journal/SiftMetricsRequest]
+     :- wat.telemetry.Journal/SiftMetricsResponse :max-request-bytes 524288)])
 
 ;; ─── Span — arc 278 stone Span.1: the PRODUCER surface (a unit of work). ──────────
 ;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.
@@ -233,57 +233,57 @@
 ;; stone Span.2) holds a `:wat::telemetry'::Journal` peer. Nesting is a call-site `open` with the same
 ;; sink (NOT a surface op). `timed` the OP (`Span/timed`) is distinct from the `timed` call-site widget
 ;; macro (`:wat::telemetry'::timed`) — FQDN disambiguates.
-(:wat::core::defsurface :wat::telemetry::Span :nature :wat::kernel::Peer
+(wat.core/defsurface wat.telemetry/Span :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat::telemetry::Span::IncrRequest
-     [name <- wat.type/keyword])
-   (:wat::core::defenum :wat::telemetry::Span::IncrResponse :wat::enum::Pure
+  [(wat.core/defrecord wat.telemetry.Span/IncrRequest
+     [name :- wat.type/keyword])
+   (wat.core/defenum wat.telemetry.Span/IncrResponse wat.enum/Pure
      :Ok              []
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
-   (:wat::core::defrecord :wat::telemetry::Span::TimedRequest
-     [name <- wat.type/keyword  nanos <- wat.type/i64])
-   (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure
+   (wat.core/defrecord wat.telemetry.Span/TimedRequest
+     [name :- wat.type/keyword  nanos :- wat.type/i64])
+   (wat.core/defenum wat.telemetry.Span/TimedResponse wat.enum/Pure
      :Ok              []
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
-   (:wat::core::defrecord :wat::telemetry::Span::LogRequest
-     [emitted-from  <- :wat::kernel::Frame
-      level   <- :wat::telemetry::Level
+   (wat.core/defrecord wat.telemetry.Span/LogRequest
+     [emitted-from  :- wat.kernel/Frame
+      level   :- wat.telemetry/Level
       ;; message OPAQUE (arc 278 Stone B): the `Span/log` caller `edn::write`s its record here, so
       ;; a forked `span'` never hits `UnknownTag` on a user type either — opaque before both wires.
-      message <- wat.type/String])
-   (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure
+      message :- wat.type/String])
+   (wat.core/defenum wat.telemetry.Span/LogResponse wat.enum/Pure
      :Ok              []
-     :Constraint      [err <- :wat::query::Constraint]
-     :Transient       [err <- :wat::query::Transient]
-     :Fatal           [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+     :Constraint      [err :- wat.query/Constraint]
+     :Transient       [err :- wat.query/Transient]
+     :Fatal           [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
 
-   (:wat::core::defrecord :wat::telemetry::Span::CloseRequest [])
-   (:wat::core::defenum :wat::telemetry::Span::CloseResponse :wat::enum::Pure
+   (wat.core/defrecord wat.telemetry.Span/CloseRequest [])
+   (wat.core/defenum wat.telemetry.Span/CloseResponse wat.enum/Pure
      :Done           []
-     :Constraint     [err <- :wat::query::Constraint]
-     :Transient      [err <- :wat::query::Transient]
-     :Fatal          [err <- :wat::query::Fatal]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :Constraint     [err :- wat.query/Constraint]
+     :Transient      [err :- wat.query/Transient]
+     :Fatal          [err :- wat.query/Fatal]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
   [;; increment a named counter by 1 — a PURE state transition (emitted on close).
-   (incr [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::IncrRequest]
-     -> :wat::telemetry::Span::IncrResponse :max-request-bytes 524288)
+   (incr [self :- wat.telemetry/Span  req :- wat.telemetry.Span/IncrRequest]
+     :- wat.telemetry.Span/IncrResponse :max-request-bytes 524288)
    ;; record a duration sample (nanos) under a name — PURE (the timing widget already measured).
-   (timed [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::TimedRequest]
-     -> :wat::telemetry::Span::TimedResponse :max-request-bytes 524288)
+   (timed [self :- wat.telemetry/Span  req :- wat.telemetry.Span/TimedRequest]
+     :- wat.telemetry.Span/TimedResponse :max-request-bytes 524288)
    ;; write a Log NOW through the sink, correlated by this span's scope.
-   (log [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::LogRequest]
-     -> :wat::telemetry::Span::LogResponse :max-request-bytes 524288)
+   (log [self :- wat.telemetry/Span  req :- wat.telemetry.Span/LogRequest]
+     :- wat.telemetry.Span/LogResponse :max-request-bytes 524288)
    ;; close the unit of work: emit accumulated counters + durations as Metrics to the sink.
-   (close [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::CloseRequest]
-     -> :wat::telemetry::Span::CloseResponse :max-request-bytes 524288)])
+   (close [self :- wat.telemetry/Span  req :- wat.telemetry.Span/CloseRequest]
+     :- wat.telemetry.Span/CloseResponse :max-request-bytes 524288)])
 
 ;; ─── framing-floor-of — arc 278 capacity stone 1: the RUNTIME adaptive framing-floor derive. ──
 ;; DESIGN-telemetry-caller-and-capacity.md §3. Reflects a record type's fields at RUNTIME
@@ -310,24 +310,24 @@
 ;;      keyword's own text (the fqdn passed in by the caller IS the tag written on the wire).
 ;; This is the whole point: re-run this on ANY type keyword and the floor RE-DERIVES from the
 ;; LIVE field set — a field added/removed/retyped tomorrow needs no hand edits here.
-(:wat::core::defn :wat::telemetry::framing-floor-of [ty <- wat.type/keyword] -> wat.type/i64
-  (:wat::core::let
-    [tag-cost   (:wat::string::length (:wat::keyword::to-string ty))
-     fixed-cost (:wat::core::foldl
-                  (:wat::core::fn [acc <- wat.type/i64  t <- wat.type/AST] -> wat.type/i64
-                    (:wat::i64::+ acc
-                      (:wat::core::cond
-                        ((:wat::core::type-equal? t 'wat.type/i64)  20)
-                        ((:wat::core::type-equal? t 'wat.type/f64)  24)
-                        ((:wat::core::type-equal? t 'wat.uuid/UUID) 36)
-                        ((:wat::core::type-equal? t 'wat.type/bool) 5)
+(wat.core/defn wat.telemetry/framing-floor-of [ty :- wat.type/keyword] :- wat.type/i64
+  (wat.core/let
+    [tag-cost   (wat.string/length (wat.keyword/to-string ty))
+     fixed-cost (wat.core/foldl
+                  (wat.core/fn [acc :- wat.type/i64  t :- wat.type/AST] :- wat.type/i64
+                    (wat.i64/+ acc
+                      (wat.core/cond
+                        ((wat.core/type-equal? t 'wat.type/i64)  20)
+                        ((wat.core/type-equal? t 'wat.type/f64)  24)
+                        ((wat.core/type-equal? t 'wat.uuid/UUID) 36)
+                        ((wat.core/type-equal? t 'wat.type/bool) 5)
                         (:else 0))))
-                  0 (:wat::runtime::field-types-of ty))
-     key-cost   (:wat::core::foldl
-                  (:wat::core::fn [acc <- wat.type/i64  k <- wat.type/keyword] -> wat.type/i64
-                    (:wat::i64::+ acc (:wat::string::length (:wat::keyword::to-string k))))
-                  0 (:wat::runtime::field-names-of ty))]
-    (:wat::i64::+ tag-cost (:wat::i64::+ fixed-cost key-cost))))
+                  0 (wat.runtime/field-types-of ty))
+     key-cost   (wat.core/foldl
+                  (wat.core/fn [acc :- wat.type/i64  k :- wat.type/keyword] :- wat.type/i64
+                    (wat.i64/+ acc (wat.string/length (wat.keyword/to-string k))))
+                  0 (wat.runtime/field-names-of ty))]
+    (wat.i64/+ tag-cost (wat.i64/+ fixed-cost key-cost))))
 
 ;; ─── LOG-MSG-CAPACITY — the derived, zero-waste-ish log message byte budget. ──────
 ;; BUDGET is the named server read ceiling (10 MiB — matches the `journal'`/`mem-store`
@@ -337,7 +337,7 @@
 ;; re-derives automatically whenever `Log`'s field set changes (a field added tomorrow shrinks
 ;; this without a hand edit). This is a conservative HINT; the exact per-caller gate is the
 ;; runtime remainder against the actually-filled-in required params (§3, deferred wiring).
-(:wat::core::def :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES 10485760)
-(:wat::core::def :wat::telemetry::LOG-MSG-CAPACITY
-  (:wat::i64::- :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES
-    (:wat::telemetry::framing-floor-of :wat::telemetry::Log)))
+(wat.core/def wat.telemetry/LOG-JOURNAL-BUDGET-BYTES 10485760)
+(wat.core/def wat.telemetry/LOG-MSG-CAPACITY
+  (wat.i64/- wat.telemetry/LOG-JOURNAL-BUDGET-BYTES
+    (wat.telemetry/framing-floor-of wat.telemetry/Log)))

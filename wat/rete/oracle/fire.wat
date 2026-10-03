@@ -15,112 +15,112 @@
 
 ;; walk-alpha-ids — activate-alpha over sorted node-ids.
 ;; acc: node-id → (PV :- [Element]) (FLAT — assoc under alpha-id, not nested by bindings).
-(:wat::core::defn :wat::rete::walk-alpha-ids
-  [facts   <- wat.type/PersistentVector
-   network <- wat.type/PersistentMap
-   ids     <- (wat.type/Vector :- [wat.type/i64])
-   i       <- wat.type/i64
-   acc     <- :wat::rete::AlphaMemory]
-  -> :wat::rete::AlphaMemory
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
+(wat.core/defn wat.rete/walk-alpha-ids
+  [facts   :- wat.type/PersistentVector
+   network :- wat.type/PersistentMap
+   ids     :- (wat.type/Vector :- [wat.type/i64])
+   i       :- wat.type/i64
+   acc     :- wat.rete/AlphaMemory]
+  :- wat.rete/AlphaMemory
+  (wat.core/if (wat.i64/>= i (wat.core/length ids))
     acc
-    (:wat::core::let [node-id (:wat::core::Option/expect
-                                 (:wat::core::get ids i)
+    (wat.core/let [node-id (wat.core.Option/expect
+                                 (wat.core/get ids i)
                                  "walk-alpha-ids: id")
-                      acc1    (:wat::rete::activate-alpha facts network acc node-id)]
-      (:wat::rete::walk-alpha-ids facts network ids
-        (:wat::i64::+ i 1) acc1))))
+                      acc1    (wat.rete/activate-alpha facts network acc node-id)]
+      (wat.rete/walk-alpha-ids facts network ids
+        (wat.i64/+ i 1) acc1))))
 
 ;; walk-beta-ids — root-join-pass over sorted node-ids. Reads amem; writes beta.
 ;; acc: node-id → (PV :- [Token]).
-(:wat::core::defn :wat::rete::walk-beta-ids
-  [network <- wat.type/PersistentMap
-   amem    <- :wat::rete::AlphaMemory
-   ids     <- (wat.type/Vector :- [wat.type/i64])
-   i       <- wat.type/i64
-   acc     <- :wat::rete::BetaMemory]
-  -> :wat::rete::BetaMemory
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
+(wat.core/defn wat.rete/walk-beta-ids
+  [network :- wat.type/PersistentMap
+   amem    :- wat.rete/AlphaMemory
+   ids     :- (wat.type/Vector :- [wat.type/i64])
+   i       :- wat.type/i64
+   acc     :- wat.rete/BetaMemory]
+  :- wat.rete/BetaMemory
+  (wat.core/if (wat.i64/>= i (wat.core/length ids))
     acc
-    (:wat::core::let [node-id (:wat::core::Option/expect
-                                 (:wat::core::get ids i)
+    (wat.core/let [node-id (wat.core.Option/expect
+                                 (wat.core/get ids i)
                                  "walk-beta-ids: id")
-                      acc1    (:wat::rete::root-join-pass amem network acc node-id)]
-      (:wat::rete::walk-beta-ids network amem ids
-        (:wat::i64::+ i 1) acc1))))
+                      acc1    (wat.rete/root-join-pass amem network acc node-id)]
+      (wat.rete/walk-beta-ids network amem ids
+        (wat.i64/+ i 1) acc1))))
 
 ;; walk-filter-ids — populate-then-emit walk (accumulate-pass, then filter-pass,
 ;; then hash-join-pass). Reads facts+amem; threads beta. acc: node-id → (PV :- [Token]).
 ;; rune:intueri(naming) — oracle populate-then-emit walker (acc+filter+hash-join);
 ;; the name is the historical walk-sorted-ids split, not filter-alone.
-(:wat::core::defn :wat::rete::walk-filter-ids
-  [facts   <- wat.type/PersistentVector
-   network <- wat.type/PersistentMap
-   amem    <- :wat::rete::AlphaMemory
-   ids     <- (wat.type/Vector :- [wat.type/i64])
-   i       <- wat.type/i64
-   acc     <- :wat::rete::BetaMemory]
-  -> :wat::rete::BetaMemory
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
+(wat.core/defn wat.rete/walk-filter-ids
+  [facts   :- wat.type/PersistentVector
+   network :- wat.type/PersistentMap
+   amem    :- wat.rete/AlphaMemory
+   ids     :- (wat.type/Vector :- [wat.type/i64])
+   i       :- wat.type/i64
+   acc     :- wat.rete/BetaMemory]
+  :- wat.rete/BetaMemory
+  (wat.core/if (wat.i64/>= i (wat.core/length ids))
     acc
-    (:wat::core::let [node-id (:wat::core::Option/expect
-                                 (:wat::core::get ids i)
+    (wat.core/let [node-id (wat.core.Option/expect
+                                 (wat.core/get ids i)
                                  "walk-filter-ids: id")
-                      acc1    (:wat::rete::hash-join-pass amem network
-                                (:wat::rete::filter-pass network amem facts
-                                  (:wat::rete::accumulate-pass network amem acc node-id)
+                      acc1    (wat.rete/hash-join-pass amem network
+                                (wat.rete/filter-pass network amem facts
+                                  (wat.rete/accumulate-pass network amem acc node-id)
                                   node-id)
                                 node-id)]
-      (:wat::rete::walk-filter-ids facts network amem ids
-        (:wat::i64::+ i 1) acc1))))
+      (wat.rete/walk-filter-ids facts network amem ids
+        (wat.i64/+ i 1) acc1))))
 
 ;; walk-prod-ids — production-pass over sorted node-ids. Reads bmem+rules; writes
 ;; production. acc: node-id → (PV :- [Record]).
-(:wat::core::defn :wat::rete::walk-prod-ids
-  [network <- wat.type/PersistentMap
-   bmem    <- :wat::rete::BetaMemory
-   rules   <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   ids     <- (wat.type/Vector :- [wat.type/i64])
-   i       <- wat.type/i64
-   acc     <- :wat::rete::ProductionMemory]
-  -> :wat::rete::ProductionMemory
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
+(wat.core/defn wat.rete/walk-prod-ids
+  [network :- wat.type/PersistentMap
+   bmem    :- wat.rete/BetaMemory
+   rules   :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   ids     :- (wat.type/Vector :- [wat.type/i64])
+   i       :- wat.type/i64
+   acc     :- wat.rete/ProductionMemory]
+  :- wat.rete/ProductionMemory
+  (wat.core/if (wat.i64/>= i (wat.core/length ids))
     acc
-    (:wat::core::let [node-id (:wat::core::Option/expect
-                                 (:wat::core::get ids i)
+    (wat.core/let [node-id (wat.core.Option/expect
+                                 (wat.core/get ids i)
                                  "walk-prod-ids: id")
-                      acc1    (:wat::rete::production-pass network bmem rules acc node-id)]
-      (:wat::rete::walk-prod-ids network bmem rules ids
-        (:wat::i64::+ i 1) acc1))))
+                      acc1    (wat.rete/production-pass network bmem rules acc node-id)]
+      (wat.rete/walk-prod-ids network bmem rules ids
+        (wat.i64/+ i 1) acc1))))
 
 ;; collect-query-memory — QueryNode name → parent-token bindings (the fire's answers).
-(:wat::core::defn :wat::rete::collect-query-memory
-  [network  <- wat.type/PersistentMap
-   beta-mem <- wat.type/PersistentMap]
-  -> wat.type/PersistentMap
-  (:wat::core::foldl
-    (:wat::core::fn [acc     <- wat.type/PersistentMap
-                     node-id <- wat.type/i64]
-      -> wat.type/PersistentMap
-      (:wat::core::let [node (:wat::core::Option/expect
-                                (:wat::core::get network node-id)
+(wat.core/defn wat.rete/collect-query-memory
+  [network  :- wat.type/PersistentMap
+   beta-mem :- wat.type/PersistentMap]
+  :- wat.type/PersistentMap
+  (wat.core/foldl
+    (wat.core/fn [acc     :- wat.type/PersistentMap
+                     node-id :- wat.type/i64]
+      :- wat.type/PersistentMap
+      (wat.core/let [node (wat.core.Option/expect
+                                (wat.core/get network node-id)
                                 "collect-query-memory: node")]
-        (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "QueryNode")
-          (:wat::core::let [qname (:wat::rete::QueryNode/query-name node)
-                            pids  (:wat::rete::node-parents node-id network)
-                            toks  (:wat::rete::tokens-from-parents beta-mem pids)
-                            maps  (:wat::core::foldl
-                                     (:wat::core::fn [a   <- (wat.type/PersistentVector :- [wat.type/PersistentMap])
-                                                      tok <- :wat::rete::Token]
-                                       -> (wat.type/PersistentVector :- [wat.type/PersistentMap])
-                                       (:wat::core::conj a
-                                         (:wat::rete::Token/bindings tok)))
+        (wat.core/if (wat.core/= (wat.rete/node-kind-label node) "QueryNode")
+          (wat.core/let [qname (wat.rete.QueryNode/query-name node)
+                            pids  (wat.rete/node-parents node-id network)
+                            toks  (wat.rete/tokens-from-parents beta-mem pids)
+                            maps  (wat.core/foldl
+                                     (wat.core/fn [a   :- (wat.type/PersistentVector :- [wat.type/PersistentMap])
+                                                      tok :- wat.rete/Token]
+                                       :- (wat.type/PersistentVector :- [wat.type/PersistentMap])
+                                       (wat.core/conj a
+                                         (wat.rete.Token/bindings tok)))
                                      (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                      toks)]
-            (:wat::core::assoc acc qname maps))
+            (wat.core/assoc acc qname maps))
           acc)))
     (wat.type/PersistentMap :- [wat.type/String (wat.type/PersistentVector :- [wat.type/PersistentMap])])
-    (:wat::rete::topological-node-ids network)))
+    (wat.rete/topological-node-ids network)))
 
 ;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
@@ -133,21 +133,21 @@
 ;; be comparing two different things. It can only ever answer `Fired`: the oracle enforces no
 ;; ceilings, which is the standing accepted asymmetry (*"the `$oracle` is the slow-but-correct
 ;; reference an embedder never runs"*) — the same asymmetry the round cap already carries.
-(:wat::core::defn :wat::rete::fire-once$oracle
-  [session <- :wat::rete::Session]
-  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
-  (:wat::core::let [network  (:wat::rete::Session/network session)
-                    rules    (:wat::rete::Session/rules   session)
-                    _export (:wat::core::Option/expect
-                              (:wat::core::if
-                                (:wat::core::if (:wat::core::empty? rules)
-                                  (:wat::rete::network-has-production? network)
+(wat.core/defn wat.rete/fire-once$oracle
+  [session :- wat.rete/Session]
+  :- (wat.rete/FireOutcome :- [wat.rete/Session])
+  (wat.core/let [network  (wat.rete.Session/network session)
+                    rules    (wat.rete.Session/rules   session)
+                    _export (wat.core.Option/expect
+                              (wat.core/if
+                                (wat.core/if (wat.core/empty? rules)
+                                  (wat.rete/network-has-production? network)
                                   false)
-                                :wat::core::Option.None
-                                (:wat::core::Option.Some {:value nil}))
+                                wat.core/Option.None
+                                (wat.core/Option.Some {:value nil}))
                               "fire-once: oracle cannot consume an Export — empty rules, live network")
-                    bag      (:wat::rete::factbag::of session)
-                    facts    (:wat::rete::factbag::items bag)
+                    bag      (wat.rete.factbag/of session)
+                    facts    (wat.rete.factbag/items bag)
                     ;; WHY sort: compile mints ids left-to-right, so ascending id IS
                     ;; topological. PersistentMap/keys is HAMT order — not that. The old
                     ;; split (all joins, then all filters) was commute-tolerant. The
@@ -157,24 +157,24 @@
                     ;; oracle-derived changed every run, sometimes []. Native sorts
                     ;; (sorted_node_ids); the spec must too. The sort lives in
                     ;; `:wat::rete::topological-node-ids` — one definition.
-                    node-ids (:wat::rete::topological-node-ids network)
-                    new-amem (:wat::rete::walk-alpha-ids facts network node-ids 0
-                                 (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Element])]))
-                    new-bmem (:wat::rete::walk-beta-ids network new-amem node-ids 0
-                                 (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Token])]))
-                    filtered-bmem (:wat::rete::walk-filter-ids facts network new-amem node-ids 0 new-bmem)
-                    new-pmem (:wat::rete::walk-prod-ids network filtered-bmem rules node-ids 0
+                    node-ids (wat.rete/topological-node-ids network)
+                    new-amem (wat.rete/walk-alpha-ids facts network node-ids 0
+                                 (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.rete/Element])]))
+                    new-bmem (wat.rete/walk-beta-ids network new-amem node-ids 0
+                                 (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.rete/Token])]))
+                    filtered-bmem (wat.rete/walk-filter-ids facts network new-amem node-ids 0 new-bmem)
+                    new-pmem (wat.rete/walk-prod-ids network filtered-bmem rules node-ids 0
                                  (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/Record])]))
-                    qmem     (:wat::rete::collect-query-memory network filtered-bmem)]
-    (:wat::rete::FireOutcome.Fired {:value
-      (:wat::rete::Session
-        :network (:wat::rete::Session/network session)
-        :rules (:wat::rete::Session/rules   session)
+                    qmem     (wat.rete/collect-query-memory network filtered-bmem)]
+    (wat.rete/FireOutcome.Fired {:value
+      (wat.rete/Session
+        :network (wat.rete.Session/network session)
+        :rules (wat.rete.Session/rules   session)
         :alpha-memory new-amem
         :beta-memory filtered-bmem
         :production-memory new-pmem
         :facts bag
-        :next-id (:wat::rete::Session/next-id session)
+        :next-id (wat.rete.Session/next-id session)
         :query-memory qmem)})))
 
 ;; fire-once — public single-pass verb. Keyword-head is rust; this defn is the first-class Fn.
@@ -185,45 +185,45 @@
 ;; raise that unwinds past them. The `Fired` arm carries the session; the ceiling arms carry no
 ;; session because a caller already holds the one it passed in (Session is an immutable value), so
 ;; nothing half-fired can escape.
-(:wat::core::defn :wat::rete::fire-once
-  [session <- :wat::rete::Session]
-  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
-  (:wat::rete::fire-once$native session))
+(wat.core/defn wat.rete/fire-once
+  [session :- wat.rete/Session]
+  :- (wat.rete/FireOutcome :- [wat.rete/Session])
+  (wat.rete/fire-once$native session))
 
 ;; collect-derived — flatten production-memory's per-node (PV :- [Record]) values into one (PV :- [:wat::core::Record]).
 ;; WHY foldl-over-values: production-memory is a PersistentMap from node-id to (PV :- [Record]);
 ;; the outer foldl visits each node's PV, the inner foldl conj's each record into the accumulator.
-(:wat::core::defn :wat::rete::collect-derived
-  [prod-mem <- wat.type/PersistentMap]
-  -> wat.type/PersistentVector
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/PersistentVector
-                     pv  <- wat.type/PersistentVector]
-      -> wat.type/PersistentVector
-      (:wat::core::foldl
-        (:wat::core::fn [a <- wat.type/PersistentVector
-                         f <- wat.type/Record]
-          -> wat.type/PersistentVector
-          (:wat::core::conj a f))
+(wat.core/defn wat.rete/collect-derived
+  [prod-mem :- wat.type/PersistentMap]
+  :- wat.type/PersistentVector
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/PersistentVector
+                     pv  :- wat.type/PersistentVector]
+      :- wat.type/PersistentVector
+      (wat.core/foldl
+        (wat.core/fn [a :- wat.type/PersistentVector
+                         f :- wat.type/Record]
+          :- wat.type/PersistentVector
+          (wat.core/conj a f))
         acc
         pv))
     (wat.type/PersistentVector :- [wat.type/Record])
-    (:wat::core::values prod-mem)))
+    (wat.core/values prod-mem)))
 
 ;; merge-facts — fold derived facts into the existing fact PV, conj-ing only new ones (dedup by value-equality).
 ;; WHY contains?-before-conj: the dedup guard is the termination invariant — if a derived fact is already in
 ;; facts, re-adding it would grow facts every round and spin the fixpoint forever.
-(:wat::core::defn :wat::rete::merge-facts
-  [facts   <- wat.type/PersistentVector
-   derived <- wat.type/PersistentVector]
-  -> wat.type/PersistentVector
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/PersistentVector
-                     f   <- wat.type/Record]
-      -> wat.type/PersistentVector
-      (:wat::core::if (:wat::core::contains? acc f)
+(wat.core/defn wat.rete/merge-facts
+  [facts   :- wat.type/PersistentVector
+   derived :- wat.type/PersistentVector]
+  :- wat.type/PersistentVector
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/PersistentVector
+                     f   :- wat.type/Record]
+      :- wat.type/PersistentVector
+      (wat.core/if (wat.core/contains? acc f)
         acc
-        (:wat::core::conj acc f)))
+        (wat.core/conj acc f)))
     facts
     derived))
 
@@ -238,16 +238,16 @@
 ;;      everything kept), `length(out) == length(in)` holds if and only if NOTHING was dropped.
 ;;      That is what lets `fire-support-fixpoint` below keep a length test while retracting —
 ;;      see the ⚠ there.
-(:wat::core::defn :wat::rete::retain-supported
-  [facts     <- wat.type/PersistentVector
-   supported <- wat.type/PersistentVector]
-  -> wat.type/PersistentVector
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/PersistentVector
-                     f   <- wat.type/Record]
-      -> wat.type/PersistentVector
-      (:wat::core::if (:wat::core::contains? supported f)
-        (:wat::core::conj acc f)
+(wat.core/defn wat.rete/retain-supported
+  [facts     :- wat.type/PersistentVector
+   supported :- wat.type/PersistentVector]
+  :- wat.type/PersistentVector
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/PersistentVector
+                     f   :- wat.type/Record]
+      :- wat.type/PersistentVector
+      (wat.core/if (wat.core/contains? supported f)
+        (wat.core/conj acc f)
         acc))
     (wat.type/PersistentVector :- [wat.type/Record])
     facts))
@@ -265,40 +265,40 @@
 ;; a LATER round superseded. Measured (Clara 0.24.0 is the authority): a `Tally` from
 ;; `(acc::count :from Out)` where Out grows 0→1→2 leaves THREE tallies here, asserting n=0 and n=1
 ;; alongside the true n=2. `fire-support-fixpoint` is the second half that removes them.
-(:wat::core::defn :wat::rete::fire-grow-fixpoint
-  [session <- :wat::rete::Session]
-  -> :wat::rete::Session
+(wat.core/defn wat.rete/fire-grow-fixpoint
+  [session :- wat.rete/Session]
+  :- wat.rete/Session
   ;; ⛔ HAND-FACED (arc 278 the fire-outcome wall) — a STDLIB site, per-site semantic, and the
   ;; codemod is a wat program that cannot load while the stdlib is red. The oracle enforces no
   ;; ceilings, so only `Fired` is reachable; the other arms say so loudly instead of being
   ;; swallowed, so that if the oracle ever grows a ceiling this comment is what was wrong.
-  (:wat::core::let [fired     (:wat::core::match (:wat::rete::fire-once$oracle session)
-                               [:wat::rete::FireOutcome.Fired {:value __f} __f]
-                               [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-                                 (:wat::kernel::assertion-failed! :message ":wat::rete::fire-grow-fixpoint: the oracle hit a memory ceiling — the oracle enforces none")]
-                               [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-                                 (:wat::kernel::assertion-failed! :message ":wat::rete::fire-grow-fixpoint: the oracle hit a round cap — the oracle enforces none")])
-                    derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
-                    old-bag   (:wat::rete::factbag::of session)
-                    new-bag   (:wat::core::foldl
-                                (:wat::core::fn [acc <- :wat::rete::FactBag
-                                                 f   <- wat.type/Record]
-                                  -> :wat::rete::FactBag
-                                  (:wat::rete::factbag::add-if-absent acc f))
+  (wat.core/let [fired     (wat.core/match (wat.rete/fire-once$oracle session)
+                               [wat.rete/FireOutcome.Fired {:value __f} __f]
+                               [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                                 (wat.kernel/assertion-failed! :message ":wat::rete::fire-grow-fixpoint: the oracle hit a memory ceiling — the oracle enforces none")]
+                               [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                                 (wat.kernel/assertion-failed! :message ":wat::rete::fire-grow-fixpoint: the oracle hit a round cap — the oracle enforces none")])
+                    derived   (wat.rete/collect-derived (wat.rete.Session/production-memory fired))
+                    old-bag   (wat.rete.factbag/of session)
+                    new-bag   (wat.core/foldl
+                                (wat.core/fn [acc :- wat.rete/FactBag
+                                                 f   :- wat.type/Record]
+                                  :- wat.rete/FactBag
+                                  (wat.rete.factbag/add-if-absent acc f))
                                 old-bag
                                 derived)]
-    (:wat::core::if (:wat::core::= (:wat::rete::factbag::size new-bag) (:wat::rete::factbag::size old-bag))
+    (wat.core/if (wat.core/= (wat.rete.factbag/size new-bag) (wat.rete.factbag/size old-bag))
       fired
-      (:wat::rete::fire-grow-fixpoint
-        (:wat::rete::Session
-          :network (:wat::rete::Session/network fired)
-          :rules (:wat::rete::Session/rules   fired)
-          :alpha-memory (:wat::rete::Session/alpha-memory fired)
-          :beta-memory (:wat::rete::Session/beta-memory  fired)
-          :production-memory (:wat::rete::Session/production-memory fired)
+      (wat.rete/fire-grow-fixpoint
+        (wat.rete/Session
+          :network (wat.rete.Session/network fired)
+          :rules (wat.rete.Session/rules   fired)
+          :alpha-memory (wat.rete.Session/alpha-memory fired)
+          :beta-memory (wat.rete.Session/beta-memory  fired)
+          :production-memory (wat.rete.Session/production-memory fired)
           :facts new-bag
-          :next-id (:wat::rete::Session/next-id fired)
-          :query-memory (:wat::rete::Session/query-memory fired))))))
+          :next-id (wat.rete.Session/next-id fired)
+          :query-memory (wat.rete.Session/query-memory fired))))))
 
 ;; fire-support-fixpoint — the SHRINKING half: drop facts whose support is gone.
 ;;
@@ -334,36 +334,36 @@
 ;; the grown closure C satisfies C = base ∪ D(C), so the first step retains everything and stops.
 ;; One extra `fire-once` per fire-fixpoint, zero fact movement — the whole existing differential
 ;; corpus sees the same answers it saw before.
-(:wat::core::defn :wat::rete::fire-support-fixpoint
-  [base    <- wat.type/PersistentVector
-   session <- :wat::rete::Session]
-  -> :wat::rete::Session
+(wat.core/defn wat.rete/fire-support-fixpoint
+  [base    :- wat.type/PersistentVector
+   session :- wat.rete/Session]
+  :- wat.rete/Session
   ;; ⛔ HAND-FACED — same reason as `fire-grow-fixpoint` above.
-  (:wat::core::let [fired     (:wat::core::match (:wat::rete::fire-once$oracle session)
-                               [:wat::rete::FireOutcome.Fired {:value __f} __f]
-                               [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-                                 (:wat::kernel::assertion-failed! :message ":wat::rete::fire-support-fixpoint: the oracle hit a memory ceiling — the oracle enforces none")]
-                               [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-                                 (:wat::kernel::assertion-failed! :message ":wat::rete::fire-support-fixpoint: the oracle hit a round cap — the oracle enforces none")])
-                    derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
+  (wat.core/let [fired     (wat.core/match (wat.rete/fire-once$oracle session)
+                               [wat.rete/FireOutcome.Fired {:value __f} __f]
+                               [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                                 (wat.kernel/assertion-failed! :message ":wat::rete::fire-support-fixpoint: the oracle hit a memory ceiling — the oracle enforces none")]
+                               [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                                 (wat.kernel/assertion-failed! :message ":wat::rete::fire-support-fixpoint: the oracle hit a round cap — the oracle enforces none")])
+                    derived   (wat.rete/collect-derived (wat.rete.Session/production-memory fired))
                     ;; base ∪ D(F) — everything that still has a reason to be here.
-                    supported (:wat::rete::merge-facts base derived)
-                    old-bag   (:wat::rete::factbag::of session)
-                    new-bag   (:wat::rete::factbag::retain old-bag
-                                (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool
-                                  (:wat::core::contains? supported f)))]
-    (:wat::core::if (:wat::core::= (:wat::rete::factbag::size new-bag) (:wat::rete::factbag::size old-bag))
+                    supported (wat.rete/merge-facts base derived)
+                    old-bag   (wat.rete.factbag/of session)
+                    new-bag   (wat.rete.factbag/retain old-bag
+                                (wat.core/fn [f :- wat.type/Record] :- wat.type/bool
+                                  (wat.core/contains? supported f)))]
+    (wat.core/if (wat.core/= (wat.rete.factbag/size new-bag) (wat.rete.factbag/size old-bag))
       fired
-      (:wat::rete::fire-support-fixpoint base
-        (:wat::rete::Session
-          :network (:wat::rete::Session/network fired)
-          :rules (:wat::rete::Session/rules   fired)
-          :alpha-memory (:wat::rete::Session/alpha-memory fired)
-          :beta-memory (:wat::rete::Session/beta-memory  fired)
-          :production-memory (:wat::rete::Session/production-memory fired)
+      (wat.rete/fire-support-fixpoint base
+        (wat.rete/Session
+          :network (wat.rete.Session/network fired)
+          :rules (wat.rete.Session/rules   fired)
+          :alpha-memory (wat.rete.Session/alpha-memory fired)
+          :beta-memory (wat.rete.Session/beta-memory  fired)
+          :production-memory (wat.rete.Session/production-memory fired)
           :facts new-bag
-          :next-id (:wat::rete::Session/next-id fired)
-          :query-memory (:wat::rete::Session/query-memory fired))))))
+          :next-id (wat.rete.Session/next-id fired)
+          :query-memory (wat.rete.Session/query-memory fired))))))
 
 ;; fire-fixpoint — the per-stratum fixpoint: GROW to the closure, then SHRINK to what the closure
 ;; still supports. Two halves because they have two different termination arguments (monotone
@@ -373,12 +373,12 @@
 ;;
 ;; `base` for the shrink is THIS call's input facts — for stratum k that is the accumulated closure
 ;; of strata 0..k-1, which are already established and are not up for retraction here.
-(:wat::core::defn :wat::rete::fire-fixpoint
-  [session <- :wat::rete::Session]
-  -> :wat::rete::Session
-  (:wat::rete::fire-support-fixpoint
-    (:wat::rete::factbag::items (:wat::rete::factbag::of session))
-    (:wat::rete::fire-grow-fixpoint session)))
+(wat.core/defn wat.rete/fire-fixpoint
+  [session :- wat.rete/Session]
+  :- wat.rete/Session
+  (wat.rete/fire-support-fixpoint
+    (wat.rete.factbag/items (wat.rete.factbag/of session))
+    (wat.rete/fire-grow-fixpoint session)))
 
 ;; Stratification numbering lives in wat/rete/oracle/stratify.wat
 ;; (StratifyAcc + rule-produces through stratify). Fire-stratified drive stays here.
@@ -386,9 +386,9 @@
 ;; FireStratAcc — fold accumulator for fire-stratified.
 ;; facts:   accumulated Session.facts after each stratum (input + all derived so far).
 ;; derived: dedup union of all derived facts across completed strata.
-(:wat::core::defrecord :wat::rete::FireStratAcc
-  [facts   <- wat.type/PersistentVector
-   derived <- wat.type/PersistentVector])
+(wat.core/defrecord wat.rete/FireStratAcc
+  [facts   :- wat.type/PersistentVector
+   derived :- wat.type/PersistentVector])
 
 
 ;; fire-stratified-loop — recursive descent over strata [current..max-s].
@@ -400,53 +400,53 @@
 ;; to be declared as PersistentVector (unparameterised), losing Rule type information
 ;; and causing compile to reject the argument at the call site. Recursive descent on
 ;; an index always filters the original typed PV — no type information is lost.
-(:wat::core::defn :wat::rete::fire-stratified-loop
-  [rules       <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   type-strata <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
-   current     <- wat.type/i64
-   max-s       <- wat.type/i64
-   acc-facts   <- wat.type/PersistentVector
-   acc-derived <- wat.type/PersistentVector]
-  -> :wat::rete::FireStratAcc
-  (:wat::core::if (:wat::i64::> current max-s)
-    (:wat::rete::FireStratAcc :facts acc-facts :derived acc-derived)
-    (:wat::core::let [;; Arc 118.2a — `filter` flipped LAZY; `compile` needs `(PersistentVector :- [Rule])`
+(wat.core/defn wat.rete/fire-stratified-loop
+  [rules       :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   type-strata :- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+   current     :- wat.type/i64
+   max-s       :- wat.type/i64
+   acc-facts   :- wat.type/PersistentVector
+   acc-derived :- wat.type/PersistentVector]
+  :- wat.rete/FireStratAcc
+  (wat.core/if (wat.i64/> current max-s)
+    (wat.rete/FireStratAcc :facts acc-facts :derived acc-derived)
+    (wat.core/let [;; Arc 118.2a — `filter` flipped LAZY; `compile` needs `(PersistentVector :- [Rule])`
                       ;; eagerly, so materialize via `into` (was container-preserving from `rules`).
-                      stratum-rules (:wat::core::into (wat.type/PersistentVector :- [:wat::rete::Rule])
-                                      (:wat::core::filter
-                                        (:wat::core::fn [r <- :wat::rete::Rule] -> wat.type/bool
-                                          (:wat::core::= (:wat::rete::rule-stratum r type-strata) current))
+                      stratum-rules (wat.core/into (wat.type/PersistentVector :- [wat.rete/Rule])
+                                      (wat.core/filter
+                                        (wat.core/fn [r :- wat.rete/Rule] :- wat.type/bool
+                                          (wat.core/= (wat.rete/rule-stratum r type-strata) current))
                                         rules))
                       ;; fresh compiled network for this stratum only — no shared-alpha edge
                       ;; HAND-FACED — stdlib. The stratum's rules are a SUBSET of a set already
                       ;; admitted by the outer `compile-all`, so `MayNotTerminate` is unreachable
                       ;; here; it says so loudly rather than being swallowed.
-                      sub-sess    (:wat::core::match (:wat::rete::compile stratum-rules)
-                                    [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
-                                    [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
-                                      (:wat::kernel::assertion-failed! :message "fire-stratified: the rule set may not terminate")])
+                      sub-sess    (wat.core/match (wat.rete/compile stratum-rules)
+                                    [wat.rete/CompileOutcome.Compiled {:session __session} __session]
+                                    [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
+                                      (wat.kernel/assertion-failed! :message "fire-stratified: the rule set may not terminate")])
                       ;; seed with ALL accumulated facts so negation sees complete prior strata
-                      sub-sess2   (:wat::core::foldl
-                                    (:wat::core::fn [s <- :wat::rete::Session
-                                                     f <- wat.type/Record]
-                                      -> :wat::rete::Session
+                      sub-sess2   (wat.core/foldl
+                                    (wat.core/fn [s :- wat.rete/Session
+                                                     f :- wat.type/Record]
+                                      :- wat.rete/Session
                                       ;; HAND-FACED (arc 278 S2c) — stdlib. The oracle enforces
                                       ;; no ceiling, so only `Inserted` is reachable.
-                                      (:wat::core::match (:wat::rete::insert$oracle s f)
-                                        [:wat::rete::InsertOutcome.Inserted {:session __s} __s]
-                                        [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st}
-                                          (:wat::kernel::assertion-failed! :message "fire-stratified: session memory ceiling exceeded while staging")]))
+                                      (wat.core/match (wat.rete/insert$oracle s f)
+                                        [wat.rete/InsertOutcome.Inserted {:session __s} __s]
+                                        [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st}
+                                          (wat.kernel/assertion-failed! :message "fire-stratified: session memory ceiling exceeded while staging")]))
                                     sub-sess
                                     acc-facts)
-                      fired       (:wat::rete::fire-fixpoint sub-sess2)
-                      new-derived (:wat::rete::collect-derived
-                                     (:wat::rete::Session/production-memory fired))
-                      merged-d    (:wat::rete::merge-facts acc-derived new-derived)
+                      fired       (wat.rete/fire-fixpoint sub-sess2)
+                      new-derived (wat.rete/collect-derived
+                                     (wat.rete.Session/production-memory fired))
+                      merged-d    (wat.rete/merge-facts acc-derived new-derived)
                       ;; advance facts to the post-fixpoint closure (input ∪ derived so far)
-                      new-facts   (:wat::rete::factbag::items (:wat::rete::factbag::of fired))]
-      (:wat::rete::fire-stratified-loop
+                      new-facts   (wat.rete.factbag/items (wat.rete.factbag/of fired))]
+      (wat.rete/fire-stratified-loop
         rules type-strata
-        (:wat::i64::+ current 1)
+        (wat.i64/+ current 1)
         max-s
         new-facts
         merged-d))))
@@ -460,54 +460,54 @@
 ;; for ONLY that stratum's rules. This eliminates the shared-alpha duplicate-edge bug
 ;; (two rules sharing first condition → alpha.children=[join,join] → double derivation)
 ;; that made Bad=2 when both rules were compiled into a single network.
-(:wat::core::defn :wat::rete::fire-stratified
-  [session <- :wat::rete::Session]
-  -> :wat::rete::Session
-  (:wat::core::let [rules     (:wat::rete::Session/rules session)
-                    facts     (:wat::rete::factbag::items (:wat::rete::factbag::of session))
-                    final-ts  (:wat::rete::stratify rules)
+(wat.core/defn wat.rete/fire-stratified
+  [session :- wat.rete/Session]
+  :- wat.rete/Session
+  (wat.core/let [rules     (wat.rete.Session/rules session)
+                    facts     (wat.rete.factbag/items (wat.rete.factbag/of session))
+                    final-ts  (wat.rete/stratify rules)
                     ;; compute highest stratum number across all rules (0 if rules is empty)
-                    max-s     (:wat::core::foldl
-                                (:wat::core::fn [mx   <- wat.type/i64
-                                                 rule <- :wat::rete::Rule]
-                                  -> wat.type/i64
-                                  (:wat::core::let [rs (:wat::rete::rule-stratum rule final-ts)]
-                                    (:wat::core::if (:wat::i64::> rs mx) rs mx)))
+                    max-s     (wat.core/foldl
+                                (wat.core/fn [mx   :- wat.type/i64
+                                                 rule :- wat.rete/Rule]
+                                  :- wat.type/i64
+                                  (wat.core/let [rs (wat.rete/rule-stratum rule final-ts)]
+                                    (wat.core/if (wat.i64/> rs mx) rs mx)))
                                 0
                                 rules)
-                    final-acc (:wat::rete::fire-stratified-loop
+                    final-acc (wat.rete/fire-stratified-loop
                                 rules final-ts 0 max-s
                                 facts
                                 (wat.type/PersistentVector :- [wat.type/Record]))
-                    all-d     (:wat::rete::FireStratAcc/derived final-acc)
+                    all-d     (wat.rete.FireStratAcc/derived final-acc)
                     ;; pack derived facts into a production-memory structure the caller can query
-                    fprod-m   (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/PersistentVector]) 0 all-d)
-                    closed    (:wat::rete::FireStratAcc/facts final-acc)
-                    q-seed    (:wat::rete::Session
-                                :network (:wat::rete::Session/network session)
-                                :rules (:wat::rete::Session/rules   session)
+                    fprod-m   (wat.core/assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/PersistentVector]) 0 all-d)
+                    closed    (wat.rete.FireStratAcc/facts final-acc)
+                    q-seed    (wat.rete/Session
+                                :network (wat.rete.Session/network session)
+                                :rules (wat.rete.Session/rules   session)
                                 :alpha-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
                                 :beta-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
                                 :production-memory fprod-m
-                                :facts (:wat::rete::FactBag :items closed)
-                                :next-id (:wat::rete::Session/next-id session)
+                                :facts (wat.rete/FactBag :items closed)
+                                :next-id (wat.rete.Session/next-id session)
                                 :query-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record]))
                     ;; HAND-FACED, same reason as `fire-fixpoint` above.
-                    q-fired   (:wat::core::match (:wat::rete::fire-once$oracle q-seed)
-                               [:wat::rete::FireOutcome.Fired {:value __f} __f]
-                               [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-                                 (:wat::kernel::assertion-failed! :message ":wat::rete::fire-stratified: the oracle hit a memory ceiling — the oracle enforces none")]
-                               [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-                                 (:wat::kernel::assertion-failed! :message ":wat::rete::fire-stratified: the oracle hit a round cap — the oracle enforces none")])]
-    (:wat::rete::Session
-      :network (:wat::rete::Session/network session)
-      :rules (:wat::rete::Session/rules   session)
+                    q-fired   (wat.core/match (wat.rete/fire-once$oracle q-seed)
+                               [wat.rete/FireOutcome.Fired {:value __f} __f]
+                               [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                                 (wat.kernel/assertion-failed! :message ":wat::rete::fire-stratified: the oracle hit a memory ceiling — the oracle enforces none")]
+                               [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                                 (wat.kernel/assertion-failed! :message ":wat::rete::fire-stratified: the oracle hit a round cap — the oracle enforces none")])]
+    (wat.rete/Session
+      :network (wat.rete.Session/network session)
+      :rules (wat.rete.Session/rules   session)
       :alpha-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
       :beta-memory (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
       :production-memory fprod-m
-      :facts (:wat::rete::FactBag :items closed)
-      :next-id (:wat::rete::Session/next-id session)
-      :query-memory (:wat::rete::Session/query-memory q-fired))))
+      :facts (wat.rete/FactBag :items closed)
+      :next-id (wat.rete.Session/next-id session)
+      :query-memory (wat.rete.Session/query-memory q-fired))))
 
 ;; fire-rules$oracle — the wat reference engine (the SPEC / differential oracle).
 ;; Now delegates to fire-stratified (which handles negation-over-derived correctly)
@@ -519,62 +519,62 @@
 ;; Query-only compile-all (empty rules, QueryNodes, no ProductionNode) is legal —
 ;; the oracle walks QueryNodes. An imported Export of production rules has empty
 ;; rules AND ProductionNodes (no AST) — refuse that, do not silently harvest 0.
-(:wat::core::defn :wat::rete::network-has-production?
-  [net <- wat.type/PersistentMap]
-  -> wat.type/bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/bool
-                     k   <- wat.type/i64]
-      -> wat.type/bool
-      (:wat::core::if acc
+(wat.core/defn wat.rete/network-has-production?
+  [net :- wat.type/PersistentMap]
+  :- wat.type/bool
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/bool
+                     k   :- wat.type/i64]
+      :- wat.type/bool
+      (wat.core/if acc
         true
-        (:wat::core::let [node (:wat::core::Option/expect
-                                  (:wat::core::get net k)
+        (wat.core/let [node (wat.core.Option/expect
+                                  (wat.core/get net k)
                                   "network-has-production?: node")]
-          (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode"))))
+          (wat.core/= (wat.rete/node-kind-label node) "ProductionNode"))))
     false
-    (:wat::rete::topological-node-ids net)))
+    (wat.rete/topological-node-ids net)))
 
 ;; ⛔ RETURNS `(FireOutcome :- [Session])` — the dual-impl contract is that the oracle and the
 ;; native answer the same TYPE; a differential harness unwrapping one side only would be comparing
 ;; two different things. It can only ever answer `Fired`: the oracle enforces no ceilings, the
 ;; standing accepted asymmetry ("the $oracle is the reference an embedder never runs").
-(:wat::core::defn :wat::rete::fire-rules$oracle
-  [session <- :wat::rete::Session]
-  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
-  (:wat::core::let [input (:wat::rete::factbag::of session)
-                    rules (:wat::rete::Session/rules session)
-                    net   (:wat::rete::Session/network session)
-                    _export (:wat::core::Option/expect
-                              (:wat::core::if
-                                (:wat::core::if (:wat::core::empty? rules)
-                                  (:wat::rete::network-has-production? net)
+(wat.core/defn wat.rete/fire-rules$oracle
+  [session :- wat.rete/Session]
+  :- (wat.rete/FireOutcome :- [wat.rete/Session])
+  (wat.core/let [input (wat.rete.factbag/of session)
+                    rules (wat.rete.Session/rules session)
+                    net   (wat.rete.Session/network session)
+                    _export (wat.core.Option/expect
+                              (wat.core/if
+                                (wat.core/if (wat.core/empty? rules)
+                                  (wat.rete/network-has-production? net)
                                   false)
-                                :wat::core::Option.None
-                                (:wat::core::Option.Some {:value nil}))
+                                wat.core/Option.None
+                                (wat.core/Option.Some {:value nil}))
                               "fire-rules$oracle: oracle cannot consume an Export — empty rules, live network")
-                    fired (:wat::rete::fire-stratified session)]
-    (:wat::rete::FireOutcome.Fired
-      {:value (:wat::rete::Session
-        :network (:wat::rete::Session/network           fired)
-        :rules (:wat::rete::Session/rules             fired)
-        :alpha-memory (:wat::rete::Session/alpha-memory      fired)
-        :beta-memory (:wat::rete::Session/beta-memory       fired)
-        :production-memory (:wat::rete::Session/production-memory fired)
+                    fired (wat.rete/fire-stratified session)]
+    (wat.rete/FireOutcome.Fired
+      {:value (wat.rete/Session
+        :network (wat.rete.Session/network           fired)
+        :rules (wat.rete.Session/rules             fired)
+        :alpha-memory (wat.rete.Session/alpha-memory      fired)
+        :beta-memory (wat.rete.Session/beta-memory       fired)
+        :production-memory (wat.rete.Session/production-memory fired)
         :facts input
-        :next-id (:wat::rete::Session/next-id           fired)
-        :query-memory (:wat::rete::Session/query-memory fired))})))
+        :next-id (wat.rete.Session/next-id           fired)
+        :query-memory (wat.rete.Session/query-memory fired))})))
 
 ;; fire-rules — public production verb. Keyword-head calls and this first-class
 ;; Fn body both reach rust through `$native` (`runtime.rs`).
-(:wat::core::defn :wat::rete::fire-rules
-  [session <- :wat::rete::Session]
-  -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
-  (:wat::rete::fire-rules$native session))
+(wat.core/defn wat.rete/fire-rules
+  [session :- wat.rete/Session]
+  :- (wat.rete/FireOutcome :- [wat.rete/Session])
+  (wat.rete/fire-rules$native session))
 
 ;; fire-rules-explain — opt-in diagnostic fire. Same intercept/Fn split.
-(:wat::core::defn :wat::rete::fire-rules-explain
-  [session <- :wat::rete::Session]
-  -> (:wat::rete::FireOutcome :- [:wat::rete::Explained])
-  (:wat::rete::fire-rules-explain$native session))
+(wat.core/defn wat.rete/fire-rules-explain
+  [session :- wat.rete/Session]
+  :- (wat.rete/FireOutcome :- [wat.rete/Explained])
+  (wat.rete/fire-rules-explain$native session))
 

@@ -44,43 +44,43 @@
 ;; needed).
 
 ;; ─── small pure helpers — filter/sort predicates shared by scan + scan-index ────────────────
-(:wat::core::defn :wat::query::sk-after-cursor?
-  [sk <- wat.type/String cursor <- (:wat::core::Option :- [wat.type/String])] -> wat.type/bool
-  (:wat::core::match cursor 
-    [:wat::core::Option.None {} true]
-    [:wat::core::Option.Some {:value c} (:wat::core::> sk c)]))
+(wat.core/defn wat.query/sk-after-cursor?
+  [sk :- wat.type/String cursor :- (wat.core/Option :- [wat.type/String])] :- wat.type/bool
+  (wat.core/match cursor 
+    [wat.core/Option.None {} true]
+    [wat.core/Option.Some {:value c} (wat.core/> sk c)]))
 
-(:wat::core::defn :wat::query::row-in-range?
-  [row <- :wat::query::StoredRow pk <- wat.type/String lo <- wat.type/String
-   hi <- wat.type/String cursor <- (:wat::core::Option :- [wat.type/String])] -> wat.type/bool
-  (:wat::core::and
-    (:wat::core::= (:wat::query::StoredRow/pk row) pk)
-    (:wat::core::>= (:wat::query::StoredRow/sk row) lo)
-    (:wat::core::<= (:wat::query::StoredRow/sk row) hi)
-    (:wat::query::sk-after-cursor? (:wat::query::StoredRow/sk row) cursor)))
+(wat.core/defn wat.query/row-in-range?
+  [row :- wat.query/StoredRow pk :- wat.type/String lo :- wat.type/String
+   hi :- wat.type/String cursor :- (wat.core/Option :- [wat.type/String])] :- wat.type/bool
+  (wat.core/and
+    (wat.core/= (wat.query.StoredRow/pk row) pk)
+    (wat.core/>= (wat.query.StoredRow/sk row) lo)
+    (wat.core/<= (wat.query.StoredRow/sk row) hi)
+    (wat.query/sk-after-cursor? (wat.query.StoredRow/sk row) cursor)))
 
-(:wat::core::defn :wat::query::StoredRow->Row [r <- :wat::query::StoredRow] -> :wat::query::Row
-  (:wat::query::Row :pk (:wat::query::StoredRow/pk r) :sk (:wat::query::StoredRow/sk r) :data (:wat::query::StoredRow/data r)))
+(wat.core/defn wat.query/StoredRow->Row [r :- wat.query/StoredRow] :- wat.query/Row
+  (wat.query/Row :pk (wat.query.StoredRow/pk r) :sk (wat.query.StoredRow/sk r) :data (wat.query.StoredRow/data r)))
 
 ;; row's projected (ipk,isk) for a named index, if it declared one — None if the row never
 ;; projected into this GSI.
-(:wat::core::defn :wat::query::row-index-key
-  [row <- :wat::query::StoredRow index <- wat.type/String] -> (:wat::core::Option :- [:wat::query::IndexKey])
-  (:wat::core::get (:wat::query::StoredRow/index-keys row) index))
+(wat.core/defn wat.query/row-index-key
+  [row :- wat.query/StoredRow index :- wat.type/String] :- (wat.core/Option :- [wat.query/IndexKey])
+  (wat.core/get (wat.query.StoredRow/index-keys row) index))
 
-(:wat::core::defn :wat::query::index-key-in-range?
-  [ik <- :wat::query::IndexKey ipk <- wat.type/String lo <- wat.type/String
-   hi <- wat.type/String cursor <- (:wat::core::Option :- [wat.type/String])] -> wat.type/bool
-  (:wat::core::and
-    (:wat::core::= (:wat::query::IndexKey/ipk ik) ipk)
-    (:wat::core::>= (:wat::query::IndexKey/isk ik) lo)
-    (:wat::core::<= (:wat::query::IndexKey/isk ik) hi)
-    (:wat::query::sk-after-cursor? (:wat::query::IndexKey/isk ik) cursor)))
+(wat.core/defn wat.query/index-key-in-range?
+  [ik :- wat.query/IndexKey ipk :- wat.type/String lo :- wat.type/String
+   hi :- wat.type/String cursor :- (wat.core/Option :- [wat.type/String])] :- wat.type/bool
+  (wat.core/and
+    (wat.core/= (wat.query.IndexKey/ipk ik) ipk)
+    (wat.core/>= (wat.query.IndexKey/isk ik) lo)
+    (wat.core/<= (wat.query.IndexKey/isk ik) hi)
+    (wat.query/sk-after-cursor? (wat.query.IndexKey/isk ik) cursor)))
 
-(:wat::core::defn :wat::query::StoredRow->IndexRow
-  [r <- :wat::query::StoredRow ik <- :wat::query::IndexKey] -> :wat::query::IndexRow
-  (:wat::query::IndexRow :pk (:wat::query::StoredRow/pk r) :sk (:wat::query::StoredRow/sk r)
-    :ipk (:wat::query::IndexKey/ipk ik) :isk (:wat::query::IndexKey/isk ik) :data (:wat::query::StoredRow/data r)))
+(wat.core/defn wat.query/StoredRow->IndexRow
+  [r :- wat.query/StoredRow ik :- wat.query/IndexKey] :- wat.query/IndexRow
+  (wat.query/IndexRow :pk (wat.query.StoredRow/pk r) :sk (wat.query.StoredRow/sk r)
+    :ipk (wat.query.IndexKey/ipk ik) :isk (wat.query.IndexKey/isk ik) :data (wat.query.StoredRow/data r)))
 
 ;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
 ;; durable = one flat (PersistentVector :- [StoredRow]); `put` conj's the batch on (rete-style pure
@@ -90,80 +90,80 @@
 ;; puts this on the operation model: each impl is `(<op> [s req] body)` — `req` is the
 ;; `Store::<Op>Request` record; the body returns the `Store::<Op>Response` outcome enum via
 ;; `Outcome::Reply`. MemStore never errors — always `:Success`.
-(:wat::service::defservice :wat::query::mem-store
-  :satisfies :wat::query::Store
+(wat.service/defservice wat.query/mem-store
+  :satisfies wat.query/Store
   ;; arc 278 Stone 1b — the per-service hard frame limit FOO (bytes-per-read): the store backs BULK
   ;; writes (the journal forwards batches here), so it declares 10 MiB. Threaded to accepted-connection
   ;; receivers; a frame over this → a reasoned 400 + close, not mute. (512 KiB default is too small.)
   :max-frame-bytes 10485760
-  :durable [rows <- (wat.type/PersistentVector :- [:wat::query::StoredRow])]
+  :durable [rows :- (wat.type/PersistentVector :- [wat.query/StoredRow])]
   :ephemeral []
   :impls
   [(ensure-schema [s ctx req]
      ;; idempotent no-op — mem-store' has no physical schema to establish (the contract's
      ;; promise is satisfied trivially; sqlite's satisfier is where CREATE TABLE/INDEX happens).
-     (:wat::service::Outcome.Reply {:state s :reply (:wat::query::Store::EnsureSchemaResponse.Success {})}))
+     (wat.service/Outcome.Reply {:state s :reply (wat.query.Store/EnsureSchemaResponse.Success {})}))
 
    (put [s ctx req]
-     (:wat::core::let
-       [new-rows (:wat::query::Store::PutRequest/rows req)
-        merged (:wat::core::foldl
-                 (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::query::StoredRow])
-                                  r   <- :wat::query::StoredRow]
-                   -> (wat.type/PersistentVector :- [:wat::query::StoredRow])
-                   (:wat::core::conj acc r))
-                 (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s))
+     (wat.core/let
+       [new-rows (wat.query.Store.PutRequest/rows req)
+        merged (wat.core/foldl
+                 (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.query/StoredRow])
+                                  r   :- wat.query/StoredRow]
+                   :- (wat.type/PersistentVector :- [wat.query/StoredRow])
+                   (wat.core/conj acc r))
+                 (wat.query.mem-store.Record/rows (wat.query.mem-store.State/durable s))
                  new-rows)]
-       (:wat::service::Outcome.Reply
-         {:state (:wat::query::mem-store::State (:wat::query::mem-store::Record merged))
-         :reply (:wat::query::Store::PutResponse.Success {})})))
+       (wat.service/Outcome.Reply
+         {:state (wat.query.mem-store/State (wat.query.mem-store/Record merged))
+         :reply (wat.query.Store/PutResponse.Success {})})))
 
    (scan [s ctx req]
-     (:wat::core::let
-       [pk  (:wat::query::Store::ScanRequest/pk req)
-        lo  (:wat::query::Store::ScanRequest/sk-lo req)
-        hi  (:wat::query::Store::ScanRequest/sk-hi req)
-        lim (:wat::query::Store::ScanRequest/limit req)
-        cur (:wat::query::Store::ScanRequest/cursor req)
-        matches (:wat::core::foldl
-                  (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::query::Row]) r <- :wat::query::StoredRow]
-                    -> (wat.type/Vector :- [:wat::query::Row])
-                    (:wat::core::if (:wat::query::row-in-range? r pk lo hi cur)
-                      (:wat::core::conj acc (:wat::query::StoredRow->Row r))
+     (wat.core/let
+       [pk  (wat.query.Store.ScanRequest/pk req)
+        lo  (wat.query.Store.ScanRequest/sk-lo req)
+        hi  (wat.query.Store.ScanRequest/sk-hi req)
+        lim (wat.query.Store.ScanRequest/limit req)
+        cur (wat.query.Store.ScanRequest/cursor req)
+        matches (wat.core/foldl
+                  (wat.core/fn [acc :- (wat.type/Vector :- [wat.query/Row]) r :- wat.query/StoredRow]
+                    :- (wat.type/Vector :- [wat.query/Row])
+                    (wat.core/if (wat.query/row-in-range? r pk lo hi cur)
+                      (wat.core/conj acc (wat.query/StoredRow->Row r))
                       acc))
-                  (wat.type/Vector :- [:wat::query::Row])
-                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s)))
-        sorted   (:wat::core::sort-by :wat::query::Row/sk matches)
-        limited  (:wat::core::into [] (:wat::core::take sorted lim))
-        full?    (:wat::core::= (:wat::core::count limited) lim)
-        next-cur (:wat::core::if full?
-                   (:wat::core::Option.Some {:value (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last limited) "scan: limited non-empty when full"))})
-                   :wat::core::Option.None)]
-       (:wat::service::Outcome.Reply {:state s :reply (:wat::query::Store::ScanResponse.Success {:rows limited :cursor next-cur})})))
+                  (wat.type/Vector :- [wat.query/Row])
+                  (wat.query.mem-store.Record/rows (wat.query.mem-store.State/durable s)))
+        sorted   (wat.core/sort-by wat.query.Row/sk matches)
+        limited  (wat.core/into [] (wat.core/take sorted lim))
+        full?    (wat.core/= (wat.core/count limited) lim)
+        next-cur (wat.core/if full?
+                   (wat.core/Option.Some {:value (wat.query.Row/sk (wat.core.Option/expect (wat.core/last limited) "scan: limited non-empty when full"))})
+                   wat.core/Option.None)]
+       (wat.service/Outcome.Reply {:state s :reply (wat.query.Store/ScanResponse.Success {:rows limited :cursor next-cur})})))
 
    (scan-index [s ctx req]
-     (:wat::core::let
-       [index (:wat::query::Store::ScanIndexRequest/index req)
-        ipk   (:wat::query::Store::ScanIndexRequest/ipk req)
-        lo    (:wat::query::Store::ScanIndexRequest/isk-lo req)
-        hi    (:wat::query::Store::ScanIndexRequest/isk-hi req)
-        lim   (:wat::query::Store::ScanIndexRequest/limit req)
-        cur   (:wat::query::Store::ScanIndexRequest/cursor req)
-        matches (:wat::core::foldl
-                  (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::query::IndexRow]) r <- :wat::query::StoredRow]
-                    -> (wat.type/Vector :- [:wat::query::IndexRow])
-                    (:wat::core::match (:wat::query::row-index-key r index) 
-                      [:wat::core::Option.None {} acc]
-                      [:wat::core::Option.Some {:value ik}
-                        (:wat::core::if (:wat::query::index-key-in-range? ik ipk lo hi cur)
-                          (:wat::core::conj acc (:wat::query::StoredRow->IndexRow r ik))
+     (wat.core/let
+       [index (wat.query.Store.ScanIndexRequest/index req)
+        ipk   (wat.query.Store.ScanIndexRequest/ipk req)
+        lo    (wat.query.Store.ScanIndexRequest/isk-lo req)
+        hi    (wat.query.Store.ScanIndexRequest/isk-hi req)
+        lim   (wat.query.Store.ScanIndexRequest/limit req)
+        cur   (wat.query.Store.ScanIndexRequest/cursor req)
+        matches (wat.core/foldl
+                  (wat.core/fn [acc :- (wat.type/Vector :- [wat.query/IndexRow]) r :- wat.query/StoredRow]
+                    :- (wat.type/Vector :- [wat.query/IndexRow])
+                    (wat.core/match (wat.query/row-index-key r index) 
+                      [wat.core/Option.None {} acc]
+                      [wat.core/Option.Some {:value ik}
+                        (wat.core/if (wat.query/index-key-in-range? ik ipk lo hi cur)
+                          (wat.core/conj acc (wat.query/StoredRow->IndexRow r ik))
                           acc)]))
-                  (wat.type/Vector :- [:wat::query::IndexRow])
-                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s)))
-        sorted   (:wat::core::sort-by :wat::query::IndexRow/isk matches)
-        limited  (:wat::core::into [] (:wat::core::take sorted lim))
-        full?    (:wat::core::= (:wat::core::count limited) lim)
-        next-cur (:wat::core::if full?
-                   (:wat::core::Option.Some {:value (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full"))})
-                   :wat::core::Option.None)]
-       (:wat::service::Outcome.Reply {:state s :reply (:wat::query::Store::ScanIndexResponse.Success {:rows limited :cursor next-cur})})))])
+                  (wat.type/Vector :- [wat.query/IndexRow])
+                  (wat.query.mem-store.Record/rows (wat.query.mem-store.State/durable s)))
+        sorted   (wat.core/sort-by wat.query.IndexRow/isk matches)
+        limited  (wat.core/into [] (wat.core/take sorted lim))
+        full?    (wat.core/= (wat.core/count limited) lim)
+        next-cur (wat.core/if full?
+                   (wat.core/Option.Some {:value (wat.query.IndexRow/isk (wat.core.Option/expect (wat.core/last limited) "scan-index: limited non-empty when full"))})
+                   wat.core/Option.None)]
+       (wat.service/Outcome.Reply {:state s :reply (wat.query.Store/ScanIndexResponse.Success {:rows limited :cursor next-cur})})))])

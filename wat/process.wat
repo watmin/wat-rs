@@ -46,10 +46,10 @@
 ;; The origin is what disambiguates runners: `{:id 3}` alone is ambiguous the moment two
 ;; pools run concurrently — three runners numbered 0,1,2 from two different call sites are
 ;; indistinguishable without it.
-(:wat::core::defrecord :wat::process::Bracket
-  [id   <- wat.type/i64
-   file <- wat.type/String
-   line <- wat.type/i64])
+(wat.core/defrecord wat.process/Bracket
+  [id   :- wat.type/i64
+   file :- wat.type/String
+   line :- wat.type/i64])
 
 ;; Service — a defservice's identity: its own FQDN. `name` is a KEYWORD, not a String —
 ;; builder-ruled, grounded at wat/telemetry.wat's Span::IncrRequest/TimedRequest (`name <-
@@ -79,7 +79,7 @@
 ;; in wat/core.wat:649 — a masking defect across the whole diagnostic path, surfaced by this
 ;; label (ALIVS ARGVIT — the consumer found the flaw). Bracket is UNAFFECTED: `map-worker`
 ;; is positional, so its origin is the real caller (proven by the same probes).
-(:wat::core::defrecord :wat::process::Service
-  [name <- wat.type/keyword
-   file <- wat.type/String
-   line <- wat.type/i64])
+(wat.core/defrecord wat.process/Service
+  [name :- wat.type/keyword
+   file :- wat.type/String
+   line :- wat.type/i64])

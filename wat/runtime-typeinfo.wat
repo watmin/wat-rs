@@ -11,7 +11,7 @@
 ;; Discriminant of TypeDef — the kind the row is about. `:Builtin` and
 ;; `:Marker` are membership without a TypeDef (`type-of` answers them so
 ;; it agrees with `is-type?`).
-(:wat::core::defenum :wat::runtime::TypeKind :wat::enum::Pure
+(wat.core/defenum wat.runtime/TypeKind wat.enum/Pure
   :Aggregate
   :Enum
   :Newtype
@@ -22,67 +22,67 @@
   :Marker)
 
 ;; Aggregate / surface nature (the holder trit + Peer). Mirrors `Nature`.
-(:wat::core::defenum :wat::runtime::TypeNature :wat::enum::Pure
+(wat.core/defenum wat.runtime/TypeNature wat.enum/Pure
   :Struct
   :Record
   :HolonRecord
   :Peer)
 
 ;; Enum purity (not the verb-axis `:wat::runtime::Purity`). Mirrors `types::Purity`.
-(:wat::core::defenum :wat::runtime::TypePurity :wat::enum::Pure
+(wat.core/defenum wat.runtime/TypePurity wat.enum/Pure
   :Pure
   :Impure)
 
 ;; One declared field — name in declaration order, type as a WatAST form
 ;; (the same rendering `field-types-of` already uses).
-(:wat::core::defrecord :wat::runtime::TypeField
-  [name <- wat.type/keyword
-   type <- wat.type/AST])
+(wat.core/defrecord wat.runtime/TypeField
+  [name :- wat.type/keyword
+   type :- wat.type/AST])
 
 ;; One enum variant — unit variants have an empty `fields` vector.
-(:wat::core::defrecord :wat::runtime::TypeVariant
-  [name <- wat.type/keyword
-   fields <- (wat.type/Vector :- [:wat::runtime::TypeField])])
+(wat.core/defrecord wat.runtime/TypeVariant
+  [name :- wat.type/keyword
+   fields :- (wat.type/Vector :- [wat.runtime/TypeField])])
 
 ;; One surface member. A Method reports its parameter names (declaration
 ;; order) and return type; the full ArgSpec is not a wat value.
-(:wat::core::defenum :wat::runtime::TypeSurfaceMember :wat::enum::Pure
-  :Field  [name <- wat.type/keyword  type <- wat.type/AST]
-  :Method [name <- wat.type/keyword
-           params <- (wat.type/Vector :- [wat.type/keyword])
-           ret <- wat.type/AST])
+(wat.core/defenum wat.runtime/TypeSurfaceMember wat.enum/Pure
+  :Field  [name :- wat.type/keyword  type :- wat.type/AST]
+  :Method [name :- wat.type/keyword
+           params :- (wat.type/Vector :- [wat.type/keyword])
+           ret :- wat.type/AST])
 
 ;; Kind-appropriate body. A Newtype with only `:inner` is an ANSWER (kind +
 ;; wrapped type), not an omission — "nothing else to say" lives in the row.
-(:wat::core::defenum :wat::runtime::TypeBody :wat::enum::Pure
-  :Aggregate [nature <- :wat::runtime::TypeNature
-              fields <- (wat.type/Vector :- [:wat::runtime::TypeField])]
-  :Enum      [purity <- :wat::runtime::TypePurity
-              variants <- (wat.type/Vector :- [:wat::runtime::TypeVariant])]
-  :Newtype   [inner <- wat.type/AST]
-  :Alias     [expr <- wat.type/AST]
-  :Union     [members <- (wat.type/Vector :- [wat.type/AST])]
-  :Surface   [nature <- (:wat::core::Option :- [:wat::runtime::TypeNature])
-              members <- (wat.type/Vector :- [:wat::runtime::TypeSurfaceMember])]
+(wat.core/defenum wat.runtime/TypeBody wat.enum/Pure
+  :Aggregate [nature :- wat.runtime/TypeNature
+              fields :- (wat.type/Vector :- [wat.runtime/TypeField])]
+  :Enum      [purity :- wat.runtime/TypePurity
+              variants :- (wat.type/Vector :- [wat.runtime/TypeVariant])]
+  :Newtype   [inner :- wat.type/AST]
+  :Alias     [expr :- wat.type/AST]
+  :Union     [members :- (wat.type/Vector :- [wat.type/AST])]
+  :Surface   [nature :- (wat.core/Option :- [wat.runtime/TypeNature])
+              members :- (wat.type/Vector :- [wat.runtime/TypeSurfaceMember])]
   ;; A builtin's structure, parameters included, is not declared anywhere
   ;; (`builtin_names` holds names only) — so the row's `type-params` is empty
   ;; and the body has nothing else to say.
   :Builtin []
-  :Marker  [children <- (wat.type/Vector :- [wat.type/keyword])])
+  :Marker  [children :- (wat.type/Vector :- [wat.type/keyword])])
 
 ;; THE row. `type-params` is on the row (every TypeDef carries them), not
 ;; buried in a kind-specific body. `body` is the rest.
-(:wat::core::defrecord :wat::runtime::TypeInfo
-  [name <- wat.type/keyword
-   kind <- :wat::runtime::TypeKind
-   type-params <- (wat.type/Vector :- [wat.type/String])
-   body <- :wat::runtime::TypeBody])
+(wat.core/defrecord wat.runtime/TypeInfo
+  [name :- wat.type/keyword
+   kind :- wat.runtime/TypeKind
+   type-params :- (wat.type/Vector :- [wat.type/String])
+   body :- wat.runtime/TypeBody])
 
 ;; Outcome of `:wat::runtime::declared-types`. `Ok` carries the types the
 ;; program's declarations added to a FRESH copy of the stdlib registry.
 ;; `Refused` names the form that could not register and why — never a panic,
 ;; never a silent drop.
-(:wat::core::defenum :wat::runtime::DeclaredTypes :wat::enum::Pure
-  :Ok [types <- (wat.type/Vector :- [:wat::runtime::TypeInfo])]
-  :Refused [form <- wat.type/AST
-            cause <- wat.type/String])
+(wat.core/defenum wat.runtime/DeclaredTypes wat.enum/Pure
+  :Ok [types :- (wat.type/Vector :- [wat.runtime/TypeInfo])]
+  :Refused [form :- wat.type/AST
+            cause :- wat.type/String])

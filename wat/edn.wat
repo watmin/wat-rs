@@ -33,9 +33,9 @@
 ;; ordinary decoded data — a String/HashMap/record — never a live resource, unlike
 ;; `(ReadlnOutcome :- [T])`'s T which can be), and `:wat::core::Error` is Record-natured. Marking it
 ;; Impure would bar it from pure aggregates and the wire for nothing.
-(:wat::core::defenum :wat::edn::ReadJsonOutcome :- [T] :wat::enum::Pure
-  :Value [value <- :T]
-  :Malformed [cause <- :wat::core::Error])
+(wat.core/defenum wat.edn/ReadJsonOutcome :- [T] wat.enum/Pure
+  :Value [value :- T]
+  :Malformed [cause :- wat.core/Error])
 
 ;; `:wat::edn::ReadForeignOutcome<T>` — what `:wat::edn::read-foreign` returns.
 ;; Twin of `ReadJsonOutcome<T>`: the verb's input is an untrusted String (a journal
@@ -45,9 +45,9 @@
 ;;
 ;;   :Value     [value <- T] — the decoded value (ForeignRecord / ForeignVariant / typed)
 ;;   :Malformed [cause]      — the EDN text did not parse, or did not decode
-(:wat::core::defenum :wat::edn::ReadForeignOutcome :- [T] :wat::enum::Pure
-  :Value [value <- :T]
-  :Malformed [cause <- :wat::core::Error])
+(wat.core/defenum wat.edn/ReadForeignOutcome :- [T] wat.enum/Pure
+  :Value [value :- T]
+  :Malformed [cause :- wat.core/Error])
 
 ;; :wat::edn::Validation — Arc 278 the REQUEST-MALFORMED wall (Stone 1,
 ;; DESIGN-request-malformed-input-sanitization.md). The outcome of
@@ -75,6 +75,6 @@
 ;; PURE — three Strings/String-vectors and a nullary variant; fully
 ;; EDN-reconstructable. Registered as a builtin because the defservice-generated
 ;; serve loop matches on it, before any wat defenum would load.
-(:wat::core::defenum :wat::edn::Validation :wat::enum::Pure
+(wat.core/defenum wat.edn/Validation wat.enum/Pure
   :Valid
-  :Invalid [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
+  :Invalid [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])

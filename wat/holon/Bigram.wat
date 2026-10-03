@@ -8,7 +8,7 @@
 ;; at the call site without pattern-matching on Ngram's `n`
 ;; parameter. Pure sugar — same semantics as `(Ngram 2 xs)`.
 
-(:wat::core::defmacro :wat::holon::Bigram
-  [xs <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::holon::Ngram 2 ~xs))
+(wat.core/defmacro wat.holon/Bigram
+  [xs :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.holon/Ngram 2 ~xs))

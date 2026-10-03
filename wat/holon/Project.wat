@@ -11,8 +11,8 @@
 ;; Production-cited: engram matching — project(packet, baseline_components)
 ;; reconstructs the observation as the subspace sees it.
 
-(:wat::core::defmacro :wat::holon::Project
-  [x <- wat.type/AST
-   y <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::holon::Subtract ~x (:wat::holon::Reject ~x ~y)))
+(wat.core/defmacro wat.holon/Project
+  [x :- wat.type/AST
+   y :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.holon/Subtract ~x (wat.holon/Reject ~x ~y)))

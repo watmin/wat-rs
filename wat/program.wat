@@ -11,14 +11,14 @@
 ;;   :thread  — shares the parent's address space (a thread peer)
 ;;   :process — owns its own address space (the root :user::main, OR a forked process peer)
 ;; The root :user::main owns its address space → seam stamps :process.
-(:wat::core::defenum :wat::program::PeerKind :wat::enum::Pure
+(wat.core/defenum wat.program/PeerKind wat.enum/Pure
   :thread
   :process)
 
 ;; EmptyEnv — the 0-field nominal default for `user-data`.
 ;; A real record, never nil: "didn't provide one" is honest because there is no nil branch.
 ;; Construction: `(:wat::program::EmptyEnv)`. Extends :wat::core::Record (the root).
-(:wat::core::defrecord :wat::program::EmptyEnv [])
+(wat.core/defrecord wat.program/EmptyEnv [])
 
 ;; Six kernel-stamped fields, plus one user-data slot (arc 259 — The Forced Hand):
 ;;   started-at      — the app epoch (CLI-boot instant), INHERITED unchanged down the spawn tree.
@@ -41,11 +41,11 @@
 ;; `defrecord` (arc 293 — no longer an extensible base, see the header above) makes structural: a
 ;; top-level field on `Env` IS wat-provided, kernel-stamped at the spawn seam; `user-data` is the
 ;; one field that is the user's — anything the user needs lives inside the record they put there.
-(:wat::core::defrecord :wat::program::Env
-  [started-at <- :wat::time::Instant
-   peer-started-at <- :wat::time::Instant
-   process-id <- wat.type/i64
-   os-thread-id <- wat.type/i64
-   peer-kind <- :wat::program::PeerKind
-   cpu-count <- wat.type/i64
-   user-data <- wat.type/Record])
+(wat.core/defrecord wat.program/Env
+  [started-at :- wat.time/Instant
+   peer-started-at :- wat.time/Instant
+   process-id :- wat.type/i64
+   os-thread-id :- wat.type/i64
+   peer-kind :- wat.program/PeerKind
+   cpu-count :- wat.type/i64
+   user-data :- wat.type/Record])

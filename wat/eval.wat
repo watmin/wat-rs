@@ -14,16 +14,16 @@
 ;; consumer drives the loop, feeding StepNext.form back in until
 ;; StepTerminal arrives.
 ;; PURITY Impure: in-locus eval-step control; carries WatAST forms — Impure (never crosses)
-(:wat::core::defenum :wat::eval::StepResult :wat::enum::Impure
-  :StepNext [form <- wat.type/AST]
-  :StepTerminal [value <- wat.type/AST]
+(wat.core/defenum wat.eval/StepResult wat.enum/Impure
+  :StepNext [form :- wat.type/AST]
+  :StepTerminal [value :- wat.type/AST]
 ;; Arc 070 — distinguishes "input was already a value; no
 ;; work happened" from "this step reduced a redex." Fires
 ;; on holon-value-shape WatASTs (`to-watast(holon)` round-
 ;; trips like Bundle's bare-list lift, holon-constructor
 ;; forms with all-canonical args, primitive literals).
 ;; Walkers and tracers care about chain-length 0 vs ≥ 1.
-  :AlreadyTerminal [value <- wat.type/AST])
+  :AlreadyTerminal [value :- wat.type/AST])
 
 ;; Arc 070 — (:wat::eval::WalkStep :- [A]) — what the visitor passed to
 ;; :wat::eval::walk returns. Two variants:
@@ -42,9 +42,9 @@
 ;; Generic over A so the consumer's accumulator can be any
 ;; type — cache, trace, counter, tier, etc.
 ;; PURITY Impure: in-locus walk control — Impure (never crosses)
-(:wat::core::defenum :wat::eval::WalkStep :- [A] :wat::enum::Impure
-  :Continue [acc <- :A]
-  :Skip [terminal <- wat.type/AST  acc <- :A])
+(wat.core/defenum wat.eval/WalkStep :- [A] wat.enum/Impure
+  :Continue [acc :- A]
+  :Skip [terminal :- wat.type/AST  acc :- A])
 
 ;; Arc 170 — (:wat::eval::FormOutcome :- [T]) — what `:wat::eval-with-defs!` returns:
 ;; the outcome of handing ONE form to a world built from a definition set.
@@ -98,8 +98,8 @@
 ;; drift, and a bare `Outcome` would read ambiguously beside
 ;; `:wat::service::Outcome` in the defservice handler that is its first consumer.
 ;; PURITY Impure: T may be a live resource — see above
-(:wat::core::defenum :wat::eval::FormOutcome :- [T] :wat::enum::Impure
+(wat.core/defenum wat.eval/FormOutcome :- [T] wat.enum/Impure
   :Declared
-  :Evaluated [value <- :T]
-  :CheckFailed [cause <- :wat::core::Error]
-  :Raised [cause <- :wat::core::EvalError])
+  :Evaluated [value :- T]
+  :CheckFailed [cause :- wat.core/Error]
+  :Raised [cause :- wat.core/EvalError])

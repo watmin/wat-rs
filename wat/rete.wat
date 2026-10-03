@@ -28,16 +28,16 @@
 ;;   (the pair is heterogeneous: a Record + an i64, which a bare PV cannot honestly type).
 ;;   Load-bearing for TM: the chain grows one tuple per condition as the token flows through joins.
 ;; bindings: {?var → value} — variable bindings accumulated left-to-right.
-(:wat::core::defrecord :wat::rete::Token
-  [matches  <- (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/Record wat.type/i64])])
-   bindings <- wat.type/PersistentMap])
+(wat.core/defrecord wat.rete/Token
+  [matches  :- (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/Record wat.type/i64])])
+   bindings :- wat.type/PersistentMap])
 
 ;; Element — a fact presented to an alpha node; flows RIGHT into a join.
 ;; fact: the record fact itself (type-preserving; no conversion needed for provenance/TM/query).
 ;; bindings: alpha-bindings extracted by the alpha node's tests.
-(:wat::core::defrecord :wat::rete::Element
-  [fact     <- wat.type/Record
-   bindings <- wat.type/PersistentMap])
+(wat.core/defrecord wat.rete/Element
+  [fact     :- wat.type/Record
+   bindings :- wat.type/PersistentMap])
 
 ;; ─── rules as data ──────────────────────────────────────────────────────────
 
@@ -45,17 +45,17 @@
 ;; name: the namespaced rule name.
 ;; lhs:  rete `:when` conditions (`<-`, FQDN ops, `:wat::rete::and/or/not`) — (PersistentVector :- [WatAST]) so foldl works.
 ;; rhs:  consequence forms (data; pure — applied by a consumer).
-(:wat::core::defrecord :wat::rete::Rule
-  [name <- wat.type/String
-   lhs  <- (wat.type/PersistentVector :- [wat.type/AST])
-   rhs  <- (wat.type/PersistentVector :- [wat.type/AST])])
+(wat.core/defrecord wat.rete/Rule
+  [name :- wat.type/String
+   lhs  :- (wat.type/PersistentVector :- [wat.type/AST])
+   rhs  :- (wat.type/PersistentVector :- [wat.type/AST])])
 
 ;; Query — a named parametric query (Clara defquery). No :then; answers are
 ;; binding maps, filtered by param values at `query` time.
-(:wat::core::defrecord :wat::rete::Query
-  [name   <- wat.type/String
-   params <- (wat.type/PersistentVector :- [wat.type/String])
-   lhs    <- (wat.type/PersistentVector :- [wat.type/AST])])
+(wat.core/defrecord wat.rete/Query
+  [name   :- wat.type/String
+   params :- (wat.type/PersistentVector :- [wat.type/String])
+   lhs    :- (wat.type/PersistentVector :- [wat.type/AST])])
 
 ;; ─── the network nodes ──────────────────────────────────────────────────────
 ;; Alpha, RootJoin, HashJoin, Test, Negation, Exists, Accumulate, Production,
@@ -65,40 +65,40 @@
 ;; id:       unique node id (i64).
 ;; tests:    PersistentVector of rete alpha conditions — typed for foldl.
 ;; children: PersistentVector of child node ids — typed as i64 for foldl.
-(:wat::core::defrecord :wat::rete::AlphaNode
-  [id       <- wat.type/i64
-   tests    <- (wat.type/PersistentVector :- [wat.type/AST])
-   children <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/AlphaNode
+  [id       :- wat.type/i64
+   tests    :- (wat.type/PersistentVector :- [wat.type/AST])
+   children :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; RootJoinNode — the leftmost beta join (no left memory needed; seeds the token).
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
-(:wat::core::defrecord :wat::rete::RootJoinNode
-  [id       <- wat.type/i64
-   children <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/RootJoinNode
+  [id       :- wat.type/i64
+   children :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; HashJoinNode — a standard two-input beta join node.
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
-(:wat::core::defrecord :wat::rete::HashJoinNode
-  [id       <- wat.type/i64
-   children <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/HashJoinNode
+  [id       :- wat.type/i64
+   children :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; ProductionNode — the terminal node; triggers an activation on a full token.
 ;; id:        unique node id.
 ;; rule-name: the namespaced rule name whose RHS this node fires.
-(:wat::core::defrecord :wat::rete::ProductionNode
-  [id        <- wat.type/i64
-   rule-name <- wat.type/String])
+(wat.core/defrecord wat.rete/ProductionNode
+  [id        :- wat.type/i64
+   rule-name :- wat.type/String])
 
 ;; TestNode — a left-only filter node (stone 6b-ii-a): keeps a token iff eval-test(expr, bindings) is true.
 ;; id:       unique node id.
 ;; expr:     the pure∧det∧total∧rete WatAST predicate (stored as a value; four-axis fence at compile).
 ;; children: PersistentVector of child node ids (ProductionNode or further TestNodes).
-(:wat::core::defrecord :wat::rete::TestNode
-  [id       <- wat.type/i64
-   expr     <- wat.type/AST
-   children <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/TestNode
+  [id       :- wat.type/i64
+   expr     :- wat.type/AST
+   children :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; NegationNode — a left-only filter node (stone 7-a): passes a token iff ZERO elements in the
 ;; negated alpha-memory are compatible with the token's bindings. Hash-join inverted: pure replay
@@ -106,10 +106,10 @@
 ;; id:              unique node id.
 ;; negated-alpha-id: the AlphaNode id whose alpha-memory holds the facts to check absence against.
 ;; children:        PersistentVector of child node ids (ProductionNode or further filter nodes).
-(:wat::core::defrecord :wat::rete::NegationNode
-  [id              <- wat.type/i64
-   negated-alpha-id <- wat.type/i64
-   children        <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/NegationNode
+  [id              :- wat.type/i64
+   negated-alpha-id :- wat.type/i64
+   children        :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; ExistsNode — a left-only filter node (stone 7-exists): the NegationNode sibling with its
 ;; filter predicate INVERTED. Passes a token iff ≥1 element in the inner alpha-memory is
@@ -120,10 +120,10 @@
 ;; id:           unique node id.
 ;; exists-alpha-id: the AlphaNode id whose alpha-memory holds the facts to check presence against.
 ;; children:     PersistentVector of child node ids (ProductionNode or further filter nodes).
-(:wat::core::defrecord :wat::rete::ExistsNode
-  [id              <- wat.type/i64
-   exists-alpha-id  <- wat.type/i64
-   children        <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/ExistsNode
+  [id              :- wat.type/i64
+   exists-alpha-id  :- wat.type/i64
+   children        :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; AccumulateNode — a left-input aggregate join node (stone 8-a): for each parent token,
 ;; gathers the token-compatible elements from from-alpha-id's alpha-memory, folds them with
@@ -135,30 +135,30 @@
 ;; acc-form:      the accumulator form (WatAST), e.g. (:wat::rete::acc::count) or (:wat::rete::acc::sum ?v).
 ;; from-alpha-id: the AlphaNode id whose alpha-memory holds the :from facts.
 ;; children:      PersistentVector of child node ids (ProductionNode, TestNode, NegationNode, etc.).
-(:wat::core::defrecord :wat::rete::AccumulateNode
-  [id            <- wat.type/i64
-   result-var    <- wat.type/String
-   acc-form      <- wat.type/AST
-   from-alpha-id <- wat.type/i64
-   children      <- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord wat.rete/AccumulateNode
+  [id            :- wat.type/i64
+   result-var    :- wat.type/String
+   acc-form      :- wat.type/AST
+   from-alpha-id :- wat.type/i64
+   children      :- (wat.type/PersistentVector :- [wat.type/i64])])
 
 ;; QueryNode — a named query endpoint; like a production but returns answers.
 ;; id:         unique node id.
 ;; query-name: the namespaced query name.
 ;; param-keys: PersistentVector of query parameter variable names (Strings).
-(:wat::core::defrecord :wat::rete::QueryNode
-  [id         <- wat.type/i64
-   query-name <- wat.type/String
-   param-keys <- (wat.type/PersistentVector :- [wat.type/String])])
+(wat.core/defrecord wat.rete/QueryNode
+  [id         :- wat.type/i64
+   query-name :- wat.type/String
+   param-keys :- (wat.type/PersistentVector :- [wat.type/String])])
 
 ;; ─── the session (the whole engine state) ───────────────────────────────────
 ;; intueri: NOT WorkingMemory — Session names the whole caller-facing engine state.
 
-(:wat::core::typealias :wat::rete::AlphaMemory
-  (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Element])]))
-(:wat::core::typealias :wat::rete::BetaMemory
-  (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Token])]))
-(:wat::core::typealias :wat::rete::ProductionMemory
+(wat.core/typealias wat.rete/AlphaMemory
+  (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.rete/Element])]))
+(wat.core/typealias wat.rete/BetaMemory
+  (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.rete/Token])]))
+(wat.core/typealias wat.rete/ProductionMemory
   (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/Record])]))
 
 ;; Overlay — the thing with-overlay hands its body: facts in, a FIRED Session out. The Session
@@ -172,9 +172,9 @@
 ;; wall. `with-overlay` fires, and a fire carries two ceilings; a convenience wrapper that swallowed
 ;; that and returned a bare Session would be hiding a partiality inside the stdlib, which is the
 ;; exact defect this wall exists to remove. The caller matches, once, at the mouth of its own loop.
-(:wat::core::typealias :wat::rete::Overlay
+(wat.core/typealias wat.rete/Overlay
   [(wat.type/PersistentVector :- [wat.type/Record])
-    :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])])
+    :-> (wat.rete/FireOutcome :- [wat.rete/Session])])
 
 ;; Session — the complete rete engine state; the caller-facing handle.
 ;;   network:           id → raw node record — the compiled DAG, id-indexed.
@@ -193,18 +193,18 @@
 ;;                      it (for `factbag::of`).
 ;;   next-id:           the next free node id (i64).
 ;;   query-memory:      query-name → PV of binding maps (QueryNode answers; survives fire).
-(:wat::core::defrecord :wat::rete::FactBag
-  [items <- (wat.type/PersistentVector :- [wat.type/Record])])
+(wat.core/defrecord wat.rete/FactBag
+  [items :- (wat.type/PersistentVector :- [wat.type/Record])])
 
-(:wat::core::defrecord :wat::rete::Session
-  [network           <- wat.type/PersistentMap
-   rules             <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   alpha-memory      <- wat.type/PersistentMap
-   beta-memory       <- wat.type/PersistentMap
-   production-memory <- wat.type/PersistentMap
-   facts             <- :wat::rete::FactBag
-   next-id           <- wat.type/i64
-   query-memory      <- wat.type/PersistentMap])
+(wat.core/defrecord wat.rete/Session
+  [network           :- wat.type/PersistentMap
+   rules             :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   alpha-memory      :- wat.type/PersistentMap
+   beta-memory       :- wat.type/PersistentMap
+   production-memory :- wat.type/PersistentMap
+   facts             :- wat.rete/FactBag
+   next-id           :- wat.type/i64
+   query-memory      :- wat.type/PersistentMap])
 
 ;; ─── FireOutcome — a fire's bounded result, as a VALUE ───────────────────────────────────────
 ;;
@@ -247,13 +247,13 @@
 ;; Enum purity is DECLARED and fixed, so this marking is a claim about every instantiation: it
 ;; holds because only rete's own verbs construct one, and they do so at `Session` and `Explained`.
 ;; If a rete verb ever returns a FireOutcome over a LIVE payload, this line is what must change.
-(:wat::core::defenum :wat::rete::FireOutcome :- [T] :wat::enum::Pure
-  :Fired                 [value <- :T]
-  :MemoryCeilingExceeded [limit <- wat.type/i64
-                          used <- wat.type/i64
-                          rounds <- wat.type/i64]
-  :RoundCapExceeded      [cap <- wat.type/i64
-                          still-deriving <- wat.type/i64])
+(wat.core/defenum wat.rete/FireOutcome :- [T] wat.enum/Pure
+  :Fired                 [value :- T]
+  :MemoryCeilingExceeded [limit :- wat.type/i64
+                          used :- wat.type/i64
+                          rounds :- wat.type/i64]
+  :RoundCapExceeded      [cap :- wat.type/i64
+                          still-deriving :- wat.type/i64])
 
 ;; ─── InsertOutcome — staging's bounded result, as a VALUE ────────────────────────────────────
 ;;
@@ -278,11 +278,11 @@
 ;;                                                   session's own structures).
 ;;
 ;; Pure, for `FireOutcome`'s reason exactly: a Session and three i64s, nothing live.
-(:wat::core::defenum :wat::rete::InsertOutcome :wat::enum::Pure
-  :Inserted              [session <- :wat::rete::Session]
-  :MemoryCeilingExceeded [limit <- wat.type/i64
-                          used <- wat.type/i64
-                          staged <- wat.type/i64])
+(wat.core/defenum wat.rete/InsertOutcome wat.enum/Pure
+  :Inserted              [session :- wat.rete/Session]
+  :MemoryCeilingExceeded [limit :- wat.type/i64
+                          used :- wat.type/i64
+                          staged :- wat.type/i64])
 
 ;; ─── CompileOutcome — the termination verdict, as a VALUE ────────────────────────────────────
 ;;
@@ -316,14 +316,14 @@
 ;;                                          report as well as the substrate can.
 ;;
 ;; Pure: a Session and two Strings.
-(:wat::core::defenum :wat::rete::CompileOutcome :wat::enum::Pure
-  :Compiled        [session <- :wat::rete::Session]
-  :MayNotTerminate [rule <- wat.type/String
-                    fact-type <- wat.type/String])
+(wat.core/defenum wat.rete/CompileOutcome wat.enum/Pure
+  :Compiled        [session :- wat.rete/Session]
+  :MayNotTerminate [rule :- wat.type/String
+                    fact-type :- wat.type/String])
 
-(:wat::core::typealias :wat::rete::GroupByMap
+(wat.core/typealias wat.rete/GroupByMap
   (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/Record])]))
-(:wat::core::typealias :wat::rete::ClassFields
+(wat.core/typealias wat.rete/ClassFields
   (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/String])]))
 
 ;; Export — the compiled program as one EDN value. Not a Session.
@@ -338,18 +338,18 @@
 ;;           Residual, packed from interned arm.rule_deps (not Session.rules AST).
 ;;           Import without deps refuses production fire — empty residual would
 ;;           lie about negation-over-derived (not max_s=0).
-(:wat::core::defrecord :wat::rete::Export
-  [v       <- wat.type/i64
-   abi     <- wat.type/String
-   classes <- (wat.type/PersistentVector :- [wat.type/String])
-   fields  <- :wat::rete::ClassFields
-   nodes   <- wat.type/PersistentVector
-   conds   <- wat.type/PersistentVector
-   drivers <- wat.type/PersistentVector
-   progs   <- wat.type/PersistentVector
-   folds   <- wat.type/PersistentVector
-   rhs     <- wat.type/PersistentVector
-   deps    <- wat.type/PersistentVector])
+(wat.core/defrecord wat.rete/Export
+  [v       :- wat.type/i64
+   abi     :- wat.type/String
+   classes :- (wat.type/PersistentVector :- [wat.type/String])
+   fields  :- wat.rete/ClassFields
+   nodes   :- wat.type/PersistentVector
+   conds   :- wat.type/PersistentVector
+   drivers :- wat.type/PersistentVector
+   progs   :- wat.type/PersistentVector
+   folds   :- wat.type/PersistentVector
+   rhs     :- wat.type/PersistentVector
+   deps    :- wat.type/PersistentVector])
 
 ;; ─── P12a: explain substrate ────────────────────────────────────────────────
 
@@ -357,17 +357,17 @@
 ;;   rule:  the rule name that derived the fact (for Why.rule in P12b).
 ;;   token: the producing Token; token.matches = the support chain (for :via in P12b).
 ;; EPHEMERAL — carried only in Explained; never serialized / from-edn.
-(:wat::core::defrecord :wat::rete::Support
-  [rule  <- wat.type/String
-   token <- :wat::rete::Token])
+(wat.core/defrecord wat.rete/Support
+  [rule  :- wat.type/String
+   token :- wat.rete/Token])
 
 ;; Explained — the opt-in diagnostic result of fire-rules-explain.
 ;;   session: the same frozen Session the fast path produces (same closure, same derived facts).
 ;;   support: (PersistentMap :- [derived-fact Support]) — the provenance index.
 ;; EPHEMERAL — re-derived per explain; never serialized.
-(:wat::core::defrecord :wat::rete::Explained
-  [session <- :wat::rete::Session
-   support <- wat.type/PersistentMap])
+(wat.core/defrecord wat.rete/Explained
+  [session :- wat.rete/Session
+   support :- wat.type/PersistentMap])
 
 ;; ─── P12b+P12c: derivation-tree records + explain walk ─────────────────────
 
@@ -379,10 +379,10 @@
 ;;         Empty (length 0) ⟺ base/asserted fact (the leaf).
 ;;         Non-empty ⟺ derived fact (each step explains one supporting input).
 ;; EPHEMERAL — produced by explain; never serialized.
-(:wat::core::defrecord :wat::rete::DerivationNode
-  [fact <- wat.type/Record
-   rule <- (:wat::core::Option :- [wat.type/String])
-   via  <- (wat.type/PersistentVector :- [:wat::rete::DerivationStep])])
+(wat.core/defrecord wat.rete/DerivationNode
+  [fact :- wat.type/Record
+   rule :- (wat.core/Option :- [wat.type/String])
+   via  :- (wat.type/PersistentVector :- [wat.rete/DerivationStep])])
 
 ;; DerivationStep — one edge in the provenance tree. Carries the payload that
 ;; makes the derivation readable without knowing the rule.
@@ -393,11 +393,11 @@
 ;;                Rendered as WatAST, e.g. (:wat::i64::< -5 0) from
 ;;                (:wat::i64::< ?c 0) with ?c=-5.
 ;; EPHEMERAL — produced by explain; never serialized.
-(:wat::core::defrecord :wat::rete::DerivationStep
-  [supporting  <- :wat::rete::DerivationNode
-   pattern     <- wat.type/String
-   bindings    <- (wat.type/PersistentMap :- [wat.type/String wat.type/Value])
-   constraints <- (wat.type/PersistentVector :- [wat.type/AST])])
+(wat.core/defrecord wat.rete/DerivationStep
+  [supporting  :- wat.rete/DerivationNode
+   pattern     :- wat.type/String
+   bindings    :- (wat.type/PersistentMap :- [wat.type/String wat.type/Value])
+   constraints :- (wat.type/PersistentVector :- [wat.type/AST])])
 
 ;; step-payload is a rust primitive (`:wat::rete::step-payload`). explain calls it.
 
@@ -407,36 +407,36 @@
 ;; For a base fact (absent from the index), returns DerivationNode{fact, rule=None, via=[]} (leaf).
 ;; Termination: the support DAG is acyclic (fixpoint round structure); base facts are not
 ;; in the support map → the None branch is the leaf, so recursion always terminates.
-(:wat::core::defn :wat::rete::explain
-  [ex   <- :wat::rete::Explained
-   fact <- wat.type/Record]
-  -> :wat::rete::DerivationNode
-  (:wat::core::let [support (:wat::rete::Explained/support ex)
-                    sv-opt  (:wat::core::get support fact)]
-    (:wat::core::match sv-opt 
-      [:wat::core::Option.Some {:value sv}
+(wat.core/defn wat.rete/explain
+  [ex   :- wat.rete/Explained
+   fact :- wat.type/Record]
+  :- wat.rete/DerivationNode
+  (wat.core/let [support (wat.rete.Explained/support ex)
+                    sv-opt  (wat.core/get support fact)]
+    (wat.core/match sv-opt 
+      [wat.core/Option.Some {:value sv}
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
        ;; matches is (PersistentVector :- [(wat::core::Tuple :- [wat::core::Record wat::core::i64])]); each tuple is (sfact, alpha-id).
-       (:wat::core::let [tok      (:wat::rete::Support/token sv)
-                         matches  (:wat::rete::Token/matches tok)
-                         bindings (:wat::rete::Token/bindings tok)
-                         rule     (:wat::rete::Support/rule sv)
-                         session  (:wat::rete::Explained/session ex)
+       (wat.core/let [tok      (wat.rete.Support/token sv)
+                         matches  (wat.rete.Token/matches tok)
+                         bindings (wat.rete.Token/bindings tok)
+                         rule     (wat.rete.Support/rule sv)
+                         session  (wat.rete.Explained/session ex)
                          ;; Arc 118.2a — `map` flipped LAZY; `DerivationNode`'s 3rd field is
                          ;; `(PersistentVector :- [DerivationStep])`, so materialize via `into`.
-                         via      (:wat::core::into (wat.type/PersistentVector :- [:wat::rete::DerivationStep])
-                                    (:wat::core::map
-                                      (:wat::core::fn [m <- (wat.type/Tuple :- [wat.type/Record wat.type/i64])]
-                                        -> :wat::rete::DerivationStep
-                                        (:wat::core::let [sfact    (:wat::core::first m)
-                                                          alpha-id (:wat::core::second m)]
-                                          (:wat::rete::step-payload session alpha-id bindings sfact
-                                            (:wat::rete::explain ex sfact))))
+                         via      (wat.core/into (wat.type/PersistentVector :- [wat.rete/DerivationStep])
+                                    (wat.core/map
+                                      (wat.core/fn [m :- (wat.type/Tuple :- [wat.type/Record wat.type/i64])]
+                                        :- wat.rete/DerivationStep
+                                        (wat.core/let [sfact    (wat.core/first m)
+                                                          alpha-id (wat.core/second m)]
+                                          (wat.rete/step-payload session alpha-id bindings sfact
+                                            (wat.rete/explain ex sfact))))
                                       matches))]
-         (:wat::rete::DerivationNode :fact fact :rule (:wat::core::Option.Some {:value rule}) :via via))]
-      [:wat::core::Option.None {}
+         (wat.rete/DerivationNode :fact fact :rule (wat.core/Option.Some {:value rule}) :via via))]
+      [wat.core/Option.None {}
        ;; base/asserted fact — leaf node, rule=None, via is empty.
-       (:wat::rete::DerivationNode :fact fact :rule :wat::core::Option.None :via (wat.type/PersistentVector :- [:wat::rete::DerivationStep]))])))
+       (wat.rete/DerivationNode :fact fact :rule wat.core/Option.None :via (wat.type/PersistentVector :- [wat.rete/DerivationStep]))])))
 
 ;; ─── render-dag ─────────────────────────────────────────────────────────────
 
@@ -444,15 +444,15 @@
 ;; declared type FQDN. Returns the last segment (e.g. "RootJoinNode").
 ;; (:wat::core::type node) returns the class FQDN without leading colon,
 ;; e.g. "wat::rete::RootJoinNode". We take the text after the last "::".
-(:wat::core::defn :wat::rete::node-kind-label
-  [node <- wat.type/Record]
-  -> wat.type/String
-  (:wat::core::let [fqdn   (:wat::core::type node)
-                    parts  (:wat::string::split fqdn "::")
-                    n      (:wat::core::length parts)]
-    (:wat::core::if (:wat::i64::> n 0)
-      (:wat::core::Option/expect  
-        (:wat::core::get parts (:wat::i64::- n 1))
+(wat.core/defn wat.rete/node-kind-label
+  [node :- wat.type/Record]
+  :- wat.type/String
+  (wat.core/let [fqdn   (wat.core/type node)
+                    parts  (wat.string/split fqdn "::")
+                    n      (wat.core/length parts)]
+    (wat.core/if (wat.i64/> n 0)
+      (wat.core.Option/expect  
+        (wat.core/get parts (wat.i64/- n 1))
         "node-kind-label: last segment")
       fqdn)))
 
@@ -461,43 +461,43 @@
 ;; have children; Production/Query return empty.
 ;; WHY: record accessors are class-guarded at runtime; dispatch ensures we only call
 ;; AlphaNode/children when the node IS an AlphaNode, satisfying the guard.
-(:wat::core::defn :wat::rete::node-children-ids
-  [node <- wat.type/Record]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [kind (:wat::rete::node-kind-label node)]
-    (:wat::core::cond
-      ((:wat::core::= kind "AlphaNode")
-       (:wat::rete::AlphaNode/children node))
-      ((:wat::core::= kind "RootJoinNode")
-       (:wat::rete::RootJoinNode/children node))
-      ((:wat::core::= kind "HashJoinNode")
-       (:wat::rete::HashJoinNode/children node))
-      ((:wat::core::= kind "TestNode")
-       (:wat::rete::TestNode/children node))
-      ((:wat::core::= kind "NegationNode")
-       (:wat::rete::NegationNode/children node))
-      ((:wat::core::= kind "ExistsNode")
-       (:wat::rete::ExistsNode/children node))
-      ((:wat::core::= kind "AccumulateNode")
-       (:wat::rete::AccumulateNode/children node))
+(wat.core/defn wat.rete/node-children-ids
+  [node :- wat.type/Record]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [kind (wat.rete/node-kind-label node)]
+    (wat.core/cond
+      ((wat.core/= kind "AlphaNode")
+       (wat.rete.AlphaNode/children node))
+      ((wat.core/= kind "RootJoinNode")
+       (wat.rete.RootJoinNode/children node))
+      ((wat.core/= kind "HashJoinNode")
+       (wat.rete.HashJoinNode/children node))
+      ((wat.core/= kind "TestNode")
+       (wat.rete.TestNode/children node))
+      ((wat.core/= kind "NegationNode")
+       (wat.rete.NegationNode/children node))
+      ((wat.core/= kind "ExistsNode")
+       (wat.rete.ExistsNode/children node))
+      ((wat.core/= kind "AccumulateNode")
+       (wat.rete.AccumulateNode/children node))
       (:else (wat.type/PersistentVector :- [wat.type/i64])))))
 
 ;; children-ids-text — format a (PersistentVector :- [i64]) as "[id id ...]" for render-dag.
 ;; WHY: foldl builds space-separated ids so render-dag can emit the edge list inline.
-(:wat::core::defn :wat::rete::children-ids-text
-  [ids <- (wat.type/PersistentVector :- [wat.type/i64])]
-  -> wat.type/String
-  (:wat::core::let [inner (:wat::core::foldl
-                             (:wat::core::fn [acc <- wat.type/String
-                                              id  <- wat.type/i64]
-                               -> wat.type/String
-                               (:wat::core::let [id-s (:wat::i64::to-string id)]
-                                 (:wat::core::if (:wat::core::= acc "")
+(wat.core/defn wat.rete/children-ids-text
+  [ids :- (wat.type/PersistentVector :- [wat.type/i64])]
+  :- wat.type/String
+  (wat.core/let [inner (wat.core/foldl
+                             (wat.core/fn [acc :- wat.type/String
+                                              id  :- wat.type/i64]
+                               :- wat.type/String
+                               (wat.core/let [id-s (wat.i64/to-string id)]
+                                 (wat.core/if (wat.core/= acc "")
                                    id-s
-                                   (:wat::string::interpolate "{acc} {id-s}" :acc acc :id-s id-s))))
+                                   (wat.string/interpolate "{acc} {id-s}" :acc acc :id-s id-s))))
                              ""
                              ids)]
-    (:wat::string::interpolate "[{inner}]" :inner inner)))
+    (wat.string/interpolate "[{inner}]" :inner inner)))
 
 ;; render-dag — walk Session.network (id→Node records), emit one readable line
 ;; per node: "  <id>  <kind> -> [<child-ids>]\n". Returns the whole graph as a String.
@@ -505,37 +505,37 @@
 ;; Strategy: get keys from the PersistentMap as a (Vec :- [i64]), foldl over them,
 ;; for each key fetch the node (Option/expect), derive the kind label, emit edges.
 ;; Uses PersistentMap/keys (returns (Vec :- [K])) + foldl + PersistentMap/get.
-(:wat::core::defn :wat::rete::render-dag
-  [session <- :wat::rete::Session]
-  -> wat.type/String
-  (:wat::core::let [network (:wat::rete::Session/network session)
-                    keys    (:wat::core::keys network)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/String
-                       k   <- wat.type/i64]
-        -> wat.type/String
-        (:wat::core::let [node  (:wat::core::Option/expect  
-                                    (:wat::core::get network k)
+(wat.core/defn wat.rete/render-dag
+  [session :- wat.rete/Session]
+  :- wat.type/String
+  (wat.core/let [network (wat.rete.Session/network session)
+                    keys    (wat.core/keys network)]
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/String
+                       k   :- wat.type/i64]
+        :- wat.type/String
+        (wat.core/let [node  (wat.core.Option/expect  
+                                    (wat.core/get network k)
                                     "render-dag: node not found")
-                          kind  (:wat::rete::node-kind-label node)
-                          id-s  (:wat::i64::to-string k)
-                          edge  (:wat::rete::children-ids-text
-                                   (:wat::rete::node-children-ids node))
+                          kind  (wat.rete/node-kind-label node)
+                          id-s  (wat.i64/to-string k)
+                          edge  (wat.rete/children-ids-text
+                                   (wat.rete/node-children-ids node))
                           ;; rune:exigere(scope-affirmative) — arc 278 proof-by-diff fixture:
                           ;; nested string::concat is left intentionally. The arc-277 auto-fix
                           ;; is bare-symbol-only and cannot reach this compound case.
                           ;; Do NOT hand-fix.
-                          line  (:wat::string::concat
+                          line  (wat.string/concat
                                    "  "
-                                   (:wat::string::concat
+                                   (wat.string/concat
                                      id-s
-                                     (:wat::string::concat
+                                     (wat.string/concat
                                        "  "
-                                       (:wat::string::concat
+                                       (wat.string/concat
                                          kind
-                                         (:wat::string::concat
+                                         (wat.string/concat
                                            " -> "
-                                           (:wat::string::concat edge "\n"))))))]
-          (:wat::string::concat acc line)))
+                                           (wat.string/concat edge "\n"))))))]
+          (wat.string/concat acc line)))
       ""
       keys)))

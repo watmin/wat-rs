@@ -25,12 +25,12 @@
 ;; `(Vector :- [HolonAST])` eagerly, so the EXPANDED code uses `mapv` here. (This is a template
 ;; spliced into ordinary caller code, evaluated at normal runtime — not a macro-expansion-
 ;; time bootstrap site, so `mapv` is safe to reference directly.)
-(:wat::core::defmacro :wat::holon::Ngram
-  [n  <- wat.type/AST
-   xs <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::holon::Bundle
-     (:wat::core::mapv
-       (:wat::core::fn [window <- :wat::holon::Holons] -> :wat::holon::HolonAST
-         (:wat::holon::Sequential window))
-       (:wat::seq::window ~xs ~n))))
+(wat.core/defmacro wat.holon/Ngram
+  [n  :- wat.type/AST
+   xs :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.holon/Bundle
+     (wat.core/mapv
+       (wat.core/fn [window :- wat.holon/Holons] :- wat.holon/HolonAST
+         (wat.holon/Sequential window))
+       (wat.seq/window ~xs ~n))))

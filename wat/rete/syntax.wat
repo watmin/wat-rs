@@ -8,47 +8,47 @@
 ;; ─── query — ONE mouth: QueryNode harvest, filtered by params ───────────────
 
 ;; query-read — binding maps parked on QueryNode at fire, filtered by params.
-(:wat::core::defn :wat::rete::query-read
-  [session <- :wat::rete::Session
-   q       <- :wat::rete::Query
-   params  <- wat.type/PersistentMap]
-  -> (wat.type/PersistentVector :- [wat.type/PersistentMap])
-  (:wat::core::let [want (:wat::rete::Query/params q)
-                    got  (:wat::core::foldl
-                           (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
-                                            k   <- wat.type/String]
-                             -> (wat.type/PersistentVector :- [wat.type/String])
-                             (:wat::core::conj acc k))
+(wat.core/defn wat.rete/query-read
+  [session :- wat.rete/Session
+   q       :- wat.rete/Query
+   params  :- wat.type/PersistentMap]
+  :- (wat.type/PersistentVector :- [wat.type/PersistentMap])
+  (wat.core/let [want (wat.rete.Query/params q)
+                    got  (wat.core/foldl
+                           (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                            k   :- wat.type/String]
+                             :- (wat.type/PersistentVector :- [wat.type/String])
+                             (wat.core/conj acc k))
                            (wat.type/PersistentVector :- [wat.type/String])
-                           (:wat::core::keys params))
-                    missing (:wat::rete::keys-minus want got)
-                    extra   (:wat::rete::keys-minus got want)
-                    _params (:wat::core::Option/expect
-                              (:wat::core::if
-                                (:wat::core::if (:wat::core::= (:wat::core::length missing) 0)
-                                  (:wat::core::= (:wat::core::length extra) 0)
+                           (wat.core/keys params))
+                    missing (wat.rete/keys-minus want got)
+                    extra   (wat.rete/keys-minus got want)
+                    _params (wat.core.Option/expect
+                              (wat.core/if
+                                (wat.core/if (wat.core/= (wat.core/length missing) 0)
+                                  (wat.core/= (wat.core/length extra) 0)
                                   false)
-                                (:wat::core::Option.Some {:value nil})
-                                :wat::core::Option.None)
+                                (wat.core/Option.Some {:value nil})
+                                wat.core/Option.None)
                               "query: params must match the query's :params")
-                    raw (:wat::core::match
-                           (:wat::core::get
-                             (:wat::rete::Session/query-memory session)
-                             (:wat::rete::Query/name q))
-                           [:wat::core::Option.Some {:value pv} pv]
-                           [:wat::core::Option.None {} (wat.type/PersistentVector :- [wat.type/PersistentMap])])]
-    (:wat::core::if (:wat::core::= (:wat::core::length want) 0)
+                    raw (wat.core/match
+                           (wat.core/get
+                             (wat.rete.Session/query-memory session)
+                             (wat.rete.Query/name q))
+                           [wat.core/Option.Some {:value pv} pv]
+                           [wat.core/Option.None {} (wat.type/PersistentVector :- [wat.type/PersistentMap])])]
+    (wat.core/if (wat.core/= (wat.core/length want) 0)
       raw
-      (:wat::core::into (wat.type/PersistentVector :- [wat.type/PersistentMap])
-        (:wat::core::filter
-          (:wat::core::fn [m <- wat.type/PersistentMap] -> wat.type/bool
-            (:wat::core::foldl
-              (:wat::core::fn [ok <- wat.type/bool
-                               k  <- wat.type/String]
-                -> wat.type/bool
-                (:wat::core::if ok
-                  (:wat::core::= (:wat::core::get m k)
-                                 (:wat::core::get params k))
+      (wat.core/into (wat.type/PersistentVector :- [wat.type/PersistentMap])
+        (wat.core/filter
+          (wat.core/fn [m :- wat.type/PersistentMap] :- wat.type/bool
+            (wat.core/foldl
+              (wat.core/fn [ok :- wat.type/bool
+                               k  :- wat.type/String]
+                :- wat.type/bool
+                (wat.core/if ok
+                  (wat.core/= (wat.core/get m k)
+                                 (wat.core/get params k))
                   false))
               true
               want))
@@ -57,36 +57,36 @@
 ;; query-params-form — expand-time map builder (a MACRO: a defn head is refused
 ;; inside another macro by the F5 pure-combinator gate). Recurses in the
 ;; template so a PersistentVector of mixed keyword/value kwargs never exists.
-(:wat::core::defmacro :wat::rete::query-params-form
-  [acc <- wat.type/AST
-   & items <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defmacro wat.rete/query-params-form
+  [acc :- wat.type/AST
+   & items :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/if (wat.core/empty? items)
     acc
-    (:wat::core::if (:wat::core::empty? (:wat::core::rest items))
-      (:wat::core::macro-error "query: param kwargs must come in key/value pairs")
-      (:wat::core::let [k (:wat::core::first items)
-                        v (:wat::core::first (:wat::core::rest items))
-                        knm (:wat::core::ast-name k)
-                        kstr (:wat::core::if
-                               (:wat::core::= (:wat::string::subs knm 0 1) ":")
-                               (:wat::string::subs knm 1
-                                 (:wat::string::length knm))
+    (wat.core/if (wat.core/empty? (wat.core/rest items))
+      (wat.core/macro-error "query: param kwargs must come in key/value pairs")
+      (wat.core/let [k (wat.core/first items)
+                        v (wat.core/first (wat.core/rest items))
+                        knm (wat.core/ast-name k)
+                        kstr (wat.core/if
+                               (wat.core/= (wat.string/subs knm 0 1) ":")
+                               (wat.string/subs knm 1
+                                 (wat.string/length knm))
                                knm)]
-        `(:wat::rete::query-params-form
-           (:wat::core::assoc ~acc ~kstr ~v)
-           ~@(:wat::core::rest (:wat::core::rest items)))))))
+        `(wat.rete/query-params-form
+           (wat.core/assoc ~acc ~kstr ~v)
+           ~@(wat.core/rest (wat.core/rest items)))))))
 
 ;; query — ONE mouth. q is a Query. Optional Clara-shaped kwargs.
 ;;   (:wat::rete::query session (:wq::all-wind))
 ;;   (:wat::rete::query session (:wq::temps-at) :?loc "MCI")
-(:wat::core::defmacro :wat::rete::query
-  [session <- wat.type/AST
-   q       <- wat.type/AST
-   & rest  <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  `(:wat::rete::query-read ~session ~q
-     (:wat::rete::query-params-form (wat.type/PersistentMap :- [wat.type/String wat.type/Value]) ~@rest)))
+(wat.core/defmacro wat.rete/query
+  [session :- wat.type/AST
+   q       :- wat.type/AST
+   & rest  :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  `(wat.rete/query-read ~session ~q
+     (wat.rete/query-params-form (wat.type/PersistentMap :- [wat.type/String wat.type/Value]) ~@rest)))
 
 ;; ─── cond — rete's OWN macro, expanding into rete's `if` ──────────────────
 ;;
@@ -120,63 +120,63 @@
 ;; code — not fact patterns, not `:then`. A `cond` written inside a `where` is legal
 ;; and expands to rete `if`. This macro is that expansion. Ordinary (non-quoted) rete
 ;; `cond` uses the same template.
-(:wat::core::defmacro :wat::rete::core::cond
-  [& clauses <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::if (:wat::core::empty? clauses)
+(wat.core/defmacro wat.rete.core/cond
+  [& clauses :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/if (wat.core/empty? clauses)
     ;; empty clause list — non-exhaustive / no terminal :else. Same located diagnostic as
     ;; core's cond, byte-identical text.
-    (:wat::core::macro-error "cond: non-exhaustive — needs a terminal :else arm")
-    (:wat::core::if (:wat::core::List? (:wat::core::first clauses))
+    (wat.core/macro-error "cond: non-exhaustive — needs a terminal :else arm")
+    (wat.core/if (wat.core/List? (wat.core/first clauses))
       ;; First clause is a List — bare form: (cond (test body) … (:else body))
-      (:wat::core::let [arm  (:wat::core::first clauses)
-                        head (:wat::core::first arm)]
-        (:wat::core::if (:wat::core::List? head)
+      (wat.core/let [arm  (wat.core/first clauses)
+                        head (wat.core/first arm)]
+        (wat.core/if (wat.core/List? head)
           ;; test arm — head is a sub-list like (= 1 2): (if head body (cond rest…)) —
           ;; rete-spelled all the way down.
-          `(:wat::rete::core::if
+          `(wat.rete.core/if
               ~head
-              ~(:wat::core::second arm)
-              (:wat::rete::core::cond ~@(:wat::core::rest clauses)))
+              ~(wat.core/second arm)
+              (wat.rete.core/cond ~@(wat.core/rest clauses)))
           ;; non-List head — detect :else by structural comparison with the :else keyword form.
-          (:wat::core::if (:wat::core::= head (:wat::core::first `(:else)))
+          (wat.core/if (wat.core/= head (wat.core/first `(:else)))
             ;; :else terminal arm — emit body unconditionally
-            (:wat::core::second arm)
+            (wat.core/second arm)
             ;; other non-List head — treat as test arm (v1 fallback for malformed input)
-            `(:wat::rete::core::if
+            `(wat.rete.core/if
                 ~head
-                ~(:wat::core::second arm)
-                (:wat::rete::core::cond ~@(:wat::core::rest clauses))))))
+                ~(wat.core/second arm)
+                (wat.rete.core/cond ~@(wat.core/rest clauses))))))
       ;; First clause is NOT a List (it is the -> symbol) — annotated form. Strip -> and :T
       ;; (first two elements) and re-expand as bare cond — the recursive spelling most easily
       ;; missed by eye, because it recurses WITHOUT emitting an if.
-      `(:wat::rete::core::cond ~@(:wat::core::rest (:wat::core::rest clauses))))))
+      `(wat.rete.core/cond ~@(wat.core/rest (wat.core/rest clauses))))))
 
 ;; ─── make-rule + defrule ────────────────────────────────────────────────────
 
 ;; make-rule — runtime helper: split quoted vector nodes into PVs and build a Rule.
 ;; when-ast / then-ast are quoted VECTOR nodes; ast->children yields the per-element WatASTs.
 ;; Converts the std Vector from ast->children to a (PersistentVector :- [WatAST]) via foldl/conj.
-(:wat::core::defn :wat::rete::make-rule
-  [name     <- wat.type/String
-   when-ast <- wat.type/AST
-   then-ast <- wat.type/AST]
-  -> :wat::rete::Rule
-  (:wat::core::let [lhs-pv (:wat::core::foldl
-                               (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/AST])
-                                                c   <- wat.type/AST]
-                                 -> (wat.type/PersistentVector :- [wat.type/AST])
-                                 (:wat::core::conj acc c))
+(wat.core/defn wat.rete/make-rule
+  [name     :- wat.type/String
+   when-ast :- wat.type/AST
+   then-ast :- wat.type/AST]
+  :- wat.rete/Rule
+  (wat.core/let [lhs-pv (wat.core/foldl
+                               (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/AST])
+                                                c   :- wat.type/AST]
+                                 :- (wat.type/PersistentVector :- [wat.type/AST])
+                                 (wat.core/conj acc c))
                                (wat.type/PersistentVector :- [wat.type/AST])
-                               (:wat::core::ast->children when-ast))
-                    rhs-pv (:wat::core::foldl
-                               (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/AST])
-                                                c   <- wat.type/AST]
-                                 -> (wat.type/PersistentVector :- [wat.type/AST])
-                                 (:wat::core::conj acc c))
+                               (wat.core/ast->children when-ast))
+                    rhs-pv (wat.core/foldl
+                               (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/AST])
+                                                c   :- wat.type/AST]
+                                 :- (wat.type/PersistentVector :- [wat.type/AST])
+                                 (wat.core/conj acc c))
                                (wat.type/PersistentVector :- [wat.type/AST])
-                               (:wat::core::ast->children then-ast))]
-    (:wat::rete::Rule :name name :lhs lhs-pv :rhs rhs-pv)))
+                               (wat.core/ast->children then-ast))]
+    (wat.rete/Rule :name name :lhs lhs-pv :rhs rhs-pv)))
 
 ;; defrule — homoiconic rule macro: expand a readable rule form into a zero-arg defn
 ;; returning a Rule. The zero-arg fn is the reflection marker for collect-rules (stone 5b).
@@ -199,73 +199,73 @@
 ;; The macro is kept TRIVIAL: it quotes both vectors as-is — symmetric with when-vec.
 ;; make-rule (above) does the per-element split at runtime.
 ;; Assumes canonical :when then :then order (STOP if a general parse is needed).
-(:wat::core::defmacro :wat::rete::defrule
-  [name <- wat.type/AST
-   & rest <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let [;; name-str: ast-name returns the raw keyword text WITH leading colon;
+(wat.core/defmacro wat.rete/defrule
+  [name :- wat.type/AST
+   & rest :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let [;; name-str: ast-name returns the raw keyword text WITH leading colon;
                     ;; strip it to get the bare FQDN matching (:wat::core::type fact).
-                    raw-name  (:wat::core::ast-name name)
+                    raw-name  (wat.core/ast-name name)
                     ;; strip-leading-colon inline (can't call user-defn from program-body macro)
-                    name-str  (:wat::core::if (:wat::core::= (:wat::string::subs raw-name 0 1) ":")
-                                 (:wat::string::subs raw-name 1 (:wat::string::length raw-name))
+                    name-str  (wat.core/if (wat.core/= (wat.string/subs raw-name 0 1) ":")
+                                 (wat.string/subs raw-name 1 (wat.string/length raw-name))
                                  raw-name)
                     ;; rest = (:when <when-vec> :then <then-vec>); canonical order assumed.
-                    when-vec  (:wat::core::Option/expect
-                                 (:wat::core::get rest 1)
+                    when-vec  (wat.core.Option/expect
+                                 (wat.core/get rest 1)
                                  "defrule: missing :when conditions vector")
-                    then-vec  (:wat::core::Option/expect
-                                 (:wat::core::get rest 3)
+                    then-vec  (wat.core.Option/expect
+                                 (wat.core/get rest 3)
                                  "defrule: missing :then facts vector")]
-    `(:wat::core::defn ~name [] -> :wat::rete::Rule
-       (:wat::rete::make-rule ~name-str
-         (:wat::core::quote ~when-vec)
-         (:wat::core::quote ~then-vec)))))
+    `(wat.core/defn ~name [] :- wat.rete/Rule
+       (wat.rete/make-rule ~name-str
+         (wat.core/quote ~when-vec)
+         (wat.core/quote ~then-vec)))))
 
 ;; make-query — split quoted :params / :when vectors into a Query.
-(:wat::core::defn :wat::rete::make-query
-  [name       <- wat.type/String
-   params-ast <- wat.type/AST
-   when-ast   <- wat.type/AST]
-  -> :wat::rete::Query
-  (:wat::core::let [params-pv (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/String])
-                                                  p   <- wat.type/AST]
-                                   -> (wat.type/PersistentVector :- [wat.type/String])
-                                   (:wat::core::conj acc (:wat::core::ast-name p)))
+(wat.core/defn wat.rete/make-query
+  [name       :- wat.type/String
+   params-ast :- wat.type/AST
+   when-ast   :- wat.type/AST]
+  :- wat.rete/Query
+  (wat.core/let [params-pv (wat.core/foldl
+                                 (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                                  p   :- wat.type/AST]
+                                   :- (wat.type/PersistentVector :- [wat.type/String])
+                                   (wat.core/conj acc (wat.core/ast-name p)))
                                  (wat.type/PersistentVector :- [wat.type/String])
-                                 (:wat::core::ast->children params-ast))
-                    lhs-pv (:wat::core::foldl
-                              (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/AST])
-                                               c   <- wat.type/AST]
-                                -> (wat.type/PersistentVector :- [wat.type/AST])
-                                (:wat::core::conj acc c))
+                                 (wat.core/ast->children params-ast))
+                    lhs-pv (wat.core/foldl
+                              (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/AST])
+                                               c   :- wat.type/AST]
+                                :- (wat.type/PersistentVector :- [wat.type/AST])
+                                (wat.core/conj acc c))
                               (wat.type/PersistentVector :- [wat.type/AST])
-                              (:wat::core::ast->children when-ast))]
-    (:wat::rete::Query :name name :params params-pv :lhs lhs-pv)))
+                              (wat.core/ast->children when-ast))]
+    (wat.rete/Query :name name :params params-pv :lhs lhs-pv)))
 
 ;; defquery — Clara `[defquery q [:?loc] …]`. Zero-arg defn returning Query.
 ;;   (:wat::rete::defquery :wq::temps-at
 ;;     :params [?loc]
 ;;     :when   […])
-(:wat::core::defmacro :wat::rete::defquery
-  [name <- wat.type/AST
-   & rest <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let [raw-name  (:wat::core::ast-name name)
-                    name-str  (:wat::core::if (:wat::core::= (:wat::string::subs raw-name 0 1) ":")
-                                 (:wat::string::subs raw-name 1 (:wat::string::length raw-name))
+(wat.core/defmacro wat.rete/defquery
+  [name :- wat.type/AST
+   & rest :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let [raw-name  (wat.core/ast-name name)
+                    name-str  (wat.core/if (wat.core/= (wat.string/subs raw-name 0 1) ":")
+                                 (wat.string/subs raw-name 1 (wat.string/length raw-name))
                                  raw-name)
-                    params-vec (:wat::core::Option/expect
-                                  (:wat::core::get rest 1)
+                    params-vec (wat.core.Option/expect
+                                  (wat.core/get rest 1)
                                   "defquery: missing :params vector")
-                    when-vec   (:wat::core::Option/expect
-                                  (:wat::core::get rest 3)
+                    when-vec   (wat.core.Option/expect
+                                  (wat.core/get rest 3)
                                   "defquery: missing :when conditions vector")]
-    `(:wat::core::defn ~name [] -> :wat::rete::Query
-       (:wat::rete::make-query ~name-str
-         (:wat::core::quote ~params-vec)
-         (:wat::core::quote ~when-vec)))))
+    `(wat.core/defn ~name [] :- wat.rete/Query
+       (wat.rete/make-query ~name-str
+         (wat.core/quote ~params-vec)
+         (wat.core/quote ~when-vec)))))
 
 ;; ⚠ THESE LIVE HERE, NOT IN wat/rete.wat, AND THE LOAD ORDER IS WHY.
 ;; rete.wat loads at STDLIB_FILES pos 36; compile-all is defined in wat/rete/compile.wat
@@ -300,19 +300,19 @@
 ;; The body's param is named `base` by convention, not signature: it is a VALUE the body can
 ;; hold and thread forward (accumulating across units is permitted here) — as opposed to
 ;; with-overlay's `overlay`, a VERB the body calls, which forbids it by having no base in scope.
-(:wat::core::defn :wat::rete::with-network :- [T]
-  [rules   <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   queries <- (wat.type/PersistentVector :- [:wat::rete::Query])
-   body-fn <- [:wat::rete::Session :-> T]]
-  -> T
+(wat.core/defn wat.rete/with-network :- [T]
+  [rules   :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   queries :- (wat.type/PersistentVector :- [wat.rete/Query])
+   body-fn :- [wat.rete/Session :-> T]]
+  :- T
   ;; ⛔ HAND-FACED (arc 278). `with-network` compiles for its BODY, which cannot be entered without
   ;; a session — so a non-terminating rule set here is loud and terminal rather than a value the
   ;; macro could thread anywhere useful. The arm still NAMES the rule, which the raise it replaces
   ;; also did.
-  (:wat::core::let [base   (:wat::core::match (:wat::rete::compile-all rules queries)
-                             [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
-                             [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
-                               (:wat::kernel::assertion-failed! :message "with-network: the rule set may not terminate")])
+  (wat.core/let [base   (wat.core/match (wat.rete/compile-all rules queries)
+                             [wat.rete/CompileOutcome.Compiled {:session __session} __session]
+                             [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
+                               (wat.kernel/assertion-failed! :message "with-network: the rule set may not terminate")])
                     ;; ⛔ THE SCOPE IS CLOSED BY A `Drop`, NOT BY A RELEASE CALL (arc 278 B1).
                     ;; `lease` OWNS the intern lease `compile-all` took (adopt, not acquire) and
                     ;; releases it when this frame dies — which a normal return, a wat error and
@@ -321,7 +321,7 @@
                     ;; InternedNetwork until thread end; both were driven RED. It is DELETED,
                     ;; not supplemented — two release sites is the bug wearing a fix. Bind
                     ;; `lease` BEFORE `result` so the body runs inside its scope.
-                    lease  (:wat::rete::adopt-session-lease base)
+                    lease  (wat.rete/adopt-session-lease base)
                     result (body-fn base)]
     result))
 
@@ -334,15 +334,15 @@
 ;; N distinct units of work still cost ONE network build and ONE lease: the Session is a fact
 ;; overlay over circuits it does not own (arm.rs:572) and is immutable, so each call re-seeds
 ;; from `base` and `base` itself is never touched.
-(:wat::core::defn :wat::rete::with-overlay :- [T]
-  [rules   <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   queries <- (wat.type/PersistentVector :- [:wat::rete::Query])
-   body-fn <- [:wat::rete::Overlay :-> T]]
-  -> T
-  (:wat::rete::with-network rules queries
-    (:wat::core::fn [base <- :wat::rete::Session] -> T
+(wat.core/defn wat.rete/with-overlay :- [T]
+  [rules   :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   queries :- (wat.type/PersistentVector :- [wat.rete/Query])
+   body-fn :- [wat.rete/Overlay :-> T]]
+  :- T
+  (wat.rete/with-network rules queries
+    (wat.core/fn [base :- wat.rete/Session] :- T
       (body-fn
-        (:wat::core::fn [facts <- (wat.type/PersistentVector :- [wat.type/Record])]
+        (wat.core/fn [facts :- (wat.type/PersistentVector :- [wat.type/Record])]
           ;; Arc 278 the fire-outcome wall — the overlay hands back what the fire ACTUALLY
           ;; returns. A pure PASS-THROUGH: `fire-rules` already answers the outcome, so there is
           ;; nothing to unwrap and nothing to swallow here.
@@ -352,13 +352,13 @@
           ;; call. A pass-through has NO match, so the guard cannot see it and re-wraps. That is the
           ;; guard behaving correctly, not a bug: it can only detect the shape it emits. Any future
           ;; sweep over this file must exclude it, or expect to undo this one line again.
-          -> (:wat::rete::FireOutcome :- [:wat::rete::Session])
+          :- (wat.rete/FireOutcome :- [wat.rete/Session])
           ;; ⛔ AND `insert-all` NOW ANSWERS AN OUTCOME TOO (S2c), so the overlay faces BOTH doors:
           ;; it unwraps the staging one here (a ceiling while staging the caller's own facts is a
           ;; loud failure, not something to fold into the fire's outcome and mis-report as a
           ;; derivation breach) and passes the FIRE outcome straight through.
-          (:wat::rete::fire-rules
-            (:wat::core::match (:wat::rete::insert-all base facts)
-              [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
-              [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st}
-                (:wat::kernel::assertion-failed! :message "with-overlay: session memory ceiling exceeded while staging the overlay's facts")])))))))
+          (wat.rete/fire-rules
+            (wat.core/match (wat.rete/insert-all base facts)
+              [wat.rete/InsertOutcome.Inserted {:session __staged} __staged]
+              [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st}
+                (wat.kernel/assertion-failed! :message "with-overlay: session memory ceiling exceeded while staging the overlay's facts")])))))))

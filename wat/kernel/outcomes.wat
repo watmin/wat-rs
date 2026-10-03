@@ -57,8 +57,8 @@
 ;; (RecvOutcome / SendOutcome / ConnectOutcome), so a reader already knows the shape.
 ;; Named by an intueri cast (2026-07-28), which also caught the frame-vs-line lie.
 ;; PURITY Impure: an I/O outcome
-(:wat::core::defenum :wat::kernel::ReadFrameOutcome :wat::enum::Impure
-  :Frame [text <- wat.type/String]
+(wat.core/defenum wat.kernel/ReadFrameOutcome wat.enum/Impure
+  :Frame [text :- wat.type/String]
   :Eof
 ;; Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested
 ;; while `stdio-read-frame` (`stdio.wat`) was blocked waiting on
@@ -97,8 +97,8 @@
 ;; rides with it. Named `Datum` and not `Value` to avoid colliding with
 ;; `:wat::core::Value`, the universal top; not `Line`, which is taken one layer down
 ;; for the raw text and would re-tell the frame-vs-line lie the 2026-07-28 cast caught.
-(:wat::core::defenum :wat::kernel::ReadlnOutcome :- [T] :wat::enum::Impure
-  :Datum [v <- :T]
+(wat.core/defenum wat.kernel/ReadlnOutcome :- [T] wat.enum/Impure
+  :Datum [v :- T]
   :Eof
   :Stopped)
 
@@ -274,8 +274,8 @@
 ;; design's own note, Impure is the honest fixed purity (a Pure marking would lie the moment O
 ;; is a live resource). O carries the peer's output element type ((WalkStep :- [A]) is the parametric
 ;; precedent).
-(:wat::core::defenum :wat::kernel::RecvOutcome :- [O] :wat::enum::Impure
-  :Message [msg <- :O]
+(wat.core/defenum wat.kernel/RecvOutcome :- [O] wat.enum/Impure
+  :Message [msg :- O]
   :Closed
 ;; Arc 278 #73 — a stop was requested while this read was parked. NOTHING
 ;; DIED and NOTHING CLOSED: the peer is ALIVE and the channel is OPEN.
@@ -291,7 +291,7 @@
 ;; there is nothing to report. The substrate was asked to stop. That is the
 ;; whole fact — a cause here would be inventing a reason for "you asked me to".
   :Stopped
-  :Lost [cause <- :wat::kernel::LociDiedError])
+  :Lost [cause :- wat.kernel/LociDiedError])
 
 ;; :wat::kernel::SendOutcome — Arc 278 the send'-outcome wall (Phase 1,
 ;; DESIGN-send-outcome-wall.md): the send-side twin of (RecvOutcome :- [O]) above.
@@ -318,7 +318,7 @@
 ;; marking it Impure would LIE (claim its values are locus-bound when they are not).
 ;; Registered as a builtin for the same load-order reason as RecvOutcome — send' is used
 ;; inside the stdlib before any wat defenum would load.
-(:wat::core::defenum :wat::kernel::SendOutcome :wat::enum::Pure
+(wat.core/defenum wat.kernel/SendOutcome wat.enum/Pure
   :Sent
   :HandleClosed
 ;; Arc 278 #73 — the send-side twin of `RecvOutcome::Stopped` (see above for
@@ -330,7 +330,7 @@
 ;; `SendError::Shutdown` is a distinct variant (`comms/mod.rs`, built to
 ;; mirror `RecvError::Shutdown`) — and folded it into `Lost` anyway.
   :Stopped
-  :Closed [cause <- :wat::kernel::Failure] :Failed [cause <- :wat::kernel::Failure])
+  :Closed [cause :- wat.kernel/Failure] :Failed [cause :- wat.kernel/Failure])
 
 ;; :wat::kernel::TrySendOutcome — Arc 278 the send'-outcome wall Phase 3a
 ;; (BRIEF-send-wall-3a-try-send-outcome.md): `try-send'`'s OWN outcome type,
@@ -353,11 +353,11 @@
 ;;   :Failed       [cause <- Failure] — an io failure. No current try-send
 ;;                                   producer.
 ;; PURE for the same reason SendOutcome is — non-parametric, only pure data.
-(:wat::core::defenum :wat::kernel::TrySendOutcome :wat::enum::Pure
+(wat.core/defenum wat.kernel/TrySendOutcome wat.enum/Pure
   :Sent
   :WouldBlock
   :HandleClosed
-  :Closed [cause <- :wat::kernel::Failure] :Failed [cause <- :wat::kernel::Failure])
+  :Closed [cause :- wat.kernel/Failure] :Failed [cause :- wat.kernel/Failure])
 
 ;; :wat::kernel::CloseOutcome — Arc 278 peer-lifecycle Strike 2 (the close'
 ;; OUTCOME WALL, BRIEF-close-outcome-wall.md). `close'` (:wat::kernel::-restricted
@@ -379,10 +379,10 @@
 ;; Failure — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
 ;; Registered as a builtin for the same load-order reason as SendOutcome — close' is a
 ;; kernel intrinsic used before any wat defenum would load.
-(:wat::core::defenum :wat::kernel::CloseOutcome :wat::enum::Pure
-  :Closed [exit <- (:wat::core::Option :- [wat.type/i64])]
-  :Signaled [signal <- wat.type/i64]
-  :Failed [cause <- :wat::kernel::Failure])
+(wat.core/defenum wat.kernel/CloseOutcome wat.enum/Pure
+  :Closed [exit :- (wat.core/Option :- [wat.type/i64])]
+  :Signaled [signal :- wat.type/i64]
+  :Failed [cause :- wat.kernel/Failure])
 
 ;; :wat::kernel::Signal — Arc 278 process-signal-owner-to-child stone
 ;; (DESIGN-STONE-process-signal-owner-to-child.md § "The shape";
@@ -420,7 +420,7 @@
 ;; KILLS you — any process on the box can send any signal. One concept,
 ;; two honest shapes for two different directions of control, not an
 ;; inconsistency to unify.
-(:wat::core::defenum :wat::kernel::Signal :wat::enum::Pure
+(wat.core/defenum wat.kernel/Signal wat.enum/Pure
   :User1
   :User2
   :Hangup
@@ -451,9 +451,9 @@
 ;; is intercepted before the syscall (the same "peer already closed" guard
 ;; close' itself uses) — a live `signal` call can never observe ESRCH. Two
 ;; arms and a raise, per the stone's own named fallback for this outcome.
-(:wat::core::defenum :wat::kernel::SignalOutcome :wat::enum::Pure
+(wat.core/defenum wat.kernel/SignalOutcome wat.enum/Pure
   :Delivered
-  :Failed [cause <- :wat::kernel::Failure])
+  :Failed [cause :- wat.kernel/Failure])
 
 ;; (:wat::kernel::AcceptOutcome :- [R S]) — Arc 278 peer-lifecycle Strike 3 (the accept'
 ;; OUTCOME WALL, BRIEF-accept-outcome-wall.md). `accept'` used to RETURN a bare
@@ -482,11 +482,11 @@
 ;; resource. R,S carry the peer's wire element types (the parametric precedent).
 ;; Registered as a builtin for the same load-order reason as RecvOutcome — accept' is a
 ;; kernel verb usable inside the stdlib before any wat defenum would load.
-(:wat::core::defenum :wat::kernel::AcceptOutcome :- [R S] :wat::enum::Impure
-  :Accepted [peer <- (:wat::kernel::Peer :- [:R :S])]
+(wat.core/defenum wat.kernel/AcceptOutcome :- [R S] wat.enum/Impure
+  :Accepted [peer :- (wat.kernel/Peer :- [:R :S])]
   :Closed
   :Stopped
-  :Failed [cause <- :wat::kernel::Failure])
+  :Failed [cause :- wat.kernel/Failure])
 
 ;; (:wat::kernel::ConnectOutcome :- [S R]) — Arc 278 peer-lifecycle Strike 4 (the connect'
 ;; OUTCOME WALL, BRIEF-connect-outcome-wall.md — the LAST peer-lifecycle wall). The
@@ -529,11 +529,11 @@
 ;; peer is a live resource. S,R carry the peer's wire element types. Registered as a
 ;; builtin for the same load-order reason as AcceptOutcome — connect' is a kernel verb
 ;; usable inside the stdlib before any wat defenum would load.
-(:wat::core::defenum :wat::kernel::ConnectOutcome :- [S R] :wat::enum::Impure
-  :Connected [peer <- (:wat::kernel::Peer :- [:S :R])]
-  :Closed [cause <- :wat::kernel::Failure]
-  :Undialable [cause <- :wat::kernel::Failure] :WrongPeer [cause <- :wat::kernel::Failure]
-  :Failed [cause <- :wat::kernel::Failure])
+(wat.core/defenum wat.kernel/ConnectOutcome :- [S R] wat.enum/Impure
+  :Connected [peer :- (wat.kernel/Peer :- [:S :R])]
+  :Closed [cause :- wat.kernel/Failure]
+  :Undialable [cause :- wat.kernel/Failure] :WrongPeer [cause :- wat.kernel/Failure]
+  :Failed [cause :- wat.kernel/Failure])
 
 ;; :wat::kernel::RunResult — the matchable outcome of running a program:
 ;; `:wat::kernel::run-sandboxed`, `:wat::test::run-thread` /
@@ -564,6 +564,6 @@
 ;; marking it Impure would lie. Registered as a builtin (like its two sibling
 ;; outcome walls) because `run-thread'` constructs it inside the stdlib, before
 ;; any wat `defenum` would load.
-(:wat::core::defenum :wat::kernel::RunResult :wat::enum::Pure
+(wat.core/defenum wat.kernel/RunResult wat.enum/Pure
   :Passed
-  :Failed [failure <- :wat::kernel::Failure])
+  :Failed [failure :- wat.kernel/Failure])

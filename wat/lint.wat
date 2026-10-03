@@ -30,12 +30,12 @@
 ;; new-text:  the replacement source text.
 ;; Position-based (not flat-offset-based): the rule has the spans but NOT the source;
 ;; the applier (apply-fixes) holds the source and flattens via fix-text-offset-of.
-(:wat::core::defrecord :wat::lint::FixEdit
-  [start-line <- wat.type/i64
-   start-col  <- wat.type/i64
-   end-line   <- wat.type/i64
-   end-col    <- wat.type/i64
-   new-text   <- wat.type/String])
+(wat.core/defrecord wat.lint/FixEdit
+  [start-line :- wat.type/i64
+   start-col  :- wat.type/i64
+   end-line   :- wat.type/i64
+   end-col    :- wat.type/i64
+   new-text   :- wat.type/String])
 
 ;; ─── Typed record: Finding (uncompilable on a wrong shape) ───────────
 
@@ -47,48 +47,48 @@
 ;; severity: "error" | "warn" | "info"  (L1/L2/L3)
 ;; message:  human-readable description + cure
 ;; fix:      Some(FixEdit) = an auto-fix is available; None = report-only.
-(:wat::core::defrecord :wat::lint::Finding
-  [rule     <- wat.type/String
-   file     <- wat.type/String
-   line     <- wat.type/i64
-   col      <- wat.type/i64
-   severity <- wat.type/String
-   message  <- wat.type/String
-   fix      <- (:wat::core::Option :- [:wat::lint::FixEdit])])
+(wat.core/defrecord wat.lint/Finding
+  [rule     :- wat.type/String
+   file     :- wat.type/String
+   line     :- wat.type/i64
+   col      :- wat.type/i64
+   severity :- wat.type/String
+   message  :- wat.type/String
+   fix      :- (wat.core/Option :- [wat.lint/FixEdit])])
 
 ;; ─── Predicate helpers ───────────────────────────────────────────────
 
 ;; lint-structural? — a node whose children we recurse into (list/vector/set/map).
 ;; Mirror of deporder's structural? and fix.wat's structural? (same predicate).
-(:wat::core::defn :wat::lint::lint-structural?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::let [k     (:wat::core::ast-kind node)
+(wat.core/defn wat.lint/lint-structural?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/let [k     (wat.core/ast-kind node)
                     kinds (wat.type/HashSet :- [wat.type/String]
                              "list" "vector" "map" "set")]
-    (:wat::core::contains? kinds k)))
+    (wat.core/contains? kinds k)))
 
 ;; node-write — serialize a node to text via write-forms (used to check booleans).
-(:wat::core::defn :wat::lint::node-write
-  [node <- wat.type/AST]
-  -> wat.type/String
-  (:wat::core::write-forms node))
+(wat.core/defn wat.lint/node-write
+  [node :- wat.type/AST]
+  :- wat.type/String
+  (wat.core/write-forms node))
 
 ;; bool-true? — the boolean literal true.
 ;; ast-kind == "bool" AND write-forms renders as "true".
-(:wat::core::defn :wat::lint::bool-true?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "bool")
-    (:wat::core::= (:wat::lint::node-write node) "true")
+(wat.core/defn wat.lint/bool-true?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "bool")
+    (wat.core/= (wat.lint/node-write node) "true")
     false))
 
 ;; bool-false? — the boolean literal false.
-(:wat::core::defn :wat::lint::bool-false?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "bool")
-    (:wat::core::= (:wat::lint::node-write node) "false")
+(wat.core/defn wat.lint/bool-false?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "bool")
+    (wat.core/= (wat.lint/node-write node) "false")
     false))
 
 ;; ─── nested-if-=-ladder detection ────────────────────────────────────
@@ -105,44 +105,44 @@
 ;;   3. nested-if-=-ladder? — it's a ladder when ≥3 lits collected.
 
 ;; kw-or-sym? — a node we can call ast-name on (keyword or symbol).
-(:wat::core::defn :wat::lint::kw-or-sym?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::if (:wat::core::= k "keyword") true
-      (:wat::core::= k "symbol"))))
+(wat.core/defn wat.lint/kw-or-sym?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/let [k (wat.core/ast-kind node)]
+    (wat.core/if (wat.core/= k "keyword") true
+      (wat.core/= k "symbol"))))
 
 ;; if-head? — a list whose head is a keyword/symbol with name ":wat::core::if".
 ;; Guards ast-name with kw-or-sym? so bool/int/list heads don't crash.
-(:wat::core::defn :wat::lint::if-head?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn wat.lint/if-head?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         false
-        (:wat::core::let [head (:wat::core::first ch)]
-          (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::if")
+        (wat.core/let [head (wat.core/first ch)]
+          (wat.core/if (wat.lint/kw-or-sym? head)
+            (wat.core/= (wat.core/canonical-identity (wat.core/ast-name head)) ":wat::core::if")
             false))))
     false))
 
 ;; eq-sym-name — a list (= SYM LIT) where head is :wat::core::=,
 ;; child[1] is a symbol. Returns the symbol's ast-name on success, "" on failure.
 ;; Guards ast-name with kw-or-sym? so non-nameable heads don't crash.
-(:wat::core::defn :wat::lint::eq-sym-name
-  [node <- wat.type/AST]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::i64::< (:wat::core::length ch) 3)
+(wat.core/defn wat.lint/eq-sym-name
+  [node :- wat.type/AST]
+  :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.i64/< (wat.core/length ch) 3)
         ""
-        (:wat::core::let [head (:wat::core::first ch)
-                          c1   (:wat::core::nth ch 1)]
-          (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::=")
-              (:wat::core::if (:wat::core::= (:wat::core::ast-kind c1) "symbol")
-                (:wat::core::ast-name c1)
+        (wat.core/let [head (wat.core/first ch)
+                          c1   (wat.core/nth ch 1)]
+          (wat.core/if (wat.lint/kw-or-sym? head)
+            (wat.core/if (wat.core/= (wat.core/canonical-identity (wat.core/ast-name head)) ":wat::core::=")
+              (wat.core/if (wat.core/= (wat.core/ast-kind c1) "symbol")
+                (wat.core/ast-name c1)
                 "")
               "")
             ""))))
@@ -150,14 +150,14 @@
 
 ;; eq-lit-text — the text of the literal (child[2]) in an (= SYM LIT) form.
 ;; Returns the write-forms text of child[2], or "" if not present.
-(:wat::core::defn :wat::lint::eq-lit-text
-  [node <- wat.type/AST]
-  -> wat.type/String
-  (:wat::core::let [ch (:wat::core::ast->children node)]
-    (:wat::core::if (:wat::i64::< (:wat::core::length ch) 3)
+(wat.core/defn wat.lint/eq-lit-text
+  [node :- wat.type/AST]
+  :- wat.type/String
+  (wat.core/let [ch (wat.core/ast->children node)]
+    (wat.core/if (wat.i64/< (wat.core/length ch) 3)
       ""
-      (:wat::core::let [c2 (:wat::core::nth ch 2)]
-        (:wat::lint::node-write c2)))))
+      (wat.core/let [c2 (wat.core/nth ch 2)]
+        (wat.lint/node-write c2)))))
 
 ;; collect-ladder-lits — walk an if-eq-true chain over VAR, collecting
 ;; the LIT texts. Returns (Vector :- [String]) of lits; empty if chain breaks.
@@ -172,41 +172,41 @@
 ;;   - if ELSE is `false` → done, return [LIT]
 ;;   - if ELSE is another if node → recurse on ELSE
 ;;   - otherwise → chain broken, return []
-(:wat::core::defn :wat::lint::collect-ladder-lits
-  [form     <- wat.type/AST
-   var-name <- wat.type/String]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::lint::if-head? form)
-    (:wat::core::let [ch (:wat::core::ast->children form)]
-      (:wat::core::if (:wat::i64::< (:wat::core::length ch) 4)
+(wat.core/defn wat.lint/collect-ladder-lits
+  [form     :- wat.type/AST
+   var-name :- wat.type/String]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.lint/if-head? form)
+    (wat.core/let [ch (wat.core/ast->children form)]
+      (wat.core/if (wat.i64/< (wat.core/length ch) 4)
         (wat.type/Vector :- [wat.type/String])
-        (:wat::core::let [cond (:wat::core::nth ch 1)
-                          then (:wat::core::nth ch 2)
-                          else-node (:wat::core::nth ch 3)]
+        (wat.core/let [cond (wat.core/nth ch 1)
+                          then (wat.core/nth ch 2)
+                          else-node (wat.core/nth ch 3)]
           ;; cond must be (= VAR LIT)
-          (:wat::core::let [this-var (:wat::lint::eq-sym-name cond)]
-            (:wat::core::if (:wat::core::= this-var "")
+          (wat.core/let [this-var (wat.lint/eq-sym-name cond)]
+            (wat.core/if (wat.core/= this-var "")
               ;; cond is not (= SYM LIT) — chain broken
               (wat.type/Vector :- [wat.type/String])
               ;; var must match (or be the first step)
-              (:wat::core::if (:wat::core::if (:wat::core::= var-name "")
+              (wat.core/if (wat.core/if (wat.core/= var-name "")
                                  true
-                                 (:wat::core::= this-var var-name))
+                                 (wat.core/= this-var var-name))
                 ;; then branch must be `true`
-                (:wat::core::if (:wat::lint::bool-true? then)
-                  (:wat::core::let [lit (:wat::lint::eq-lit-text cond)]
+                (wat.core/if (wat.lint/bool-true? then)
+                  (wat.core/let [lit (wat.lint/eq-lit-text cond)]
                     ;; collect this LIT; check the else branch
-                    (:wat::core::if (:wat::lint::bool-false? else-node)
+                    (wat.core/if (wat.lint/bool-false? else-node)
                       ;; chain ends with false — a proper terminator
                       (wat.type/Vector :- [wat.type/String] lit)
                       ;; else is another node — try to recurse
-                      (:wat::core::let [rest-lits (:wat::lint::collect-ladder-lits else-node this-var)]
-                        (:wat::core::if (:wat::core::empty? rest-lits)
+                      (wat.core/let [rest-lits (wat.lint/collect-ladder-lits else-node this-var)]
+                        (wat.core/if (wat.core/empty? rest-lits)
                           ;; recursion found no more ladder steps but else isn't false —
                           ;; if else is a non-false non-ladder, the chain breaks
                           (wat.type/Vector :- [wat.type/String])
                           ;; prepend this LIT
-                          (:wat::core::concat
+                          (wat.core/concat
                             (wat.type/Vector :- [wat.type/String] lit)
                             rest-lits)))))
                   ;; then is not `true` — chain broken
@@ -217,83 +217,83 @@
     (wat.type/Vector :- [wat.type/String])))
 
 ;; ladder-var-name — get the VAR name from a chain (the symbol in child[1] of cond).
-(:wat::core::defn :wat::lint::ladder-var-name
-  [form <- wat.type/AST]
-  -> wat.type/String
-  (:wat::core::if (:wat::lint::if-head? form)
-    (:wat::core::let [ch (:wat::core::ast->children form)]
-      (:wat::core::if (:wat::i64::< (:wat::core::length ch) 2)
+(wat.core/defn wat.lint/ladder-var-name
+  [form :- wat.type/AST]
+  :- wat.type/String
+  (wat.core/if (wat.lint/if-head? form)
+    (wat.core/let [ch (wat.core/ast->children form)]
+      (wat.core/if (wat.i64/< (wat.core/length ch) 2)
         ""
-        (:wat::core::let [cond (:wat::core::nth ch 1)]
-          (:wat::lint::eq-sym-name cond))))
+        (wat.core/let [cond (wat.core/nth ch 1)]
+          (wat.lint/eq-sym-name cond))))
     ""))
 
 ;; make-ladder-finding — construct the Finding for a detected ladder.
-(:wat::core::defn :wat::lint::make-ladder-finding
-  [form     <- wat.type/AST
-   file     <- wat.type/String
-   var-name <- wat.type/String
-   lits     <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::lint::Finding
-  (:wat::core::let [span    (:wat::core::ast-span form)
-                    ep      (:wat::core::ast-end-span form)
-                    ln      (:wat::core::Option/expect  
-                                (:wat::core::get span :line)
+(wat.core/defn wat.lint/make-ladder-finding
+  [form     :- wat.type/AST
+   file     :- wat.type/String
+   var-name :- wat.type/String
+   lits     :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.lint/Finding
+  (wat.core/let [span    (wat.core/ast-span form)
+                    ep      (wat.core/ast-end-span form)
+                    ln      (wat.core.Option/expect  
+                                (wat.core/get span :line)
                                 "make-ladder-finding: :line")
-                    co      (:wat::core::Option/expect  
-                                (:wat::core::get span :col)
+                    co      (wat.core.Option/expect  
+                                (wat.core/get span :col)
                                 "make-ladder-finding: :col")
-                    end-ln  (:wat::core::Option/expect  
-                                (:wat::core::get ep :line)
+                    end-ln  (wat.core.Option/expect  
+                                (wat.core/get ep :line)
                                 "make-ladder-finding: end :line")
-                    end-co  (:wat::core::Option/expect  
-                                (:wat::core::get ep :col)
+                    end-co  (wat.core.Option/expect  
+                                (wat.core/get ep :col)
                                 "make-ladder-finding: end :col")
-                    n-lits  (:wat::core::length lits)
-                    msg     (:wat::string::concat
+                    n-lits  (wat.core/length lits)
+                    msg     (wat.string/concat
                               "nested-if-=-ladder: var `"
                               var-name
                               "` compared against "
-                              (:wat::i64::to-string n-lits)
+                              (wat.i64/to-string n-lits)
                               " literals — use (:wat::core::contains? (:wat::core::HashSet :- [:T] lit…) var) instead")
-                    new-text (:wat::core::format
+                    new-text (wat.core/format
                                "(:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] {lits}) {var})"
-                               :lits (:wat::string::join " " lits)
+                               :lits (wat.string/join " " lits)
                                :var var-name)
-                    fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
-    (:wat::lint::Finding
+                    fe      (wat.lint/FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
+    (wat.lint/Finding
       :rule "nested-if-=-ladder"
       :file file
       :line ln
       :col co
       :severity "warn"
       :message msg
-      :fix (:wat::core::Option.Some {:value fe}))))
+      :fix (wat.core/Option.Some {:value fe}))))
 
 ;; rule-nested-if-=-ladder-form — run the ladder rule on ONE form (recursive walk).
 ;; Detects the ladder at the top level OR nested anywhere inside the form.
-(:wat::core::defn :wat::lint::rule-nested-if-=-ladder-form
-  [form <- wat.type/AST
-   file <- wat.type/String]
-  -> (wat.type/Vector :- [:wat::lint::Finding])
+(wat.core/defn wat.lint/rule-nested-if-=-ladder-form
+  [form :- wat.type/AST
+   file :- wat.type/String]
+  :- (wat.type/Vector :- [wat.lint/Finding])
   ;; Check if THIS form is the root of a ladder
-  (:wat::core::let [lits (:wat::lint::collect-ladder-lits form "")]
-    (:wat::core::if (:wat::i64::>= (:wat::core::length lits) 3)
+  (wat.core/let [lits (wat.lint/collect-ladder-lits form "")]
+    (wat.core/if (wat.i64/>= (wat.core/length lits) 3)
       ;; This form IS a ladder — report it (don't recurse into it)
-      (wat.type/Vector :- [:wat::lint::Finding]
-        (:wat::lint::make-ladder-finding form file
-          (:wat::lint::ladder-var-name form) lits))
+      (wat.type/Vector :- [wat.lint/Finding]
+        (wat.lint/make-ladder-finding form file
+          (wat.lint/ladder-var-name form) lits))
       ;; Not a top-level ladder — recurse into children (if structural)
-      (:wat::core::if (:wat::lint::lint-structural? form)
-        (:wat::core::foldl
-          (:wat::core::fn [acc   <- (wat.type/Vector :- [:wat::lint::Finding])
-                           child <- wat.type/AST]
-            -> (wat.type/Vector :- [:wat::lint::Finding])
-            (:wat::core::concat acc
-              (:wat::lint::rule-nested-if-=-ladder-form child file)))
-          (wat.type/Vector :- [:wat::lint::Finding])
-          (:wat::core::ast->children form))
-        (wat.type/Vector :- [:wat::lint::Finding])))))
+      (wat.core/if (wat.lint/lint-structural? form)
+        (wat.core/foldl
+          (wat.core/fn [acc   :- (wat.type/Vector :- [wat.lint/Finding])
+                           child :- wat.type/AST]
+            :- (wat.type/Vector :- [wat.lint/Finding])
+            (wat.core/concat acc
+              (wat.lint/rule-nested-if-=-ladder-form child file)))
+          (wat.type/Vector :- [wat.lint/Finding])
+          (wat.core/ast->children form))
+        (wat.type/Vector :- [wat.lint/Finding])))))
 
 ;; ─── concat-abuse detection ──────────────────────────────────────────
 ;;
@@ -312,68 +312,68 @@
 ;; user can actually write and run — a rule whose only real-world arm has no coverage is a rule
 ;; that fires on a corpse. The live name is the ONE comparison now; the dead literal is
 ;; deleted, not accumulated.
-(:wat::core::defn :wat::lint::concat-head?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [children (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::i64::>= (:wat::core::length children) 1)
-        (:wat::core::let [head (:wat::core::first children)]
-          (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::let [n (:wat::core::canonical-identity (:wat::core::ast-name head))]
-              (:wat::core::= n ":wat::string::concat"))
+(wat.core/defn wat.lint/concat-head?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [children (wat.core/ast->children node)]
+      (wat.core/if (wat.i64/>= (wat.core/length children) 1)
+        (wat.core/let [head (wat.core/first children)]
+          (wat.core/if (wat.lint/kw-or-sym? head)
+            (wat.core/let [n (wat.core/canonical-identity (wat.core/ast-name head))]
+              (wat.core/= n ":wat::string::concat"))
             false))
         false))
     false))
 
 ;; is-defmacro-form? — a list whose head is a keyword/symbol with name ":wat::core::defmacro".
 ;; Guards ast-name with kw-or-sym? so non-nameable heads don't crash.
-(:wat::core::defn :wat::lint::is-defmacro-form?
-  [form <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind form) "list")
-    (:wat::core::let [ch (:wat::core::ast->children form)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn wat.lint/is-defmacro-form?
+  [form :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind form) "list")
+    (wat.core/let [ch (wat.core/ast->children form)]
+      (wat.core/if (wat.core/empty? ch)
         false
-        (:wat::core::let [head (:wat::core::first ch)]
-          (:wat::core::if (:wat::lint::kw-or-sym? head)
-            (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name head)) ":wat::core::defmacro")
+        (wat.core/let [head (wat.core/first ch)]
+          (wat.core/if (wat.lint/kw-or-sym? head)
+            (wat.core/= (wat.core/canonical-identity (wat.core/ast-name head)) ":wat::core::defmacro")
             false))))
     false))
 
 ;; concat-arg-counts — count literal and non-literal args in a concat call.
 ;; Returns Tuple(n-lits, n-vals) where n-lits = count of "string" ast-kind args,
 ;; n-vals = count of all other arg kinds.
-(:wat::core::defn :wat::lint::concat-arg-counts
-  [node <- wat.type/AST]
-  -> (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
-  (:wat::core::let [children (:wat::core::ast->children node)
+(wat.core/defn wat.lint/concat-arg-counts
+  [node :- wat.type/AST]
+  :- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
+  (wat.core/let [children (wat.core/ast->children node)
                     ;; Arc 118.2a — `drop` flipped LAZY (returns Stream); `foldl` below is
                     ;; unchanged (Vector/List/PersistentVector only) and consumes `args` fully,
                     ;; so force it eager here.
-                    args     (:wat::core::into [] (:wat::core::drop children 1))]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
-                       arg <- wat.type/AST]
-        -> (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
-        (:wat::core::let [lits (:wat::core::first acc)
-                          vals (:wat::core::second acc)]
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
-            (wat.type/Tuple :- [wat.type/i64 wat.type/i64] (:wat::i64::+ lits 1) vals)
-            (wat.type/Tuple :- [wat.type/i64 wat.type/i64] lits (:wat::i64::+ vals 1)))))
+                    args     (wat.core/into [] (wat.core/drop children 1))]
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
+                       arg :- wat.type/AST]
+        :- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
+        (wat.core/let [lits (wat.core/first acc)
+                          vals (wat.core/second acc)]
+          (wat.core/if (wat.core/= (wat.core/ast-kind arg) "string")
+            (wat.type/Tuple :- [wat.type/i64 wat.type/i64] (wat.i64/+ lits 1) vals)
+            (wat.type/Tuple :- [wat.type/i64 wat.type/i64] lits (wat.i64/+ vals 1)))))
       (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 0 0)
       args)))
 
 ;; concat-abuse? — true when the concat call mixes string literals with non-literals.
-(:wat::core::defn :wat::lint::concat-abuse?
-  [node <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::lint::concat-head? node)
-    (:wat::core::let [counts (:wat::lint::concat-arg-counts node)
-                      n-lits (:wat::core::first counts)
-                      n-vals (:wat::core::second counts)]
-      (:wat::core::if (:wat::i64::>= n-lits 1)
-        (:wat::i64::>= n-vals 1)
+(wat.core/defn wat.lint/concat-abuse?
+  [node :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.lint/concat-head? node)
+    (wat.core/let [counts (wat.lint/concat-arg-counts node)
+                      n-lits (wat.core/first counts)
+                      n-vals (wat.core/second counts)]
+      (wat.core/if (wat.i64/>= n-lits 1)
+        (wat.i64/>= n-vals 1)
         false))
     false))
 
@@ -391,200 +391,200 @@
 ;; Emit: new-text = "(<head-str> \"<template>\" :a a :b b …)"
 ;; Return: Some(FixEdit start-line start-col end-line end-col new-text)
 ;; extent = ast-span..ast-end-span of the whole concat form (same as ladder fix).
-(:wat::core::defn :wat::lint::concat-format-fix
-  [form        <- wat.type/AST
-   in-defmacro? <- wat.type/bool]
-  -> (:wat::core::Option :- [:wat::lint::FixEdit])
-  (:wat::core::let [;; Arc 118.2a — `drop` flipped LAZY; `args` feeds two `foldl` calls below
+(wat.core/defn wat.lint/concat-format-fix
+  [form        :- wat.type/AST
+   in-defmacro? :- wat.type/bool]
+  :- (wat.core/Option :- [wat.lint/FixEdit])
+  (wat.core/let [;; Arc 118.2a — `drop` flipped LAZY; `args` feeds two `foldl` calls below
                     ;; (Vector/List/PersistentVector-only, unchanged) — force eager here.
-                    args     (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children form) 1))
+                    args     (wat.core/into [] (wat.core/drop (wat.core/ast->children form) 1))
                     ;; ── Step 1: eligibility fold ─────────────────────────────
                     ;; acc = bool (still-eligible). Fold args; if any arg fails,
                     ;; propagate false (no early exit — fold goes to the end).
-                    eligible (:wat::core::foldl
-                               (:wat::core::fn [ok  <- wat.type/bool
-                                                arg <- wat.type/AST]
-                                 -> wat.type/bool
-                                 (:wat::core::if ok
-                                   (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
+                    eligible (wat.core/foldl
+                               (wat.core/fn [ok  :- wat.type/bool
+                                                arg :- wat.type/AST]
+                                 :- wat.type/bool
+                                 (wat.core/if ok
+                                   (wat.core/if (wat.core/= (wat.core/ast-kind arg) "string")
                                      ;; literal: inner text must contain NONE of " { }
                                      ;; (a boolean test, not a nested-if ladder — the very smell
                                      ;; this tool exists to abolish; intueri caught the author's hand)
-                                     (:wat::core::let [inner (:wat::core::ast-name arg)]
-                                       (:wat::core::not
-                                         (:wat::core::or (:wat::string::contains? inner "\"")
-                                           (:wat::core::or (:wat::string::contains? inner "{")
-                                             (:wat::string::contains? inner "}")))))
+                                     (wat.core/let [inner (wat.core/ast-name arg)]
+                                       (wat.core/not
+                                         (wat.core/or (wat.string/contains? inner "\"")
+                                           (wat.core/or (wat.string/contains? inner "{")
+                                             (wat.string/contains? inner "}")))))
                                      ;; non-literal: must be a bare symbol
-                                     (:wat::core::= (:wat::core::ast-kind arg) "symbol"))
+                                     (wat.core/= (wat.core/ast-kind arg) "symbol"))
                                    false))
                                true
                                args)]
-    (:wat::core::if eligible
+    (wat.core/if eligible
       ;; ── Step 2: build template + kwarg-names ────────────────────────
       ;; acc = Tuple(template, kwarg-names) : :(String, (Vector :- [String]))
-      (:wat::core::let [build-result
-                         (:wat::core::foldl
-                           (:wat::core::fn [acc <- (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-                                            arg <- wat.type/AST]
-                             -> (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-                             (:wat::core::let [tmpl  (:wat::core::first acc)
-                                               names (:wat::core::second acc)]
-                               (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
+      (wat.core/let [build-result
+                         (wat.core/foldl
+                           (wat.core/fn [acc :- (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+                                            arg :- wat.type/AST]
+                             :- (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
+                             (wat.core/let [tmpl  (wat.core/first acc)
+                                               names (wat.core/second acc)]
+                               (wat.core/if (wat.core/= (wat.core/ast-kind arg) "string")
                                  ;; literal → append inner text to template
                                  (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])]
-                                   (:wat::string::concat tmpl (:wat::core::ast-name arg))
+                                   (wat.string/concat tmpl (wat.core/ast-name arg))
                                    names)
                                  ;; symbol → append {name} to template; dedup-add to names
-                                 (:wat::core::let [nm (:wat::core::ast-name arg)]
+                                 (wat.core/let [nm (wat.core/ast-name arg)]
                                    (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])]
-                                     (:wat::string::concat tmpl
-                                       (:wat::string::concat "{"
-                                         (:wat::string::concat nm "}")))
-                                     (:wat::core::if (:wat::core::contains? names nm)
+                                     (wat.string/concat tmpl
+                                       (wat.string/concat "{"
+                                         (wat.string/concat nm "}")))
+                                     (wat.core/if (wat.core/contains? names nm)
                                        names
-                                       (:wat::core::conj names nm)))))))
+                                       (wat.core/conj names nm)))))))
                            (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/String])] "" (wat.type/Vector :- [wat.type/String]))
                            args)
-                        template   (:wat::core::first build-result)
-                        kwarg-names (:wat::core::second build-result)
+                        template   (wat.core/first build-result)
+                        kwarg-names (wat.core/second build-result)
                         ;; ── Step 3: emit new-text ────────────────────────────
                         ;; head-str: interpolate inside a defmacro, format elsewhere.
                         ;; Arc 255 Stone F — was the DEAD core-namespaced lowercase spelling
                         ;; (retired by 23efc6056, before this stone); its live twin is
                         ;; ":wat::string::interpolate". Same treatment as concat-head?'s literal.
-                        head-str   (:wat::core::if in-defmacro?
+                        head-str   (wat.core/if in-defmacro?
                                      ":wat::string::interpolate"
                                      ":wat::core::format")
                         ;; "(<head-str> \"<template>\"" + " :nm nm" … + ")"
-                        kwargs-text (:wat::core::foldl
-                                      (:wat::core::fn [acc <- wat.type/String
-                                                       nm  <- wat.type/String]
-                                        -> wat.type/String
-                                        (:wat::string::concat acc
-                                          (:wat::string::concat " :"
-                                            (:wat::string::concat nm
-                                              (:wat::string::concat " " nm)))))
+                        kwargs-text (wat.core/foldl
+                                      (wat.core/fn [acc :- wat.type/String
+                                                       nm  :- wat.type/String]
+                                        :- wat.type/String
+                                        (wat.string/concat acc
+                                          (wat.string/concat " :"
+                                            (wat.string/concat nm
+                                              (wat.string/concat " " nm)))))
                                       ""
                                       kwarg-names)
-                        new-text   (:wat::string::concat
-                                     (:wat::core::format "({head-str}" :head-str head-str)
-                                     (:wat::string::concat " \""
-                                       (:wat::string::concat template
-                                         (:wat::string::concat "\""
-                                           (:wat::string::concat kwargs-text ")")))))
+                        new-text   (wat.string/concat
+                                     (wat.core/format "({head-str}" :head-str head-str)
+                                     (wat.string/concat " \""
+                                       (wat.string/concat template
+                                         (wat.string/concat "\""
+                                           (wat.string/concat kwargs-text ")")))))
                         ;; ── Step 4: span from ast-span + ast-end-span of form ─
-                        span    (:wat::core::ast-span form)
-                        ep      (:wat::core::ast-end-span form)
-                        ln      (:wat::core::Option/expect  
-                                    (:wat::core::get span :line)
+                        span    (wat.core/ast-span form)
+                        ep      (wat.core/ast-end-span form)
+                        ln      (wat.core.Option/expect  
+                                    (wat.core/get span :line)
                                     "concat-format-fix: :line")
-                        co      (:wat::core::Option/expect  
-                                    (:wat::core::get span :col)
+                        co      (wat.core.Option/expect  
+                                    (wat.core/get span :col)
                                     "concat-format-fix: :col")
-                        end-ln  (:wat::core::Option/expect  
-                                    (:wat::core::get ep :line)
+                        end-ln  (wat.core.Option/expect  
+                                    (wat.core/get ep :line)
                                     "concat-format-fix: end :line")
-                        end-co  (:wat::core::Option/expect  
-                                    (:wat::core::get ep :col)
+                        end-co  (wat.core.Option/expect  
+                                    (wat.core/get ep :col)
                                     "concat-format-fix: end :col")
-                        fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
-        (:wat::core::Option.Some {:value fe}))
+                        fe      (wat.lint/FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
+        (wat.core/Option.Some {:value fe}))
       ;; ineligible (compound slot or special-char literal) — report-only
-      :wat::core::Option.None)))
+      wat.core/Option.None)))
 
 ;; make-concat-finding — construct the Finding for a detected concat-abuse.
-(:wat::core::defn :wat::lint::make-concat-finding
-  [form         <- wat.type/AST
-   file         <- wat.type/String
-   n-lits       <- wat.type/i64
-   n-vals       <- wat.type/i64
-   in-defmacro? <- wat.type/bool]
-  -> :wat::lint::Finding
-  (:wat::core::let [span (:wat::core::ast-span form)
-                    ln   (:wat::core::Option/expect  
-                             (:wat::core::get span :line)
+(wat.core/defn wat.lint/make-concat-finding
+  [form         :- wat.type/AST
+   file         :- wat.type/String
+   n-lits       :- wat.type/i64
+   n-vals       :- wat.type/i64
+   in-defmacro? :- wat.type/bool]
+  :- wat.lint/Finding
+  (wat.core/let [span (wat.core/ast-span form)
+                    ln   (wat.core.Option/expect  
+                             (wat.core/get span :line)
                              "make-concat-finding: :line")
-                    co   (:wat::core::Option/expect  
-                             (:wat::core::get span :col)
+                    co   (wat.core.Option/expect  
+                             (wat.core/get span :col)
                              "make-concat-finding: :col")
-                    msg  (:wat::string::concat
+                    msg  (wat.string/concat
                             "concat-abuse: string::concat interleaves "
-                            (:wat::i64::to-string n-lits)
+                            (wat.i64/to-string n-lits)
                             " literal(s) with "
-                            (:wat::i64::to-string n-vals)
+                            (wat.i64/to-string n-vals)
                             " value(s) — use (:wat::core::format \"…{name}…\" :name v …) instead")]
-    (:wat::lint::Finding
+    (wat.lint/Finding
       :rule "concat-abuse"
       :file file
       :line ln
       :col co
       :severity "warn"
       :message msg
-      :fix (:wat::lint::concat-format-fix form in-defmacro?))))
+      :fix (wat.lint/concat-format-fix form in-defmacro?))))
 
 ;; rule-concat-abuse-form — run the concat-abuse rule on ONE form (recursive walk).
 ;; Detects concat-abuse at the top level OR nested anywhere inside the form.
 ;; in-defmacro? tracks whether the current form is nested inside a defmacro body.
-(:wat::core::defn :wat::lint::rule-concat-abuse-form
-  [form         <- wat.type/AST
-   file         <- wat.type/String
-   in-defmacro? <- wat.type/bool]
-  -> (wat.type/Vector :- [:wat::lint::Finding])
+(wat.core/defn wat.lint/rule-concat-abuse-form
+  [form         :- wat.type/AST
+   file         :- wat.type/String
+   in-defmacro? :- wat.type/bool]
+  :- (wat.type/Vector :- [wat.lint/Finding])
   ;; Check if THIS form is a concat-abuse
-  (:wat::core::if (:wat::lint::concat-abuse? form)
+  (wat.core/if (wat.lint/concat-abuse? form)
     ;; This form IS a concat-abuse — report it (don't recurse into it)
-    (:wat::core::let [counts (:wat::lint::concat-arg-counts form)
-                      n-lits (:wat::core::first counts)
-                      n-vals (:wat::core::second counts)]
-      (wat.type/Vector :- [:wat::lint::Finding]
-        (:wat::lint::make-concat-finding form file n-lits n-vals in-defmacro?)))
+    (wat.core/let [counts (wat.lint/concat-arg-counts form)
+                      n-lits (wat.core/first counts)
+                      n-vals (wat.core/second counts)]
+      (wat.type/Vector :- [wat.lint/Finding]
+        (wat.lint/make-concat-finding form file n-lits n-vals in-defmacro?)))
     ;; Not a concat-abuse — recurse into children (if structural)
     ;; child's in-defmacro? = current in-defmacro? OR (is this form a defmacro?)
-    (:wat::core::if (:wat::lint::lint-structural? form)
-      (:wat::core::let [child-in-defmacro? (:wat::core::or in-defmacro? (:wat::lint::is-defmacro-form? form))]
-        (:wat::core::foldl
-          (:wat::core::fn [acc   <- (wat.type/Vector :- [:wat::lint::Finding])
-                           child <- wat.type/AST]
-            -> (wat.type/Vector :- [:wat::lint::Finding])
-            (:wat::core::concat acc
-              (:wat::lint::rule-concat-abuse-form child file child-in-defmacro?)))
-          (wat.type/Vector :- [:wat::lint::Finding])
-          (:wat::core::ast->children form)))
-      (wat.type/Vector :- [:wat::lint::Finding]))))
+    (wat.core/if (wat.lint/lint-structural? form)
+      (wat.core/let [child-in-defmacro? (wat.core/or in-defmacro? (wat.lint/is-defmacro-form? form))]
+        (wat.core/foldl
+          (wat.core/fn [acc   :- (wat.type/Vector :- [wat.lint/Finding])
+                           child :- wat.type/AST]
+            :- (wat.type/Vector :- [wat.lint/Finding])
+            (wat.core/concat acc
+              (wat.lint/rule-concat-abuse-form child file child-in-defmacro?)))
+          (wat.type/Vector :- [wat.lint/Finding])
+          (wat.core/ast->children form)))
+      (wat.type/Vector :- [wat.lint/Finding]))))
 
 ;; ─── lint-source: run all rules over a (Vector :- [SourceFile]) ────────────
 
 ;; lint-file — run all form-level rules over one SourceFile.
-(:wat::core::defn :wat::lint::lint-file
-  [sf <- :wat::source::File]
-  -> (wat.type/Vector :- [:wat::lint::Finding])
-  (:wat::core::let [path   (:wat::source::File/path sf)
-                    source (:wat::source::File/source sf)
-                    tree   (:wat::core::match (:wat::core::read-string source) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms  (:wat::core::ast->children tree)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc  <- (wat.type/Vector :- [:wat::lint::Finding])
-                       form <- wat.type/AST]
-        -> (wat.type/Vector :- [:wat::lint::Finding])
-        (:wat::core::concat acc
-          (:wat::core::concat
-            (:wat::lint::rule-nested-if-=-ladder-form form path)
-            (:wat::lint::rule-concat-abuse-form form path false))))
-      (wat.type/Vector :- [:wat::lint::Finding])
+(wat.core/defn wat.lint/lint-file
+  [sf :- wat.source/File]
+  :- (wat.type/Vector :- [wat.lint/Finding])
+  (wat.core/let [path   (wat.source.File/path sf)
+                    source (wat.source.File/source sf)
+                    tree   (wat.core/match (wat.core/read-string source) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms  (wat.core/ast->children tree)]
+    (wat.core/foldl
+      (wat.core/fn [acc  :- (wat.type/Vector :- [wat.lint/Finding])
+                       form :- wat.type/AST]
+        :- (wat.type/Vector :- [wat.lint/Finding])
+        (wat.core/concat acc
+          (wat.core/concat
+            (wat.lint/rule-nested-if-=-ladder-form form path)
+            (wat.lint/rule-concat-abuse-form form path false))))
+      (wat.type/Vector :- [wat.lint/Finding])
       forms)))
 
 ;; lint-source — run form-level rules over every file in (Vector :- [SourceFile]).
 ;; The primary pure entry point for the linter.
-(:wat::core::defn :wat::lint::lint-source
-  [files <- (wat.type/Vector :- [:wat::source::File])]
-  -> (wat.type/Vector :- [:wat::lint::Finding])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::lint::Finding])
-                     sf  <- :wat::source::File]
-      -> (wat.type/Vector :- [:wat::lint::Finding])
-      (:wat::core::concat acc (:wat::lint::lint-file sf)))
-    (wat.type/Vector :- [:wat::lint::Finding])
+(wat.core/defn wat.lint/lint-source
+  [files :- (wat.type/Vector :- [wat.source/File])]
+  :- (wat.type/Vector :- [wat.lint/Finding])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [wat.lint/Finding])
+                     sf  :- wat.source/File]
+      :- (wat.type/Vector :- [wat.lint/Finding])
+      (wat.core/concat acc (wat.lint/lint-file sf)))
+    (wat.type/Vector :- [wat.lint/Finding])
     files))
 
 ;; ─── rule-zero: deporder load-order as Findings ──────────────────────
@@ -592,40 +592,40 @@
 ;; violation->finding — convert a deporder Violation into a rule-zero Finding.
 ;; Violations have no span (deporder doesn't walk for positions); line and col = 0.
 ;; The fix is always None (no mechanical fix — load-order is a human decision).
-(:wat::core::defn :wat::lint::violation->finding
-  [v <- :wat::deporder::Violation]
-  -> :wat::lint::Finding
-  (:wat::lint::Finding
+(wat.core/defn wat.lint/violation->finding
+  [v :- wat.deporder/Violation]
+  :- wat.lint/Finding
+  (wat.lint/Finding
     :rule "load-order"
-    :file (:wat::deporder::Violation/referencer v)
+    :file (wat.deporder.Violation/referencer v)
     :line 0
     :col 0
     :severity "error"
-    :message (:wat::string::concat
+    :message (wat.string/concat
       "load-order violation: "
-      (:wat::deporder::Violation/referencer v)
+      (wat.deporder.Violation/referencer v)
       " (pos "
-      (:wat::i64::to-string (:wat::deporder::Violation/referencer-pos v))
+      (wat.i64/to-string (wat.deporder.Violation/referencer-pos v))
       ") eval-depends on "
-      (:wat::deporder::Violation/definer v)
+      (wat.deporder.Violation/definer v)
       " (pos "
-      (:wat::i64::to-string (:wat::deporder::Violation/definer-pos v))
+      (wat.i64/to-string (wat.deporder.Violation/definer-pos v))
       ") which loads later — symbol: "
-      (:wat::deporder::Violation/symbol v))
-    :fix :wat::core::Option.None))
+      (wat.deporder.Violation/symbol v))
+    :fix wat.core/Option.None))
 
 ;; violations->findings — map Violations to rule-zero Findings.
-(:wat::core::defn :wat::lint::violations->findings
-  [viols <- (wat.type/Vector :- [:wat::deporder::Violation])]
-  -> (wat.type/Vector :- [:wat::lint::Finding])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::lint::Finding])
-                     v   <- :wat::deporder::Violation]
-      -> (wat.type/Vector :- [:wat::lint::Finding])
-      (:wat::core::concat acc
-        (wat.type/Vector :- [:wat::lint::Finding]
-          (:wat::lint::violation->finding v))))
-    (wat.type/Vector :- [:wat::lint::Finding])
+(wat.core/defn wat.lint/violations->findings
+  [viols :- (wat.type/Vector :- [wat.deporder/Violation])]
+  :- (wat.type/Vector :- [wat.lint/Finding])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [wat.lint/Finding])
+                     v   :- wat.deporder/Violation]
+      :- (wat.type/Vector :- [wat.lint/Finding])
+      (wat.core/concat acc
+        (wat.type/Vector :- [wat.lint/Finding]
+          (wat.lint/violation->finding v))))
+    (wat.type/Vector :- [wat.lint/Finding])
     viols))
 
 ;; ─── lint-stdlib: the surface ─────────────────────────────────────────
@@ -636,14 +636,14 @@
 ;;
 ;; Currently 0 rule-zero violations (arc 275 fixed them all).
 ;; Any future load-order regression will surface immediately here.
-(:wat::core::defn :wat::lint::lint-stdlib
+(wat.core/defn wat.lint/lint-stdlib
   []
-  -> (wat.type/Vector :- [:wat::lint::Finding])
-  (:wat::core::let [srcs   (:wat::deporder::stdlib-sources)
-                    form-findings (:wat::lint::lint-source srcs)
-                    viols  (:wat::deporder::verify srcs)
-                    rule-zero-findings (:wat::lint::violations->findings viols)]
-    (:wat::core::concat form-findings rule-zero-findings)))
+  :- (wat.type/Vector :- [wat.lint/Finding])
+  (wat.core/let [srcs   (wat.deporder/stdlib-sources)
+                    form-findings (wat.lint/lint-source srcs)
+                    viols  (wat.deporder/verify srcs)
+                    rule-zero-findings (wat.lint/violations->findings viols)]
+    (wat.core/concat form-findings rule-zero-findings)))
 
 ;; ─── apply-fixes + lint-fix-file: the auto-fix applier ───────────────
 
@@ -657,39 +657,39 @@
 ;; the rule's entire belief — the same "deleting/replacing a region" case fix-text-span-text's
 ;; own header carves out, never a rename of a leaf token — collects Tuple(off, old-text,
 ;; new-text) in ascending order, reverses to right-to-left, then splices via fix-text-apply.
-(:wat::core::defn :wat::lint::apply-fixes
-  [sf       <- :wat::source::File
-   findings <- (wat.type/Vector :- [:wat::lint::Finding])]
-  -> wat.type/String
-  (:wat::core::let [src   (:wat::source::File/source sf)
-                    lines (:wat::string::split src "\n")
-                    edits (:wat::core::foldl
-                            (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                                             f   <- :wat::lint::Finding]
-                              -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                              (:wat::core::match (:wat::lint::Finding/fix f)  
-                                [:wat::core::Option.None {} acc]
-                                [:wat::core::Option.Some {:value fe}
-                                 (:wat::core::let [start-map (wat.type/HashMap :- [wat.type/keyword wat.type/i64]
-                                                               :line (:wat::lint::FixEdit/start-line fe)
-                                                               :col  (:wat::lint::FixEdit/start-col fe))
+(wat.core/defn wat.lint/apply-fixes
+  [sf       :- wat.source/File
+   findings :- (wat.type/Vector :- [wat.lint/Finding])]
+  :- wat.type/String
+  (wat.core/let [src   (wat.source.File/source sf)
+                    lines (wat.string/split src "\n")
+                    edits (wat.core/foldl
+                            (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                                             f   :- wat.lint/Finding]
+                              :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                              (wat.core/match (wat.lint.Finding/fix f)  
+                                [wat.core/Option.None {} acc]
+                                [wat.core/Option.Some {:value fe}
+                                 (wat.core/let [start-map (wat.type/HashMap :- [wat.type/keyword wat.type/i64]
+                                                               :line (wat.lint.FixEdit/start-line fe)
+                                                               :col  (wat.lint.FixEdit/start-col fe))
                                                    end-map   (wat.type/HashMap :- [wat.type/keyword wat.type/i64]
-                                                               :line (:wat::lint::FixEdit/end-line fe)
-                                                               :col  (:wat::lint::FixEdit/end-col fe))
-                                                   off       (:wat::fix::fix-text-offset-of start-map lines)
-                                                   old-text  (:wat::fix::fix-text-span-text start-map end-map lines src)
-                                                   new-text  (:wat::lint::FixEdit/new-text fe)]
-                                   (:wat::core::concat acc
+                                                               :line (wat.lint.FixEdit/end-line fe)
+                                                               :col  (wat.lint.FixEdit/end-col fe))
+                                                   off       (wat.fix/fix-text-offset-of start-map lines)
+                                                   old-text  (wat.fix/fix-text-span-text start-map end-map lines src)
+                                                   new-text  (wat.lint.FixEdit/new-text fe)]
+                                   (wat.core/concat acc
                                      (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                                        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text))))]))
                             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
                             findings)
-                    rev-edits (:wat::core::reverse edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+                    rev-edits (wat.core/reverse edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; lint-fix-file — lint a SourceFile and apply all auto-fixes, returning the fixed source.
 ;; Convenience entry called by probes and the sweep: lint-file → apply-fixes.
-(:wat::core::defn :wat::lint::lint-fix-file
-  [sf <- :wat::source::File]
-  -> wat.type/String
-  (:wat::lint::apply-fixes sf (:wat::lint::lint-file sf)))
+(wat.core/defn wat.lint/lint-fix-file
+  [sf :- wat.source/File]
+  :- wat.type/String
+  (wat.lint/apply-fixes sf (wat.lint/lint-file sf)))

@@ -55,58 +55,58 @@
 ;; binary, 3+ fold. -// → no 0-ary, 1-ary identity-on-left (negate / reciprocal),
 ;; 2-ary binary, 3+ fold.
 
-(:wat::core::defclause :wat::core::+
+(wat.core/defclause wat.core/+
   ;; 0-ary identity: i64 0 (Lisp additive identity)
-  ([] -> wat.type/i64 0)
+  ([] :- wat.type/i64 0)
   ;; 1-ary: per-Type arg unchanged
-  ([x <- wat.type/i64] -> wat.type/i64 x)
-  ([x <- wat.type/f64] -> wat.type/f64 x)
+  ([x :- wat.type/i64] :- wat.type/i64 x)
+  ([x :- wat.type/f64] :- wat.type/f64 x)
   ;; 2-ary: direct per-Type binary call
-  ([x <- wat.type/i64
-    y <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x y))
-  ([x <- wat.type/f64
-    y <- wat.type/f64] -> wat.type/f64 (:wat::f64::+ x y))
+  ([x :- wat.type/i64
+    y :- wat.type/i64] :- wat.type/i64 (wat.i64/+ x y))
+  ([x :- wat.type/f64
+    y :- wat.type/f64] :- wat.type/f64 (wat.f64/+ x y))
   ;; 3+-ary: per-Type fold over rest
-  ([x <- wat.type/i64
-    y <- wat.type/i64
-    & rest <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/i64
-                       n <- wat.type/i64] -> wat.type/i64
-        (:wat::i64::+ acc n))
-      (:wat::i64::+ x y)
+  ([x :- wat.type/i64
+    y :- wat.type/i64
+    & rest :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/i64
+                       n :- wat.type/i64] :- wat.type/i64
+        (wat.i64/+ acc n))
+      (wat.i64/+ x y)
       rest))
-  ([x <- wat.type/f64
-    y <- wat.type/f64
-    & rest <- (wat.type/Vector :- [wat.type/f64])] -> wat.type/f64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/f64
-                       n <- wat.type/f64] -> wat.type/f64
-        (:wat::f64::+ acc n))
-      (:wat::f64::+ x y)
+  ([x :- wat.type/f64
+    y :- wat.type/f64
+    & rest :- (wat.type/Vector :- [wat.type/f64])] :- wat.type/f64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/f64
+                       n :- wat.type/f64] :- wat.type/f64
+        (wat.f64/+ acc n))
+      (wat.f64/+ x y)
       rest))
   ;; Arc 300 stone C1 — bigint: 1-ary, 2-ary, N-ary fold (mirrors i64/f64
   ;; above, one type over; arbitrary precision — NEVER overflows).
-  ([x <- wat.type/bigint] -> wat.type/bigint x)
-  ([x <- wat.type/bigint
-    y <- wat.type/bigint] -> wat.type/bigint (:wat::bigint::+ x y))
-  ([x <- wat.type/bigint
-    y <- wat.type/bigint
-    & rest <- (wat.type/Vector :- [wat.type/bigint])] -> wat.type/bigint
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/bigint
-                       n <- wat.type/bigint] -> wat.type/bigint
-        (:wat::bigint::+ acc n))
-      (:wat::bigint::+ x y)
+  ([x :- wat.type/bigint] :- wat.type/bigint x)
+  ([x :- wat.type/bigint
+    y :- wat.type/bigint] :- wat.type/bigint (wat.bigint/+ x y))
+  ([x :- wat.type/bigint
+    y :- wat.type/bigint
+    & rest :- (wat.type/Vector :- [wat.type/bigint])] :- wat.type/bigint
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/bigint
+                       n :- wat.type/bigint] :- wat.type/bigint
+        (wat.bigint/+ acc n))
+      (wat.bigint/+ x y)
       rest))
   ;; Contagion: i64 ⊕ bigint → bigint (i64 promotes via i64::to-bigint; NEVER
   ;; demotes the bigint side back to i64).
-  ([x <- wat.type/i64
-    y <- wat.type/bigint] -> wat.type/bigint
-    (:wat::bigint::+ (:wat::i64::to-bigint x) y))
-  ([x <- wat.type/bigint
-    y <- wat.type/i64] -> wat.type/bigint
-    (:wat::bigint::+ x (:wat::i64::to-bigint y)))
+  ([x :- wat.type/i64
+    y :- wat.type/bigint] :- wat.type/bigint
+    (wat.bigint/+ (wat.i64/to-bigint x) y))
+  ([x :- wat.type/bigint
+    y :- wat.type/i64] :- wat.type/bigint
+    (wat.bigint/+ x (wat.i64/to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary identity (a genuine rational is
   ;; never integer-valued — Stone B's invariant — so identity never
   ;; collapses), 2-ary, N-ary fold. The fold step calls the raw per-type
@@ -115,294 +115,294 @@
   ;; carry a COLLAPSED intermediate (this stone's pinned collapse: a
   ;; BigRational result reducing to a whole number becomes bigint) across
   ;; steps without needing a separate contagion arm inside the fold body.
-  ([x <- wat.type/rational] -> wat.type/rational x)
-  ([x <- wat.type/rational
-    y <- wat.type/rational] -> wat.type/rational (:wat::rational::+ x y))
-  ([x <- wat.type/rational
-    y <- wat.type/rational
-    & rest <- (wat.type/Vector :- [wat.type/rational])] -> wat.type/rational
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/rational
-                       n <- wat.type/rational] -> wat.type/rational
-        (:wat::rational::+ acc n))
-      (:wat::rational::+ x y)
+  ([x :- wat.type/rational] :- wat.type/rational x)
+  ([x :- wat.type/rational
+    y :- wat.type/rational] :- wat.type/rational (wat.rational/+ x y))
+  ([x :- wat.type/rational
+    y :- wat.type/rational
+    & rest :- (wat.type/Vector :- [wat.type/rational])] :- wat.type/rational
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/rational
+                       n :- wat.type/rational] :- wat.type/rational
+        (wat.rational/+ acc n))
+      (wat.rational/+ x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational (i64 promotes via i64::to-rational).
-  ([x <- wat.type/i64
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::+ (:wat::i64::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/i64] -> wat.type/rational
-    (:wat::rational::+ x (:wat::i64::to-rational y)))
+  ([x :- wat.type/i64
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational/+ (wat.i64/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/i64] :- wat.type/rational
+    (wat.rational/+ x (wat.i64/to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational (bigint promotes via bigint::to-rational).
-  ([x <- wat.type/bigint
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::+ (:wat::bigint::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/bigint] -> wat.type/rational
-    (:wat::rational::+ x (:wat::bigint::to-rational y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational/+ (wat.bigint/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/bigint] :- wat.type/rational
+    (wat.rational/+ x (wat.bigint/to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION — no collapse; convert
   ;; the rational down to f64, never promotes f64 to rational).
-  ([x <- wat.type/rational
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::+ (:wat::rational::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/rational] -> wat.type/f64
-    (:wat::f64::+ x (:wat::rational::to-f64 y)))
+  ([x :- wat.type/rational
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/+ (wat.rational/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/rational] :- wat.type/f64
+    (wat.f64/+ x (wat.rational/to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION — no collapse). Promote the
   ;; non-f64 operand via i64::to-f64 / bigint::to-f64 (both already exist),
   ;; then the existing f64::+. Mirrors C1's i64⊕bigint / C2's rational⊕f64
   ;; contagion arms immediately above, one type-pair over.
-  ([x <- wat.type/i64
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::+ (:wat::i64::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/i64] -> wat.type/f64
-    (:wat::f64::+ x (:wat::i64::to-f64 y)))
-  ([x <- wat.type/bigint
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::+ (:wat::bigint::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/bigint] -> wat.type/f64
-    (:wat::f64::+ x (:wat::bigint::to-f64 y))))
+  ([x :- wat.type/i64
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/+ (wat.i64/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/i64] :- wat.type/f64
+    (wat.f64/+ x (wat.i64/to-f64 y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/+ (wat.bigint/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/bigint] :- wat.type/f64
+    (wat.f64/+ x (wat.bigint/to-f64 y))))
 
-(:wat::core::defclause :wat::core::-
+(wat.core/defclause wat.core/-
   ;; NO 0-ary clause — :NoMatchingClause fires
   ;; 1-ary per-Type: negate (identity-on-left = 0)
-  ([x <- wat.type/i64] -> wat.type/i64 (:wat::i64::- 0 x))
-  ([x <- wat.type/f64] -> wat.type/f64 (:wat::f64::- 0.0 x))
+  ([x :- wat.type/i64] :- wat.type/i64 (wat.i64/- 0 x))
+  ([x :- wat.type/f64] :- wat.type/f64 (wat.f64/- 0.0 x))
   ;; 2-ary
-  ([x <- wat.type/i64
-    y <- wat.type/i64] -> wat.type/i64 (:wat::i64::- x y))
-  ([x <- wat.type/f64
-    y <- wat.type/f64] -> wat.type/f64 (:wat::f64::- x y))
+  ([x :- wat.type/i64
+    y :- wat.type/i64] :- wat.type/i64 (wat.i64/- x y))
+  ([x :- wat.type/f64
+    y :- wat.type/f64] :- wat.type/f64 (wat.f64/- x y))
   ;; 3+-ary fold
-  ([x <- wat.type/i64
-    y <- wat.type/i64
-    & rest <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/i64
-                       n <- wat.type/i64] -> wat.type/i64
-        (:wat::i64::- acc n))
-      (:wat::i64::- x y)
+  ([x :- wat.type/i64
+    y :- wat.type/i64
+    & rest :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/i64
+                       n :- wat.type/i64] :- wat.type/i64
+        (wat.i64/- acc n))
+      (wat.i64/- x y)
       rest))
-  ([x <- wat.type/f64
-    y <- wat.type/f64
-    & rest <- (wat.type/Vector :- [wat.type/f64])] -> wat.type/f64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/f64
-                       n <- wat.type/f64] -> wat.type/f64
-        (:wat::f64::- acc n))
-      (:wat::f64::- x y)
+  ([x :- wat.type/f64
+    y :- wat.type/f64
+    & rest :- (wat.type/Vector :- [wat.type/f64])] :- wat.type/f64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/f64
+                       n :- wat.type/f64] :- wat.type/f64
+        (wat.f64/- acc n))
+      (wat.f64/- x y)
       rest))
   ;; Arc 300 stone C1 — bigint: 1-ary negate (identity-on-left = 0, promoted
   ;; via i64::to-bigint), 2-ary, N-ary fold (mirrors i64/f64 above).
-  ([x <- wat.type/bigint] -> wat.type/bigint
-    (:wat::bigint::- (:wat::i64::to-bigint 0) x))
-  ([x <- wat.type/bigint
-    y <- wat.type/bigint] -> wat.type/bigint (:wat::bigint::- x y))
-  ([x <- wat.type/bigint
-    y <- wat.type/bigint
-    & rest <- (wat.type/Vector :- [wat.type/bigint])] -> wat.type/bigint
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/bigint
-                       n <- wat.type/bigint] -> wat.type/bigint
-        (:wat::bigint::- acc n))
-      (:wat::bigint::- x y)
+  ([x :- wat.type/bigint] :- wat.type/bigint
+    (wat.bigint/- (wat.i64/to-bigint 0) x))
+  ([x :- wat.type/bigint
+    y :- wat.type/bigint] :- wat.type/bigint (wat.bigint/- x y))
+  ([x :- wat.type/bigint
+    y :- wat.type/bigint
+    & rest :- (wat.type/Vector :- [wat.type/bigint])] :- wat.type/bigint
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/bigint
+                       n :- wat.type/bigint] :- wat.type/bigint
+        (wat.bigint/- acc n))
+      (wat.bigint/- x y)
       rest))
   ;; Contagion: i64 ⊕ bigint → bigint.
-  ([x <- wat.type/i64
-    y <- wat.type/bigint] -> wat.type/bigint
-    (:wat::bigint::- (:wat::i64::to-bigint x) y))
-  ([x <- wat.type/bigint
-    y <- wat.type/i64] -> wat.type/bigint
-    (:wat::bigint::- x (:wat::i64::to-bigint y)))
+  ([x :- wat.type/i64
+    y :- wat.type/bigint] :- wat.type/bigint
+    (wat.bigint/- (wat.i64/to-bigint x) y))
+  ([x :- wat.type/bigint
+    y :- wat.type/i64] :- wat.type/bigint
+    (wat.bigint/- x (wat.i64/to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary negate (identity-on-left = 0,
   ;; promoted via i64::to-rational — never collapses: negating a genuine
   ;; rational keeps its denominator unchanged), 2-ary, N-ary fold (mirrors
   ;; the `+` rational arms immediately above the previous defclause, one
   ;; operator over).
-  ([x <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::- (:wat::i64::to-rational 0) x))
-  ([x <- wat.type/rational
-    y <- wat.type/rational] -> wat.type/rational (:wat::rational::- x y))
-  ([x <- wat.type/rational
-    y <- wat.type/rational
-    & rest <- (wat.type/Vector :- [wat.type/rational])] -> wat.type/rational
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/rational
-                       n <- wat.type/rational] -> wat.type/rational
-        (:wat::rational::- acc n))
-      (:wat::rational::- x y)
+  ([x :- wat.type/rational] :- wat.type/rational
+    (wat.rational/- (wat.i64/to-rational 0) x))
+  ([x :- wat.type/rational
+    y :- wat.type/rational] :- wat.type/rational (wat.rational/- x y))
+  ([x :- wat.type/rational
+    y :- wat.type/rational
+    & rest :- (wat.type/Vector :- [wat.type/rational])] :- wat.type/rational
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/rational
+                       n :- wat.type/rational] :- wat.type/rational
+        (wat.rational/- acc n))
+      (wat.rational/- x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational.
-  ([x <- wat.type/i64
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::- (:wat::i64::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/i64] -> wat.type/rational
-    (:wat::rational::- x (:wat::i64::to-rational y)))
+  ([x :- wat.type/i64
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational/- (wat.i64/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/i64] :- wat.type/rational
+    (wat.rational/- x (wat.i64/to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational.
-  ([x <- wat.type/bigint
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::- (:wat::bigint::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/bigint] -> wat.type/rational
-    (:wat::rational::- x (:wat::bigint::to-rational y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational/- (wat.bigint/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/bigint] :- wat.type/rational
+    (wat.rational/- x (wat.bigint/to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION).
-  ([x <- wat.type/rational
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::- (:wat::rational::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/rational] -> wat.type/f64
-    (:wat::f64::- x (:wat::rational::to-f64 y)))
+  ([x :- wat.type/rational
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/- (wat.rational/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/rational] :- wat.type/f64
+    (wat.f64/- x (wat.rational/to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+` C4 arms
   ;; immediately above the previous defclause, one operator over.
-  ([x <- wat.type/i64
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::- (:wat::i64::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/i64] -> wat.type/f64
-    (:wat::f64::- x (:wat::i64::to-f64 y)))
-  ([x <- wat.type/bigint
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::- (:wat::bigint::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/bigint] -> wat.type/f64
-    (:wat::f64::- x (:wat::bigint::to-f64 y))))
+  ([x :- wat.type/i64
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/- (wat.i64/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/i64] :- wat.type/f64
+    (wat.f64/- x (wat.i64/to-f64 y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/- (wat.bigint/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/bigint] :- wat.type/f64
+    (wat.f64/- x (wat.bigint/to-f64 y))))
 
-(:wat::core::defclause :wat::core::*
+(wat.core/defclause wat.core/*
   ;; 0-ary identity: i64 1 (Lisp multiplicative identity)
-  ([] -> wat.type/i64 1)
+  ([] :- wat.type/i64 1)
   ;; 1-ary: per-Type arg unchanged
-  ([x <- wat.type/i64] -> wat.type/i64 x)
-  ([x <- wat.type/f64] -> wat.type/f64 x)
+  ([x :- wat.type/i64] :- wat.type/i64 x)
+  ([x :- wat.type/f64] :- wat.type/f64 x)
   ;; 2-ary
-  ([x <- wat.type/i64
-    y <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x y))
-  ([x <- wat.type/f64
-    y <- wat.type/f64] -> wat.type/f64 (:wat::f64::* x y))
+  ([x :- wat.type/i64
+    y :- wat.type/i64] :- wat.type/i64 (wat.i64/* x y))
+  ([x :- wat.type/f64
+    y :- wat.type/f64] :- wat.type/f64 (wat.f64/* x y))
   ;; 3+-ary fold
-  ([x <- wat.type/i64
-    y <- wat.type/i64
-    & rest <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/i64
-                       n <- wat.type/i64] -> wat.type/i64
-        (:wat::i64::* acc n))
-      (:wat::i64::* x y)
+  ([x :- wat.type/i64
+    y :- wat.type/i64
+    & rest :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/i64
+                       n :- wat.type/i64] :- wat.type/i64
+        (wat.i64/* acc n))
+      (wat.i64/* x y)
       rest))
-  ([x <- wat.type/f64
-    y <- wat.type/f64
-    & rest <- (wat.type/Vector :- [wat.type/f64])] -> wat.type/f64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/f64
-                       n <- wat.type/f64] -> wat.type/f64
-        (:wat::f64::* acc n))
-      (:wat::f64::* x y)
+  ([x :- wat.type/f64
+    y :- wat.type/f64
+    & rest :- (wat.type/Vector :- [wat.type/f64])] :- wat.type/f64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/f64
+                       n :- wat.type/f64] :- wat.type/f64
+        (wat.f64/* acc n))
+      (wat.f64/* x y)
       rest))
   ;; Arc 300 stone C1 — bigint: 1-ary, 2-ary, N-ary fold (mirrors i64/f64
   ;; above, one type over; arbitrary precision — NEVER overflows).
-  ([x <- wat.type/bigint] -> wat.type/bigint x)
-  ([x <- wat.type/bigint
-    y <- wat.type/bigint] -> wat.type/bigint (:wat::bigint::* x y))
-  ([x <- wat.type/bigint
-    y <- wat.type/bigint
-    & rest <- (wat.type/Vector :- [wat.type/bigint])] -> wat.type/bigint
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/bigint
-                       n <- wat.type/bigint] -> wat.type/bigint
-        (:wat::bigint::* acc n))
-      (:wat::bigint::* x y)
+  ([x :- wat.type/bigint] :- wat.type/bigint x)
+  ([x :- wat.type/bigint
+    y :- wat.type/bigint] :- wat.type/bigint (wat.bigint/* x y))
+  ([x :- wat.type/bigint
+    y :- wat.type/bigint
+    & rest :- (wat.type/Vector :- [wat.type/bigint])] :- wat.type/bigint
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/bigint
+                       n :- wat.type/bigint] :- wat.type/bigint
+        (wat.bigint/* acc n))
+      (wat.bigint/* x y)
       rest))
   ;; Contagion: i64 ⊕ bigint → bigint.
-  ([x <- wat.type/i64
-    y <- wat.type/bigint] -> wat.type/bigint
-    (:wat::bigint::* (:wat::i64::to-bigint x) y))
-  ([x <- wat.type/bigint
-    y <- wat.type/i64] -> wat.type/bigint
-    (:wat::bigint::* x (:wat::i64::to-bigint y)))
+  ([x :- wat.type/i64
+    y :- wat.type/bigint] :- wat.type/bigint
+    (wat.bigint/* (wat.i64/to-bigint x) y))
+  ([x :- wat.type/bigint
+    y :- wat.type/i64] :- wat.type/bigint
+    (wat.bigint/* x (wat.i64/to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary identity, 2-ary, N-ary fold (mirrors
   ;; the `+`/`-` rational arms above, one operator over).
-  ([x <- wat.type/rational] -> wat.type/rational x)
-  ([x <- wat.type/rational
-    y <- wat.type/rational] -> wat.type/rational (:wat::rational::* x y))
-  ([x <- wat.type/rational
-    y <- wat.type/rational
-    & rest <- (wat.type/Vector :- [wat.type/rational])] -> wat.type/rational
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/rational
-                       n <- wat.type/rational] -> wat.type/rational
-        (:wat::rational::* acc n))
-      (:wat::rational::* x y)
+  ([x :- wat.type/rational] :- wat.type/rational x)
+  ([x :- wat.type/rational
+    y :- wat.type/rational] :- wat.type/rational (wat.rational/* x y))
+  ([x :- wat.type/rational
+    y :- wat.type/rational
+    & rest :- (wat.type/Vector :- [wat.type/rational])] :- wat.type/rational
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/rational
+                       n :- wat.type/rational] :- wat.type/rational
+        (wat.rational/* acc n))
+      (wat.rational/* x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational.
-  ([x <- wat.type/i64
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::* (:wat::i64::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/i64] -> wat.type/rational
-    (:wat::rational::* x (:wat::i64::to-rational y)))
+  ([x :- wat.type/i64
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational/* (wat.i64/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/i64] :- wat.type/rational
+    (wat.rational/* x (wat.i64/to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational.
-  ([x <- wat.type/bigint
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::* (:wat::bigint::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/bigint] -> wat.type/rational
-    (:wat::rational::* x (:wat::bigint::to-rational y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational/* (wat.bigint/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/bigint] :- wat.type/rational
+    (wat.rational/* x (wat.bigint/to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION).
-  ([x <- wat.type/rational
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::* (:wat::rational::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/rational] -> wat.type/f64
-    (:wat::f64::* x (:wat::rational::to-f64 y)))
+  ([x :- wat.type/rational
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/* (wat.rational/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/rational] :- wat.type/f64
+    (wat.f64/* x (wat.rational/to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+`/`-` C4 arms
   ;; above, one operator over.
-  ([x <- wat.type/i64
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::* (:wat::i64::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/i64] -> wat.type/f64
-    (:wat::f64::* x (:wat::i64::to-f64 y)))
-  ([x <- wat.type/bigint
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::* (:wat::bigint::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/bigint] -> wat.type/f64
-    (:wat::f64::* x (:wat::bigint::to-f64 y))))
+  ([x :- wat.type/i64
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/* (wat.i64/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/i64] :- wat.type/f64
+    (wat.f64/* x (wat.i64/to-f64 y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64/* (wat.bigint/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/bigint] :- wat.type/f64
+    (wat.f64/* x (wat.bigint/to-f64 y))))
 
-(:wat::core::defclause :wat::core::/
+(wat.core/defclause wat.core//
   ;; NO 0-ary clause — :NoMatchingClause fires
   ;; 1-ary per-Type: reciprocal (identity-on-left = 1)
-  ([x <- wat.type/i64] -> wat.type/i64 (:wat::i64::/ 1 x))
-  ([x <- wat.type/f64] -> wat.type/f64 (:wat::f64::/ 1.0 x))
+  ([x :- wat.type/i64] :- wat.type/i64 (wat.i64// 1 x))
+  ([x :- wat.type/f64] :- wat.type/f64 (wat.f64// 1.0 x))
   ;; 2-ary
-  ([x <- wat.type/i64
-    y <- wat.type/i64] -> wat.type/i64 (:wat::i64::/ x y))
-  ([x <- wat.type/f64
-    y <- wat.type/f64] -> wat.type/f64 (:wat::f64::/ x y))
+  ([x :- wat.type/i64
+    y :- wat.type/i64] :- wat.type/i64 (wat.i64// x y))
+  ([x :- wat.type/f64
+    y :- wat.type/f64] :- wat.type/f64 (wat.f64// x y))
   ;; 3+-ary fold
-  ([x <- wat.type/i64
-    y <- wat.type/i64
-    & rest <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/i64
-                       n <- wat.type/i64] -> wat.type/i64
-        (:wat::i64::/ acc n))
-      (:wat::i64::/ x y)
+  ([x :- wat.type/i64
+    y :- wat.type/i64
+    & rest :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/i64
+                       n :- wat.type/i64] :- wat.type/i64
+        (wat.i64// acc n))
+      (wat.i64// x y)
       rest))
-  ([x <- wat.type/f64
-    y <- wat.type/f64
-    & rest <- (wat.type/Vector :- [wat.type/f64])] -> wat.type/f64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/f64
-                       n <- wat.type/f64] -> wat.type/f64
-        (:wat::f64::/ acc n))
-      (:wat::f64::/ x y)
+  ([x :- wat.type/f64
+    y :- wat.type/f64
+    & rest :- (wat.type/Vector :- [wat.type/f64])] :- wat.type/f64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/f64
+                       n :- wat.type/f64] :- wat.type/f64
+        (wat.f64// acc n))
+      (wat.f64// x y)
       rest))
   ;; Arc 300 stone C1 — bigint: 1-ary reciprocal, 2-ary. `:wat::bigint::/`
   ;; COLLAPSES to `:wat::core::rational` when not evenly divisible (clj: `(/ 1N
@@ -413,72 +413,72 @@
   ;; division is a clean `:NoMatchingClause` gap (out of C1's scope; C2's
   ;; rational arithmetic is the natural home for a fold that can carry a
   ;; collapsed intermediate).
-  ([x <- wat.type/bigint] -> wat.type/bigint
-    (:wat::bigint::/ (:wat::i64::to-bigint 1) x))
-  ([x <- wat.type/bigint
-    y <- wat.type/bigint] -> wat.type/bigint (:wat::bigint::/ x y))
+  ([x :- wat.type/bigint] :- wat.type/bigint
+    (wat.bigint// (wat.i64/to-bigint 1) x))
+  ([x :- wat.type/bigint
+    y :- wat.type/bigint] :- wat.type/bigint (wat.bigint// x y))
   ;; Contagion: i64 ⊕ bigint → bigint (2-ary only, same collapse caveat as above).
-  ([x <- wat.type/i64
-    y <- wat.type/bigint] -> wat.type/bigint
-    (:wat::bigint::/ (:wat::i64::to-bigint x) y))
-  ([x <- wat.type/bigint
-    y <- wat.type/i64] -> wat.type/bigint
-    (:wat::bigint::/ x (:wat::i64::to-bigint y)))
+  ([x :- wat.type/i64
+    y :- wat.type/bigint] :- wat.type/bigint
+    (wat.bigint// (wat.i64/to-bigint x) y))
+  ([x :- wat.type/bigint
+    y :- wat.type/i64] :- wat.type/bigint
+    (wat.bigint// x (wat.i64/to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary reciprocal (COLLAPSE-aware — e.g.
   ;; reciprocal of 1/3 is 3, which collapses to bigint), 2-ary, AND (unlike
   ;; bigint's `/` immediately above) an N-ary fold: `:wat::rational::/`
   ;; accepts a bigint accumulator (self-promoted — see its Rust doc), so this
   ;; fold CAN carry a collapsed intermediate across steps — this is the
   ;; "natural home" the bigint comment above points to.
-  ([x <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::/ (:wat::i64::to-rational 1) x))
-  ([x <- wat.type/rational
-    y <- wat.type/rational] -> wat.type/rational (:wat::rational::/ x y))
-  ([x <- wat.type/rational
-    y <- wat.type/rational
-    & rest <- (wat.type/Vector :- [wat.type/rational])] -> wat.type/rational
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/rational
-                       n <- wat.type/rational] -> wat.type/rational
-        (:wat::rational::/ acc n))
-      (:wat::rational::/ x y)
+  ([x :- wat.type/rational] :- wat.type/rational
+    (wat.rational// (wat.i64/to-rational 1) x))
+  ([x :- wat.type/rational
+    y :- wat.type/rational] :- wat.type/rational (wat.rational// x y))
+  ([x :- wat.type/rational
+    y :- wat.type/rational
+    & rest :- (wat.type/Vector :- [wat.type/rational])] :- wat.type/rational
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/rational
+                       n :- wat.type/rational] :- wat.type/rational
+        (wat.rational// acc n))
+      (wat.rational// x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational.
-  ([x <- wat.type/i64
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::/ (:wat::i64::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/i64] -> wat.type/rational
-    (:wat::rational::/ x (:wat::i64::to-rational y)))
+  ([x :- wat.type/i64
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational// (wat.i64/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/i64] :- wat.type/rational
+    (wat.rational// x (wat.i64/to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational.
-  ([x <- wat.type/bigint
-    y <- wat.type/rational] -> wat.type/rational
-    (:wat::rational::/ (:wat::bigint::to-rational x) y))
-  ([x <- wat.type/rational
-    y <- wat.type/bigint] -> wat.type/rational
-    (:wat::rational::/ x (:wat::bigint::to-rational y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/rational] :- wat.type/rational
+    (wat.rational// (wat.bigint/to-rational x) y))
+  ([x :- wat.type/rational
+    y :- wat.type/bigint] :- wat.type/rational
+    (wat.rational// x (wat.bigint/to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION).
-  ([x <- wat.type/rational
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::/ (:wat::rational::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/rational] -> wat.type/f64
-    (:wat::f64::/ x (:wat::rational::to-f64 y)))
+  ([x :- wat.type/rational
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64// (wat.rational/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/rational] :- wat.type/f64
+    (wat.f64// x (wat.rational/to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+`/`-`/`*`
   ;; C4 arms above, one operator over.
-  ([x <- wat.type/i64
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::/ (:wat::i64::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/i64] -> wat.type/f64
-    (:wat::f64::/ x (:wat::i64::to-f64 y)))
-  ([x <- wat.type/bigint
-    y <- wat.type/f64] -> wat.type/f64
-    (:wat::f64::/ (:wat::bigint::to-f64 x) y))
-  ([x <- wat.type/f64
-    y <- wat.type/bigint] -> wat.type/f64
-    (:wat::f64::/ x (:wat::bigint::to-f64 y))))
+  ([x :- wat.type/i64
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64// (wat.i64/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/i64] :- wat.type/f64
+    (wat.f64// x (wat.i64/to-f64 y)))
+  ([x :- wat.type/bigint
+    y :- wat.type/f64] :- wat.type/f64
+    (wat.f64// (wat.bigint/to-f64 x) y))
+  ([x :- wat.type/f64
+    y :- wat.type/bigint] :- wat.type/f64
+    (wat.f64// x (wat.bigint/to-f64 y))))
 
 ;; ─── mod / rem / quot — clj's integer-division trio (i64 only) ──────────────
 ;;
@@ -488,17 +488,17 @@
 ;; `quot` take exactly 2 args (no 0-ary identity, no 1-ary, no N-ary fold, no
 ;; cross-type contagion arms) — CLAUSE ABSENCE rejects anything else, same
 ;; no-privacy doctrine as the rest of this file.
-(:wat::core::defclause :wat::core::quot
-  ([x <- wat.type/i64
-    y <- wat.type/i64] -> wat.type/i64 (:wat::i64::quot x y)))
+(wat.core/defclause wat.core/quot
+  ([x :- wat.type/i64
+    y :- wat.type/i64] :- wat.type/i64 (wat.i64/quot x y)))
 
-(:wat::core::defclause :wat::core::rem
-  ([x <- wat.type/i64
-    y <- wat.type/i64] -> wat.type/i64 (:wat::i64::rem x y)))
+(wat.core/defclause wat.core/rem
+  ([x :- wat.type/i64
+    y :- wat.type/i64] :- wat.type/i64 (wat.i64/rem x y)))
 
-(:wat::core::defclause :wat::core::mod
-  ([x <- wat.type/i64
-    y <- wat.type/i64] -> wat.type/i64 (:wat::i64::mod x y)))
+(wat.core/defclause wat.core/mod
+  ([x :- wat.type/i64
+    y :- wat.type/i64] :- wat.type/i64 (wat.i64/mod x y)))
 
 ;; ─── kwargs-lower — shared kwargs lowering macro (Arc 260.1b Part B) ─────────
 ;;
@@ -522,22 +522,22 @@
 ;; NOTE: strip-leading-colon (Arc 260.1b Part A) is a defn and cannot be called
 ;; from a macro program-body (not in is_pure_total). The `:foo-bar` → `foo-bar` strip
 ;; uses `(string::subs ks 1 (string::length ks))` directly (always present for callers).
-(:wat::core::defmacro :wat::core::kwargs-lower
-  [impl-kw    <- wat.type/AST
-   kwargs-ty  <- wat.type/AST
-   field-names <- wat.type/AST
-   n-pos      <- wat.type/AST
-   ns         <- wat.type/AST
-   & call-args <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let
+(wat.core/defmacro wat.core/kwargs-lower
+  [impl-kw    :- wat.type/AST
+   kwargs-ty  :- wat.type/AST
+   field-names :- wat.type/AST
+   n-pos      :- wat.type/AST
+   ns         :- wat.type/AST
+   & call-args :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let
     [;; Extract typed values from the WatAST params
-     n-pos-int  (:wat::core::Option/expect
-                   (:wat::string::to-i64 (:wat::core::write-forms n-pos))
+     n-pos-int  (wat.core.Option/expect
+                   (wat.string/to-i64 (wat.core/write-forms n-pos))
                    "kwargs-lower: n-pos must be an integer literal")
-     fnames     (:wat::core::ast->children field-names)
-     nf         (:wat::core::length fnames)
-     ns-kw      (:wat::keyword::from-string (:wat::keyword::to-string ns))
+     fnames     (wat.core/ast->children field-names)
+     nf         (wat.core/length fnames)
+     ns-kw      (wat.keyword/from-string (wat.keyword/to-string ns))
      ;; Split call-args into positional and tail.
      ;; Arc 118.2a — was `(:wat::core::take call-args n-pos-int)` / `(:wat::core::drop …)`. Both
      ;; flipped LAZY; this is `:wat::core::kwargs-lower`, a program-body macro forwarded to from
@@ -545,108 +545,108 @@
      ;; kwargs-form macro above) — `n-pos-int` is a runtime-computed count (not a small fixed
      ;; literal), so the `rest`×N trick doesn't apply here; `foldl`+`range`+`get`+`conj` (all
      ;; Rust-native, unaffected by the flip) rebuild both slices eagerly.
-     call-args-len (:wat::core::length call-args)
-     pos        (:wat::core::foldl
-                  (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                    (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: pos index OOB")))
+     call-args-len (wat.core/length call-args)
+     pos        (wat.core/foldl
+                  (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                    (wat.core/conj acc (wat.core.Option/expect (wat.core/get call-args i) "kwargs-lower: pos index OOB")))
                   (wat.type/Vector :- [wat.type/AST])
-                  (:wat::core::range 0 n-pos-int))
-     tail       (:wat::core::foldl
-                  (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                    (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: tail index OOB")))
+                  (wat.core/range 0 n-pos-int))
+     tail       (wat.core/foldl
+                  (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                    (wat.core/conj acc (wat.core.Option/expect (wat.core/get call-args i) "kwargs-lower: tail index OOB")))
                   (wat.type/Vector :- [wat.type/AST])
-                  (:wat::core::range n-pos-int call-args-len))
-     tlen       (:wat::core::length tail)
+                  (wat.core/range n-pos-int call-args-len))
+     tlen       (wat.core/length tail)
      ;; is-map: tail has exactly 1 element and it is a map literal
-     is-map     (:wat::core::if (:wat::core::= tlen 1)
+     is-map     (wat.core/if (wat.core/= tlen 1)
                    
-                   (:wat::core::= (:wat::core::ast-kind (:wat::core::first tail)) "map")
+                   (wat.core/= (wat.core/ast-kind (wat.core/first tail)) "map")
                    false)
      ;; is-pt: passthrough — tail has 1 element and it is NOT a map (explicit record)
-     is-pt      (:wat::core::if (:wat::core::= tlen 1)
+     is-pt      (wat.core/if (wat.core/= tlen 1)
                    
-                   (:wat::core::if is-map  false true)
+                   (wat.core/if is-map  false true)
                    false)
      ;; kvflat: flat [k0 v0 k1 v1 …] — either ast->children of map node or tail itself
-     kvflat     (:wat::core::if is-map
+     kvflat     (wat.core/if is-map
                    
-                   (:wat::core::ast->children (:wat::core::first tail))
+                   (wat.core/ast->children (wat.core/first tail))
                    tail)
-     nkv        (:wat::i64::/ (:wat::core::length kvflat) 2)]
-    (:wat::core::if is-pt
+     nkv        (wat.i64// (wat.core/length kvflat) 2)]
+    (wat.core/if is-pt
       
       ;; Passthrough: explicit-record call; splice pos-args + single record arg
-      `(~impl-kw ~@pos ~(:wat::core::first tail))
+      `(~impl-kw ~@pos ~(wat.core/first tail))
       ;; Normal: reorder by field declaration order using pascal->kebab-in matching
-      (:wat::core::let
+      (wat.core/let
         [ovals
-         (:wat::core::foldl
-           (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST])
-                            fi  <- wat.type/i64]
-             -> (wat.type/Vector :- [wat.type/AST])
-             (:wat::core::let
+         (wat.core/foldl
+           (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST])
+                            fi  :- wat.type/i64]
+             :- (wat.type/Vector :- [wat.type/AST])
+             (wat.core/let
                [fn-node
-                (:wat::core::Option/expect
-                  (:wat::core::get fnames fi)
+                (wat.core.Option/expect
+                  (wat.core/get fnames fi)
                   "kwargs-lower: field index OOB")
                 fkebab
-                (:wat::string::pascal->kebab-in ns-kw
-                  (:wat::core::ast-name fn-node))
+                (wat.string/pascal->kebab-in ns-kw
+                  (wat.core/ast-name fn-node))
                 ;; Scan kvflat for the key matching fkebab; accumulate in a
                 ;; single-element Vector (found) to preserve the matched value.
                 found
-                (:wat::core::foldl
-                  (:wat::core::fn [iacc <- (wat.type/Vector :- [wat.type/AST])
-                                   ki   <- wat.type/i64]
-                    -> (wat.type/Vector :- [wat.type/AST])
-                    (:wat::core::let
+                (wat.core/foldl
+                  (wat.core/fn [iacc :- (wat.type/Vector :- [wat.type/AST])
+                                   ki   :- wat.type/i64]
+                    :- (wat.type/Vector :- [wat.type/AST])
+                    (wat.core/let
                       [kn
-                       (:wat::core::Option/expect
-                         (:wat::core::get kvflat (:wat::i64::* ki 2))
+                       (wat.core.Option/expect
+                         (wat.core/get kvflat (wat.i64/* ki 2))
                          "kwargs-lower: kv-key index OOB")
                        ks
-                       (:wat::core::ast-name kn)
+                       (wat.core/ast-name kn)
                        ;; Strip leading ":" from ":foo-bar" → "foo-bar"
                        ;; (string::strip-leading-colon is a defn, not in is_pure_total;
                        ;;  callers always provide keywords so the colon is always present)
                        kkb
-                       (:wat::string::subs ks 1 (:wat::string::length ks))
+                       (wat.string/subs ks 1 (wat.string/length ks))
                        vn
-                       (:wat::core::Option/expect
-                         (:wat::core::get kvflat (:wat::i64::+ (:wat::i64::* ki 2) 1))
+                       (wat.core.Option/expect
+                         (wat.core/get kvflat (wat.i64/+ (wat.i64/* ki 2) 1))
                          "kwargs-lower: kv-val index OOB")]
                       ;; Only record the first match (iacc empty → still searching)
-                      (:wat::core::if (:wat::core::empty? iacc)
+                      (wat.core/if (wat.core/empty? iacc)
                         
-                        (:wat::core::if (:wat::core::= kkb fkebab)
+                        (wat.core/if (wat.core/= kkb fkebab)
                           
-                          (:wat::core::conj iacc vn)
+                          (wat.core/conj iacc vn)
                           iacc)
                         iacc)))
                   (wat.type/Vector :- [wat.type/AST])
-                  (:wat::core::range 0 nkv))
+                  (wat.core/range 0 nkv))
                 ;; If no key matched → macro-error; otherwise take found[0]
                 v
-                (:wat::core::if (:wat::core::empty? found)
+                (wat.core/if (wat.core/empty? found)
                   
-                  (:wat::core::macro-error
-                    (:wat::string::interpolate "kwargs-lower: missing argument :{fkebab}" :fkebab fkebab))
-                  (:wat::core::Option/expect
-                    (:wat::core::get found 0)
+                  (wat.core/macro-error
+                    (wat.string/interpolate "kwargs-lower: missing argument :{fkebab}" :fkebab fkebab))
+                  (wat.core.Option/expect
+                    (wat.core/get found 0)
                     "kwargs-lower: found[0]"))]
-               (:wat::core::conj acc v)))
+               (wat.core/conj acc v)))
            (wat.type/Vector :- [wat.type/AST])
-           (:wat::core::range 0 nf))]
+           (wat.core/range 0 nf))]
         ;; Arc 294 item 9a — aggregate ctor kwargs mode: when kwargs-ty is the sentinel
         ;; `:wat::core::agg-positional`, emit PURE POSITIONAL to the (prime) ctor `(~impl-kw ~@ovals)`
         ;; — no Kwargs-record wrap. Else defn's shape: positional + a trailing Kwargs record.
-        (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name kwargs-ty)) ":wat::core::agg-positional")
+        (wat.core/if (wat.core/= (wat.core/canonical-identity (wat.core/ast-name kwargs-ty)) ":wat::core::agg-positional")
           
           `(~impl-kw ~@pos ~@ovals)
           ;; Arc 294 item 9a — kwargs-lower is the machinery that KNOWS: it holds the reordered
           ;; values positionally, so it constructs the `::Kwargs` bundle through the PRIME
           ;; `:<name>::Kwargs'` (bare is now the kwargs UX macro). Uniform flip, no exemption.
-          `(~impl-kw ~@pos (~(:wat::core::keyword-node (:wat::string::concat (:wat::core::ast-name kwargs-ty) "'")) ~@ovals)))))))
+          `(~impl-kw ~@pos (~(wat.core/keyword-node (wat.string/concat (wat.core/ast-name kwargs-ty) "'")) ~@ovals)))))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
@@ -670,12 +670,12 @@
 ;; unchanged via rest-binder splicing, and an optional metadata-map threads
 ;; through too — the substrate peels binding-level metadata from the fn-form,
 ;; so the macro template stays metadata-blind and UNCHANGED.
-(:wat::core::defmacro :wat::core::defn
-  [name <- wat.type/AST
-   & rest <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
+(wat.core/defmacro wat.core/defn
+  [name :- wat.type/AST
+   & rest :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
   ;; PROGRAM-BODY path: top-level `let`, quasiquotes only at branch tails.
-  (:wat::core::let
+  (wat.core/let
     [;; Arc 300.1 — faithful-Clojure def-name: a namespaced Symbol name
      ;; (`user/main`, `my/ctor`) is the keyword FQDN's twin. Rebuild it as a
      ;; Keyword node (`:user::main`) so BOTH branches below (kwargs + backward-
@@ -683,26 +683,26 @@
      ;; `~name` both expect a keyword. Bare (no `/`) → `:name`. Additive: a
      ;; Keyword name (the rust-scheme surface) passes straight through.
      name
-     (:wat::core::if (:wat::core::= (:wat::core::ast-kind name) "symbol")
+     (wat.core/if (wat.core/= (wat.core/ast-kind name) "symbol")
        
-       (:wat::core::let
-         [name-raw (:wat::core::ast-name name)
+       (wat.core/let
+         [name-raw (wat.core/ast-name name)
           name-fqdn
-          (:wat::core::if (:wat::string::contains? name-raw "/")
+          (wat.core/if (wat.string/contains? name-raw "/")
             
-            (:wat::core::let
-              [slash-parts (:wat::string::split name-raw "/")
+            (wat.core/let
+              [slash-parts (wat.string/split name-raw "/")
                ;; `first` returns the element directly (raises if empty);
                ;; `last` returns an Option (arc-278 accessor asymmetry).
-               ns-part  (:wat::core::first slash-parts)
-               nm-part  (:wat::core::Option/expect (:wat::core::last slash-parts)
+               ns-part  (wat.core/first slash-parts)
+               nm-part  (wat.core.Option/expect (wat.core/last slash-parts)
                           "defn faithful name: missing name")
-               ns-path  (:wat::string::join "::" (:wat::string::split ns-part "."))]
-              (:wat::string::concat ":"
-                (:wat::string::concat ns-path
-                  (:wat::string::concat "::" nm-part))))
-            (:wat::string::interpolate ":{name-raw}" :name-raw name-raw))]
-         (:wat::core::keyword-node name-fqdn))
+               ns-path  (wat.string/join "::" (wat.string/split ns-part "."))]
+              (wat.string/concat ":"
+                (wat.string/concat ns-path
+                  (wat.string/concat "::" nm-part))))
+            (wat.string/interpolate ":{name-raw}" :name-raw name-raw))]
+         (wat.core/keyword-node name-fqdn))
        name)
      ;; Arc 109 gamma-i row 6 — a `:- [T U ...]` binder MAY ride at the front of
      ;; `rest`, immediately after the name (before the args-vector) — the same
@@ -715,19 +715,19 @@
      ;; `rest2` is `rest` with the binder stripped — used ONLY where the kwargs
      ;; branch below indexes positionally; `rest` itself is UNTOUCHED so the
      ;; backward-compat branch's `~@rest` splice stays byte-identical.
-     has-binder   (:wat::core::if (:wat::i64::>= (:wat::core::length rest) 1)
+     has-binder   (wat.core/if (wat.i64/>= (wat.core/length rest) 1)
 
-                    (:wat::core::let
-                      [b0 (:wat::core::Option/expect (:wat::core::get rest 0) "defn binder detect: b0")]
-                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind b0) "keyword")
-                        (:wat::core::= (:wat::core::ast-name b0) ":-")
+                    (wat.core/let
+                      [b0 (wat.core.Option/expect (wat.core/get rest 0) "defn binder detect: b0")]
+                      (wat.core/if (wat.core/= (wat.core/ast-kind b0) "keyword")
+                        (wat.core/= (wat.core/ast-name b0) ":-")
                         false))
                     false)
      ;; the binder's bare type-param names, in source order (empty when no binder).
      binder-names-ch
-                  (:wat::core::if has-binder
-                    (:wat::core::ast->children
-                      (:wat::core::Option/expect (:wat::core::get rest 1)
+                  (wat.core/if has-binder
+                    (wat.core/ast->children
+                      (wat.core.Option/expect (wat.core/get rest 1)
                         "defn binder: `:-` must be followed by a `[...]` vector"))
                     (wat.type/Vector :- [wat.type/AST]))
      ;; STONE-the-dormant-minter — `binder-tp` (the bracketed `<T,U>` STRING mint that
@@ -739,8 +739,8 @@
      ;; reference form `(Head :- [~@binder-names-ch])` at TYPE positions — never a
      ;; re-serialized angle string. See `record-def`, `impl-def`, and `kwargs-ty-ann`
      ;; below.
-     rest2        (:wat::core::if has-binder
-                    (:wat::core::rest (:wat::core::rest rest))
+     rest2        (wat.core/if has-binder
+                    (wat.core/rest (wat.core/rest rest))
                     rest)
      ;; Arc 109 gamma-i row 3 CORRECTION — a declaration carrying BOTH a name-embedded
      ;; `<...>` type-param spelling AND a `:- [...]` binder is a contradiction, a property
@@ -752,42 +752,42 @@
      ;; `try_parse_fn_shape_def`, `src/runtime.rs`) so every spelling of the rule reads
      ;; identically. `name-str` was already computed above as part of the name
      ;; normalization; reused here rather than recomputed.
-     name-str-parametric? (:wat::string::ends-with? (:wat::keyword::to-string name) ">")
+     name-str-parametric? (wat.string/ends-with? (wat.keyword/to-string name) ">")
      _binder-contradiction-check
-                  (:wat::core::if (:wat::core::if has-binder name-str-parametric? false)
-                    (:wat::core::macro-error
-                      (:wat::string::interpolate
+                  (wat.core/if (wat.core/if has-binder name-str-parametric? false)
+                    (wat.core/macro-error
+                      (wat.string/interpolate
                         "defn: declaration `{name-str}` carries BOTH a name-embedded `<...>` type-param spelling and a `:- [...]` binder — pick one; a declaration with both is a contradiction, never something to silently resolve"
-                        :name-str (:wat::keyword::to-string name)))
+                        :name-str (wat.keyword/to-string name)))
                     nil)
-     params-vec   (:wat::core::first rest2)
-     params-ch    (:wat::core::ast->children params-vec)
-     params-len   (:wat::core::length params-ch)
+     params-vec   (wat.core/first rest2)
+     params-ch    (wat.core/ast->children params-vec)
+     params-len   (wat.core/length params-ch)
      ;; Detect `& [...]` tail: params-len >= 2 AND second-to-last is a Symbol named "&"
      ;; AND last element is a Vector node. `& sym <- :T` (variadic rest) is excluded
      ;; because the element right after `&` is a Symbol (not a Vector).
-     has-kwargs   (:wat::core::if (:wat::i64::>= params-len 2)
+     has-kwargs   (wat.core/if (wat.i64/>= params-len 2)
                     
-                    (:wat::core::let
-                      [stl-node  (:wat::core::Option/expect  
-                                   (:wat::core::get params-ch (:wat::i64::- params-len 2))
+                    (wat.core/let
+                      [stl-node  (wat.core.Option/expect  
+                                   (wat.core/get params-ch (wat.i64/- params-len 2))
                                    "defn kwargs detect: stl index")
-                       last-node (:wat::core::Option/expect  
-                                   (:wat::core::get params-ch (:wat::i64::- params-len 1))
+                       last-node (wat.core.Option/expect  
+                                   (wat.core/get params-ch (wat.i64/- params-len 1))
                                    "defn kwargs detect: last index")]
-                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind stl-node) "symbol")
+                      (wat.core/if (wat.core/= (wat.core/ast-kind stl-node) "symbol")
                         
-                        (:wat::core::if (:wat::core::= (:wat::core::ast-name stl-node) "&")
+                        (wat.core/if (wat.core/= (wat.core/ast-name stl-node) "&")
                           
-                          (:wat::core::= (:wat::core::ast-kind last-node) "vector")
+                          (wat.core/= (wat.core/ast-kind last-node) "vector")
                           false)
                         false))
                     false)]
-    (:wat::core::if has-kwargs
+    (wat.core/if has-kwargs
       
       ;; ── KWARGS BRANCH (Arc 260.1a) ───────────────────────────────────────────
-      (:wat::core::let
-        [name-str        (:wat::keyword::to-string name)
+      (wat.core/let
+        [name-str        (wat.keyword/to-string name)
          ;; ── Arc 278 parametric names: the name / type-param SPLIT ────────────────────
          ;; A kwargs defn MAY be generic (`:my::svc/start :- [T]` — this comment used to add
          ;; "every parametric `defservice`'s auto start/resume is exactly this"). STONE-
@@ -819,55 +819,55 @@
          ;; plain, before either branch is chosen) — so reaching this point with
          ;; `has-binder` true guarantees `name-str-parametric?` is false, and the two never
          ;; silently disagree here.
-         name-parametric? (:wat::core::if has-binder true name-str-parametric?)
-         name-base       (:wat::core::if name-str-parametric?
-                           (:wat::core::first (:wat::string::split name-str "<"))
+         name-parametric? (wat.core/if has-binder true name-str-parametric?)
+         name-base       (wat.core/if name-str-parametric?
+                           (wat.core/first (wat.string/split name-str "<"))
                            name-str)
          ;; STONE-the-dormant-minter — was `binder-tp` (a `<T,U>` string mint) in the
          ;; `has-binder` branch; now always `""`, so every downstream `{b}::Kwargs{p}` /
          ;; `{b}$impl{p}` interpolation below is byte-identical to its bare form.
-         name-tp         (:wat::core::if has-binder
+         name-tp         (wat.core/if has-binder
                            ""
-                           (:wat::core::if name-str-parametric?
-                             (:wat::string::subs name-str
-                               (:wat::string::length name-base)
-                               (:wat::string::length name-str))
+                           (wat.core/if name-str-parametric?
+                             (wat.string/subs name-str
+                               (wat.string/length name-base)
+                               (wat.string/length name-str))
                              ""))
          ;; the companion MACRO's own head — always the bare name (a macro takes no type args)
-         name-base-node  (:wat::core::keyword-node
-                           (:wat::string::interpolate ":{b}" :b name-base))
+         name-base-node  (wat.core/keyword-node
+                           (wat.string/interpolate ":{b}" :b name-base))
          ;; :<name>::Kwargs — the minted bundle type. STONE-the-dormant-minter — always
          ;; the BARE name now (`name-tp` is always ""); a non-empty `binder-names-ch`
          ;; rides as a `:- [...]` sibling on `record-def` (below), not name-embedded.
-         kwargs-ty       (:wat::keyword::from-string
-                           (:wat::string::interpolate "{b}::Kwargs{p}" :b name-base :p name-tp))
-         kwargs-ty-str   (:wat::keyword::to-string kwargs-ty)
+         kwargs-ty       (wat.keyword/from-string
+                           (wat.string/interpolate "{b}::Kwargs{p}" :b name-base :p name-tp))
+         kwargs-ty-str   (wat.keyword/to-string kwargs-ty)
          ;; the BARE bundle name — the CONSTRUCTOR head and the ACCESSOR prefix, both of
          ;; which key on the base (identity when the defn is monomorphic).
-         kwargs-ty-base-str (:wat::string::interpolate "{b}::Kwargs" :b name-base)
+         kwargs-ty-base-str (wat.string/interpolate "{b}::Kwargs" :b name-base)
          ;; The inner argspec Vector node (the last element of params-ch)
-         kw-argvec       (:wat::core::Option/expect  
-                            (:wat::core::last params-ch)
+         kw-argvec       (wat.core.Option/expect  
+                            (wat.core/last params-ch)
                             "defn kwargs: no inner argspec vector")
-         kw-ch           (:wat::core::ast->children kw-argvec)
-         kw-len          (:wat::core::length kw-ch)
-         n-kw-fields     (:wat::i64::/ kw-len 3)
+         kw-ch           (wat.core/ast->children kw-argvec)
+         kw-len          (wat.core/length kw-ch)
+         n-kw-fields     (wat.i64// kw-len 3)
          ;; Validate: no nested `&` inside the kwargs section (flat, one level).
          ;; Iterates over field-name positions (0, 3, 6, …); macro-errors on `&`.
-         _validate       (:wat::core::foldl
-                           (:wat::core::fn [acc <- wat.type/nil i <- wat.type/i64]
-                             -> wat.type/nil
-                             (:wat::core::let
-                               [fname-node (:wat::core::Option/expect  
-                                              (:wat::core::get kw-ch (:wat::i64::* i 3))
+         _validate       (wat.core/foldl
+                           (wat.core/fn [acc :- wat.type/nil i :- wat.type/i64]
+                             :- wat.type/nil
+                             (wat.core/let
+                               [fname-node (wat.core.Option/expect  
+                                              (wat.core/get kw-ch (wat.i64/* i 3))
                                               "defn kwargs validate: field name index")]
-                               (:wat::core::if (:wat::core::= (:wat::core::ast-name fname-node) "&")
+                               (wat.core/if (wat.core/= (wat.core/ast-name fname-node) "&")
                                  
-                                 (:wat::core::macro-error
+                                 (wat.core/macro-error
                                    "defn kwargs section is flat: no nested & — one level")
                                  nil)))
                            nil
-                           (:wat::core::range 0 n-kw-fields))
+                           (wat.core/range 0 n-kw-fields))
          ;; kw-tp-syms — arc 109 β-ii-c per-type param CONSUMPTION (mirrors service.wat's
          ;; `record-tp-syms`, `state-tp-syms`, `admin-tp-syms`): the Kwargs bundle's OWN
          ;; declared binder is not `binder-names-ch` wholesale but the SUBSET actually
@@ -876,7 +876,7 @@
          ;; section) would otherwise be declared on `::Kwargs` and consumed by nothing —
          ;; UnconsumedTypeParam, measured: probe C's own `seed <- :T` is positional, so
          ;; `(::Kwargs :- [T])`'s field vector (`times <- i64` only) never mentions T.
-         kw-tp-syms      (:wat::core::type-params-used-in binder-names-ch kw-argvec)
+         kw-tp-syms      (wat.core/type-params-used-in binder-names-ch kw-argvec)
          ;; Mint the kwargs bundle as a STRUCT (defstruct): a kwargs bundle is a LOCAL
          ;; calling-convention artifact (never stored/shipped) that must accept impure args
          ;; (fns, sockets, resources) — so it is impure/struct, NOT a pure record. Arc 259/278.
@@ -884,18 +884,18 @@
          ;; as a DECLARATION SIBLING on the emitted `defstruct`, never a name-embedded
          ;; `<T,U>` mint. Mirrors `record-def`'s identical conditional splice in
          ;; wat/service.wat (commit 0811c3009).
-         record-def      (:wat::core::if (:wat::core::empty? kw-tp-syms)
-                           `(:wat::core::defstruct ~kwargs-ty ~kw-argvec)
-                           `(:wat::core::defstruct ~kwargs-ty :- [~@kw-tp-syms] ~kw-argvec))
+         record-def      (wat.core/if (wat.core/empty? kw-tp-syms)
+                           `(wat.core/defstruct ~kwargs-ty ~kw-argvec)
+                           `(wat.core/defstruct ~kwargs-ty :- [~@kw-tp-syms] ~kw-argvec))
          ;; HYGIENIC hidden kwargs binder: fresh-symbol stamps a fresh unique scope (arc 274.1) so the
          ;; binder is capture-proof BY CONSTRUCTION — it cannot collide with any caller variable, even one
          ;; literally named "kwargs". (The field binders below stay plain symbol-node — they are
          ;; INTENTIONALLY user-facing, clojure {:keys}.)
-         kw-sym          (:wat::core::fresh-symbol "kwargs")
+         kw-sym          (wat.core/fresh-symbol "kwargs")
          ;; kwargs-ty as a WatAST Keyword node (needed for with-children) — the BARE
          ;; CONSTRUCTOR/declaration-head spelling.
-         kwargs-ty-node  (:wat::core::keyword-node
-                            (:wat::string::interpolate ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
+         kwargs-ty-node  (wat.core/keyword-node
+                            (wat.string/interpolate ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
          ;; kwargs-ty-ann: the TYPE-REFERENCE form for the (possibly generic) kwargs
          ;; bundle. STONE-the-dormant-minter, Arc 109 ③ identity 2c — an ANNOTATION
          ;; position mints the reference FORM `(Head :- [args])` structurally off
@@ -903,7 +903,7 @@
          ;; arg count must match its declaration's), never a re-serialized `<T,U>` string.
          ;; Monomorphic (or T unconsumed by the kwargs fields) ⇒ `kw-tp-syms` is empty ⇒
          ;; byte-identical to bare `kwargs-ty-node`.
-         kwargs-ty-ann   (:wat::core::if (:wat::core::empty? kw-tp-syms)
+         kwargs-ty-ann   (wat.core/if (wat.core/empty? kw-tp-syms)
                            kwargs-ty-node
                            `(~kwargs-ty-node :- [~@kw-tp-syms]))
          ;; Build reshaped params children: drop trailing `& [...]` (last 2), append kw-sym <- kwargs-ty
@@ -911,28 +911,28 @@
          ;; `:wat::core::defn`'s OWN macro body — it runs at macro-expansion time, BEFORE any
          ;; wat-defined helper (`mapv`/`into`/etc.) is resolvable, and even `conj`ing onto a Stream
          ;; would fail. `foldl`+`get`+`conj` stay Rust-native and eager, unaffected by the flip.
-         base-ch         (:wat::core::foldl
-                           (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                             (:wat::core::conj acc
-                               (:wat::core::Option/expect (:wat::core::get params-ch i) "defn kwargs: base-ch index")))
+         base-ch         (wat.core/foldl
+                           (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                             (wat.core/conj acc
+                               (wat.core.Option/expect (wat.core/get params-ch i) "defn kwargs: base-ch index")))
                            (wat.type/Vector :- [wat.type/AST])
-                           (:wat::core::range 0 (:wat::i64::- params-len 2)))
-         arrow-sym       (:wat::core::symbol-node "<-")
+                           (wat.core/range 0 (wat.i64/- params-len 2)))
+         arrow-sym       (wat.core/symbol-node "<-")
          ;; STONE-the-dormant-minter — kw-sym's param type is `kwargs-ty-ann` (the
          ;; reference FORM), not the bare `kwargs-ty-node`: the $impl fn's own body reads
          ;; fields off this param through the accessors, and a generic bundle referenced
          ;; bare (no args) would not carry T through to the accessor result types.
-         reshaped-ch     (:wat::core::conj
-                           (:wat::core::conj
-                             (:wat::core::conj base-ch kw-sym)
+         reshaped-ch     (wat.core/conj
+                           (wat.core/conj
+                             (wat.core/conj base-ch kw-sym)
                              arrow-sym)
                            kwargs-ty-ann)
-         reshaped-params (:wat::core::with-children params-vec reshaped-ch)
+         reshaped-params (wat.core/with-children params-vec reshaped-ch)
          ;; ret-type: rest2[2] (after params-vec and ->). Arc 109 gamma-i row 6 — reads
          ;; `rest2` (binder-stripped), not `rest`, so a binder-spelled kwargs defn's
          ;; indices realign the same way `params-vec` above already does.
-         ret-type        (:wat::core::Option/expect
-                            (:wat::core::get rest2 2)
+         ret-type        (wat.core.Option/expect
+                            (wat.core/get rest2 2)
                             "defn kwargs: no return type")
          ;; body forms: rest2[3..] (everything after params-vec -> ret-type)
          ;; Arc 118.2a — was `(:wat::core::drop rest 3)`. `drop` flipped LAZY; this is
@@ -941,7 +941,7 @@
          ;; `rest`/`rest2` stays eager/container-preserving on a real Vector, so drop 3 via
          ;; 3x `rest` (same trick as `:wat::rete::defrule`'s and `:wat::service::defservice`'s
          ;; fixes). Arc 109 gamma-i row 6 — reads `rest2`, see `ret-type` above.
-         body-forms      (:wat::core::rest (:wat::core::rest (:wat::core::rest rest2)))
+         body-forms      (wat.core/rest (wat.core/rest (wat.core/rest rest2)))
          ;; Build destructure let-binder items:
          ;;   [field1-sym (:<name>::Kwargs/field1 __kwargs__)  field2-sym (…) …]
          ;; Arc 118.2a — `field-indices` (was `(:wat::core::map (fn [i] (* i 3)) (range 0 n-kw-fields))`)
@@ -949,16 +949,16 @@
          ;; macro body (same wall as `base-ch`/`body-forms` above). Iterate `(range 0 n-kw-fields)`
          ;; directly (raw positions 0,1,2,…) and multiply by 3 inline instead of pre-computing the
          ;; 0,3,6,… index Vector — same result, one fewer intermediate, no `map` needed at all.
-         let-binder-items (:wat::core::foldl
-                            (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST])
-                                             fi  <- wat.type/i64]
-                              -> (wat.type/Vector :- [wat.type/AST])
-                              (:wat::core::let
-                                [i             (:wat::i64::* fi 3)
-                                 fname-node    (:wat::core::Option/expect
-                                                 (:wat::core::get kw-ch i)
+         let-binder-items (wat.core/foldl
+                            (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST])
+                                             fi  :- wat.type/i64]
+                              :- (wat.type/Vector :- [wat.type/AST])
+                              (wat.core/let
+                                [i             (wat.i64/* fi 3)
+                                 fname-node    (wat.core.Option/expect
+                                                 (wat.core/get kw-ch i)
                                                  "defn kwargs let-binder: field name index")
-                                 fname-str     (:wat::core::ast-name fname-node)
+                                 fname-str     (wat.core/ast-name fname-node)
                                  ;; HYGIENIC field binder: REUSE the original argspec symbol node
                                  ;; (fname-node), NOT a string rebuild. The argspec binder and the
                                  ;; fn body are authored in the same hygiene context, so they share a
@@ -970,51 +970,51 @@
                                  ;; any macro-emission depth.
                                  binder-sym    fname-node
                                  ;; Accessor keyword: :<name>::Kwargs/<field-name>
-                                 accessor-kw   (:wat::keyword::from-string
-                                                 (:wat::string::concat kwargs-ty-base-str
-                                                   (:wat::string::interpolate "/{fname-str}" :fname-str fname-str)))
+                                 accessor-kw   (wat.keyword/from-string
+                                                 (wat.string/concat kwargs-ty-base-str
+                                                   (wat.string/interpolate "/{fname-str}" :fname-str fname-str)))
                                  ;; Accessor call: (:<name>::Kwargs/<field> __kwargs__)
                                  accessor-call `(~accessor-kw ~kw-sym)]
-                                (:wat::core::conj
-                                  (:wat::core::conj acc binder-sym)
+                                (wat.core/conj
+                                  (wat.core/conj acc binder-sym)
                                   accessor-call)))
                             (wat.type/Vector :- [wat.type/AST])
-                            (:wat::core::range 0 n-kw-fields))
+                            (wat.core/range 0 n-kw-fields))
          ;; Wrap let-binder-items as a WatAST::Vector (kw-argvec is the shape template)
-         let-binders-vec (:wat::core::with-children kw-argvec let-binder-items)
+         let-binders-vec (wat.core/with-children kw-argvec let-binder-items)
          ;; ── Arc 260.1b: companion macro additions ────────────────────────────
          ;; impl-head-colon-str: ":<name>$impl" — the $impl fn's keyword string
-         impl-head-colon-str (:wat::string::interpolate ":{b}$impl{p}" :b name-base :p name-tp)
+         impl-head-colon-str (wat.string/interpolate ":{b}$impl{p}" :b name-base :p name-tp)
          ;; the $impl CALL head baked into the companion macro — bare base (a call resolves
          ;; on the base name; the type args are inferred from the arguments there).
-         impl-call-colon-str (:wat::string::interpolate ":{b}$impl" :b name-base)
+         impl-call-colon-str (wat.string/interpolate ":{b}$impl" :b name-base)
          ;; kwargs-ty-colon-str: ":<name>::Kwargs" — the CONSTRUCTOR head kwargs-lower emits.
-         kwargs-ty-colon-str (:wat::string::interpolate ":{kwargs-ty-base-str}" :kwargs-ty-base-str kwargs-ty-base-str)
+         kwargs-ty-colon-str (wat.string/interpolate ":{kwargs-ty-base-str}" :kwargs-ty-base-str kwargs-ty-base-str)
          ;; n-pos: count of leading positional params (all params before `& [...]`)
-         n-pos               (:wat::i64::/ (:wat::i64::- params-len 2) 3)
+         n-pos               (wat.i64// (wat.i64/- params-len 2) 3)
          ;; fname-nodes: (Vector :- [WatAST]) of field-name symbol nodes in declared order.
          ;; Arc 118.2a — was `map`; same bootstrap wall as `base-ch`/`body-forms`/`let-binder-items`
          ;; above. `foldl`+`conj` stay Rust-native and eager.
-         fname-nodes         (:wat::core::foldl
-                               (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                                 (:wat::core::conj acc
-                                   (:wat::core::Option/expect
-                                     (:wat::core::get kw-ch (:wat::i64::* i 3))
+         fname-nodes         (wat.core/foldl
+                               (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                                 (wat.core/conj acc
+                                   (wat.core.Option/expect
+                                     (wat.core/get kw-ch (wat.i64/* i 3))
                                      "defn kwargs fname-nodes: index")))
                                (wat.type/Vector :- [wat.type/AST])
-                               (:wat::core::range 0 n-kw-fields))
+                               (wat.core/range 0 n-kw-fields))
          ;; field-names-ast-vec: WatAST Vector node of fname symbol nodes
          ;; (baked into the companion macro via (:wat::core::quote ~field-names-ast-vec))
-         field-names-ast-vec (:wat::core::with-children kw-argvec fname-nodes)
+         field-names-ast-vec (wat.core/with-children kw-argvec fname-nodes)
          ;; impl-name-node: WatAST Keyword node for the $impl fn (used in the def form)
-         impl-name-node      (:wat::core::keyword-node impl-head-colon-str)
-         impl-call-node      (:wat::core::keyword-node impl-call-colon-str)
+         impl-name-node      (wat.core/keyword-node impl-head-colon-str)
+         impl-call-node      (wat.core/keyword-node impl-call-colon-str)
          ;; call-args-sym: rest-arg binder for the companion defmacro.
          ;; symbol-node (not fresh-symbol): the argspec name key is stored as a bare string
          ;; by parse_defmacro_form (ident.as_str()); env_key for a scoped fresh-symbol would
          ;; NOT match the bare "call-args" binding key inserted by expand_program_body.
          ;; No capture risk: call-args is an internal macro parameter, not user-visible.
-         call-args-sym       (:wat::core::symbol-node "call-args")
+         call-args-sym       (wat.core/symbol-node "call-args")
          ;; ── W2a: the kwargs-check name + the recursion guard ──
          ;; kwargs-check-name-str: "<name>::kwargs-check" (bare string); kwargs-check-kw: the
          ;; keyword node ":<name>::kwargs-check" for the auto-minted fn's own def head.
@@ -1023,12 +1023,12 @@
          ;; defn (`mint-coords?`). Those are keyed off the BASE so a parametric name still
          ;; yields a WELL-FORMED companion; a parametric DIALING kwargs defn (type params that
          ;; must reach these carriers) is unproven and out of this strike's scope.
-         kwargs-check-name-str (:wat::string::interpolate "{name-base}::kwargs-check" :name-base name-base)
-         kwargs-check-kw       (:wat::core::keyword-node
-                                  (:wat::string::interpolate ":{kwargs-check-name-str}" :kwargs-check-name-str kwargs-check-name-str))
+         kwargs-check-name-str (wat.string/interpolate "{name-base}::kwargs-check" :name-base name-base)
+         kwargs-check-kw       (wat.core/keyword-node
+                                  (wat.string/interpolate ":{kwargs-check-name-str}" :kwargs-check-name-str kwargs-check-name-str))
          ;; GUARD: this defn is ITSELF a kwargs-check (it has `& [...]`, so it took the kwargs
          ;; branch too) → do NOT mint ITS checker (infinite mint). Suffix test on the bare name.
-         is-check (:wat::string::ends-with? name-base "::kwargs-check")
+         is-check (wat.string/ends-with? name-base "::kwargs-check")
          ;; Arc 109 ③ — angle brackets are ILLEGAL for types, so a parametric type slot
          ;; (`Peer<S,R>`) that used to be ONE Keyword node (whose `ast-name` was the whole
          ;; angle-bracket string) now arrives as the reference FORM `(Head :- [args])`, a
@@ -1049,44 +1049,44 @@
          ;; whether spelled as a bare Keyword or the `(Head :- [args])` List form (reads the
          ;; List's own head).
          kwargs-type-slot-name
-           (:wat::core::fn [node <- wat.type/AST] -> wat.type/String
-             (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-               (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children node)))
-               (:wat::core::ast-name node)))
+           (wat.core/fn [node :- wat.type/AST] :- wat.type/String
+             (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+               (wat.core/ast-name (wat.core/first (wat.core/ast->children node)))
+               (wat.core/ast-name node)))
          ;; Stone 255.21 (C-b1b) — kwargs-type-slot-rehead: rebuild a `(Peer :- [S R])` slot as
          ;; `(<head> :- [S R ~@extra])`, STRUCTURALLY: the new head keyword replaces child 0, and
          ;; `extra` is appended to the slot's OWN `[S R]` vector node (`with-children` on both the
          ;; List and the Vector, so spans survive). Retires `kwargs-type-slot-swap-head`, which
          ;; substring-substituted the head's TEXT (`string::split`+`string::join`).
          kwargs-type-slot-rehead
-           (:wat::core::fn [node <- wat.type/AST
-                            head <- wat.type/String
-                            extra <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST
-             (:wat::core::let
-               [ch       (:wat::core::ast->children node)
-                binder   (:wat::core::Option/expect (:wat::core::get ch 1) "kwargs rehead: a (Peer :- [S R]) slot carries its :-")
-                args-v   (:wat::core::Option/expect (:wat::core::get ch 2) "kwargs rehead: a (Peer :- [S R]) slot carries its [S R] vector")
-                new-args (:wat::core::foldl
-                           (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) x <- wat.type/AST]
-                             -> (wat.type/Vector :- [wat.type/AST])
-                             (:wat::core::conj acc x))
-                           (:wat::core::ast->children args-v)
+           (wat.core/fn [node :- wat.type/AST
+                            head :- wat.type/String
+                            extra :- (wat.type/Vector :- [wat.type/AST])] :- wat.type/AST
+             (wat.core/let
+               [ch       (wat.core/ast->children node)
+                binder   (wat.core.Option/expect (wat.core/get ch 1) "kwargs rehead: a (Peer :- [S R]) slot carries its :-")
+                args-v   (wat.core.Option/expect (wat.core/get ch 2) "kwargs rehead: a (Peer :- [S R]) slot carries its [S R] vector")
+                new-args (wat.core/foldl
+                           (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) x :- wat.type/AST]
+                             :- (wat.type/Vector :- [wat.type/AST])
+                             (wat.core/conj acc x))
+                           (wat.core/ast->children args-v)
                            extra)]
-               (:wat::core::with-children node
-                 (:wat::core::conj
-                   (:wat::core::conj
-                     (:wat::core::conj (wat.type/Vector :- [wat.type/AST]) (:wat::core::keyword-node head))
+               (wat.core/with-children node
+                 (wat.core/conj
+                   (wat.core/conj
+                     (wat.core/conj (wat.type/Vector :- [wat.type/AST]) (wat.core/keyword-node head))
                      binder)
-                   (:wat::core::with-children args-v new-args)))))
+                   (wat.core/with-children args-v new-args)))))
          ;; Stone 255.21 (C-b1b) — kwargs-type-slot-peer?: is this type slot a SERVICE field, the
          ;; parsed reference form `(:wat::kernel::Peer :- [S R])`? A STRUCTURAL test: a List whose
          ;; head keyword IS `:wat::kernel::Peer`. It retires the `(string::contains? nm "Peer")`
          ;; substring test that stood in all nine places below, which read any type whose NAME
          ;; merely contained "Peer" as a service.
          kwargs-type-slot-peer?
-           (:wat::core::fn [node <- wat.type/AST] -> wat.type/bool
-             (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-               (:wat::core::= (kwargs-type-slot-name node) ":wat::kernel::Peer")
+           (wat.core/fn [node :- wat.type/AST] :- wat.type/bool
+             (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+               (wat.core/= (kwargs-type-slot-name node) ":wat::kernel::Peer")
                false))
          ;; Stone 255.21 (C-b1b) — kwargs-field-tp: the TRANSPORT type parameter the generated
          ;; `::kwargs-check` / `::GrantHandles` / `::grant-worker` / `::revoke-worker` DECLARE for
@@ -1094,45 +1094,45 @@
          ;; `(TypedCapability :- [S R T<i>])`; `T<i>` is bound from the handle the caller passes
          ;; (a thread handle binds Shared, a process handle Wire), never assumed.
          kwargs-field-tp
-           (:wat::core::fn [i <- wat.type/i64] -> wat.type/AST
-             (:wat::core::symbol-node (:wat::string::concat "T" (:wat::i64::to-string i))))
+           (wat.core/fn [i :- wat.type/i64] :- wat.type/AST
+             (wat.core/symbol-node (wat.string/concat "T" (wat.i64/to-string i))))
          ;; the service-field kwargs positions, in order (`i` such that field `i`'s type slot is a
          ;; Peer), and the transport binder they declare — one `T<i>` per service field.
-         peer-field-idxs (:wat::core::foldl
-                           (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/i64]) i <- wat.type/i64]
-                             -> (wat.type/Vector :- [wat.type/i64])
-                             (:wat::core::if
+         peer-field-idxs (wat.core/foldl
+                           (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/i64]) i :- wat.type/i64]
+                             :- (wat.type/Vector :- [wat.type/i64])
+                             (wat.core/if
                                (kwargs-type-slot-peer?
-                                 (:wat::core::Option/expect
-                                   (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                                 (wat.core.Option/expect
+                                   (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                    "255.21 peer-field-idxs: type index"))
-                               (:wat::core::conj acc i)
+                               (wat.core/conj acc i)
                                acc))
                            (wat.type/Vector :- [wat.type/i64])
-                           (:wat::core::range 0 n-kw-fields))
-         peer-tp-syms    (:wat::core::foldl
-                           (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64]
-                             -> (wat.type/Vector :- [wat.type/AST])
-                             (:wat::core::conj acc (kwargs-field-tp i)))
+                           (wat.core/range 0 n-kw-fields))
+         peer-tp-syms    (wat.core/foldl
+                           (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64]
+                             :- (wat.type/Vector :- [wat.type/AST])
+                             (wat.core/conj acc (kwargs-field-tp i)))
                            (wat.type/Vector :- [wat.type/AST])
                            peer-field-idxs)
          ;; ── the head-swapped argvec: fold kw-ch, swap Peer TYPE nodes only ──
          ;; kw-ch is flat triples [fname@j·3, arrow@j·3+1, type@j·3+2]; only the type position
          ;; (j mod 3 == 2) is ever swapped, and only when it names a (Peer :- [S R]) (data-typed
          ;; fields pass through as `child` unchanged).
-         swapped-ch (:wat::core::foldl
-                      (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) j <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                        (:wat::core::let
-                          [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2a swapped-ch index")
-                           is-type (:wat::core::= (:wat::i64::mod j 3) 2)
-                           is-peer (:wat::core::if is-type (kwargs-type-slot-peer? child) false)
-                           swapped (:wat::core::if is-peer
+         swapped-ch (wat.core/foldl
+                      (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) j :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                        (wat.core/let
+                          [child   (wat.core.Option/expect (wat.core/get kw-ch j) "w2a swapped-ch index")
+                           is-type (wat.core/= (wat.i64/mod j 3) 2)
+                           is-peer (wat.core/if is-type (kwargs-type-slot-peer? child) false)
+                           swapped (wat.core/if is-peer
                                      (kwargs-type-slot-rehead child ":wat::kernel::Address" (wat.type/Vector :- [wat.type/AST]))
                                      child)]
-                          (:wat::core::conj acc swapped)))
+                          (wat.core/conj acc swapped)))
                       (wat.type/Vector :- [wat.type/AST])
-                      (:wat::core::range 0 kw-len))
-         swapped-argvec (:wat::core::with-children kw-argvec swapped-ch)
+                      (wat.core/range 0 kw-len))
+         swapped-argvec (wat.core/with-children kw-argvec swapped-ch)
          ;; ── arc 170 W2 Strike 1a (record redirect): mint <fqdn>::Coords + checker returns it ──
          ;; The coords CARRIER is a NAMED RECORD, not a positional Tuple — addressed by field NAME,
          ;; so N-service reconciliation has NO positional-accessor cap AND data fields fall out for
@@ -1140,12 +1140,12 @@
          ;; EDN-crossable — it IS the PoolMsg::Setup wire payload) whose fields are the HEAD-SWAPPED
          ;; argvec (each (Peer :- [S R]) → (Address :- [S R]); data fields keep their own type), SAME field
          ;; names + order as `::Kwargs`. Reuses the `swapped-argvec` field nodes verbatim.
-         coords-ty-str (:wat::string::interpolate "{name-base}::Coords" :name-base name-base)
-         coords-kw     (:wat::core::keyword-node (:wat::string::interpolate ":{coords-ty-str}" :coords-ty-str coords-ty-str))
+         coords-ty-str (wat.string/interpolate "{name-base}::Coords" :name-base name-base)
+         coords-kw     (wat.core/keyword-node (wat.string/interpolate ":{coords-ty-str}" :coords-ty-str coords-ty-str))
          ;; arc 294 9a kwargs flip: bare aggregate name is now the KWARGS MACRO; the POSITIONAL
          ;; ctor moved to the type-name PRIME. This is GENERATED code constructing a just-minted
          ;; aggregate positionally (see kwargs-check-def below) — use the prime, never the bare name.
-         coords-prime-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat coords-ty-str "'")))
+         coords-prime-kw (wat.core/keyword-node (wat.string/concat ":" (wat.string/concat coords-ty-str "'")))
          ;; has-peer-field?: does the kwargs section declare ≥1 `(Peer :- [S R])` field? This is the
          ;; SEMANTIC gate for "is this a DIALING work-fn" — the ONLY kind that needs a `::Coords`
          ;; dial-carrier (services are declared `Peer` and dialed; data fields ride along). Read
@@ -1162,19 +1162,19 @@
          ;; work-fn's own fields are all crossable (Peer→Address + EDN data); a hypothetical
          ;; dialing bundle carrying an impure data field would still (correctly) fail Coords minting
          ;; with a LOCATED 293.W diagnostic naming that field — the honest error, not a Tuple fallback.
-         has-peer-field (:wat::core::foldl
-                          (:wat::core::fn [acc <- wat.type/bool i <- wat.type/i64] -> wat.type/bool
-                            (:wat::core::if acc true
+         has-peer-field (wat.core/foldl
+                          (wat.core/fn [acc :- wat.type/bool i :- wat.type/i64] :- wat.type/bool
+                            (wat.core/if acc true
                               (kwargs-type-slot-peer?
-                                (:wat::core::Option/expect
-                                  (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                                (wat.core.Option/expect
+                                  (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                   "w2a has-peer-field: type index"))))
                           false
-                          (:wat::core::range 0 n-kw-fields))
+                          (wat.core/range 0 n-kw-fields))
          ;; mint-coords?: the checker itself is a kwargs defn (has `& [...]`) so it re-enters this
          ;; branch — the `is-check` suffix guard stops the infinite mint (no Coords/checker for a
          ;; `::kwargs-check`). Otherwise gate on being a dialing (Peer-bearing) work-fn.
-         mint-coords? (:wat::core::if is-check false has-peer-field)
+         mint-coords? (wat.core/if is-check false has-peer-field)
          ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — (Peer :- [S R]) → (TypedCapability :- [S R T<i>]) ──
          ;; A SECOND re-head, parallel to `swapped-ch` (Address) but targeting the combined
          ;; `(:wat::capability::TypedCapability :- [S R T])` surface (capability.wat) instead. This is
@@ -1184,61 +1184,61 @@
          ;; `::Coords`'s field TYPES (the pure crossing carrier). Stone 255.21 (C-b1b): the surface
          ;; names its transport, so each service field `i` gets its OWN declared transport param
          ;; `T<i>` (`kwargs-field-tp`), bound by the handle the caller passes.
-         capswapped-ch (:wat::core::foldl
-                          (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) j <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                            (:wat::core::let
-                              [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2d capswapped-ch index")
-                               is-type (:wat::core::= (:wat::i64::mod j 3) 2)
-                               is-peer (:wat::core::if is-type (kwargs-type-slot-peer? child) false)
-                               swapped (:wat::core::if is-peer
+         capswapped-ch (wat.core/foldl
+                          (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) j :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                            (wat.core/let
+                              [child   (wat.core.Option/expect (wat.core/get kw-ch j) "w2d capswapped-ch index")
+                               is-type (wat.core/= (wat.i64/mod j 3) 2)
+                               is-peer (wat.core/if is-type (kwargs-type-slot-peer? child) false)
+                               swapped (wat.core/if is-peer
                                          (kwargs-type-slot-rehead child ":wat::capability::TypedCapability"
-                                           (:wat::core::conj (wat.type/Vector :- [wat.type/AST])
-                                             (kwargs-field-tp (:wat::i64::/ j 3))))
+                                           (wat.core/conj (wat.type/Vector :- [wat.type/AST])
+                                             (kwargs-field-tp (wat.i64// j 3))))
                                          child)]
-                              (:wat::core::conj acc swapped)))
+                              (wat.core/conj acc swapped)))
                           (wat.type/Vector :- [wat.type/AST])
-                          (:wat::core::range 0 kw-len))
-         capswapped-argvec (:wat::core::with-children kw-argvec capswapped-ch)
+                          (wat.core/range 0 kw-len))
+         capswapped-argvec (wat.core/with-children kw-argvec capswapped-ch)
          ;; ── ::GrantHandles — the impure, is-peer-FILTERED parent-local carrier ──────────────
          ;; A `defstruct` (impure-permitting, like `::Kwargs` itself) of ONLY the service fields,
          ;; each typed `(TypedCapability :- [Si Ri T<i>])` (capswapped). Data fields never enter it — they
          ;; carry no capability to grant. Read `kw-ch`'s ORIGINAL (unswapped) type per field —
          ;; same is-peer test as `has-peer-field`, applied per-field here.
-         grant-handles-ty-str (:wat::string::interpolate "{name-base}::GrantHandles" :name-base name-base)
-         grant-handles-kw     (:wat::core::keyword-node (:wat::string::interpolate ":{grant-handles-ty-str}" :grant-handles-ty-str grant-handles-ty-str))
+         grant-handles-ty-str (wat.string/interpolate "{name-base}::GrantHandles" :name-base name-base)
+         grant-handles-kw     (wat.core/keyword-node (wat.string/interpolate ":{grant-handles-ty-str}" :grant-handles-ty-str grant-handles-ty-str))
          ;; arc 294 9a kwargs flip: positional ctor of this just-minted aggregate moves to the prime.
-         grant-handles-prime-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat grant-handles-ty-str "'")))
-         gh-field-triples (:wat::core::foldl
-                             (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                               (:wat::core::let
-                                 [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d gh-field: fname index")
-                                  orig-ty    (:wat::core::Option/expect
-                                               (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+         grant-handles-prime-kw (wat.core/keyword-node (wat.string/concat ":" (wat.string/concat grant-handles-ty-str "'")))
+         gh-field-triples (wat.core/foldl
+                             (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                               (wat.core/let
+                                 [fname-node (wat.core.Option/expect (wat.core/get fname-nodes i) "w2d gh-field: fname index")
+                                  orig-ty    (wat.core.Option/expect
+                                               (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                                "w2d gh-field: type index")
                                   is-peer    (kwargs-type-slot-peer? orig-ty)
-                                  cap-ty     (:wat::core::Option/expect
-                                               (:wat::core::get capswapped-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                                  cap-ty     (wat.core.Option/expect
+                                               (wat.core/get capswapped-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                                "w2d gh-field: capswapped type index")]
-                                 (:wat::core::if is-peer
-                                   (:wat::core::conj (:wat::core::conj (:wat::core::conj acc fname-node) arrow-sym) cap-ty)
+                                 (wat.core/if is-peer
+                                   (wat.core/conj (wat.core/conj (wat.core/conj acc fname-node) arrow-sym) cap-ty)
                                    acc)))
                              (wat.type/Vector :- [wat.type/AST])
-                             (:wat::core::range 0 n-kw-fields))
-         grant-handles-field-vec (:wat::core::with-children kw-argvec gh-field-triples)
+                             (wat.core/range 0 n-kw-fields))
+         grant-handles-field-vec (wat.core/with-children kw-argvec gh-field-triples)
          ;; Stone 255.21 (C-b1b): each GrantHandles field is `(TypedCapability :- [S R T<i>])`, so the
          ;; carrier DECLARES the service fields' transport params (`peer-tp-syms`), and every type
          ;; position that names it takes the reference form `(GrantHandles :- [T<i> …])`.
          grant-handles-ann `(~grant-handles-kw :- [~@peer-tp-syms])
-         grant-handles-def (:wat::core::if mint-coords?
-                              `(:wat::core::defstruct ~grant-handles-kw :- [~@peer-tp-syms] ~grant-handles-field-vec)
-                              `(:wat::core::do nil))
+         grant-handles-def (wat.core/if mint-coords?
+                              `(wat.core/defstruct ~grant-handles-kw :- [~@peer-tp-syms] ~grant-handles-field-vec)
+                              `(wat.core/do nil))
          ;; ── the Coords record + checker forms (guarded) ──
          ;; GUARD NO-OP = (do nil), NOT an empty (do): an empty `(:wat::core::do)` is ILLEGAL —
          ;; "do form requires at least one form; got zero". `(do nil)` has one form, evaluates to
          ;; nil, is discarded as a harmless top-level form.
-         coords-def (:wat::core::if mint-coords?
-                      `(:wat::core::defrecord ~coords-kw ~swapped-argvec)
-                      `(:wat::core::do nil))
+         coords-def (wat.core/if mint-coords?
+                      `(wat.core/defrecord ~coords-kw ~swapped-argvec)
+                      `(wat.core/do nil))
          ;; The checker's body now builds BOTH carriers and returns them as a Tuple:
          ;; (::Coords field-1 …) — a service field is coord'd off the TypedCapability param
          ;; (`TypedCapability/coord`) before entering the pure Address-typed Coords record; a
@@ -1249,156 +1249,156 @@
          ;; names via `capswapped-argvec` — hygienic by construction, mirrors the $impl
          ;; let-binder reuse above). The gate (param types are now `(TypedCapability :- [S R T<i>])` → a
          ;; swapped handle TypeMismatches) and the carrier-assembly (this body) are ONE act.
-         coords-ctor-args (:wat::core::foldl
-                             (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                               (:wat::core::let
-                                 [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d coords-ctor-args: fname index")
-                                  orig-ty    (:wat::core::Option/expect
-                                               (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+         coords-ctor-args (wat.core/foldl
+                             (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                               (wat.core/let
+                                 [fname-node (wat.core.Option/expect (wat.core/get fname-nodes i) "w2d coords-ctor-args: fname index")
+                                  orig-ty    (wat.core.Option/expect
+                                               (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                                "w2d coords-ctor-args: type index")
                                   is-peer    (kwargs-type-slot-peer? orig-ty)
-                                  arg-form   (:wat::core::if is-peer
-                                               `(:wat::capability::TypedCapability/coord ~fname-node)
+                                  arg-form   (wat.core/if is-peer
+                                               `(wat.capability.TypedCapability/coord ~fname-node)
                                                fname-node)]
-                                 (:wat::core::conj acc arg-form)))
+                                 (wat.core/conj acc arg-form)))
                              (wat.type/Vector :- [wat.type/AST])
-                             (:wat::core::range 0 n-kw-fields))
-         gh-ctor-args (:wat::core::foldl
-                        (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                          (:wat::core::let
-                            [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d gh-ctor-args: fname index")
-                             orig-ty    (:wat::core::Option/expect
-                                          (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                             (wat.core/range 0 n-kw-fields))
+         gh-ctor-args (wat.core/foldl
+                        (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                          (wat.core/let
+                            [fname-node (wat.core.Option/expect (wat.core/get fname-nodes i) "w2d gh-ctor-args: fname index")
+                             orig-ty    (wat.core.Option/expect
+                                          (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                           "w2d gh-ctor-args: type index")
                              is-peer    (kwargs-type-slot-peer? orig-ty)]
-                            (:wat::core::if is-peer (:wat::core::conj acc fname-node) acc)))
+                            (wat.core/if is-peer (wat.core/conj acc fname-node) acc)))
                         (wat.type/Vector :- [wat.type/AST])
-                        (:wat::core::range 0 n-kw-fields))
+                        (wat.core/range 0 n-kw-fields))
          ;; Stone 255.21 (C-b1b): the checker DECLARES one transport param per service field
          ;; (`peer-tp-syms`, the `T<i>` its capswapped params mention), bound from the handles the
          ;; caller passes; its return names the generic GrantHandles as a reference form.
          pair-ty      `(wat.type/Tuple :- [~coords-kw ~grant-handles-ann])
-         kwargs-check-def (:wat::core::if mint-coords?
-                            `(:wat::core::defn ~kwargs-check-kw :- [~@peer-tp-syms] [& ~capswapped-argvec] -> ~pair-ty
-                               (wat.type/Tuple :- [(:wat::core::unquote coords-kw) (:wat::core::unquote grant-handles-ann)] (~coords-prime-kw ~@coords-ctor-args) (~grant-handles-prime-kw ~@gh-ctor-args)))
-                            `(:wat::core::do nil))
+         kwargs-check-def (wat.core/if mint-coords?
+                            `(wat.core/defn ~kwargs-check-kw :- [~@peer-tp-syms] [& ~capswapped-argvec] :- ~pair-ty
+                               (wat.type/Tuple :- [(wat.core/unquote coords-kw) (wat.core/unquote grant-handles-ann)] (~coords-prime-kw ~@coords-ctor-args) (~grant-handles-prime-kw ~@gh-ctor-args)))
+                            `(wat.core/do nil))
          ;; ── <fqdn>::grant-worker / revoke-worker — unrolled typed grant|revoke over the
          ;; literal service-field list of ::GrantHandles. `handles-sym`/`pid-sym` are reused
          ;; (by identity) between the defn's own param binders and the body's call forms —
          ;; hygienic, mirrors `grantable-self-sym`/`grantable-pids-sym` in wat/service.wat.
-         grant-worker-name-str  (:wat::string::interpolate "{name-base}::grant-worker" :name-base name-base)
-         revoke-worker-name-str (:wat::string::interpolate "{name-base}::revoke-worker" :name-base name-base)
-         grant-worker-kw  (:wat::core::keyword-node (:wat::string::interpolate ":{grant-worker-name-str}" :grant-worker-name-str grant-worker-name-str))
-         revoke-worker-kw (:wat::core::keyword-node (:wat::string::interpolate ":{revoke-worker-name-str}" :revoke-worker-name-str revoke-worker-name-str))
-         gw-handles-sym (:wat::core::symbol-node "handles")
-         gw-pid-sym     (:wat::core::symbol-node "pid")
-         grant-calls (:wat::core::foldl
-                       (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                         (:wat::core::let
-                           [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d grant-calls: fname index")
-                            orig-ty    (:wat::core::Option/expect
-                                         (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+         grant-worker-name-str  (wat.string/interpolate "{name-base}::grant-worker" :name-base name-base)
+         revoke-worker-name-str (wat.string/interpolate "{name-base}::revoke-worker" :name-base name-base)
+         grant-worker-kw  (wat.core/keyword-node (wat.string/interpolate ":{grant-worker-name-str}" :grant-worker-name-str grant-worker-name-str))
+         revoke-worker-kw (wat.core/keyword-node (wat.string/interpolate ":{revoke-worker-name-str}" :revoke-worker-name-str revoke-worker-name-str))
+         gw-handles-sym (wat.core/symbol-node "handles")
+         gw-pid-sym     (wat.core/symbol-node "pid")
+         grant-calls (wat.core/foldl
+                       (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                         (wat.core/let
+                           [fname-node (wat.core.Option/expect (wat.core/get fname-nodes i) "w2d grant-calls: fname index")
+                            orig-ty    (wat.core.Option/expect
+                                         (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                          "w2d grant-calls: type index")
                             is-peer    (kwargs-type-slot-peer? orig-ty)
-                            fname-str  (:wat::core::ast-name fname-node)
-                            acc-kw     (:wat::core::keyword-node
-                                         (:wat::string::concat ":"
-                                           (:wat::string::concat grant-handles-ty-str
-                                             (:wat::string::concat "/" fname-str))))
-                            call-form  `(:wat::capability::TypedCapability/grant (~acc-kw ~gw-handles-sym) (wat.type/Vector :- [wat.type/i64] ~gw-pid-sym))]
-                           (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
+                            fname-str  (wat.core/ast-name fname-node)
+                            acc-kw     (wat.core/keyword-node
+                                         (wat.string/concat ":"
+                                           (wat.string/concat grant-handles-ty-str
+                                             (wat.string/concat "/" fname-str))))
+                            call-form  `(wat.capability.TypedCapability/grant (~acc-kw ~gw-handles-sym) (wat.type/Vector :- [wat.type/i64] ~gw-pid-sym))]
+                           (wat.core/if is-peer (wat.core/conj acc call-form) acc)))
                        (wat.type/Vector :- [wat.type/AST])
-                       (:wat::core::range 0 n-kw-fields))
-         revoke-calls (:wat::core::foldl
-                        (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                          (:wat::core::let
-                            [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d revoke-calls: fname index")
-                             orig-ty    (:wat::core::Option/expect
-                                          (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                       (wat.core/range 0 n-kw-fields))
+         revoke-calls (wat.core/foldl
+                        (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                          (wat.core/let
+                            [fname-node (wat.core.Option/expect (wat.core/get fname-nodes i) "w2d revoke-calls: fname index")
+                             orig-ty    (wat.core.Option/expect
+                                          (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                                           "w2d revoke-calls: type index")
                              is-peer    (kwargs-type-slot-peer? orig-ty)
-                             fname-str  (:wat::core::ast-name fname-node)
-                             acc-kw     (:wat::core::keyword-node
-                                          (:wat::string::concat ":"
-                                            (:wat::string::concat grant-handles-ty-str
-                                              (:wat::string::concat "/" fname-str))))
-                             call-form  `(:wat::capability::TypedCapability/revoke (~acc-kw ~gw-handles-sym) (wat.type/Vector :- [wat.type/i64] ~gw-pid-sym))]
-                            (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
+                             fname-str  (wat.core/ast-name fname-node)
+                             acc-kw     (wat.core/keyword-node
+                                          (wat.string/concat ":"
+                                            (wat.string/concat grant-handles-ty-str
+                                              (wat.string/concat "/" fname-str))))
+                             call-form  `(wat.capability.TypedCapability/revoke (~acc-kw ~gw-handles-sym) (wat.type/Vector :- [wat.type/i64] ~gw-pid-sym))]
+                            (wat.core/if is-peer (wat.core/conj acc call-form) acc)))
                         (wat.type/Vector :- [wat.type/AST])
-                        (:wat::core::range 0 n-kw-fields))
+                        (wat.core/range 0 n-kw-fields))
          ;; Stone 255.21 (C-b1b): both workers take the generic `(GrantHandles :- [T<i> …])`, so they
          ;; declare the same transport params.
-         grant-worker-def (:wat::core::if mint-coords?
-                            `(:wat::core::defn ~grant-worker-kw :- [~@peer-tp-syms] [~gw-handles-sym <- ~grant-handles-ann ~gw-pid-sym <- wat.type/i64] -> wat.type/nil
-                               (:wat::core::do ~@grant-calls))
-                            `(:wat::core::do nil))
-         revoke-worker-def (:wat::core::if mint-coords?
-                              `(:wat::core::defn ~revoke-worker-kw :- [~@peer-tp-syms] [~gw-handles-sym <- ~grant-handles-ann ~gw-pid-sym <- wat.type/i64] -> wat.type/nil
-                                 (:wat::core::do ~@revoke-calls))
-                              `(:wat::core::do nil))
+         grant-worker-def (wat.core/if mint-coords?
+                            `(wat.core/defn ~grant-worker-kw :- [~@peer-tp-syms] [~gw-handles-sym :- ~grant-handles-ann ~gw-pid-sym :- wat.type/i64] :- wat.type/nil
+                               (wat.core/do ~@grant-calls))
+                            `(wat.core/do nil))
+         revoke-worker-def (wat.core/if mint-coords?
+                              `(wat.core/defn ~revoke-worker-kw :- [~@peer-tp-syms] [~gw-handles-sym :- ~grant-handles-ann ~gw-pid-sym :- wat.type/i64] :- wat.type/nil
+                                 (wat.core/do ~@revoke-calls))
+                              `(wat.core/do nil))
          ;; ── <fqdn>::assemble — typed Coords → Kwargs (thread bracket Setup).
          ;; Same field fold as process-work-forms' generated dial-runner: Peer
          ;; fields connect', data fields copy. Minted HERE so the thread locus
          ;; can apply a companion that already lives in this universe (service
          ;; thread launch applies init/serve the same way). Process still
          ;; generates its own assemble into shipped source — separate memory.
-         assemble-name-str (:wat::string::interpolate "{name-base}::assemble" :name-base name-base)
-         assemble-kw       (:wat::core::keyword-node
-                             (:wat::string::interpolate ":{assemble-name-str}" :assemble-name-str assemble-name-str))
-         assemble-deps-sym (:wat::core::symbol-node "deps")
-         assemble-p-sym    (:wat::core::symbol-node "p")
-         assemble-c-sym    (:wat::core::symbol-node "c")
-         kwargs-prime-kw   (:wat::core::keyword-node
-                             (:wat::string::interpolate "{kwargs-ty-colon-str}'" :kwargs-ty-colon-str kwargs-ty-colon-str))
+         assemble-name-str (wat.string/interpolate "{name-base}::assemble" :name-base name-base)
+         assemble-kw       (wat.core/keyword-node
+                             (wat.string/interpolate ":{assemble-name-str}" :assemble-name-str assemble-name-str))
+         assemble-deps-sym (wat.core/symbol-node "deps")
+         assemble-p-sym    (wat.core/symbol-node "p")
+         assemble-c-sym    (wat.core/symbol-node "c")
+         kwargs-prime-kw   (wat.core/keyword-node
+                             (wat.string/interpolate "{kwargs-ty-colon-str}'" :kwargs-ty-colon-str kwargs-ty-colon-str))
          assemble-ctor-args
-         (:wat::core::foldl
-           (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64]
-             -> (wat.type/Vector :- [wat.type/AST])
-             (:wat::core::let
-               [fname-node (:wat::core::Option/expect
-                             (:wat::core::get fname-nodes i) "assemble-ctor-args: fname index")
-                orig-ty    (:wat::core::Option/expect
-                             (:wat::core::get kw-ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+         (wat.core/foldl
+           (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64]
+             :- (wat.type/Vector :- [wat.type/AST])
+             (wat.core/let
+               [fname-node (wat.core.Option/expect
+                             (wat.core/get fname-nodes i) "assemble-ctor-args: fname index")
+                orig-ty    (wat.core.Option/expect
+                             (wat.core/get kw-ch (wat.i64/+ (wat.i64/* i 3) 2))
                              "assemble-ctor-args: type index")
                 is-peer    (kwargs-type-slot-peer? orig-ty)
-                fname-str  (:wat::core::ast-name fname-node)
-                acc-kw     (:wat::core::keyword-node
-                             (:wat::string::concat ":"
-                               (:wat::string::concat coords-ty-str
-                                 (:wat::string::concat "/" fname-str))))
+                fname-str  (wat.core/ast-name fname-node)
+                acc-kw     (wat.core/keyword-node
+                             (wat.string/concat ":"
+                               (wat.string/concat coords-ty-str
+                                 (wat.string/concat "/" fname-str))))
                 read-form  `(~acc-kw ~assemble-deps-sym)
-                form       (:wat::core::if is-peer
-                             `(:wat::core::match (:wat::kernel::connect ~read-form)
-                                [:wat::kernel::ConnectOutcome.Connected {:peer ~assemble-p-sym} ~assemble-p-sym]
-                                [:wat::kernel::ConnectOutcome.Closed {:cause ~assemble-c-sym}
-                                  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))]
-                                [:wat::kernel::ConnectOutcome.Undialable {:cause ~assemble-c-sym}
-                                  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause ~assemble-c-sym}
-                                  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))]
-                                [:wat::kernel::ConnectOutcome.Failed {:cause ~assemble-c-sym}
-                                  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))])
+                form       (wat.core/if is-peer
+                             `(wat.core/match (wat.kernel/connect ~read-form)
+                                [wat.kernel/ConnectOutcome.Connected {:peer ~assemble-p-sym} ~assemble-p-sym]
+                                [wat.kernel/ConnectOutcome.Closed {:cause ~assemble-c-sym}
+                                  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message ~assemble-c-sym))]
+                                [wat.kernel/ConnectOutcome.Undialable {:cause ~assemble-c-sym}
+                                  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message ~assemble-c-sym))] [wat.kernel/ConnectOutcome.WrongPeer {:cause ~assemble-c-sym}
+                                  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message ~assemble-c-sym))]
+                                [wat.kernel/ConnectOutcome.Failed {:cause ~assemble-c-sym}
+                                  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message ~assemble-c-sym))])
                              read-form)]
-               (:wat::core::conj acc form)))
+               (wat.core/conj acc form)))
            (wat.type/Vector :- [wat.type/AST])
-           (:wat::core::range 0 n-kw-fields))
-         assemble-def (:wat::core::if mint-coords?
-                        `(:wat::core::defn ~assemble-kw
-                           [~assemble-deps-sym <- ~coords-kw] -> ~kwargs-ty-ann
+           (wat.core/range 0 n-kw-fields))
+         assemble-def (wat.core/if mint-coords?
+                        `(wat.core/defn ~assemble-kw
+                           [~assemble-deps-sym :- ~coords-kw] :- ~kwargs-ty-ann
                            (~kwargs-prime-kw ~@assemble-ctor-args))
-                        `(:wat::core::do nil))
+                        `(wat.core/do nil))
          ;; STONE-the-dormant-minter — the $impl fn's own DECLARATION splices
          ;; `:- [~@binder-names-ch]` on the `fn` (immediately after `fn`'s head, the same
          ;; position `defn`'s own backward-compat `(fn ~@rest)` forward already accepts a
          ;; user-written binder at) rather than baking the params into `impl-name-node`'s
          ;; text. Hoisted out of the final quasiquote below so both branches stay
          ;; expressible without a nested `if` inside the `do`.
-         impl-def     (:wat::core::if has-binder
-                        `(:wat::core::def ~impl-name-node
-                           (:wat::core::fn :- [~@binder-names-ch] ~reshaped-params -> ~ret-type
-                             (:wat::core::let ~let-binders-vec ~@body-forms)))
-                        `(:wat::core::def ~impl-name-node
-                           (:wat::core::fn ~reshaped-params -> ~ret-type
-                             (:wat::core::let ~let-binders-vec ~@body-forms))))]
+         impl-def     (wat.core/if has-binder
+                        `(wat.core/def ~impl-name-node
+                           (wat.core/fn :- [~@binder-names-ch] ~reshaped-params :- ~ret-type
+                             (wat.core/let ~let-binders-vec ~@body-forms)))
+                        `(wat.core/def ~impl-name-node
+                           (wat.core/fn ~reshaped-params :- ~ret-type
+                             (wat.core/let ~let-binders-vec ~@body-forms))))]
         ;; Arc 260.1b: emit record-def + $impl fn (under :<name>$impl) + companion defmacro (:name)
         ;; The companion macro is a THIN FORWARDER to :wat::core::kwargs-lower (Part B dedup).
         ;; Values baked in at defn-expansion time via ~ (depth-1 unquotes from the outer quasiquote):
@@ -1411,12 +1411,12 @@
         ;; Literal Symbol nodes at binder positions would trip the defn macro's own
         ;; check_quasiquote_for_literal_binders gate (ProgramBodyIntroducesName). The Unquote
         ;; form `~(...)` is a List node at check time — not a Symbol — so it passes the gate.
-        `(:wat::core::do
+        `(wat.core/do
            ~record-def
            ~impl-def
-           (:wat::core::defmacro ~name-base-node
-             [& ~call-args-sym <- (wat.type/Vector :- [wat.type/AST])]
-             -> wat.type/AST
+           (wat.core/defmacro ~name-base-node
+             [& ~call-args-sym :- (wat.type/Vector :- [wat.type/AST])]
+             :- wat.type/AST
              ;; ── Thin forwarder to :wat::core::kwargs-lower ───────────────────────
              ;; Baked-in constants (substituted at defn-expansion time via depth-1 ~):
              ;;   _kl-impl: keyword node for the $impl fn
@@ -1424,13 +1424,13 @@
              ;;   _kl-fvec: the field-names Vector AST node (via quote, for ast->children)
              ;;   _kl-np:   i64 literal: count of positional params
              ;;   _kl-ns:   keyword node for function namespace (for pascal->kebab-in)
-             (:wat::core::let
-               [~(:wat::core::symbol-node "_kl-impl") ~impl-call-node
-                ~(:wat::core::symbol-node "_kl-kty")  (:wat::core::keyword-node ~kwargs-ty-colon-str)
-                ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
-                ~(:wat::core::symbol-node "_kl-np")   ~n-pos
-                ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node (:wat::string::concat ":" ~name-base))]
-               `(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))
+             (wat.core/let
+               [~(wat.core/symbol-node "_kl-impl") ~impl-call-node
+                ~(wat.core/symbol-node "_kl-kty")  (wat.core/keyword-node ~kwargs-ty-colon-str)
+                ~(wat.core/symbol-node "_kl-fvec") (wat.core/quote ~field-names-ast-vec)
+                ~(wat.core/symbol-node "_kl-np")   ~n-pos
+                ~(wat.core/symbol-node "_kl-ns")   (wat.core/keyword-node (wat.string/concat ":" ~name-base))]
+               `(wat.core/kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))
            ~coords-def                  ;; ← W2 record redirect: <fqdn>::Coords (before the checker refs it).
            ~grant-handles-def           ;; ← C2 D: <fqdn>::GrantHandles (before the checker refs it).
            ~kwargs-check-def            ;; ← W2a/C2 D. Order-independent (refs only literal Coords/GrantHandles types).
@@ -1438,7 +1438,7 @@
            ~revoke-worker-def           ;; ← C2 D: <fqdn>::revoke-worker.
            ~assemble-def))              ;; ← Coords → Kwargs (thread Setup).
       ;; ── BACKWARD-COMPAT PASS-THROUGH (no kwargs section) ────────────────────
-      `(:wat::core::def ~name (:wat::core::fn ~@rest)))))
+      `(wat.core/def ~name (wat.core/fn ~@rest)))))
 
 ;; Restrictions live as a :restricted-to key in the metadata-map on def/defn
 ;; (e.g. {:restricted-to [<prefix-kw>…]}); the substrate enforces it.
@@ -1450,14 +1450,14 @@
 ;; A list step `(f a…)` => `(f acc a…)`; a bare symbol/keyword step `f` => `(f acc)`.
 ;; Empty-list step `()`: Option/expect on (first ()) fires "-> step has no head"
 ;;   as a panic_any(AssertionPayload) at macro-expansion time (during startup).
-(:wat::core::defmacro :wat::core::->
-  [acc <- wat.type/AST & steps <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::foldl
-    (:wat::core::fn [a <- wat.type/AST step <- wat.type/AST]
-       -> wat.type/AST
-       (:wat::core::if (:wat::core::List? step) 
-          `(~(:wat::core::first step) ~a ~@(:wat::core::rest step))
+(wat.core/defmacro wat.core/->
+  [acc :- wat.type/AST & steps :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/foldl
+    (wat.core/fn [a :- wat.type/AST step :- wat.type/AST]
+       :- wat.type/AST
+       (wat.core/if (wat.core/List? step) 
+          `(~(wat.core/first step) ~a ~@(wat.core/rest step))
           `(~step ~a)))
     acc
     steps))
@@ -1467,13 +1467,13 @@
 ;; A list step `(f a…)` => `(f a… acc)`; a bare symbol/keyword step `f` => `(f acc)`.
 ;; Empty-list step `()`: ~@() splices nothing, yielding `(acc)` — expansion succeeds
 ;;   but eval rejects the integer-head form with MalformedForm at runtime.
-(:wat::core::defmacro :wat::core::->>
-  [acc <- wat.type/AST & steps <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::foldl
-    (:wat::core::fn [a <- wat.type/AST step <- wat.type/AST]
-       -> wat.type/AST
-       (:wat::core::if (:wat::core::List? step) 
+(wat.core/defmacro wat.core/->>
+  [acc :- wat.type/AST & steps :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/foldl
+    (wat.core/fn [a :- wat.type/AST step :- wat.type/AST]
+       :- wat.type/AST
+       (wat.core/if (wat.core/List? step) 
           `(~@step ~a)
           `(~step ~a)))
     acc
@@ -1500,40 +1500,40 @@
 ;;
 ;; empty? is checked FIRST (before any Option/expect) so the empty-clause case
 ;; goes through the RuntimeError channel, not panic_any.
-(:wat::core::defmacro :wat::core::cond
-  [& clauses <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::if (:wat::core::empty? clauses)
+(wat.core/defmacro wat.core/cond
+  [& clauses :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/if (wat.core/empty? clauses)
     ;; empty clause list — non-exhaustive / no terminal :else. Arc 258 Stone 258.2b: use the
     ;; first-class macro-error primitive to abort with a clean diagnostic. This replaces the
     ;; old keyword-sentinel hack (keyword/from-string with a diagnostic name) which carried a
     ;; near-theoretical slip if every arm body was itself a keyword. macro-error returns Err
     ;; directly — the macro engine wraps it into a catchable MacroError without panic or noise.
-    (:wat::core::macro-error "cond: non-exhaustive — needs a terminal :else arm")
-    (:wat::core::if (:wat::core::List? (:wat::core::first clauses))
+    (wat.core/macro-error "cond: non-exhaustive — needs a terminal :else arm")
+    (wat.core/if (wat.core/List? (wat.core/first clauses))
       ;; First clause is a List — bare form: (cond (test body) … (:else body))
-      (:wat::core::let [arm  (:wat::core::first clauses)
-                        head (:wat::core::first arm)]
-        (:wat::core::if (:wat::core::List? head)
+      (wat.core/let [arm  (wat.core/first clauses)
+                        head (wat.core/first arm)]
+        (wat.core/if (wat.core/List? head)
           ;; test arm — head is a sub-list like (= 1 2): (if head body (cond rest…))
-          `(:wat::core::if
+          `(wat.core/if
               ~head
-              ~(:wat::core::second arm)
-              (:wat::core::cond ~@(:wat::core::rest clauses)))
+              ~(wat.core/second arm)
+              (wat.core/cond ~@(wat.core/rest clauses)))
           ;; non-List head — detect :else by structural comparison with the :else keyword form.
           ;; (first `(:else)) returns bare WatAST::Keyword(":else") after arc-278 flip.
           ;; = on two Value::wat__WatAST nodes uses structural PartialEq (safe for any variant pair).
-          (:wat::core::if (:wat::core::= head (:wat::core::first `(:else)))
+          (wat.core/if (wat.core/= head (wat.core/first `(:else)))
             ;; :else terminal arm — emit body unconditionally
-            (:wat::core::second arm)
+            (wat.core/second arm)
             ;; other non-List head — treat as test arm (v1 fallback for malformed input)
-            `(:wat::core::if
+            `(wat.core/if
                 ~head
-                ~(:wat::core::second arm)
-                (:wat::core::cond ~@(:wat::core::rest clauses))))))
+                ~(wat.core/second arm)
+                (wat.core/cond ~@(wat.core/rest clauses))))))
       ;; First clause is NOT a List (it is the -> symbol) — annotated form.
       ;; Strip -> and :T (first two elements) and re-expand as bare cond.
-      `(:wat::core::cond ~@(:wat::core::rest (:wat::core::rest clauses))))))
+      `(wat.core/cond ~@(wat.core/rest (wat.core/rest clauses))))))
 
 ;; ─── keyword/of — RETIRED (STONE-defservice-emits-the-binder, arc 109) ─────────────
 ;;
@@ -1587,54 +1587,54 @@
 ;;     guess").
 ;;   - `:category Transform` matches `sort$native`'s — both genuinely are "reorders a
 ;;     collection", the same descriptive bucket regardless of the axes above.
-(:wat::core::defclause :wat::core::sort
+(wat.core/defclause wat.core/sort
   {:doc "Sort a vector: ascending by the default comparator `<` (1-ary), or by a caller-supplied `less?` comparator (2-ary, fn-first, Clojure idiom)."
    :added "1.0.0"
-   :ret [:wat::core::Vector "a new vector holding coll's elements in sorted order"]
-   :purity :wat::runtime::Purity.Pure
-   :determinism :wat::runtime::Determinism.Deterministic
-   :totality :wat::runtime::Totality.Unreviewed
-   :expand-time :wat::runtime::ExpandTime.Unreviewed
-   :category :wat::runtime::Category.Transform
+   :ret [wat.core/Vector "a new vector holding coll's elements in sorted order"]
+   :purity wat.runtime/Purity.Pure
+   :determinism wat.runtime/Determinism.Deterministic
+   :totality wat.runtime/Totality.Unreviewed
+   :expand-time wat.runtime/ExpandTime.Unreviewed
+   :category wat.runtime/Category.Transform
    :examples [["(:wat::core::sort [3 1 2])" "[1 2 3]"]]}
   ;; 1-ary: natural ascending — default comparator is <
   ;; T auto-generalizes (bare uppercase type-var, Arc 256 / Stone 251.7).
-  ([coll <- (wat.type/Vector :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::core::sort$native
-      (:wat::core::fn [a <- :T b <- :T] -> wat.type/bool
-        (:wat::core::< a b))
+  ([coll :- (wat.type/Vector :- [T])] :- (wat.type/Vector :- [T])
+    (wat.core/sort$native
+      (wat.core/fn [a :- T b :- T] :- wat.type/bool
+        (wat.core/< a b))
       coll))
   ;; 2-ary: user-supplied boolean less-than comparator (fn-first, Clojure idiom).
   ;; Cmp is a bare type-var that unifies with the caller's [T T :-> bool].
-  ([cmp  <- :Cmp
-    coll <- (wat.type/Vector :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::core::sort$native cmp coll)))
+  ([cmp  :- Cmp
+    coll :- (wat.type/Vector :- [T])] :- (wat.type/Vector :- [T])
+    (wat.core/sort$native cmp coll)))
 
-(:wat::core::defclause :wat::core::sort-by
+(wat.core/defclause wat.core/sort-by
   {:doc "Sort a vector by a key function: ascending on the key by the default comparator `<` (2-ary), or by a caller-supplied comparator over the keys (3-ary)."
    :added "1.0.0"
-   :ret [:wat::core::Vector "a new vector holding coll's elements ordered by keyfn (and cmp, when supplied)"]
-   :purity :wat::runtime::Purity.Pure
-   :determinism :wat::runtime::Determinism.Deterministic
-   :totality :wat::runtime::Totality.Unreviewed
-   :expand-time :wat::runtime::ExpandTime.Unreviewed
-   :category :wat::runtime::Category.Transform
+   :ret [wat.core/Vector "a new vector holding coll's elements ordered by keyfn (and cmp, when supplied)"]
+   :purity wat.runtime/Purity.Pure
+   :determinism wat.runtime/Determinism.Deterministic
+   :totality wat.runtime/Totality.Unreviewed
+   :expand-time wat.runtime/ExpandTime.Unreviewed
+   :category wat.runtime/Category.Transform
    :examples [["(:wat::core::sort-by (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) [3 1 2])" "[1 2 3]"]]}
   ;; 2-ary: key function only — default comparator is < on the keys.
   ;; Keyfn is a bare type-var that unifies with the caller's [T :-> K].
-  ([keyfn <- :Keyfn
-    coll  <- (wat.type/Vector :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::core::sort$native
-      (:wat::core::fn [a <- :T b <- :T] -> wat.type/bool
-        (:wat::core::< (keyfn a) (keyfn b)))
+  ([keyfn :- Keyfn
+    coll  :- (wat.type/Vector :- [T])] :- (wat.type/Vector :- [T])
+    (wat.core/sort$native
+      (wat.core/fn [a :- T b :- T] :- wat.type/bool
+        (wat.core/< (keyfn a) (keyfn b)))
       coll))
   ;; 3-ary: key function + comparator on keys.
   ;; Keyfn and Cmp are bare type-vars.
-  ([keyfn <- :Keyfn
-    cmp   <- :Cmp
-    coll  <- (wat.type/Vector :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::core::sort$native
-      (:wat::core::fn [a <- :T b <- :T] -> wat.type/bool
+  ([keyfn :- Keyfn
+    cmp   :- Cmp
+    coll  :- (wat.type/Vector :- [T])] :- (wat.type/Vector :- [T])
+    (wat.core/sort$native
+      (wat.core/fn [a :- T b :- T] :- wat.type/bool
         (cmp (keyfn a) (keyfn b)))
       coll)))
 
@@ -1679,13 +1679,13 @@
 ;; The native `nth` is NOT promoted from calling this clause: `nth`'s existing callers
 ;; (`wat/bracket.wat`, `wat/fix.wat`, `wat/service.wat`, …) keep saying `nth` and now silently
 ;; reach the native — that is the point of the rename, not an accident.
-(:wat::core::defclause :wat::core::nth-spec
-  ([v <- (wat.type/Vector :- [T]) i <- wat.type/i64] -> :T
-    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
-  ([v <- (wat.type/PersistentVector :- [T]) i <- wat.type/i64] -> :T
-    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
-  ([v <- (wat.type/List :- [T]) i <- wat.type/i64] -> :T
-    (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range")))
+(wat.core/defclause wat.core/nth-spec
+  ([v :- (wat.type/Vector :- [T]) i :- wat.type/i64] :- T
+    (wat.core.Option/expect (wat.core/get v i) "nth: index out of range"))
+  ([v :- (wat.type/PersistentVector :- [T]) i :- wat.type/i64] :- T
+    (wat.core.Option/expect (wat.core/get v i) "nth: index out of range"))
+  ([v :- (wat.type/List :- [T]) i :- wat.type/i64] :- T
+    (wat.core.Option/expect (wat.core/get v i) "nth: index out of range")))
 
 ;; ─── format — opinionated named-template printf (arc 279) ────────────────────
 ;;
@@ -1726,74 +1726,74 @@
 ;;
 ;; See wat/service.wat ~55–110 for the kwargs-fold pattern.
 ;;
-(:wat::core::defmacro :wat::core::format
-  [tmpl <- wat.type/AST
-   & opts <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let
+(wat.core/defmacro wat.core/format
+  [tmpl :- wat.type/AST
+   & opts :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let
     ;; ── 1. Extract the template string literal ───────────────────────
-    [tmpl-str   (:wat::core::if
-                  (:wat::core::= (:wat::core::ast-kind tmpl) "string")
+    [tmpl-str   (wat.core/if
+                  (wat.core/= (wat.core/ast-kind tmpl) "string")
                   
-                  (:wat::core::ast-name tmpl)
-                  (:wat::core::macro-error
+                  (wat.core/ast-name tmpl)
+                  (wat.core/macro-error
                     "format: first argument must be a string literal"))
      ;; Guard: template segments must not contain `"` (read-string would produce broken source).
-     _no-quotes (:wat::core::if
-                  (:wat::string::contains? tmpl-str "\"")
+     _no-quotes (wat.core/if
+                  (wat.string/contains? tmpl-str "\"")
                   
-                  (:wat::core::macro-error
+                  (wat.core/macro-error
                     "format: template must not contain quote characters")
                   nil)
 
      ;; ── 2. Fold trailing :name val pairs into a kwargs map ───────────
      ;; opts is the rest Vector: [:name val :name2 val2 …].
-     opts-len    (:wat::core::length opts)
-     n-pairs     (:wat::i64::/ opts-len 2)
+     opts-len    (wat.core/length opts)
+     n-pairs     (wat.i64// opts-len 2)
      ;; Even-length guard.
-     _even-check (:wat::core::if
-                   (:wat::core::= (:wat::i64::* n-pairs 2) opts-len)
+     _even-check (wat.core/if
+                   (wat.core/= (wat.i64/* n-pairs 2) opts-len)
                    
                    nil
-                   (:wat::core::macro-error
+                   (wat.core/macro-error
                      "format: trailing kwargs must be :name value pairs — odd count"))
      ;; Build kwargs-map: (HashMap :- [String WatAST]) (kwarg-name-string → value AST node).
-     kwargs-map  (:wat::core::foldl
-                   (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/String wat.type/AST])
-                                    i <- wat.type/i64]
-                     -> (wat.type/HashMap :- [wat.type/String wat.type/AST])
-                     (:wat::core::let
-                       [k     (:wat::i64::* i 2)
-                        k-ast (:wat::core::Option/expect  
-                                 (:wat::core::get opts k)
+     kwargs-map  (wat.core/foldl
+                   (wat.core/fn [m :- (wat.type/HashMap :- [wat.type/String wat.type/AST])
+                                    i :- wat.type/i64]
+                     :- (wat.type/HashMap :- [wat.type/String wat.type/AST])
+                     (wat.core/let
+                       [k     (wat.i64/* i 2)
+                        k-ast (wat.core.Option/expect  
+                                 (wat.core/get opts k)
                                  "format: kwargs pair key missing")
-                        key   (:wat::core::if
-                                (:wat::core::= (:wat::core::ast-kind k-ast) "keyword")
+                        key   (wat.core/if
+                                (wat.core/= (wat.core/ast-kind k-ast) "keyword")
                                 
-                                (:wat::keyword::to-string k-ast)
-                                (:wat::core::macro-error
+                                (wat.keyword/to-string k-ast)
+                                (wat.core/macro-error
                                   "format: kwargs key must be a keyword (e.g. :name)"))
-                        val   (:wat::core::Option/expect  
-                                 (:wat::core::get opts (:wat::i64::+ k 1))
+                        val   (wat.core.Option/expect  
+                                 (wat.core/get opts (wat.i64/+ k 1))
                                  "format: kwargs pair value missing")]
-                       (:wat::core::assoc m key val)))
+                       (wat.core/assoc m key val)))
                    (wat.type/HashMap :- [wat.type/String wat.type/AST])
-                   (:wat::core::range 0 n-pairs))
+                   (wat.core/range 0 n-pairs))
 
      ;; ── 3. Pass 1 — tokenize chars → segment list ───────────────────
      ;; Build char vector: each element is a single-char String.
-     tmpl-len    (:wat::string::length tmpl-str)
+     tmpl-len    (wat.string/length tmpl-str)
      ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY (returns a `Stream`, not
      ;; a `Vector`); `format` is itself a macro invoked from inside OTHER macros' bodies at
      ;; macro-expansion time (e.g. `wat/lint.wat`), so `chars` must stay a concrete
      ;; `(Vector :- [String])` RIGHT NOW, without depending on any wat-defined eager materializer
      ;; (untested at this bootstrap phase — see `crate::stream::NativeLazyCell`'s doc).
      ;; `foldl`+`conj` stay Rust-native and eager, unaffected by the flip.
-     chars       (:wat::core::foldl
-                   (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/String])
-                     (:wat::core::conj acc (:wat::string::subs tmpl-str i (:wat::i64::+ i 1))))
+     chars       (wat.core/foldl
+                   (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/String]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/String])
+                     (wat.core/conj acc (wat.string/subs tmpl-str i (wat.i64/+ i 1))))
                    (wat.type/Vector :- [wat.type/String])
-                   (:wat::core::range 0 tmpl-len))
+                   (wat.core/range 0 tmpl-len))
 
      ;; Accumulator: Tuple(mode, pending, buf, segments)
      ;;   mode    : String — "text" | "name"
@@ -1827,98 +1827,98 @@
      ;; on a Tuple but there is no fourth accessor and `last` requires a Vector.
      ;; Access: mode=(first (first acc)), pending=(second (first acc)),
      ;;         buf=(first (second acc)), segs=(second (second acc)).
-     tok-state   (:wat::core::foldl
-                   (:wat::core::fn [acc <- wat.type/Tuple
-                                    c   <- wat.type/String]
-                     -> wat.type/Tuple
-                     (:wat::core::let
-                       [mp      (:wat::core::first acc)
-                        bs      (:wat::core::second acc)
-                        mode    (:wat::core::first mp)
-                        pending (:wat::core::second mp)
-                        buf     (:wat::core::first bs)
-                        segs    (:wat::core::second bs)]
-                       (:wat::core::if
-                         (:wat::core::= mode "text")
+     tok-state   (wat.core/foldl
+                   (wat.core/fn [acc :- wat.type/Tuple
+                                    c   :- wat.type/String]
+                     :- wat.type/Tuple
+                     (wat.core/let
+                       [mp      (wat.core/first acc)
+                        bs      (wat.core/second acc)
+                        mode    (wat.core/first mp)
+                        pending (wat.core/second mp)
+                        buf     (wat.core/first bs)
+                        segs    (wat.core/second bs)]
+                       (wat.core/if
+                         (wat.core/= mode "text")
                          
-                         (:wat::core::if
-                           (:wat::core::= pending "open")
+                         (wat.core/if
+                           (wat.core/= pending "open")
                            
                            ;; mode=="text", pending=="open"
-                           (:wat::core::if
-                             (:wat::core::= c "{")
+                           (wat.core/if
+                             (wat.core/= c "{")
                              
                              ;; {{ → literal {
                              (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                                (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
-                               (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf "{") segs))
-                             (:wat::core::if
-                               (:wat::core::= c "}")
+                               (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (wat.string/concat buf "{") segs))
+                             (wat.core/if
+                               (wat.core/= c "}")
                                
                                ;; {} → error
-                               (:wat::core::macro-error
+                               (wat.core/macro-error
                                  "format: empty placeholder {} in template")
                                ;; { followed by other char → open placeholder
                                ;; flush buf as text segment if non-empty, then start name
-                               (:wat::core::let
-                                 [segs-after (:wat::core::if
-                                               (:wat::string::empty? buf)
+                               (wat.core/let
+                                 [segs-after (wat.core/if
+                                               (wat.string/empty? buf)
                                                
                                                segs
-                                               (:wat::core::conj segs
+                                               (wat.core/conj segs
                                                  (wat.type/Tuple :- [wat.type/String wat.type/String] "text" buf)))]
                                  (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                                    (wat.type/Tuple :- [wat.type/String wat.type/String] "name" "none")
                                    (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] c segs-after)))))
-                           (:wat::core::if
-                             (:wat::core::= pending "close")
+                           (wat.core/if
+                             (wat.core/= pending "close")
                              
                              ;; mode=="text", pending=="close"
-                             (:wat::core::if
-                               (:wat::core::= c "}")
+                             (wat.core/if
+                               (wat.core/= c "}")
                                
                                ;; }} → literal }
                                (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                                  (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
-                                 (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf "}") segs))
+                                 (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (wat.string/concat buf "}") segs))
                                ;; lone } → error
-                               (:wat::core::macro-error
+                               (wat.core/macro-error
                                  "format: lone '}' in template — use '}}' for a literal brace"))
                              ;; mode=="text", pending=="none"
-                             (:wat::core::if
-                               (:wat::core::= c "{")
+                             (wat.core/if
+                               (wat.core/= c "{")
                                
                                (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                                  (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "open")
                                  (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] buf segs))
-                               (:wat::core::if
-                                 (:wat::core::= c "}")
+                               (wat.core/if
+                                 (wat.core/= c "}")
                                  
                                  (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                                    (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "close")
                                    (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] buf segs))
                                  (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                                    (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
-                                   (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf c) segs))))))
+                                   (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (wat.string/concat buf c) segs))))))
                          ;; mode=="name" (pending always "none")
-                         (:wat::core::if
-                           (:wat::core::= c "}")
+                         (wat.core/if
+                           (wat.core/= c "}")
                            
                            ;; close placeholder: emit slot segment
                            (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                              (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
                              (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] ""
-                               (:wat::core::conj segs (wat.type/Tuple :- [wat.type/String wat.type/String] "slot" buf))))
-                           (:wat::core::if
-                             (:wat::core::= c "{")
+                               (wat.core/conj segs (wat.type/Tuple :- [wat.type/String wat.type/String] "slot" buf))))
+                           (wat.core/if
+                             (wat.core/= c "{")
                              
                              ;; { inside name → error
-                             (:wat::core::macro-error
+                             (wat.core/macro-error
                                "format: '{' inside placeholder name — unclosed '{'?")
                              ;; accumulate name char
                              (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                                (wat.type/Tuple :- [wat.type/String wat.type/String] "name" "none")
-                               (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (:wat::string::concat buf c) segs)))))))
+                               (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] (wat.string/concat buf c) segs)))))))
                    (wat.type/Tuple :- [(wat.type/Tuple :- [wat.type/String wat.type/String]) (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])])]
                      (wat.type/Tuple :- [wat.type/String wat.type/String] "text" "none")
                      (wat.type/Tuple :- [wat.type/String (wat.type/Vector :- [wat.type/Tuple])] "" (wat.type/Vector :- [wat.type/Tuple])))
@@ -1926,67 +1926,67 @@
 
      ;; ── Finalization: inspect tok-state, error on bad endings ────────
      ;; Extract final accumulator fields from the nested pair-of-pairs.
-     fin-mp      (:wat::core::first tok-state)
-     fin-bs      (:wat::core::second tok-state)
-     fin-mode    (:wat::core::first fin-mp)
-     fin-pending (:wat::core::second fin-mp)
-     fin-buf     (:wat::core::first fin-bs)
-     fin-segs    (:wat::core::second fin-bs)
+     fin-mp      (wat.core/first tok-state)
+     fin-bs      (wat.core/second tok-state)
+     fin-mode    (wat.core/first fin-mp)
+     fin-pending (wat.core/second fin-mp)
+     fin-buf     (wat.core/first fin-bs)
+     fin-segs    (wat.core/second fin-bs)
 
      ;; Check for trailing lone brace or unclosed name.
-     _fin-check  (:wat::core::if
-                   (:wat::core::= fin-pending "open")
+     _fin-check  (wat.core/if
+                   (wat.core/= fin-pending "open")
                    
-                   (:wat::core::macro-error
+                   (wat.core/macro-error
                      "format: trailing lone '{' — use '{{' for a literal brace")
-                   (:wat::core::if
-                     (:wat::core::= fin-pending "close")
+                   (wat.core/if
+                     (wat.core/= fin-pending "close")
                      
-                     (:wat::core::macro-error
+                     (wat.core/macro-error
                        "format: trailing lone '}' — use '}}' for a literal brace")
-                     (:wat::core::if
-                       (:wat::core::= fin-mode "name")
+                     (wat.core/if
+                       (wat.core/= fin-mode "name")
                        
-                       (:wat::core::macro-error
-                         (:wat::string::concat
+                       (wat.core/macro-error
+                         (wat.string/concat
                            "format: unclosed placeholder {"
                            fin-buf))
                        nil)))
 
      ;; Flush final text segment if non-empty.
-     segments    (:wat::core::if
-                   (:wat::string::empty? fin-buf)
+     segments    (wat.core/if
+                   (wat.string/empty? fin-buf)
                    
                    fin-segs
-                   (:wat::core::conj fin-segs (wat.type/Tuple :- [wat.type/String wat.type/String] "text" fin-buf)))
+                   (wat.core/conj fin-segs (wat.type/Tuple :- [wat.type/String wat.type/String] "text" fin-buf)))
 
      ;; ── 4. Pass 2 — segments → pieces (Vector :- [WatAST]) + used-set ───
      ;; Helper: build a WatAST String-literal node from a text string.
      ;; (Option/expect (first (ast->children (read-string (concat "\"" text "\"")))))
      ;; The `"` guard above guarantees text never contains `"`, so the re-wrap is safe.
 
-     pass2-result (:wat::core::foldl
-                    (:wat::core::fn [acc2 <- wat.type/Tuple
-                                     seg  <- wat.type/Tuple]
-                      -> wat.type/Tuple
-                      (:wat::core::let
-                        [ps2   (:wat::core::first acc2)
-                         used2 (:wat::core::second acc2)
-                         kind  (:wat::core::first seg)
-                         pay   (:wat::core::second seg)]
-                        (:wat::core::if
-                          (:wat::core::= kind "text")
+     pass2-result (wat.core/foldl
+                    (wat.core/fn [acc2 :- wat.type/Tuple
+                                     seg  :- wat.type/Tuple]
+                      :- wat.type/Tuple
+                      (wat.core/let
+                        [ps2   (wat.core/first acc2)
+                         used2 (wat.core/second acc2)
+                         kind  (wat.core/first seg)
+                         pay   (wat.core/second seg)]
+                        (wat.core/if
+                          (wat.core/= kind "text")
                           
                           ;; text segment → String literal AST node
                           (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
-                            (:wat::core::conj ps2
-                              (:wat::core::first
-                                (:wat::core::ast->children
-                                  (:wat::core::match (:wat::core::read-string
-                                    (:wat::string::concat
+                            (wat.core/conj ps2
+                              (wat.core/first
+                                (wat.core/ast->children
+                                  (wat.core/match (wat.core/read-string
+                                    (wat.string/concat
                                       "\""
-                                      (:wat::string::concat pay "\"")))
-                                    [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+                                      (wat.string/concat pay "\"")))
+                                    [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
                                     ;; EXPAND-TIME site — hand-written, not the codemod's uniform
                                     ;; arm. `assertion-failed!` is a kernel head that DIVERGES, so
                                     ;; the F5 default-deny gate refuses it inside a program-body
@@ -1994,65 +1994,65 @@
                                     ;; macro-error channel (EvalBreak::Diagnostic), not the panic
                                     ;; one. Blessing assertion-failed! to make a codemod's output
                                     ;; fit would be widening the gate to suit the tool.
-                                    [:wat::core::ReadOutcome.Malformed {:cause __cause}
-                                      (:wat::core::macro-error
-                                        (:wat::string::concat
+                                    [wat.core/ReadOutcome.Malformed {:cause __cause}
+                                      (wat.core/macro-error
+                                        (wat.string/concat
                                           "string::interpolate: text segment did not parse: "
-                                          (:wat::core::Error/message __cause)))]))))
+                                          (wat.core.Error/message __cause)))]))))
                             used2)
                           ;; slot segment → validate kwarg, emit (:wat::core::str val-ast)
-                          (:wat::core::let
-                            [_vn     (:wat::core::if
-                                       (:wat::core::contains? kwargs-map pay)
+                          (wat.core/let
+                            [_vn     (wat.core/if
+                                       (wat.core/contains? kwargs-map pay)
                                        
                                        nil
-                                       (:wat::core::macro-error
-                                         (:wat::string::concat
+                                       (wat.core/macro-error
+                                         (wat.string/concat
                                            "format: placeholder {"
-                                           (:wat::string::concat pay
+                                           (wat.string/concat pay
                                              "} has no matching kwarg"))))
-                             val-ast (:wat::core::Option/expect  
-                                        (:wat::core::get kwargs-map pay)
+                             val-ast (wat.core.Option/expect  
+                                        (wat.core/get kwargs-map pay)
                                         "format: internal — kwargs-map get post-contains?")]
                             (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
-                              (:wat::core::conj ps2 `(:wat::core::str ~val-ast))
-                              (:wat::core::assoc used2 pay true))))))
+                              (wat.core/conj ps2 `(wat.core/str ~val-ast))
+                              (wat.core/assoc used2 pay true))))))
                     (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
                       (wat.type/Vector :- [wat.type/AST])
                       (wat.type/HashMap :- [wat.type/String wat.type/bool]))
                     segments)
 
-     pieces      (:wat::core::first pass2-result)
-     used-set    (:wat::core::second pass2-result)
+     pieces      (wat.core/first pass2-result)
+     used-set    (wat.core/second pass2-result)
 
      ;; ── 5. Strict check: every kwarg must be consumed ───────────────
-     kwarg-keys  (:wat::core::keys kwargs-map)
-     _unused-chk (:wat::core::foldl
-                   (:wat::core::fn [_ <- wat.type/nil key <- wat.type/String]
-                     -> wat.type/nil
-                     (:wat::core::if
-                       (:wat::core::contains? used-set key)
+     kwarg-keys  (wat.core/keys kwargs-map)
+     _unused-chk (wat.core/foldl
+                   (wat.core/fn [_ :- wat.type/nil key :- wat.type/String]
+                     :- wat.type/nil
+                     (wat.core/if
+                       (wat.core/contains? used-set key)
                        
                        nil
-                       (:wat::core::macro-error
-                         (:wat::string::concat "format: kwarg :"
-                           (:wat::string::concat key
-                             (:wat::string::concat " is unused — no {"
-                               (:wat::string::concat key "} in template")))))))
+                       (wat.core/macro-error
+                         (wat.string/concat "format: kwarg :"
+                           (wat.string/concat key
+                             (wat.string/concat " is unused — no {"
+                               (wat.string/concat key "} in template")))))))
                    nil
                    kwarg-keys)]
 
     ;; ── 6. Emit (:wat::core::string::concat piece …) ─────────────────
     ;; Empty template → "". Single piece → unwrap. Multiple → concat.
-    (:wat::core::if
-      (:wat::core::empty? pieces)
+    (wat.core/if
+      (wat.core/empty? pieces)
       
       `""
-      (:wat::core::if
-        (:wat::core::= (:wat::core::length pieces) 1)
+      (wat.core/if
+        (wat.core/= (wat.core/length pieces) 1)
         
-        (:wat::core::first pieces)
-        `(:wat::string::concat ~@pieces)))))
+        (wat.core/first pieces)
+        `(wat.string/concat ~@pieces)))))
 
 ;; ─── Arc 293.2-parity: defstruct as a thin macro over structtype ──────────────
 ;;
@@ -2075,55 +2075,55 @@
 ;; `parse_structtype`/`parse_aggregate`); the field-vector is always the LAST arg. Same
 ;; splice-field known gap as the record macros (this extraction runs at defstruct's own
 ;; macro-expansion time, before `~@:Surface` splices resolve at type-registration).
-(:wat::core::defmacro :wat::core::defstruct
-  [& args <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let
-    [fqdn         (:wat::core::first args)
-     fields       (:wat::core::Option/expect (:wat::core::last args) "defstruct: missing field-vector")
-     field-ch     (:wat::core::ast->children fields)
-     field-len    (:wat::core::length field-ch)
-     n-fields     (:wat::i64::/ field-len 3)
-     fname-nodes  (:wat::core::foldl
-                    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/AST])
-                      (:wat::core::conj acc
-                        (:wat::core::Option/expect
-                          (:wat::core::get field-ch (:wat::i64::* i 3))
+(wat.core/defmacro wat.core/defstruct
+  [& args :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let
+    [fqdn         (wat.core/first args)
+     fields       (wat.core.Option/expect (wat.core/last args) "defstruct: missing field-vector")
+     field-ch     (wat.core/ast->children fields)
+     field-len    (wat.core/length field-ch)
+     n-fields     (wat.i64// field-len 3)
+     fname-nodes  (wat.core/foldl
+                    (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
+                      (wat.core/conj acc
+                        (wat.core.Option/expect
+                          (wat.core/get field-ch (wat.i64/* i 3))
                           "defstruct kwargs companion: fname index")))
                     (wat.type/Vector :- [wat.type/AST])
-                    (:wat::core::range 0 n-fields))
-     field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::keyword::to-string fqdn)
+                    (wat.core/range 0 n-fields))
+     field-names-ast-vec (wat.core/with-children fields fname-nodes)
+     fqdn-str      (wat.keyword/to-string fqdn)
      ;; Arc 294 item 9a — a GENERIC type name (`:ns::T<A,B>`) registers its kwargs
      ;; companion macro + references its positional prime under the BARE name
      ;; (`:ns::T` / `:ns::T'`), matching register_aggregate_methods (runtime.rs:
      ;; `format!("{}'", agg.name)`, params dropped). The `<…>` rides ONLY on the
      ;; structtype registration (`~@args` below), which carries the params through.
-     fqdn-bare-str (:wat::core::first (:wat::string::split fqdn-str "<"))
-     fqdn-bare-kw  (:wat::core::keyword-node (:wat::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
+     fqdn-bare-str (wat.core/first (wat.string/split fqdn-str "<"))
+     fqdn-bare-kw  (wat.core/keyword-node (wat.string/interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
      ;; Arc 294 item (C) — the bare `:T` keyword STRING for the live `kwargs-construct`.
-     bare-kw-str   (:wat::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
-     prime-kw-str  (:wat::string::concat ":" (:wat::string::concat fqdn-bare-str "'"))
-     ns-parts      (:wat::string::split fqdn-bare-str "::")
-     n-ns-parts    (:wat::core::length ns-parts)
-     ns-lead       (:wat::core::foldl
-                     (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) i <- wat.type/i64] -> (wat.type/Vector :- [wat.type/String])
-                       (:wat::core::conj acc
-                         (:wat::core::Option/expect (:wat::core::get ns-parts i) "defstruct kwargs companion: ns-part index")))
+     bare-kw-str   (wat.string/interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
+     prime-kw-str  (wat.string/concat ":" (wat.string/concat fqdn-bare-str "'"))
+     ns-parts      (wat.string/split fqdn-bare-str "::")
+     n-ns-parts    (wat.core/length ns-parts)
+     ns-lead       (wat.core/foldl
+                     (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/String]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/String])
+                       (wat.core/conj acc
+                         (wat.core.Option/expect (wat.core/get ns-parts i) "defstruct kwargs companion: ns-part index")))
                      (wat.type/Vector :- [wat.type/String])
-                     (:wat::core::range 0 (:wat::i64::- n-ns-parts 1)))
-     ns-joined     (:wat::string::join "::" ns-lead)
-     ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))
-     call-args-sym (:wat::core::symbol-node "call-args")]
-    `(:wat::core::do
-       (:wat::core::structtype ~@args)
-       (:wat::core::defmacro ~fqdn-bare-kw
-         [& ~call-args-sym <- (wat.type/Vector :- [wat.type/AST])]
-         -> wat.type/AST
+                     (wat.core/range 0 (wat.i64/- n-ns-parts 1)))
+     ns-joined     (wat.string/join "::" ns-lead)
+     ns-colon-str  (wat.string/concat ":" (wat.string/concat ns-joined "::"))
+     call-args-sym (wat.core/symbol-node "call-args")]
+    `(wat.core/do
+       (wat.core/structtype ~@args)
+       (wat.core/defmacro ~fqdn-bare-kw
+         [& ~call-args-sym :- (wat.type/Vector :- [wat.type/AST])]
+         :- wat.type/AST
          ;; Arc 294 item (C) — LIVE `kwargs-construct` over the bare `:T` (see Record.wat's BASE macro).
-         (:wat::core::let
-           [~(:wat::core::symbol-node "_kc-type") (:wat::core::keyword-node ~bare-kw-str)]
-           `(:wat::core::kwargs-construct ~_kc-type ~@call-args))))))
+         (wat.core/let
+           [~(wat.core/symbol-node "_kc-type") (wat.core/keyword-node ~bare-kw-str)]
+           `(wat.core/kwargs-construct ~_kc-type ~@call-args))))))
 
 ;; ─── Arc 293 K5: extend-surface — default method impls over both pair tiers ────
 ;;
@@ -2134,18 +2134,18 @@
 ;;
 ;; Per the K5 decision (option A, 2026-06-30): the default rides BOTH pair tiers, so a
 ;; to-record'd value at either tier inherits it for free.
-(:wat::core::defmacro :wat::core::extend-surface
-  [surf <- wat.type/AST  & methods <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::let
-    [surf-str   (:wat::keyword::to-string surf)            ;; "k5::HasX" (no leading colon)
-     core-kw    (:wat::keyword::from-string
-                  (:wat::string::interpolate "{surf-str}$core-record" :surf-str surf-str))
-     holon-kw   (:wat::keyword::from-string
-                  (:wat::string::interpolate "{surf-str}$holon-record" :surf-str surf-str))]
-    `(:wat::core::do
-       (:wat::core::extend-type ~core-kw  ~surf ~@methods)
-       (:wat::core::extend-type ~holon-kw ~surf ~@methods))))
+(wat.core/defmacro wat.core/extend-surface
+  [surf :- wat.type/AST  & methods :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/let
+    [surf-str   (wat.keyword/to-string surf)            ;; "k5::HasX" (no leading colon)
+     core-kw    (wat.keyword/from-string
+                  (wat.string/interpolate "{surf-str}$core-record" :surf-str surf-str))
+     holon-kw   (wat.keyword/from-string
+                  (wat.string/interpolate "{surf-str}$holon-record" :surf-str surf-str))]
+    `(wat.core/do
+       (wat.core/extend-type ~core-kw  ~surf ~@methods)
+       (wat.core/extend-type ~holon-kw ~surf ~@methods))))
 
 ;; ─── Arc 296: :wat::kernel::Location — moving the source of truth to wat ──
 ;;
@@ -2170,18 +2170,18 @@
 ;; Rust sources from these forms via `wat_enum_register_from!`. There is no
 ;; second list. Do not add a `wat_enum_from!` generated Rust enum: Option/Result
 ;; are `Value::Option` / `Value::Result`, not a matched generated enum.
-(:wat::core::defenum :wat::core::Option :- [T] :wat::enum::Pure
-  :Some [value <- :T]
+(wat.core/defenum wat.core/Option :- [T] wat.enum/Pure
+  :Some [value :- T]
   :None [])
-(:wat::core::defenum :wat::core::Result :- [T E] :wat::enum::Pure
-  :Ok  [value <- :T]
-  :Err [error <- :E])
+(wat.core/defenum wat.core/Result :- [T E] wat.enum/Pure
+  :Ok  [value :- T]
+  :Err [error :- E])
 
 ;; wat.type/Bytes — arc 296 K, key flipped stone 255.81. Substrate-general byte
 ;; buffer. Alias for `(wat.type/Vector :- [wat.type/u8])`. Per arc 062 + /gaze: the
 ;; universal name "Bytes" wins across adjacent ecosystems. Both `wat.type/Bytes`
 ;; and `(wat.type/Vector :- [wat.type/u8])` work at call sites.
-(:wat::core::typealias wat.type/Bytes
+(wat.core/typealias wat.type/Bytes
   (wat.type/Vector :- [wat.type/u8]))
 
 ;; Placed here, near the top of core.wat and before :wat::core::Error below:
@@ -2202,13 +2202,13 @@
 ;; Named via /gaze — structurally honest, epistemically neutral, plural of the
 ;; element type. Content-agnostic: facts, claims, or anything else a caller
 ;; bundles; the alias makes no truth assertion.
-(:wat::core::typealias :wat::holon::Holons
-  (wat.type/Vector :- [:wat::holon::HolonAST]))
+(wat.core/typealias wat.holon/Holons
+  (wat.type/Vector :- [wat.holon/HolonAST]))
 
-(:wat::core::defrecord :wat::kernel::Location
-  [file <- wat.type/String
-   line <- wat.type/i64
-   col  <- wat.type/i64])
+(wat.core/defrecord wat.kernel/Location
+  [file :- wat.type/String
+   line :- wat.type/i64
+   col  :- wat.type/i64])
 
 ;; ─── Arc 296 S3: :wat::core::Error stdlib surface ────────────────────────────
 ;;
@@ -2226,11 +2226,11 @@
 ;; Load-order: :wat::core::String and :wat::core::Vector are available at the
 ;; top of this file; :wat::kernel::Location is a Rust builtin registered before
 ;; any stdlib wat loads — all three dependencies are satisfied here.
-(:wat::core::defsurface :wat::core::Error
+(wat.core/defsurface wat.core/Error
   :nature wat.type/Record
-  :features [message  <- wat.type/String
-             location <- :wat::kernel::Location
-             causes   <- (wat.type/Vector :- [:wat::core::Error])])
+  :features [message  :- wat.type/String
+             location :- wat.kernel/Location
+             causes   :- (wat.type/Vector :- [wat.core/Error])])
 
 ;; ─── Arc 296 S3: :wat::core::Fault — canonical minimal error record ──────────
 ;;
@@ -2243,15 +2243,15 @@
 ;; (:wat::kernel::here) spliced into the expansion — it is a MACRO (not a fn)
 ;; precisely so the (here) form fires at the caller's source coordinate, not at
 ;; the constructor's own location.
-(:wat::core::defrecord :wat::core::Fault
-  [message  <- wat.type/String
-   location <- :wat::kernel::Location
-   causes   <- (wat.type/Vector :- [:wat::core::Error])])
+(wat.core/defrecord wat.core/Fault
+  [message  :- wat.type/String
+   location :- wat.kernel/Location
+   causes   :- (wat.type/Vector :- [wat.core/Error])])
 
-(:wat::core::defmacro :wat::core::Fault/of
-  [msg <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) :causes (wat.type/Vector :- [:wat::core::Error])))
+(wat.core/defmacro wat.core.Fault/of
+  [msg :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.core/Fault :message ~msg :location (wat.kernel/here) :causes (wat.type/Vector :- [wat.core/Error])))
 
 ;; ─── Arc 296: :wat::core::EvalError — moving the source of truth to wat ───
 ;;
@@ -2265,9 +2265,9 @@
 ;; evaluation fails. Carries a `kind` discriminator (short machine-readable
 ;; variant name, e.g. "verification-failed", "parse-failed", "type-mismatch")
 ;; and a `message` diagnostic (human-readable detail).
-(:wat::core::defstruct :wat::core::EvalError
-  [kind    <- wat.type/String
-   message <- wat.type/String])
+(wat.core/defstruct wat.core/EvalError
+  [kind    :- wat.type/String
+   message :- wat.type/String])
 
 ;; ─── Arc 296: :wat::core::Span — moving the source of truth to wat ────────
 ;;
@@ -2277,11 +2277,11 @@
 ;;
 ;; The leaf source location an error's `:location` floor key carries (arc 278
 ;; "errors first-class EDN"). `end` is `(Option :- [Pos])` — `None` for point-spans.
-(:wat::core::defrecord :wat::core::Span
-  [file <- wat.type/String
-   line <- wat.type/i64
-   col  <- wat.type/i64
-   end  <- (:wat::core::Option :- [:wat::core::Pos])])
+(wat.core/defrecord wat.core/Span
+  [file :- wat.type/String
+   line :- wat.type/i64
+   col  :- wat.type/i64
+   end  :- (wat.core/Option :- [wat.core/Pos])])
 
 
 ;; Arc 170 — :wat::core::ReadOutcome — what `:wat::core::read-string` returns.
@@ -2313,9 +2313,9 @@
 ;; `ReadFrameOutcome` refuses below. The discrimination lives in the navigable causes tree, where
 ;; `#wat.parse/Lex` keeps its own tag. `ParseError` already impls `WatError` (`src/parser.rs`),
 ;; so `error_edn()` composes the message/location/causes floor for free.
-(:wat::core::defenum :wat::core::ReadOutcome :wat::enum::Pure
-  :Forms [forms <- wat.type/AST]
-  :Malformed [cause <- :wat::core::Error])
+(wat.core/defenum wat.core/ReadOutcome wat.enum/Pure
+  :Forms [forms :- wat.type/AST]
+  :Malformed [cause :- wat.core/Error])
 
 ;; Arc 277 — `:wat::core::ReadWithCommentsOutcome` — what
 ;; `:wat::core::read-string-with-comments` returns. Mirror of `ReadOutcome`
@@ -2323,6 +2323,6 @@
 ;; core (registered here, in a fresh TypeEnv), not to a late-loading
 ;; stdlib defrecord. Comment *elements* stay `:wat::fmt::Comment` (wat-side);
 ;; only the outcome type the verb hands back is core.
-(:wat::core::defenum :wat::core::ReadWithCommentsOutcome :wat::enum::Pure
-  :Forms [forms <- wat.type/AST  comments <- (wat.type/PersistentVector :- [:wat::fmt::Comment])]
-  :Malformed [cause <- :wat::core::Error])
+(wat.core/defenum wat.core/ReadWithCommentsOutcome wat.enum/Pure
+  :Forms [forms :- wat.type/AST  comments :- (wat.type/PersistentVector :- [wat.fmt/Comment])]
+  :Malformed [cause :- wat.core/Error])

@@ -22,10 +22,10 @@
 ;; stack). Every field is ALWAYS KNOWN — a named fn's path, the
 ;; `<anonymous>` marker for an anon fn, or the macro name for a
 ;; macro-call-site (arc 109 — concrete, non-`Option` fields).
-(:wat::core::defrecord :wat::kernel::Frame
-  [file   <- wat.type/String
-   line   <- wat.type/i64
-   symbol <- wat.type/String])
+(wat.core/defrecord wat.kernel/Frame
+  [file   :- wat.type/String
+   line   :- wat.type/i64
+   symbol :- wat.type/String])
 
 ;; ─── Arc 296: :wat::kernel::StartupError — moving the source of truth to wat ───
 ;;
@@ -38,8 +38,8 @@
 ;; macro) or `:user::main` signature validation fails. Single field for now
 ;; (the diagnostic message); extensible to kind / location if a real
 ;; consumer surfaces.
-(:wat::core::defstruct :wat::kernel::StartupError
-  [message <- wat.type/String])
+(wat.core/defstruct wat.kernel/StartupError
+  [message :- wat.type/String])
 
 ;; ─── Arc 296: :wat::kernel::StopAccepted — moving the source of truth to wat ───
 ;;
@@ -54,8 +54,8 @@
 ;; `services` names exactly the process-lifetime services being asked (its
 ;; held stdio Handles that were still live at the moment of the ask — an
 ;; already-gone Handle is silently omitted, never listed).
-(:wat::core::defrecord :wat::kernel::StopAccepted
-  [services <- (wat.type/Vector :- [wat.type/String])])
+(wat.core/defrecord wat.kernel/StopAccepted
+  [services :- (wat.type/Vector :- [wat.type/String])])
 
 ;; ─── Arc 296: :wat::kernel::StopFailure — moving the source of truth to wat ───
 ;;
@@ -69,9 +69,9 @@
 ;; `:wat::core::Fault` — the canonical minimal record that structurally
 ;; satisfies the `:wat::core::Error` surface, `wat/core.wat`) — never a
 ;; stringly message, never a bespoke `StopFailureCause` enum.
-(:wat::core::defrecord :wat::kernel::StopFailure
-  [service <- wat.type/String
-   cause   <- :wat::core::Error])
+(wat.core/defrecord wat.kernel/StopFailure
+  [service :- wat.type/String
+   cause   :- wat.core/Error])
 
 ;; ─── Arc 296: :wat::kernel::StopFailed — moving the source of truth to wat ───
 ;;
@@ -87,8 +87,8 @@
 ;; channel — a graceful stop that failed is no longer graceful) immediately
 ;; before a non-zero exit. An empty collection means nothing changes — exit
 ;; as it always did.
-(:wat::core::defrecord :wat::kernel::StopFailed
-  [services <- (wat.type/Vector :- [:wat::kernel::StopFailure])])
+(wat.core/defrecord wat.kernel/StopFailed
+  [services :- (wat.type/Vector :- [wat.kernel/StopFailure])])
 
 ;; ─── Arc 296: :wat::kernel::Failure — moving the source of truth to wat ───
 ;;
@@ -104,11 +104,11 @@
 ;; alongside `error` would duplicate data that can drift). `frames` is the
 ;; captured call stack; `actual` / `expected` are populated when the panic
 ;; payload carries an AssertionPayload.
-(:wat::core::defrecord :wat::kernel::Failure
-  [error    <- :wat::core::Error
-   frames   <- (wat.type/Vector :- [:wat::kernel::Frame])
-   actual   <- (:wat::core::Option :- [wat.type/String])
-   expected <- (:wat::core::Option :- [wat.type/String])])
+(wat.core/defrecord wat.kernel/Failure
+  [error    :- wat.core/Error
+   frames   :- (wat.type/Vector :- [wat.kernel/Frame])
+   actual   :- (wat.core/Option :- [wat.type/String])
+   expected :- (wat.core/Option :- [wat.type/String])])
 
 ;; ─── Arc 296 H-2c: :wat::kernel::LociDiedError — moving the source of truth to wat ───
 ;;
@@ -119,24 +119,24 @@
 ;;
 ;; Rust sources from this form: `wat_enum_from!` (a generated enum the consumers
 ;; ask) and `wat_enum_register_from!` (the TypeEnv row). There is no second list.
-(:wat::core::defenum :wat::kernel::LociDiedError :wat::enum::Pure
+(wat.core/defenum wat.kernel/LociDiedError wat.enum/Pure
 ;; Peer raised/panicked; `failure` is Some when the panic carried an AssertionPayload.
-  :Panic            [message <- wat.type/String
-                     failure <- (:wat::core::Option :- [:wat::kernel::Failure])]
+  :Panic            [message :- wat.type/String
+                     failure :- (wat.core/Option :- [wat.kernel/Failure])]
 ;; A type/arity/etc. error surfaced at run.
-  :RuntimeError     [message <- wat.type/String]
+  :RuntimeError     [message :- wat.type/String]
 ;; The wire dropped (was ChannelDisconnected).
   :Disconnected
 ;; A stop was requested mid-recv, any locus (arc 170: wat's word, not Rust's "shutdown").
   :Stopped
 ;; The locus didn't come up. Cause is the structured `:wat::core::Error` floor record.
-  :StartupError     [error   <- :wat::core::Error]
+  :StartupError     [error   :- wat.core/Error]
 ;; The peer program's entry form was malformed.
-  :EntryFormFailure [message <- wat.type/String]
+  :EntryFormFailure [message :- wat.type/String]
 ;; The peer's :user::main had a bad signature.
-  :MainSignature    [message <- wat.type/String]
+  :MainSignature    [message :- wat.type/String]
 ;; The peer returned a value that won't cross the wire.
-  :BadReturn        [message <- wat.type/String])
+  :BadReturn        [message :- wat.type/String])
 
 ;; ─── Arc 296: :wat::kernel::AssertionFailure — moving the source of truth to wat ───
 ;;
@@ -151,11 +151,11 @@
 ;; `{:callee,:at}` map); `location` is an `(Option :- [Location])` (was a bare
 ;; `Span`); `upstream-chain` is a `(Vector :- [LociDiedError])` (was heterogeneous
 ;; Thread|Process) — the record is EDN all the way down.
-(:wat::core::defrecord :wat::kernel::AssertionFailure
-  [thread         <- wat.type/String
-   message        <- wat.type/String
-   location       <- (:wat::core::Option :- [:wat::kernel::Location])
-   actual         <- (:wat::core::Option :- [wat.type/String])
-   expected       <- (:wat::core::Option :- [wat.type/String])
-   frames         <- (wat.type/Vector :- [:wat::kernel::Frame])
-   upstream-chain <- (wat.type/Vector :- [:wat::kernel::LociDiedError])])
+(wat.core/defrecord wat.kernel/AssertionFailure
+  [thread         :- wat.type/String
+   message        :- wat.type/String
+   location       :- (wat.core/Option :- [wat.kernel/Location])
+   actual         :- (wat.core/Option :- [wat.type/String])
+   expected       :- (wat.core/Option :- [wat.type/String])
+   frames         :- (wat.type/Vector :- [wat.kernel/Frame])
+   upstream-chain :- (wat.type/Vector :- [wat.kernel/LociDiedError])])
