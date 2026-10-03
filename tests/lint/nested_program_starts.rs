@@ -42,19 +42,83 @@ fn git_ls(globs: &[&str]) -> Vec<String> {
         .collect()
 }
 
-fn head_kw(n: &WatAST) -> Option<&str> {
+fn raw_head(n: &WatAST) -> Option<&str> {
     match n {
         WatAST::List(items, _) => match items.first() {
             Some(WatAST::Keyword(k, _)) => Some(k.as_str()),
+            Some(WatAST::Symbol(id, _)) if id.is_reference() => Some(id.as_str()),
             _ => None,
         },
         _ => None,
     }
 }
 
+/// Keyword `:wat::core::forms` and symbol `wat.core/forms` are one head.
+fn head_ident(n: &WatAST) -> Option<String> {
+    raw_head(n).map(wat::edn::render::canonical_identity)
+}
+
+fn is_head(n: &WatAST, kw: &str) -> bool {
+    head_ident(n).as_deref() == Some(kw)
+}
+
+fn name_raw(n: &WatAST) -> &str {
+    match n {
+        WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Symbol(id, _) => id.as_str(),
+        _ => "",
+    }
+}
+
+/// Keys one function occupies in the carrying set.
+///
+/// A namespace-level name has one canonical identity (`:wat::kernel::spawn-program`
+/// and `wat.kernel/spawn-program`). A member join does not: `canonical_identity`
+/// leaves `:wat::foo::Bar/baz` intact because it already contains `::`, and
+/// rewrites `wat.foo.Bar/baz` to `:wat::foo::Bar::baz`. Until 5d both are calls
+/// of that function.
+fn carrying_keys(raw: &str) -> Vec<String> {
+    let primary = wat::edn::render::canonical_identity(raw);
+    let mut keys = vec![primary.clone()];
+    // A namespace dot (`wat.kernel/spawn-program`) is not a member join.
+    // The type segment is the last component before the slash, and it is capitalised.
+    let before = raw.split('/').next().unwrap_or("");
+    let last = before.rsplit(['.', ':']).next().unwrap_or("");
+    let member = raw.contains('/') && last.chars().next().is_some_and(|c| c.is_uppercase());
+    if member && raw.contains('.') {
+        if let Some((pre, post)) = primary.rsplit_once("::") {
+            let slash = format!("{pre}/{post}");
+            if slash != primary {
+                keys.push(slash);
+            }
+        }
+    } else if member && primary.contains('/') && primary.contains("::") {
+        let body = primary.trim_start_matches(':').replace("::", ".");
+        let alt = wat::edn::render::canonical_identity(&body);
+        if alt != primary {
+            keys.push(alt);
+        }
+    }
+    keys
+}
+
+fn insert_carrying(carrying: &mut HashSet<(String, usize)>, raw_name: &str, idx: usize) {
+    for k in carrying_keys(raw_name) {
+        carrying.insert((k, idx));
+    }
+}
+
+fn carrying_index(carrying: &HashSet<(String, usize)>, raw: &str) -> Option<usize> {
+    let keys = carrying_keys(raw);
+    keys.iter()
+        .find_map(|k| carrying.iter().find(|(ck, _)| ck == k).map(|(_, i)| *i))
+}
+
+/// A binder. A reference symbol is a type or a call (`wat.spawn/ThreadOpts`),
+/// not a parameter — counting it shifts the carrying index.
 fn sym_name(n: &WatAST) -> Option<&str> {
     match n {
-        WatAST::Symbol(id, _) => Some(id.as_str()),
+        WatAST::Symbol(id, _) if !id.is_reference() => Some(id.as_str()),
         _ => None,
     }
 }
@@ -97,17 +161,14 @@ fn walk_defn(
     cur: Option<(&str, &[String])>,
     lets: &HashMap<String, WatAST>,
 ) {
-    let Some(h) = head_kw(n) else {
+    let Some(h) = head_ident(n) else {
         walk_kids(n, carrying, cur, lets);
         return;
     };
     match n {
         WatAST::List(items, _) if h == ":wat::core::defn" || h == ":wat::core::defmacro" => {
             if items.len() >= 3 {
-                let name = match &items[1] {
-                    WatAST::Keyword(k, _) => k.as_str(),
-                    _ => "",
-                };
+                let name = name_raw(&items[1]);
                 let pv = items
                     .iter()
                     .find(|c| matches!(c, WatAST::Vector(_, _)));
@@ -119,13 +180,7 @@ fn walk_defn(
             }
         }
         WatAST::List(items, _) if h == ":wat::core::defclause" => {
-            let name = items
-                .get(1)
-                .and_then(|c| match c {
-                    WatAST::Keyword(k, _) => Some(k.as_str()),
-                    _ => None,
-                })
-                .unwrap_or("");
+            let name = items.get(1).map(name_raw).unwrap_or("");
             for clause in items.iter().skip(2) {
                 if let WatAST::List(ch, _) = clause {
                     if let Some(WatAST::Vector(_, _)) = ch.first() {
@@ -145,20 +200,15 @@ fn walk_defn(
             // `types::extend_type_operands` is not reachable from an integration test.
             let skip = if items.get(1).is_some_and(wat_reader::is_binder_marker) { 3 } else { 1 };
             let ops: &[WatAST] = items.get(skip..).unwrap_or(&[]);
-            let surface = ops.get(1).and_then(|c| match c {
-                WatAST::Keyword(k, _) => Some(k.as_str()),
-                _ => None,
-            });
+            let surface = ops.get(1).map(name_raw).filter(|s| !s.is_empty());
             for meth in ops.iter().skip(2) {
                 if let WatAST::List(ch, _) = meth {
                     if ch.len() >= 2 {
-                        let mname = match &ch[0] {
-                            WatAST::Symbol(id, _) => id.as_str(),
-                            WatAST::Keyword(k, _) => k.as_str(),
-                            _ => "",
-                        };
+                        let mname = name_raw(&ch[0]);
                         let qname = match surface {
-                            Some(s) => format!("{s}/{mname}"),
+                            Some(s) => {
+                                format!("{}/{mname}", wat::edn::render::canonical_identity(s))
+                            }
                             None => mname.to_string(),
                         };
                         let params = param_names(&ch[1]);
@@ -190,11 +240,7 @@ fn walk_defn(
             return;
         }
         WatAST::List(items, _) => {
-            if let Some(idx) = carrying
-                .iter()
-                .find(|(k, _)| k == h)
-                .map(|(_, i)| *i)
-            {
+            if let Some(idx) = raw_head(n).and_then(|raw| carrying_index(carrying, raw)) {
                 if let Some(arg) = items.get(idx + 1) {
                     mark_carrying_expr(arg, carrying, cur, lets);
                 }
@@ -229,12 +275,12 @@ fn mark_carrying_expr(
         }
         if let Some((fname, params)) = cur {
             if let Some(i) = params.iter().position(|p| p == name) {
-                carrying.insert((fname.to_string(), i));
+                insert_carrying(carrying, fname, i);
             }
         }
         return;
     }
-    if head_kw(e) == Some(":wat::core::concat") {
+    if is_head(e, ":wat::core::concat") {
         if let WatAST::List(items, _) = e {
             for op in items.iter().skip(1) {
                 mark_carrying_expr(op, carrying, cur, lets);
@@ -305,9 +351,9 @@ fn walk_class(
     hits: &mut Vec<Hit>,
     lets: &HashMap<String, WatAST>,
 ) {
-    let h = head_kw(n);
-    let in_quasi = in_quasi || h == Some(":wat::core::quasiquote");
-    if h == Some(":wat::core::forms") {
+    let h = head_ident(n);
+    let in_quasi = in_quasi || h.as_deref() == Some(":wat::core::quasiquote");
+    if h.as_deref() == Some(":wat::core::forms") {
         let class = if in_quasi {
             Class::Template
         } else if parent_carrying_arg == Some(true) {
@@ -327,7 +373,7 @@ fn walk_class(
         });
     }
     if let WatAST::List(items, _) = n {
-        if h == Some(":wat::core::let") && items.len() >= 3 {
+        if h.as_deref() == Some(":wat::core::let") && items.len() >= 3 {
             let mut env = lets.clone();
             if let Some(WatAST::Vector(binds, _)) = items.get(1) {
                 let mut i = 0;
@@ -354,14 +400,14 @@ fn walk_class(
             }
             return;
         }
-        if h == Some(":wat::core::concat") {
+        if h.as_deref() == Some(":wat::core::concat") {
             let concat_is_carrying = parent_carrying_arg == Some(true)
                 || carrying.iter().any(|(k, _)| k == ":wat::core::concat");
             for (i, c) in items.iter().enumerate() {
                 if i == 0 {
                     continue;
                 }
-                if head_kw(c) == Some(":wat::core::forms") {
+                if is_head(c, ":wat::core::forms") {
                     let kids = match c {
                         WatAST::List(it, _) => it.iter().skip(1).cloned().collect(),
                         _ => Vec::new(),
@@ -392,12 +438,7 @@ fn walk_class(
             }
             return;
         }
-        let carry_idx = h.and_then(|hh| {
-            carrying
-                .iter()
-                .find(|(k, _)| k == hh)
-                .map(|(_, i)| *i)
-        });
+        let carry_idx = raw_head(n).and_then(|raw| carrying_index(carrying, raw));
         for (i, c) in items.iter().enumerate() {
             let is_carry = carry_idx.map(|ci| i == ci + 1).unwrap_or(false);
             if is_carry {
@@ -436,9 +477,15 @@ fn live_tests() -> HashSet<String> {
             for line in src.lines() {
                 let t = line.trim();
                 // Split the '(' off so this prefix is not an EDN-esque `(…)` literal.
-                if let Some(rest) = t.strip_prefix('(').and_then(|r| r.strip_prefix(":wat::test::deftest ")) {
-                    let name = rest.split_whitespace().next().unwrap_or("");
-                    s.insert(rustify_deftest(name));
+                if let Some(rest) = t.strip_prefix('(') {
+                    let mut parts = rest.split_whitespace();
+                    let head = parts.next().unwrap_or("");
+                    let name = parts.next().unwrap_or("");
+                    if wat::edn::render::canonical_identity(head) == ":wat::test::deftest"
+                        && !name.is_empty()
+                    {
+                        s.insert(rustify_deftest(name));
+                    }
                 }
             }
         } else {
@@ -729,4 +776,35 @@ fn nested_program_gate_refuses_a_rune_whose_test_does_not_exist() {
         "a rune naming a missing test must be refused (E5)"
     );
     let _ = std::fs::remove_file(&tmp);
+}
+
+/// Keyword and symbol heads of a nested-program form are one identity.
+#[test]
+fn head_ident_keyword_and_symbol_are_one() {
+    let kw = parse_all_with_file("(:wat::core::forms 1)", "kw.wat").expect("parse keyword");
+    let sy = parse_all_with_file("(wat.core/forms 1)", "sy.wat").expect("parse symbol");
+    assert_eq!(head_ident(&kw[0]), head_ident(&sy[0]));
+    assert_eq!(head_ident(&kw[0]).as_deref(), Some(":wat::core::forms"));
+    let kw_name = parse_all_with_file(
+        "(:wat::core::defn :wat::kernel::spawn-program [] 1)",
+        "kw-name.wat",
+    )
+    .expect("parse keyword defn");
+    let sy_name = parse_all_with_file(
+        "(wat.core/defn wat.kernel/spawn-program [] 1)",
+        "sy-name.wat",
+    )
+    .expect("parse symbol defn");
+    let kw_list = match &kw_name[0] {
+        WatAST::List(items, _) => items,
+        _ => panic!("keyword defn is a list"),
+    };
+    let sy_list = match &sy_name[0] {
+        WatAST::List(items, _) => items,
+        _ => panic!("symbol defn is a list"),
+    };
+    assert_eq!(
+        carrying_keys(name_raw(&kw_list[1])),
+        carrying_keys(name_raw(&sy_list[1]))
+    );
 }
