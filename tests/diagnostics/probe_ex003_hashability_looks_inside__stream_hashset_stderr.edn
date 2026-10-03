@@ -19,7 +19,6 @@
         :got #wat.runtime/ValueSnapshot {
           :type "wat::stream::Stream"
           :rendered "(seq-empty)"
-          :provenance #wat.core/Option.None {}
         }
       }
       :frames [

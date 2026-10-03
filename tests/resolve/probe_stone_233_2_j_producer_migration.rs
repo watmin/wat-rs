@@ -131,10 +131,19 @@ fn probe_3_zero_value_tracked_construction_sites_in_src() {
     );
 }
 
-// ─── Probe 4 — ValueSnapshot::of_tracked exists for TrackedValue-aware errors ─
+// ─── Probe 4 — ValueSnapshot::of_tracked collapsed into of (excursus 003 C) ─
+//
+// Stone 233.2.j added `ValueSnapshot::of_tracked(&TrackedValue) -> Self` so a
+// producer's provenance could ride the error snapshot's Display. Excursus 003
+// strike C (2026-09-27 ruling item 4) removed `provenance` from `ValueSnapshot`
+// itself — it was `Unknown` at 503 of 506 sites — so `of_tracked` added
+// nothing once provenance left, and it collapsed into `of`, which this probe
+// is REWRITTEN to assert: the method no longer exists, and the snapshot's
+// Display carries no producer info. The provenance itself is untouched — it
+// still lives on the `TrackedValue` (`tv.provenance()`).
 
 #[test]
-fn probe_4_value_snapshot_of_tracked_exists_and_reads_provenance() {
+fn probe_4_value_snapshot_of_no_longer_carries_tracked_provenance() {
     use wat::runtime::ValueSnapshot;
 
     let tv = TrackedValue::new(
@@ -145,20 +154,23 @@ fn probe_4_value_snapshot_of_tracked_exists_and_reads_provenance() {
         },
     );
 
-    // Stone 233.2.j adds ValueSnapshot::of_tracked(&TrackedValue) -> Self.
-    // Pre-stone: this method doesn't exist; compile FAILS.
-    // Post-stone: snapshot carries the producer-attached provenance.
-    let snap = ValueSnapshot::of_tracked(&tv);
-
-    let disp = format!("{}", snap);
-    // rune:lint(loose-assert) — Display embeds an absolute source file path from
-    // `rust_caller_span!()`/`file!()` (e.g. `.../probe_stone_233_2_j_producer_migration.rs:134:24`)
-    // that varies by host filesystem layout and checkout location; only the producer name
-    // `:probe::test/of-tracked` is the stable contract.
     assert!(
-        disp.contains(":probe::test/of-tracked"),
-        "ValueSnapshot::of_tracked should render provenance into Display; got: {}",
-        disp
+        matches!(tv.provenance(), Provenance::RuntimeBuilt { producer, .. } if *producer == ":probe::test/of-tracked"),
+        "the TrackedValue itself still carries its RuntimeBuilt provenance; got {:?}",
+        tv.provenance()
+    );
+
+    // ValueSnapshot::of_tracked is gone; of(&Value) is the only constructor.
+    // Display is fully deterministic for this value — i64(42) — so this is an
+    // exact match, not a loose `.contains()` check: the string below is the
+    // WHOLE Display output, and its absence of ":probe::test/of-tracked" is
+    // structural (there is nowhere left in the shape to put it), not sampled.
+    let snap = ValueSnapshot::of(tv.value());
+    let disp = format!("{}", snap);
+    assert_eq!(
+        disp, "wat::core::i64 `42`",
+        "excursus 003 strike C: ValueSnapshot's Display no longer carries producer \
+         provenance (the field is gone)"
     );
 }
 

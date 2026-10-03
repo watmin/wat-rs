@@ -2,7 +2,6 @@
   :got {
     :type "wat::core::String"
     :rendered "\"not-fn\""
-    :provenance nil
   }
   :span #wat.core/Span {
     :file "test.wat"

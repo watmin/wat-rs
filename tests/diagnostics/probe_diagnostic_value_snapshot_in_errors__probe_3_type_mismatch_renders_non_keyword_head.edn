@@ -16,6 +16,5 @@
   :got {
     :type "wat::core::String"
     :rendered "\"not-a-keyword\""
-    :provenance nil
   }
 }

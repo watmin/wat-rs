@@ -14,7 +14,6 @@
         :got #wat.runtime/ValueSnapshot {
           :type "wat::core::PersistentMap"
           :rendered "#pm{1: <:rust::cache::Lru>}"
-          :provenance #wat.core/Option.None {}
         }
       }
       :frames [

@@ -35,7 +35,7 @@ fn eval_render(src: &str) -> (String, String) {
         // on the whole snapshot could never equal a bare "1/2"/"-3/2" for
         // ANY literal; `.rendered` is the field that matches the doc
         // comment's stated intent and every other stone's render checks.
-        ValueSnapshot::of_tracked(&tv).rendered,
+        ValueSnapshot::of(tv.value()).rendered,
     )
 }
 

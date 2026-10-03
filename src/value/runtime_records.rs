@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use crate::value::{
-    AggregateValue, ClauseAttempt, ClauseFailureReason, EnumValue, Provenance, ReteCeiling,
+    AggregateValue, ClauseAttempt, ClauseFailureReason, EnumValue, ReteCeiling,
     RuntimeError, RuntimeErrorKind, Value, ValueSnapshot,
 };
 use crate::edn::contract::WatError;
@@ -48,42 +48,14 @@ macro_rules! variant_names_fn {
     };
 }
 
-// ─── ValueSnapshot / Provenance ───────────────────────────────────────────────
+// ─── ValueSnapshot ──────────────────────────────────────────────────────────
+//
+// Excursus 003 strike C: `provenance` left `ValueSnapshot` per the 2026-09-27
+// ruling item 4. `:wat::runtime::Provenance` lost its only holder and is
+// retired (wat/runtime-errors.wat; registration dropped from src/types.rs)
+// — `provenance_value`/the three `variant_names_fn!` rows it fed went with it.
 
 record_names_fn!(value_snapshot_names, VALUE_SNAPSHOT_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ValueSnapshot");
-variant_names_fn!(provenance_literal_names, PROVENANCE_LITERAL_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::Provenance", "Literal");
-variant_names_fn!(provenance_symbol_bound_names, PROVENANCE_SYMBOL_BOUND_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::Provenance", "SymbolBound");
-variant_names_fn!(provenance_runtime_built_names, PROVENANCE_RUNTIME_BUILT_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::Provenance", "RuntimeBuilt");
-
-fn provenance_value(prov: &Provenance) -> Option<Value> {
-    match prov {
-        Provenance::Unknown => None,
-        Provenance::Literal { span } => Some(Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Provenance".to_string(),
-            variant_name: "Literal".to_string(),
-            names: provenance_literal_names(),
-            fields: vec![crate::runtime::value_from_span(span.clone())],
-        }))),
-        Provenance::SymbolBound { binding_span, head_span } => Some(Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Provenance".to_string(),
-            variant_name: "SymbolBound".to_string(),
-            names: provenance_symbol_bound_names(),
-            fields: vec![
-                crate::runtime::value_from_span(binding_span.clone()),
-                crate::runtime::value_from_span(head_span.clone()),
-            ],
-        }))),
-        Provenance::RuntimeBuilt { producer, call_span } => Some(Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Provenance".to_string(),
-            variant_name: "RuntimeBuilt".to_string(),
-            names: provenance_runtime_built_names(),
-            fields: vec![
-                Value::String(Arc::new((*producer).to_string())),
-                crate::runtime::value_from_span(call_span.clone()),
-            ],
-        }))),
-    }
-}
 
 fn value_snapshot_value(snap: &ValueSnapshot) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
@@ -92,7 +64,6 @@ fn value_snapshot_value(snap: &ValueSnapshot) -> Value {
         Arc::new(vec![
             Value::String(Arc::new(snap.type_name.to_string())),
             Value::String(Arc::new(snap.rendered.clone())),
-            Value::Option(Arc::new(provenance_value(&snap.provenance))),
         ]),
     )))
 }

@@ -2542,15 +2542,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // ─── Excursus 003 step 3a — the RuntimeErrorKind wat records ─────────────
     // Declared in `wat/runtime-errors.wat`. Order below matches that file's
-    // internal dependency order: Provenance (no deps) before ValueSnapshot
-    // (names it), then the 40 kind records (several name ValueSnapshot /
-    // ReteCeilingKind / the ClauseAttempt registered above).
+    // internal dependency order: ValueSnapshot first, then the 40 kind
+    // records (several name ValueSnapshot / ReteCeilingKind / the
+    // ClauseAttempt registered above).
+    //
+    // Excursus 003 strike C: `:wat::runtime::Provenance` (registered here,
+    // immediately before ValueSnapshot) is RETIRED — it lost its only holder
+    // when `ValueSnapshot.provenance` left (2026-09-27 ruling item 4).
 
-    ::wat_source_derive::wat_enum_register_from!(
-        env,
-        "wat/runtime-errors.wat",
-        ":wat::runtime::Provenance"
-    );
     ::wat_source_derive::wat_record_from!(
         env,
         "wat/runtime-errors.wat",

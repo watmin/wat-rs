@@ -2,7 +2,6 @@
   :got {
     :type "wat::core::String"
     :rendered "\"hello\""
-    :provenance nil
   }
   :span #wat.core/Span {
     :file "test.wat"

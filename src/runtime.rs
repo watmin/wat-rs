@@ -1899,8 +1899,10 @@ fn eval_list(
         }
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
-            // Arc 233 Stone 233.2.k: keep TrackedValue so NotCallable errors
-            // preserve producer provenance (of_tracked reads provenance intact).
+            // Arc 233 Stone 233.2.k: keep TrackedValue through to apply_tracked_callee
+            // (excursus 003 strike C: NotCallable's snapshot no longer carries
+            // provenance — it reads the plain Value — but the lookup itself still
+            // tracks it; see Environment::lookup).
             // Arc 233 Stone 233.2.e: pass span so lookup constructs SymbolBound.
             let tv = env
                 .lookup(crate::scope::env_key(ident).as_ref(), span)
@@ -11022,10 +11024,12 @@ fn eval_str(
 
 // ─── Function application ───────────────────────────────────────────────
 
-/// Arc 233 Stone 233.2.k — apply a TrackedValue callee, preserving provenance
-/// in NotCallable errors. Used by eval_list Symbol + List head paths where the
-/// callee is looked up or evaluated as a TrackedValue (so producer info flows
-/// to the error site intact via ValueSnapshot::of_tracked).
+/// Apply a TrackedValue callee. Used by eval_list Symbol + List head paths
+/// where the callee is looked up or evaluated as a TrackedValue.
+///
+/// Excursus 003 strike C: `ValueSnapshot::of_tracked` (which this NotCallable
+/// arm used) collapsed into `of` — provenance no longer rides the snapshot,
+/// so this reads the plain `Value` instead.
 fn apply_tracked_callee(
     callee_tv: TrackedValue,
     args: &[WatAST],
@@ -11038,7 +11042,7 @@ fn apply_tracked_callee(
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
                 RuntimeErrorKind::NotCallable {
-                    got: Box::new(ValueSnapshot::of_tracked(&callee_tv)),
+                    got: Box::new(ValueSnapshot::of(callee_tv.value())),
                 },
             )
             .into())

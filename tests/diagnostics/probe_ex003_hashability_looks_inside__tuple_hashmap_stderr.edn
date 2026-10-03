@@ -14,7 +14,6 @@
         :got #wat.runtime/ValueSnapshot {
           :type "wat::core::Tuple"
           :rendered "(<:rust::cache::Lru>, 1)"
-          :provenance #wat.core/Option.None {}
         }
       }
       :frames [

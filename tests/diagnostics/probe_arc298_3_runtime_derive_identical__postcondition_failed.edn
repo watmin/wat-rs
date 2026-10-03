@@ -5,7 +5,6 @@
   :returned-value {
     :type "wat::core::i64"
     :rendered "-5"
-    :provenance nil
   }
   :ensure-span #wat.core/Span {
     :file "defs.wat"

@@ -16,6 +16,5 @@
   :got {
     :type "wat::core::i64"
     :rendered "42"
-    :provenance nil
   }
 }

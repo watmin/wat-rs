@@ -25,7 +25,7 @@ fn eval_res(src: &str) -> Result<(String, String), EvalBreak> {
     let tv = eval_in_frozen(&ast, &world, &env)?;
     Ok((
         tv.value().type_name().to_string(),
-        ValueSnapshot::of_tracked(&tv).rendered,
+        ValueSnapshot::of(tv.value()).rendered,
     ))
 }
 

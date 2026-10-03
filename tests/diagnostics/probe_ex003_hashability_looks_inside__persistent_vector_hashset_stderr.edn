@@ -14,7 +14,6 @@
         :got #wat.runtime/ValueSnapshot {
           :type "wat::core::PersistentVector"
           :rendered "#pv[<:rust::cache::Lru>]"
-          :provenance #wat.core/Option.None {}
         }
       }
       :frames [

@@ -2,7 +2,6 @@
   :got {
     :type "wat::core::i64"
     :rendered "0"
-    :provenance nil
   }
   :span #wat.core/Span {
     :file "test.wat"

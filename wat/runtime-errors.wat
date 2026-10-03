@@ -22,25 +22,6 @@
 ;; ships as `#wat.kernel/…`) and after `wat/core.wat` (`:wat::core::Error` /
 ;; `:wat::core::Span`). See `src/load/stdlib.rs`.
 
-;; ─── :wat::runtime::Provenance — where a snapshotted value came from ─────────
-;;
-;; Mirrors `crate::value::observe::Provenance` (`src/value/observe.rs:25`, NOT
-;; `src/edn/error.rs` — that file only holds the serializer, `provenance_to_edn`).
-;; `Provenance::Unknown` (the default — no provenance attached) carries no data,
-;; so it is not a variant here: `:wat::runtime::ValueSnapshot/provenance` is an
-;; `(Option :- [Provenance])`, and `Unknown` is `:None`.
-(:wat::core::defenum :wat::runtime::Provenance :wat::enum::Pure
-;; The value appeared as a literal in source; `span` is the literal's own span.
-  :Literal      [span <- :wat::core::Span]
-;; The value was resolved from a symbol lookup; `binding-span` is where the
-;; binding was defined, `head-span` is where the symbol appeared in the call.
-  :SymbolBound  [binding-span <- :wat::core::Span
-                 head-span    <- :wat::core::Span]
-;; The value was constructed by a producer function at runtime (e.g.
-;; `keyword/from-string`); `producer` names it, `call-span` is the call site.
-  :RuntimeBuilt [producer  <- :wat::core::String
-                 call-span <- :wat::core::Span])
-
 ;; ─── :wat::runtime::ValueSnapshot — a captured value, for diagnostics ────────
 ;;
 ;; Mirrors `crate::value::observe::ValueSnapshot` (`src/value/observe.rs:94`).
@@ -50,12 +31,19 @@
 ;; `NotCallable` / `TypeMismatch` / `BadCondition`), `called-args` (on
 ;; `NoMatchingClause`) and `returned-value` (on `PostconditionFailed`) carry a
 ;; real tag, `#wat.runtime/ValueSnapshot`, instead.
+;;
+;; Excursus 003 strike C (2026-09-27 ruling item 4): `provenance` is GONE —
+;; it was `Unknown` at 503 of 506 construction sites (AUDIT-the-shape-of-an-
+;; error.md F5). `:wat::runtime::Provenance` (formerly declared just above —
+;; mirrored `crate::value::observe::Provenance`, src/value/observe.rs:25,
+;; NOT `src/edn/error.rs` which only holds the serializer `provenance_to_edn`)
+;; lost its only holder and is retired with it. `Provenance`/`TrackedValue`
+;; tracking itself is untouched — only this record's field and its own wat
+;; declaration are gone.
 (:wat::core::defrecord :wat::runtime::ValueSnapshot
-  [type       <- :wat::core::String
+  [type     <- :wat::core::String
 ;; The value's rendered textual form (`render_value`), for a human reader.
-   rendered   <- :wat::core::String
-;; Where the value came from, when known.
-   provenance <- (:wat::core::Option :- [:wat::runtime::Provenance])])
+   rendered <- :wat::core::String])
 
 ;; ─── :wat::runtime::ReteCeilingKind — the closed set of rete ceiling breaches ─
 ;;

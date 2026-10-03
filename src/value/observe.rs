@@ -87,26 +87,25 @@ impl From<Value> for TrackedValue {
 /// Carries the value's type name (cheap; static) AND a rendered form
 /// (heap-allocated; constructed at error-creation time via `render_value`).
 ///
-/// `provenance` is `Unknown` in 233.1. Stone 233.2 fills it with real
-/// variants (Literal / SymbolBound / RuntimeBuilt) once Value-level
-/// provenance tracking lands.
+/// Excursus 003 strike C: `provenance` carried `Unknown` for 503 of 506
+/// construction sites (`AUDIT-the-shape-of-an-error.md` F5) — removed per
+/// the 2026-09-27 ruling item 4 ("`provenance` goes"). `Provenance`/
+/// `TrackedValue` tracking itself is unaffected; only this snapshot's field
+/// is gone. `ValueSnapshot::of_tracked` collapsed into `of` — it added
+/// nothing once provenance left — callers now pass `tv.value()`.
 #[derive(Debug, Clone)]
 pub struct ValueSnapshot {
     pub type_name: &'static str,
     pub rendered: String,
-    pub provenance: Provenance,
 }
 
 impl ValueSnapshot {
     /// Construct from a runtime Value at error-creation time. Uses
-    /// existing `render_value` for the rendered field. Arc 233 Stone 233.2.k:
-    /// Value::Tracked retired; bare Values always get Provenance::Unknown here.
-    /// Use ValueSnapshot::of_tracked(&TrackedValue) for provenance-aware error sites.
+    /// existing `render_value` for the rendered field.
     pub fn of(v: &Value) -> Self {
         ValueSnapshot {
             type_name: v.type_name(),
             rendered: render_value(v, 0),
-            provenance: Provenance::Unknown,
         }
     }
 
@@ -117,7 +116,6 @@ impl ValueSnapshot {
         ValueSnapshot {
             type_name,
             rendered: "<unavailable>".into(),
-            provenance: Provenance::Unknown,
         }
     }
 
@@ -128,18 +126,6 @@ impl ValueSnapshot {
         ValueSnapshot {
             type_name,
             rendered: description,
-            provenance: Provenance::Unknown,
-        }
-    }
-
-    /// Arc 233 Stone 233.2.j — construct from a TrackedValue, reading both
-    /// the inner value (for type_name + rendered) and the attached provenance.
-    /// Sibling to `of(&Value)` which gives Provenance::Unknown for bare Values.
-    pub fn of_tracked(tv: &TrackedValue) -> Self {
-        ValueSnapshot {
-            type_name: tv.value().type_name(),
-            rendered: render_value(tv.value(), 0),
-            provenance: tv.provenance().clone(),
         }
     }
 }
@@ -148,33 +134,7 @@ impl fmt::Display for ValueSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Type name followed by rendered content in backticks.
         // Example: "wat::core::keyword `:wat::core::i64::+`"
-        write!(f, "{} `{}`", self.type_name, self.rendered)?;
-        // Arc 233 Stone 233.2.b: render Provenance inline when not Unknown.
-        match &self.provenance {
-            Provenance::Unknown => Ok(()),
-            Provenance::RuntimeBuilt { producer, call_span } => {
-                write!(
-                    f,
-                    " (built by {} at {}:{}:{})",
-                    producer, call_span.file, call_span.line, call_span.col
-                )
-            }
-            Provenance::Literal { span } => {
-                write!(f, " (from {}:{}:{})", span.file, span.line, span.col)
-            }
-            Provenance::SymbolBound { binding_span, head_span } => {
-                write!(
-                    f,
-                    " (bound from {}:{}:{} at {}:{}:{})",
-                    binding_span.file,
-                    binding_span.line,
-                    binding_span.col,
-                    head_span.file,
-                    head_span.line,
-                    head_span.col
-                )
-            }
-        }
+        write!(f, "{} `{}`", self.type_name, self.rendered)
     }
 }
 

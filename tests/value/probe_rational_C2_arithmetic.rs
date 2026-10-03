@@ -26,7 +26,7 @@ fn eval_render(src: &str) -> (String, String) {
         .unwrap_or_else(|e| panic!("{src:?} should eval: {e:?}"));
     (
         tv.value().type_name().to_string(),
-        ValueSnapshot::of_tracked(&tv).rendered,
+        ValueSnapshot::of(tv.value()).rendered,
     )
 }
 

@@ -19,7 +19,6 @@
         :got #wat.runtime/ValueSnapshot {
           :type "wat::core::String"
           :rendered "\"abc\""
-          :provenance #wat.core/Option.None {}
         }
       }
       :frames [

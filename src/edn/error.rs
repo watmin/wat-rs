@@ -118,12 +118,15 @@ impl crate::edn::contract::WatError for RuntimeError {
 
 /// Serialize a [`ValueSnapshot`] to an EDN map.
 ///
-/// Maps `{:type "...", :rendered "...", :provenance <provenance-edn>}`.
+/// Maps `{:type "...", :rendered "..."}`. Excursus 003 strike C: `:provenance`
+/// removed per the 2026-09-27 ruling item 4 — the field left `ValueSnapshot`
+/// itself (`src/value/observe.rs`); `provenance_to_edn`/`ToEdn for Provenance`
+/// below are untouched (general `Provenance` EDN serialization, not specific
+/// to this writer) — see the strike's report for their own measured use.
 pub fn value_snapshot_to_edn(snap: &ValueSnapshot) -> OwnedValue {
     OwnedValue::Map(vec![
         (kw("type"), str_val(snap.type_name)),
         (kw("rendered"), str_val(&snap.rendered)),
-        (kw("provenance"), provenance_to_edn(&snap.provenance)),
     ])
 }
 

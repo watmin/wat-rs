@@ -153,22 +153,40 @@ fn probe_4_destructure_slot_lookup_yields_symbol_bound_provenance() {
     );
 }
 
-// ─── Probe 5 — Literal{span} renders source-coordinates into Display ────────
+// ─── Probe 5 — ValueSnapshot::of no longer renders provenance into Display ──
+//
+// Excursus 003 strike C (2026-09-27 ruling item 4): `provenance` left
+// `ValueSnapshot` — it was `Unknown` at 503 of 506 construction sites
+// (AUDIT-the-shape-of-an-error.md F5). `ValueSnapshot::of_tracked` collapsed
+// into `of`, so a `TrackedValue`'s `Literal{span}` no longer reaches the
+// snapshot's Display at all; this probe is REWRITTEN from asserting the
+// source-coordinate suffix to asserting it is GONE. `TrackedValue`'s own
+// `.provenance()` (probes 1-4 above) is untouched by this strike — the
+// tracking machinery stays; only the error snapshot's field left.
 
 #[test]
-fn probe_5_literal_provenance_renders_source_coordinates() {
-    // Construct a TrackedValue with Literal provenance + non-zero span.
+fn probe_5_value_snapshot_of_no_longer_carries_provenance() {
+    // Construct a TrackedValue with Literal provenance + non-zero span —
+    // the provenance survives on the TrackedValue itself (tv.provenance()),
+    // but ValueSnapshot::of only ever reads the plain Value now.
     let span = wat::span::Span::new(Arc::new("test-source.wat".to_string()), 7, 13);
     let tv = TrackedValue::new(
         Value::i64(42),
         Provenance::Literal { span },
     );
 
-    let snap = ValueSnapshot::of_tracked(&tv);
+    assert!(
+        matches!(tv.provenance(), Provenance::Literal { .. }),
+        "the TrackedValue itself still carries Literal provenance; got {:?}",
+        tv.provenance()
+    );
+
+    let snap = ValueSnapshot::of(tv.value());
     let display = format!("{}", snap);
     assert_eq!(
         display,
-        "wat::core::i64 `42` (from test-source.wat:7:13)",
-        "Stone 233.2.e: Literal{{span}} provenance must render source-coordinates into Display"
+        "wat::core::i64 `42`",
+        "Stone C: ValueSnapshot's Display no longer has a provenance suffix to render \
+         (the field is gone); got {display:?}"
     );
 }

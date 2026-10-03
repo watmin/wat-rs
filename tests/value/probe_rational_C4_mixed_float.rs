@@ -20,7 +20,7 @@ fn eval_try(src: &str) -> Result<(String, String), String> {
     let tv = eval_in_frozen(&ast, &world, &env).map_err(|e| format!("{e:?}"))?;
     Ok((
         tv.value().type_name().to_string(),
-        ValueSnapshot::of_tracked(&tv).rendered,
+        ValueSnapshot::of(tv.value()).rendered,
     ))
 }
 

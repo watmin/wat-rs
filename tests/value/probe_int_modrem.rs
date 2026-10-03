@@ -27,7 +27,7 @@ fn eval_res(src: &str) -> Result<String, EvalBreak> {
     let env = Environment::new();
     let ast = wat::parse_one!(src).expect("parse");
     let tv = eval_in_frozen(&ast, &world, &env)?;
-    Ok(wat::runtime::ValueSnapshot::of_tracked(&tv).rendered)
+    Ok(wat::runtime::ValueSnapshot::of(tv.value()).rendered)
 }
 
 // ─── the sign table (every Ok-valued cell) ────────────────────────────────────────
