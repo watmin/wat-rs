@@ -138,12 +138,17 @@ fn lookup_form_quasiquote_returns_special_form() {
     wat::assert_edn_matches_file!(sig, "wat_arc144_special_forms__quasiquote.edn", "quasiquote signature must carry <template> slot");
 }
 
-/// Does this WatAST carry `kw` as a keyword node, at any depth? A structural walk over
-/// WatAST — deliberately NOT a string search over a rendered face.
+/// Does this WatAST carry `kw` at any depth? A keyword node matches by text. A
+/// reference symbol matches when its canonical identity is `kw`, so
+/// `wat.core/structtype` carries `:wat::core::structtype`. A structural walk
+/// over WatAST — deliberately NOT a string search over a rendered face.
 fn watast_carries_keyword(node: &wat::ast::WatAST, kw: &str) -> bool {
     use wat::ast::WatAST;
     match node {
-        WatAST::Keyword(k, _) => k == kw,
+        WatAST::Keyword(k, _) => k == kw || wat::edn::render::canonical_identity(k) == kw,
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            wat::edn::render::canonical_identity(id.as_str()) == kw
+        }
         WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
             items.iter().any(|c| watast_carries_keyword(c, kw))
         }
@@ -191,6 +196,18 @@ fn lookup_form_struct_returns_special_form() {
         "Arc 293.2-parity: defstruct's macro body must expand through to \
          :wat::core::structtype (the low-level primitive)"
     );
+}
+
+/// A keyword node and a symbol node both carry `:wat::core::structtype`.
+#[test]
+fn structtype_keyword_and_symbol_are_one_carrier() {
+    let kw = wat::parser::parse_all_with_file("(:wat::core::structtype T)", "kw.wat")
+        .expect("parse keyword structtype");
+    let sy = wat::parser::parse_all_with_file("(wat.core/structtype T)", "sy.wat")
+        .expect("parse symbol structtype");
+    assert!(watast_carries_keyword(&kw[0], ":wat::core::structtype"));
+    assert!(watast_carries_keyword(&sy[0], ":wat::core::structtype"));
+    assert!(!watast_carries_keyword(&sy[0], ":wat::core::defstruct"));
 }
 
 // ─── Bonus: unknown special-form name returns None ──────────────────────────
