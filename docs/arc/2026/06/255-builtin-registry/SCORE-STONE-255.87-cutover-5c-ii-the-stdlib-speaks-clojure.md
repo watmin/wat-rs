@@ -660,3 +660,82 @@ Census and `delta.sh` did not run. This floor is the stop.
 ## STOP (amend 5)
 
 The cure is on `bdb9953d7`. The floor `.floor/2026-10-03T11-10-21Z` is red and is not re-run. Delta NEW is not measured. 5c-iii, 5c-iv, 5d, and 255.88 were not started.
+
+## Amend 6 — the own-stone reds, and the doc check leaves the 30s slot
+
+Cure is `b2156b785` on local main. Not pushed. `.floor/2026-10-03T11-10-21Z` was not re-run.
+
+### Arm A
+
+`one_variant_separator`'s categories are `namespace`, `type-path`, `display`, `edn`, and `not-a-name`. There is no category for a companion suffix, so no rune was added. The four `format!("{kw}::…")` lines were COMPOSE. They are now literals. `canonical_identity` of each already-canonical companion equals that literal, which is the door refusing to slice it:
+
+```
+:probe::work::kwargs-check
+:probe::work::grant-worker
+:probe::work::revoke-worker
+:probe::work::Coords
+```
+
+The loose `starts_with` is the exact `assert_eq!` of `canonical_identity("wat.spawn/process")` against `":wat::spawn::process"`, which was already the line above it. The four `startup_from_file` calls still prove the substrate mints the companion. Isolated before the floor: `/tmp/g1-a6-arms.log`, 12 tests, 12 passed, Summary [1.468s], RC=0. That includes both lints and the five goldens below.
+
+### Arm B
+
+Each golden differs from its pre-image only in the `wat/core.wat` line. Message, reason, file, and columns are unchanged. `git diff` of the five files is those line numbers and nothing else.
+
+| golden | lines |
+|---|---|
+| `probe_arc249_threading__witness_thread_first_empty_step_panics_at_expansion.edn` | 1460 → 1463, both spans, col 30–34 |
+| `probe_arc258_stone2b_macro_error__contract_02_non_exhaustive_cond_names_else.edn` | 1512 → 1515, col 5–79 |
+| `wat_core_cond__cond_refuses_missing_else.edn` | 1512 → 1515, col 5–79 |
+| `probe_arc279_format__format_strict_missing_kwarg_is_macro_error.edn` | 2009–2013 → 2012–2016, col 40–74 |
+| `probe_arc279_format__format_strict_unused_kwarg_is_macro_error.edn` | 2037–2041 → 2040–2044, col 24–75 |
+
+The +3 is kwargs-lower (+2) and `kwargs-type-slot-name` (+1), both above these spans. The reasons are unchanged.
+
+### Doc-link
+
+`target/doc-link-ledger` is withdrawn. The check is a step in `scripts/floor.sh` after nextest and before the summary. It runs `RUSTDOCFLAGS="-W rustdoc::broken_intra_doc_links" timeout --kill-after=15s 300s cargo doc --release --no-deps --workspace` on the floor's own target. The log is `.floor/<stamp>/doc-link.log`. The same `KNOWN_BROKEN_DOC_LINKS` ratchet, both directions, is the ignored test `doc_link_ledger_matches_the_captured_log`, which reads `WAT_DOC_LINK_LOG` and does not spawn cargo. Nextest does not run it. The parser test and the duplicate-key test stay in nextest. The 300s hang bound was not raised. No nextest limit was raised. The ledger was not extended.
+
+The step goes red. A crate-level doc comment `[amend6_this_link_does_not_resolve]` was added to `src/lib.rs`, then `scripts/floor.sh -E 'test(the_broken_doc_link_ledger_has_no_duplicate_keys)'` wrote `.floor/2026-10-03T11-28-13Z` and exited 101. Nextest was green (`Summary [ 0.013s] 1 test run: 1 passed, 6434 skipped`). The floor stdout named the link:
+
+```
+1 NEW broken intra-doc link(s) — not in KNOWN_BROKEN_DOC_LINKS:
+  src/lib.rs: [`amend6_this_link_does_not_resolve`] × 1
+```
+
+The comment was removed. `git diff -- src/lib.rs` is empty. That floor is not re-run.
+
+### Floor
+
+`.floor/2026-10-03T11-30-09Z`. `/tmp/g1-a6-floor.out` RC=0. Tree was `b2156b785`, status clean.
+
+```
+Summary [ 389.375s] 6410 tests run: 6410 passed (27 slow), 25 skipped
+```
+
+The run count is one below amend 5 because `no_broken_intra_doc_link_outside_the_frozen_ledger` is no longer a nextest test. The skip count is one above because the ledger judge is `#[ignore]`. Doctests exit 0. Doc-link exit 0. `cargo doc` finished in 10.74s (`.floor/2026-10-03T11-30-09Z/doc-link.log`). The judge passed in 0.00s.
+
+The four default time limits passed. Reachability shards 22.665s, 22.913s, 20.713s, 20.979s, 20.654s, 20.552s. Fuzz PASS [70.611s], limit 90000ms. Retirement PASS [166.308s], limit 240s.
+
+Clippy `--release --all-targets -- -D warnings` RC=0 in 12.68s before the commit (`/tmp/g1-a6-clippy.log`).
+
+### Census and delta
+
+Census `.census/2026-10-03T11-38-03Z.txt`, files=2292, RC=0. Counts `0:2082, 1:208, 101:2`. `--diff` against `.census/2026-10-03T10-46-36Z.txt` (`0:2079, 1:208, 101:2`) printed `census-diff: no STOP-8`, RC=0. Three paths are new, each rc 0: `tests/services/probe_arc255_87_map_symbol.wat`, `tests/services/probe_arc255_87_each_keyword.wat`, `tests/services/probe_arc255_87_each_symbol.wat`. No path left the earlier census.
+
+Delta `.delta/2026-10-03T11-39-07Z`. List sha `da1aa882e86e3590150f23eff755a11d8f46a96f5e3b5e9718d1714518a24e8d`, paths=178, missing=0.
+
+```
+  ORIG-CLEAN  159/178
+  CONV-CLEAN  159/178
+  NEW         0
+  RECOVERY    0
+```
+
+Exit 0. `probe-c1-clean-surface.wat` is no longer NEW. CONV-CLEAN rose by the one file amend 4 had broken.
+
+5c-iii, 5c-iv, 5d, and 255.88 were not started.
+
+## Close (amend 6)
+
+The two reds this stone caused are cured on `.floor/2026-10-03T11-30-09Z` (6410/6410). The doc-link check runs in `floor.sh` on the floor's own target, and a planted broken link made that step exit 101 naming it. Census has no rc flip. Delta NEW is 0 and RECOVERY is 0.
