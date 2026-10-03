@@ -999,18 +999,17 @@
               (wat.core.Option/expect
                 (wat.core/get ch 1)
                 "cond-is-fact-bind: arrow"))
-            (wat.core/if (wat.core/= (wat.core/ast-kind
-                                            (wat.core.Option/expect
-                                              (wat.core/get ch 2)
-                                              "cond-is-fact-bind: type"))
-                                          "keyword")
-              (wat.string/contains?
-                (wat.core/ast-name
-                  (wat.core.Option/expect
-                    (wat.core/get ch 2)
-                    "cond-is-fact-bind: type"))
-                "::")
-              false)
+            (wat.core/let [ty (wat.core.Option/expect
+                                (wat.core/get ch 2)
+                                "cond-is-fact-bind: type")
+                           ty-k (wat.core/ast-kind ty)]
+              (wat.core/if (wat.core/if (wat.core/= ty-k "keyword")
+                             true
+                             (wat.core/= ty-k "symbol"))
+                (wat.string/contains?
+                  (wat.core/canonical-identity (wat.core/ast-name ty))
+                  "::")
+                false))
             false)
           false)))))
 
