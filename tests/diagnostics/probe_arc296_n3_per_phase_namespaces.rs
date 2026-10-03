@@ -9,7 +9,8 @@
 //! Behavioral RED (compiles at HEAD; names no new type — reads the written tag prefix):
 //!   at HEAD every family writes `#wat.kernel/…` → the phase-ns assertions FAIL.
 //!   after N3: CheckError→#wat.check, TypeError→#wat.type, RuntimeError→#wat.runtime,
-//!   LoadError→#wat.load, while the embedded `LoadFetchError` stays `#wat.kernel/NotFound`.
+//!   LoadError→#wat.load, while the embedded `LoadFetchError` stays `#wat.kernel/
+//!   LoadFetchError.NotFound` (dotted since excursus 003 strike B2, item 2).
 //!
 //! Committed `#[ignore]`'d (RED at HEAD); the N3 strike un-ignores it.
 

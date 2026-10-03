@@ -2660,9 +2660,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // it). `HashErrorKind` registers BEFORE `HashError` (its own `kind` field
     // names it).
 
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::NotFound");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::LoadOther");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::OutOfScope");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::LoadFetchError");
     ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind");
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::HashError");
 

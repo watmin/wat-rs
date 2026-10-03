@@ -6,8 +6,10 @@
 //!    never absent). Empty remedies → `[]`; non-empty tested in-crate (see
 //!    `src/remedy/mod.rs` `#[cfg(test)]` block — Remedy is pub(crate)).
 //!
-//! 2. `LoadError::Fetch` with `NotFound`: `:cause` is a `#wat.kernel/NotFound`
-//!    tagged map (NOT a prose String like "load: file not found: /path").
+//! 2. `LoadError::Fetch` with `NotFound`: `:cause` is a
+//!    `#wat.kernel/LoadFetchError.NotFound` tagged map (dotted since excursus
+//!    003 strike B2, item 2 — NOT a prose String like "load: file not found:
+//!    /path").
 //!
 //! 3. `NoMatchingClauseAtCallSite`: `:called-arg-types` is a `Vector` (NOT a
 //!    comma-joined String), and `:attempted-clauses` is present and non-nil
@@ -77,7 +79,7 @@ fn probe_1_return_type_mismatch_remedies_field_is_vector_not_prose() {
 // ─── Probe 2 — LoadError::Fetch :cause is a tagged map, NOT a String ─────────
 //
 // Before fix: LoadFetchError serialized via .to_string() → prose String.
-// After fix:  LoadFetchError.to_edn() → #wat.kernel/NotFound {:path "…"}.
+// After fix:  LoadFetchError.to_edn() → #wat.kernel/LoadFetchError.NotFound {:path "…"}.
 
 #[test]
 fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
@@ -100,11 +102,13 @@ fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
         s
     );
 
-    // Must contain the structured tagged form.
+    // Must contain the structured tagged form. Excursus 003 strike B2, item 2:
+    // `LoadFetchError` is now a dotted `defenum` tag, `#wat.kernel/
+    // LoadFetchError.NotFound`, not the sweep's flat `#wat.kernel/NotFound`.
     // rune:lint(loose-assert) — same as above: `s` contains an absolute host path in the `:span` field from `rust_caller_span!()`; full string varies by host. Targeted presence of the structured tag is the real contract.
     assert!(
-        s.contains("wat.kernel/NotFound"),
-        "`:cause` must be `#wat.kernel/NotFound`; got: {}",
+        s.contains("wat.kernel/LoadFetchError.NotFound"),
+        "`:cause` must be `#wat.kernel/LoadFetchError.NotFound`; got: {}",
         s
     );
 
@@ -121,11 +125,12 @@ fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
                 "`:cause` must be OwnedValue::Tagged (not String); got: {:?}",
                 cause_val
             );
-            // The tag must be NotFound.
+            // The tag must be the dotted `LoadFetchError.NotFound` (excursus 003
+            // strike B2, item 2 — `LoadFetchError` is now a `defenum`).
             if let OwnedValue::Tagged(tag, _) = cause_val {
                 assert_eq!(
-                    tag.name(), "NotFound",
-                    "`:cause` tag must be 'NotFound'; got: {:?}",
+                    tag.name(), "LoadFetchError.NotFound",
+                    "`:cause` tag must be 'LoadFetchError.NotFound'; got: {:?}",
                     tag.name()
                 );
             }

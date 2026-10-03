@@ -475,6 +475,129 @@ fn gate_gb2a_clause_failure_reason_wire_is_dotted() {
     }
 }
 
+// ─── Excursus 003 strike B2, item 2 — LoadFetchError is dotted on the WIRE ────
+//
+// Mirrors `gate_gb2a_clause_failure_reason_wire_is_dotted` above, for the other
+// data (non-Error) sum type item 2 converts: drives `LoadErrorKind::Fetch`'s
+// hand-written `ToEdn` (`LoadFetchError`, `src/load/loader.rs` — kept
+// hand-written because `Other`'s wire tag renames to `LoadOther`, which the
+// derive's `qualified` directive cannot express) for all 3 variants, and
+// asserts the tag is `#wat.kernel/LoadFetchError.<Variant>` and decodes, via
+// `LoadErrorKind::Fetch.cause`'s now-concrete field type
+// (`:wat::kernel::LoadFetchError`, not `:wat::core::Value`), typed AS THE
+// ENUM.
+//
+// Mutation (this strike): revert `LoadFetchError::NotFound`'s arm from
+// `edn_tag_dotted("LoadFetchError", "NotFound", ...)` back to the old
+// `edn_tag("NotFound", ...)` (flat) — RED for that one variant, green for the
+// other two, proving the gate reads the ACTUAL writer.
+#[test]
+fn gate_gb2a_load_fetch_error_wire_is_dotted() {
+    use wat::load::loader::{LoadError, LoadErrorKind, LoadFetchError};
+
+    let types = TypeEnv::with_builtins();
+
+    let cases: [(&str, LoadFetchError); 3] = [
+        ("NotFound", LoadFetchError::NotFound("missing.wat".into())),
+        ("LoadOther", LoadFetchError::Other { path: "x.wat".into(), reason: "boom".into() }),
+        ("OutOfScope", LoadFetchError::OutOfScope { path: "../x.wat".into(), scope: "/root".into() }),
+    ];
+
+    for (variant_name, fetch_err) in cases {
+        let err = LoadError::new(s(), LoadErrorKind::Fetch(fetch_err));
+        let wire = err.error_edn();
+        let (_, wire_fields) = as_tagged_map(&wire);
+        let cause_v = find_field(&wire_fields, "cause")
+            .unwrap_or_else(|| panic!("{variant_name}: wire has no cause field"));
+
+        let (cause_tag, _) = as_tagged_map(cause_v);
+        assert_eq!(cause_tag.namespace(), "wat.kernel", "{variant_name}: namespace must stay wat.kernel");
+        assert_eq!(
+            cause_tag.name(),
+            format!("LoadFetchError.{variant_name}"),
+            "{variant_name}: wire tag must be dotted #wat.kernel/LoadFetchError.{variant_name}, \
+             not the flat #wat.kernel/{variant_name}"
+        );
+
+        let decoded = edn_to_value(cause_v, Some(&types), None)
+            .unwrap_or_else(|e| panic!("{variant_name}: dotted wire tag must decode: {e:?}"));
+        match decoded {
+            Value::Enum(ev) => {
+                assert_eq!(ev.type_path, ":wat::kernel::LoadFetchError", "{variant_name}: must decode AS THE ENUM");
+                assert_eq!(ev.variant_name, variant_name);
+            }
+            other => panic!("{variant_name}: expected Value::Enum, got {other:?}"),
+        }
+    }
+}
+
+/// Excursus 003 strike B2, item 2 GB2b — `LoadErrorKind::Fetch.cause` is typed
+/// (`:wat::kernel::LoadFetchError`, not `:wat::core::Value`): a `Fetch` record
+/// whose `:cause` is shaped for the WRONG enum (`ClauseFailureReason`, a
+/// sibling `defenum` with its own dotted tags) must be REFUSED, whole, at
+/// typed decode — never silently accepted the way an untyped `Value`-typed
+/// field would (tag-driven decode consults only the TAG, not the declared
+/// field type, so this is the one gate that proves the declared type is
+/// actually consulted).
+///
+/// Mutation (recorded for the builder, small enough to state rather than drive
+/// twice in CI): retype `Fetch.cause` back to `:wat::core::Value` in
+/// `wat/load-errors.wat` — this assertion would go RED (decode would succeed
+/// where it must fail) since an untyped field accepts any tagged value.
+#[test]
+fn gate_gb2b_load_fetch_error_field_is_typed_not_value() {
+    use wat::edn::render::EdnReadErrorKind;
+    use wat::load::loader::{LoadError, LoadErrorKind, LoadFetchError};
+
+    let types = TypeEnv::with_builtins();
+    let err = LoadError::new(
+        s(),
+        LoadErrorKind::Fetch(LoadFetchError::NotFound("missing.wat".into())),
+    );
+    let wire = err.error_edn();
+    let (fetch_tag, fetch_fields) = as_tagged_map(&wire);
+
+    // Swap the real (correctly-typed) `:cause` value for a WRONG enum's — a
+    // STRUCTURALLY built dotted tag (`ClauseFailureReason.GuardFalse`, a
+    // sibling `defenum`), never an inlined EDN string literal.
+    let wrong_enum_value = OwnedValue::Tagged(
+        wat_edn::Tag::ns("wat.kernel", "ClauseFailureReason.GuardFalse"),
+        Box::new(OwnedValue::Map(Vec::new())),
+    );
+    let mut mutated_fields: Vec<(OwnedValue, OwnedValue)> = Vec::new();
+    let mut swapped = false;
+    for (k, v) in fetch_fields {
+        if key_name(k) == "cause" {
+            mutated_fields.push((k.clone(), wrong_enum_value.clone()));
+            swapped = true;
+        } else {
+            mutated_fields.push((k.clone(), v.clone()));
+        }
+    }
+    assert!(swapped, "fixture assumption broken: `Fetch` wire has no `:cause` field to swap");
+    let mutated = OwnedValue::Tagged(fetch_tag.clone(), Box::new(OwnedValue::Map(mutated_fields)));
+
+    let decoded = edn_to_value(&mutated, Some(&types), None);
+    match decoded {
+        Err(e) => match e.kind {
+            EdnReadErrorKind::FieldTypeMismatch { ref field, .. } => {
+                assert_eq!(
+                    field, "cause",
+                    "must name `cause` as the mismatched field; got {:?}", e.kind
+                );
+            }
+            other => panic!(
+                "a `Fetch` record whose `:cause` is a ClauseFailureReason value must be \
+                 refused as FieldTypeMismatch on `cause` — got a different EdnReadErrorKind: {other:?}"
+            ),
+        },
+        Ok(v) => panic!(
+            "a `Fetch` record whose `:cause` is a ClauseFailureReason value must be REFUSED — \
+             `:wat::kernel::LoadFetchError` is the declared field type; decoded as {v:?}"
+        ),
+    }
+}
+
 fn assert_tagged(variant: &str, field: &str, v: &OwnedValue) {
     match v {
         OwnedValue::Tagged(_, _) => {}

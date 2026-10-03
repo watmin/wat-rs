@@ -165,48 +165,48 @@
 ;; The `:ensure :fn` signature is structurally malformed.
 (:wat::core::defrecord :wat::kernel::MalformedSignature [])
 
-;; ─── Excursus 003 S2: LoadFetchError's three flat records ──────────────────
+;; ─── Excursus 003 strike B2, item 2: :wat::kernel::LoadFetchError ───────────
 ;;
-;; Mirrors `crate::load::loader::LoadFetchError` (`src/load/loader.rs:192`), the
-;; payload of `LoadErrorKind::Fetch` (`wat/load-errors.wat`). Its hand-written
-;; `ToEdn` impl (`src/load/loader.rs:224`) calls `edn_tag`, which tags under
-;; `crate::error_ns::KERNEL` ("wat.kernel") — FLAT per-variant, not a dotted
-;; `LoadFetchError.<Variant>` — the same "sum type whose sub-values ride flat
-;; per-variant tags" shape S1 found for `EnsureFnInvalidReason` (see above):
-;; wat has no union/sum type, and a `defenum` here would register under a path
-;; the general decoder's undotted-tag branch never consults. Three independent
-;; flat records, exactly mirroring that precedent.
+;; Mirrors `crate::load::loader::LoadFetchError` (`src/load/loader.rs`), the
+;; payload of `LoadErrorKind::Fetch` (`wat/load-errors.wat`). S2 declared this
+;; as three independent flat records (one `edn_tag` per variant, undotted) —
+;; B2 closes it: ONE `defenum`, its hand-written `ToEdn` impl (kept hand-
+;; written — the Rust variant `Other` renames its wire TAG to `LoadOther`,
+;; which `#[derive(ToEdn)]` has no directive for) now calling `edn_tag_dotted`,
+;; the SAME dot-join helper `#[to_edn(qualified)]` emits
+;; (`#wat.kernel/LoadFetchError.<Variant>`).
 ;;
-;; `LoadErrorKind::Fetch.cause` (`wat/load-errors.wat`) is declared
-;; `:wat::core::Value`, not a nominal record or `defenum` — the same rationale
-;; as `EnsureFnInvalid.reason` above: no common shape across the three
-;; variants, and decode is tag-driven regardless of the declared field type.
-
+;; `LoadFetchError` is DATA (a reason code), not an Error: it carries no
+;; `message`/`location` of its own (unlike `HashError` below, which strike B2
+;; item 3 DOES promote to a floor-bearing record) — `LoadErrorKind::Fetch`
+;; already supplies the floor at the outer level. `Fetch.cause` (`wat/load-
+;; errors.wat`) is retyped from `:wat::core::Value` to the concrete enum,
+;; `:wat::kernel::LoadFetchError`, per item 2's "holder field is typed as the
+;; enum" instruction.
+(:wat::core::defenum :wat::kernel::LoadFetchError :wat::enum::Pure
 ;; The loader's requested path does not exist under its domain.
-(:wat::core::defrecord :wat::kernel::NotFound
-  [path <- :wat::core::String])
-
-;; Loader-specific I/O or resolution failure; `reason` is prose. Tag `LoadOther`
-;; (not the Rust variant name `Other`, which the hand-written writer renames).
-(:wat::core::defrecord :wat::kernel::LoadOther
-  [path   <- :wat::core::String
-   reason <- :wat::core::String])
-
+  :NotFound   [path <- :wat::core::String]
+;; Loader-specific I/O or resolution failure; `reason` is prose. Variant
+;; keyword is `LoadOther` (the WIRE tag — the hand-written writer renames the
+;; Rust variant `Other` to it).
+  :LoadOther  [path   <- :wat::core::String
+               reason <- :wat::core::String]
 ;; The requested path's canonical target escapes the loader's allowed scope
 ;; (e.g. `../../etc/passwd`, or a symlink pointing outside the scope).
-(:wat::core::defrecord :wat::kernel::OutOfScope
-  [path  <- :wat::core::String
-   scope <- :wat::core::String])
+  :OutOfScope [path  <- :wat::core::String
+               scope <- :wat::core::String])
 
 ;; ─── Excursus 003 strike B2, item 3: :wat::kernel::HashErrorKind / HashError ──
 ;;
 ;; Mirrors `crate::hash::HashErrorKind` / `HashError` (`src/hash.rs`). S2
 ;; declared `HashError`'s eight variants as independent flat records (one
 ;; `edn_tag` per variant, undotted) — the same shape `LoadFetchError` above
-;; still has. B2 closes it for HashError: `HashErrorKind` is now ONE
+;; USED to have. B2 closes it for HashError: `HashErrorKind` is now ONE
 ;; `defenum`, `#[derive(ToEdn)]`'s `qualified` directive dot-joining every
 ;; variant's wire tag (`#wat.kernel/HashErrorKind.<Variant>`), registered
-;; with `wat_enum_register_from!` — no hand-rolled writer. `usize` fields
+;; with `wat_enum_register_from!` — no hand-rolled writer (unlike
+;; `LoadFetchError` above, which keeps its hand-written writer for the
+;; `Other`->`LoadOther` tag rename the derive cannot express). `usize` fields
 ;; (`expected`/`got`) type `:wat::core::i64`, matching every other `usize`
 ;; field in this sweep.
 ;;

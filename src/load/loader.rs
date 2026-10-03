@@ -219,27 +219,45 @@ impl fmt::Display for LoadFetchError {
 
 impl std::error::Error for LoadFetchError {}
 
-// ─── Arc 296 D1 — structured EDN form for LoadFetchError ─────────────────────
-
+// ─── Excursus 003 strike B2, item 2 — structured, DOTTED EDN form ────────────
+//
+// `LoadFetchError` is DATA (a reason code), not an Error: unlike `HashError`,
+// nothing here ever needs it to carry `message`/`location` or satisfy
+// `:wat::core::Error` — `LoadErrorKind::Fetch` already supplies the floor at
+// the OUTER level, and `Fetch.cause` names it directly as the enum (see
+// `wat/load-errors.wat`). So `LoadFetchError` is ONE wat `defenum`
+// (`:wat::kernel::LoadFetchError`, `wat/kernel/diagnostics.wat`,
+// `wat_enum_register_from!`) with no floor of its own.
+//
+// Hand-written, not `#[derive(ToEdn)]`: `Other`'s wire tag is RENAMED to
+// `LoadOther` (the derive has no variant-level tag-rename directive — only a
+// field-level `key` and a single-field-tuple-variant `key`, neither of which
+// renames the TAG). Calls the SAME dot-join helper `#[to_edn(qualified)]`
+// emits (`edn_tag_dotted` → `wat_edn::Tag::enum_variant`) — one place the
+// `Enum.Variant` shape lives on the write side, same as `ClauseFailureReason`.
 impl crate::edn::contract::ToEdn for LoadFetchError {
-    /// `#wat.kernel/NotFound {:path "…"}` / `#wat.kernel/LoadOther {:path :reason}` /
-    /// `#wat.kernel/OutOfScope {:path :scope}` — each variant as a tagged structured map.
+    /// `#wat.kernel/LoadFetchError.NotFound {:path "…"}` /
+    /// `#wat.kernel/LoadFetchError.LoadOther {:path :reason}` /
+    /// `#wat.kernel/LoadFetchError.OutOfScope {:path :scope}`.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::edn::contract::{edn_kw, edn_str, edn_tag};
+        use crate::edn::contract::{edn_kw, edn_str, edn_tag_dotted};
         use wat_edn::OwnedValue;
         match self {
-            LoadFetchError::NotFound(path) => edn_tag(
+            LoadFetchError::NotFound(path) => edn_tag_dotted(
+                "LoadFetchError",
                 "NotFound",
                 OwnedValue::Map(vec![(edn_kw("path"), edn_str(path))]),
             ),
-            LoadFetchError::Other { path, reason } => edn_tag(
+            LoadFetchError::Other { path, reason } => edn_tag_dotted(
+                "LoadFetchError",
                 "LoadOther",
                 OwnedValue::Map(vec![
                     (edn_kw("path"), edn_str(path)),
                     (edn_kw("reason"), edn_str(reason)),
                 ]),
             ),
-            LoadFetchError::OutOfScope { path, scope } => edn_tag(
+            LoadFetchError::OutOfScope { path, scope } => edn_tag_dotted(
+                "LoadFetchError",
                 "OutOfScope",
                 OwnedValue::Map(vec![
                     (edn_kw("path"), edn_str(path)),

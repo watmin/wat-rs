@@ -1,5 +1,5 @@
 #wat.load/Fetch {
-  :cause #wat.kernel/NotFound {
+  :cause #wat.kernel/LoadFetchError.NotFound {
     :path "missing.wat"
   }
   :span #wat.core/Span {

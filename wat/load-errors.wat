@@ -14,14 +14,18 @@
 ;; Two variants rename their sole nested-error field to the EDN key `cause`
 ;; (`#[to_edn(key = "cause")]`, `src/load/loader.rs:324,333,340`):
 ;;
-;; - `Fetch(LoadFetchError)` — the payload is a genuine sum type
-;;   (`src/load/loader.rs:192`) whose hand-written `ToEdn` impl tags each
-;;   variant FLAT under `wat.kernel` (`edn_tag`, same shape as S1's
-;;   `EnsureFnInvalidReason`) — declared as three independent flat records in
-;;   `wat/kernel/diagnostics.wat` (`:wat::kernel::NotFound`/`LoadOther`/
-;;   `OutOfScope`). `cause` types `:wat::core::Value` here: no common shape
-;;   across the three, decode is tag-driven regardless of the declared field
-;;   type (S1's `EnsureFnInvalid.reason` precedent).
+;; - `Fetch(LoadFetchError)` — excursus 003 strike B2, item 2 CLOSED this one:
+;;   `LoadFetchError` (`src/load/loader.rs`) is now ONE wat `defenum`
+;;   (`:wat::kernel::LoadFetchError`, `wat/kernel/diagnostics.wat`), its
+;;   hand-written `ToEdn` impl (kept hand-written — `Other`'s wire tag renames
+;;   to `LoadOther`, which the derive has no directive for) now calling the
+;;   SAME dot-join helper `#[to_edn(qualified)]` emits
+;;   (`#wat.kernel/LoadFetchError.<Variant>`, dotted). `cause` types the
+;;   concrete enum, `:wat::kernel::LoadFetchError`, not `:wat::core::Value`:
+;;   `LoadFetchError` is DATA (a reason code, no `message`/`location` of its
+;;   own — `Fetch` itself already supplies the floor), so (unlike `HashError`
+;;   below) there is no Error surface for it to satisfy; the holder field just
+;;   names the enum directly.
 ;; - `VerificationFailed { path, cause: HashError }` — excursus 003 strike B2,
 ;;   item 3 CLOSED this one: `HashError` (`src/hash.rs`) is now its own
 ;;   `:wat::core::Error`-floored `defrecord` (`message`/`location`/`kind`,
@@ -46,8 +50,8 @@
 ;; change needed here.
 ;;
 ;; Loads after `wat/core.wat` and after `wat/kernel/diagnostics.wat` (needs
-;; `:wat::kernel::NotFound`/`LoadOther`/`OutOfScope`/`HashErrorKind`/
-;; `HashError`). See `src/load/stdlib.rs`.
+;; `:wat::kernel::LoadFetchError`/`HashErrorKind`/`HashError`). See
+;; `src/load/stdlib.rs`.
 
 ;; The `load!` form was malformed — wrong arity, wrong interface keyword,
 ;; wrong value type, unknown verification algorithm, etc.
@@ -95,8 +99,8 @@
 (:wat::core::defrecord :wat::load::Fetch
   [message <- :wat::core::String
    location <- :wat::core::Span
-   
-   cause <- :wat::core::Value])
+
+   cause <- :wat::kernel::LoadFetchError])
 
 ;; Parsing the fetched source failed. `cause` is the nested `ParseError`'s own
 ;; full `error_edn()` (S3's taxonomy; see this file's header).
