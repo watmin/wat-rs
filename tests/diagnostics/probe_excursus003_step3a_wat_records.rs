@@ -598,6 +598,140 @@ fn gate_gb2b_load_fetch_error_field_is_typed_not_value() {
     }
 }
 
+// ─── Excursus 003 strike B2, item 2 — EnsureFnInvalidReason is dotted ────────
+//
+// Mirrors `gate_gb2a_load_fetch_error_wire_is_dotted` above, for the third
+// item-2 sum type. `CheckErrorKind::EnsureFnInvalid.reason` is a genuine
+// `defenum` now (`:wat::check::EnsureFnInvalidReason`, moved to the
+// `wat.check` namespace), its 5 variants dot-joined by the DERIVE's own
+// `qualified` directive (`#[to_edn(namespace = crate::error_ns::CHECK,
+// qualified)]`, `src/check/error.rs`) — no hand-written writer at all.
+//
+// Mutation (this strike): drop `qualified` from `EnsureFnInvalidReason`'s
+// derive attribute — every variant's tag reverts to flat
+// (`#wat.check/<Variant>`), RED for all 5 (unlike the hand-written sum
+// types above, the derive has no per-variant granularity to revert just one).
+#[test]
+fn gate_gb2a_ensure_fn_invalid_reason_wire_is_dotted() {
+    use wat::check::error::{CheckError, CheckErrorKind, EnsureFnInvalidReason};
+
+    let types = TypeEnv::with_builtins();
+    let cases: [(&str, EnsureFnInvalidReason); 5] = [
+        ("NotFnForm", EnsureFnInvalidReason::NotFnForm),
+        ("ArityNotOne", EnsureFnInvalidReason::ArityNotOne { got: 2 }),
+        (
+            "ArgTypeMismatch",
+            EnsureFnInvalidReason::ArgTypeMismatch {
+                arg_type: ":wat::core::bool".into(),
+                clause_return_type: ":wat::core::i64".into(),
+            },
+        ),
+        ("ReturnTypeNotBool", EnsureFnInvalidReason::ReturnTypeNotBool { got: ":wat::core::i64".into() }),
+        ("MalformedSignature", EnsureFnInvalidReason::MalformedSignature),
+    ];
+
+    for (variant_name, reason) in cases {
+        let err = CheckError {
+            span: s(),
+            kind: CheckErrorKind::EnsureFnInvalid {
+                defclause_name: ":user::f".into(),
+                clause_index: 0,
+                reason,
+            },
+        };
+        let wire = err.error_edn();
+        let (_, wire_fields) = as_tagged_map(&wire);
+        let reason_v = find_field(&wire_fields, "reason")
+            .unwrap_or_else(|| panic!("{variant_name}: wire has no reason field"));
+
+        let (reason_tag, _) = as_tagged_map(reason_v);
+        assert_eq!(reason_tag.namespace(), "wat.check", "{variant_name}: namespace must be wat.check, not wat.kernel");
+        assert_eq!(
+            reason_tag.name(),
+            format!("EnsureFnInvalidReason.{variant_name}"),
+            "{variant_name}: wire tag must be dotted #wat.check/EnsureFnInvalidReason.{variant_name}, \
+             not the flat #wat.kernel/{variant_name}"
+        );
+
+        let decoded = edn_to_value(reason_v, Some(&types), None)
+            .unwrap_or_else(|e| panic!("{variant_name}: dotted wire tag must decode: {e:?}"));
+        match decoded {
+            Value::Enum(ev) => {
+                assert_eq!(ev.type_path, ":wat::check::EnsureFnInvalidReason", "{variant_name}: must decode AS THE ENUM");
+                assert_eq!(ev.variant_name, variant_name);
+            }
+            other => panic!("{variant_name}: expected Value::Enum, got {other:?}"),
+        }
+    }
+}
+
+/// Excursus 003 strike B2, item 2 GB2b — `CheckErrorKind::EnsureFnInvalid.reason`
+/// is typed (`:wat::check::EnsureFnInvalidReason`, not `:wat::core::Value`): a
+/// `EnsureFnInvalid` record whose `:reason` is shaped for the WRONG enum
+/// (`LoadFetchError`, a sibling `defenum` with its own dotted tags, built
+/// structurally — never an inlined EDN string) must be REFUSED, whole.
+///
+/// Mutation (recorded for the builder): retype `EnsureFnInvalid.reason` back
+/// to `:wat::core::Value` in `wat/check-errors.wat` — this assertion would go
+/// RED (decode would succeed where it must fail).
+#[test]
+fn gate_gb2b_ensure_fn_invalid_reason_field_is_typed_not_value() {
+    use wat::check::error::{CheckError, CheckErrorKind, EnsureFnInvalidReason};
+    use wat::edn::render::EdnReadErrorKind;
+
+    let types = TypeEnv::with_builtins();
+    let err = CheckError {
+        span: s(),
+        kind: CheckErrorKind::EnsureFnInvalid {
+            defclause_name: ":user::f".into(),
+            clause_index: 0,
+            reason: EnsureFnInvalidReason::NotFnForm,
+        },
+    };
+    let wire = err.error_edn();
+    let (ensure_tag, ensure_fields) = as_tagged_map(&wire);
+
+    let wrong_enum_value = OwnedValue::Tagged(
+        wat_edn::Tag::ns("wat.kernel", "LoadFetchError.NotFound"),
+        Box::new(OwnedValue::Map(vec![(
+            OwnedValue::Keyword(wat_edn::Keyword::new("path")),
+            OwnedValue::String("x.wat".into()),
+        )])),
+    );
+    let mut mutated_fields: Vec<(OwnedValue, OwnedValue)> = Vec::new();
+    let mut swapped = false;
+    for (k, v) in ensure_fields {
+        if key_name(k) == "reason" {
+            mutated_fields.push((k.clone(), wrong_enum_value.clone()));
+            swapped = true;
+        } else {
+            mutated_fields.push((k.clone(), v.clone()));
+        }
+    }
+    assert!(swapped, "fixture assumption broken: `EnsureFnInvalid` wire has no `:reason` field to swap");
+    let mutated = OwnedValue::Tagged(ensure_tag.clone(), Box::new(OwnedValue::Map(mutated_fields)));
+
+    let decoded = edn_to_value(&mutated, Some(&types), None);
+    match decoded {
+        Err(e) => match e.kind {
+            EdnReadErrorKind::FieldTypeMismatch { ref field, .. } => {
+                assert_eq!(
+                    field, "reason",
+                    "must name `reason` as the mismatched field; got {:?}", e.kind
+                );
+            }
+            other => panic!(
+                "an `EnsureFnInvalid` record whose `:reason` is a LoadFetchError value must be \
+                 refused as FieldTypeMismatch on `reason` — got a different EdnReadErrorKind: {other:?}"
+            ),
+        },
+        Ok(v) => panic!(
+            "an `EnsureFnInvalid` record whose `:reason` is a LoadFetchError value must be \
+             REFUSED — `:wat::check::EnsureFnInvalidReason` is the declared field type; decoded as {v:?}"
+        ),
+    }
+}
+
 fn assert_tagged(variant: &str, field: &str, v: &OwnedValue) {
     match v {
         OwnedValue::Tagged(_, _) => {}

@@ -41,19 +41,29 @@
 ;; `NoMatchingClauseAtCallSite` itself is now declared (34 of 34 declared;
 ;; the G-list exception is retired).
 ;;
-;; ── The nested `EnsureFnInvalidReason` payload ──────────────────────────────
+;; ── Excursus 003 strike B2, item 2 — the nested `EnsureFnInvalidReason` ─────
 ;;
-;; `EnsureFnInvalid.reason` is typed `:wat::core::Value` below, not a nominal
-;; record or a `defenum`. See `wat/kernel/diagnostics.wat`'s header for why:
-;; the type universe has no union/sum type, `EnsureFnInvalidReason`'s five
-;; variants share no common shape (no defsurface fits), and each variant tags
-;; FLAT (`#wat.kernel/<Variant>`, the derive's default namespace with no dotted
-;; enum-name prefix) — so a `defenum` here would register under a path the
-;; general decoder's undotted-tag lookup never consults. `:wat::core::Value`
-;; is the sanctioned universal-top slot for a genuinely polymorphic field
-;; (unlike the banned `:Any`); decode is tag-driven regardless of the declared
-;; field type (`reconstruct_struct`, `src/edn/render.rs`, consults `fty` only
-;; for Option-rewrapping), so this is an honest declaration, not a workaround.
+;; `EnsureFnInvalid.reason` used to type `:wat::core::Value` (S1: the five
+;; variants tagged FLAT, under the derive's default `wat.kernel` namespace, so
+;; a `defenum` would have registered under a path the general decoder's
+;; undotted-tag lookup never consulted). Closed: `EnsureFnInvalidReason` is now
+;; ONE `defenum`, declared HERE (its own namespace — `wat.check`, a check
+;; diagnostic, not a kernel shared value) right before `EnsureFnInvalid`
+;; below, `#[to_edn(qualified)]` dot-joining every variant's wire tag
+;; (`#wat.check/EnsureFnInvalidReason.<Variant>`). `reason` now types the
+;; concrete enum, `:wat::check::EnsureFnInvalidReason`.
+(:wat::core::defenum :wat::check::EnsureFnInvalidReason :wat::enum::Pure
+;; The `:ensure` form is not a `:wat::core::fn` list.
+  :NotFnForm
+;; The `:ensure :fn` has the wrong number of parameters (must be 1).
+  :ArityNotOne         [got <- :wat::core::i64]
+;; The `:ensure :fn` arg type does not match the clause's declared return type.
+  :ArgTypeMismatch     [arg-type           <- :wat::core::String
+                        clause-return-type <- :wat::core::String]
+;; The `:ensure :fn` return type is not `:bool`.
+  :ReturnTypeNotBool   [got <- :wat::core::String]
+;; The `:ensure :fn` signature is structurally malformed.
+  :MalformedSignature)
 
 ;; ─── The `CheckErrors` aggregate (`#wat.check/CheckErrors {…}`) ──────────────
 ;;
@@ -370,16 +380,15 @@
    got-type <- :wat::core::String])
 
 ;; Stone 237.3 — a defclause's `:ensure :fn` is structurally invalid. `reason`
-;; is one of the five `EnsureFnInvalidReason` records
-;; (`wat/kernel/diagnostics.wat`); typed `:wat::core::Value` here — see this
-;; file's header.
+;; is the `:wat::check::EnsureFnInvalidReason` `defenum` declared just above
+;; (excursus 003 strike B2, item 2 — see this file's header).
 (:wat::core::defrecord :wat::check::EnsureFnInvalid
   [message <- :wat::core::String
    location <- :wat::core::Span
-   
+
    defclause-name <- :wat::core::String
    clause-index <- :wat::core::i64
-   reason <- :wat::core::Value])
+   reason <- :wat::check::EnsureFnInvalidReason])
 
 ;; Arc 291 — hygiene-scope divergence: a reference is unbound, but a binder of
 ;; the same name exists under a different hygiene scope.

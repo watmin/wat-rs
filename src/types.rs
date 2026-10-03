@@ -2449,15 +2449,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::kernel::ClauseAttempt"
     );
 
-    // Excursus 003 sweep S1 — :wat::kernel::Remedy / EnsureFnInvalidReason's five
-    // flat records. Registered BEFORE wat/check-errors.wat's records below:
-    // TypeMismatch/ReturnTypeMismatch/MalformedForm name Remedy as a field.
+    // Excursus 003 sweep S1 — :wat::kernel::Remedy. Registered BEFORE
+    // wat/check-errors.wat's records below: TypeMismatch/ReturnTypeMismatch/
+    // MalformedForm name Remedy as a field. (EnsureFnInvalidReason's old S1
+    // flat records moved to wat/check-errors.wat as a `defenum` — strike B2,
+    // item 2 — registered there now, before :wat::check::EnsureFnInvalid.)
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Remedy");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::NotFnForm");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::ArityNotOne");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::ArgTypeMismatch");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::ReturnTypeNotBool");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::MalformedSignature");
 
     // :wat::kernel::Failure — structured panic / assertion payload
     // populated when a sandboxed `:user::main` fails. Slice 2b fills
@@ -2647,6 +2644,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::DefRestrictedCallerNotAllowed");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::AmbiguousClauseReturnAtCallSite");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::GuardExprNotBoolean");
+    // Registered BEFORE EnsureFnInvalid: its `reason` field names this enum.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/check-errors.wat", ":wat::check::EnsureFnInvalidReason");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::EnsureFnInvalid");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::HygieneScopeDivergence");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::PublicOpInAlarm");

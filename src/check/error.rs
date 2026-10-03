@@ -377,11 +377,17 @@ pub enum CheckErrorKind {
 /// Arc 296 S7 — the 5 structural failure modes for `:ensure :fn` validation.
 ///
 /// Replaces the discriminant-as-prose `reason: String` in
-/// `CheckErrorKind::EnsureFnInvalid`. The derive emits each variant as a
-/// `#wat.kernel/<Tag>` tagged value with its fields as a map — structure
-/// preserved by construction. `Display` reproduces the original prose
-/// byte-for-byte so the human-visible sentence is unchanged.
+/// `CheckErrorKind::EnsureFnInvalid`. Excursus 003 strike B2, item 2: this is
+/// now a genuine wat `defenum` (`:wat::check::EnsureFnInvalidReason`,
+/// `wat/check-errors.wat`, `wat_enum_register_from!`), moved to the
+/// `wat.check` namespace (it is a check diagnostic, not a kernel shared
+/// value) — the derive's `qualified` directive dot-joins every variant's wire
+/// tag (`#wat.check/EnsureFnInvalidReason.<Tag>`) instead of S1's flat,
+/// default-namespace (`wat.kernel`) per-variant records. `Display` reproduces
+/// the original prose byte-for-byte so the human-visible sentence is
+/// unchanged.
 #[derive(Debug, Clone, wat_edn::ToEdn)]
+#[to_edn(namespace = crate::error_ns::CHECK, qualified)]
 pub enum EnsureFnInvalidReason {
     /// The `:ensure` form is not a `:wat::core::fn` list.
     NotFnForm,

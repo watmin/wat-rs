@@ -116,54 +116,16 @@
    score <- :wat::core::i64
    note  <- (:wat::core::Option :- [:wat::core::String])])
 
-;; ─── Excursus 003 S1: EnsureFnInvalidReason's five flat records ─────────────
+;; ─── Excursus 003 S1: EnsureFnInvalidReason — MOVED (strike B2, item 2) ─────
 ;;
-;; Mirrors `crate::check::error::EnsureFnInvalidReason` (`src/check/error.rs:
-;; 385`), the payload of `CheckErrorKind::EnsureFnInvalid.reason`. Its
-;; `#[derive(ToEdn)]` carries NO `#[to_edn(namespace = ...)]` override, so the
-;; derive's own default applies (`crates/wat-to-edn-derive/src/lib.rs:218`:
-;; `None => "wat.kernel"`), and every variant tags FLAT — `#wat.kernel/
-;; <Variant>` — NOT a dotted `EnsureFnInvalidReason.<Variant>`. Contrast
-;; `:wat::kernel::ClauseFailureReason` above: that IS a genuine `defenum`
-;; because its only consumer needing strict decode is `RuntimeError::
-;; to_record`'s OWN dotted-retagging writer (see that section's header) — a
-;; path excursus 003 S1 does not have; S1 decodes `error_edn()`'s literal
-;; (flat) wire only. So this taxonomy gets five INDEPENDENT flat records, one
-;; per variant, exactly mirroring how `wat/check-errors.wat` and
-;; `wat/runtime-errors.wat` treat every OTHER top-level kind (no `defenum`
-;; wrapper). A `defenum :wat::kernel::EnsureFnInvalidReason` here would
-;; register under a type path the general decoder's undotted-tag branch
-;; (`split_variant_tag_name`, `src/edn/render.rs`) never consults for an
-;; undotted name — it would silently never resolve.
-;;
-;; `CheckErrorKind::EnsureFnInvalid.reason` is declared `:wat::core::Value`
-;; (`wat/check-errors.wat`), not a nominal record or a `defenum`: the type
-;; universe has no union/sum type, these five variants share no common shape
-;; (no `defsurface` fits), and `:wat::core::Value` is the sanctioned
-;; universal-top slot for a genuinely polymorphic field (`:Any` is banned
-;; outright, `src/types.rs:86`, "the type universe is closed"). Decode itself
-;; is tag-driven and does not consult the declared field type beyond
-;; Option-rewrapping (`reconstruct_struct`, `src/edn/render.rs`), so this is
-;; an honest declaration, not a workaround.
-
-;; The `:ensure` form is not a `:wat::core::fn` list.
-(:wat::core::defrecord :wat::kernel::NotFnForm [])
-
-;; The `:ensure :fn` has the wrong number of parameters (must be 1).
-(:wat::core::defrecord :wat::kernel::ArityNotOne
-  [got <- :wat::core::i64])
-
-;; The `:ensure :fn` arg type does not match the clause's declared return type.
-(:wat::core::defrecord :wat::kernel::ArgTypeMismatch
-  [arg-type           <- :wat::core::String
-   clause-return-type <- :wat::core::String])
-
-;; The `:ensure :fn` return type is not `:bool`.
-(:wat::core::defrecord :wat::kernel::ReturnTypeNotBool
-  [got <- :wat::core::String])
-
-;; The `:ensure :fn` signature is structurally malformed.
-(:wat::core::defrecord :wat::kernel::MalformedSignature [])
+;; `CheckErrorKind::EnsureFnInvalid.reason`'s sum type used to live here as
+;; five independent flat records (S1: no `defenum` existed yet, and the
+;; derive's own default namespace put every variant's flat tag under
+;; `wat.kernel`). Strike B2 gives it a genuine `defenum`, dot-joined by
+;; `#[to_edn(qualified)]`, and moves it to its OWN namespace —
+;; `:wat::check::EnsureFnInvalidReason`, declared in `wat/check-errors.wat`
+;; (it is a check diagnostic, not a kernel shared value) — right before
+;; `:wat::check::EnsureFnInvalid`, the record whose `reason` field names it.
 
 ;; ─── Excursus 003 strike B2, item 2: :wat::kernel::LoadFetchError ───────────
 ;;

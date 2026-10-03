@@ -9,7 +9,10 @@
 //! This is a BEHAVIORAL RED — it drives a real bad `:ensure :fn` through startup and reads the
 //! emitted `:reason` off the wire. It COMPILES at HEAD (it names no new type) and is RED at HEAD
 //! because `:reason` is an `OwnedValue::String` today; it turns GREEN when `:reason` becomes a
-//! `#wat.kernel/ArgTypeMismatch {:arg-type … :clause-return-type …}` tagged value.
+//! tagged value. Excursus 003 strike B2, item 2 later makes `EnsureFnInvalidReason` a genuine
+//! `defenum` in its own `wat.check` namespace, so the tag this probe now expects is the DOTTED
+//! `#wat.check/EnsureFnInvalidReason.ArgTypeMismatch {:arg-type … :clause-return-type …}`, not
+//! S7's original flat `#wat.kernel/ArgTypeMismatch`.
 //!
 //! Committed `#[ignore]`'d (RED at HEAD, keeps the floor green); the S7 strike un-ignores it.
 
@@ -64,9 +67,12 @@ fn ensure_fn_invalid_reason_is_structural_not_prose() {
     );
 
     // And for this fixture specifically it is the type-pair variant, carrying BOTH types
-    // as separate fields (no format!'d prose).
+    // as separate fields (no format!'d prose). Excursus 003 strike B2, item 2:
+    // `EnsureFnInvalidReason` is now a genuine `defenum`, so its wire tag is
+    // DOTTED (`EnsureFnInvalidReason.ArgTypeMismatch`), not the flat
+    // `ArgTypeMismatch` S7 originally wrote.
     assert_eq!(
-        tag_name(reason), "ArgTypeMismatch",
+        tag_name(reason), "EnsureFnInvalidReason.ArgTypeMismatch",
         "the arg-type≠clause-return mismatch must be the ArgTypeMismatch reason; got: {}",
         wat_edn::write(reason)
     );
