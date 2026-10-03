@@ -1795,12 +1795,13 @@ pub(crate) fn eval_inner(
             // `wat.spawn.Locus/launch`; the macro stores that keyword, it does
             // not look the symbol up. Same join as a call head.
             if ident.is_reference() {
-                let kw = match sym.types() {
+                let primary = match sym.types() {
                     Some(types) => {
                         crate::types::reconstruct_call_path(ident.receiver(), ident.method(), types)
                     }
                     None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
                 };
+                let kw = join_the_registry_holds(primary, sym);
                 return eval_inner(&WatAST::Keyword(kw, span.clone()), env, sym);
             }
             Err(RuntimeError::new(
@@ -1851,6 +1852,31 @@ pub fn eval(
                 reason: format!("internal: eval-loop signal escaped apply_function boundary: {s}"),
             },
         )),
+    }
+}
+
+/// The join the registries actually hold.
+///
+/// `reconstruct_call_path` writes `::` when the parent is not a `TypeEnv`
+/// type. A `#[wat_dispatch]` opaque is not one, and its methods are stored
+/// as `Type/method`. A converted `(rust.sqlite.Connection/select …)` is that
+/// method. Keyword heads never reach here. Same first question as
+/// `resolve_namespaced_symbol`: the other join, only when it is held and the
+/// primary is not.
+fn join_the_registry_holds(primary: String, sym: &SymbolTable) -> String {
+    let Some(alt) = crate::types::other_join_spelling(&primary) else {
+        return primary;
+    };
+    let held = |head: &str| {
+        crate::rust_deps::registry().get_symbol(head).is_some()
+            || sym.get(head).is_some()
+            || sym.has_def_value(head)
+            || crate::intrinsic::registry().lookup(head).is_some()
+    };
+    if held(&alt) && !held(&primary) {
+        alt
+    } else {
+        primary
     }
 }
 
@@ -1910,7 +1936,8 @@ fn eval_list(
                 }
                 None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
             };
-            dispatch_keyword_head(&primary, rest, list_span, env, sym)
+            let head = join_the_registry_holds(primary, sym);
+            dispatch_keyword_head(&head, rest, list_span, env, sym)
         }
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
@@ -21291,6 +21318,26 @@ mod tests {
     }
 
     // ─── Arc 170 slice 3 Gap A — keyword reflection primitives ─────────
+
+    /// Stone 255.87 #6 — `rust.sqlite.Connection/select` is the member the
+    /// rust-deps registry holds. Reconstruction alone writes the retired `::`
+    /// join, because a dispatch opaque is not a `TypeEnv` type.
+    #[test]
+    fn symbol_rust_method_is_the_registered_member_join() {
+        let sym = super::SymbolTable::new();
+        let primary = crate::types::reconstruct_call_path(
+            "rust.sqlite.Connection",
+            "select",
+            &crate::types::TypeEnv::with_builtins(),
+        );
+        assert_eq!(primary, ":rust::sqlite::Connection::select");
+        assert_eq!(
+            super::join_the_registry_holds(primary, &sym),
+            ":rust::sqlite::Connection/select"
+        );
+        let live = ":rust::sqlite::Connection/select".to_string();
+        assert_eq!(super::join_the_registry_holds(live.clone(), &sym), live);
+    }
 
     #[test]
     fn keyword_to_string_strips_leading_colon() {
