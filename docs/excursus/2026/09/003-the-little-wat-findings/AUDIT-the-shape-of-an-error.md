@@ -299,3 +299,18 @@ place a real attacker reaches. The lenient door is also a second answer to one q
 Builder chose to keep arc 278's contract: no lenient re-decode; the serve loop identifies the op from
 the frame's outer tag and replies that op's `:RequestMalformed`, built from the STRUCTURED refusal.
 Strict decode becomes the wall's first line. Strike T3.
+
+## Strike B2 landed (`6da5efd3b`, `929f0c0cf`, `fcd4741d8`, `62de4f19a`, `2e827fed7`)
+
+The derive learned `#[to_edn(namespace = …, qualified)]` (`#<ns>/<Enum>.<Variant>`). Every flat-tagged
+sum type the sweep found is one dotted `defenum`: `ClauseFailureReason`, `HashErrorKind`,
+`LoadFetchError`, `EnsureFnInvalidReason` (moved to `wat.check`), `LexErrorKind`. `HashError` is an
+Error (`{message location kind}`) — `EvalVerificationFailed.cause` holds it, closing B1's interim
+`Fault`. Lex failures are structure (`#wat.lex/LexError {:position :kind}`), not prose. **Zero
+holder fields remain typed `:wat::core::Value`.** Floors green at each commit (6364 → 6369). The lex
+gate's mutation (drop `qualified`) was run by the orchestrator: RED, restored.
+
+| from | finding | the cure owed |
+|---|---|---|
+| B2 | `:wat::core::char` is a runtime `Value` but deliberately NOT a `TypeEnv` member (`src/types.rs`, `TABLE-STONE-Q`), so no record can declare a `char` field; the lex kinds carry their offending character as a one-character `String` | builder's call: register `char` as a declarable type, or keep the hole and its `String` stand-in |
+| B2 | `LoadFetchError`'s writer stays hand-written: its `Other` variant renames its tag to `LoadOther`, and the derive has no variant-level tag rename | a `#[to_edn(tag = …)]` variant directive, or rename the Rust variant to match its tag |
