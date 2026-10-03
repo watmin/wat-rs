@@ -148,7 +148,6 @@ wat-scripts/scratch-pad/census-parametric-surface-bindings.wat
 wat-scripts/scratch-pad/dot-flip-ask-residuals.wat
 wat-scripts/scratch-pad/probe-118B-match-tco-drain.wat
 wat-scripts/scratch-pad/probe-251-8c-matrix.wat
-wat-scripts/scratch-pad/probe-arc278-57-persistentmap-contains-key.wat
 wat-scripts/scratch-pad/probe-arc278-let-tail-service-reaped.wat
 wat-scripts/scratch-pad/probe-arc278-tco-drops-caller-env.wat
 wat-scripts/scratch-pad/probe-brief-f64-surface-is-a-stub.wat

@@ -629,7 +629,7 @@ fallthrough (`runtime.rs` 4, `macros/expand.rs` 4, `rete/purity.rs` 2, `rete/ker
 "Every 12th of the census" is an **index over a GROWING list** (2145 files then, **2152** now), so one
 inserted file shifts every later pick. Two reconstructions of "the same" 179 files shared **4 entries**.
 ⭐ **Three near-disjoint samples returned 18, 18, 16** — the finding is robust, **the instrument was
-not.** ✅ **The list is now committed:** `251-types-as-forms/delta-sample-179.txt` (sha `33ede76c…`).
+not.** ✅ **The list is now committed:** `251-types-as-forms/delta-sample-179.txt` (sha `da1aa882…`). One path was removed because `probe-arc278-57-persistentmap-contains-key.wat` was deleted in `581478c9c`; the list was not rebuilt by index. The file name stays `delta-sample-179.txt` (178 lines).
 ⛔ **USE THE FILE. NEVER REBUILD BY INDEX.**
 
 **`wat/holon/Ngram.wat` answered:** the `DuplicateMacro` is **transitional AND symmetric** — measured
