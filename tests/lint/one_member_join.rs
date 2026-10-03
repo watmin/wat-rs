@@ -85,8 +85,9 @@ fn no_colon_joined_type_member_in_tracked_wat() {
         "tests/types/probe_diagnostic_defprotocol_dispatch_p1.wat",
     )
     .expect("p1 registry");
+    let formattable_registered = form.types().contains(":myapp::Formattable");
     assert!(
-        !form.types().contains(":myapp::Formattable"),
+        !formattable_registered,
         ":myapp::Formattable is not a registered type in the file that names it"
     );
     assert!(
@@ -94,8 +95,9 @@ fn no_colon_joined_type_member_in_tracked_wat() {
         "a non-type parent keeps ::"
     );
     let reject = wat::freeze::startup_from_file("wat-tests/holon/Reject.wat").expect("Reject registry");
+    let reject_registered = reject.types().contains(":wat-tests::holon::Reject");
     assert!(
-        !reject.types().contains(":wat-tests::holon::Reject"),
+        !reject_registered,
         ":wat-tests::holon::Reject is not a registered type"
     );
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
