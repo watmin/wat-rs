@@ -1,14 +1,13 @@
-# SEAM — THE ONE LIVE BREADCRUMB. 2026-10-01. ⛔ **YOU ARE ON `main`.**
+# SEAM — THE ONE LIVE BREADCRUMB. 2026-10-03. ⛔ **YOU ARE ON `main`.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice,
 > which is why it will feel like *continuing* rather than *waking* — **and that feeling is the failure.**
 > Run the datamancy bootstrap (grimoire + the 4 primers from the **SIGNED MCP**, never a disk copy), read
 > `docs/COMPACTION-AMNESIA-RECOVERY.md`, then run the commands below before you touch anything.
 
-> ⭐ **THIS FILE IS NOT ARC-SCOPED, AND THAT IS DELIBERATE.** The live breadcrumb used to live inside
-> whichever arc was active. **No arc is active right now** — the replay closed and the next arc is the
-> builder's ruling, unmade. An arc-scoped breadcrumb would have to be moved the moment that ruling lands;
-> this one does not. When an arc is ruled live, either point this file at its seam or keep using this one.
+> ⭐ **THIS FILE IS NOT ARC-SCOPED, AND THAT IS DELIBERATE.** The live arc is **255** (the builtin registry, now
+> carrying the Clojure cutover); its record is `docs/arc/2026/06/255-builtin-registry/`. This breadcrumb stays here so it
+> never has to move when the live arc changes.
 
 ## FIRST — RUN THESE. DO NOT READ THE NUMBERS BELOW.
 
@@ -21,42 +20,31 @@ ls -dt docs/arc/2026/*/*/ | head -6      # which arcs moved most recently
 git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc   # the ignore ledger, live
 ```
 
-**Stamp: written against HEAD `b78414eaa` (2026-10-01).** `main` == `origin/main` at that commit.
-Release floor at `4969e1907`: **6235 passed / 24 skipped**, clippy 0, census 202 non-zero of 2268, ledger **148**, ignores 18.
-⚠ **Landed after this stamp:** 255.73 (`9a54f673c`) and 255.74 (a key must be data, D3: `:< Equatable`; `2ffcdfa3e`),
-floor **6257**/6257 at `2ffcdfa3e`; then 255.75 (E3: every probe runs, one test per probe; `82af2f167`), floor
-**6337**/6337; then 255.76 (every probe asserts its claim; `e266c8e1a`), floor **6336**/6336; then cutover stone 3
-(255.77, `:wat::core::Uuid` → `wat.uuid/UUID`) and 255.78 (T1: the floor never reads a clock), floor **6349**/6349 at
-`f12c10995`, heresy ledger **149**. Cutover stone 4 split (S-b + P-surface): 4a = 255.79 (`817e2003f`, every `.wat` type position
-spells `wat.type/`, floor **6349**/6349); its STOP-1 answered by 255.80 (R1/X2: `wat-fix-rust` runs any recorded codemod
-over wat in Rust strings; 506 edits in 39 files; floor **6362**/6362 at `5b4d963b2`; 15 files held for 4b). Then
-4b = 255.81 (C1 for the 24: key `:wat::type::X`, door deleted, retired names refused at the checker and the runtime
-doors, types print `wat.type/X`; the keyword fn/tuple type refused): floor **6368**/6368 at `4160bdaf4`, ledger **147**.
-Stone 5 ruled H2 (gates first): 5a = 255.82 (a slash-less call head that names nothing is refused; floor
-**6374**/6374 at `581478c9c`, ledger **146**). 5b = 255.83 (no head decided by its keyword spelling: ledger A/B → 0,
-146 → 64 (shape E left); the whole-body template purity hole closed; wat door verb `:wat::core::canonical-identity`;
-floor **6389**/6389 at `af6577c3e`). 5c-i = 255.85 (conversion tooling) + 255.86 (G1 one name per operation, R-a), floor
-**6397**/6397 at `fd5321bd4`. 5c-ii = 255.87 (the stdlib speaks faithful Clojure; residual cost 1.107×, P1; the doc-link
-check is a `floor.sh` step), floor **6410**/6410 at `d131e2833`, ignores **19** → **18** in 255.88 (the slash rule: first `/` partitions;
-binders `$bound` by position; floor **6412**/6412 at `30cd8b69c`). Next: 5c-iii corpus, 5c-iv embedded (18 `format!` keyword placeholders to answer), then 5d the wall. Open: the reader's lexer panics on `∅`/`≠`.
+**Stamp: written against HEAD `c8c6fa157` (2026-10-03).** `main` == `origin/main` at that commit.
+Release floor at `30cd8b69c`: **6412 passed / 24 skipped** (`.floor/2026-10-03T13-09-11Z`), `floor.sh`'s doc-link step 0,
+clippy 0, census 210 non-zero of 2293, heresy ledger **63** (shape E only), ignores **18**.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
 ---
 
-## ⭐ WHERE THE WORK STANDS — 2026-10-01 (arc 255 stones 255.46 → 255.73: declared signatures, then the Clojure cutover)
+## ⭐ WHERE THE WORK STANDS — 2026-10-03 (arc 255: the Clojure cutover, stone 5 of 7 in flight)
 
 ⛔ **You did not live this.** It is a cache, not your memory. Fetch the grimoire and the four primers (SIGNED MCP),
 run the commands above, then read the **newest WEIGH** in `docs/arc/2026/06/255-builtin-registry/` before you move.
 
-**Executor:** **grok via pulsare** (`pulsare_yield kind=briefed`); grok's credits returned 2026-10-01 after a Sonnet
-interlude (255.67-255.81). If the builder says credits are out again, fall back to Sonnet subagents (Agent tool,
-`model: sonnet`, pointed at the brief). A **solo** executor may run the floor; with several running, none does. Either way: draw a BRIEF, **re-run every floor yourself**, write a WEIGH, push.
+**Executor:** **grok via pulsare** (`pulsare_yield kind=briefed`, file paths **absolute**). Sonnet subagents only if the
+builder says grok's credits are out. A **solo** executor may run the floor; with several running, none does. Every
+stone: draw a BRIEF, **re-run every floor yourself on the committed tree**, read each cure's diff, write a WEIGH, push.
 
-**The floor rule in every brief (builder's doctrine, refined 2026-09-28):** a red caused by the stone's **own** gap may
-be captured **verbatim**, cured, and a **new** floor run. Any other red is a STOP. Never re-run unchanged code for a
-green. **One floor at a time, nothing else running** (two concurrent floors and a census-during-floor both produced
-false timeouts). **"Pre-existing" needs the prior green floor's line for that test**, or it is not a disposition.
+**The floor rule in every brief:** a red caused by the stone's **own** change is captured **verbatim**, cured, and a
+**new** floor run (it is work, not a STOP). Any other red is a STOP. Never re-run unchanged code for a green. **One floor
+at a time, nothing else running. `git status` clean before the floor** (a test can enumerate tracked files). **No time
+limit is raised** (T1). "Pre-existing" needs the prior green floor's line for that test.
+
+**At every weigh, read the cure diffs for the cheap-green shape:** a raised limit, a cache or environment the gate now
+depends on, a source edit made only to fit a test, a golden re-captured without an as-data audit, a string compare
+standing in for data. Three of these landed in executor work on 2026-10-02/03 and all were withdrawn.
 
 ### The rulings, newest first (the full record: `FINDING-the-shape-of-a-declared-signature.md`)
 
@@ -100,44 +88,46 @@ false timeouts). **"Pre-existing" needs the prior green floor's line for that te
 - Standing from before: totality; structural, never spelled; the supervisor pattern; only data crosses a comm; four
   questions on the page, never a menu; a STOP means STOP.
 
-### Landed, 255.46 → 255.72 (every stone has a BRIEF, SCORE and WEIGH in the arc directory)
+### Landed (every stone has a BRIEF, SCORE and WEIGH, and its amendments, in the arc directory)
 
 | stones | what |
 |---|---|
-| .46–.50 | measurements: what `defintrinsic` needs; C and Refuse; the bound's unknowns; O1, tuples, classes |
-| .48 | B1: a featureless surface's members are the declared ones |
-| .51–.53 | bounded type parameters on `fn`; conditional membership; `:..` tuples |
-| .54–.57 | `Orderable`/`Equatable` declared; newtypes tagged and ordered; `<`/`=` ask the classes; `nil` a proper type |
-| .58–.59 | goldens compared as text (measured); the clj oracle against the source reader: 44 divergences |
-| .60–.65 | the `::` wall measured in layers; the cutover sized into seven stones |
-| .66 | cutover 1/7: position decides |
-| .67 | cutover 2/7: the corpus spells its primitives `wat.type/`; K1; X-G |
-| .68–.72 | the checker's type record (`WAT_CHECK_TYPES=1`); every constructor typed from it; the untyped-constructor wall, with no exceptions |
+| .46–.65 | declared signatures and the classes; measurements; the cutover sized into seven stones |
+| .66–.72 | cutover 1 (position decides) and 2 (`wat.type/` types, K1, X-G); the type record; every constructor typed; the untyped-constructor wall |
+| .73–.76 | the rotted probe; **a set element or map key must be `Equatable`** (D3); **every probe runs and asserts its claim** (E3: one floor test per probe) |
+| .77–.78 | cutover 3 (`wat.uuid/UUID`); **T1: the floor never reads a clock** (count witnesses; a clock-verdict lint) |
+| .79–.81 | cutover 4: 4a every `.wat` type position spells `wat.type/`; **`wat-fix-rust`** runs any recorded codemod over wat in Rust strings; 4b C1 (the 24 key as `:wat::type::X`, the T-door deleted, retired names refused at the checker **and** the runtime doors, types print as written; the keyword-bodied fn/tuple type refused) |
+| .82–.83 | 5a an unbound slash-less head refused; 5b no head decided by its keyword spelling (ledger A/B → 0; the whole-body template purity hole closed; wat door verb `:wat::core::canonical-identity`) |
+| .84–.86 | 5c measured; 5c-i the conversion tooling (closed-set type rule, a resumable prose-aware driver) and **G1** one name per operation, **R-a** |
+| .87 | **5c-ii: the stdlib speaks faithful Clojure** (65 files, 11,131 heads → 0); ~20 identity cures; the conversion's cost cured from 1.47× to a recorded 1.107× (P1); companion names minted from identity; the doc-link check is a `floor.sh` step |
+| .88 | **the first slash is the only partition**; binders `$bound` by position; the doc-link judge a bin (ignores 18) |
 
-### The cutover (7 stones, `WEIGH-STONE-255.65-size-the-cutover.md`)
+### The cutover
 
-1 position ✅ · 2 types ✅ (with .68–.72) · **3 `Uuid` → `wat.uuid/UUID` (next)** · 4 C1 for primitives (deletes the
-T-door) · 5 function and form heads · 6 printers and goldens · 7 the `::` wall and the F1 wall. Carried from stone 2:
-79 `:nature :wat::core::Struct` type positions the codemod missed, and ~280 unclassified sites
-(`WEIGH-STONE-255.67-…` § Residue).
+1 position ✅ · 2 types ✅ · 3 `wat.uuid/UUID` ✅ · 4 C1 for the 24 ✅ · **5 heads: 5a ✅ 5b ✅ 5c-i ✅ 5c-ii ✅ ·
+5c-iii the corpus (next) · 5c-iv embedded wat · 5d keyword heads illegal** · 6 printers and goldens · 7 the `::` wall
+(keyword **names** illegal: symbols only for anything defined).
 
-### Open, not blocking (each has its grid in its WEIGH or the FINDING)
+**5c-iii is ready to draw:** 255.85's fresh-clone re-measure converted all 2,219 non-stdlib `.wat` (86,593 heads) with 0
+failures, and since 5c-ii the converted stdlib loads the unconverted corpus green. Shape: baseline census and delta,
+convert with a pristine binary as its own commit, floor, cure by mechanism, census and delta again. **New fixtures are
+written in the target spelling** (symbol heads and symbol names). **5c-iv** must answer 18 `format!` placeholders inside
+keyword tokens (`:{ns}::seed`) that text cannot respell, and one `:Any` in `src/freeze.rs`.
 
-- The enum marker's name (D): `wat.enum/Pure` really means "holds no resource in its own fields".
-- `sort`/`sort-by` take a `Seqable` and return a seq (ruled), with `[K :< Orderable]`; `reverse` must follow.
-- `defintrinsic` and the `recv`/`select` split (`Owners`/`Peers` aliases); the head-binder letter rule L.
-- How goldens are **compared** (as data, R-W: `assert_wat_eq!`); 255.67 only protected them.
-- The source reader (255.59): tags read as two forms (T1, a `Tagged` node, proposed); 19 "other" parity bugs, two of
-  which corrupt data silently (integers past `i64` become floats; non-ASCII keywords are byte-corrupted).
-- `where_tree_branch_differential`'s `classify()` reads `.wat` as raw text; it has been patched for spelling twice.
-- The probe census (`WEIGH-STONE-255.73-…`): 82 of 83 probes are run by nothing; 21 crash today (one a Rust panic naming a
-  drifted invariant, cured by 255.74). Ruled E3; done by 255.75 + 255.76.
-- `ann-form` (ascription, ruled out) entered executor work twice on 2026-10-01; 46 uses remain. A ratchet is offered
-  (`WEIGH-STONE-255.76-…` § Open).
-- A hang watchdog `elapsed < 2s` (`tests/process/doomed_child_boot_ack_does_not_hang.rs:87`) is rune-exempted from the
-  clock wall pending a ruling (`WEIGH-STONE-255.78-…`). Printer finding for stone 6: `type_expr_to_clojure_form` invents
-  `wat.type/X` for any `wat::core::X` (`WEIGH-STONE-255.77-…`).
-- Rete's internal indexes hash `Value`s with neither key guard (`WEIGH-STONE-255.74-…` § Open finding).
+### Open, not blocking (each has its record in its WEIGH)
+
+- **Perf:** the converted stdlib's residual 1.107× (P1). The larger win is a design: one frozen stdlib shared across
+  worlds (255.87's STOP-2). The builder is preparing a perf upgrade.
+- **`flat`** on `Identifier` is derivable; kept (504,923 `as_str` calls on one probe). Removal is the builder's call.
+- **Goldens pin line numbers inside `wat/core.wat`** (five tests, 255.88's SCORE): any stdlib edit above them churns them.
+- **The heresy ledger's blind shapes:** `== Some(":wat::…")` and `matches!` are not seen (255.83, 255.87).
+- **The reader's lexer panics on `∅`/`≠`** (a char-boundary slice); `wat-fix-rust` catches it.
+- `NAMING_RULE_EXCEPTIONS` 25; `infer_assoc`'s value parameter is `assignable` (255.86).
+- **Rete's internal indexes hash `Value`s with neither key guard** (255.74).
+- A hang watchdog `elapsed < 2s` is rune-exempted from the clock wall pending a ruling (255.78).
+- `ann-form` (ruled out) still has ~46 uses; a ratchet is offered (255.76).
+- The enum marker's name (D); `sort`/`sort-by` over `Seqable`; `defintrinsic` (ruled, not built); goldens compared as
+  data (R-W); the source reader's tag node (T1) and 19 parity bugs; `where_tree_branch_differential`'s raw-text classify.
 
 ### Merge hazards
 
@@ -146,8 +136,8 @@ stone R: `is_newtype`, `AggregateValue::newtype`) and the type record (`origin/t
 written fresh with the same names. `sns-sqs`, `grok-rete` and `queue-promotion-blocked-on-startup-cost` touch `src/`
 and `wat/`; rebase them after the cutover. 255.41/.42 moved the process `poll` loop into `poll_process_tier`.
 
-⛔ **End of the breadcrumb. The self reading this is new. Run recolligere against the disk before acting on any
-line above.**
+⛔ **End of the breadcrumb. The self reading this is new. You did not live any of it. Run recolligere against the
+disk before acting on any line above.**
 
 ---
 
