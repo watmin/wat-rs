@@ -351,6 +351,7 @@
 
 ;; fix-text-leaf-edits — apply the same rule order as fix-seq to a leaf node,
 ;; emitting zero or one edit (never recurses into children).
+;; retired `:fn(` (left in place; `keyword/to-type-form` would abort the file) >
 ;; post-arrow type (not after a rete-var) > structural type > marker > head-keyword > arrow > no-op.
 ;; 251.8d-i: a leaf whose span text ≠ ast-name is reader-synthesized — skip it.
 (:wat::core::defn :wat::fix::fix-text-leaf-edits
@@ -368,6 +369,9 @@
                           off     (:wat::fix::fix-text-offset-of span lines)
                           nm      (:wat::core::ast-name node)
                           old-len nm]
+          (:wat::core::if (:wat::fix::retired-keyword-fn? node)
+            ;; `:fn(A)->R` stays. Calling `keyword/to-type-form` aborts the file.
+            (:wat::fix::empty-edits)
           (:wat::core::if (:wat::core::if prev-arrow? (:wat::core::not prev-rete-var?) false)
             ;; post-arrow keyword is a type annotation → convert to type form
             ;; (not a rete field name: prev-rete-var? carried across the arrow)
@@ -390,7 +394,7 @@
                     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len
                       (:wat::core::ast-name (:wat::keyword::to-symbol node))))
                   ;; bare data keyword (no ::, not type-shaped) — no edit
-                  (:wat::fix::empty-edits))))))
+                  (:wat::fix::empty-edits)))))))
         ;; class B — reader-synthesized; span ≠ name. Skip, edit nothing.
         (:wat::fix::empty-edits))
       (:wat::core::if (:wat::core::= kind "symbol")
