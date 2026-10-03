@@ -35,7 +35,9 @@ doors, types print `wat.type/X`; the keyword fn/tuple type refused): floor **636
 Stone 5 ruled H2 (gates first): 5a = 255.82 (a slash-less call head that names nothing is refused; floor
 **6374**/6374 at `581478c9c`, ledger **146**). 5b = 255.83 (no head decided by its keyword spelling: ledger A/B → 0,
 146 → 64 (shape E left); the whole-body template purity hole closed; wat door verb `:wat::core::canonical-identity`;
-floor **6389**/6389 at `af6577c3e`). Next: 5c, the conversion (stdlib, corpus, embedded wat), then 5d the wall.
+floor **6389**/6389 at `af6577c3e`). 5c-i = 255.85 (conversion tooling) + 255.86 (G1 one name per operation, R-a), floor
+**6397**/6397 at `fd5321bd4`. Next: 5c-ii the stdlib conversion, 5c-iii corpus, 5c-iv embedded (18 `format!` keyword
+placeholders to answer), then 5d the wall. Open: the reader's lexer panics on `∅`/`≠`.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 
