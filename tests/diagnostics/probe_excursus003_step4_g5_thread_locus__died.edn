@@ -67,7 +67,7 @@
         :symbol "<rust>"
         :span #wat.core/Span {
           :file "src/numeric/arith.rs"
-          :line 93
+          :line 0
           :col 9
           :end #wat.core/Option.None {}
         }

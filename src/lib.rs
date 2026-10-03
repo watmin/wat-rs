@@ -438,6 +438,13 @@ macro_rules! assert_edn_matches_file {
                  error face survived stone B.\n parse error: {}\n actual: {}", err, a_raw));
             // The golden must SHOW what it asserts: a rust-sentinel span's line is blanked here
             // too, so the file reads `:line 0` rather than a real-looking number nothing compares.
+            // Excursus 003 strike B3 item 4: calls the SAME two normalizers, in the SAME order,
+            // the compare side (`assert_edn_eq!`) uses — `blank_rust_source_lines` alone already
+            // subsumes `normalize_rust_source_span_lines` (it recurses into every map generically,
+            // not only `#wat.core/Span`-tagged ones), so this is a no-op in practice, not a
+            // behavior change; it exists so a reader can see the capture side matches the compare
+            // side BY READING, not by knowing one function is a superset of the other.
+            $crate::normalize_rust_source_span_lines(&mut a_val);
             $crate::blank_rust_source_lines(&mut a_val);
             let body = format!("{}\n", ::wat_edn::write_pretty(&a_val));
             ::std::fs::write(&edn_path, body)
@@ -690,5 +697,63 @@ mod blank_rust_source_lines_tests {
     fn a_line_key_without_a_file_key_is_untouched() {
         let src = r#"{:line 42 :count 7}"#;
         assert_eq!(norm(src), parse_owned(src).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod capture_is_normalized_before_write_tests {
+    //! Excursus 003 strike B3 item 4 — `assert_edn_matches_file!`'s `UPDATE_EDN=1` capture arm
+    //! must write the SAME bytes regardless of which physical line a `.rs` raise site happens to
+    //! resolve to in THIS build (an unrelated edit anywhere above the site shifts it, with zero
+    //! semantic change to what the golden asserts — measured: `tests/diagnostics/
+    //! probe_excursus003_step4_g5_thread_locus__died.edn` carried a stale, un-blanked
+    //! `src/numeric/arith.rs :line 93` on disk, reported in strike T3's own commit
+    //! (`06f70511e`) as a `0→93` churn; recaptured as part of this item).
+    //!
+    //! This drives the EXACT function composition the macro's `UPDATE_EDN` arm runs
+    //! (`wat_edn::parse_owned` -> [`normalize_rust_source_span_lines`] ->
+    //! [`blank_rust_source_lines`] -> `wat_edn::write_pretty`), not a hand-maintained
+    //! re-implementation, so a regression in that composition trips THIS test.
+    //!
+    //! Mutation (recorded in the strike report, not re-encoded here as a second,
+    //! permanently-mutated copy): drop the two normalizer calls from `capture` below (the
+    //! "write raw again" the brief names) — RED, the two captures differ by the raw `:line`
+    //! text (`93` vs `187`).
+
+    fn capture(raw: &str) -> String {
+        let mut v = wat_edn::parse_owned(raw).expect("fixture parses");
+        crate::normalize_rust_source_span_lines(&mut v);
+        crate::blank_rust_source_lines(&mut v);
+        format!("{}\n", wat_edn::write_pretty(&v))
+    }
+
+    /// Two "captures" of the identical diagnostic, differing ONLY in the `.rs` raise site's
+    /// `:line` (standing in for the same raise site resolving to a different line after an
+    /// unrelated edit elsewhere in the crate) — must write byte-identical goldens.
+    #[test]
+    fn two_captures_differing_only_in_a_rust_raise_sites_line_are_byte_identical() {
+        let before = capture(
+            r#"#wat.kernel/Frame {:symbol "<rust>"
+                                   :span #wat.core/Span {:file "src/numeric/arith.rs" :line 93 :col 9 :end #wat.core/Option.None {}}
+                                   :kind #wat.kernel/FrameKind.Rust {}}"#,
+        );
+        let after = capture(
+            r#"#wat.kernel/Frame {:symbol "<rust>"
+                                   :span #wat.core/Span {:file "src/numeric/arith.rs" :line 187 :col 9 :end #wat.core/Option.None {}}
+                                   :kind #wat.kernel/FrameKind.Rust {}}"#,
+        );
+        assert_eq!(
+            before, after,
+            "a recapture must not churn a golden on an unrelated .rs raise-site line move"
+        );
+    }
+
+    /// Non-vacuity: a REAL difference elsewhere (not the blanked `.rs` line) still produces
+    /// different captures — the test above cannot pass by coincidence of capturing nothing.
+    #[test]
+    fn two_captures_differing_in_a_wat_span_line_are_not_identical() {
+        let a = capture(r#"#wat.core/Span {:file "p1.wat" :line 3 :col 1}"#);
+        let b = capture(r#"#wat.core/Span {:file "p1.wat" :line 9 :col 1}"#);
+        assert_ne!(a, b, "a .wat span's :line is a real assertion and must survive capture");
     }
 }
