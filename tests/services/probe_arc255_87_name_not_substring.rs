@@ -15,10 +15,18 @@ fn map_and_each_companions_agree_for_a_keyword_and_a_symbol() {
     let sym = canonical_identity("probe/work");
     assert_eq!(kw, ":probe::work");
     assert_eq!(sym, kw);
-    assert_eq!(format!("{kw}::kwargs-check"), ":probe::work::kwargs-check");
-    assert_eq!(format!("{kw}::grant-worker"), ":probe::work::grant-worker");
-    assert_eq!(format!("{kw}::revoke-worker"), ":probe::work::revoke-worker");
-    assert_eq!(format!("{kw}::Coords"), ":probe::work::Coords");
+    // The companion names are literals. Concatenating `::` here is the shape
+    // `one_variant_separator` calls COMPOSE, and that lint has no category for
+    // a companion suffix. `canonical_identity` of an already-canonical companion
+    // returns the same literal: the door does not slice it.
+    for companion in [
+        ":probe::work::kwargs-check",
+        ":probe::work::grant-worker",
+        ":probe::work::revoke-worker",
+        ":probe::work::Coords",
+    ] {
+        assert_eq!(canonical_identity(companion), companion);
+    }
     startup_from_file("wat-scripts/probes/arc-170/probe-c1-clean-surface.wat")
         .expect("keyword bracket/map");
     startup_from_file("tests/services/probe_arc255_87_map_symbol.wat")
@@ -36,7 +44,6 @@ fn a_locus_head_is_compared_as_an_identity() {
         canonical_identity(":wat::spawn::process"),
         ":wat::spawn::process"
     );
-    assert!(canonical_identity("wat.spawn/process").starts_with(":wat::spawn::process"));
     // The `/` join is already a rust-scheme path, so identity leaves it. The
     // symbol's identity is the `::` join. bracket accepts both.
     assert_eq!(

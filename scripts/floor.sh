@@ -147,6 +147,34 @@ status=${PIPESTATUS[0]}
 
 strip_ansi < "$RAW" > "$CLEAN"
 
+# ── THE DOC-LINK GATE ─────────────────────────────────────────────────────────
+# Amend 6 (stone 255.87). This was a nextest test. Nextest kills at 30s. A cold
+# `cargo doc` of this workspace was measured at 34.75s, and the same test was
+# 0.519s once the shared target's rustdoc cache was warm. A private
+# CARGO_TARGET_DIR is withdrawn: a clean clone would be red, and arc 278 E3
+# already ruled against a second target directory. The check runs here, on this
+# floor's own target, after nextest has dropped the lock. `timeout 300` is the
+# hang bound the test already carried. It is not raised, and it is not a nextest
+# limit. The ledger stays in tests/lint/no_new_broken_doc_link.rs. The ignored
+# test reads the log; it does not spawn cargo.
+echo "[floor] cargo doc --release --no-deps --workspace (intra-doc links)"
+DOC_LINK="$OUT/doc-link.log"
+DOC_LINK_JUDGE="$OUT/doc-link-judge.log"
+RUSTDOCFLAGS="-W rustdoc::broken_intra_doc_links" \
+  timeout --kill-after=15s 300s \
+  cargo doc --release --no-deps --workspace --color=never \
+  >"$DOC_LINK" 2>&1
+doc_build_status=$?
+doc_status=$doc_build_status
+if [ "$doc_build_status" -eq 0 ]; then
+  WAT_DOC_LINK_LOG="$DOC_LINK" \
+    cargo test --release --test lint -- \
+    no_new_broken_doc_link::doc_link_ledger_matches_the_captured_log \
+    --ignored --exact \
+    >"$DOC_LINK_JUDGE" 2>&1
+  doc_status=$?
+fi
+
 summary="$(grep -E '^ *Summary' "$CLEAN" | tail -1)"
 
 echo
@@ -157,9 +185,29 @@ else
   echo "[floor]   That is itself a finding. Full output: .floor/$STAMP/clean.log"
 fi
 
-if [ "$status" -eq 0 ]; then
+if [ "$status" -eq 0 ] && [ "$doc_status" -eq 0 ]; then
   echo "[floor] exit=0. Log kept at .floor/$STAMP/ regardless — a green run is evidence too."
+  echo "[floor] doc-link exit=0. Log kept at .floor/$STAMP/doc-link.log"
   exit 0
+fi
+
+if [ "$status" -eq 0 ]; then
+  echo
+  echo "[floor] ⛔ DOC-LINK RED — exit=$doc_status"
+  echo "[floor]   build log:  .floor/$STAMP/doc-link.log"
+  echo "[floor]   judge log:  .floor/$STAMP/doc-link-judge.log"
+  if [ "$doc_build_status" -eq 124 ] || [ "$doc_build_status" -eq 137 ]; then
+    echo "[floor]   the 300s hang bound expired. The doc build was killed, not judged."
+  elif [ "$doc_build_status" -ne 0 ]; then
+    echo "[floor]   cargo doc did not finish, so the ledger was not judged."
+  fi
+  if [ -f "$DOC_LINK_JUDGE" ]; then
+    echo "[floor]"
+    sed -n '/broken intra-doc links moved/,/cargo doc --release/p' "$DOC_LINK_JUDGE"
+  fi
+  echo
+  echo "[floor]   DO NOT RE-RUN to see if it passes. The log names the link."
+  exit "$doc_status"
 fi
 
 # ── RED ───────────────────────────────────────────────────────────────────────

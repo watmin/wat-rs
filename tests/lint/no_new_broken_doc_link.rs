@@ -102,7 +102,6 @@
 //! `load`, `check` and `kernel` at once.
 
 use std::collections::BTreeMap;
-use std::path::Path;
 
 /// ★ THE LEDGER — every intra-doc link in this workspace that does not resolve, BY NAME.
 ///
@@ -159,58 +158,12 @@ const KNOWN_BROKEN_DOC_LINKS: &[(&str, &str, usize)] = &[
     ("src/value/symbol_table.rs", "RuntimeError::NoEncodingCtx", 1),
 ];
 
-/// Wall-clock bound on the spawned doc build. **300s, against a worst OBSERVED 10.68s.**
+/// The `cargo doc` run is `scripts/floor.sh`, after nextest, on the floor's own target.
+/// A cold workspace doc build measured 34.75s, past nextest's 30s kill, so this file does not
+/// spawn it. Arc 278 E3 ruled against a private `CARGO_TARGET_DIR` (a clean clone would compile
+/// the world into that directory). Amend 5's `target/doc-link-ledger` is withdrawn. The 300s
+/// hang bound is `timeout` in `floor.sh`. It was not raised, and it is not a nextest limit.
 ///
-/// Both numbers, because a bound chosen for roundness is a bound nobody can re-derive. Measured
-/// 2026-09-01 on this host, release profile: **0–1s** when cargo replays cached rustdoc
-/// diagnostics, **9–11s** with the doc units cold (the state a first floor run leaves), and
-/// **10.68s** — the worst — running inside the full `wat::lint` binary under nextest's parallel
-/// load. 300s is ~28x that worst case.
-///
-/// The headroom is deliberately large, and the asymmetry is the reason: this bound must be
-/// UNCROSSABLE by legitimate slowness (a loaded CI box, a slower machine, a cold release
-/// dependency graph) and crossable only by a wait that was never going to end. A false red here
-/// would be a flake, and this tree does not have those. It is still far below the floor's own
-/// multi-minute runtime, so an expiry surfaces inside a normal floor rather than after it.
-/// ⛔ **THE RESIDUAL, AND THE ORCHESTRATOR'S RULING ON IT (arc 278, E3).** This bound converts a
-/// hang into a red; it does NOT make the gate correct under contention. A cargo holding the target
-/// lock for 40s → this passes. For 400s → **this reds on a tree with no broken links.** The rider
-/// raised that against `CLAUDE.md`'s absolute *"there is no such thing as a known flake"*, and was
-/// right to. **Ruled: keep the bound; do NOT give the doc build its own `CARGO_TARGET_DIR`.**
-///
-/// Three reasons, in order of weight:
-///
-/// 1. **Red-when-it-cannot-measure is the CORRECT answer.** The alternative is passing without
-///    measuring, which is the failure this tree already has a name for — a check that reports
-///    success without running. A gate that cannot see the tree must say so.
-/// 2. **It is not a flake in the doctrine's sense.** A flake passes and fails on one tree for
-///    UNKNOWN reasons, which is why the doctrine forbids re-running: the re-run destroys the only
-///    evidence. This fails for a *stated, captured* reason and quotes cargo's own
-///    `Blocking waiting for file lock …` line in the red. Resolving the named cause and
-///    re-measuring is `extirpare` — fix the condition, then measure — not the forbidden
-///    re-run-until-green.
-/// 3. **The structural cure buys out a condition the operating discipline already forbids** (never
-///    two cargos on this target dir) at the price of a full cold dependency compile on every fresh
-///    clone. That trade is not worth it here.
-///
-/// Amend 5 (stone 255.87) names a different coupling than the lock. The same test was killed by
-/// nextest at 30.004s (stdout was only `(test timed out)`; this 300s bound never ran), finished in
-/// 10.791s isolated, and finished in 0.519s once `target/release`'s rustdoc cache was warm. The
-/// verdict did not move. The cost followed the shared target. The spawn below sets
-/// `CARGO_TARGET_DIR` to `target/doc-link-ledger`, which is not the floor's target, so the floor's
-/// `.cargo-lock` and a neighbor's `target/doc` are not this build's cache. Reason 3 still holds for
-/// a *cold* private directory: a fresh workspace doc build exceeds nextest's 30s kill. The directory
-/// is persistent and is warmed with `cargo doc` before a floor. This bound stays 300. A held lock on
-/// *this* directory is still a red, for reason 1.
-///
-/// **If this ever reds for a reason other than a held lock, that is a real finding** — the message
-/// below tells the reader how to tell the two apart, and neither is a licence to dismiss it.
-const DOC_BUILD_TIMEOUT_SECS: u32 = 300;
-
-/// The bounding wrapper. Separate from the timeout value so the panic messages below can name the
-/// binary they needed.
-const TIMEOUT_BIN: &str = "timeout";
-
 /// Extract `(file, link-target) -> sites` from a cargo/rustdoc run's combined output.
 ///
 /// rustdoc's shape, verbatim:
@@ -312,103 +265,25 @@ fn the_broken_doc_link_ledger_has_no_duplicate_keys() {
     );
 }
 
-/// `--release` only when this test binary itself is a release build, so the doc build reuses the
-/// dependency artifacts the current run already produced instead of compiling a second profile.
-/// Derived from the executable's own path rather than `cfg!(debug_assertions)`, which is a
-/// property of the assertion setting and not of the profile.
-fn profile_flag() -> &'static [&'static str] {
-    let release = std::env::current_exe()
-        .map(|p| p.components().any(|c| c.as_os_str() == "release"))
-        .unwrap_or(false);
-    if release { &["--release"] } else { &[] }
-}
-
 // rune:lint(vacuity-guard) — the population here is rustdoc's diagnostic stream, not a file
 // set, and this ledger is MEANT to reach zero — a "found at least N" floor would make an empty,
 // correct tree RED, which is the opposite of the property. What this gate does instead:
 // `the_unresolved_link_extractor_still_matches_rustdocs_format` above proves the parser against a
 // fixed sample of rustdoc's wording. If a toolchain bump rewords the diagnostic, THAT test reds
-// FIRST and names the format change, instead of this one silently parsing nothing out of a full
-// build and reporting the whole ledger as resolved. The three exit-code arms below carry the other
-// half: a doc build that timed out, could not be spawned, or failed is a red rather than a clean
-// parse of no output.
+// FIRST and names the format change, instead of the gate silently parsing nothing out of a full
+// build and reporting the whole ledger as resolved. A doc build that timed out or failed is a red
+// of `scripts/floor.sh` itself: this test only reads a log that build already wrote.
 #[test]
-fn no_broken_intra_doc_link_outside_the_frozen_ledger() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    // `timeout` wraps cargo; see this file's header for why an unbounded spawn is not an option.
-    // GNU timeout puts the child in its own process group, so the KILL after `--kill-after` reaps
-    // the rustdoc children too rather than orphaning them onto the floor.
-    // The doc build has its own target directory. On `.floor/2026-10-03T10-21-23Z`
-    // nextest killed this test at 30.004s and the captured stdout was only
-    // `(test timed out)` — the 300s bound below never ran. Isolated, the same
-    // build finished in 10.791s. On `.floor/2026-10-03T10-31-41Z`, after that
-    // isolated run had warmed `target/release`'s rustdoc cache, it finished in
-    // 0.519s. The cost was following whatever had last written the shared
-    // target. This directory is not the floor's, so the floor's cargo lock is
-    // not this build's lock, and a neighbor warming `target/release/doc` does
-    // not change what this run replays.
-    let doc_target = root.join("target/doc-link-ledger");
-    let out = std::process::Command::new(TIMEOUT_BIN)
-        .current_dir(root)
-        .env("RUSTDOCFLAGS", "-W rustdoc::broken_intra_doc_links")
-        .env("CARGO_TARGET_DIR", &doc_target)
-        .arg("--kill-after=15s")
-        .arg(format!("{DOC_BUILD_TIMEOUT_SECS}s"))
-        .arg(env!("CARGO"))
-        .args(["doc", "--no-deps", "--workspace", "--color=never"])
-        .args(profile_flag())
-        .output()
-        .unwrap_or_else(|e| {
-            panic!(
-                "could not spawn `{TIMEOUT_BIN}` to bound the doc build: {e}\n\n\
-                 This gate will NOT run the doc build unbounded — it spawns cargo into the target \
-                 directory the floor itself is using, and a cargo that cannot take the build lock \
-                 waits forever instead of failing. Install coreutils `timeout`, or change this \
-                 gate to bound the build some other way; do not delete the bound."
-            )
-        });
-
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let code = out.status.code();
-
-    // ── ARM: the bound expired. 124 = TERM'd at the deadline; 137 = still alive, KILL'd after. ──
-    let timed_out = code == Some(124) || code == Some(137);
-    assert!(
-        !timed_out,
-        "THE DOC BUILD DID NOT FINISH IN {DOC_BUILD_TIMEOUT_SECS}s — it was killed, not failed.\n\n\
-         The likeliest cause by far is ANOTHER CARGO HOLDING THE TARGET-DIRECTORY LOCK \
-         (`target/<profile>/.cargo-lock`): a second cargo does not error, it prints \"Blocking \
-         waiting for file lock on …\" and waits — cargo words the tail per lock (\"artifact \
-         directory\", \"build directory\", \"package cache\"), so grep the stable prefix \
-         \"Blocking waiting for file lock\" in the captured output below, and run `pgrep -af cargo` — a concurrent \
-         interactive build or a second floor on this same target directory is the thing to find.\n\n\
-         If nothing else was running, the doc build itself got {DOC_BUILD_TIMEOUT_SECS}s-slow, \
-         which is ~28x its measured worst case and is a real finding — re-measure with the \
-         instrument in this file's header BEFORE touching the bound.\n\n\
-         Captured output:\n{combined}"
-    );
-
-    // ── ARM: `timeout` itself could not run cargo. Distinct from a doc build that ran and failed. ──
-    let wrapper_failed = code == Some(125) || code == Some(126) || code == Some(127);
-    assert!(
-        !wrapper_failed,
-        "`{TIMEOUT_BIN}` could not run cargo (exit {code:?}: 125 = timeout failed, 126 = cargo \
-         found but not executable, 127 = cargo not found). The doc build never ran, so this gate \
-         measured NOTHING — it is not reporting a clean tree:\n{combined}"
-    );
-
-    // ── ARM: the doc build ran to completion and failed. ──
-    assert!(
-        out.status.success(),
-        "`cargo doc --no-deps --workspace` FAILED ({}). The gate cannot measure links from a doc \
-         build that did not complete, and a failed doc build is itself a red:\n{combined}",
-        out.status
-    );
-
+#[ignore = "scripts/floor.sh runs this against the captured cargo doc log; it is not a nextest slot"]
+fn doc_link_ledger_matches_the_captured_log() {
+    let path = std::env::var("WAT_DOC_LINK_LOG").unwrap_or_else(|_| {
+        panic!(
+            "WAT_DOC_LINK_LOG is unset. scripts/floor.sh sets it to the cargo doc log. \
+             This test does not spawn cargo."
+        );
+    });
+    let combined = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("could not read WAT_DOC_LINK_LOG {path}: {e}"));
     let found = unresolved_links(&combined);
     let known: BTreeMap<(String, String), usize> = KNOWN_BROKEN_DOC_LINKS
         .iter()
