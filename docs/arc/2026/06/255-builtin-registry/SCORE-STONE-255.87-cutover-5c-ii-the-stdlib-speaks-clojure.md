@@ -571,3 +571,92 @@ The converted probe's `--check` is 5 errors, all at line 35, the `wat.bracket/ma
 ## Close (amend 4)
 
 P1 holds. The four default time limits pass on `.floor/2026-10-03T10-31-41Z`. The residual on this rust is the six-run table above. Census has no rc flip. Delta RECOVERY is 0. The one NEW file is the kwargs-name strip on `probe-c1-clean-surface.wat`.
+
+## Amend 5 — a name is not a substring
+
+Cure is `bdb9953d7` on local main. Not pushed. The door is `wat.core/canonical-identity` of `ast-name`, then the suffix concatenated onto that keyword string. There is no `compose-variant` sibling for a companion: `wat.runtime/compose-variant` names an enum variant and is not this door. `canonical_identity` of a string that contains `::` and starts with `:` is returned unchanged, so `:probe::work` and `probe/work` both mint `:probe::work::kwargs-check`. A member keyword `:wat::spawn::Locus/with-label` stays the `/` join; the symbol `wat.spawn.Locus/with-label` becomes `:wat::spawn::Locus::with-label`. `bracket.wat` accepts both. Symbol `wat.rete/acc/count` (two slashes) becomes `:wat::rete::acc/count`. The faithful pair of `:wat::rete::acc::count` is `wat.rete.acc/count`. That two-slash case is stone 255.88 and was not started.
+
+`keyword/from-string` rejects a colon-prefixed string, so a keyword value strips the sigil only after canonical-identity. Defmacros cannot call a user defn. `wat.core/canonical-identity` is already legal inside a defmacro body, so it is inlined. No new helper.
+
+Sites routed that way:
+
+- `wat/bracket.wat` `map` and `each`: companion mint (`::kwargs-check`, `::grant-worker`, `::revoke-worker`, `::Coords`) and the locus-head compare.
+- `wat/core.wat` kwargs-lower: canonical, then a sigil strip only when the first character is `:`. `:echo` and `echo` both become `echo`.
+- `wat/core.wat` `kwargs-type-slot-name`: canonical-identity of the slot head. Without this, a symbol slot `wat.kernel/Peer` did not match `:wat::kernel::Peer`, `mint-coords?` stayed false, and the call was `UnknownCallee` of the correct name `:probe::work::kwargs-check`.
+- `wat/query.wat` sift-rules: `raw-name`, `raw-rname`, `traw`, `craw`, `draw`. The existing sigil strip stays.
+- `wat/rete/syntax.wat`: query-param `knm`, defrule name, defquery name. `:?loc` stays `:?loc` through canonical-identity (no `::`, starts with `:`, no `/`), then the sigil strip yields `?loc`.
+- `wat/rete/oracle/accum-pass.wat`: `acc-nm` is canonical-identity. The else branch strips the sigil only when the canonical form starts with `:`.
+- `wat/rete/oracle/stratify.wat` `type-name-of`: the raw binding is canonical-identity. `rule-consumes` already called it.
+
+Left, because they are not a call-name mint:
+
+- `wat/kernel/services/stdio.wat` payload chunk and rest.
+- `wat/fmt.wat` whitespace and column.
+- `wat/string.wat` capitalize and `strip-leading-colon`.
+- `wat/fix.wat` the rename scanner and `marker-to-namespace-text` (a trailing-`::` namespace marker in source text). The codemod engine.
+- `wat/core.wat` the parametric `<T>` suffix split. Not a colon.
+- `wat/service.wat` type-param brackets and the dash-strip of internal ops (`starts-with? "-"`).
+- `wat/bracket.wat` `keyword/to-string` on keyword-typed runtime values (`thread-kwargs-runner`, `process-work-forms`) and `dotpath->colonpath`. `-type-slot-name` and `-type-slot-swap-head` still split type-head text. `process-work-forms` still has `string/contains?` of `"Peer"`. The symbol probes check without them.
+
+Pair tests, all three PASS on this floor: `map_and_each_companions_agree_for_a_keyword_and_a_symbol` [3.404s] (four `startup_from_file`: the existing keyword map probe, symbol map, keyword each, symbol each), `a_locus_head_is_compared_as_an_identity` [0.006s], `rule_fold_and_field_names_strip_the_sigil_after_identity` [0.007s]. The formula test had failed once before the floor (`/tmp/g1-a5-pairs.log`, RC=100) because it spelled `wat.rete/acc/count`. That string's identity is `:wat::rete::acc/count` (`split_once` on the first slash). The assertion was changed to `wat.rete.acc/count` and re-run alone: `/tmp/g1-a5-formula.log` PASS [0.003s], Summary [0.012s], RC=0. That was not a floor.
+
+The symbol and keyword map/each files `--check` rc 0 on the release binary that contains the cure (`/tmp/g1-a5-build.log` Finished 23.40s RC=0, then a second release rebuild after `kwargs-type-slot-name`).
+
+### Doc-link
+
+`no_broken_intra_doc_link_outside_the_frozen_ledger` spawns `timeout --kill-after=15s 300s cargo doc --no-deps --workspace` with `RUSTDOCFLAGS=-W rustdoc::broken_intra_doc_links`. `--release` when the test executable path contains `release`. The 30.004s on `.floor/2026-10-03T10-21-23Z` is nextest's kill (`TERMINATING [> 30.000s]`, stdout only `(test timed out)`). The test's own 300s bound did not run. Isolated after that floor: PASS [10.791s]. On `.floor/2026-10-03T10-31-41Z`, after that isolated run had warmed `target/release`'s rustdoc cache: PASS [0.519s]. The verdict did not move. The cost followed the shared target: the floor's `.cargo-lock` and whatever last wrote `target/doc`.
+
+The header of `tests/lint/no_new_broken_doc_link.rs` (arc 278 E3) ruled against a separate `CARGO_TARGET_DIR` because a cold private directory is a full workspace doc compile. Amend 5 still gives this test `CARGO_TARGET_DIR=target/doc-link-ledger`, which is not the floor's target. `DOC_BUILD_TIMEOUT_SECS` stays 300. Nextest's 30s kill was not raised. A cold private directory was measured before this floor: `cargo doc --release --no-deps --workspace` into that directory finished in 34.75s, RC=0 (`/tmp/g1-a5-docwarm.log`). 34.75s exceeds the 30s kill, so a floor that hits a cold private directory goes red on time. The directory is persistent and was warmed before the floor. On this floor the test is PASS [0.532s]. Forcing every run cold would red the floor. A held lock on this private directory is still a red. The ledger was not extended.
+
+### Floor
+
+Do not re-run `.floor/2026-10-03T11-10-21Z`. Cure `bdb9953d7`. `/tmp/g1-a5-floor.out` RC=100.
+
+```
+Summary [ 382.841s] 6411 tests run: 6404 passed (28 slow), 7 failed, 24 skipped
+```
+
+Doctests exit 0: wat 5 passed (1 ignored), wat-edn 3 passed, wat-macros 0 (4 ignored), wat-doc / wat-reader / wat-to-edn-derive 0. Clippy `--release --all-targets -- -D warnings` RC=0 in 13.39s before the commit (`/tmp/g1-a5-clippy.log`).
+
+The four default time limits passed. Reachability shards 20.820s, 20.906s, 20.734s, 20.933s, 22.566s, 22.531s (slow-timeout 15s, kill 30s). Fuzz `deftest_wat_tests_rete_fuzz_test_native_matches_oracle` PASS [71.482s], limit 90000ms. `retirement_table_is_fully_reachable` PASS [165.999s], limit 240s. Doc-link PASS [0.532s].
+
+Seven failures. Verbatim stdout and stderr are `.floor/2026-10-03T11-10-21Z/ARM.txt`. Two mechanisms.
+
+**Arm A — the new rust probe's source text.** The three tests in that file passed. The lints read the source.
+
+`tests_carry_no_loose_string_assert` panicked at `tests/lint/no_loose_string_assert.rs:135`. One offender:
+
+```
+tests/services/probe_arc255_87_name_not_substring.rs:39
+```
+
+That line is `starts_with(":wat::spawn::process")` on `canonical_identity("wat.spawn/process")`.
+
+`only_identifier_rs_spells_the_variant_separator` panicked at `tests/lint/one_variant_separator.rs:260`. Four offenders, category COMPOSE:
+
+```
+tests/services/probe_arc255_87_name_not_substring.rs:18  [COMPOSE]  assert_eq!(format!("{kw}::kwargs-check"), ":probe::work::kwargs-check");
+tests/services/probe_arc255_87_name_not_substring.rs:19  [COMPOSE]  assert_eq!(format!("{kw}::grant-worker"), ":probe::work::grant-worker");
+tests/services/probe_arc255_87_name_not_substring.rs:20  [COMPOSE]  assert_eq!(format!("{kw}::revoke-worker"), ":probe::work::revoke-worker");
+tests/services/probe_arc255_87_name_not_substring.rs:21  [COMPOSE]  assert_eq!(format!("{kw}::Coords"), ":probe::work::Coords");
+```
+
+Those `format!` calls concatenate a companion suffix. They are not `compose_variant`. The lint reads the `::` in the format string as the variant separator.
+
+**Arm B — a span shift of +3 lines in `wat/core.wat`.** The diagnostic message, reason, file, and columns are the golden. The line moved. kwargs-lower replaced one `subs` form with a three-line `if` (+2). `kwargs-type-slot-name` wrapped the body in `canonical-identity` (+1). Both edits sit above these spans. The messages did not change.
+
+| test | panic | assertion | expected line | actual line |
+|---|---|---|---|---|
+| `probe_arc249_threading::witness_thread_first_empty_step_panics_at_expansion` | `tests/macros/probe_arc249_threading.rs:92` | empty `->` step must match macro-expansion failure golden | `wat/core.wat` 1460 | 1463 |
+| `probe_arc258_stone2b_macro_error::contract_02_non_exhaustive_cond_names_else` | `tests/macros/probe_arc258_stone2b_macro_error.rs:64` | non-exhaustive cond must match diagnostic golden | `wat/core.wat` 1512 | 1515 |
+| `wat_core_cond::cond_refuses_missing_else` | `tests/wat_lang/wat_core_cond.rs:69` | expected missing-`:else` diagnostic | `wat/core.wat` 1512 | 1515 |
+| `probe_arc279_format::format_strict_missing_kwarg_is_macro_error` | `tests/macros/probe_arc279_format.rs:57` | missing kwarg must match macro-error diagnostic golden | `wat/core.wat` 2009–2013 | 2012–2016 |
+| `probe_arc279_format::format_strict_unused_kwarg_is_macro_error` | `tests/macros/probe_arc279_format.rs:83` | unused kwarg must match macro-error diagnostic golden | `wat/core.wat` 2037–2041 | 2040–2044 |
+
+The cond and format reasons are unchanged: `cond: non-exhaustive — needs a terminal :else arm`, `format: placeholder {y} has no matching kwarg`, `format: kwarg :y is unused — no {y} in template`. The thread-first reason is unchanged: `:wat::core::first: WatAST List has 0 child(ren); no child at index 0`.
+
+Census and `delta.sh` did not run. This floor is the stop.
+
+## STOP (amend 5)
+
+The cure is on `bdb9953d7`. The floor `.floor/2026-10-03T11-10-21Z` is red and is not re-run. Delta NEW is not measured. 5c-iii, 5c-iv, 5d, and 255.88 were not started.
