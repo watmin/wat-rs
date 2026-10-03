@@ -37,14 +37,9 @@ use std::collections::BTreeSet;
 const LIB: &str = "wat/gen.wat";
 const DOC: &str = "docs/GENERATIVE-TESTING.md";
 
-/// The two namespace prefixes this gate scans for, as PREFIXES rather than as forms.
-///
-/// Split deliberately: `tests/lint/no_inlined_wat_in_tests.rs` refuses a string literal that
-/// wat's own reader parses as a form, and it is right to — a test that embeds a wat program
-/// instead of loading a fixture is the defect it hunts. This gate embeds no program; it needs
-/// two namespace prefixes to grep source text with. Naming them as prefixes is what they are,
-/// so no literal here is a form and no rune is needed to say otherwise.
-const CORE_NS: &str = ":wat::core::";
+/// The doc still writes `:wat::gen::` (it is markdown, not a wat program). Declaration heads
+/// in `wat/gen.wat` are read by identity, so either spelling of `defn`/`wat.gen/<name>` yields
+/// the same leaf. The prefix stays a prefix: a string that is a wat form is inlined wat.
 const GEN_NS: &str = ":wat::gen::";
 
 /// Declarations that create a callable `:wat::gen::` verb.
@@ -59,31 +54,36 @@ fn repo_path(rel: &str) -> std::path::PathBuf {
 /// Names declared in `wat/gen.wat` under one of `forms` — the name following the namespace
 /// prefix in a `defn` or `defmacro` declaration head.
 fn declared(src: &str, forms: &[&str]) -> BTreeSet<String> {
+    let parsed = wat::parse_all_with_file(src, LIB)
+        .unwrap_or_else(|e| panic!("parse {LIB}: {e:?}"));
+    let want: BTreeSet<String> = forms.iter().map(|f| format!(":wat::core::{f}")).collect();
     let mut out = BTreeSet::new();
-    for line in src.lines() {
-        for form in forms {
-            // The needle carries NO opening paren, and the paren is checked separately as a
-            // char. That is not a style choice: `tests/lint/no_inlined_edn.rs` refuses a string
-            // literal whose trimmed content opens with `(`, and rules that a literal which merely
-            // LOOKS EDN-esque must be fixed by RESTRUCTURING rather than by a rune. It is right —
-            // this is a grep needle, not EDN — so the shape changes instead. The paren check also
-            // says out loud what the old literal only implied: this must be a DECLARATION HEAD,
-            // not a mention of the name in prose or in a comment.
-            let needle = format!("{CORE_NS}{form} {GEN_NS}");
-            if let Some(at) = line.find(&needle) {
-                if at == 0 || !line[..at].ends_with('(') {
-                    continue;
-                }
-                let rest = &line[at + needle.len()..];
-                let name: String = rest
-                    .chars()
-                    .take_while(|c| c.is_alphanumeric() || "?-_<>=+*/".contains(*c))
-                    .collect();
-                if !name.is_empty() {
-                    out.insert(name);
+    fn walk(node: &wat::WatAST, want: &BTreeSet<String>, out: &mut BTreeSet<String>) {
+        let wat::WatAST::List(items, _) = node else {
+            for child in node.children().iter() {
+                walk(child, want, out);
+            }
+            return;
+        };
+        if let (Some(head), Some(name_node)) = (items.first(), items.get(1)) {
+            if let Some(head_id) = crate::decl_identity::canon(head) {
+                if want.contains(&head_id) {
+                    if let Some(name_id) = crate::decl_identity::canon(name_node) {
+                        if let Some(leaf) = name_id.strip_prefix(GEN_NS) {
+                            if !leaf.is_empty() && !leaf.contains(':') {
+                                out.insert(leaf.to_string());
+                            }
+                        }
+                    }
                 }
             }
         }
+        for child in items {
+            walk(child, want, out);
+        }
+    }
+    for form in &parsed {
+        walk(form, &want, &mut out);
     }
     out
 }

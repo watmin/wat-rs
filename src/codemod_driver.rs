@@ -325,16 +325,112 @@ pub fn run_codemod_batch(wat_binary: &Path, codemod_path: &Path, paths: &[std::p
 ///    itself — a List headed by a Keyword/Symbol — is unchanged. `diff_decoded`/`parse_forms`
 ///    (above) already read multi-form text natively — these were the two surviving
 ///    single-form/first-form assumptions.
+///
+/// A literal is a wat program when ALL of the following hold. Anything else is prose
+/// and is not handed to the converter:
+///
+/// 1. `parse_all_with_file` succeeds and yields at least one form.
+/// 2. Every form is a list whose first child is a keyword, or a symbol whose text
+///    contains `/` or `::` (a namespaced symbol, not a bare name).
+/// 3. That head was written in the source. The head's own span text equals the head's
+///    spelled name. A reader-synthesized head (a markdown backtick read as quasiquote)
+///    fails this: the span is the backtick, not `:wat::core::quasiquote`.
+/// 4. Outside those forms' spans, only whitespace and `;;` comments remain. A sentence
+///    before or after the forms is prose around them.
 pub fn is_candidate_wat(placeholder_substituted_text: &str) -> bool {
-    let result = std::panic::catch_unwind(|| crate::parser::parse_all_with_file(placeholder_substituted_text, "<embedded-wat-candidate>"));
-    let Ok(Ok(forms)) = result else { return false; };
-    forms.iter().any(|f| {
-        matches!(
-            f,
-            WatAST::List(items, _)
-                if matches!(items.first(), Some(WatAST::Keyword(..)) | Some(WatAST::Symbol(..)))
-        )
-    })
+    let result = std::panic::catch_unwind(|| {
+        crate::parser::parse_all_with_file(placeholder_substituted_text, "<embedded-wat-candidate>")
+    });
+    let Ok(Ok(forms)) = result else { return false };
+    if forms.is_empty() {
+        return false;
+    }
+    let lines: Vec<&str> = placeholder_substituted_text.split('\n').collect();
+    if !forms.iter().all(|f| written_program_form(f, placeholder_substituted_text, &lines)) {
+        return false;
+    }
+    !prose_around_forms(&forms, placeholder_substituted_text, &lines)
+}
+
+fn head_spelling(head: &WatAST) -> Option<String> {
+    match head {
+        WatAST::Keyword(k, _) => Some(k.clone()),
+        WatAST::Symbol(id, _) => {
+            let s = id.as_str();
+            if s.contains('/') || s.contains("::") {
+                Some(s.to_string())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn span_char_range(span: &Span, lines: &[&str], nchars: usize) -> Option<(usize, usize)> {
+    let end = span.end.as_ref()?;
+    if span.line < 1 || end.line < 1 {
+        return None;
+    }
+    if (span.line as usize) > lines.len() || (end.line as usize) > lines.len() + 1 {
+        return None;
+    }
+    let lo = offset_of(span.line, span.col, lines);
+    let hi = offset_of(end.line, end.col, lines);
+    if lo < hi && hi <= nchars {
+        Some((lo, hi))
+    } else {
+        None
+    }
+}
+
+fn written_program_form(form: &WatAST, text: &str, lines: &[&str]) -> bool {
+    let WatAST::List(items, _) = form else { return false };
+    let Some(head) = items.first() else { return false };
+    let Some(spelled) = head_spelling(head) else { return false };
+    let chars: Vec<char> = text.chars().collect();
+    let Some((lo, hi)) = span_char_range(head.span(), lines, chars.len()) else { return false };
+    let slice: String = chars[lo..hi].iter().collect();
+    slice == spelled
+}
+
+fn prose_around_forms(forms: &[WatAST], text: &str, lines: &[&str]) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut covered = vec![false; chars.len()];
+    for form in forms {
+        let Some((lo, hi)) = span_char_range(form.span(), lines, chars.len()) else {
+            return true;
+        };
+        for slot in covered.iter_mut().take(hi).skip(lo) {
+            *slot = true;
+        }
+    }
+    let mut i = 0usize;
+    while i < chars.len() {
+        if covered[i] || chars[i].is_whitespace() {
+            i += 1;
+            continue;
+        }
+        if chars[i] == ';' && chars.get(i + 1) == Some(&';') {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        return true;
+    }
+    false
+}
+
+fn first_error_line(err: &std::io::Error) -> String {
+    let s = err.to_string();
+    let stderr = s.split("stderr:\n").nth(1).unwrap_or(s.as_str());
+    stderr
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("codemod failed")
+        .to_string()
 }
 
 /// One literal's outcome inside a file-level apply.
@@ -347,6 +443,10 @@ pub enum LiteralOutcome {
     /// The codemod's own diff/parse failed for a reason unrelated to splicing (e.g. the
     /// codemod restructured the tree, or NEW text fails to parse) — reported, never applied.
     DiffFailed(String),
+    /// The codemod process failed on this literal. `raw_lo..raw_hi` is the literal's span
+    /// in the Rust source (char offsets, quotes included). `first_error` is the first
+    /// non-empty stderr line. The literal is not edited.
+    CodemodFailed { raw_lo: usize, raw_hi: usize, first_error: String },
 }
 
 /// The result of running a codemod over one whole `.rs` file's embedded wat literals.
@@ -389,13 +489,33 @@ pub fn apply_codemod_to_rust_source(wat_binary: &Path, codemod_path: &Path, raw_
         temp_paths.push(p);
     }
 
-    run_codemod_batch(wat_binary, codemod_path, &temp_paths)?;
+    // A failing batch is retried per literal. Earlier literals in the batch may already
+    // have been written; a retry of those is idempotent. A literal that fails alone is
+    // recorded and left unedited, and the rest of the file (and the run) continues.
+    let mut failed: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
+    if let Err(batch_err) = run_codemod_batch(wat_binary, codemod_path, &temp_paths) {
+        let _ = batch_err;
+        for (temp_path, (span_i, _)) in temp_paths.iter().zip(candidates.iter()) {
+            if let Err(err) = run_codemod_batch(wat_binary, codemod_path, std::slice::from_ref(temp_path)) {
+                failed.insert(*span_i, first_error_line(&err));
+            }
+        }
+    }
 
     let mut all_splices: Vec<(usize, usize, String)> = Vec::new();
     let mut total_edits = 0usize;
     let mut total_refused = 0usize;
 
     for ((span_i, old_ph), temp_path) in candidates.iter().zip(temp_paths.iter()) {
+        if let Some(first_error) = failed.get(span_i) {
+            let span = &spans[*span_i];
+            per_literal[*span_i] = LiteralOutcome::CodemodFailed {
+                raw_lo: span.raw_quote_start,
+                raw_hi: span.raw_quote_end,
+                first_error: first_error.clone(),
+            };
+            continue;
+        }
         let new_ph = std::fs::read_to_string(temp_path)?;
         let span = &spans[*span_i];
         if new_ph == *old_ph {
@@ -618,5 +738,39 @@ fn make_form() -> &'static str {
         assert_eq!(result.total_edits, 0);
         assert_eq!(result.total_refused, 0);
         assert_eq!(result.new_src, fixture);
+    }
+
+    /// A markdown fence and a sentence that mentions a separator are prose. A list headed
+    /// by a keyword or a namespaced symbol, with nothing around it, is a program.
+    #[test]
+    fn a_literal_is_a_candidate_only_when_it_is_a_wat_program() {
+        assert!(!is_candidate_wat("Encode a `:wat::core::Bytes` into its lowercase-hex `:String`."));
+        assert!(!is_candidate_wat("`wat.core/Bytes`"));
+        assert!(!is_candidate_wat("expected parse to fail on `::` in keyword body"));
+        assert!(!is_candidate_wat("(f x)\n"));
+        assert!(is_candidate_wat("(:wat::core::defn :user::f [] nil)\n"));
+        assert!(is_candidate_wat("(wat.core/defn user/f [] nil)\n"));
+        let doc = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/crates/wat-doc/src/lib.rs"))
+            .expect("read wat-doc");
+        let strict = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/crates/wat-edn/tests/spec_strict.rs"
+        ))
+        .expect("read spec_strict");
+        for (label, src) in [("wat-doc", doc.as_str()), ("spec_strict", strict.as_str())] {
+            let chars: Vec<char> = src.chars().collect();
+            let spans = crate::embedded_wat::extract_literal_spans(&chars);
+            for span in spans {
+                let ph = crate::embedded_wat::replace_placeholders_preserving_len(&span.decoded);
+                if !is_candidate_wat(&ph) {
+                    continue;
+                }
+                // rune:lint(loose-assert) — targeted absence: an accepted literal must not be the doc fence or the spec_strict sentence
+                assert!(
+                    !ph.contains("`wat.core/Bytes`") && !ph.contains("expected parse to fail on"),
+                    "{label}: prose was accepted as a wat program: {ph:?}"
+                );
+            }
+        }
     }
 }

@@ -18,13 +18,14 @@ use std::path::{Path, PathBuf};
 
 const ORACLE: &str = "wat/rete/oracle";
 const VERB: &str = ":wat::rete::topological-node-ids";
+const KEYS: &str = ":wat::map::keys";
 // ⛔ RE-SPELLED at replay #398 (finding 33's class) — grok's own literal was
 // `"PersistentMap/keys network"`, the accessor's spelling on grok's tree. This tree's own
 // (pre-existing, earlier) rename retired `:wat::core::PersistentMap/keys` in favor of
 // `:wat::map::keys` (confirmed: `wat --check` on the old spelling raises a retirement error
 // with the remedy `:wat::map::keys`), so the banned phrase is re-spelled to match the LIVE
 // accessor this tree's own `:wat::rete::topological-node-ids` now calls.
-const BANNED: &str = "map::keys network";
+
 
 fn collect_wat(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
@@ -38,46 +39,64 @@ fn collect_wat(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Code (before `;;`) contains the banned call.
-fn code_has_banned_keys(line: &str) -> bool {
-    let code = match line.find(";;") {
-        Some(i) => &line[..i],
-        None => line,
-    };
-    code.contains(BANNED)
+struct KeysWalk {
+    in_verb: bool,
+    line: i64,
+    defn: String,
 }
 
-fn defn_name(line: &str) -> Option<&str> {
-    let t = line.trim_start();
-    t.strip_prefix('(')?
-        .strip_prefix(":wat::core::defn ")?
-        .split_whitespace()
-        .next()
-}
-
-/// Violations in one source: banned `keys network` outside the verb.
-/// A rune does not exempt — the exemption list is empty.
-fn violations_in(rel: &str, src: &str) -> Vec<String> {
+/// `(:wat::map::keys network)` / `(wat.map/keys network)`, by identity of the head.
+fn keys_walks(src: &str) -> Vec<KeysWalk> {
+    let forms = wat::parse_all_with_file(src, "<oracle>")
+        .unwrap_or_else(|e| panic!("parse <oracle>: {e:?}"));
     let mut out = Vec::new();
-    let mut current = "<preamble>";
-    let mut in_verb = false;
-    for (i, line) in src.lines().enumerate() {
-        if let Some(name) = defn_name(line) {
-            current = name;
-            in_verb = name == VERB;
+    fn walk(node: &wat::WatAST, in_verb: bool, defn: &str, out: &mut Vec<KeysWalk>) {
+        let wat::WatAST::List(items, _) = node else {
+            for child in node.children().iter() {
+                walk(child, in_verb, defn, out);
+            }
+            return;
+        };
+        let head = items.first().and_then(crate::decl_identity::canon);
+        let mut here = in_verb;
+        let mut here_defn = defn.to_string();
+        if head.as_deref() == Some(":wat::core::defn") {
+            if let Some(name) = items.get(1).and_then(crate::decl_identity::canon) {
+                here = name == VERB;
+                here_defn = name;
+            }
         }
-        if !code_has_banned_keys(line) {
-            continue;
+        if head.as_deref() == Some(KEYS) {
+            let names_network = items.iter().skip(1).any(|n| {
+                matches!(n, wat::WatAST::Symbol(id, _) if id.as_str() == "network")
+            });
+            if names_network {
+                out.push(KeysWalk {
+                    in_verb: here,
+                    line: node.span().line,
+                    defn: here_defn.clone(),
+                });
+            }
         }
-        if in_verb {
-            continue;
+        for child in items.iter().skip(1) {
+            walk(child, here, &here_defn, out);
         }
-        out.push(format!(
-            "  {rel}:{} in `{current}`: raw `{BANNED}` (not {VERB})",
-            i + 1
-        ));
+    }
+    for form in &forms {
+        walk(form, false, "<preamble>", &mut out);
     }
     out
+}
+
+/// Violations in one source: a keys-walk of `network` outside the verb.
+/// A rune does not exempt — the exemption list is empty.
+fn violations_in(rel: &str, src: &str) -> Vec<String> {
+    let walks = keys_walks(src);
+    walks
+        .into_iter()
+        .filter(|w| !w.in_verb)
+        .map(|w| format!("  {rel}:{} in `{}`: raw `{KEYS}` of network (not {VERB})", w.line, w.defn))
+        .collect()
 }
 
 mod detector {
@@ -89,21 +108,21 @@ mod detector {
 
     #[test]
     fn a_raw_walk_outside_the_verb_is_a_hit() {
-        let src = specimen(":wat::core::defn :wat::rete::harvest-support\n  [n <- :wat::core::PersistentMap]\n  (:wat::map::keys network)))\n");
+        let src = specimen(":wat::core::defn :wat::rete::harvest-support\n  [n <- :wat::core::PersistentMap]\n  (:wat::map::keys network))\n");
         let v = violations_in("explain.wat", &src);
         assert_eq!(v.len(), 1, "raw walk must redden; got {v:?}");
     }
 
     #[test]
     fn the_verb_body_is_not_a_hit() {
-        let src = specimen(":wat::core::defn :wat::rete::topological-node-ids\n  [network <- :wat::core::PersistentMap]\n  (:wat::map::keys network)))\n");
+        let src = specimen(":wat::core::defn :wat::rete::topological-node-ids\n  [network <- :wat::core::PersistentMap]\n  (:wat::map::keys network))\n");
         let v = violations_in("pass.wat", &src);
         assert!(v.is_empty(), "the verb is the one allowed walk; got {v:?}");
     }
 
     #[test]
     fn a_runed_walk_is_still_a_hit() {
-        let src = specimen(":wat::core::defn :wat::rete::node-parents\n  [c <- :wat::core::i64 network <- :wat::core::PersistentMap]\n    (:wat::map::keys network)))  ;; rune:lint(oracle-keys-order-insensitive) — fold builds a set\n");
+        let src = specimen(":wat::core::defn :wat::rete::node-parents\n  [c <- :wat::core::i64 network <- :wat::core::PersistentMap]\n    (:wat::map::keys network))  ;; rune:lint(oracle-keys-order-insensitive) — fold builds a set\n");
         let v = violations_in("pass.wat", &src);
         assert_eq!(v.len(), 1, "the exemption list is empty; a rune must not save a raw walk; got {v:?}");
     }
@@ -135,16 +154,11 @@ fn no_raw_network_keys_walk_outside_topological_node_ids() {
             .to_string_lossy()
             .replace('\\', "/");
         let src = std::fs::read_to_string(f).unwrap_or_else(|e| panic!("read {rel}: {e}"));
-        let mut in_verb = false;
-        for line in src.lines() {
-            if let Some(name) = defn_name(line) {
-                in_verb = name == VERB;
-            }
-            if code_has_banned_keys(line) {
-                banned_in_code += 1;
-                if in_verb {
-                    verb_has_keys = true;
-                }
+        let walks = keys_walks(&src);
+        for walk in &walks {
+            banned_in_code += 1;
+            if walk.in_verb {
+                verb_has_keys = true;
             }
         }
         violations.extend(violations_in(&rel, &src));
@@ -156,7 +170,7 @@ fn no_raw_network_keys_walk_outside_topological_node_ids() {
     );
     assert_eq!(
         banned_in_code, 1,
-        "exactly one `{BANNED}` in oracle code (the verb); found {banned_in_code} — the exemption list must stay empty"
+        "exactly one `{KEYS}` of `network` in oracle code (the verb); found {banned_in_code} — the exemption list must stay empty"
     );
 
     assert!(

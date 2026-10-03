@@ -180,3 +180,39 @@ fn both_legacy_walkers_fire_their_retirement_errors() {
     let err = startup_err("tests/function/fn_rename_mixed_legacy.wat");
     wat::assert_edn_matches_file!(err, "fn_rename__both_legacy_walkers_fire_their_retirement_errors.edn", "fnr12: both legacy walkers fire golden");
 }
+
+// ─── 13. Stone 255.85 — the :fn( keyword in each fixture is the retired
+//        keyword-bodied fn type. The refusal is MalformedTypeExpr, by name.
+//        The fixtures stay; the converter leaves the keyword in place.
+
+fn assert_fixture_names_the_retired_keyword_fn(path: &str) {
+    let kw = ":fn(wat::core::i64)->wat::core::i64";
+    let src = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    assert!(
+        src.contains(kw),
+        "{path} does not name the retired keyword-bodied fn type"
+    );
+    let span = wat::span::Span::new(std::sync::Arc::new(path.to_string()), 1, 1);
+    let err = wat::types::parse_type_expr_preserving_with_span(kw, &span)
+        .expect_err("the keyword-bodied fn type is refused");
+    match err.kind() {
+        wat::types::TypeErrorKind::MalformedTypeExpr { raw, reason } => {
+            assert_eq!(raw, kw);
+            assert_eq!(
+                reason,
+                "a keyword-bodied fn type is retired; write the bracket `[A :-> R]` (stone 251.4c). `:fn(A)->R` and `:wat::core::Fn(A)->R` no longer parse"
+            );
+        }
+        other => panic!("expected MalformedTypeExpr, got {other:?}"),
+    }
+}
+
+#[test]
+fn bare_fn_type_fixture_is_the_retired_keyword_refusal() {
+    assert_fixture_names_the_retired_keyword_fn("tests/function/fn_rename_bare_fn_type.wat");
+}
+
+#[test]
+fn mixed_legacy_fixture_is_the_retired_keyword_refusal() {
+    assert_fixture_names_the_retired_keyword_fn("tests/function/fn_rename_mixed_legacy.wat");
+}

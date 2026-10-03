@@ -412,17 +412,84 @@ fn fire_fixpoint_delta_armed_still_has_exactly_its_four_documented_call_sites() 
 /// and `kernel/mod.rs`'s module doc repeating the same 8, were both true and both unenforced
 /// (vigilia 2026-09-07, row `R2`) — the identical unasserted-totality class this file exists to
 /// close, one door over from `FireCtx`'s field count above, which already is gated.
+fn session_field_count(src: &str) -> usize {
+    let forms = wat::parse_all_with_file(src, "wat/rete.wat")
+        .unwrap_or_else(|e| panic!("parse wat/rete.wat: {e:?}"));
+    fn find(node: &wat::WatAST) -> Option<&wat::WatAST> {
+        if let wat::WatAST::List(items, _) = node {
+            let head = crate::decl_identity::canon(items.first()?);
+            let name = crate::decl_identity::canon(items.get(1)?);
+            if head.as_deref() == Some(":wat::core::defrecord")
+                && name.as_deref() == Some(":wat::rete::Session")
+            {
+                return Some(node);
+            }
+            for child in items {
+                if let Some(found) = find(child) {
+                    return Some(found);
+                }
+            }
+            return None;
+        }
+        match node {
+            wat::WatAST::Vector(items, _) | wat::WatAST::Set(items, _) => {
+                for child in items {
+                    if let Some(found) = find(child) {
+                        return Some(found);
+                    }
+                }
+            }
+            wat::WatAST::Map(pairs, _) => {
+                for (k, v) in pairs {
+                    if let Some(found) = find(k) {
+                        return Some(found);
+                    }
+                    if let Some(found) = find(v) {
+                        return Some(found);
+                    }
+                }
+            }
+            _ => {}
+        }
+        None
+    }
+    let form = forms
+        .iter()
+        .find_map(find)
+        .expect("`:wat::rete::Session` defrecord is gone from wat/rete.wat");
+    let wat::WatAST::List(items, _) = form else { unreachable!() };
+    let fields = items
+        .iter()
+        .rev()
+        .find_map(|n| match n {
+            wat::WatAST::Vector(v, _) => Some(v),
+            _ => None,
+        })
+        .expect("Session defrecord has no field vector");
+    assert!(
+        fields.len().is_multiple_of(3),
+        "Session field vector has {} cells, not groups of name/binder/type",
+        fields.len()
+    );
+    let mut n = 0usize;
+    for group in fields.chunks(3) {
+        let binder = match &group[1] {
+            wat::WatAST::Symbol(id, _) => id.as_str(),
+            other => panic!("Session field binder is not a symbol: {other:?}"),
+        };
+        assert!(
+            binder == "<-" || binder == ":-",
+            "Session field binder is `{binder}`, not `<-` or `:-`"
+        );
+        n += 1;
+    }
+    n
+}
+
 #[test]
 fn session_record_field_count_matches_its_doc() {
     let src = rete_source("wat/rete.wat");
-    let start = src
-        .find("defrecord :wat::rete::Session")
-        .expect("`:wat::rete::Session` defrecord is gone from wat/rete.wat");
-    let body = &src[start..];
-    let end = body
-        .find("\n\n")
-        .expect("Session defrecord block never ends (no blank line found after it)");
-    let fields = body[..end].matches("<-").count();
+    let fields = session_field_count(&src);
 
     assert_eq!(
         fields, 8,

@@ -3,10 +3,15 @@
 # spec: no readable history form this codemod alone changed (see SCORE).
 spec (wat.core/defn u/hit [x :- wat.type/i64] :- wat.type/nil :: (:wat::core::if … → (wat.core/if …)
 spec   (wat.core/if x :: (:wat::core::if … → (wat.core/if …)
-spec     wat.type/Tuple(i64) :: (:wat::core::if … → (wat.core/if …)
+spec     wat.core/Tuple(i64) :: closed set, a non-member core type: `:wat::core::Error` → `wat.core/Error`
 spec (?k :- :k) :: `(?k <- :k)` → `(?k :- :k)`
 spec (vrm/F (?k :- :k)) :: `(?k <- :k)` → `(?k :- :k)`
 spec `[~x :- wat.type/i64] :: unquoted annotation names still convert
+spec (wat.core/defn user/closed :: ::-namespaced call-head keyword
+spec [m :- wat.type/i64 :: closed set, a member: `:wat::core::i64` → `wat.type/i64`
+spec e :- wat.core/Error :: closed set, a non-member core type: `:wat::core::Error` → `wat.core/Error`
+spec h :- wat.uuid/UUID] :: a home type: `:wat::uuid::UUID` → `wat.uuid/UUID`
+spec :- wat.type/nil :: closed set, a member: `:wat::core::i64` → `wat.type/i64`
 
 spec-before (:wat::core::defn :u::hit [x <- :wat::core::i64] -> :wat::core::nil :: (:wat::core::if … → (wat.core/if …)
 spec-before   (:wat::core::if x :: (:wat::core::if … → (wat.core/if …)
@@ -14,3 +19,8 @@ spec-before     :wat::core::Tuple(i64) :: (:wat::core::if … → (wat.core/if �
 spec-before (?k <- :k) :: `(?k <- :k)` → `(?k :- :k)`
 spec-before (:vrm::F (?k <- :k)) :: `(?k <- :k)` → `(?k :- :k)`
 spec-before `[~x <- :wat::core::i64] :: unquoted annotation names still convert
+spec-before (:wat::core::defn :user::closed :: ::-namespaced call-head keyword
+spec-before [m <- :wat::core::i64 :: closed set, a member: `:wat::core::i64` → `wat.type/i64`
+spec-before e <- :wat::core::Error :: closed set, a non-member core type: `:wat::core::Error` → `wat.core/Error`
+spec-before h <- :wat::uuid::UUID] :: a home type: `:wat::uuid::UUID` → `wat.uuid/UUID`
+spec-before -> :wat::core::nil :: bare `<-` / `->` symbol → `:-`

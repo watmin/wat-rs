@@ -151,10 +151,22 @@
     prev-rete-var?
     (:wat::fix::rete-var? node)))
 
+;; retired-keyword-fn? — `:fn(A)->R`, the keyword-bodied fn type stone 251.4c retired.
+;; `keyword/to-type-form` refuses that spelling by name (`MalformedTypeExpr`). The corpus
+;; walk leaves the keyword in place so one retired token does not abort the file; the
+;; fixture that still writes it is the negative proof of that refusal.
+(:wat::core::defn :wat::fix::retired-keyword-fn? [node <- wat.type/AST] -> wat.type/bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+    (:wat::string::starts-with? (:wat::core::ast-name node) ":fn(")
+    false))
+
 ;; type-shaped-keyword? — a keyword STRUCTURALLY a type: a parametric `Head<...>` or a
 ;; tuple/fn `(...)`. The discriminator requires a MATCHING close — a parametric has BOTH `<`
 ;; and `>`, a tuple/fn has BOTH `(` and `)` — so the comparison operators `:wat::core::<` /
 ;; `:wat::core::<=` (which contain `<` but no `>`) are NOT mistaken for types.
+;; `keyword/to-type-form` (the neighbour this predicate feeds) asks
+;; `WAT_TYPE_HARD_PRIMITIVES` in `src/types.rs`: a member renders `wat.type/<tail>`; every
+;; other type keeps its home spelling. This file does not keep a second copy of that list.
 (:wat::core::defn :wat::fix::type-shaped-keyword? [node <- wat.type/AST] -> wat.type/bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::let [name (:wat::core::ast-name node)]
@@ -186,7 +198,9 @@
                                    false
                                    (:wat::core::= (:wat::core::ast-kind h) "keyword"))
                                  false)
-                      out (:wat::core::if as-type?
+                      out (:wat::core::if (:wat::fix::retired-keyword-fn? h)
+                            h
+                          (:wat::core::if as-type?
                             (:wat::keyword::to-type-form h)
                           (:wat::core::if (:wat::fix::type-shaped-keyword? h)
                             (:wat::keyword::to-type-form h)
@@ -196,7 +210,7 @@
                             (:wat::core::symbol-node (:wat::fix::marker-to-namespace-text h))
                           (:wat::core::if (:wat::fix::head-keyword? h)
                             (:wat::keyword::to-symbol h)
-                            (:wat::fix::fix-source h))))))]
+                            (:wat::fix::fix-source h)))))))]
       (:wat::core::concat (wat.type/Vector :- [wat.type/AST] out)
                           (:wat::fix::fix-seq tl is-arrow? (:wat::fix::carry-rete-var? h prev-rete-var?))))))
 

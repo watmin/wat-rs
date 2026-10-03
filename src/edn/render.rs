@@ -1610,11 +1610,15 @@ pub(crate) enum TypeFormHeadMode {
 /// case 4 (type-var) has no colon form (a type-var was never namespace-qualified in ANY
 /// spelling — `T`/`K`/`V` are lexically-scoped identifiers, not keywords) and stays a bare
 /// symbol in both modes:
-/// 1. core FQDN (`wat::core::X`) — Clojure: `wat.type/X` Symbol. Colon: `:wat::core::X` Keyword.
-/// 2. bare legacy primitive (`:i64`, `:String`, ...) — Clojure: `wat.type/X` Symbol. Colon: the
-///    primitive's own core FQDN, `:wat::core::X` Keyword.
-/// 3. user/library type (has `::`, not core) — Clojure: namespace-preserving Symbol
-///    (`wat.holon/HolonAST`). Colon: the FQDN Keyword unchanged (`:wat::holon::HolonAST`).
+/// 1. core FQDN (`wat::core::X`) — Clojure: `wat.type/X` only when `X` is one of the 24
+///    [`crate::types::WAT_TYPE_HARD_PRIMITIVES`] (the list, read where it is declared).
+///    Every other core type keeps its home spelling (`:wat::core::Error` → `wat.core/Error`).
+///    Colon: `:wat::core::X` Keyword, member or not.
+/// 2. bare legacy primitive (`:i64`, `:String`, ...) — Clojure: `wat.type/X` when that tail
+///    is in the same closed set. Colon: the primitive's own FQDN keyword.
+/// 3. user/library type (has `::`, not a core member) — Clojure: namespace-preserving Symbol
+///    (`:wat::uuid::UUID` → `wat.uuid/UUID`, `wat.holon/HolonAST`). Colon: the FQDN Keyword
+///    unchanged (`:wat::holon::HolonAST`).
 /// 4. type-var (no `::`, not a primitive) — bare symbol (`T`, `K`, `V`), both modes.
 /// - `Parametric{head,args}`: same 4-way ladder on head; args bracket into ONE `WatAST::Vector`
 ///   behind the `:-` operator, in the list's third position (`(Head :- [a b])`, both modes, Room
@@ -1645,11 +1649,22 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
             // 4-way ladder: core FQDN > bare primitive > user type (::) > type-var.
             let body = s.strip_prefix(':').unwrap_or(s);
             if let Some(tail) = body.strip_prefix("wat::core::") {
-                // Case 1: core FQDN -> flat wat.type/ namespace (Clojure) or :wat::core:: keyword (Colon).
+                // Case 1: a `:wat::core::` FQDN. `wat.type/{tail}` is the closed set only
+                // (`WAT_TYPE_HARD_PRIMITIVES`, read here, not copied). Colon keeps the keyword.
                 match mode {
-                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk),
+                    TypeFormHeadMode::Clojure
+                        if crate::types::WAT_TYPE_HARD_PRIMITIVES.contains(&tail) =>
+                    {
+                        WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk)
+                    }
                     // rune:lint(one-variant-separator, namespace) — assembles the wat::core namespace prefix onto a core type's tail
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":wat::core::{tail}"), unk),
+                    TypeFormHeadMode::Clojure => {
+                        let clojure_sym = wat_keyword_to_clojure_symbol(&format!(":{body}")).ok_or_else(|| {
+                            format!("cannot render type `:{body}` to a faithful form (malformed namespaced path — trailing `::` or empty segment)")
+                        })?;
+                        WatAST::Symbol(Identifier::bare(clojure_sym), unk)
+                    }
                 }
             } else if body == "wat::WatAST" {
                 // Case 1b — arc 255.67: `:wat::WatAST` is the one `wat.type/` leaf whose
@@ -1663,11 +1678,22 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                     TypeFormHeadMode::Colon => WatAST::Keyword(":wat::type::AST".to_string(), unk),
                 }
             } else if let Some((_bare, fqdn)) = crate::check::BARE_PRIMITIVES.iter().find(|(bare, _)| *bare == format!(":{body}").as_str()) {
-                // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body} (Clojure)
-                // or the primitive's own core FQDN keyword, `fqdn` (Colon; already colon-prefixed).
+                // Case 2: bare legacy primitive (:i64, :String, ...). Clojure emits
+                // wat.type/{body} only when that tail is in the closed set; otherwise the
+                // primitive's own FQDN, home-spelled. Colon uses `fqdn` (already colon-prefixed).
                 match mode {
-                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{body}")), unk),
+                    TypeFormHeadMode::Clojure
+                        if crate::types::WAT_TYPE_HARD_PRIMITIVES.contains(&body) =>
+                    {
+                        WatAST::Symbol(Identifier::bare(format!("wat.type/{body}")), unk)
+                    }
                     TypeFormHeadMode::Colon => WatAST::Keyword((*fqdn).to_string(), unk),
+                    TypeFormHeadMode::Clojure => {
+                        let clojure_sym = wat_keyword_to_clojure_symbol(fqdn).ok_or_else(|| {
+                            format!("cannot render type `{fqdn}` to a faithful form (malformed namespaced path — trailing `::` or empty segment)")
+                        })?;
+                        WatAST::Symbol(Identifier::bare(clojure_sym), unk)
+                    }
                 }
             // rune:lint(one-variant-separator, namespace) — detects a multi-segment user/library type namespace on this type's own path
             } else if body.contains("::") {
@@ -1692,21 +1718,40 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
             // head is stored WITHOUT a leading colon (e.g. "wat::type::Vector").
             // 4-way ladder mirrors Path.
             let head_node: WatAST = if let Some(tail) = head.strip_prefix("wat::core::") {
-                // Case 1: core FQDN -> flat wat.type/ namespace (Clojure) or :wat::core:: keyword (Colon).
+                // Case 1: same closed-set cut as the Path arm. `:wat::core::Error<…>` is not a member.
                 match mode {
-                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone()),
+                    TypeFormHeadMode::Clojure
+                        if crate::types::WAT_TYPE_HARD_PRIMITIVES.contains(&tail) =>
+                    {
+                        WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone())
+                    }
                     // rune:lint(one-variant-separator, namespace) — assembles the wat::core namespace prefix onto a core type's tail
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":wat::core::{tail}"), unk.clone()),
+                    TypeFormHeadMode::Clojure => {
+                        let fqdn = format!(":{head}");
+                        let clojure_sym = wat_keyword_to_clojure_symbol(&fqdn).ok_or_else(|| {
+                            format!("cannot render parametric head `{fqdn}` (malformed namespaced path)")
+                        })?;
+                        WatAST::Symbol(Identifier::bare(clojure_sym), unk.clone())
+                    }
                 }
             } else if let Some((_bare, fqdn)) = crate::check::BARE_CONTAINER_HEADS.iter().find(|(bare, _)| *bare == head.as_str()) {
-                // Case 2: bare container head (Option, Vec, ...) -> canonical FQDN. Clojure uses
-                // the FQDN's last segment (Vec -> wat::core::Vector rename, so the FQDN tail, not
-                // `head`); Colon uses the whole FQDN as a keyword.
+                // Case 2: bare container head (Option, Vec, ...). Clojure emits wat.type/{tail}
+                // only when the FQDN's tail is in the closed set (Vector, HashMap, …). Option
+                // and Result are not members and keep the FQDN's home spelling. Colon uses the
+                // whole FQDN as a keyword.
                 match mode {
                     TypeFormHeadMode::Clojure => {
                         // rune:lint(one-variant-separator, namespace) — leaf of a container type's own core FQDN, not a variant name
                         let tail = wat_reader::identifier::leaf(fqdn);
-                        WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone())
+                        if crate::types::WAT_TYPE_HARD_PRIMITIVES.contains(&tail) {
+                            WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone())
+                        } else {
+                            let clojure_sym = wat_keyword_to_clojure_symbol(&format!(":{fqdn}")).ok_or_else(|| {
+                                format!("cannot render parametric head `:{fqdn}` (malformed namespaced path)")
+                            })?;
+                            WatAST::Symbol(Identifier::bare(clojure_sym), unk.clone())
+                        }
                     }
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":{fqdn}"), unk.clone()),
                 }
@@ -3703,7 +3748,7 @@ pub(crate) fn ns_to_wat_path(ns: &str, name: &str) -> String {
 /// dotted-keyword `:wat.core/Option`) produce the TypeEnv key
 /// `:wat::core::Option`. Does **not** rewrite `wat.type` → `wat.core`;
 /// that namespace is real (members in `TypeEnv`).
-pub(crate) fn canonical_identity(s: &str) -> String {
+pub fn canonical_identity(s: &str) -> String {
     // Rust-scheme paths contain `::` — including variant paths
     // (`StdIn.read-frame::Request`, `.` is the enum/variant separator) and
     // surface-op aliases (`StdOut::write/Request`, `/` is Type/method in the
@@ -5297,6 +5342,57 @@ mod tests {
     /// rendered `wat/WatAST`: wrong namespace, wrong tail. Found by
     /// `wat-scripts/fixes/types-to-wat-type.wat`'s own dry run converting
     /// `(extend-type :wat::WatAST Equatable)` in `wat/class.wat`.
+    #[test]
+    fn clojure_type_form_asks_the_closed_set() {
+        fn sym(path: &str) -> String {
+            let te = TypeExpr::Path(path.to_string());
+            match type_expr_to_clojure_form(&te, TypeFormHeadMode::Clojure).expect("renders") {
+                WatAST::Symbol(id, _) => id.as_str().to_string(),
+                other => panic!("expected a Symbol, got {other:?}"),
+            }
+        }
+        // A member of WAT_TYPE_HARD_PRIMITIVES.
+        assert_eq!(sym(":wat::core::i64"), "wat.type/i64");
+        // A core type that is not a member keeps the home spelling.
+        assert_eq!(sym(":wat::core::Error"), "wat.core/Error");
+        assert_eq!(sym(":wat::core::Equatable"), "wat.core/Equatable");
+        // A type whose home is not wat.core.
+        assert_eq!(sym(":wat::uuid::UUID"), "wat.uuid/UUID");
+        // Colon mode is the keyword spelling, member or not.
+        let colon = type_expr_to_clojure_form(
+            &TypeExpr::Path(":wat::core::Error".to_string()),
+            TypeFormHeadMode::Colon,
+        )
+        .expect("renders");
+        match colon {
+            WatAST::Keyword(k, _) => assert_eq!(k, ":wat::core::Error"),
+            other => panic!("expected a Keyword, got {other:?}"),
+        }
+        let parametric = TypeExpr::Parametric {
+            head: "wat::core::Error".to_string(),
+            args: vec![TypeExpr::Path(":wat::core::String".to_string())],
+        };
+        match type_expr_to_clojure_form(&parametric, TypeFormHeadMode::Clojure).expect("renders") {
+            WatAST::List(items, _) => match &items[0] {
+                WatAST::Symbol(id, _) => assert_eq!(id.as_str(), "wat.core/Error"),
+                other => panic!("expected a Symbol head, got {other:?}"),
+            },
+            other => panic!("expected a List, got {other:?}"),
+        }
+        // Bare Option is a container head and not one of the 24.
+        let option = TypeExpr::Parametric {
+            head: "Option".to_string(),
+            args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+        };
+        match type_expr_to_clojure_form(&option, TypeFormHeadMode::Clojure).expect("renders") {
+            WatAST::List(items, _) => match &items[0] {
+                WatAST::Symbol(id, _) => assert_eq!(id.as_str(), "wat.core/Option"),
+                other => panic!("expected a Symbol head, got {other:?}"),
+            },
+            other => panic!("expected a List, got {other:?}"),
+        }
+    }
+
     #[test]
     fn ast_type_renders_to_wat_type_ast_not_a_generic_namespaced_symbol() {
         let te = TypeExpr::Path(":wat::type::AST".to_string());

@@ -12,3 +12,10 @@
   (:wat::core::if x
     :wat::core::Tuple(i64)
     nil))
+; closed set: member, non-member core, home
+(:wat::core::defn :user::closed
+  [m <- :wat::core::i64
+   e <- :wat::core::Error
+   h <- :wat::uuid::UUID]
+  -> :wat::core::nil
+  nil)

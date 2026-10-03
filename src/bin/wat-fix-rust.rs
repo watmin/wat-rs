@@ -117,6 +117,7 @@ fn main() -> ExitCode {
     let mut total_files_changed = 0usize;
     let mut total_edits = 0usize;
     let mut total_refused = 0usize;
+    let mut total_codemod_failed = 0usize;
     let mut refused_report: Vec<String> = Vec::new();
     let mut missing = Vec::new();
 
@@ -136,13 +137,19 @@ fn main() -> ExitCode {
             }
         };
 
-        if result.total_edits > 0 || result.total_refused > 0 {
+        let codemod_failed = result
+            .per_literal
+            .iter()
+            .filter(|o| matches!(o, LiteralOutcome::CodemodFailed { .. }))
+            .count();
+        if result.total_edits > 0 || result.total_refused > 0 || codemod_failed > 0 {
             println!(
-                "[wat-fix-rust]{} {}: {} edit(s), {} refused",
+                "[wat-fix-rust]{} {}: {} edit(s), {} refused, {} codemod-failed",
                 if args.dry_run { " (dry-run)" } else { "" },
                 path.display(),
                 result.total_edits,
-                result.total_refused
+                result.total_refused,
+                codemod_failed
             );
         }
         if args.dry_run && result.changed {
@@ -164,10 +171,23 @@ fn main() -> ExitCode {
             if let LiteralOutcome::DiffFailed(e) = outcome {
                 refused_report.push(format!("{}: DIFF FAILED: {e}", path.display()));
             }
+            if let LiteralOutcome::CodemodFailed { raw_lo, raw_hi, first_error } = outcome {
+                refused_report.push(format!(
+                    "{}:{}..{}: {first_error}",
+                    path.display(),
+                    raw_lo,
+                    raw_hi
+                ));
+            }
         }
 
         total_edits += result.total_edits;
         total_refused += result.total_refused;
+        total_codemod_failed += result
+            .per_literal
+            .iter()
+            .filter(|o| matches!(o, LiteralOutcome::CodemodFailed { .. }))
+            .count();
         if result.changed {
             total_files_changed += 1;
             if !args.dry_run {
@@ -188,7 +208,7 @@ fn main() -> ExitCode {
     }
 
     println!(
-        "[wat-fix-rust] {} file(s) scanned, {} changed, {} edit(s){}, {} refused",
+        "[wat-fix-rust] {} file(s) scanned, {} changed, {} edit(s){}, {} refused, {} codemod-failed",
         paths.len(),
         total_files_changed,
         total_edits,
@@ -197,7 +217,8 @@ fn main() -> ExitCode {
         // above is never reached — a label that states the wrong conclusion about its own
         // run (255.80's SCORE named this; fixed here).
         if args.dry_run { " found" } else { " applied" },
-        total_refused
+        total_refused,
+        total_codemod_failed
     );
     if !refused_report.is_empty() {
         println!("[wat-fix-rust] refused splices:");

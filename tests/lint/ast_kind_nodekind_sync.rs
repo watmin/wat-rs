@@ -39,24 +39,34 @@ fn eval_ast_kind_variants(src: &str) -> BTreeSet<String> {
 }
 
 fn nodekind_variants(src: &str) -> BTreeSet<String> {
-    let Some(at) = src.find("defenum :wat::grep::NodeKind") else {
-        panic!("defenum :wat::grep::NodeKind not found in wat/grep.wat");
-    };
-    let rest = &src[at..];
-    let Some(end) = rest.find("defrecord :wat::grep::Node") else {
-        panic!("NodeKind defenum end not found");
-    };
-    let body = &rest[..end];
+    let forms = wat::parse_all_with_file(src, "wat/grep.wat")
+        .unwrap_or_else(|e| panic!("parse wat/grep.wat: {e:?}"));
+    let items = forms
+        .iter()
+        .find_map(|form| {
+            let wat::WatAST::List(items, _) = form else { return None };
+            let head = crate::decl_identity::canon(items.first()?)?;
+            if head != ":wat::core::defenum" {
+                return None;
+            }
+            let name = crate::decl_identity::canon(items.get(1)?)?;
+            (name == ":wat::grep::NodeKind").then_some(items)
+        })
+        .expect("defenum NodeKind not found by identity in wat/grep.wat");
     let mut out = BTreeSet::new();
-    for line in body.lines() {
-        let t = line.trim();
-        if let Some(rest) = t.strip_prefix(':') {
-            if let Some((name, after)) = rest.split_once(' ') {
-                if after.starts_with("[]") && name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+    let mut i = 0usize;
+    while i + 1 < items.len() {
+        if let wat::WatAST::Keyword(k, _) = &items[i] {
+            if let Some(name) = k.strip_prefix(':') {
+                let uppercase = name.chars().next().is_some_and(|c| c.is_ascii_uppercase());
+                let empty_vec = matches!(&items[i + 1], wat::WatAST::Vector(v, _) if v.is_empty());
+                // rune:lint(one-variant-separator, namespace) — a NodeKind variant is a bare word; `::` here is a namespace, which a variant does not carry
+                if uppercase && empty_vec && !name.contains("::") {
                     out.insert(name.to_string());
                 }
             }
         }
+        i += 1;
     }
     out
 }

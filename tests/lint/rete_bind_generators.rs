@@ -32,37 +32,121 @@ fn tracked_wat() -> Vec<String> {
         .collect()
 }
 
-/// Bindings `NAME` of `(:wat::core::symbol-node "?…")`.
+/// Bindings `NAME` of a `symbol-node` call whose string starts with `?`.
+/// The call is parsed; the head matches when its canonical identity is
+/// `:wat::core::symbol-node` (`:wat::core::symbol-node` or `wat.core/symbol-node`).
 fn qvar_symbol_nodes(src: &str) -> HashSet<String> {
     let mut out = HashSet::new();
-    let bytes = src.as_bytes();
-    let needle = b"symbol-node";
-    let mut i = 0;
-    while let Some(rel) = src[i..].find("symbol-node") {
-        let at = i + rel;
-        i = at + needle.len();
-        // look back for the binding name: `foo  (:wat::core::symbol-node "?…")`
-        let before = &src[..at];
-        let Some(name) = binding_name_before(before) else {
-            continue;
-        };
-        let after = &src[i..];
-        let Some(q) = first_string_lit(after) else {
-            continue;
-        };
-        if q.starts_with('?') {
-            out.insert(name);
+    if let Ok(forms) = wat::parse_all_with_file(src, "<symbol-node>") {
+        for form in &forms {
+            walk_qvar(form, src, &mut out);
         }
+        return out;
     }
-    let _ = bytes;
+    // A specimen can carry a quasiquote tail the whole-file reader refuses.
+    // Each balanced list that names symbol-node is parsed on its own; the
+    // binding name is the ident in the original text before that list.
+    let bytes = src.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'(' {
+            i += 1;
+            continue;
+        }
+        let Some(close) = matching_paren(src, i) else {
+            i += 1;
+            continue;
+        };
+        let form = &src[i..=close];
+        if form.contains("symbol-node") {
+            if let Ok(forms) = wat::parse_all_with_file(form, "<symbol-node>") {
+                if let Some(wat::WatAST::List(items, _)) = forms.first() {
+                    if qvar_mint(items) {
+                        if let Some(name) = binding_name_before(&src[..i]) {
+                            out.insert(name);
+                        }
+                    }
+                }
+            }
+        }
+        i = close + 1;
+    }
     out
 }
 
+fn qvar_mint(items: &[wat::WatAST]) -> bool {
+    let head_ok = items
+        .first()
+        .and_then(crate::decl_identity::canon)
+        .as_deref()
+        == Some(":wat::core::symbol-node");
+    let q = items.iter().find_map(|n| match n {
+        wat::WatAST::StringLit(s, _) => Some(s.as_str()),
+        _ => None,
+    });
+    head_ok && q.is_some_and(|q| q.starts_with('?'))
+}
+
+fn walk_qvar(node: &wat::WatAST, src: &str, out: &mut HashSet<String>) {
+    let wat::WatAST::List(items, span) = node else {
+        for child in node.children().iter() {
+            walk_qvar(child, src, out);
+        }
+        return;
+    };
+    if qvar_mint(items) {
+        if let Some(line) = src.lines().nth((span.line as usize).saturating_sub(1)) {
+            let before: String = line.chars().take((span.col as usize).saturating_sub(1)).collect();
+            if let Some(name) = binding_name_before(&before) {
+                out.insert(name);
+            }
+        }
+    }
+    for child in items {
+        walk_qvar(child, src, out);
+    }
+}
+
+fn matching_paren(src: &str, open: usize) -> Option<usize> {
+    let chars: Vec<char> = src.chars().collect();
+    let mut byte_at = Vec::with_capacity(chars.len());
+    let mut b = 0usize;
+    for c in &chars {
+        byte_at.push(b);
+        b += c.len_utf8();
+    }
+    let start = byte_at.iter().position(|&x| x == open)?;
+    let mut depth = 0i32;
+    let mut in_str = false;
+    let mut esc = false;
+    for (idx, c) in chars.iter().enumerate().skip(start) {
+        if in_str {
+            if esc {
+                esc = false;
+            } else if *c == '\\' {
+                esc = true;
+            } else if *c == '"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => in_str = true,
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(byte_at[idx]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn binding_name_before(before: &str) -> Option<String> {
-    // skip whitespace and the opening `(:wat::core::`
     let t = before.trim_end();
-    let t = t.strip_suffix("(:wat::core::")?.trim_end(); // rune:lint(no-inlined-edn) — detector fixture: the wat call-shape prefix this parser strips from a source fragment; not a golden and cannot live in a .edn file (the fragment is deliberately not parseable EDN)
-    // name is the last ident token
     let ident: String = t
         .chars()
         .rev()
@@ -71,18 +155,7 @@ fn binding_name_before(before: &str) -> Option<String> {
         .chars()
         .rev()
         .collect();
-    if ident.is_empty() {
-        None
-    } else {
-        Some(ident)
-    }
-}
-
-fn first_string_lit(after: &str) -> Option<&str> {
-    let start = after.find('"')?;
-    let rest = &after[start + 1..];
-    let end = rest.find('"')?;
-    Some(&rest[..end])
+    if ident.is_empty() { None } else { Some(ident) }
 }
 
 /// `` `(~NAME <- `` — a quasiquoted list whose first child is an unquote and
@@ -208,6 +281,16 @@ mod tests {
         assert!(
             splice_left_arrow_uses(src).is_empty(),
             "`fn [~d-sym <-` is not a quasiquoted bind list `(~name <-`"
+        );
+    }
+
+    #[test]
+    fn a_converted_symbol_node_is_the_same_mint() {
+        let src = "     fact-sym  (wat.core/symbol-node \"?fact\")\n";
+        assert_eq!(
+            qvar_symbol_nodes(src),
+            HashSet::from(["fact-sym".to_string()]),
+            "wat.core/symbol-node is the same mint as :wat::core::symbol-node"
         );
     }
 

@@ -10,6 +10,9 @@
 ;;     `(?k <- :k)` → `(?k :- :k)` — arrow converts; the field-name keyword stays
 ;;     unquoted annotation names still convert: `~x <- :T` → `~x :- <type>`.
 ;;   - type-shaped keyword (parametric Head<…> or tuple (…)) → list type-form
+;;   - closed set, a member: `:wat::core::i64` → `wat.type/i64`
+;;   - closed set, a non-member core type: `:wat::core::Error` → `wat.core/Error`
+;;   - a home type: `:wat::uuid::UUID` → `wat.uuid/UUID`
 ;;   - post-arrow keyword (return/param type annotation) → type-form
 ;;     except after a rete-var binding (the field name is not a type)
 ;;   - redundant `-> :T` return annotation on `if` → stripped

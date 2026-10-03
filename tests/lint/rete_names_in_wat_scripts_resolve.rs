@@ -167,6 +167,31 @@ fn is_name_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || "_:!?*/<>=+$-".contains(c)
 }
 
+/// A faithful-Clojure rete token. `.` is the namespace dot. A trailing `.` is
+/// trimmed by the caller so a sentence period does not join the name.
+fn is_clojure_rete_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || "._!?*/<>=+$-".contains(c)
+}
+
+/// `wat.rete.Session/network` is the converted spelling of the accessor the record
+/// parser mints as `:wat::rete::Session/network`. `canonical_identity` folds that
+/// slash into `::` (`:wat::rete::Session::network`). A capitalized segment
+/// immediately before the slash is the type, so the key stays `{type}/{field}`.
+/// A lowercase name (`wat.rete/topological-node-ids`, `wat.rete.core/defn`) is
+/// the ordinary identity.
+fn clojure_rete_identity(tok: &str) -> Option<String> {
+    if let Some((ns, name)) = tok.split_once('/') {
+        if let Some((prefix, ty)) = ns.rsplit_once('.') {
+            if ty.chars().next().is_some_and(|c| c.is_ascii_uppercase()) && !prefix.is_empty() {
+                let id = format!(":{}::{ty}/{name}", prefix.replace('.', "::"));
+                return (id.starts_with(PREFIX) && id.len() > PREFIX.len()).then_some(id);
+            }
+        }
+    }
+    let id = wat::edn::render::canonical_identity(tok);
+    (id.starts_with(PREFIX) && id.len() > PREFIX.len()).then_some(id)
+}
+
 /// Blank out wat `;;` comments, preserving byte offsets and line structure.
 ///
 /// String-literal aware: a `;;` inside a `"…"` is content, and a `"` inside a comment never opens
@@ -254,9 +279,39 @@ fn tokens_with_lines(text: &str) -> Vec<(String, usize)> {
     let pre: Vec<char> = PREFIX.chars().collect();
     let mut line = 1usize;
     let mut i = 0usize;
+    let mut in_str = false;
+    let mut esc = false;
     while i < chars.len() {
         if chars[i] == '\n' {
             line += 1;
+            esc = false;
+            i += 1;
+            continue;
+        }
+        if in_str {
+            if esc {
+                esc = false;
+            } else if chars[i] == '\\' {
+                esc = true;
+            } else if chars[i] == '"' {
+                in_str = false;
+            } else if chars[i] == pre[0] && chars[i..].starts_with(pre.as_slice()) {
+                // A keyword inside a string was already a token before the clojure
+                // branch existed. Keep that. Do not also read `wat.rete…` in a string:
+                // `"wat.rete.core.i64/"` is data, and folding it mints a trailing-`::` name.
+                let mut j = i + pre.len();
+                while j < chars.len() && is_name_char(chars[j]) {
+                    j += 1;
+                }
+                out.push((chars[i..j].iter().collect::<String>(), line));
+                i = j;
+                continue;
+            }
+            i += 1;
+            continue;
+        }
+        if chars[i] == '"' {
+            in_str = true;
             i += 1;
             continue;
         }
@@ -268,6 +323,23 @@ fn tokens_with_lines(text: &str) -> Vec<(String, usize)> {
             out.push((chars[i..j].iter().collect::<String>(), line));
             i = j;
             continue;
+        }
+        // `wat.rete/…` and `wat.rete.core/…` are the same identities as `:wat::rete::…`.
+        const CLOJURE_RETE: &[char] = &['w', 'a', 't', '.', 'r', 'e', 't', 'e'];
+        if chars[i..].starts_with(CLOJURE_RETE) {
+            let mut j = i + CLOJURE_RETE.len();
+            while j < chars.len() && is_clojure_rete_char(chars[j]) {
+                j += 1;
+            }
+            while j > i && chars[j - 1] == '.' {
+                j -= 1;
+            }
+            let tok: String = chars[i..j].iter().collect();
+            if let Some(id) = clojure_rete_identity(&tok) {
+                out.push((id, line));
+                i = j;
+                continue;
+            }
         }
         i += 1;
     }
@@ -443,9 +515,9 @@ fn declared_field_names(inner: &str) -> Result<Vec<String>, String> {
     }
     let mut names = Vec::with_capacity(cells.len() / 3);
     for group in cells.chunks(3) {
-        if group[1] != FIELD_ARROW {
+        if group[1] != FIELD_ARROW && group[1] != ":-" {
             return Err(format!(
-                "field `{}` is followed by `{}`, not `{FIELD_ARROW}`",
+                "field `{}` is followed by `{}`, not `{FIELD_ARROW}` or `:-`",
                 group[0], group[1]
             ));
         }
@@ -490,8 +562,13 @@ fn record_decls_in(src: &str, namespace: &str) -> RecordDecls {
         while h < chars.len() && chars[h].is_whitespace() {
             h += 1;
         }
-        let head_text: String = chars[h..chars.len().min(h + 32)].iter().collect();
-        if !RECORD_DECL_FORMS.iter().any(|f| head_text.starts_with(f)) {
+        let mut e = h;
+        while e < chars.len() && !chars[e].is_whitespace() && chars[e] != '[' && chars[e] != '(' {
+            e += 1;
+        }
+        let head_text: String = chars[h..e].iter().collect();
+        let head_id = wat::edn::render::canonical_identity(&head_text);
+        if !RECORD_DECL_FORMS.contains(&head_id.as_str()) {
             continue;
         }
         let Some(close) = matching_close(&chars, i) else {
@@ -499,10 +576,14 @@ fn record_decls_in(src: &str, namespace: &str) -> RecordDecls {
         };
         let items = top_level_items(&chars[i + 1..close]);
         let Some(head) = items.first() else { continue };
-        if !RECORD_DECL_FORMS.contains(&head.as_str()) {
+        let head_id = wat::edn::render::canonical_identity(head);
+        if !RECORD_DECL_FORMS.contains(&head_id.as_str()) {
             continue;
         }
-        let Some(name) = items.get(1) else { continue };
+        let Some(raw_name) = items.get(1) else { continue };
+        // The stored key is the canonical identity, so `:wat::rete::Session` and
+        // `wat.rete/Session` are the same declaration.
+        let name = wat::edn::render::canonical_identity(raw_name);
         // Only this gate's namespace. A `:wat::query::` record is declared the same way and mints
         // its accessors the same way; resolving those is the wider question the module header cuts.
         if !name.starts_with(namespace) {
@@ -1194,7 +1275,7 @@ mod classifier {
         );
         assert_eq!(
             declared_field_names("a :wat::core::i64 b"),
-            Err("field `a` is followed by `:wat::core::i64`, not `<-`".to_string())
+            Err("field `a` is followed by `:wat::core::i64`, not `<-` or `:-`".to_string())
         );
         assert_eq!(
             declared_field_names(""),
