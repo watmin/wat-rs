@@ -314,3 +314,17 @@ gate's mutation (drop `qualified`) was run by the orchestrator: RED, restored.
 |---|---|---|
 | B2 | `:wat::core::char` is a runtime `Value` but deliberately NOT a `TypeEnv` member (`src/types.rs`, `TABLE-STONE-Q`), so no record can declare a `char` field; the lex kinds carry their offending character as a one-character `String` | builder's call: register `char` as a declarable type, or keep the hole and its `String` stand-in |
 | B2 | `LoadFetchError`'s writer stays hand-written: its `Other` variant renames its tag to `LoadOther`, and the derive has no variant-level tag rename | a `#[to_edn(tag = …)]` variant directive, or rename the Rust variant to match its tag |
+
+## Strike B3 landed (`8e2710ea9`, `9828cefbc`, `5ddbb44e9`, `4feb8982f`, `1808af90e`) — strike B is done
+
+`MacroExpansionFailed.cause` holds the real `MacroError` (decoded against the builtins registry;
+`single_cause_fault` retired). `read-json`/`read-foreign` failures carry `:wat::edn::*` records, not
+prose. `fault_value`'s location is a mandatory `Span` (compile error proven); 0 goldens carry
+`<runtime>`. Goldens no longer hold stale `.rs` line numbers (2 fixed; a capture-normalization gate
+added) — the orchestrator's brief misdiagnosed the mechanism (capture already normalized since
+`8c1392ca4`); the executor found and reported the contradiction. The serve loop's unreachable-op
+fallback replies `Reply::Failed`, not a panic. Floor 6372/6372.
+
+| from | finding | the cure owed |
+|---|---|---|
+| B3 | ~24 `assertion-failed!` sites in `wat/service.wat` (and `wat/spawn.wat`'s shared `launch`) are owner↔child self-peer protocol invariants — measured NOT client-reachable (the admin channel is the owner's private fd 0/1 or in-process channel; only generated `start`/`resume` ever send on it, always `Init`/`Resume`). `dispatch-admin` runs once, before `serve`, with no error channel (`-> State`) | builder's call: accept owner-only protocol violations as panics (the repo-wide `launch` precedent), or a follow-on that gives `dispatch-admin`/`Locus::launch` a failure value |
