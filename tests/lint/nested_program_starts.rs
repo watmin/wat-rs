@@ -462,12 +462,32 @@ fn walk_class(
 }
 
 fn rustify_deftest(name: &str) -> String {
-    let n = name.trim().trim_start_matches(':');
-    format!(
-        "deftest_{}",
-        // rune:lint(one-variant-separator, namespace) — deftest keyword path (`:wat-tests::process::…`) to a rust fn name, not enum.variant
-        n.replace("::", "_").replace(['-', '/'], "_")
-    )
+    // The same collapse `wat_macros::discover::sanitize_name` applies to the
+    // generated `#[test] fn`. `::`, `.` and `/` are one separator, so
+    // `:user::with_loader::test::test-loader-wiring` and
+    // `user.with_loader.test/test-loader-wiring` name one Rust fn.
+    let trimmed = name.trim().trim_start_matches(':');
+    let mut out = String::with_capacity(trimmed.len());
+    let mut last_was_underscore = false;
+    for ch in trimmed.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+            last_was_underscore = false;
+        } else if !last_was_underscore && !out.is_empty() {
+            out.push('_');
+            last_was_underscore = true;
+        }
+    }
+    while out.ends_with('_') {
+        out.pop();
+    }
+    if out.is_empty() {
+        out = "unnamed".to_string();
+    }
+    if out.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        out.insert(0, '_');
+    }
+    format!("deftest_{out}")
 }
 
 fn live_tests() -> HashSet<String> {
@@ -819,5 +839,29 @@ fn head_ident_keyword_and_symbol_are_one() {
     assert_eq!(
         carrying_keys(name_raw(&kw_list[1])),
         carrying_keys(name_raw(&sy_list[1]))
+    );
+}
+
+/// The deftest name's Rust ident does not change with its spelling. One
+/// source holds one deftest in each spelling; both rustify to the fn the
+/// proc macro emits.
+#[test]
+fn deftest_rust_name_is_stable_across_spellings() {
+    let src = "(wat.test/deftest user.with_loader.test/test-loader-wiring ()) \
+               (:wat::test::deftest :user::with_loader::test::test-loader-wiring ())";
+    let forms = parse_all_with_file(src, "both.wat").expect("parse");
+    let mut names = Vec::new();
+    for form in &forms {
+        let WatAST::List(items, _) = form else { continue };
+        let head = head_ident(form);
+        if head.as_deref() == Some(":wat::test::deftest") {
+            names.push(rustify_deftest(name_raw(&items[1])));
+        }
+    }
+    assert_eq!(names.len(), 2, "both spellings are deftests");
+    assert_eq!(names[0], names[1]);
+    assert_eq!(
+        names[0],
+        "deftest_user_with_loader_test_test_loader_wiring"
     );
 }

@@ -300,11 +300,24 @@ fn discover_axis_stems() -> Vec<String> {
 /// Same substitution as `GRID_SKIP_ORACLE` in `run-axis.sh`. The sized
 /// axis files fire native then `$oracle`; liveness asks whether native
 /// derived, not whether the interpreted engine also finished.
-fn skip_oracle_fire(src: &str) -> String {
+fn oracle_staged_call(verb: &str) -> String {
     // Split so the needle is not one inlined wat form (no_inlined_wat).
     let mut needle = String::new();
     needle.push('(');
-    needle.push_str(":wat::rete::fire-rules$oracle staged)");
+    needle.push_str(verb);
+    needle.push_str(" staged)");
+    needle
+}
+
+fn fired_arm(head: &str) -> String {
+    let mut replacement = String::new();
+    replacement.push('(');
+    replacement.push_str(head);
+    replacement.push_str(" {:value fired})");
+    replacement
+}
+
+fn skip_oracle_fire(src: &str) -> String {
     // ⛔ IT SUBSTITUTES AN OUTCOME, NOT A SESSION — arc 278 the fire-outcome wall.
     //
     // This used to replace the call with the bare binding `fired`. Since the axis files face the
@@ -314,10 +327,13 @@ fn skip_oracle_fire(src: &str) -> String {
     // it take that arm immediately, which is exactly what "skip the oracle fire, reuse the native
     // result" means. It also stays independent of the arms' exact text, so a reworded diagnostic
     // in the codemod cannot silently break this rewrite.
-    let mut replacement = String::new();
-    replacement.push('(');
-    replacement.push_str(":wat::rete::FireOutcome.Fired {:value fired})");
-    src.replace(&needle, &replacement)
+    //
+    // Both spellings. The keyword arm stays a keyword outcome; the symbol arm stays a symbol
+    // outcome, so the match arms already in the file still name the same value.
+    let keyword = oracle_staged_call(":wat::rete::fire-rules$oracle");
+    let symbol = oracle_staged_call("wat.rete/fire-rules$oracle");
+    src.replace(&keyword, &fired_arm(":wat::rete::FireOutcome.Fired"))
+        .replace(&symbol, &fired_arm("wat.rete/FireOutcome.Fired"))
 }
 
 /// Run a sized axis: pipe `size` as an EDN i64 vector on stdin, return (success, stdout, stderr).
@@ -327,11 +343,9 @@ fn run_sized_axis(stem: &str, size: &[i64]) -> (bool, String, String) {
     let src = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let skipped = skip_oracle_fire(&src);
-    // Count leftover CALLS, not comment mentions of the token.
-    let mut call = String::new();
-    call.push('(');
-    call.push_str(":wat::rete::fire-rules$oracle staged)");
-    let leftover = skipped.matches(&call).count();
+    // Count leftover CALLS, not comment mentions of the token. Both spellings.
+    let leftover = skipped.matches(&oracle_staged_call(":wat::rete::fire-rules$oracle")).count()
+        + skipped.matches(&oracle_staged_call("wat.rete/fire-rules$oracle")).count();
     assert_eq!(
         leftover, 0,
         "{stem}: skip_oracle_fire left a fire-rules$oracle call — native liveness would hit the oracle"
@@ -590,8 +604,7 @@ fn grid_axes_run_and_derive_nonvacuously() {
 
 /// Rewrite the public production verb to the oracle. Does not touch an
 /// already-oracle call (`fire-rules$oracle`) or a longer name (`fire-rules-explain`).
-fn rewrite_fire_to_spec(src: &str) -> String {
-    let needle = ":wat::rete::fire-rules";
+fn rewrite_one_fire(src: &str, needle: &str, oracle: &str) -> String {
     let mut out = String::with_capacity(src.len() + 64);
     let mut rest = src;
     while let Some(i) = rest.find(needle) {
@@ -605,12 +618,49 @@ fn rewrite_fire_to_spec(src: &str) -> String {
             out.push_str(needle);
             rest = after;
         } else {
-            out.push_str(":wat::rete::fire-rules$oracle");
+            out.push_str(oracle);
             rest = after;
         }
     }
     out.push_str(rest);
     out
+}
+
+/// Rewrite the public production verb to the oracle, in both spellings.
+/// Does not touch an already-oracle call (`fire-rules$oracle`) or a longer
+/// name (`fire-rules-explain`).
+fn rewrite_fire_to_spec(src: &str) -> String {
+    let keyword = rewrite_one_fire(src, ":wat::rete::fire-rules", ":wat::rete::fire-rules$oracle");
+    rewrite_one_fire(&keyword, "wat.rete/fire-rules", "wat.rete/fire-rules$oracle")
+}
+
+fn oracle_call_count(src: &str) -> usize {
+    src.matches(":wat::rete::fire-rules$oracle").count()
+        + src.matches("wat.rete/fire-rules$oracle").count()
+}
+
+/// One source, one production call in each spelling. Both become the oracle,
+/// and an already-oracle call is not doubled.
+#[test]
+fn rewrite_fire_to_spec_sees_both_spellings() {
+    let mut src = String::new();
+    src.push('(');
+    src.push_str("wat.rete/fire-rules session)");
+    src.push(' ');
+    src.push('(');
+    src.push_str(":wat::rete::fire-rules session)");
+    src.push(' ');
+    src.push('(');
+    src.push_str("wat.rete/fire-rules$oracle session)");
+    let out = rewrite_fire_to_spec(&src);
+    assert_eq!(oracle_call_count(&out), 3);
+    assert_eq!(out.matches("fire-rules$oracle$oracle").count(), 0);
+    let skipped = skip_oracle_fire(&out.replace(" session)", " staged)"));
+    assert_eq!(
+        skipped.matches(&oracle_staged_call("wat.rete/fire-rules$oracle")).count()
+            + skipped.matches(&oracle_staged_call(":wat::rete::fire-rules$oracle")).count(),
+        0
+    );
 }
 
 fn run_wat_path(path: &Path) -> (bool, String, String) {
@@ -650,8 +700,9 @@ fn spec_equals_native_on_every_where_family() {
         let src = std::fs::read_to_string(&native_path)
             .unwrap_or_else(|e| panic!("read {}: {e}", native_path.display()));
         let spec_src = rewrite_fire_to_spec(&src);
-        let spec_calls = spec_src.match_indices(":wat::rete::fire-rules$oracle").count();
-        let doubled = spec_src.match_indices(":wat::rete::fire-rules$oracle$oracle").count();
+        let spec_calls = oracle_call_count(&spec_src);
+        let doubled = spec_src.matches(":wat::rete::fire-rules$oracle$oracle").count()
+            + spec_src.matches("wat.rete/fire-rules$oracle$oracle").count();
         assert_ne!(
             spec_calls, 0,
             "{stem}: rewrite produced no fire-rules$oracle call — the family never fires?"

@@ -81,57 +81,77 @@ fn collect_wat(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Every declared rete namespace in `src`, mirroring `rete-compile-census.sh`'s own extraction
-/// byte-for-byte (down to its documented trap):
+/// Every declared rete namespace in `src`.
 ///
-/// ```text
-/// grep -oh 'rete::def\(rule\|query\) :[a-zA-Z0-9_:-]*' "$f" \
-///   | sed 's/^.*def[a-z]* ://' | sed 's/::[^:]*$//' | sort -u
-/// ```
+/// The population is the set of `defrule` / `defquery` FORMS, read by identity:
+/// `:wat::rete::defrule` and `wat.rete/defrule` are one head. A text needle
+/// `rete::defrule :` saw only the keyword spelling, so a converted file
+/// dropped out of the population and the loss was a smaller count.
 ///
-/// ⛔ **NAMESPACE EXTRACTION MUST NOT BE GREEDY.** The census script's own header records that a
-/// greedy strip on `"rete::defrule :fix::g3"` collapses to `"g3"` — zero rules collected, a
-/// vacuous "compiles" — and that is exactly how the census's FIRST run reported a false 136/136
-/// OK. This scans forward from each `rete::defrule :`/`rete::defquery :` occurrence, takes the
-/// run of `[A-Za-z0-9_:-]` characters that follows (the full FQN, e.g. `"fix::g3"`), and drops
-/// only the LAST `::segment` — never a greedy `.*` strip.
+/// ⛔ **NAMESPACE EXTRACTION MUST NOT BE GREEDY.** The census script's own header
+/// records that a greedy strip on `"rete::defrule :fix::g3"` collapses to `"g3"`.
+/// The rule name is the form's second item. [`rule_namespace`] drops only the
+/// LAST `::` segment of its identity (`:fix::sub::q-Hit` and `fix.sub/q-Hit`
+/// both yield `fix::sub`).
 ///
-/// A file whose only occurrences of the token sit inside a string literal a codemod rewrites
-/// (8 of the corpus, per `FINDING-loading-is-not-compiling.md`) yields the empty set here, same
-/// as the shell script's own `NO-RULES` bucket — the caller skips it, not a false failure.
+/// A token that sits inside a string literal is not a form. Those files yield
+/// the empty set — the caller's `NO-RULES` skip, not a false failure. A source
+/// that does not parse yields the empty set too: there is no form to read.
 fn declared_namespaces(src: &str) -> std::collections::BTreeSet<String> {
     let mut out = std::collections::BTreeSet::new();
-    let is_ident = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '-';
-    for kind in ["defrule", "defquery"] {
-        // rune:lint(one-variant-separator, not-a-name) — a wat SOURCE-TEXT search needle
-        // (`rete::defrule`/`rete::defquery`, a wat keyword-form head), not a Rust enum variant.
-        let needle = format!("rete::{kind} :");
-        let mut scan_from = 0usize;
-        while let Some(rel) = src[scan_from..].find(&needle) {
-            let ident_start = scan_from + rel + needle.len();
-            let rest = &src[ident_start..];
-            let ident_len = rest.find(|c: char| !is_ident(c)).unwrap_or(rest.len());
-            let fqn = &rest[..ident_len];
-            // ONE name-grammar door (STONE-one-name-grammar, arc 109) — `path()`, not a
-            // hand-rolled `rfind("::")`, computes "everything before the leaf".
-            // rune:lint(one-variant-separator, not-a-name) — this literally IS the sanctioned
-            // door (`wat_reader::identifier::path`); the hit is on the Rust module-path text
-            // spelling that call, not on a wat name being composed or decomposed.
-            let ns = wat_reader::identifier::path(fqn);
-            if !ns.is_empty() {
-                out.insert(ns.to_string());
-            } else if !fqn.is_empty() {
-                // `path()` returns "" for a name with no "::" at all (there is no path before a
-                // name that IS its own leaf). The shell instrument this mirrors
-                // (`sed 's/::[^:]*$//'`) leaves a no-match string UNCHANGED instead — mirror
-                // THAT exactly rather than silently dropping it, faithfulness to the working
-                // instrument, not a judgment call.
-                out.insert(fqn.to_string());
-            }
-            scan_from = ident_start + ident_len;
-        }
+    let Ok(forms) = wat_reader::parse_all_with_file(src, "<declared-namespaces>") else {
+        return out;
+    };
+    for form in &forms {
+        walk_rule_forms(form, &mut out);
     }
     out
+}
+
+fn walk_rule_forms(node: &wat_reader::WatAST, out: &mut std::collections::BTreeSet<String>) {
+    if let wat_reader::WatAST::List(items, _) = node {
+        if let Some(head) = items.first().and_then(form_head_identity) {
+            if head == ":wat::rete::defrule" || head == ":wat::rete::defquery" {
+                if let Some(raw) = items.get(1).and_then(form_written) {
+                    if let Some(ns) = rule_namespace(&raw) {
+                        out.insert(ns);
+                    }
+                }
+            }
+        }
+    }
+    for child in node.children().iter() {
+        walk_rule_forms(child, out);
+    }
+}
+
+fn form_head_identity(node: &wat_reader::WatAST) -> Option<String> {
+    let raw = form_written(node)?;
+    Some(wat::edn::render::canonical_identity(&raw))
+}
+
+fn form_written(node: &wat_reader::WatAST) -> Option<String> {
+    match node {
+        wat_reader::WatAST::Keyword(k, _) => Some(k.clone()),
+        wat_reader::WatAST::Symbol(id, _) => Some(id.as_str().to_string()),
+        _ => None,
+    }
+}
+
+/// `fix` from both `:fix::g1-keyword` and `fix/g1-keyword`. The leading colon
+/// of the identity is dropped so the keyword-era tests keep the colon-free
+/// namespace the shell instrument reported.
+fn rule_namespace(raw: &str) -> Option<String> {
+    let id = wat::edn::render::canonical_identity(raw);
+    let body = id.trim_start_matches(':');
+    let ns = wat_reader::identifier::path(body);
+    if !ns.is_empty() {
+        Some(ns.to_string())
+    } else if !body.is_empty() {
+        Some(body.to_string())
+    } else {
+        None
+    }
 }
 
 /// The synthesized entry point: one `CompileOutcome` per declared namespace, collected into a
@@ -395,5 +415,14 @@ mod extraction {
         let src = "(:wat::rete::defquery :q::find-it :params [])";
         let ns: Vec<_> = declared_namespaces(src).into_iter().collect();
         assert_eq!(ns, vec!["q".to_string()]);
+    }
+
+    /// One source, one defrule in each spelling. Both namespaces are found.
+    #[test]
+    fn keyword_and_symbol_defrules_in_one_source_are_both_found() {
+        let src = "(:wat::rete::defrule :fix::g1 :when [] :then []) \
+                   (wat.rete/defrule other/g2 :when [] :then [])";
+        let ns: Vec<_> = declared_namespaces(src).into_iter().collect();
+        assert_eq!(ns, vec!["fix".to_string(), "other".to_string()]);
     }
 }

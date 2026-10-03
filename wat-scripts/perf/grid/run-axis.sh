@@ -193,9 +193,10 @@ if [ -n "${GRID_SKIP_ORACLE:-}" ]; then
   # does the same substitution for the liveness gate, and ONLY THAT ONE IS ON THE FLOOR — which is
   # why this side stayed broken silently. If you change one, change both; better, give them one
   # home. Two places holding one truth is the defect this arc pulls out most often.
-  perl -pe 's/\(:wat::rete::fire-rules\$oracle\s+staged\)/(:wat::rete::FireOutcome.Fired {:value fired})/g' "$WAT_FILE" > "$ORACLE_TMP"
+  perl -pe 's/\(:wat::rete::fire-rules\$oracle\s+staged\)/(:wat::rete::FireOutcome.Fired {:value fired})/g; s/\(wat\.rete\/fire-rules\$oracle\s+staged\)/(wat.rete\/FireOutcome.Fired {:value fired})/g' "$WAT_FILE" > "$ORACLE_TMP"
   # Match the CALL form, not a comment that names `$oracle` (strat-neg's header does).
-  if grep -F -q '(:wat::rete::fire-rules$oracle' "$ORACLE_TMP"; then
+  # Both spellings: a keyword-only grep reported a converted axis as already skipped.
+  if grep -F -q '(:wat::rete::fire-rules$oracle' "$ORACLE_TMP" || grep -F -q '(wat.rete/fire-rules$oracle' "$ORACLE_TMP"; then
     echo "run-axis: GRID_SKIP_ORACLE rewrite left a fire-rules\$oracle token — skip is a no-op" >&2
     exit 2
   fi

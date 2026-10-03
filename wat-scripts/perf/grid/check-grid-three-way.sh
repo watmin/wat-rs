@@ -264,8 +264,8 @@ for stem in "${AXES[@]}"; do
   fail=0
 
   # ── guard 0a: the axis still fires the oracle ────────────────────────────────────────────────
-  if ! grep -qF "$ORACLE_VERB" "$GRID_DIR/$stem.wat"; then
-    echo "[$stem] source does NOT call $ORACLE_VERB — there is no oracle answer to compare" >&2
+  if ! grep -qF "$ORACLE_VERB" "$GRID_DIR/$stem.wat" && ! grep -qF 'wat.rete/fire-rules$oracle' "$GRID_DIR/$stem.wat"; then
+    echo "[$stem] source does NOT call the oracle verb in either spelling — there is no oracle answer to compare" >&2
     FAILED=1; continue
   fi
 

@@ -1226,3 +1226,23 @@ fn enum_variant_field_names_of(src: &str, file: &str, want_type: &str, want_vari
     }
     Err(format!("no `(:wat::core::defenum {want_type} …)` in `{file}` — wat is the source of truth, so the names cannot be generated without it"))
 }
+
+#[cfg(test)]
+mod identity {
+    use super::form_identity;
+
+    /// One source, one `defenum` in each spelling. Both heads are the same identity.
+    #[test]
+    fn defenum_head_is_one_identity_in_both_spellings() {
+        let src = "(wat.core/defenum user/Color :Red) (:wat::core::defenum :user::Mood :Ok)";
+        let forms = wat_reader::parse_all_with_file(src, "both.wat").expect("parse");
+        let heads: Vec<String> = forms
+            .iter()
+            .filter_map(|f| match f {
+                wat_reader::WatAST::List(items, _) => items.first().and_then(form_identity),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(heads, vec![":wat::core::defenum".to_string(), ":wat::core::defenum".to_string()]);
+    }
+}

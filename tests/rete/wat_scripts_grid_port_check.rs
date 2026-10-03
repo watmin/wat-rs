@@ -281,9 +281,17 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
     ),
 ];
 
-/// The oracle verb every sized axis must still call. Held as a NAME, never as a form — an inlined
-/// wat form in a test is its own lint (`no_inlined_wat_in_tests`), and a name is what we need.
-const ORACLE_VERB: &str = ":wat::rete::fire-rules$oracle";
+/// The oracle verb every sized axis must still call, in both spellings. Held as a NAME, never as
+/// a form — an inlined wat form in a test is its own lint (`no_inlined_wat_in_tests`), and a name
+/// is what we need. A keyword-only needle dropped every converted axis out of the comparison.
+const ORACLE_VERBS: &[&str] = &[
+    ":wat::rete::fire-rules$oracle",
+    "wat.rete/fire-rules$oracle",
+];
+
+fn oracle_verb_calls(src: &str) -> usize {
+    ORACLE_VERBS.iter().map(|v| src.matches(v).count()).sum()
+}
 
 fn grid_dir() -> PathBuf {
     Path::new("wat-scripts/perf/grid").to_path_buf()
@@ -426,10 +434,11 @@ fn every_grid_axis_native_matches_its_oracle() {
         let path = grid_dir().join(format!("{stem}.wat"));
         let src = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        if src.matches(ORACLE_VERB).count() == 0 {
+        if oracle_verb_calls(&src) == 0 {
             failures.push(format!(
-                "  {stem}: source does NOT call {ORACLE_VERB} — there is no oracle answer to \
-                 compare against, so this axis's port pairing is not running at all"
+                "  {stem}: source does NOT call the oracle verb in either spelling — there is \
+                 no oracle answer to compare against, so this axis's port pairing is not \
+                 running at all"
             ));
             continue;
         }

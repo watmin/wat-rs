@@ -30,7 +30,7 @@ rewrite_to_spec() {
   local dst="$2"
   # Production verb only. `(?!\$oracle)` so we never double-apply.
   # `(?!-)` so fire-rules-explain is untouched.
-  perl -pe 's/:wat::rete::fire-rules(?!\$oracle)(?!-)/:wat::rete::fire-rules\$oracle/g' \
+  perl -pe 's/:wat::rete::fire-rules(?!\$oracle)(?!-)/:wat::rete::fire-rules\$oracle/g; s/(?<![\w:])wat\.rete\/fire-rules(?!\$oracle)(?!-)/wat.rete\/fire-rules\$oracle/g' \
     < "$src" > "$dst"
 }
 

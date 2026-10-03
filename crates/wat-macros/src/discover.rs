@@ -290,12 +290,60 @@ fn collect_wat_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Discover
     Ok(())
 }
 
+/// Compile-time sibling of `wat::edn::render::canonical_identity`.
+/// `wat-macros` cannot depend on `wat` (cycle). A head's identity is the
+/// `(namespace, name)` pair: `:wat::test::deftest` and `wat.test/deftest`
+/// are one key. Keyword programs are unchanged — a keyword that already
+/// contains `::` is returned as written.
+fn canonical_identity(s: &str) -> String {
+    if s.contains("::") {
+        if s.starts_with(':') || s.starts_with('(') {
+            return s.to_string();
+        }
+        return format!(":{s}");
+    }
+    if !s.starts_with(':') {
+        if let Some((ns, name)) = s.split_once('/') {
+            return format!(":{}::{}", ns.replace('.', "::"), name);
+        }
+        return s.to_string();
+    }
+    if let Some(body) = s.strip_prefix(':') {
+        if let Some((ns, name)) = body.split_once('/') {
+            return format!(":{}::{}", ns.replace('.', "::"), name);
+        }
+    }
+    s.to_string()
+}
+
+/// The call head's identity, or `None` when the node is not a name.
+fn head_identity(node: &WatAST) -> Option<String> {
+    match node {
+        WatAST::Keyword(k, _) => Some(canonical_identity(k)),
+        WatAST::Symbol(id, _) => Some(canonical_identity(id.as_str())),
+        _ => None,
+    }
+}
+
+/// The deftest name as written. `sanitize_name` collapses `::`, `.` and `/`
+/// the same way, so a symbol name and the keyword it was converted from
+/// produce one Rust ident. The stored spelling stays the source spelling:
+/// existing keyword sites keep their `:my::test-foo` text.
+fn written_name(node: &WatAST) -> Option<String> {
+    match node {
+        WatAST::Keyword(k, _) => Some(k.clone()),
+        WatAST::Symbol(id, _) => Some(id.as_str().to_string()),
+        _ => None,
+    }
+}
+
 /// Walk a parsed list of top-level `WatAST` forms and return every
 /// deftest site found, with annotations attached.
 ///
 /// This replaces the old hand-rolled `scan_file` — the semantics are
 /// identical but the source is the REAL parsed AST so malformed files
-/// never reach this function.
+/// never reach this function. Heads are matched by [`canonical_identity`],
+/// so a symbol head (`wat.test/deftest`) is the same site as the keyword.
 pub fn scan_forms(forms: &[WatAST]) -> Vec<ParsedSite> {
     let mut sites: Vec<ParsedSite> = Vec::new();
 
@@ -318,19 +366,15 @@ pub fn scan_forms(forms: &[WatAST]) -> Vec<ParsedSite> {
             _ => continue,
         };
 
-        // Head must be a keyword.
-        let head_kw = match items.first() {
-            Some(WatAST::Keyword(k, _)) => k.as_str(),
-            _ => {
-                // Non-keyword head → not a test or annotation form; clears pending.
-                pending_ignore = None;
-                pending_should_panic = None;
-                pending_time_limit_ms = None;
-                continue;
-            }
+        // A name head, in either spelling. Anything else clears pending.
+        let Some(head_kw) = items.first().and_then(head_identity) else {
+            pending_ignore = None;
+            pending_should_panic = None;
+            pending_time_limit_ms = None;
+            continue;
         };
 
-        match head_kw {
+        match head_kw.as_str() {
             ":wat::test::ignore" => {
                 if let Some(WatAST::StringLit(reason, _)) = items.get(1) {
                     pending_ignore = Some(reason.clone());
@@ -357,11 +401,11 @@ pub fn scan_forms(forms: &[WatAST]) -> Vec<ParsedSite> {
             | ":wat::test::deftest'"
             | ":wat::test::deftest-hermetic'" => {
                 // Arc 121 + arc 124 + arc 259 S3.5a
-                if let Some(WatAST::Keyword(name, _)) = items.get(1) {
+                if let Some(name) = items.get(1).and_then(written_name) {
                     let line = span.line as usize;
                     let col = span.col as usize;
                     sites.push(ParsedSite {
-                        name: name.clone(),
+                        name,
                         line,
                         col,
                         ignore: pending_ignore.take(),
@@ -371,13 +415,14 @@ pub fn scan_forms(forms: &[WatAST]) -> Vec<ParsedSite> {
                 }
             }
             ":wat::test::make-deftest" | ":wat::test::make-deftest-hermetic" => {
-                // Arc 124 — register an alias keyword.
+                // Arc 124 — register an alias by identity, so a symbol alias
+                // and a later keyword (or symbol) call of it are one entry.
                 // Annotations preceding a make-deftest call are dropped —
                 // they don't attach to the alias declaration; an annotation
                 // must precede the alias's CALL site to attach.
-                if let Some(WatAST::Keyword(alias, _)) = items.get(1) {
+                if let Some(alias) = items.get(1).and_then(head_identity) {
                     if !alias.is_empty() {
-                        aliases.insert(alias.clone(), ());
+                        aliases.insert(alias, ());
                     }
                 }
                 pending_ignore = None;
@@ -386,11 +431,11 @@ pub fn scan_forms(forms: &[WatAST]) -> Vec<ParsedSite> {
             }
             other if !other.is_empty() && aliases.contains_key(other) => {
                 // Arc 124 — alias call. Treat as a deftest with the same shape.
-                if let Some(WatAST::Keyword(name, _)) = items.get(1) {
+                if let Some(name) = items.get(1).and_then(written_name) {
                     let line = span.line as usize;
                     let col = span.col as usize;
                     sites.push(ParsedSite {
-                        name: name.clone(),
+                        name,
                         line,
                         col,
                         ignore: pending_ignore.take(),
@@ -995,6 +1040,92 @@ mod tests {
             s,
             r#"#wat.test/DiscoveryFailed {:file "service-stop-resp.wat" :path "/abs/path/service-stop-resp.wat" :line 47 :col 1 :error "unclosed '('"}"#,
             "Display is the full EDN form"
+        );
+    }
+
+    /// One source, one deftest in each spelling. Both are found, and the
+    /// sanitized Rust ident does not change with the spelling of the name.
+    #[test]
+    fn one_file_holds_a_deftest_in_each_spelling() {
+        let src = r#"
+            (wat.test/time-limit "90s")
+            (wat.test/deftest wat-tests.rete.fuzz/test-native-matches-oracle ())
+            (:wat::test::ignore "keyword twin")
+            (:wat::test::deftest :wat-tests::rete::fuzz::test-native-matches-oracle ())
+        "#;
+        let sites = parse_and_scan(src);
+        assert_eq!(sites.len(), 2, "both spellings are deftests");
+        assert_eq!(
+            sites[0].name,
+            "wat-tests.rete.fuzz/test-native-matches-oracle"
+        );
+        assert_eq!(sites[0].time_limit_ms, Some(90_000));
+        assert_eq!(sites[0].ignore, None);
+        assert_eq!(
+            sites[1].name,
+            ":wat-tests::rete::fuzz::test-native-matches-oracle"
+        );
+        assert_eq!(sites[1].ignore.as_deref(), Some("keyword twin"));
+        assert_eq!(sites[1].time_limit_ms, None);
+        assert_eq!(
+            sanitize_name(&sites[0].name),
+            sanitize_name(&sites[1].name),
+            "the Rust fn ident is the identity, not the spelling"
+        );
+        assert_eq!(
+            sanitize_name(&sites[0].name),
+            "wat_tests_rete_fuzz_test_native_matches_oracle"
+        );
+    }
+
+    #[test]
+    fn sanitized_loader_name_is_stable_across_spellings() {
+        assert_eq!(
+            sanitize_name(":user::with_loader::test::test-loader-wiring"),
+            sanitize_name("user.with_loader.test/test-loader-wiring")
+        );
+    }
+
+    #[test]
+    fn symbol_alias_is_called_in_both_spellings() {
+        let src = r#"
+            (wat.test/make-deftest user.test/my-alias ())
+            (user.test/my-alias user.probe/from-symbol ())
+            (:user::test::my-alias :user::probe::from-keyword ())
+        "#;
+        let sites = parse_and_scan(src);
+        assert_eq!(sites.len(), 2);
+        assert_eq!(sites[0].name, "user.probe/from-symbol");
+        assert_eq!(sites[1].name, ":user::probe::from-keyword");
+    }
+
+    #[test]
+    fn symbol_head_that_is_not_an_annotation_still_clears_pending() {
+        let src = r#"
+            (wat.test/ignore "stale")
+            (user/compute 1 2 3)
+            (wat.test/deftest user.probe/clean ())
+        "#;
+        let sites = parse_and_scan(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, "user.probe/clean");
+        assert_eq!(sites[0].ignore, None);
+    }
+
+    #[test]
+    fn primed_and_hermetic_symbol_heads_are_deftests() {
+        let src = r#"
+            (wat.test/deftest-hermetic user.probe/forked ())
+            (wat.test/deftest' user.probe/primed ())
+            (wat.test/deftest-hermetic' user.probe/primed-forked ())
+        "#;
+        assert_eq!(
+            names_only(src),
+            vec![
+                "user.probe/forked".to_string(),
+                "user.probe/primed".to_string(),
+                "user.probe/primed-forked".to_string(),
+            ]
         );
     }
 }
