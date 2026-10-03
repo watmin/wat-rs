@@ -482,3 +482,92 @@ STOP-2. The converted startup does not reach the unconverted one on this rust. T
 A namespaced call head in the converted stdlib is a symbol. `walk_template` adds a hygiene scope to every template identifier, and normalize then rebuilds each surviving symbol into a keyword. The unconverted call head is already that keyword: the copy is one string, and it has no scope set. `binder_and_reference_carry_identical_scope_sets` requires the scope on a bare binder and on the bare body reference (`tmp`). Putting the same set on a namespaced head, and then rewriting that head into a keyword after expansion, is the work the 0.886s is. Two designs would remove it, and neither is in this commit. One: a namespaced head becomes its keyword once, at the door, before the template is copied, and a bare binder keeps `add_scope`. That changes `env_key` of a namespaced binder, which the keyword tree never had. Two: one frozen stdlib is shared across worlds, so this startup is not repeated per process. That is the builder's call.
 
 No time limit was raised. 5c-iii, 5c-iv, and 5d were not started.
+
+## Amend 4 — P1, finish on the default limits
+
+The cures in `369162eb2` stay. The 0.886s one-run residual recorded in amend 3 stays that record. No time limit was raised. `5c166f35e` is the queued 255.88 draw, two markdown files, and it is the parent of the rune commit below. This amend does not start it.
+
+`cargo clippy --release --all-targets -- -D warnings` returned RC=0 in 0.08s (`/tmp/g1-a4-clippy.log`) on `efe0161c5`, before the floor. The tree was clean.
+
+### The first floor
+
+`.floor/2026-10-03T10-21-23Z` at `efe0161c5`. Do not re-run it.
+
+`Summary [ 390.752s] 6408 tests run: 6406 passed (28 slow), 1 failed, 1 timed out, 24 skipped`
+
+`/tmp/g1-a4-floor.out` RC=100.
+
+The four time-limit rows passed on their default limits. Shards 0 through 5: 22.438s, 22.515s, 20.734s, 20.888s, 20.891s, 20.716s. Fuzz `deftest_wat_tests_rete_fuzz_test_native_matches_oracle` PASS [  72.186s], limit 90000ms. `retirement_table_is_fully_reachable` PASS [ 166.030s], own limit 240s.
+
+The failure is `only_identifier_rs_spells_the_variant_separator`. Panic at `tests/lint/one_variant_separator.rs:260`. Offender printed by that arm: `src/macros/expand.rs:764  [DATA]  && !spelling.contains("::")`. The rune sat two lines above the hit, with `let alias_shaped = spelling.contains('/')` between them.
+
+The timeout is `no_broken_intra_doc_link_outside_the_frozen_ledger`, TIMEOUT [  30.004s]. Nextest printed `(test timed out)` and terminated at 30s. Isolated after that floor: PASS [  10.791s], `Summary [  10.802s] 1 test run: 1 passed, 6431 skipped`, RC=0 (`/tmp/g1-a4-doclink.log`). The limit was not raised.
+
+### The rune, then the floor
+
+`f02443e7a` puts the separator rune on the line immediately above `&& !spelling.contains("::")`. Isolated: PASS [   0.049s], `Summary [   0.059s] 1 test run: 1 passed, 6431 skipped`, RC=0 (`/tmp/g1-a4-sep.log`).
+
+`.floor/2026-10-03T10-31-41Z` on that commit:
+
+`Summary [ 386.267s] 6408 tests run: 6408 passed (27 slow), 24 skipped`
+
+`/tmp/g1-a4-floor2.out` RC=0. Doctests exited 0: wat 5 passed (1 ignored), wat-edn 3 passed, wat-macros 0 passed (4 ignored), wat-doc, wat-reader, and wat-to-edn-derive 0 passed.
+
+The same four rows, defaults unchanged. Shard 0 PASS [  22.537s], shard 1 PASS [  23.041s], shard 2 PASS [  21.096s], shard 3 PASS [  21.026s], shard 4 PASS [  21.335s], shard 5 PASS [  21.103s]. Fuzz PASS [  71.785s]. Retirement PASS [ 165.053s] (SLOW >120s). On this floor the separator row is PASS [   0.119s] and the doc-link row is PASS [   0.519s].
+
+### Six runs
+
+Probe off. Rust is `f02443e7a` in both columns. The unconverted column checks out `e08fe7349 -- wat` and lets nextest rebuild (`include_str`), then `git checkout HEAD -- wat`. `wat/` was clean after the restore. The clock is the nextest Summary. All 24 runs RC=0. None printed TIMEOUT or FAIL.
+
+`reachability_shard_2_of_6`:
+
+| run | converted | unconverted |
+|---|---:|---:|
+| 1 | 9.200s | 8.142s |
+| 2 | 9.130s | 8.140s |
+| 3 | 9.038s | 8.121s |
+| 4 | 9.066s | 8.219s |
+| 5 | 9.067s | 8.320s |
+| 6 | 9.044s | 8.331s |
+
+Sums 54.545s and 49.273s. Means 9.090833333333334s and 8.212166666666667s. Ratio of the sums 54.545/49.273 = 1.1069957177358796. Logs `/tmp/g1-a4-shard2-conv-{1..6}.log`, `/tmp/g1-a4-shard2-unconv-{1..6}.log`.
+
+`keyed_gather_visits_match_the_keyed_prediction`:
+
+| run | converted | unconverted |
+|---|---:|---:|
+| 1 | 7.042s | 6.510s |
+| 2 | 7.005s | 6.465s |
+| 3 | 7.030s | 6.442s |
+| 4 | 7.073s | 6.444s |
+| 5 | 7.011s | 6.420s |
+| 6 | 7.014s | 6.427s |
+
+Sums 42.175s and 38.708s. Means 7.029166666666666s and 6.451333333333333s. Ratio of the sums 42.175/38.708 = 1.0895680479487444. Logs `/tmp/g1-a4-keyed-conv-{1..6}.log`, `/tmp/g1-a4-keyed-unconv-{1..6}.log`.
+
+Amendment 1's unconverted six-run mean of 9.707s is a different rust. Amend 3's one-run pair (8.493s, 9.379s) stays the recorded residual. This table is the mean on the cured tree.
+
+### Census and delta
+
+After the `wat/` restore, `cargo build --release` finished in 24.38s, RC=0 (`/tmp/g1-a4-build.log`), so `target/release/wat` carries the converted stdlib.
+
+Census `.census/2026-10-03T10-46-36Z.txt`, files=2289, RC=0. Counts `0:2079, 1:208, 101:2`. `--diff` against `.census/2026-10-03T05-56-40Z.txt` (`0:2076, 1:208, 101:2`) printed `census-diff: no STOP-8` and RC=0. Three paths are new, each rc 0: `tests/cli/wat_grep__count_rules_symbol.wat`, `tests/resolve/probe_arc255_87_surface_symbol.wat`, `tests/rete/probe_arc255_87_fact_bind.wat`. No path left the earlier census.
+
+Delta `.delta/2026-10-03T10-47-46Z`. List `docs/arc/2026/06/251-types-as-forms/delta-sample-179.txt`, sha `da1aa882e86e3590150f23eff755a11d8f46a96f5e3b5e9718d1714518a24e8d`, paths=178, missing=0.
+
+```
+  ORIG-CLEAN  159/178
+  CONV-CLEAN  158/178
+  NEW         1
+  RECOVERY    0
+```
+
+Exit 0. The one NEW file is `wat-scripts/probes/arc-170/probe-c1-clean-surface.wat` (orig rc 0, conv rc 1). `wat/holon/Ngram.wat` is rc 0 on both copies, and the two copies are identical.
+
+The converted probe's `--check` is 5 errors, all at line 35, the `wat.bracket/map` call whose work function is the symbol `probe/work`. One of them is `UnknownCallee` `:robe/work::kwargs-check`. `wat/bracket.wat` reads `ast-name` of that work function and `subs` from index 1 before minting `:<rest>::kwargs-check`. On a keyword that drops the colon. On `probe/work` it drops the `p`. The original copy still spells that argument `:probe::work` and checks clean. The strip is in `wat/bracket.wat`. This amend does not edit `wat/`.
+
+5c-iii, 5c-iv, and 5d were not started.
+
+## Close (amend 4)
+
+P1 holds. The four default time limits pass on `.floor/2026-10-03T10-31-41Z`. The residual on this rust is the six-run table above. Census has no rc flip. Delta RECOVERY is 0. The one NEW file is the kwargs-name strip on `probe-c1-clean-surface.wat`.
