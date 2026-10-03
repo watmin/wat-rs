@@ -151,9 +151,8 @@ fn clause_attempt_value(attempt: &ClauseAttempt) -> Value {
 //
 // `HashError` is now a genuine `:wat::core::Error`-satisfying record (floor
 // `message`/`location` plus a `kind` field typed `:wat::kernel::HashErrorKind`,
-// itself a `defenum`) — replaces `single_cause_fault`'s interim
-// `:wat::core::Fault` stand-in at `EvalVerificationFailed.cause`. See that
-// function's own doc comment, below.
+// itself a `defenum`) — replaces B1's interim `:wat::core::Fault` stand-in at
+// `EvalVerificationFailed.cause`. See [`hash_error_value`]'s own doc comment, below.
 
 record_names_fn!(hash_error_names, HASH_ERROR_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashError");
 variant_names_fn!(hash_error_kind_unsupported_algorithm_names, HASH_ERROR_KIND_UNSUPPORTED_ALGORITHM_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "UnsupportedAlgorithm");
@@ -240,7 +239,8 @@ fn hash_error_kind_value(kind: &crate::hash::HashErrorKind) -> Value {
 /// Build the REAL `:wat::kernel::HashError` record Value — floor
 /// (`message`/`location`) plus `kind` (the nested dotted-tagged enum value).
 /// Used by `to_record`'s `EvalVerificationFailed` arm in place of B1's
-/// `single_cause_fault` stand-in (see that function's doc comment).
+/// interim `Fault` stand-in (closed by strike B2 item 3; see
+/// [`macro_error_value`] for `MacroExpansionFailed`'s own closure, B3 item 1).
 fn hash_error_value(err: &crate::hash::HashError) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::HashError".to_string(),
@@ -360,33 +360,36 @@ pub(crate) fn assertion_failed_value(
     )))
 }
 
-/// A nested ERROR becomes ONE `:wat::core::Fault` in the named `cause` field
-/// (excursus 003 strike B1, item 4) — its `Display` text as the Fault's
-/// message, and the OUTER `RuntimeError`'s own raising-site span as the
-/// Fault's location. Used ONLY by `MacroExpansionFailed.cause` now —
-/// `EvalVerificationFailed.cause` no longer calls this (see
-/// [`hash_error_value`] above and strike B2 item 3, closed below).
+/// Build the REAL `:wat::macro::<Kind>` record `MacroExpansionFailed.cause` holds
+/// (excursus 003 strike B3, item 1 — closes B1's interim-`Fault` gap, the last
+/// caller of the retired `single_cause_fault`).
 ///
-/// ⚠ KNOWN GAP, named not papered over, for the ONE caller still using this:
-/// `MacroExpansionFailed.cause` wants `MacroError`'s OWN declared record, not
-/// a `Fault`. `MacroError` DOES implement `WatError` and could decode typed,
-/// but `to_record(&self)` carries no `TypeEnv`/`SymbolTable` to strict-decode
-/// with (unlike the four item-5 wrapper sites, which run inside a call that
-/// already holds one) — threading one through `to_record`'s whole call graph
-/// (`kernel/error.rs`, `process/died.rs`, both peer-death paths) is out of
-/// this strike's size (strike B3's scope fence names it explicitly). This
-/// keeps the STRUCTURALLY SAFE, honest interim shape — a real
-/// `:wat::core::Error` (a `Fault` satisfies the surface) — for that ONE
-/// remaining caller.
-///
-/// B2's own closed gap: `HashError` (the OTHER caller this function used to
-/// serve) now carries the `:wat::core::Error` floor itself (`message`/
-/// `location`, [`HashError`] in `src/hash.rs`) around a genuine
-/// `:wat::kernel::HashErrorKind` `defenum` payload — so `EvalVerificationFailed
-/// .cause` holds the REAL `HashError` record ([`hash_error_value`]), not a
-/// synthesized `Fault` built from its `Display` text.
-fn single_cause_fault(message: String, span: &crate::span::Span) -> Value {
-    crate::runtime::fault_value(message, Some(span.clone()))
+/// `MacroError::to_record` can't thread a `TypeEnv`/`SymbolTable` through to
+/// strict-decode with — `to_record`'s whole call graph (`kernel/error.rs`,
+/// `process/died.rs`, both peer-death paths) has none in hand, unlike the four
+/// item-5 wrapper sites, which run inside a call that already holds one. B1
+/// measured that gap correctly; what it missed is that `to_record` doesn't need
+/// a *caller-supplied* registry to decode a BUILTIN record — every error record
+/// has been one since the sweep (`AUDIT-the-shape-of-an-error.md`, Strike B1
+/// landed), so this decodes `MacroError`'s own wire form (`error_edn()`,
+/// `WatError`, `src/macros/error_edn.rs`) against the PROCESS-WIDE builtins
+/// registry (`TypeEnv::with_builtins()` — the same registry
+/// `src/runtime.rs::builtin_enum_variant_names`'s `OnceLock` caches) instead of
+/// hand-building a second copy of the 16-`MacroErrorKind`-variant shape the way
+/// [`hash_error_value`] does for the single-kind `HashError`. The decode is
+/// already mutation-proven for every declared kind, including both
+/// nested-cause variants (`ProgramBodyEvalFailed`, `MacroEvalRuntimeFailed`):
+/// `excursus_003_s3_gates::g_strict_every_declared_kind_decodes_typed`
+/// (`src/macros/error_edn.rs`).
+fn macro_error_value(cause: &crate::macros::MacroError) -> Value {
+    let wire = wat_edn::write(&cause.error_edn());
+    let types = crate::types::TypeEnv::with_builtins();
+    crate::edn::render::decode_trusted_wire(&wire, Some(&types), None).unwrap_or_else(|e| {
+        panic!(
+            "macro_error_value: MacroError::error_edn() must decode typed against \
+             TypeEnv::with_builtins() (every error record is a builtin) — got {e:?}; wire: {wire}"
+        )
+    })
 }
 
 /// `EdnCoerceMismatch.path`'s wire shape is a `Vector` of dot-path segments
@@ -583,7 +586,7 @@ impl RuntimeError {
                     floor_message,
                     floor_location,
                     Value::String(Arc::new(op.clone())),
-                    single_cause_fault(cause.to_string(), self.span()),
+                    macro_error_value(cause),
                 ]),
             ))),
             RuntimeErrorKind::PatternMatchFailed { value_type } => Value::Aggregate(Arc::new(AggregateValue::record(

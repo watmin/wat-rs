@@ -213,22 +213,25 @@ enum ExceptionClass {
 /// ONE field) pair cannot express — handled below as its own pass, not a G2_EXCEPTIONS
 /// class.
 ///
-/// Strike B2 item 3 CLOSED `EvalVerificationFailed`'s half of this gap:
+/// Strike B2 item 3 closed `EvalVerificationFailed`'s half of this gap:
 /// `to_record()`'s `cause` now holds the REAL `:wat::kernel::HashError` record
 /// (`hash_error_value`, `src/value/runtime_records.rs`) — byte-identical to the wire's
 /// `:error` (both come from the SAME `HashError` value now that it carries its own
-/// `message`/`location` floor), so `is_nested_error_variant` routes it to an EQUALITY
-/// check, not the Fault-shape check. `MacroExpansionFailed` keeps the Fault gap
-/// (`single_cause_fault`'s doc comment, `src/value/runtime_records.rs`) — strike B3's
-/// scope fence names it explicitly as still open.
+/// `message`/`location` floor). Strike B3 item 1 closed `MacroExpansionFailed`'s half
+/// the same way: `to_record()`'s `cause` now decodes the REAL `:wat::macro::<Kind>`
+/// record (`macro_error_value`, `src/value/runtime_records.rs`, via `error_edn()` +
+/// `TypeEnv::with_builtins()`) — byte-identical to the wire's `:cause`. Both wrapping
+/// kinds now route to the EQUALITY check below, never the Fault-shape check (which no
+/// variant needs any more — B1's interim `Fault` stand-in has no remaining caller).
 fn is_nested_error_variant(variant: &str) -> bool {
     variant == "EvalVerificationFailed" || variant == "MacroExpansionFailed"
 }
 
-/// `EvalVerificationFailed` closed its gap (see above): `to_record()`'s `cause` is now
-/// REQUIRED to equal the wire's `:error`, byte-for-byte, not just Fault-shaped.
+/// Both wrapping kinds closed their gap (see above): `to_record()`'s `cause` is
+/// REQUIRED to equal the wire's nested-error field, byte-for-byte, not just
+/// Fault-shaped.
 fn is_closed_nested_error_variant(variant: &str) -> bool {
-    variant == "EvalVerificationFailed"
+    is_nested_error_variant(variant)
 }
 
 /// The wire's own field name for the nested error, per `is_nested_error_variant`.
@@ -359,21 +362,11 @@ fn g2_record_agrees_with_wire() {
             );
         }
 
-        // Excursus 003 strike B1, item 4's KNOWN GAP: `MacroExpansionFailed` still carries
-        // a `cause` field in `to_record()` that is a bare `:wat::core::Fault` (structurally
-        // a `:wat::core::Error`, `{message location}`, nothing more), not the wrapped
-        // type's own declared shape — strike B3's scope (the equality check above already
-        // handled `EvalVerificationFailed`, whose gap strike B2 item 3 closed). Every other
-        // variant carries no `cause` field at all.
-        if nested_error && !is_closed_nested_error_variant(variant) {
-            let actual_cause = find_field(&actual_fields, "cause")
-                .unwrap_or_else(|| panic!("{variant}: to_record() must carry a `cause` field"));
-            let (fault_tag, fault_fields) = as_tagged_map(actual_cause);
-            assert_eq!(fault_tag.name(), "Fault", "{variant}: cause must be a Fault");
-            assert!(find_field(&fault_fields, "message").is_some(), "{variant}: the cause Fault must carry a message");
-            assert!(find_field(&fault_fields, "location").is_some(), "{variant}: the cause Fault must carry a location");
-            assert_eq!(fault_fields.len(), 2, "{variant}: :wat::core::Fault is {{message location}} now (excursus 003 strike B1) — no third field");
-        } else if !nested_error {
+        // Excursus 003 strikes B1/B2/B3: both wrapping kinds are now CLOSED (the equality
+        // check above already proved `to_record()`'s `cause` equals the wire's nested-error
+        // field byte-for-byte for each). No variant's `cause` is a bare `:wat::core::Fault`
+        // stand-in any more. Every non-wrapping variant carries no `cause` field at all.
+        if !nested_error {
             assert!(find_field(&actual_fields, "cause").is_none(), "{variant}: only the two wrapping kinds carry a `cause` field");
         }
 
