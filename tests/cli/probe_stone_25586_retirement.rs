@@ -31,12 +31,16 @@ fn program(retired_name: &str) -> String {
     format!("(:wat::core::def :probe::row (:wat::core::fn [] -> wat.type/nil ({retired_name})))\n")
 }
 
-fn refusal(types: &wat::TypeEnv, retired: &str) -> Result<Vec<wat::CheckError>, String> {
-    let forms = wat::parse_all_with_file(&program(retired), "<row>")
-        .map_err(|e| format!("parse {retired}: {e:?}"))?;
+#[derive(Debug)]
+enum SetupFail {
+    Parse(wat::ParseError),
+    Register(wat::RuntimeError),
+}
+
+fn refusal(types: &wat::TypeEnv, retired: &str) -> Result<Vec<wat::CheckError>, SetupFail> {
+    let forms = wat::parse_all_with_file(&program(retired), "<row>").map_err(SetupFail::Parse)?;
     let mut sym = wat::SymbolTable::new();
-    let rest =
-        wat::register_defines(forms, &mut sym).map_err(|e| format!("register {retired}: {e:?}"))?;
+    let rest = wat::register_defines(forms, &mut sym).map_err(SetupFail::Register)?;
     match wat::check_program(&rest, &sym, types) {
         Ok(()) => Ok(Vec::new()),
         Err(wat::CheckErrors(errs)) => Ok(errs),
@@ -66,7 +70,8 @@ fn stone_rows_are_refused_naming_their_replacement() {
     let mut missed: Vec<String> = Vec::new();
     for (retired, replacement) in &rows {
         match refusal(world.types(), retired) {
-            Err(setup) => missed.push(setup),
+            Err(SetupFail::Parse(e)) => missed.push(format!("{retired}: {e:?}")),
+            Err(SetupFail::Register(e)) => missed.push(format!("{retired}: {e:?}")),
             Ok(errs) if names_the_replacement(&errs, retired, replacement) => {}
             Ok(errs) => missed.push(format!("{retired} -> {replacement}\n{errs:?}")),
         }
