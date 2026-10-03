@@ -702,7 +702,6 @@
           ;;
           ;;
           ;;
-          ;;
           ]
          (wat.core/keyword-node name-fqdn))
        name)

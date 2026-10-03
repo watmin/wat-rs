@@ -17,11 +17,11 @@
     :message "malformed template: format: placeholder {y} has no matching kwarg"
     :location #wat.core/Span {
       :file "wat/core.wat"
-      :line 2012
+      :line 2011
       :col 40
       :end #wat.core/Option.Some {
         :value #wat.core/Pos {
-          :line 2016
+          :line 2015
           :col 74
         }
       }
