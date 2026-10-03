@@ -339,3 +339,22 @@ fallback replies `Reply::Failed`, not a panic. Floor 6372/6372.
 |---|---|---|
 | C | **a real cost of the removal, measured:** in the 5 goldens where provenance was KNOWN, the error's `:message` lost its suffix — e.g. `got wat::core::keyword \`:ns::nonexistent-verb\` (built by :wat::keyword::from-string at …p2.wat:…)` is now just `got … \`:ns::nonexistent-verb\``. That suffix answered "where did this bad value come from?", which `location` (where it was USED) does not | builder's call, under the removal bias: leave it gone, or re-add provenance only where it is known (a field present iff known — not an `Option` that is `None` 503 times) |
 | C | **the `Provenance`/`TrackedValue` machinery is now dead end to end**: every producer (literal eval, `keyword`/`ast`/`edn`/`holon` intrinsics, the `wat_intrinsic` shim) writes it; the one reader (`Environment::lookup`, `src/value/environment.rs:~203`) re-wraps it into a value nobody reads; `provenance_to_edn` has no production caller. Kept untouched, per scope | builder's call: retire the machinery, or re-fund it (see the row above) |
+
+## RULING 2026-10-03 — four decisions, each by the four questions (all YES)
+
+Builder: *"you've got your 4 YES paths"* (after rejecting a menu: *"we don't use the menus here"*).
+
+1. **Tail calls (strike D).** When a tail call replaces a frame, the surviving frame records the
+   REPLACED callee (the true owner of its call site) and a count of collapsed tail calls — O(1), a deep
+   tail-recursive loop stays constant-space. C-114 then reads `{fn :user::grow at c114.wat:3 tail}`.
+   Rejected: silence (Obvious/Honest NO — it pins line 3 on `main`); a ring buffer (Simple NO — hot-path
+   bookkeeping, an N chosen by symmetry).
+2. **Provenance machinery: retire it.** Re-funding is Simple NO (18 files, `TrackedValue` threaded
+   through the environment, for 3 of 506 known cases). Strike after F.
+3. **Owner-only admin protocol errors: make them unrepresentable.** The service's FIRST admin message
+   gets its own type admitting only `Init`/`Resume`; Stop-before-Init has no form. The panics stand
+   until that lands. Strike after F.
+4. **`char` is declarable; `LoadFetchError`'s variant is renamed.** Register `:wat::core::char` as a
+   leaf (the Stone-Q census pins the hole precisely so this is a deliberate edit); lex kinds carry a
+   `char` again. Rename the Rust variant `Other` → `LoadOther` so the derive covers it and the
+   hand-written writer retires. Strike after F.
