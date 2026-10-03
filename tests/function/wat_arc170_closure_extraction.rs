@@ -888,37 +888,43 @@ fn collect_def_names(forms: &[WatAST]) -> Vec<String> {
 
 /// Pull the names of every type declaration form (`struct`/`enum`/
 /// `newtype`/`typealias`) out of a forms vec.
+/// Head or name slot, through the identity door. A keyword is unchanged.
+/// A reference symbol (`wat.core/structtype`, `my/Point`) is the same path.
+fn decl_identity(node: &WatAST) -> Option<String> {
+    let raw = match node {
+        WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Symbol(id, _) => id.as_str(),
+        _ => return None,
+    };
+    let id = wat::edn::render::canonical_identity(raw);
+    if id.starts_with(':') {
+        Some(id)
+    } else {
+        None
+    }
+}
+
 fn collect_type_decl_names(forms: &[WatAST]) -> Vec<String> {
     forms
         .iter()
         .filter_map(|form| {
             if let WatAST::List(items, _) = form {
                 if items.len() >= 2 {
-                    if let Some(WatAST::Keyword(head, _)) = items.first() {
+                    if let Some(head) = items.first().and_then(decl_identity) {
                         let is_type_decl = matches!(
                             head.as_str(),
                             ":wat::core::defstruct"
                                 | ":wat::core::defenum"
                                 | ":wat::core::newtype"
                                 | ":wat::core::typealias"
-                                // Arc 170 — freeze now ships each user type's RETAINED
-                                // source form (captured at registration, post-macroexpansion),
-                                // so struct/record/enum sugar arrives under the PRIMITIVE heads
-                                // the sugar macros expand to. Recognize those too.
+                                // Retained post-expansion form. `defstruct` arrives as
+                                // `structtype` (symbol or keyword — one identity).
                                 | ":wat::core::structtype"
                                 | ":wat::core::recordtype"
                                 | ":wat::core::aggregatetype"
                         );
                         if is_type_decl {
-                            if let WatAST::Keyword(name, _) = &items[1] {
-                                // `<K,V>` is unexpressible (arc 109 ③'s wall,
-                                // `src/types.rs:4688`) — no keyword the reader hands
-                                // back ever carries a `<...>` suffix, so `name` is
-                                // already canonical; used directly, never stripped
-                                // (arc 109 "reap the twelve" — found by widening the
-                                // rune, not by the original census).
-                                return Some(name.clone());
-                            }
+                            return items.get(1).and_then(decl_identity);
                         }
                     }
                 }
@@ -926,4 +932,27 @@ fn collect_type_decl_names(forms: &[WatAST]) -> Vec<String> {
             None
         })
         .collect()
+}
+
+/// Stone 255.87 #8 — the collector used to require a keyword head and a
+/// keyword name. The retained `defstruct` form is symbol `wat.core/structtype`.
+#[test]
+fn symbol_structtype_is_collected_as_the_canonical_type_name() {
+    let forms = wat::parse_all!(
+        r#"
+        (wat.core/structtype :my::Point [x <- wat.type/i64])
+        (wat.core/structtype my/Also [x <- wat.type/i64])
+        (:wat::core::defenum :my::Side :wat::enum::Pure :Left)
+        "#
+    )
+    .expect("parse");
+    let names = collect_type_decl_names(&forms);
+    assert_eq!(
+        names,
+        vec![
+            ":my::Point".to_string(),
+            ":my::Also".to_string(),
+            ":my::Side".to_string(),
+        ]
+    );
 }
