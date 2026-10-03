@@ -383,3 +383,55 @@ Exit 100. Log: `.floor/2026-10-03T08-02-27Z/`. Do not re-run it. Do not re-run `
 ## STOP (amend)
 
 Group A is cured. Group B and the three unmasked arms remain. The converted stdlib is slower on the two isolated workloads, and the floor after the cures is 582.441 s. That slowdown is its own stone. No performance cure, no timeout change. The floor log is `.floor/2026-10-03T08-02-27Z/`.
+
+## Amend 2 — group B, and the arms group A unmasked
+
+No STOP. The cost is untouched. No time limit was raised. 5c-iii, 5c-iv, and 5d are unstarted.
+
+### Cures
+
+- **grep** `281cdd483`. Two doors. The alpha index stored the raw head, so a keyword fact `wat::grep::Node` never met a symbol pattern `wat.grep/Node`. `collect-rules` required the return type `:wat::rete::Rule` and the converted `defrule` emits `wat.rete/Rule`. Both doors now use `fact_class_key` / `canonical_identity`. A keyword class string is the old colon-stripped key (`fact_class_key(":wat::grep::Node")` is `wat::grep::Node`). The symbol fixture is `tests/cli/wat_grep__count_rules_symbol.wat`. `:user::grep` stays the driver entry. Before the floor, `cargo test --release --test cli grep` returned RC=0 and the nine grep tests passed, including the seven that had matched nothing and the symbol pair.
+- **width.** No separate commit. `format-source` lays the example out by rete rules. With `collect-rules` blind to `wat.rete/Rule` the rule vector was empty, so the example stayed one line (1154 on `.floor/2026-10-03T08-02-27Z`). The same collect-rules cure is what makes the rules fire. `example_from_the_lookup_formats_widest_le_120` then passed. The limit stays 120.
+- **binders** `21299f095`. The emitted defns were not empty. `defn-row` and `is-list-headed?` compared `ast-name` to the keyword `":wat::core::defn"`, and the emitted head is the symbol `wat.core/defn`, so the census returned `[]`. Both compares now go through `canonical-identity`. `cargo test --release -p wat --test services -- arc255_24` returned RC=0. The eighteen expected rows matched, so the emitted names are still those keyword strings and the binders are the letters the test already named.
+- **#5** `a1c2c03dc`. `head_kw` returned only a keyword, and `param_names` counted a reference symbol as a parameter. After the conversion a type in `[locus :- wat.spawn/ThreadOpts prog :- …]` shifted `prog`'s index, so `:wat::test::spawn-peer`'s forms argument was no longer the carrying argument. Binders are the only names that count. Heads and declaration names go through `canonical_identity`. The census floor stays `>= 141`. The keyword/symbol pair is `head_ident_keyword_and_symbol_are_one`.
+- **#10** `b590541b4`. `declared_services` stripped the keyword prefix `:wat::service::defservice `. The live lines are `(wat.service/defservice wat.kernel/stdout-svc`. Head and name are `canonical_identity`. The expected three names are unchanged. `declared_services_reads_keyword_and_symbol` builds both spellings.
+- **#15** `e41d7d917`. `watast_carries_keyword` matched only `WatAST::Keyword`. The macro body at `wat/core.wat` calls `(wat.core/structtype ~@args)`. A reference symbol whose canonical identity is `:wat::core::structtype` carries that name. `structtype_keyword_and_symbol_are_one_carrier` parses both nodes. `lookup_form_struct_returns_special_form` passes.
+- **#12** `758a7b626`. The gate now counts member joins: a clojure declaration name whose receiver's last segment is a type (`wat.cache.Lru/get`). It does not count a `/` in the rust key. Symbol declarations are stored by `ns_to_wat_path`, which writes `::`, and that is why the `/` population had fallen to 1. The run that still expected `:wat::core::Fault/of` printed `801 names measured, 10 of them member joins` and `left: []` against that one name. The floor stays `>= 9`. `:wat::core::Fault/of` left `UNSPELLABLE_IN_THE_FAITHFUL_SURFACE`. The side that moved is the declaration: `wat/core.wat` declares `(wat.core/defmacro wat.core.Fault/of`, and the key the round trip stores is `:wat::core::Fault::of`.
+- **#13.** No recapture. The doc-row golden's example was the formatted form, and the actual was the same example on one line, the empty-rules render. After the collect-rules cure, `doc_row_pprintln_matches_byte_golden` passed against the existing golden.
+- **#14** `86b6a11d8`. The emitted window changed from `(:wat.seq/remove-at` and `[:wat.spawn/` to `(wat.seq/remove-at` and `[wat.spawn/`. That is the only difference. The expansion should emit the symbol. `:wat.seq/remove-at` is the dotted-keyword pre-image; `canonical_identity` of both is `:wat::seq::remove-at`. The converted macro calls the symbol, so the symbol is the spelling it emits.
+- **#4** `f3e7e2c5f`. Whitespace-stripped, each golden differs only by span columns in the converted stdlib. Reason text is unchanged. Recaptured with `UPDATE_EDN=1`, then the seven tests passed without it.
+
+| test | file:line | was | is |
+|---|---|---|---|
+| `witness_thread_first_empty_step_panics_at_expansion` | `wat/core.wat:1460` | col 33, end col 37 | col 30, end col 34 |
+| `cond_refuses_missing_else` | `wat/core.wat:1512` | end col 82 | end col 79 |
+| `contract_02_non_exhaustive_cond_names_else` | `wat/core.wat:1512` | end col 82 | end col 79 |
+| `format_strict_unused_kwarg_is_macro_error` | `wat/core.wat:2041` | end col 78 | end col 75 |
+| both `peers_bijection_*` | `wat/service.wat:927`, end line 935 | end col 113 | end col 110 |
+| `probe_two_arg_form_only_one_arg_errors` | `wat/Record.wat:145` | col 58, end col 103 | col 52, end col 91 |
+
+- **lint gates** `0f10d248b`. The heresy ledger shrank 64 → 63 because `eval_collect_rules` is no longer an Ex1 keyword compare. The frozen row is gone. The identity-pair literals were rebuilt so they are not inlined EDN or inlined wat. The three `::` splits in `carrying_keys` are namespace spelling (`rune:lint(one-variant-separator, namespace)`), not a variant separator.
+
+### Floors
+
+`.floor/2026-10-03T08-45-43Z` is red. Do not re-run it.
+
+```
+Summary [ 583.131s] 6408 tests run: 6399 passed (31 slow), 5 failed, 4 timed out, 24 skipped
+```
+
+Exit 100. Doctests exited 0. The five failures are the four lint gates fixed in `0f10d248b` (`tests_carry_no_inlined_edn`, `tests_carry_no_inlined_wat`, `only_identifier_rs_spells_the_variant_separator`, `the_heresy_ledger_matches_its_frozen_census`) and the fuzz time limit. Timeouts: reachability shards 0 (30.008s), 1 (30.009s), and 3 (30.014s), and `retirement_table_is_fully_reachable` (240.005s). Shards 2, 4, and 5 passed at 29.920s, 29.921s, and 29.369s. The fuzz failure is `deftest_wat_tests_rete_fuzz_test_native_matches_oracle` at 90.022s, `exceeded time-limit of 90000ms`.
+
+`.floor/2026-10-03T09-00-08Z` is the floor after that commit. Do not re-run it. Its only reds are the time limits this amend leaves for the cost stone.
+
+```
+Summary [ 580.065s] 6408 tests run: 6404 passed (32 slow), 1 failed, 3 timed out, 24 skipped
+```
+
+Exit 100. Doctests exited 0. The failure is the fuzz test at 90.029s, same limit. Timeouts: shard 0 at 30.009s, shard 1 at 30.024s, `retirement_table_is_fully_reachable` at 240.008s. Shards 2, 3, 4, and 5 passed at 29.792s, 29.437s, 29.726s, and 29.706s.
+
+`cargo clippy --release --all-targets -- -D warnings` returned RC=0 after the lint-gate commit, before this floor. The tree was clean. Census and delta did not run.
+
+## STOP (amend 2)
+
+Group B and the three unmasked arms are cured. The time-limit rows remain, and they are the cost stone. No performance cure, no timeout change. The floor log is `.floor/2026-10-03T09-00-08Z/`.
