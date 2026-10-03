@@ -33,10 +33,10 @@
     [:wat::core::ReadOutcome.Malformed {:cause __c} __c]))
 
 ;; Site 4 — `tagged_read_outcome_malformed` (src/edn/render.rs), via `:wat::edn::read-json`
-;; on genuinely malformed JSON text (`ReadJsonOutcome::Malformed [cause <- Error]`). This
-;; site has NO declared type behind it (a synthetic "JsonReadError" tag, never registered
-;; — see the function's own doc comment) — the cause is a direct `:wat::core::Fault`, the
-;; documented KNOWN shape, not the other three sites' "the diagnostic's own class".
+;; on genuinely malformed JSON text (`ReadJsonOutcome::Malformed [cause <- Error]`). The
+;; text never named a tag at all, so there is no diagnostic-specific class behind it (unlike
+;; sites 1-3) — but strike B3 item 2 routes it through the declared `:wat::edn::ReadError`
+;; catch-all (`EdnReadErrorKind::Other`), not a `:wat::core::Fault` stand-in.
 (:wat::core::defn :user::read-json-malformed [] -> :wat::core::Value
   (:wat::core::match (:wat::edn::read-json "{not json")
     [:wat::edn::ReadJsonOutcome.Value {:value __v} (:wat::kernel::assertion-failed! :message "expected Malformed")]

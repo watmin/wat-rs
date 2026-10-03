@@ -2,18 +2,19 @@
 //!
 //! Item 5's four sites (`check_failed_cause`; the second `CheckFailed` producer;
 //! `read_outcome_malformed`; `tagged_read_outcome_malformed`) used to wrap their decoded
-//! diagnostic in a `:wat::core::Fault` with a fabricated `<runtime>:0:0` location. Now
-//! three of the four hand back the diagnostic's OWN declared record class directly; the
-//! fourth (`tagged_read_outcome_malformed`, behind `:wat::edn::read-json`) has no
-//! declared type of its own to hand back (a synthetic, never-registered tag — see that
-//! function's doc comment in `src/edn/render.rs`), so its cause is a real
-//! `:wat::core::Fault` built from the message and the call site's own real span — the
-//! documented, structurally-honest interim shape, still not the generic `Fault` this
-//! strike killed everywhere it had a real alternative.
+//! diagnostic in a `:wat::core::Fault` with a fabricated `<runtime>:0:0` location. All
+//! four now hand back a real, declared record class: the first three hand back the
+//! diagnostic's OWN class directly; the fourth (`tagged_read_outcome_malformed`, behind
+//! `:wat::edn::read-json`/`read-foreign`) closed in strike B3 item 2 — a JSON/EDN text
+//! that fails to PARSE at all has no declared type of its own, so it routes through
+//! `EdnReadErrorKind::Other` into the EXISTING declared `:wat::edn::ReadError` catch-all
+//! (`wat/edn.wat` — "an unparseable frame" is literally what that record's doc names),
+//! not a `:wat::core::Fault` stand-in.
 //!
 //! Mutation for sites 1-3 (recorded in the strike report, not re-encoded here): restore
 //! the `fault_with_cause` wrap at each site — this test's `assert_eq!` on `.class` goes
-//! RED, naming `wat::core::Fault` where the diagnostic's own class was expected.
+//! RED, naming `wat::core::Fault` where the diagnostic's own class was expected. Site 4's
+//! own mutation is strike B3 item 2's gate (recorded in that strike's report).
 
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
@@ -72,28 +73,27 @@ fn site3_read_string_malformed_is_the_diagnostics_own_class() {
 }
 
 /// Site 4 — `tagged_read_outcome_malformed`, via `:wat::edn::read-json` on malformed JSON.
-/// KNOWN, DOCUMENTED difference from sites 1-3: there is no declared type behind a JSON
-/// parse failure (the tag is synthetic, never registered — measured in
-/// `tagged_read_outcome_malformed`'s own doc comment), so the honest shape IS a
-/// `:wat::core::Fault` — built directly from the message and the real call-site span, no
-/// EDN round-trip through a tag that will never resolve, and (unlike before this strike)
-/// no FOREIGN `ForeignRecord` either.
+/// Strike B3 item 2 closed this site's gap: a JSON parse failure has no declared type of
+/// its OWN (the text never named a tag at all), but it is NOT a bare `:wat::core::Fault`
+/// any more — it routes through `EdnReadErrorKind::Other` into the declared
+/// `:wat::edn::ReadError` catch-all (`wat/edn.wat`), the SAME wrap `read_edn_caps` already
+/// used for its own unparseable-frame case.
 #[test]
-fn site4_read_json_malformed_is_a_real_fault_not_foreign() {
+fn site4_read_json_malformed_is_the_declared_edn_read_error() {
     let v = call_beside_value(file!(), ":user::read-json-malformed")
         .expect(":user::read-json-malformed must run and return the cause, never raise");
     match &v {
         Value::Aggregate(a) => assert_eq!(
             a.class.as_ref(),
-            "wat::core::Fault",
-            "site4: a JSON parse failure has no declared type behind it — the documented \
-             shape is a real Fault (got class {:?})",
+            "wat::edn::ReadError",
+            "site4: a JSON parse failure routes through the declared :wat::edn::ReadError \
+             catch-all now, not a Fault stand-in (got class {:?})",
             a.class
         ),
         Value::wat__edn__ForeignRecord(_) => {
             panic!("site4: the cause is a foreign, dynamic ForeignRecord — the exact mask \
                     excursus 003 exists to kill")
         }
-        other => panic!("site4: expected a typed Aggregate Fault; got {other:?}"),
+        other => panic!("site4: expected a typed Aggregate :wat::edn::ReadError; got {other:?}"),
     }
 }

@@ -228,42 +228,32 @@ fn read_json_outcome_value(value: Value) -> Value {
 /// `ReadJsonOutcome::Malformed [cause]` / `ReadForeignOutcome::Malformed [cause]` — the
 /// JSON/EDN text did not parse, or the parsed JSON did not decode to a runtime value.
 ///
-/// `wat_edn::JsonError` (the error `from_json_string` raises) and `EdnReadError` CANNOT impl
-/// `WatError` here in general (the orphan rule), and in practice never get the chance: by the
-/// time this function runs, the caller has already `.to_string()`'d the error — the structure
-/// was lost ONE LAYER UP, at `eval_edn_read_json`/`eval_edn_read_foreign`'s `Err(e) =>` arms
-/// (out of excursus 003 strike B1's declared scope: items 1–6 name four wire SHAPES, not that
-/// upstream stringification).
-///
-/// Excursus 003 strike B1, item 5: measured, not guessed — the old strict→foreign decode
-/// ladder this function used to run was decoding a synthetic `FlatMessage` tagged
-/// "JsonReadError"/"ForeignReadError", and NEITHER is a declared wat record
-/// (`grep -rn "JsonReadError\|ForeignReadError" wat/` finds nothing): strict decode could
-/// never succeed, so the ladder always fell to FOREIGN. Building a `:wat::core::Fault`
-/// DIRECTLY from the message and the raising site's own span (no EDN round-trip through a tag
-/// that will never be registered) is the honest shape for a genuinely flat failure — not a
-/// degraded "decode failed" fallback. A `Fault` satisfies `:wat::core::Error` structurally, so
-/// the declared `cause <- :wat::core::Error` field is never lied to.
-fn tagged_read_outcome_malformed(
-    type_path: &str,
-    message: &str,
-    list_span: &crate::span::Span,
-) -> Value {
-    let cause = crate::runtime::fault_value(message.to_string(), Some(list_span.clone()));
+/// Excursus 003 strike B3 item 2: `cause` now holds the REAL `:wat::edn::<Kind>` record
+/// (`EdnReadError::to_record`, T2's declared shape, `wat/edn.wat`) instead of a
+/// `:wat::core::Fault` built from `.to_string()`'d prose under a synthetic tag
+/// (`JsonReadError`/`ForeignReadError`) that was never declared (B1's measurement still
+/// holds: `grep -rn "JsonReadError\|ForeignReadError" wat/` finds nothing — the cure is
+/// routing through the EXISTING declared shape, not minting a new one). Both call sites
+/// now hand this an `EdnReadError` directly: the `edn_to_value`/`edn_to_value_foreign`
+/// decode-failure arm's `EdnReadError` passes straight through; the JSON-text/EDN-text
+/// parse-failure arm wraps the foreign `wat_edn::JsonError` / parse error (measured: NOT
+/// an `EdnReadError` — a different, un-spanned error family from the `wat-edn` crate's own
+/// JSON bridge / reader) in `EdnReadErrorKind::Other`, the SAME wrap `read_edn_caps` already
+/// uses for its own `wat_edn::parse_owned` failure (above, `EdnReadError { span:
+/// rust_caller_span!(), kind: Other(...) }`) — `wat/edn.wat`'s own doc on the resulting
+/// `:wat::edn::ReadError` names "an unparseable frame" as exactly this catch-all's job, so
+/// no second declaration is needed.
+fn tagged_read_outcome_malformed(type_path: &str, cause: &EdnReadError) -> Value {
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
         type_path: type_path.into(),
         variant_name: "Malformed".into(),
         names: crate::runtime::builtin_enum_variant_names(type_path, "Malformed"),
-        fields: vec![cause],
+        fields: vec![cause.to_record()],
     }))
 }
 
-fn read_json_outcome_malformed(
-    message: &str,
-    _sym: &SymbolTable,
-    list_span: &crate::span::Span,
-) -> Value {
-    tagged_read_outcome_malformed(READ_JSON_OUTCOME_TYPE, message, list_span)
+fn read_json_outcome_malformed(cause: &EdnReadError) -> Value {
+    tagged_read_outcome_malformed(READ_JSON_OUTCOME_TYPE, cause)
 }
 
 /// `(:wat::edn::read-json s)` → `:wat::edn::ReadJsonOutcome`. Arc 278 Stone 1 (`wat --mcp`) —
@@ -295,9 +285,18 @@ pub fn eval_edn_read_json(
     let value = match wat_edn::from_json_string(&s) {
         Ok(owned) => match edn_to_value(&owned, types, ctx) {
             Ok(v) => read_json_outcome_value(v),
-            Err(e) => read_json_outcome_malformed(&e.to_string(), sym, list_span),
+            Err(e) => read_json_outcome_malformed(&e),
         },
-        Err(e) => read_json_outcome_malformed(&e.to_string(), sym, list_span),
+        Err(e) => {
+            // `wat_edn::JsonError` is a foreign, un-spanned error family — not an
+            // `EdnReadError` — so it carries no location of its own; `rust_caller_span!()`
+            // is the raising Rust site, same convention `read_edn_caps` uses above.
+            let cause = EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::Other(e.to_string()),
+            };
+            read_json_outcome_malformed(&cause)
+        }
     };
     Ok(crate::value::TrackedValue::new(
         value,
@@ -343,17 +342,16 @@ pub fn eval_edn_read_foreign(
     let value = match wat_edn::parse_owned(&s) {
         Ok(edn) => match edn_to_value_foreign(&edn, types, ctx) {
             Ok(v) => tagged_read_outcome_value(READ_FOREIGN_OUTCOME_TYPE, v),
-            Err(e) => tagged_read_outcome_malformed(
-                READ_FOREIGN_OUTCOME_TYPE,
-                &e.to_string(),
-                list_span,
-            ),
+            Err(e) => tagged_read_outcome_malformed(READ_FOREIGN_OUTCOME_TYPE, &e),
         },
-        Err(e) => tagged_read_outcome_malformed(
-            READ_FOREIGN_OUTCOME_TYPE,
-            &format!("EDN parse error: {e}"),
-            list_span,
-        ),
+        Err(e) => {
+            // Same wrap as `read_edn_caps`'s own `wat_edn::parse_owned` failure above.
+            let cause = EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")),
+            };
+            tagged_read_outcome_malformed(READ_FOREIGN_OUTCOME_TYPE, &cause)
+        }
     };
     Ok(crate::value::TrackedValue::new(
         value,
