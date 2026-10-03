@@ -1,7 +1,7 @@
 ;; Probe 2: open extension — per-class impl defined AFTER dispatcher still routes.
 (:wat::core::defrecord :myapp::Voltage [magnitude <- wat.type/f64])
 
-(:wat::core::defn :myapp::Formattable::format
+(:wat::core::defn :myapp::Formattable/format
   [self <- wat.type/Record] -> wat.type/String
   (:wat::core::let
     [classifier    (:wat::holon::extract-classifier self)
@@ -14,4 +14,4 @@
   "voltage-after-dispatcher")
 
 (:wat::core::defn :user::compute [] -> wat.type/String
-  (:myapp::Formattable::format (:myapp::Voltage :magnitude 5.0)))
+  (:myapp::Formattable/format (:myapp::Voltage :magnitude 5.0)))

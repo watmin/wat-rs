@@ -1,7 +1,7 @@
 ;; Probe 3: missing impl is OBSERVABLE error (no per-class impl for Unhandled).
 (:wat::core::defrecord :myapp::Unhandled [v <- wat.type/i64])
 
-(:wat::core::defn :myapp::Formattable::format
+(:wat::core::defn :myapp::Formattable/format
   [self <- wat.type/Record] -> wat.type/String
   (:wat::core::let
     [classifier    (:wat::holon::extract-classifier self)
@@ -10,4 +10,4 @@
     (:wat::core::apply  mangled-kw [self])))
 
 (:wat::core::defn :user::compute [] -> wat.type/String
-  (:myapp::Formattable::format (:myapp::Unhandled :v 42)))
+  (:myapp::Formattable/format (:myapp::Unhandled :v 42)))

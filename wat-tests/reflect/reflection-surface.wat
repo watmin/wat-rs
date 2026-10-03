@@ -18,15 +18,15 @@
 
 ;; render-doc renders metadata-of into a human String (with newlines); the caller
 ;; prints it. A String IS a clean EDN value — the newlines render on println.
-;; "lowercase" proves the PROSE is rendered (not just the name); "Bytes/to-hex"
-;; proves the name/signature line is rendered.
+;; "lowercase" proves the PROSE is rendered (not just the name); ":wat::bytes::to-hex"
+;; proves the name line is rendered. Measured render-doc text starts with that name.
 (:wat::test::deftest :wat-tests::reflect::render-doc-of-bytes-to-hex
   
   (:wat::core::let
     [rendered (:wat::core::render-doc :wat::bytes::to-hex)]
     (:wat::core::do
       (:wat::test::assert-contains rendered "lowercase")
-      (:wat::test::assert-contains rendered "Bytes/to-hex")
+      (:wat::test::assert-contains rendered ":wat::bytes::to-hex")
       ;; @see is rendered end-to-end: to-hex's "See also" points at its inverse,
       ;; from-hex — proving @see is declared (corpus), rendered (render-doc), and
       ;; checked (the dangling-ref test) on the pilot, not carried-but-dark.

@@ -10,7 +10,7 @@
   [self <- wat.type/Record] -> wat.type/String
   "celsius-formatted")
 
-(:wat::core::defn :myapp::Formattable::format
+(:wat::core::defn :myapp::Formattable/format
   [self <- wat.type/Record] -> wat.type/String
   (:wat::core::let
     [classifier    (:wat::holon::extract-classifier self)
@@ -22,7 +22,7 @@
   (:wat::core::let
     [v  (:myapp::Voltage :magnitude 5.0)
      c  (:myapp::Celsius :degrees 20.0)
-     vf (:myapp::Formattable::format v)
-     cf (:myapp::Formattable::format c)
+     vf (:myapp::Formattable/format v)
+     cf (:myapp::Formattable/format c)
      joined (:wat::string::concat vf "|")]
     (:wat::string::concat joined cf)))

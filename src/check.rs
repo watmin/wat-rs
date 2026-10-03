@@ -23458,7 +23458,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
             params: vec![t_var()],
-            ret: t_var(),
+            ret: TypeExpr::Parametric {
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":K".into())],
+            },
             rest_param_type: None,
         },
     );
@@ -23468,7 +23471,10 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             type_param_bounds: vec![None],
             params: vec![t_var()],
-            ret: t_var(),
+            ret: TypeExpr::Parametric {
+                head: "wat::type::Vector".into(),
+                args: vec![TypeExpr::Path(":V".into())],
+            },
             rest_param_type: None,
         },
     );

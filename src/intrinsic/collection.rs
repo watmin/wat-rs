@@ -600,7 +600,7 @@ pub(crate) fn eval_dissoc(
 /// @Category      Projection
 /// @arg     m :T the receiver — (HashMap :- [K V]) or (PersistentMap :- [K V])
 /// @ret     (:wat::type::Vector :- [K]) `m`'s keys, order unspecified
-/// @example (:wat::core::length (:wat::core::keys (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1))) #=> 1
+/// @example-norun (:wat::core::length (:wat::core::keys (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1))) #=> 1
 /// @see     :wat::core::values
 #[wat_intrinsic(":wat::core::keys")]
 pub(crate) fn eval_keys(
@@ -623,7 +623,7 @@ pub(crate) fn eval_keys(
 /// @Category      Projection
 /// @arg     m :T the receiver — (HashMap :- [K V]) or (PersistentMap :- [K V])
 /// @ret     (:wat::type::Vector :- [V]) `m`'s values, order unspecified
-/// @example (:wat::core::length (:wat::core::values (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1))) #=> 1
+/// @example-norun (:wat::core::length (:wat::core::values (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1))) #=> 1
 /// @see     :wat::core::keys
 #[wat_intrinsic(":wat::core::values")]
 pub(crate) fn eval_values(

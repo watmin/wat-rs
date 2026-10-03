@@ -73,9 +73,8 @@
 ;; :t::svc/add -> :t::svc::add
 ;; :t::svc/plain -> :t::svc::plain
 ;; :t::worker/start -> :t::worker::start
-;; :myapp::Formattable/format -> :myapp::Formattable::format
-;; :wat-tests::holon::Reject/bundle-or-fail -> :wat-tests::holon::Reject::bundle-or-fail
-;; :wat-tests::holon::Reject/project-bundle-or-fail -> :wat-tests::holon::Reject::project-bundle-or-fail
+;; Formattable/format and Reject/{bundle-or-fail,project-bundle-or-fail} stay `/`.
+;; The member-join wall reads Pascal::lowercase as Type/member.
 
 (:wat::core::defn :user::rename-all
   [src <- wat.type/String

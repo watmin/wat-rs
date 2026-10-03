@@ -295,8 +295,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // (name-only rename; the iteration-order argument is unchanged).
     // Arc 255 Stone the-registry-answers-first-wave-2 — RETIRED. The fact this guard carried
     // (`total: true`, alongside the `pure`/`deterministic` above it) now lives at each of the
-    // four verbs' own registration (`src/intrinsic/hashmap.rs:206,233`, `src/intrinsic/map.rs:
-    // 172,190`) as `@Totality Total` — re-derived from `hashmap_keys_inner`/`hashmap_values_inner`/
+    // four verbs' own registration (`eval_keys` / `eval_values` in
+    // `src/intrinsic/collection.rs`) as `@Totality Total` — re-derived from `hashmap_keys_inner`/`hashmap_values_inner`/
     // `persistentmap_keys_inner`/`persistentmap_values_inner` (`src/collection/eval.rs`): each
     // verb's `other =>` `TypeMismatch` arm is checker-impossible for a well-typed container
     // argument. Confirmed unchanged. The registry consult below now answers for all four directly.
