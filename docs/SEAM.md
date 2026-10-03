@@ -59,6 +59,11 @@ false timeouts). **"Pre-existing" needs the prior green floor's line for that te
 
 ### The rulings, newest first (the full record: `FINDING-the-shape-of-a-declared-signature.md`)
 
+- **The symbol slash rule (2026-10-03):** the first `/` partitions namespace from name; every later `/` is a name
+  character (`wat.core//` is `{wat.core, /}`; `u/pathological/name//foo` is `{u, pathological/name//foo}`). A binder
+  position is `{$bound, <whole spelling>}` whatever its slashes; a slashed body symbol can name a local. (255.88.)
+- **P1 (2026-10-03):** the converted stdlib's residual startup cost (~0.9 s on a reachability shard, after cures that
+  made it faster than the morning baseline) is accepted and recorded; the larger win is a separate design.
 - **G1 (2026-10-02):** collection operations exist **only** as polymorphic `wat.core/` verbs (`get`, `conj`, `contains?`,
   `assoc`, `dissoc`, `keys`, `values`, `length`, `empty?`, `concat`). Every `:wat::core::X/method` collection name and
   every per-type collection namespace twin (`wat.vector/get`, `wat.hashmap/get`, `wat.hashset/contains?`, ~800 uses)
