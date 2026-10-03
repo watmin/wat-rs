@@ -1,0 +1,17 @@
+#wat.runtime/MalformedForm {
+  :message "malformed :wat::string::code-point-at form: index out of range: i=99, char-length=5; require 0 <= i < char-length"
+  :location #wat.core/Span {
+    :file "tests/resolve/probe_little_wat_bits_and_code_point.wat"
+    :line 38
+    :col 3
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 38
+        :col 43
+      }
+    }
+  }
+  :causes []
+  :head ":wat::string::code-point-at"
+  :reason "index out of range: i=99, char-length=5; require 0 <= i < char-length"
+}

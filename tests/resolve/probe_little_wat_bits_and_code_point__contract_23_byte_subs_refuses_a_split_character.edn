@@ -1,0 +1,17 @@
+#wat.runtime/MalformedForm {
+  :message "malformed :wat::string::byte-subs form: byte range [1, 2) is out of range or not on a character boundary: byte-length=3; require 0 <= start <= end <= byte-length"
+  :location #wat.core/Span {
+    :file "tests/resolve/probe_little_wat_bits_and_code_point.wat"
+    :line 59
+    :col 55
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 59
+        :col 89
+      }
+    }
+  }
+  :causes []
+  :head ":wat::string::byte-subs"
+  :reason "byte range [1, 2) is out of range or not on a character boundary: byte-length=3; require 0 <= start <= end <= byte-length"
+}

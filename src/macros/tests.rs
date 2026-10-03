@@ -1442,9 +1442,11 @@ fn macro_return_naming_a_user_type_is_malformed() {
             kind: MacroErrorKind::MalformedDefmacro { reason },
             ..
         } => {
-            assert!(
-                reason.contains("`:user::P` is a user-defined type"),
-                "reason must name the rule and the type; got: {reason}"
+            assert_eq!(
+                reason,
+                "a macro returns a core-language value; `:user::P` is a user-defined type, \
+                 which does not exist when a macro expands",
+                "reason must name the rule and the type"
             );
         }
         other => panic!("expected MalformedDefmacro; got: {other:?}"),
@@ -1459,9 +1461,14 @@ fn macro_return_naming_a_user_type_is_malformed() {
             kind: MacroErrorKind::MalformedDefmacro { reason },
             ..
         } => {
-            assert!(
-                reason.contains("`:user::P`"),
-                "a Vector of a user record names that record; got: {reason}"
+            // A Vector of a user record names that same record — the message is identical to
+            // the bare-return case above because `user_defined_return_type` reports the SAME
+            // offending path regardless of nesting (arg of a Parametric type).
+            assert_eq!(
+                reason,
+                "a macro returns a core-language value; `:user::P` is a user-defined type, \
+                 which does not exist when a macro expands",
+                "a Vector of a user record names that record"
             );
         }
         other => panic!("expected MalformedDefmacro; got: {other:?}"),

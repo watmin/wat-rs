@@ -87,12 +87,12 @@ fn contract_08_shift_count_masks_to_six_bits() {
 
 #[test]
 fn contract_09_code_point_at_indexes_by_character() {
-    assert_eq!(eval_i64(":user::c09").expect("code-point-at"), 101, "'e' in \"hello\"");
+    assert_eq!(eval_i64(":user::c09").expect("code-point-at"), 101, "the character e in \"hello\"");
 }
 
 #[test]
 fn contract_10_code_point_at_zero() {
-    assert_eq!(eval_i64(":user::c10").expect("code-point-at"), 65, "'A'");
+    assert_eq!(eval_i64(":user::c10").expect("code-point-at"), 65, "the character A");
 }
 
 /// Out of range is LOUD. A silent 0 would be indistinguishable from a NUL byte, which is
@@ -100,10 +100,10 @@ fn contract_10_code_point_at_zero() {
 #[test]
 fn contract_11_code_point_at_past_the_end_errors() {
     let err = eval_i64(":user::c11").expect_err("index 99 of a 5-character string must error");
-    let text = format!("{err:?}");
-    assert!(
-        text.contains("index out of range") && text.contains("char-length=5"),
-        "the error must name the index and the length it exceeded; got {text}"
+    wat::assert_edn_matches_file!(
+        format!("{err:?}"),
+        "probe_little_wat_bits_and_code_point__contract_11_code_point_at_past_the_end_errors.edn",
+        "the error must name the index and the length it exceeded"
     );
 }
 
@@ -111,10 +111,10 @@ fn contract_11_code_point_at_past_the_end_errors() {
 #[test]
 fn contract_12_code_point_at_negative_index_errors() {
     let err = eval_i64(":user::c12").expect_err("index -1 must error, not wrap");
-    let text = format!("{err:?}");
-    assert!(
-        text.contains("index out of range"),
-        "a negative index must be refused by the same path; got {text}"
+    wat::assert_edn_matches_file!(
+        format!("{err:?}"),
+        "probe_little_wat_bits_and_code_point__contract_12_code_point_at_negative_index_errors.edn",
+        "a negative index must be refused by the same path"
     );
 }
 
@@ -122,7 +122,7 @@ fn contract_12_code_point_at_negative_index_errors() {
 /// consumer restricted to ASCII relies on.
 #[test]
 fn contract_13_byte_at_matches_code_point_for_ascii() {
-    assert_eq!(eval_i64(":user::c13").expect("byte-at"), 101, "'e'");
+    assert_eq!(eval_i64(":user::c13").expect("byte-at"), 101, "the character e");
     assert_eq!(eval_i64(":user::c13").unwrap(), eval_i64(":user::c09").unwrap());
 }
 
@@ -148,17 +148,20 @@ fn contract_16_byte_at_reports_a_utf8_lead_byte() {
 #[test]
 fn contract_17_byte_at_past_the_end_errors() {
     let err = eval_i64(":user::c18").expect_err("index 99 of a 5-byte string must error");
-    let text = format!("{err:?}");
-    assert!(
-        text.contains("index out of range") && text.contains("byte-length=5"),
-        "the error must name the index and the length it exceeded; got {text}"
+    wat::assert_edn_matches_file!(
+        format!("{err:?}"),
+        "probe_little_wat_bits_and_code_point__contract_17_byte_at_past_the_end_errors.edn",
+        "the error must name the index and the length it exceeded"
     );
 }
 
 #[test]
 fn contract_18_byte_at_negative_index_errors() {
     let err = eval_i64(":user::c19").expect_err("index -1 must error, not wrap");
-    assert!(format!("{err:?}").contains("index out of range"));
+    wat::assert_edn_matches_file!(
+        format!("{err:?}"),
+        "probe_little_wat_bits_and_code_point__contract_18_byte_at_negative_index_errors.edn"
+    );
 }
 
 #[test]
@@ -201,15 +204,18 @@ fn contract_22_byte_subs_keeps_a_whole_character() {
 #[test]
 fn contract_23_byte_subs_refuses_a_split_character() {
     let err = eval_str(":user::c24").expect_err("[1,2) splits a 2-byte character");
-    let text = format!("{err:?}");
-    assert!(
-        text.contains("not on a character boundary"),
-        "the error must say why, not just that it failed; got {text}"
+    wat::assert_edn_matches_file!(
+        format!("{err:?}"),
+        "probe_little_wat_bits_and_code_point__contract_23_byte_subs_refuses_a_split_character.edn",
+        "the error must say why, not just that it failed"
     );
 }
 
 #[test]
 fn contract_24_byte_subs_out_of_range_errors() {
     let err = eval_str(":user::c25").expect_err("end 99 of a 5-byte string must error");
-    assert!(format!("{err:?}").contains("byte-length=5"));
+    wat::assert_edn_matches_file!(
+        format!("{err:?}"),
+        "probe_little_wat_bits_and_code_point__contract_24_byte_subs_out_of_range_errors.edn"
+    );
 }

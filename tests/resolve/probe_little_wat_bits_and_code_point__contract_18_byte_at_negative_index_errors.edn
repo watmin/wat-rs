@@ -1,0 +1,17 @@
+#wat.runtime/MalformedForm {
+  :message "malformed :wat::string::byte-at form: index out of range: i=-1, byte-length=5; require 0 <= i < byte-length"
+  :location #wat.core/Span {
+    :file "tests/resolve/probe_little_wat_bits_and_code_point.wat"
+    :line 51
+    :col 52
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
+        :line 51
+        :col 86
+      }
+    }
+  }
+  :causes []
+  :head ":wat::string::byte-at"
+  :reason "index out of range: i=-1, byte-length=5; require 0 <= i < byte-length"
+}
