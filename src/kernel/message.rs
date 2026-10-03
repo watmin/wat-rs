@@ -2602,6 +2602,100 @@ mod excursus_003_t3_gates {
         })
     }
 
+    /// Structural AST search: the first match arm whose pattern is the bare wildcard `_` —
+    /// `rm-op`'s own unreachable-op fallback convention (service.wat).
+    fn find_bracket_arm_by_wildcard<'a>(match_form: &'a WatAST) -> Option<&'a WatAST> {
+        let WatAST::List(items, _) = match_form else { return None };
+        items.iter().skip(2).find_map(|arm| {
+            let WatAST::Vector(parts, _) = arm else { return None };
+            if parts.len() != 2 {
+                return None;
+            }
+            matches!(&parts[0], WatAST::Symbol(id, _) if id.as_str() == "_").then_some(&parts[1])
+        })
+    }
+
+    /// Does `node`, or anything nested inside it, carry the keyword `kw` as a call head /
+    /// literal? Generic recursive search via [`WatAST::children`] — used to prove a subtree
+    /// carries NO `:wat::kernel::assertion-failed!` anywhere, not merely "not at the top".
+    fn ast_contains_keyword(node: &WatAST, kw: &str) -> bool {
+        if matches!(node, WatAST::Keyword(k, _) if k == kw) {
+            return true;
+        }
+        node.children().iter().any(|c| ast_contains_keyword(c, kw))
+    }
+
+    /// Excursus 003 strike B3 item 5(a) — the unreachable-op fallback arm of the
+    /// `ServiceEvent.RequestMalformed` op-dispatch (`rm-op`'s trailing `_` arm,
+    /// `wat/service.wat`) is a VALUE, not a panic. Same door as GT3c above: the generated
+    /// `:t::edn2::bag-svc::serve` function's OWN AST, extracted structurally — never a hand
+    /// copy — must show the fallback arm sending a generic `Reply::Failed` built from a
+    /// `Fault` naming the impossible op, and must carry NO `:wat::kernel::assertion-failed!`
+    /// anywhere in its body (the panic class this item kills).
+    ///
+    /// Mutation (recorded in the strike report): revert `wat/service.wat`'s fallback arm back
+    /// to `(:wat::kernel::assertion-failed! ...)` — RED, `ast_contains_keyword` finds it.
+    #[test]
+    fn b3_item5a_unreachable_op_arm_replies_failed_not_panic() {
+        let w = frozen_world();
+        let serve_fn: std::sync::Arc<Function> = w
+            .symbols
+            .functions_iter()
+            .find(|(name, _)| name.as_str() == ":t::edn2::bag-svc::serve")
+            .unwrap_or_else(|| panic!("the generated serve fn must be registered"))
+            .1
+            .clone();
+        let FunctionBody::Wat(body) = &serve_fn.body else {
+            panic!("serve's body must be a wat AST, not a native stub");
+        };
+
+        let rm_arm = find_bracket_arm_by_keyword_head(body, ":wat::spawn::ServiceEvent.RequestMalformed")
+            .unwrap_or_else(|| panic!("serve's top-level match must carry a RequestMalformed arm"));
+        let WatAST::List(rm_items, _) = rm_arm else {
+            panic!("the RequestMalformed arm's body must be a (match rm-op ...) List, got {rm_arm:?}");
+        };
+        assert!(
+            matches!(&rm_items[0], WatAST::Keyword(k, _) if k == ":wat::core::match"),
+            "expected a (:wat::core::match rm-op ...) form, got {rm_items:?}"
+        );
+        let fallback_arm = find_bracket_arm_by_wildcard(rm_arm)
+            .unwrap_or_else(|| panic!("the rm-op dispatch must carry a trailing `_` fallback arm"));
+
+        assert!(
+            !ast_contains_keyword(fallback_arm, ":wat::kernel::assertion-failed!"),
+            "the unreachable-op fallback arm must not call assertion-failed! anywhere — got {fallback_arm:?}"
+        );
+
+        let WatAST::List(let_items, _) = fallback_arm else {
+            panic!("the fallback arm's body must be a (let [...] (match (send ...) ...)) List, got {fallback_arm:?}");
+        };
+        assert!(
+            matches!(&let_items[0], WatAST::Keyword(k, _) if k == ":wat::core::let"),
+            "expected a (:wat::core::let [...] ...) form, got {let_items:?}"
+        );
+        let inner_match = let_items.get(2).unwrap_or_else(|| panic!("let form has no body: {let_items:?}"));
+        let WatAST::List(inner_items, _) = inner_match else {
+            panic!("the let body must be a (match (send ...) ...) List, got {inner_match:?}");
+        };
+        let send_call = inner_items.get(1).unwrap_or_else(|| panic!("match form has no scrutinee: {inner_match:?}"));
+        let WatAST::List(send_items, _) = send_call else {
+            panic!("the match scrutinee must be a (send ...) call, got {send_call:?}");
+        };
+        assert!(
+            matches!(&send_items[0], WatAST::Keyword(k, _) if k == ":wat::kernel::send"),
+            "expected a (:wat::kernel::send ...) call, got {send_items:?}"
+        );
+        let reply_call = send_items.get(2).unwrap_or_else(|| panic!("send call has no reply arg: {send_items:?}"));
+        let WatAST::List(reply_items, _) = reply_call else {
+            panic!("the reply must be a constructor call, got {reply_call:?}");
+        };
+        let reply_kw = match &reply_items[0] {
+            WatAST::Keyword(k, _) => k.clone(),
+            other => panic!("expected the reply ctor's keyword head, got {other:?}"),
+        };
+        assert_eq!(reply_kw, ":t::edn2::Bag::Reply.Failed", "expected the generic Reply::Failed variant");
+    }
+
     /// GT3d — one door. A grep proves nothing (it cannot see whether two decode sites share an
     /// implementation or merely look similar); this drives it: the GENERAL untrusted door
     /// (`read_edn`) and the TRUSTED wire door (`decode_trusted_wire`) are handed the IDENTICAL

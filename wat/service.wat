@@ -2011,14 +2011,30 @@
                      ;; `rm-op` is dispatched as a plain STRING equality match (each op's own arm
                      ;; is keyed on its `variant-pascal` spelling, e.g. "Put") — the trailing `_`
                      ;; is unreachable for any op this service actually declares (Rust only ever
-                     ;; names an op this service's own Op enum carries), located rather than
-                     ;; silently swallowed if that invariant is ever wrong.
+                     ;; names an op this service's own Op enum carries). Excursus 003 strike B3
+                     ;; item 5(a): unreachable-by-construction is still a CLIENT-reachable dispatch
+                     ;; arm (the op string rides the wire — `rm-op` decodes from the SAME frame a
+                     ;; client sent), so a panic here would be a client-triggerable crash if the
+                     ;; invariant were ever wrong. Made a value: reply the generic `Reply::Failed`
+                     ;; naming the impossible op and keep serving, exactly like the sibling
+                     ;; `:Malformed` arm just above — never silently swallowed (the Failure's
+                     ;; message names `rm-op`), never a crash either. `Reply::Failed`'s `cause`
+                     ;; is declared `:wat::kernel::Failure` (NOT a bare `Fault` — measured via a
+                     ;; failed freeze: every `Reply.Failed` constructor across the corpus wants
+                     ;; the full envelope), so this reuses `:wat::kernel::message-only-failure`,
+                     ;; the SAME constructor `:Malformed`'s own `cause` is typed to receive.
                      [:wat::spawn::ServiceEvent.RequestMalformed {:idx idx :op rm-op :path rm-path :expected rm-expected :got rm-got}
                        (:wat::core::match rm-op
                          ~@rm-serve-arms
-                         [_ (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
-                             "defservice serve: RequestMalformed names an op this service does not serve: {rm-op}"
-                             :rm-op rm-op))])]
+                         [_ (:wat::core::let
+                              [unreachable-op-cause (:wat::kernel::message-only-failure (:wat::string::interpolate
+                                "defservice serve: RequestMalformed names an op this service does not serve: {rm-op}"
+                                :rm-op rm-op))]
+                              (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw {:cause unreachable-op-cause}))
+                                [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
+                                [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                                [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
+                                [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)]))])]
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
                      ;; client (reply `Reply::Failed[cause]` — its generated method raises with the
