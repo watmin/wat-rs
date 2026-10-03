@@ -22,11 +22,16 @@
 ;;   `OutOfScope`). `cause` types `:wat::core::Value` here: no common shape
 ;;   across the three, decode is tag-driven regardless of the declared field
 ;;   type (S1's `EnsureFnInvalid.reason` precedent).
-;; - `VerificationFailed { path, cause: HashError }` — `HashError`
-;;   (`src/hash.rs:471`) is ALSO a genuine sum type with the SAME flat
-;;   `wat.kernel` per-variant tagging (`edn_tag`) — declared as eight
-;;   independent flat records in `wat/kernel/diagnostics.wat`. `cause` types
-;;   `:wat::core::Value` for the same reason.
+;; - `VerificationFailed { path, cause: HashError }` — excursus 003 strike B2,
+;;   item 3 CLOSED this one: `HashError` (`src/hash.rs`) is now its own
+;;   `:wat::core::Error`-floored `defrecord` (`message`/`location`/`kind`,
+;;   `wat/kernel/diagnostics.wat`) wrapping the genuine `HashErrorKind`
+;;   `defenum` (dotted `#wat.kernel/HashErrorKind.<Variant>` tags). `cause`
+;;   types `:wat::core::Error` here — the SAME "a further, not-yet-concretely-
+;;   named, Error-conforming value" slot `Parse.cause` below already uses —
+;;   not `:wat::core::Value`: `HashError` genuinely, structurally satisfies
+;;   the surface now (an Aggregate with the floor fields), so decode-time
+;;   `conforms_to_surface` resolves it.
 ;;
 ;; `Parse { path, cause: ParseError }` (`#[to_edn(key = "cause")]`
 ;; `#[to_edn(via = crate::edn::contract::error_edn_of)]`) recurses through the
@@ -41,10 +46,8 @@
 ;; change needed here.
 ;;
 ;; Loads after `wat/core.wat` and after `wat/kernel/diagnostics.wat` (needs
-;; `:wat::kernel::NotFound`/`LoadOther`/`OutOfScope`/`UnsupportedAlgorithm`/
-;; `Mismatch`/`UnsupportedSignatureAlgorithm`/`InvalidBase64`/
-;; `InvalidSignatureLength`/`InvalidPubKeyLength`/`InvalidPubKey`/
-;; `SignatureMismatch`). See `src/load/stdlib.rs`.
+;; `:wat::kernel::NotFound`/`LoadOther`/`OutOfScope`/`HashErrorKind`/
+;; `HashError`). See `src/load/stdlib.rs`.
 
 ;; The `load!` form was malformed — wrong arity, wrong interface keyword,
 ;; wrong value type, unknown verification algorithm, etc.
@@ -110,6 +113,6 @@
 (:wat::core::defrecord :wat::load::VerificationFailed
   [message <- :wat::core::String
    location <- :wat::core::Span
-   
+
    path <- :wat::core::String
-   cause <- :wat::core::Value])
+   cause <- :wat::core::Error])

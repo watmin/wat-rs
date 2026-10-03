@@ -198,60 +198,69 @@
   [path  <- :wat::core::String
    scope <- :wat::core::String])
 
-;; ─── Excursus 003 S2: HashError's eight flat records ────────────────────────
+;; ─── Excursus 003 strike B2, item 3: :wat::kernel::HashErrorKind / HashError ──
 ;;
-;; Mirrors `crate::hash::HashError` (`src/hash.rs:471`), the payload of
-;; `LoadErrorKind::VerificationFailed.cause` (`wat/load-errors.wat`) and (out of
-;; this strike's scope) `RuntimeErrorKind::EvalVerificationFailed.error`. Its
-;; hand-written `ToEdn` impl (`src/hash.rs:563`) also calls `edn_tag` — the
-;; SAME flat, `wat.kernel`-namespaced, one-tag-per-variant shape as
-;; `LoadFetchError` above, for the same reason (no union/sum type; a `defenum`
-;; would register under a path undotted-tag lookup never consults). Eight
-;; independent flat records. `usize` fields (`expected`/`got`) type
-;; `:wat::core::i64`, matching every other `usize` field in this sweep.
+;; Mirrors `crate::hash::HashErrorKind` / `HashError` (`src/hash.rs`). S2
+;; declared `HashError`'s eight variants as independent flat records (one
+;; `edn_tag` per variant, undotted) — the same shape `LoadFetchError` above
+;; still has. B2 closes it for HashError: `HashErrorKind` is now ONE
+;; `defenum`, `#[derive(ToEdn)]`'s `qualified` directive dot-joining every
+;; variant's wire tag (`#wat.kernel/HashErrorKind.<Variant>`), registered
+;; with `wat_enum_register_from!` — no hand-rolled writer. `usize` fields
+;; (`expected`/`got`) type `:wat::core::i64`, matching every other `usize`
+;; field in this sweep.
 ;;
-;; `LoadErrorKind::VerificationFailed.cause` is declared `:wat::core::Value`,
-;; same rationale as `LoadFetchError`/`EnsureFnInvalidReason` above.
+;; `HashError` ALSO gains the `:wat::core::Error` floor (`message`/
+;; `location`) around `kind` — it is a `defrecord` (an Aggregate), not the
+;; `defenum` itself: `struct_satisfies_surface` (`src/types/surface.rs`) and
+;; `conforms_to_surface` (`src/edn/render.rs`) both check ONLY Aggregate
+;; fields for a Field-surface member, never a bare enum's variant fields, so
+;; the union data had to move OFF the Error-typed slot and into this
+;; wrapper's own `kind` field for `HashError` to structurally satisfy
+;; `:wat::core::Error`. `location` is the verifying call's own span (threaded
+;; in via `HashError::new` at its 8 construction sites — `src/runtime.rs`,
+;; `src/freeze.rs`, `src/holon/coincident.rs`, `src/load/loader.rs`), the
+;; SAME span value the OUTER `LoadError`/`RuntimeError` already raises with.
+;;
+;; `LoadErrorKind::VerificationFailed.cause` / `RuntimeErrorKind::
+;; EvalVerificationFailed.cause` are now typed `:wat::core::Error` (not
+;; `:wat::core::Value`) — `EvalVerificationFailed.cause` held B1's interim
+;; `:wat::core::Fault` until this strike closed the gap that section's old
+;; comment named; see `src/value/runtime_records.rs`'s `hash_error_value`.
 
+;; The 8 structural failure modes for hash / signature verification.
+(:wat::core::defenum :wat::kernel::HashErrorKind :wat::enum::Pure
 ;; The requested digest algorithm is not supported (this build supports sha256).
-(:wat::core::defrecord :wat::kernel::UnsupportedAlgorithm
-  [algo <- :wat::core::String])
-
+  :UnsupportedAlgorithm         [algo     <- :wat::core::String]
 ;; A computed digest did not match the expected one.
-(:wat::core::defrecord :wat::kernel::Mismatch
-  [algo     <- :wat::core::String
-   expected <- :wat::core::String
-   actual   <- :wat::core::String])
-
+  :Mismatch                     [algo     <- :wat::core::String
+                                  expected <- :wat::core::String
+                                  actual   <- :wat::core::String]
 ;; The requested signature algorithm is not supported (this build supports ed25519).
-(:wat::core::defrecord :wat::kernel::UnsupportedSignatureAlgorithm
-  [algo <- :wat::core::String])
-
+  :UnsupportedSignatureAlgorithm [algo    <- :wat::core::String]
 ;; A base64-encoded field failed to decode.
-(:wat::core::defrecord :wat::kernel::InvalidBase64
-  [field  <- :wat::core::String
-   reason <- :wat::core::String])
-
+  :InvalidBase64                [field  <- :wat::core::String
+                                  reason <- :wat::core::String]
 ;; A decoded signature's byte length did not match the algorithm's expectation.
-(:wat::core::defrecord :wat::kernel::InvalidSignatureLength
-  [algo     <- :wat::core::String
-   expected <- :wat::core::i64
-   got      <- :wat::core::i64])
-
+  :InvalidSignatureLength       [algo     <- :wat::core::String
+                                  expected <- :wat::core::i64
+                                  got      <- :wat::core::i64]
 ;; A decoded public key's byte length did not match the algorithm's expectation.
-(:wat::core::defrecord :wat::kernel::InvalidPubKeyLength
-  [algo     <- :wat::core::String
-   expected <- :wat::core::i64
-   got      <- :wat::core::i64])
-
+  :InvalidPubKeyLength          [algo     <- :wat::core::String
+                                  expected <- :wat::core::i64
+                                  got      <- :wat::core::i64]
 ;; A decoded public key's bytes do not form a valid key for the algorithm.
-(:wat::core::defrecord :wat::kernel::InvalidPubKey
-  [algo   <- :wat::core::String
-   reason <- :wat::core::String])
-
+  :InvalidPubKey                [algo   <- :wat::core::String
+                                  reason <- :wat::core::String]
 ;; A signature verification check failed (the bytes don't verify against the key).
-(:wat::core::defrecord :wat::kernel::SignatureMismatch
-  [algo <- :wat::core::String])
+  :SignatureMismatch            [algo <- :wat::core::String])
+
+;; The `:wat::core::Error`-floored wrapper: `message`/`location` plus the
+;; structural failure itself.
+(:wat::core::defrecord :wat::kernel::HashError
+  [message  <- :wat::core::String
+   location <- :wat::core::Span
+   kind     <- :wat::kernel::HashErrorKind])
 
 ;; ─── Arc 296: :wat::kernel::StartupError — RETIRED (excursus 003 strike A, F7) ───
 ;;

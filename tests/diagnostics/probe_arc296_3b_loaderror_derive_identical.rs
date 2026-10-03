@@ -33,7 +33,7 @@
 //! - `VerificationFailed.err` uses plain `to_edn` on `HashError`.
 
 use std::sync::Arc;
-use wat::hash::HashError;
+use wat::hash::{HashError, HashErrorKind};
 use wat::load::loader::{LoadError, LoadErrorKind, LoadFetchError};
 use wat::span::Span;
 use wat::edn::contract::ToEdn;
@@ -140,7 +140,7 @@ fn probe_verification_failed_known_span() {
         known_span(),
         LoadErrorKind::VerificationFailed {
             path: "foo.wat".to_string(),
-            err: HashError::UnsupportedAlgorithm { algo: "SHA1".to_string() },
+            err: HashError::new(known_span(), HashErrorKind::UnsupportedAlgorithm { algo: "SHA1".to_string() }),
         },
     );
     wat::assert_edn_matches_file!(write(&err), "probe_arc296_3b_loaderror_derive_identical__verification_failed.edn", "VerificationFailed with known span");

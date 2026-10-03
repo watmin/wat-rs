@@ -14270,10 +14270,12 @@ fn eval_form_digest_shared(
         };
         let algo = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex = resolve_verify_payload(&args[2], &args[3], env, sym)?;
-        crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim()).map_err(|err| {
+        crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim()).map_err(|kind| {
             RuntimeError::new(
                 list_span.clone(),
-                RuntimeErrorKind::EvalVerificationFailed { err },
+                RuntimeErrorKind::EvalVerificationFailed {
+                    err: crate::hash::HashError::new(list_span.clone(), kind),
+                },
             )
         })?;
         parse_and_run(&source, env, sym)
@@ -14343,10 +14345,12 @@ fn eval_form_signed_shared(
         let pk_b64 = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast = parse_program(&source, op)?;
         crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim()).map_err(
-            |err| {
+            |kind| {
                 RuntimeError::new(
                     list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
+                    RuntimeErrorKind::EvalVerificationFailed {
+                        err: crate::hash::HashError::new(list_span.clone(), kind),
+                    },
                 )
             },
         )?;

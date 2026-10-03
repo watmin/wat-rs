@@ -28,7 +28,7 @@
 // wat's reader — Rust-level data, not wat-under-test (mirrors probe_arc237_stone4_rich_errors.rs).
 
 use std::sync::Arc;
-use wat::hash::HashError;
+use wat::hash::{HashError, HashErrorKind};
 use wat::macros::{MacroError, MacroErrorKind};
 use wat::runtime::{
     ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot,
@@ -180,7 +180,7 @@ fn probe_user_main_missing() {
 #[test]
 fn probe_eval_verification_failed() {
     let err = make(RuntimeErrorKind::EvalVerificationFailed {
-        err: HashError::UnsupportedAlgorithm { algo: "SHA1".into() },
+        err: HashError::new(s(), HashErrorKind::UnsupportedAlgorithm { algo: "SHA1".into() }),
     });
     wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__eval_verification_failed.edn");
 }

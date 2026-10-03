@@ -187,10 +187,12 @@ pub(crate) fn eval_form_digest_coincident_shared(
         let algo_a = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(src_a.as_bytes(), &algo_a, hex_a.trim()).map_err(
-            |err| {
+            |kind| {
                 RuntimeError::new(
                     list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
+                    RuntimeErrorKind::EvalVerificationFailed {
+                        err: crate::hash::HashError::new(list_span.clone(), kind),
+                    },
                 )
             },
         )?;
@@ -205,10 +207,12 @@ pub(crate) fn eval_form_digest_coincident_shared(
         let algo_b = parse_verify_algo_keyword(&args[5], "digest-", op)?;
         let hex_b = resolve_verify_payload(&args[6], &args[7], env, sym)?;
         crate::hash::verify_source_hash(src_b.as_bytes(), &algo_b, hex_b.trim()).map_err(
-            |err| {
+            |kind| {
                 RuntimeError::new(
                     list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
+                    RuntimeErrorKind::EvalVerificationFailed {
+                        err: crate::hash::HashError::new(list_span.clone(), kind),
+                    },
                 )
             },
         )?;
@@ -256,10 +260,12 @@ pub(crate) fn eval_form_signed_coincident_shared(
         let pk_a = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast_a = parse_program(&src_a, op)?;
         crate::hash::verify_program_signature(&ast_a, &algo_a, sig_a.trim(), pk_a.trim()).map_err(
-            |err| {
+            |kind| {
                 RuntimeError::new(
                     list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
+                    RuntimeErrorKind::EvalVerificationFailed {
+                        err: crate::hash::HashError::new(list_span.clone(), kind),
+                    },
                 )
             },
         )?;
@@ -276,10 +282,12 @@ pub(crate) fn eval_form_signed_coincident_shared(
         let pk_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
         let ast_b = parse_program(&src_b, op)?;
         crate::hash::verify_program_signature(&ast_b, &algo_b, sig_b.trim(), pk_b.trim()).map_err(
-            |err| {
+            |kind| {
                 RuntimeError::new(
                     list_span.clone(),
-                    RuntimeErrorKind::EvalVerificationFailed { err },
+                    RuntimeErrorKind::EvalVerificationFailed {
+                        err: crate::hash::HashError::new(list_span.clone(), kind),
+                    },
                 )
             },
         )?;

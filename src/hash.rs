@@ -313,16 +313,16 @@ fn sha256_digest(bytes: &[u8]) -> [u8; 32] {
 /// (<algo> "hex"))` verification.
 ///
 /// Supported algorithms: `sha256`. Any other algorithm name returns
-/// [`HashError::UnsupportedAlgorithm`]; add more as needed.
+/// [`HashErrorKind::UnsupportedAlgorithm`]; add more as needed.
 pub fn verify_source_hash(
     source: &[u8],
     algo: &str,
     expected_hex: &str,
-) -> Result<(), HashError> {
+) -> Result<(), HashErrorKind> {
     let actual_hex = match algo {
         "sha256" => hex_encode(&sha256_digest(source)),
         other => {
-            return Err(HashError::UnsupportedAlgorithm {
+            return Err(HashErrorKind::UnsupportedAlgorithm {
                 algo: other.to_string(),
             });
         }
@@ -330,7 +330,7 @@ pub fn verify_source_hash(
     if actual_hex.eq_ignore_ascii_case(expected_hex) {
         Ok(())
     } else {
-        Err(HashError::Mismatch {
+        Err(HashErrorKind::Mismatch {
             algo: algo.to_string(),
             expected: expected_hex.to_string(),
             actual: actual_hex,
@@ -346,13 +346,13 @@ pub fn verify_source_hash(
 /// <algo> <sig> <pubkey>))`.
 ///
 /// Supported algorithms: `ed25519`. Any other name returns
-/// [`HashError::UnsupportedSignatureAlgorithm`].
+/// [`HashErrorKind::UnsupportedSignatureAlgorithm`].
 pub fn verify_ast_signature(
     ast: &WatAST,
     algo: &str,
     sig_b64: &str,
     pubkey_b64: &str,
-) -> Result<(), HashError> {
+) -> Result<(), HashErrorKind> {
     let hash = hash_canonical_ast(ast);
     verify_hash_signature(&hash, algo, sig_b64, pubkey_b64)
 }
@@ -376,7 +376,7 @@ pub fn verify_program_signature(
     algo: &str,
     sig_b64: &str,
     pubkey_b64: &str,
-) -> Result<(), HashError> {
+) -> Result<(), HashErrorKind> {
     let hash = hash_canonical_program(forms);
     verify_hash_signature(&hash, algo, sig_b64, pubkey_b64)
 }
@@ -386,10 +386,10 @@ fn verify_hash_signature(
     algo: &str,
     sig_b64: &str,
     pubkey_b64: &str,
-) -> Result<(), HashError> {
+) -> Result<(), HashErrorKind> {
     match algo {
         "ed25519" => verify_ed25519(message, sig_b64, pubkey_b64),
-        other => Err(HashError::UnsupportedSignatureAlgorithm {
+        other => Err(HashErrorKind::UnsupportedSignatureAlgorithm {
             algo: other.to_string(),
         }),
     }
@@ -399,29 +399,29 @@ fn verify_ed25519(
     message: &[u8],
     sig_b64: &str,
     pubkey_b64: &str,
-) -> Result<(), HashError> {
+) -> Result<(), HashErrorKind> {
     let sig_bytes = B64
         .decode(sig_b64.as_bytes())
-        .map_err(|e| HashError::InvalidBase64 {
+        .map_err(|e| HashErrorKind::InvalidBase64 {
             field: "signature",
             reason: e.to_string(),
         })?;
     let pk_bytes = B64
         .decode(pubkey_b64.as_bytes())
-        .map_err(|e| HashError::InvalidBase64 {
+        .map_err(|e| HashErrorKind::InvalidBase64 {
             field: "pub_key",
             reason: e.to_string(),
         })?;
 
     if sig_bytes.len() != ED25519_SIG_LEN {
-        return Err(HashError::InvalidSignatureLength {
+        return Err(HashErrorKind::InvalidSignatureLength {
             algo: "ed25519".into(),
             expected: ED25519_SIG_LEN,
             got: sig_bytes.len(),
         });
     }
     if pk_bytes.len() != ED25519_PUBKEY_LEN {
-        return Err(HashError::InvalidPubKeyLength {
+        return Err(HashErrorKind::InvalidPubKeyLength {
             algo: "ed25519".into(),
             expected: ED25519_PUBKEY_LEN,
             got: pk_bytes.len(),
@@ -434,7 +434,7 @@ fn verify_ed25519(
 
     let signature = Signature::from_bytes(&sig_arr);
     let verifying_key =
-        VerifyingKey::from_bytes(&pk_arr).map_err(|e| HashError::InvalidPubKey {
+        VerifyingKey::from_bytes(&pk_arr).map_err(|e| HashErrorKind::InvalidPubKey {
             algo: "ed25519".into(),
             reason: e.to_string(),
         })?;
@@ -443,7 +443,7 @@ fn verify_ed25519(
     // resistance) — stricter than verify() and the RFC 8032 default.
     verifying_key
         .verify_strict(message, &signature)
-        .map_err(|_| HashError::SignatureMismatch {
+        .map_err(|_| HashErrorKind::SignatureMismatch {
             algo: "ed25519".into(),
         })
 }
@@ -466,9 +466,16 @@ fn hex_digit(nibble: u8) -> char {
     }
 }
 
-/// Errors from hash / verification operations.
-#[derive(Debug, Clone, PartialEq)]
-pub enum HashError {
+/// Excursus 003 strike B2, item 2 — the 8 structural failure modes for hash /
+/// signature verification, now a genuine wat `defenum`
+/// (`:wat::kernel::HashErrorKind`, `wat/kernel/diagnostics.wat`,
+/// `wat_enum_register_from!`). Replaces the sweep's 8 independent flat
+/// records (S2) — each variant's wire tag is now DOTTED
+/// (`#wat.kernel/HashErrorKind.<Variant>`, `#[to_edn(qualified)]`) instead of
+/// flat, so [`HashError::kind`] decodes typed AS THE ENUM, not a generic map.
+#[derive(Debug, Clone, PartialEq, wat_edn::ToEdn)]
+#[to_edn(namespace = crate::error_ns::KERNEL, qualified)]
+pub enum HashErrorKind {
     UnsupportedAlgorithm {
         algo: String,
     },
@@ -503,15 +510,15 @@ pub enum HashError {
     },
 }
 
-impl fmt::Display for HashError {
+impl fmt::Display for HashErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            HashError::UnsupportedAlgorithm { algo } => write!(
+            HashErrorKind::UnsupportedAlgorithm { algo } => write!(
                 f,
                 "unsupported hash algorithm {:?} — this build supports sha256",
                 algo
             ),
-            HashError::Mismatch {
+            HashErrorKind::Mismatch {
                 algo,
                 expected,
                 actual,
@@ -520,15 +527,15 @@ impl fmt::Display for HashError {
                 "{} mismatch: expected {}, got {}",
                 algo, expected, actual
             ),
-            HashError::UnsupportedSignatureAlgorithm { algo } => write!(
+            HashErrorKind::UnsupportedSignatureAlgorithm { algo } => write!(
                 f,
                 "unsupported signature algorithm {:?} — this build supports ed25519",
                 algo
             ),
-            HashError::InvalidBase64 { field, reason } => {
+            HashErrorKind::InvalidBase64 { field, reason } => {
                 write!(f, "{} is not valid base64: {}", field, reason)
             }
-            HashError::InvalidSignatureLength {
+            HashErrorKind::InvalidSignatureLength {
                 algo,
                 expected,
                 got,
@@ -537,7 +544,7 @@ impl fmt::Display for HashError {
                 "{} signature length mismatch: expected {} bytes, got {}",
                 algo, expected, got
             ),
-            HashError::InvalidPubKeyLength {
+            HashErrorKind::InvalidPubKeyLength {
                 algo,
                 expected,
                 got,
@@ -546,82 +553,70 @@ impl fmt::Display for HashError {
                 "{} public key length mismatch: expected {} bytes, got {}",
                 algo, expected, got
             ),
-            HashError::InvalidPubKey { algo, reason } => {
+            HashErrorKind::InvalidPubKey { algo, reason } => {
                 write!(f, "{} public key rejected: {}", algo, reason)
             }
-            HashError::SignatureMismatch { algo } => {
+            HashErrorKind::SignatureMismatch { algo } => {
                 write!(f, "{} signature verification failed", algo)
             }
         }
     }
 }
 
-impl std::error::Error for HashError {}
+impl std::error::Error for HashErrorKind {}
 
-// ─── Arc 296 D1 — structured EDN form for HashError ──────────────────────────
+/// Excursus 003 strike B2, item 3 — `HashError` IS now an error: it carries
+/// the `:wat::core::Error` floor (`message`/`location`) around its
+/// [`HashErrorKind`] payload, replacing B1's interim `:wat::core::Fault`
+/// stand-in at `RuntimeErrorKind::EvalVerificationFailed.cause` /
+/// `LoadErrorKind::VerificationFailed.cause` (both retyped from
+/// `:wat::core::Value` to `:wat::core::Error` — see those files' headers).
+///
+/// `location` is the SAME span the call site that asked for verification
+/// already raises its OWN outer error with (`(:wat::eval-digest!
+/// /eval-signed!/digest-load!/signed-load!/*-coincident?)`'s list span) —
+/// threaded in at each of the 8 construction sites via [`HashError::new`],
+/// not synthesized at decode time the way `single_cause_fault` used to
+/// build a `Fault` from `err.to_string()` + that same span.
+///
+/// Structurally satisfies `:wat::core::Error`: it is an Aggregate (a
+/// `defrecord`) with `message`/`location` fields of the right types — the
+/// EXACT shape `struct_satisfies_surface` (`src/types/surface.rs`, static
+/// assignability) and `conforms_to_surface` (`src/edn/render.rs`, decode)
+/// both require. A bare `defenum` (like `HashErrorKind` above) is NEVER an
+/// Aggregate — neither check ever consults a variant's own fields for a
+/// Field-surface member — which is why the union data moved OFF the
+/// Error-typed slot and into this wrapper's `kind` field, rather than
+/// `VerificationFailed`/`EvalVerificationFailed`'s `cause` naming
+/// `HashErrorKind` directly.
+#[derive(Debug, Clone, PartialEq, wat_edn::ToEdn)]
+#[to_edn(namespace = crate::error_ns::KERNEL)]
+pub struct HashError {
+    pub message: String,
+    pub location: crate::span::Span,
+    pub kind: HashErrorKind,
+}
 
-impl crate::edn::contract::ToEdn for HashError {
-    /// `#wat.kernel/<Variant> {…}` per variant.
-    ///
-    /// String fields → `str_val`; `usize` fields → `int_val` (cast to i64).
-    /// `&'static str` fields (`field` on `InvalidBase64`) → `str_val` identically.
-    fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::edn::contract::{edn_int, edn_kw, edn_str, edn_tag};
-        use wat_edn::OwnedValue;
-        match self {
-            HashError::UnsupportedAlgorithm { algo } => edn_tag(
-                "UnsupportedAlgorithm",
-                OwnedValue::Map(vec![(edn_kw("algo"), edn_str(algo))]),
-            ),
-            HashError::Mismatch { algo, expected, actual } => edn_tag(
-                "Mismatch",
-                OwnedValue::Map(vec![
-                    (edn_kw("algo"), edn_str(algo)),
-                    (edn_kw("expected"), edn_str(expected)),
-                    (edn_kw("actual"), edn_str(actual)),
-                ]),
-            ),
-            HashError::UnsupportedSignatureAlgorithm { algo } => edn_tag(
-                "UnsupportedSignatureAlgorithm",
-                OwnedValue::Map(vec![(edn_kw("algo"), edn_str(algo))]),
-            ),
-            HashError::InvalidBase64 { field, reason } => edn_tag(
-                "InvalidBase64",
-                OwnedValue::Map(vec![
-                    (edn_kw("field"), edn_str(field)),
-                    (edn_kw("reason"), edn_str(reason)),
-                ]),
-            ),
-            HashError::InvalidSignatureLength { algo, expected, got } => edn_tag(
-                "InvalidSignatureLength",
-                OwnedValue::Map(vec![
-                    (edn_kw("algo"), edn_str(algo)),
-                    (edn_kw("expected"), edn_int(*expected as i64)),
-                    (edn_kw("got"), edn_int(*got as i64)),
-                ]),
-            ),
-            HashError::InvalidPubKeyLength { algo, expected, got } => edn_tag(
-                "InvalidPubKeyLength",
-                OwnedValue::Map(vec![
-                    (edn_kw("algo"), edn_str(algo)),
-                    (edn_kw("expected"), edn_int(*expected as i64)),
-                    (edn_kw("got"), edn_int(*got as i64)),
-                ]),
-            ),
-            HashError::InvalidPubKey { algo, reason } => edn_tag(
-                "InvalidPubKey",
-                OwnedValue::Map(vec![
-                    (edn_kw("algo"), edn_str(algo)),
-                    (edn_kw("reason"), edn_str(reason)),
-                ]),
-            ),
-            HashError::SignatureMismatch { algo } => edn_tag(
-                "SignatureMismatch",
-                OwnedValue::Map(vec![(edn_kw("algo"), edn_str(algo))]),
-            ),
-        }
+impl HashError {
+    /// The ONE door for construction — `span` is the verifying call's own
+    /// location (the same value its OUTER `LoadError`/`RuntimeError` raises
+    /// with); `message` is computed once from `kind`'s own `Display`.
+    pub fn new(span: crate::span::Span, kind: HashErrorKind) -> Self {
+        Self { message: kind.to_string(), location: span, kind }
+    }
+
+    pub fn kind(&self) -> &HashErrorKind {
+        &self.kind
     }
 }
+
+impl fmt::Display for HashError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for HashError {}
 
 #[cfg(test)]
 mod tests {
@@ -770,14 +765,14 @@ mod tests {
         let source = b"hello world";
         let wrong = "0000000000000000000000000000000000000000000000000000000000000000";
         let err = verify_source_hash(source, "sha256", wrong).unwrap_err();
-        assert!(matches!(err, HashError::Mismatch { .. }));
+        assert!(matches!(err, HashErrorKind::Mismatch { .. }));
     }
 
     #[test]
     fn unsupported_hash_algorithm_rejected() {
         let source = b"hello world";
         let err = verify_source_hash(source, "md5", "abc").unwrap_err();
-        assert!(matches!(err, HashError::UnsupportedAlgorithm { .. }));
+        assert!(matches!(err, HashErrorKind::UnsupportedAlgorithm { .. }));
     }
 
     // ─── Ed25519 AST signature — round trip + tamper ───────────────────
@@ -803,7 +798,7 @@ mod tests {
         // Verify against a DIFFERENT AST — signature must not match.
         let tampered = parse(r#"(:wat::holon::Atom "tampered")"#);
         let err = verify_ast_signature(&tampered, "ed25519", &sig_b64, &pk_b64).unwrap_err();
-        assert!(matches!(err, HashError::SignatureMismatch { .. }));
+        assert!(matches!(err, HashErrorKind::SignatureMismatch { .. }));
     }
 
     #[test]
@@ -816,7 +811,7 @@ mod tests {
         // Verify with the WRONG pub-key.
         let pk_b64 = b64(other.verifying_key().as_bytes());
         let err = verify_ast_signature(&ast, "ed25519", &sig_b64, &pk_b64).unwrap_err();
-        assert!(matches!(err, HashError::SignatureMismatch { .. }));
+        assert!(matches!(err, HashErrorKind::SignatureMismatch { .. }));
     }
 
     // ─── Ed25519 program signature — round trip + tamper ───────────────
@@ -844,7 +839,7 @@ mod tests {
         let tampered =
             crate::parse_all!(r#"(:wat::holon::Atom "a") (:wat::holon::Atom "injected")"#).unwrap();
         let err = verify_program_signature(&tampered, "ed25519", &sig_b64, &pk_b64).unwrap_err();
-        assert!(matches!(err, HashError::SignatureMismatch { .. }));
+        assert!(matches!(err, HashErrorKind::SignatureMismatch { .. }));
     }
 
     // ─── Ed25519 input validation ──────────────────────────────────────
@@ -856,7 +851,7 @@ mod tests {
         let pk_b64 = b64(sk.verifying_key().as_bytes());
         let err = verify_ast_signature(&ast, "ed25519", "not valid base64!!!", &pk_b64)
             .unwrap_err();
-        assert!(matches!(err, HashError::InvalidBase64 { field: "signature", .. }));
+        assert!(matches!(err, HashErrorKind::InvalidBase64 { field: "signature", .. }));
     }
 
     #[test]
@@ -867,7 +862,7 @@ mod tests {
         let sig_b64 = b64(&sig.to_bytes());
         let err =
             verify_ast_signature(&ast, "ed25519", &sig_b64, "not valid base64!!!").unwrap_err();
-        assert!(matches!(err, HashError::InvalidBase64 { field: "pub_key", .. }));
+        assert!(matches!(err, HashErrorKind::InvalidBase64 { field: "pub_key", .. }));
     }
 
     #[test]
@@ -880,7 +875,7 @@ mod tests {
         let err = verify_ast_signature(&ast, "ed25519", &short_sig, &pk_b64).unwrap_err();
         assert!(matches!(
             err,
-            HashError::InvalidSignatureLength { expected: 64, got: 10, .. }
+            HashErrorKind::InvalidSignatureLength { expected: 64, got: 10, .. }
         ));
     }
 
@@ -894,7 +889,7 @@ mod tests {
         let err = verify_ast_signature(&ast, "ed25519", &sig_b64, &short_pk).unwrap_err();
         assert!(matches!(
             err,
-            HashError::InvalidPubKeyLength { expected: 32, got: 8, .. }
+            HashErrorKind::InvalidPubKeyLength { expected: 32, got: 8, .. }
         ));
     }
 
@@ -906,7 +901,7 @@ mod tests {
         let err = verify_ast_signature(&ast, "rsa", &dummy_sig, &dummy_pk).unwrap_err();
         assert!(matches!(
             err,
-            HashError::UnsupportedSignatureAlgorithm { .. }
+            HashErrorKind::UnsupportedSignatureAlgorithm { .. }
         ));
     }
 

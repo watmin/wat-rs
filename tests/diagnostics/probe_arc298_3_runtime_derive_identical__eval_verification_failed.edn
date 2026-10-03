@@ -1,6 +1,15 @@
 #wat.runtime/EvalVerificationFailed {
-  :error #wat.kernel/UnsupportedAlgorithm {
-    :algo "SHA1"
+  :error #wat.kernel/HashError {
+    :message "unsupported hash algorithm \"SHA1\" — this build supports sha256"
+    :location #wat.core/Span {
+      :file "test.wat"
+      :line 1
+      :col 0
+      :end #wat.core/Option.None {}
+    }
+    :kind #wat.kernel/HashErrorKind.UnsupportedAlgorithm {
+      :algo "SHA1"
+    }
   }
   :span #wat.core/Span {
     :file "test.wat"

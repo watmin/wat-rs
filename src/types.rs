@@ -2651,23 +2651,20 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::HygieneScopeDivergence");
     ::wat_source_derive::wat_record_from!(env, "wat/check-errors.wat", ":wat::check::PublicOpInAlarm");
 
-    // ─── Excursus 003 sweep S2 — LoadFetchError / HashError's flat records ────
+    // ─── Excursus 003 sweep S2 / strike B2 — LoadFetchError / HashError ───────
     // Declared in `wat/kernel/diagnostics.wat`. Registered BEFORE
-    // wat/load-errors.wat's records below: `Fetch.cause` /
-    // `VerificationFailed.cause` are typed `:wat::core::Value`, but strict
-    // decode still resolves whatever tag the wire actually carries.
+    // wat/load-errors.wat's records below: `Fetch.cause` is typed
+    // `:wat::kernel::LoadFetchError` (the enum) now; `VerificationFailed.cause`
+    // / `RuntimeErrorKind::EvalVerificationFailed.cause` are typed
+    // `:wat::core::Error` (B2 item 3 — `HashError` now structurally satisfies
+    // it). `HashErrorKind` registers BEFORE `HashError` (its own `kind` field
+    // names it).
 
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::NotFound");
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::LoadOther");
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::OutOfScope");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::UnsupportedAlgorithm");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Mismatch");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::UnsupportedSignatureAlgorithm");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidBase64");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidSignatureLength");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidPubKeyLength");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::InvalidPubKey");
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::SignatureMismatch");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind");
+    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::HashError");
 
     // ─── Excursus 003 sweep S2 — the TypeErrorKind wat records ────────────────
     // Declared in `wat/types-errors.wat`. All 23 `TypeErrorKind` variants

@@ -147,6 +147,112 @@ fn clause_attempt_value(attempt: &ClauseAttempt) -> Value {
     )))
 }
 
+// ─── HashError / HashErrorKind (`:wat::kernel::`, excursus 003 strike B2) ────
+//
+// `HashError` is now a genuine `:wat::core::Error`-satisfying record (floor
+// `message`/`location` plus a `kind` field typed `:wat::kernel::HashErrorKind`,
+// itself a `defenum`) — replaces `single_cause_fault`'s interim
+// `:wat::core::Fault` stand-in at `EvalVerificationFailed.cause`. See that
+// function's own doc comment, below.
+
+record_names_fn!(hash_error_names, HASH_ERROR_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashError");
+variant_names_fn!(hash_error_kind_unsupported_algorithm_names, HASH_ERROR_KIND_UNSUPPORTED_ALGORITHM_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "UnsupportedAlgorithm");
+variant_names_fn!(hash_error_kind_mismatch_names, HASH_ERROR_KIND_MISMATCH_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "Mismatch");
+variant_names_fn!(hash_error_kind_unsupported_signature_algorithm_names, HASH_ERROR_KIND_UNSUPPORTED_SIGNATURE_ALGORITHM_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "UnsupportedSignatureAlgorithm");
+variant_names_fn!(hash_error_kind_invalid_base64_names, HASH_ERROR_KIND_INVALID_BASE64_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "InvalidBase64");
+variant_names_fn!(hash_error_kind_invalid_signature_length_names, HASH_ERROR_KIND_INVALID_SIGNATURE_LENGTH_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "InvalidSignatureLength");
+variant_names_fn!(hash_error_kind_invalid_pub_key_length_names, HASH_ERROR_KIND_INVALID_PUB_KEY_LENGTH_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "InvalidPubKeyLength");
+variant_names_fn!(hash_error_kind_invalid_pub_key_names, HASH_ERROR_KIND_INVALID_PUB_KEY_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "InvalidPubKey");
+variant_names_fn!(hash_error_kind_signature_mismatch_names, HASH_ERROR_KIND_SIGNATURE_MISMATCH_FIELDS, "wat/kernel/diagnostics.wat", ":wat::kernel::HashErrorKind", "SignatureMismatch");
+
+fn hash_error_kind_value(kind: &crate::hash::HashErrorKind) -> Value {
+    use crate::hash::HashErrorKind;
+    match kind {
+        HashErrorKind::UnsupportedAlgorithm { algo } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "UnsupportedAlgorithm".to_string(),
+            names: hash_error_kind_unsupported_algorithm_names(),
+            fields: vec![Value::String(Arc::new(algo.clone()))],
+        })),
+        HashErrorKind::Mismatch { algo, expected, actual } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "Mismatch".to_string(),
+            names: hash_error_kind_mismatch_names(),
+            fields: vec![
+                Value::String(Arc::new(algo.clone())),
+                Value::String(Arc::new(expected.clone())),
+                Value::String(Arc::new(actual.clone())),
+            ],
+        })),
+        HashErrorKind::UnsupportedSignatureAlgorithm { algo } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "UnsupportedSignatureAlgorithm".to_string(),
+            names: hash_error_kind_unsupported_signature_algorithm_names(),
+            fields: vec![Value::String(Arc::new(algo.clone()))],
+        })),
+        HashErrorKind::InvalidBase64 { field, reason } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "InvalidBase64".to_string(),
+            names: hash_error_kind_invalid_base64_names(),
+            fields: vec![
+                Value::String(Arc::new((*field).to_string())),
+                Value::String(Arc::new(reason.clone())),
+            ],
+        })),
+        HashErrorKind::InvalidSignatureLength { algo, expected, got } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "InvalidSignatureLength".to_string(),
+            names: hash_error_kind_invalid_signature_length_names(),
+            fields: vec![
+                Value::String(Arc::new(algo.clone())),
+                Value::i64(*expected as i64),
+                Value::i64(*got as i64),
+            ],
+        })),
+        HashErrorKind::InvalidPubKeyLength { algo, expected, got } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "InvalidPubKeyLength".to_string(),
+            names: hash_error_kind_invalid_pub_key_length_names(),
+            fields: vec![
+                Value::String(Arc::new(algo.clone())),
+                Value::i64(*expected as i64),
+                Value::i64(*got as i64),
+            ],
+        })),
+        HashErrorKind::InvalidPubKey { algo, reason } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "InvalidPubKey".to_string(),
+            names: hash_error_kind_invalid_pub_key_names(),
+            fields: vec![
+                Value::String(Arc::new(algo.clone())),
+                Value::String(Arc::new(reason.clone())),
+            ],
+        })),
+        HashErrorKind::SignatureMismatch { algo } => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::kernel::HashErrorKind".to_string(),
+            variant_name: "SignatureMismatch".to_string(),
+            names: hash_error_kind_signature_mismatch_names(),
+            fields: vec![Value::String(Arc::new(algo.clone()))],
+        })),
+    }
+}
+
+/// Build the REAL `:wat::kernel::HashError` record Value — floor
+/// (`message`/`location`) plus `kind` (the nested dotted-tagged enum value).
+/// Used by `to_record`'s `EvalVerificationFailed` arm in place of B1's
+/// `single_cause_fault` stand-in (see that function's doc comment).
+fn hash_error_value(err: &crate::hash::HashError) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::kernel::HashError".to_string(),
+        hash_error_names(),
+        Arc::new(vec![
+            Value::String(Arc::new(err.message.clone())),
+            crate::runtime::value_from_span(err.location.clone()),
+            hash_error_kind_value(&err.kind),
+        ]),
+    )))
+}
+
 // ─── ReteCeilingKind ──────────────────────────────────────────────────────────
 
 variant_names_fn!(rete_ck_session_memory_exceeded_names, RETE_CK_SESSION_MEMORY_EXCEEDED_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ReteCeilingKind", "SessionMemoryCeilingExceeded");
@@ -257,28 +363,28 @@ pub(crate) fn assertion_failed_value(
 /// A nested ERROR becomes ONE `:wat::core::Fault` in the named `cause` field
 /// (excursus 003 strike B1, item 4) — its `Display` text as the Fault's
 /// message, and the OUTER `RuntimeError`'s own raising-site span as the
-/// Fault's location (neither `HashError` nor the reused-uniformly
-/// `MacroError` path carries a location `to_record` reads independently
-/// here).
+/// Fault's location. Used ONLY by `MacroExpansionFailed.cause` now —
+/// `EvalVerificationFailed.cause` no longer calls this (see
+/// [`hash_error_value`] above and strike B2 item 3, closed below).
 ///
-/// ⚠ KNOWN GAP, named not papered over: the strike's brief asked for `cause`
-/// to hold the wrapped error's OWN declared record (`HashError`'s / `MacroError`'s
-/// real shape), not a Fault. Measured against that: `HashError`'s eight S2
-/// records (`wat/kernel/diagnostics.wat`) carry NO `message`/`location` floor
-/// at all (its hand-written `ToEdn` impl is a bare `#wat.kernel/<Variant>
-/// {…}` map — S2's own comment says so), so `EvalVerificationFailed.cause`
-/// cannot be typed `:wat::core::Error` and hold a `HashError` variant
-/// directly; it would not structurally satisfy the surface. `MacroError`
-/// DOES implement `WatError` and could decode typed, but `to_record(&self)`
-/// carries no `TypeEnv`/`SymbolTable` to strict-decode with (unlike the four
-/// item-5 wrapper sites, which run inside a call that already holds one) —
-/// threading one through `to_record`'s whole call graph (`kernel/error.rs`,
-/// `process/died.rs`, both peer-death paths) is out of this step's size. This
+/// ⚠ KNOWN GAP, named not papered over, for the ONE caller still using this:
+/// `MacroExpansionFailed.cause` wants `MacroError`'s OWN declared record, not
+/// a `Fault`. `MacroError` DOES implement `WatError` and could decode typed,
+/// but `to_record(&self)` carries no `TypeEnv`/`SymbolTable` to strict-decode
+/// with (unlike the four item-5 wrapper sites, which run inside a call that
+/// already holds one) — threading one through `to_record`'s whole call graph
+/// (`kernel/error.rs`, `process/died.rs`, both peer-death paths) is out of
+/// this strike's size (strike B3's scope fence names it explicitly). This
 /// keeps the STRUCTURALLY SAFE, honest interim shape — a real
-/// `:wat::core::Error` (a `Fault` satisfies the surface), reshaped from the
-/// old `causes: Vector<Error>` (one-element) to the new `cause: Error`
-/// (bare) — and reports the gap for the builder's ruling rather than forcing
-/// a mistyped field or a wide signature change silently.
+/// `:wat::core::Error` (a `Fault` satisfies the surface) — for that ONE
+/// remaining caller.
+///
+/// B2's own closed gap: `HashError` (the OTHER caller this function used to
+/// serve) now carries the `:wat::core::Error` floor itself (`message`/
+/// `location`, [`HashError`] in `src/hash.rs`) around a genuine
+/// `:wat::kernel::HashErrorKind` `defenum` payload — so `EvalVerificationFailed
+/// .cause` holds the REAL `HashError` record ([`hash_error_value`]), not a
+/// synthesized `Fault` built from its `Display` text.
 fn single_cause_fault(message: String, span: &crate::span::Span) -> Value {
     crate::runtime::fault_value(message, Some(span.clone()))
 }
@@ -440,7 +546,7 @@ impl RuntimeError {
             RuntimeErrorKind::EvalVerificationFailed { err } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::EvalVerificationFailed".to_string(),
                 eval_verification_failed_names(),
-                Arc::new(vec![floor_message, floor_location, single_cause_fault(err.to_string(), self.span())]),
+                Arc::new(vec![floor_message, floor_location, hash_error_value(err)]),
             ))),
             RuntimeErrorKind::ChannelDisconnected { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ChannelDisconnected".to_string(),

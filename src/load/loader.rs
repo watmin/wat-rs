@@ -461,7 +461,7 @@ mod excursus_003_s2_gates {
     use super::{LoadError, LoadErrorKind, LoadFetchError};
     use crate::edn::contract::WatError;
     use crate::edn::render::decode_trusted_wire;
-    use crate::hash::HashError;
+    use crate::hash::{HashError, HashErrorKind};
     use crate::parser::{ParseError, ParseErrorKind};
     use crate::span::Span;
     use crate::types::TypeEnv;
@@ -502,7 +502,11 @@ mod excursus_003_s2_gates {
                 err: ParseError { span: Span::new(Arc::new("inner.wat".to_string()), 7, 3), kind: ParseErrorKind::UnexpectedRParen },
             }),
             ("VerificationFailed", LoadErrorKind::VerificationFailed {
-                path: "foo.wat".into(), err: HashError::UnsupportedAlgorithm { algo: "SHA1".into() },
+                path: "foo.wat".into(),
+                err: HashError::new(
+                    Span::new(Arc::new("foo.wat".to_string()), 1, 0),
+                    HashErrorKind::UnsupportedAlgorithm { algo: "SHA1".into() },
+                ),
             }),
         ]
     }
@@ -793,11 +797,11 @@ fn verify_pre_parse(
             let hex = fetch_payload(payload, base_canonical, loader, form_span.clone())?;
             let hex_trimmed = hex.trim();
             crate::hash::verify_source_hash(fetched.source.as_bytes(), algo, hex_trimmed).map_err(
-                |err| LoadError::new(
-                    form_span,
+                |kind| LoadError::new(
+                    form_span.clone(),
                     LoadErrorKind::VerificationFailed {
                         path: fetched.canonical_path.clone(),
-                        err,
+                        err: crate::hash::HashError::new(form_span, kind),
                     },
                 ),
             )
@@ -825,11 +829,11 @@ fn verify_post_parse(
                 sig_b64.trim(),
                 pk_b64.trim(),
             )
-            .map_err(|err| LoadError::new(
-                form_span,
+            .map_err(|kind| LoadError::new(
+                form_span.clone(),
                 LoadErrorKind::VerificationFailed {
                     path: canonical_path.to_string(),
-                    err,
+                    err: crate::hash::HashError::new(form_span, kind),
                 },
             ))
         }
@@ -1800,8 +1804,8 @@ mod tests {
         match err.kind() {
             LoadErrorKind::VerificationFailed { err, .. } => {
                 assert!(matches!(
-                    err,
-                    crate::hash::HashError::UnsupportedAlgorithm { .. }
+                    err.kind(),
+                    crate::hash::HashErrorKind::UnsupportedAlgorithm { .. }
                 ));
             }
             other => panic!("expected UnsupportedAlgorithm, got {:?}", other),
@@ -1876,7 +1880,7 @@ mod tests {
         let err = resolve_mem(&entry, &[("lib.wat", tampered_source)]).unwrap_err();
         match err.kind() {
             LoadErrorKind::VerificationFailed { err, .. } => {
-                assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
+                assert!(matches!(err.kind(), crate::hash::HashErrorKind::SignatureMismatch { .. }));
             }
             other => panic!("expected SignatureMismatch, got {:?}", other),
         }
@@ -1892,8 +1896,8 @@ mod tests {
         match err.kind() {
             LoadErrorKind::VerificationFailed { err, .. } => {
                 assert!(matches!(
-                    err,
-                    crate::hash::HashError::UnsupportedSignatureAlgorithm { .. }
+                    err.kind(),
+                    crate::hash::HashErrorKind::UnsupportedSignatureAlgorithm { .. }
                 ));
             }
             other => panic!("expected UnsupportedSignatureAlgorithm, got {:?}", other),

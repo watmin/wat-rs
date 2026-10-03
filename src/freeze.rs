@@ -1997,10 +1997,12 @@ pub fn eval_digest_in_frozen(
 ) -> Result<TrackedValue, RuntimeError> {
     // Compute the canonical-EDN bytes and verify against expected.
     let bytes = crate::hash::canonical_edn_wat(ast);
-    crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|err| {
+    crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|kind| {
         RuntimeError::new(
             ast.span().clone(),
-            RuntimeErrorKind::EvalVerificationFailed { err },
+            RuntimeErrorKind::EvalVerificationFailed {
+                err: crate::hash::HashError::new(ast.span().clone(), kind),
+            },
         )
     })?;
     eval_in_frozen(ast, frozen, env)
@@ -2030,10 +2032,12 @@ pub fn eval_signed_in_frozen(
     sig_b64: &str,
     pubkey_b64: &str,
 ) -> Result<TrackedValue, RuntimeError> {
-    crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(|err| {
+    crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(|kind| {
         RuntimeError::new(
             ast.span().clone(),
-            RuntimeErrorKind::EvalVerificationFailed { err },
+            RuntimeErrorKind::EvalVerificationFailed {
+                err: crate::hash::HashError::new(ast.span().clone(), kind),
+            },
         )
     })?;
     eval_in_frozen(ast, frozen, env)
@@ -2697,7 +2701,7 @@ mod tests {
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", wrong).unwrap_err();
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
-                assert!(matches!(err, crate::hash::HashError::Mismatch { .. }));
+                assert!(matches!(err.kind(), crate::hash::HashErrorKind::Mismatch { .. }));
             }
             _ => panic!("expected EvalVerificationFailed, got {:?}", err),
         }
@@ -2716,8 +2720,8 @@ mod tests {
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(
-                    err,
-                    crate::hash::HashError::UnsupportedAlgorithm { .. }
+                    err.kind(),
+                    crate::hash::HashErrorKind::UnsupportedAlgorithm { .. }
                 ));
             }
             _ => panic!("expected EvalVerificationFailed, got {:?}", err),
@@ -2769,8 +2773,8 @@ mod tests {
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(
-                    err,
-                    crate::hash::HashError::SignatureMismatch { .. }
+                    err.kind(),
+                    crate::hash::HashErrorKind::SignatureMismatch { .. }
                 ));
             }
             _ => panic!("expected SignatureMismatch, got {:?}", err),
@@ -2790,8 +2794,8 @@ mod tests {
         match err.kind() {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 assert!(matches!(
-                    err,
-                    crate::hash::HashError::UnsupportedSignatureAlgorithm { .. }
+                    err.kind(),
+                    crate::hash::HashErrorKind::UnsupportedSignatureAlgorithm { .. }
                 ));
             }
             _ => panic!("expected UnsupportedSignatureAlgorithm, got {:?}", err),
