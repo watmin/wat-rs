@@ -24373,6 +24373,19 @@ pub(crate) mod tests {
         assert_eq!(record_fields(&env, ":t::work::Kwargs"), vec!["n".to_string()]);
     }
 
+    /// Stone 255.87 #11 — symbol `wat.core/defstruct` is the same macro as
+    /// the keyword. A keyword `defstruct` still registers under its name.
+    #[test]
+    fn symbol_defstruct_is_the_kwargs_record() {
+        let kw = decls("(:wat::core::defstruct :probe::a11::FromKw [n <- wat.type/i64])");
+        let sym = decls("(wat.core/defstruct :probe::a11::FromSym [n <- wat.type/i64])");
+        assert_eq!(record_fields(&kw, ":probe::a11::FromKw"), vec!["n".to_string()]);
+        assert_eq!(
+            record_fields(&sym, ":probe::a11::FromSym"),
+            vec!["n".to_string()]
+        );
+    }
+
     #[test]
     fn declared_types_let_body_enum_via_macro() {
         let env = decls(

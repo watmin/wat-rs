@@ -383,6 +383,42 @@ pub fn expand_once(
                 return expand_macro_call(def, args, span.clone(), head_span, env, sym);
             }
         }
+        // Stone 255.87 #11 — the same reference-symbol door as `expand_form`.
+        // A converted `defn` emits `(wat.core/defstruct …)`. This one-step walk
+        // is what `collect_type_forms` uses; a keyword-only match dropped the
+        // minted record before `structtype` was ever classified.
+        if let Some(WatAST::Symbol(ident, ident_span)) = items.first() {
+            if ident.is_reference() {
+                let primary = match sym.types() {
+                    Some(types) => crate::types::reconstruct_call_path(
+                        ident.receiver(),
+                        ident.method(),
+                        types,
+                    ),
+                    None => {
+                        crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method())
+                    }
+                };
+                let macro_name = if registry.contains(&primary) {
+                    primary
+                } else {
+                    crate::types::other_join_spelling(&primary)
+                        .filter(|alt| registry.contains(alt))
+                        .unwrap_or(primary)
+                };
+                let (type_args, rest_after_marker) =
+                    crate::types::peel_param_spec(&items[1..]);
+                let is_type_reference = type_args.is_some() && rest_after_marker.is_empty();
+                if registry.contains(&macro_name) && !is_type_reference {
+                    let head_span = ident_span.clone();
+                    let args = rest_after_marker.to_vec();
+                    let def = registry
+                        .get(&macro_name)
+                        .expect("contains checked immediately above");
+                    return expand_macro_call(def, args, span.clone(), head_span, env, sym);
+                }
+            }
+        }
     }
     Ok(form)
 }
