@@ -39,18 +39,27 @@ const STDIO_SERVICES: &str = "wat/kernel/services/stdio.wat";
 /// Pinned as a SET rather than probed with `contains`, so the gate names exactly which service
 /// moved instead of only noticing that one did — and so it cannot drift into passing on a file
 /// that still mentions a service in a comment while no longer declaring it.
-fn declared_services(src: &str) -> Vec<&str> {
+///
+/// The head and the name are read by identity: `(:wat::service::defservice :wat::kernel::stdout-svc`
+/// and `(wat.service/defservice wat.kernel/stdout-svc` are the same declaration.
+fn declared_services(src: &str) -> Vec<String> {
     src.lines()
         .filter_map(|l| {
-            l.split(";;")
-                .next()
-                .unwrap_or("")
-                .trim()
-                .strip_prefix('(')
-                .and_then(|r| r.strip_prefix(":wat::service::defservice "))
-                .map(str::trim)
+            let code = l.split(";;").next().unwrap_or("").trim();
+            let rest = code.strip_prefix('(')?;
+            let mut parts = rest.split_whitespace();
+            let head = parts.next()?;
+            let name = parts.next()?;
+            if wat::edn::render::canonical_identity(head) != ":wat::service::defservice" {
+                return None;
+            }
+            Some(wat::edn::render::canonical_identity(name))
         })
         .collect()
+}
+
+fn expected_services() -> Vec<String> {
+    EXPECTED_SERVICES.iter().map(|s| (*s).to_string()).collect()
 }
 
 const EXPECTED_SERVICES: [&str; 3] = [
@@ -94,6 +103,21 @@ fn the_matcher_discriminates_a_variant_from_a_prefix() {
     assert!(names_variant(":Remove)", ":Remove"));
 }
 
+/// Both spellings of the three stdio declarations name the same services.
+#[test]
+fn declared_services_reads_keyword_and_symbol() {
+    let kw = "\
+(:wat::service::defservice :wat::kernel::stdout-svc
+(:wat::service::defservice :wat::kernel::stderr-svc
+(:wat::service::defservice :wat::kernel::stdin-svc";
+    let sy = "\
+(wat.service/defservice wat.kernel/stdout-svc
+(wat.service/defservice wat.kernel/stderr-svc
+(wat.service/defservice wat.kernel/stdin-svc";
+    assert_eq!(declared_services(kw), expected_services());
+    assert_eq!(declared_services(sy), expected_services());
+}
+
 /// The stdio services' message types must carry NO channel handles — no `Receiver<` / `Sender<`
 /// typed fields anywhere in their wat source (channels belong to the universe, not the message
 /// surface).
@@ -104,7 +128,7 @@ fn probe_1_stdio_service_messages_carry_no_handles() {
 
     assert_eq!(
         declared_services(&src),
-        EXPECTED_SERVICES,
+        expected_services(),
         "{STDIO_SERVICES} no longer declares the expected stdio services — this gate's subject \
          has moved again. Re-point it at the live services rather than letting it pass on a file \
          that no longer holds them."
@@ -141,7 +165,7 @@ fn probe_2_stdio_services_have_no_add_remove_protocol() {
 
     assert_eq!(
         declared_services(&src),
-        EXPECTED_SERVICES,
+        expected_services(),
         "{STDIO_SERVICES} no longer declares the expected stdio services — re-point this gate."
     );
 
