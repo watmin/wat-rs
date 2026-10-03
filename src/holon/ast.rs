@@ -146,12 +146,11 @@ pub(crate) fn from_holon_item(
                     Ok(Value::Vec(crate::value::pvec::PVec::from_vec(elems)))
                 }
                 "List" => {
-                    let mut list = std::collections::LinkedList::new();
-                    for child in inner_items.iter() {
-                        let v = from_holon_item(child, op, op_span)?;
-                        list.push_back(v);
-                    }
-                    Ok(Value::wat__core__List(Arc::new(list)))
+                    let list: Vec<Value> = inner_items
+                        .iter()
+                        .map(|child| from_holon_item(child, op, op_span))
+                        .collect::<Result<_, _>>()?;
+                    Ok(Value::wat__core__List(list.into_iter().collect()))
                 }
                 "Tuple" => {
                     let n = inner_items.len();

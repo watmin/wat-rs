@@ -35,9 +35,5 @@ use crate::value::{EvalBreak, Value};
 /// @example (:wat::core::List 1 2 3) #=> (:wat::core::List 1 2 3)
 #[wat_intrinsic(":wat::core::List")]
 pub(crate) fn list_of(vals: &[Value]) -> Result<Value, EvalBreak> {
-    let mut items = std::collections::LinkedList::new();
-    for v in vals {
-        items.push_back(v.clone());
-    }
-    Ok(Value::wat__core__List(std::sync::Arc::new(items)))
+    Ok(Value::wat__core__List(vals.iter().cloned().collect()))
 }

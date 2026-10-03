@@ -81,8 +81,7 @@ pub(crate) fn eval_vec_reverse(
                 let Value::wat__core__List(items) = v else {
                     unreachable!("of_value⇒List")
                 };
-                let out: std::collections::LinkedList<Value> = items.iter().rev().cloned().collect();
-                Ok(Value::wat__core__List(Arc::new(out)))
+                Ok(Value::wat__core__List(items.reverse()))
             }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
             StreamContainer::Tuple
@@ -1443,9 +1442,10 @@ pub(crate) fn eval_vec_find_last_index(
 ///   O(1) — never the elements, and no element is touched until its cell is forced.
 /// - `PersistentVector` — `PVec`: Array get is a slice; Tree get is O(log n). `.clone()` is
 ///   O(1) (Arc / RRB handle). Same index-stepping shape as `Vector`.
-/// - `List` — `Arc<LinkedList>`, which has NO indexed access. Snapshotted into an indexable
-///   `Vec<Value>` ONCE (a single O(n) pass, not per element), then stepped exactly like the
-///   `Vector` arm. Indexing the `LinkedList` itself per step would reintroduce the quadratic
+/// - `List` — `rpds::ListSync`, which has NO indexed access (a persistent singly-linked
+///   list, same shape as the `LinkedList` it replaced on this axis). Snapshotted into an
+///   indexable `Vec<Value>` ONCE (a single O(n) pass, not per element), then stepped exactly
+///   like the `Vector` arm. Indexing the list itself per step would reintroduce the quadratic
 ///   on this arm — the exact silent divergence the design stone exists to kill.
 pub(crate) fn eval_seqable_to_stream(
     args: &[WatAST],

@@ -334,13 +334,16 @@ pub enum Value {
     /// Arc 220 Stone 220.4 — `(:wat::core::List :- [T])`. Typed linked-list primitive.
     /// Distinct from `Value::Vec` (`:wat::core::Vector`) — preserves the EDN
     /// parens-vs-brackets distinction for faithful round-trips with Clojure.
-    /// Backed by `std::collections::LinkedList<Value>`: O(1) cons/head, O(N) iter.
+    /// Persistent (arc 2026-10 persistent-vector-and-list): `rpds::ListSync<Value>` —
+    /// O(1) persistent `push_front`, O(1) `len` (stored field), O(N) iter, same as the
+    /// `LinkedList` it replaces. Representation is unobservable — equality/hash/printing
+    /// are by sequence either way.
     /// Cross-type equality with Vector per EDN spec §282-289:
     /// `List(1,2,3) == Vector(1,2,3)` returns true.
     /// Hash invariant preserved: List + Vector with same contents hash equal.
     /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
     /// Constructed via `(:wat::core::List ...)` or `'(...)` literal.
-    wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
+    wat__core__List(rpds::ListSync<Value>),
     /// Arc 118 — `(:wat::stream::Stream :- [T])`. Lazy sequence (Option C: closures + thunks).
     /// SINGLE-PASS — NO memoization (builder, 2026-06-27: *"you cannot walk back a stream …
     /// core does not ship it"*). Diverges from Clojure's persistent lazy-seq: a wat lazy seq

@@ -2322,11 +2322,11 @@ fn edn_to_value_caps(
         // the parens-vs-brackets distinction for faithful Clojure round-trips).
         // Previously both List and Vector collapsed to Vec (lossy).
         Edn::List(items) => {
-            let walked: std::collections::LinkedList<Value> = items
+            let walked: rpds::ListSync<Value> = items
                 .iter()
                 .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, ctx))
                 .collect::<Result<_, _>>()?;
-            Ok(Value::wat__core__List(Arc::new(walked)))
+            Ok(Value::wat__core__List(walked))
         }
         Edn::Vector(items) => {
             let walked: Vec<Value> = items
@@ -2722,13 +2722,13 @@ fn edn_to_typed_value_inner(
                 let elem_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
                 match edn {
                     Edn::List(items) | Edn::Vector(items) => {
-                        let mut walked = std::collections::LinkedList::new();
+                        let mut walked: Vec<Value> = Vec::with_capacity(items.len());
                         for (i, item) in items.iter().enumerate() {
                             let v = edn_to_typed_value_inner(elem_ty, item, types, ctx)
                                 .map_err(|e| e.at(&format!(".[{}]", i)))?;
-                            walked.push_back(v);
+                            walked.push(v);
                         }
-                        Ok(Value::wat__core__List(Arc::new(walked)))
+                        Ok(Value::wat__core__List(walked.into_iter().collect()))
                     }
                     other => Err(mismatch(target, other)),
                 }

@@ -364,14 +364,13 @@ pub(crate) fn eval_holon_from_holon(
                     }
                     "List" => {
                         // List: inner Bundle contains sequential bare items → wat::core::List.
-                        // Order-preserving (LinkedList; items were stored front-to-back).
-                        let mut list = std::collections::LinkedList::new();
-                        for item in items.iter() {
-                            let v = from_holon_item(item, OP, args[0].span())?;
-                            list.push_back(v);
-                        }
+                        // Order-preserving (rpds::ListSync; items were stored front-to-back).
+                        let list: Vec<Value> = items
+                            .iter()
+                            .map(|item| from_holon_item(item, OP, args[0].span()))
+                            .collect::<Result<_, _>>()?;
                         Ok(TrackedValue::new(
-                            Value::wat__core__List(Arc::new(list)),
+                            Value::wat__core__List(list.into_iter().collect()),
                             prov(),
                         ))
                     }

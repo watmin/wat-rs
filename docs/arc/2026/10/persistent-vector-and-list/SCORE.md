@@ -131,11 +131,107 @@ reds as baseline. Matches baseline exactly. CONFIRMED.
 
 ## Row L — List -> rpds::ListSync
 
-Status: NOT STARTED.
+Status: DONE.
+
+`Value::wat__core__List(Arc<std::collections::LinkedList<Value>>)` ->
+`Value::wat__core__List(rpds::ListSync<Value>)` (`src/value/value.rs:345`). The perf fix,
+`list_conj_inner` (`src/collection/eval.rs:294`):
+
+```rust
+// before
+Value::wat__core__List(xs) => {
+    let mut out = (**xs).clone();
+    out.push_front(item.clone());
+    Ok(Value::wat__core__List(Arc::new(out)))
+}
+// after
+Value::wat__core__List(xs) => Ok(Value::wat__core__List(xs.push_front(item.clone()))),
+```
+
+`rpds::List::push_front` is O(1) persistent (shares the tail node, bumps refcounts) — no clone
+of the chain at all, vs. the old clone-every-node-then-prepend. `len()` is also O(1) on
+`rpds::List` (a stored field), same as `LinkedList`'s.
+
+10 files touched (grep-counted before: 58 occurrences / 17 files — many were match-only sites
+that needed NO change at all, since `rpds::List` and `LinkedList` share the same `.iter()` /
+`.len()` / `.is_empty()` method shapes; this matches the brief's ~54/~16 estimate well).
+
+**Construction sites fixed (all of them — List has no "bulk build stays the old shape"
+mechanical sed the way Vector did, since there's no `Arc::new(LinkedList)` single-call
+replacement; each site rebuilt a `LinkedList` by `push_back`-in-a-loop then wrapped it):**
+
+- `src/intrinsic/list.rs` `list_of` (the `(:wat::core::List ...)` constructor) —
+  `vals.iter().cloned().collect()` (rpds `List`'s `FromIterator` builds a `Vec` first then
+  `push_front_mut`s it in reverse — same front-to-back order as the old push_back loop,
+  verified by reading `rpds`'s own `FromIterator` impl before relying on it).
+- `src/holon/ast.rs:148` and `src/intrinsic/holon/atom.rs:365` (both a `from_holon_item`
+  "List" arm — Holon aggregate decode) — collect the mapped items into a `Vec<Value>` first
+  (the inner map is fallible, `?`-threaded), then `.into_iter().collect()` into the list at
+  the end.
+- `src/edn/render.rs:2324` (`Edn::List` -> `Value::wat__core__List`, the untyped EDN decode
+  path) — the `Result<_,_>::collect()` target type changed from `LinkedList<Value>` to
+  `rpds::ListSync<Value>` directly (both implement `FromIterator`, no restructuring needed).
+- `src/edn/render.rs:2724` (the TYPED EDN decode path, `"wat::core::List"` arm) — built a
+  `Vec<Value>` instead of a `LinkedList` in the loop, `.into_iter().collect()` at the end.
+- `src/rete/expr_ir.rs:1691` (`OpExec::ListNew`) — dropped the `Arc::new(...)` wrapper;
+  `args.iter().cloned().collect()` already produced the right element sequence, just needed
+  to target `rpds::ListSync<Value>` instead of `LinkedList<Value>` inside an `Arc`.
+- `src/collection/eval.rs:476` (`vector_concat_inner`, `List` arm — `List`+`List` concat) —
+  was two `push_back` loops into a `LinkedList`; became
+  `l.iter().cloned().chain(r.iter().cloned()).collect()` (no persistent "append" primitive on
+  `rpds::List` — it's prepend-only — so this is still an O(n+m) rebuild via a fresh
+  collect, same complexity as before, just shorter).
+- `src/collection/eval.rs:1352` (`eval_rest`, `List` arm — `:wat::core::rest`) — **improved,
+  not just ported**: the old code was `items.iter().skip(1).cloned().collect()` into a new
+  `LinkedList` (an O(n) rebuild). `rpds::List::drop_first()` is a documented O(1) persistent
+  op (bumps the head pointer to the existing tail node, no clone) — used that instead, so
+  `rest` on a `List` goes from O(n) to O(1) as a side effect of this row.
+- `src/collection/transform.rs:84` (`eval_vec_reverse`, `List` arm) — **improved**: was
+  `items.iter().rev().cloned().collect()` into a `LinkedList`; `rpds::List` has its own
+  `.reverse()` method (read its source before using it — it's the same O(n) rebuild
+  under the hood, but it's the library's own tested implementation rather than a
+  hand-rolled `rev().collect()`), used that instead.
+
+**Test-only sites (Rust construction changed because the Rust type changed — not a wat-level
+expectation; no STOP):** `tests/collection/list.rs`, 6 sites — all were
+`Value::wat__core__List(Arc::new({ let mut ll = LinkedList::new(); ll.push_back(...); ll }))`
+block-expressions; replaced with `vec![...].into_iter().collect()` (non-empty cases) or
+`rpds::ListSync::new_sync()` (the empty-list case). Dropped the now-dead
+`use std::collections::LinkedList;` import; `use std::sync::Arc` stays (still used for a
+keyword value elsewhere in the file).
+
+**Doc-comment accuracy (no behavior change, 2 files):** `src/intrinsic/linkedlist.rs`'s module
+doc explicitly said "the builder has ruled that a persistent-backed list is coming" as the
+justification for reserving the `:wat::linkedlist::` (not `:wat::list::`) namespace —
+corrected to say the swap has now landed, while explicitly NOT renaming the namespace (that's
+a separate decision outside this arc's scope: representation only, no wat-facing surface
+changes). `src/collection/transform.rs:1445`'s `eval_seqable_to_stream` doc updated
+`Arc<LinkedList>` -> `rpds::ListSync` in its per-arm complexity note (substance unchanged — no
+indexed access either way, still snapshotted once).
+
+**No identity-sensitive sites found.** Same grep as Row V (`Arc::ptr_eq`/`Arc::strong_count`
+near `List`) — none. No STOP triggered for this row either.
+
+**First-check-clean:** unlike Row V, the Row L `cargo check --lib --tests --release` was
+ERROR-FREE on the very first run after the construction-site fixes above — every match-only
+site (the majority of the 58 original grep hits) compiled unchanged, because `rpds::List` and
+`LinkedList` share the same `.iter()`/`.len()`/`.is_empty()` shapes `Value`'s cross-container
+code already relied on.
+
+**Floor after Row L** (`NEXTEST_TEST_THREADS=4 cargo nextest run --release`, clean quiescent
+tree — confirmed nothing else running first): **5405 tests run: 5403 passed (6 slow), 2
+failed, 22 skipped** (1629.121s) — the SAME 2 lint reds as baseline. Matches baseline exactly.
+CONFIRMED.
+
+(An earlier attempt at Row L was interrupted mid-edit by an unexpected host reboot; `/var/tmp`
+survived, Row V's commit/push survived, and the 8 partially-edited files survived uncommitted.
+Resumed by reading the diff of each of those 8 files before writing anything further, per the
+"assert every edit applied" lesson — all 8 were intact and consistent with what had been
+reported done.)
 
 ## Benchmark
 
-Status: NOT STARTED. Will live at `wat-scripts/bench/conj-build.wat`.
+Status: IN PROGRESS. Lives at `wat-scripts/bench/conj-build.wat`.
 
 ## Stops
 

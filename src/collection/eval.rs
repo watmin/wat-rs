@@ -293,11 +293,7 @@ pub(crate) fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value
 /// `conj` on a List adds the item to the FRONT, matching `cons` behavior.
 pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
     match container {
-        Value::wat__core__List(xs) => {
-            let mut out = (**xs).clone();
-            out.push_front(item.clone());
-            Ok(Value::wat__core__List(Arc::new(out)))
-        }
+        Value::wat__core__List(xs) => Ok(Value::wat__core__List(xs.push_front(item.clone()))),
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/conj".into(),
             expected: "(List :- [T])",
@@ -477,14 +473,9 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                         StreamContainer::List => {
                             let Value::wat__core__List(l) = left else { unreachable!("of_value⇒List") };
                             let Value::wat__core__List(r) = right else { unreachable!("of_value⇒List") };
-                            let mut out = std::collections::LinkedList::new();
-                            for elem in l.iter() {
-                                out.push_back(elem.clone());
-                            }
-                            for elem in r.iter() {
-                                out.push_back(elem.clone());
-                            }
-                            Ok(Value::wat__core__List(Arc::new(out)))
+                            let out: rpds::ListSync<Value> =
+                                l.iter().cloned().chain(r.iter().cloned()).collect();
+                            Ok(Value::wat__core__List(out))
                         }
                         // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
                         StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
@@ -1361,8 +1352,9 @@ pub(crate) fn eval_rest(
                             reason: "cannot take rest of empty List".into()
                         }).into());
                     }
-                    let out: std::collections::LinkedList<Value> = items.iter().skip(1).cloned().collect();
-                    Ok(Value::wat__core__List(Arc::new(out)))
+                    // `drop_first` is O(1) persistent (just bumps the head pointer) —
+                    // cheaper than the skip(1)+collect rebuild the old LinkedList needed.
+                    Ok(Value::wat__core__List(items.drop_first().expect("non-empty checked above")))
                 }
                 // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List/rest →
                 // a new WatAST::List of the tail. Maintains form identity (List/rest → List),

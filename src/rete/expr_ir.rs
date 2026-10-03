@@ -1688,9 +1688,7 @@ fn apply_core_kind(
             args.iter().cloned().collect(),
         )),
         (OpExec::VecNew, args) => Ok(Value::Vec(crate::value::pvec::PVec::from_vec(args.to_vec()))),
-        (OpExec::ListNew, args) => Ok(Value::wat__core__List(Arc::new(
-            args.iter().cloned().collect(),
-        ))),
+        (OpExec::ListNew, args) => Ok(Value::wat__core__List(args.iter().cloned().collect())),
         (OpExec::Cosine, [a, b]) => {
             let Some(sym) = sym else {
                 return Err(RuntimeError::new(

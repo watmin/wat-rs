@@ -6,19 +6,19 @@
 //! junk-drawer (`:wat::core::List/*`) onto their own top-level namespace.
 //!
 //! ★ WHY `List` TAKES THE MARKED `:wat::linkedlist::` NAME, NOT the unmarked
-//! `:wat::list::` — measured from the backing type, not taste:
-//! `Arc<std::collections::LinkedList<Value>>` (`value.rs:340`) is the
-//! **copy-on-write** flavor, the same side of the axis as `HashMap` /
-//! `HashSet` / `Vector`, not the structurally-shared `rpds`-backed side
-//! `PersistentMap`/`PersistentVector` sit on. The builder has ruled that a
-//! persistent-backed list is coming; `:wat::list::` must stay FREE for that
-//! flavor once it lands, the same reason `:wat::map::`/`:wat::vector::`
-//! stayed free for the persistent siblings rather than being claimed by the
-//! copy-on-write incumbent. `linkedlist` names what it is — a `LinkedList` —
-//! same shape as `hashset`/`hashmap` spelling out the qualifier in full
-//! (NOT `llist`, elided-and-ambiguous to a reader who doesn't already know
-//! what it stands for — corrected by the orchestrator before this stone
-//! shipped). See
+//! `:wat::list::` — originally measured from the backing type (copy-on-write
+//! `Arc<std::collections::LinkedList<Value>>`, the same side of the axis as the
+//! pre-persistent `HashMap`/`HashSet`/`Vector`). Arc 2026-10
+//! persistent-vector-and-list landed the persistent swap the builder had
+//! already ruled on — `value.rs`'s `wat__core__List` is `rpds::ListSync<Value>`
+//! now, same structurally-shared side as `PersistentMap`/`PersistentVector` —
+//! but the NAMESPACE stays `:wat::linkedlist::` here; renaming it to the freed
+//! `:wat::list::` is a separate decision this arc didn't make (representation
+//! only, no wat-facing surface changes). `linkedlist` still names what it
+//! used to be backed by, same shape as `hashset`/`hashmap` spelling out the
+//! qualifier in full (NOT `llist`, elided-and-ambiguous to a reader who
+//! doesn't already know what it stands for — corrected by the orchestrator
+//! before this stone shipped). See
 //! `docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-E-iii-set-and-list-get-their-homes.md`.
 //!
 //! **Two homes** (same split as the string carve): this file is the REGISTRY
