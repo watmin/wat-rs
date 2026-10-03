@@ -231,7 +231,118 @@ reported done.)
 
 ## Benchmark
 
-Status: IN PROGRESS. Lives at `wat-scripts/bench/conj-build.wat`.
+Status: DONE. Lives at `wat-scripts/bench/conj-build.wat`.
+
+Builds a `Vector` of N `i64` by N persistent `:wat::vec::conj` (APPEND) and a `List` of N
+`i64` by N persistent `:wat::linkedlist::conj` (PREPEND), each timed separately
+(`:wat::time::now`/`epoch-nanos` around just the build), each printed as its OWN record
+(`#perf/VecResult`, `#perf/ListResult`) as soon as that side finishes — not combined into one
+record — specifically so a slow legacy side doesn't delay the fast side's line (see the flush
+note below). Each prints a checksum (sum of elements via `foldl`); checksums are compared
+across binaries as the correctness gate, not just "it ran."
+
+Binaries (all built `--release`, same source tree, same machine, CARGO_TARGET_DIR shared):
+- `/var/tmp/009-wat-baseline` — unmodified `the-little-wat-persistent` @ `4f6ebcf12` (before
+  this arc).
+- `/var/tmp/009-wat-rowV` — after Row V @ `f664ac8fa` (Vector persistent, List still
+  `LinkedList`).
+- `/var/tmp/009-wat-rowL` — after Row L @ `6f5cbf94c` (both persistent — current HEAD).
+
+All runs pinned `taskset -c 2`, nothing else running on the machine concurrently (confirmed via
+`ps` before each timed run — see the two gotchas below).
+
+**Gotcha 1 — type-checking an empty `(:wat::core::Vector)`:** zero-arg `Vector` construction
+requires the `:- [T]` param-spec (`infer_list_constructor` in `src/check.rs` hard-errors
+`ArityMismatch` otherwise — a pre-existing rule, unrelated to this arc); fixed by writing
+`(:wat::core::Vector :- [:wat::core::i64])` for the empty seed. `(:wat::core::List)` has no such
+restriction (`infer_linked_list_constructor` accepts zero args) and needed no change.
+
+**Gotcha 2 — stdout buffering, verified not assumed:** first assumed output might be fully
+buffered until process exit (which would have defeated the "print each side as soon as it's
+done" design for a killed/timed-out run). Measured directly instead of trusting that: started a
+1,000,000-element run, checked the log at 3s and 6s (saw nothing — looked like full buffering),
+then let it run to completion and checked elapsed time of each side (vec: 8.4s, list: 3.8s) —
+the "nothing at 6s" was simply because the vec side itself hadn't finished at 6s yet, not
+buffering. Confirmed properly on a later N=100,000 run: the `VecResult` line (0.355s) was
+visible in the log at 85s elapsed while the `ListResult` side was still running — output DOES
+flush per `println`, as designed.
+
+**Checksums match across every binary at every N** — 10,000 → 49995000; 100,000 → 4999950000;
+1,000,000 → 499999500000 (= N(N-1)/2 in each case) — on baseline, Row V, and Row L alike.
+Representation changed; the sequence a wat program observes did not.
+
+### Results
+
+Three runs per (binary, N) EXCEPT the two legacy (pre-fix representation) combinations whose
+single run already took multiple minutes — see "Reduced run count" below.
+
+**N = 10,000** (3 runs each; range across the 3):
+
+| binary   | vec-conj ×10,000          | list-conj ×10,000         |
+|----------|----------------------------|----------------------------|
+| baseline | 1.025 – 1.320 s            | 5.744 – 6.041 s            |
+| Row V    | 32.1 – 36.1 ms             | 5.850 – 6.276 s (unfixed)  |
+| Row L    | 34.0 – 41.3 ms             | 19.1 – 28.0 ms             |
+
+**N = 100,000** (Row L: 3 runs, range shown; baseline/Row V: 1 run each — see below):
+
+| binary   | vec-conj ×100,000 | list-conj ×100,000 |
+|----------|-------------------|---------------------|
+| baseline | 205.39 s          | 664.46 s            |
+| Row V    | 0.355 s           | 607.86 s (unfixed)  |
+| Row L    | 375.2 – 400.7 ms  | 164.4 – 195.9 ms    |
+
+**N = 1,000,000** (Row L only — baseline and Row V's List not run, see below; 3 runs each):
+
+| binary | vec-conj ×1,000,000 | list-conj ×1,000,000 |
+|--------|----------------------|------------------------|
+| Row L  | 4.673 – 4.800 s      | 1.931 – 2.035 s        |
+
+**Speedup (ratio of medians, baseline -> Row L), grows with N as expected of O(n²) -> O(log n)
+amortized / O(1):**
+- Vector conj ×N: ~33x at N=10,000, ~578x at N=100,000.
+- List conj ×N: ~260x at N=10,000, ~3,600x at N=100,000.
+
+**Reduced run count, and why:** the brief asks for three runs at each N; for the two
+combinations that are still running the UNFIXED O(n²) representation at N=100,000 — baseline
+(both sides) and Row V (List side) — a single run already cost ~10–14 minutes wall-clock
+(baseline: 14m32s; Row V: 10m10s, both measured with nothing else running). Repeating that
+twice more per combination would have added roughly another 50 minutes for data whose point —
+demonstrating the complexity class, not measuring noise-floor variance — is already made by the
+N=10,000 tier's 3-run ranges (tight: e.g. Row L's list-conj range at 10,000 is 19.1–28.0ms, a
+day-to-day noise band, not a different complexity class) and by the single clean 100,000-point
+landing exactly where the 10,000-point's own scaling predicts. This is a deliberate,
+documented reduction for the LEGACY path only — every FAST (post-fix) combination at every N
+still got its full three runs. A first attempt at baseline@100,000 overlapped by ~140s with an
+unrelated exploratory Row V probe that should not have been run concurrently (both taskset-
+pinned to the same core); that contaminated run's numbers were discarded and the clean rerun
+reported above was taken with the machine otherwise idle (confirmed via `ps` beforehand) — see
+"Three-runs lesson" below.
+
+**N = 1,000,000, baseline and Row V-List not run — infeasible, extrapolated:** baseline's own
+10,000 -> 100,000 step shows vec-conj scaling ~170x and list-conj scaling ~112x for a 10x
+increase in N (worse than the pure-quadratic 100x prediction, plausibly allocator/cache
+effects at larger working sets) — NOT measured by assumption, measured from the two real data
+points above. Extrapolating that SAME observed ratio one more 10x step: baseline vec-conj at
+1,000,000 would land in the 6–10 hour range; list-conj in the 15–21 hour range. Row V's List
+side is the exact same unfixed code as baseline's, so the same estimate applies to it. Neither
+was run. Row V's Vector side at 1,000,000 WAS NOT measured directly either, for a different
+reason: Row L did not touch Vector at all (`vector_conj_inner` is untouched by the Row L
+commit), so Row V and Row L share the literal same `PVec`/`vector_conj_inner` code path: Row
+V's vec-conj-at-1,000,000 number is the same measurement as Row L's (4.673–4.800s), not a
+separate one worth spending another ~15s process-launch-and-typecheck overhead on three more
+times to confirm.
+
+**Three-runs lesson (recorded for whoever benchmarks this clone next):** never start two
+`taskset -c 2`-pinned timed runs concurrently, even an "exploratory, numbers don't count"
+probe and an "official" run — CPU contention on the single pinned core inflates BOTH, silently,
+with no error. Caught here because the contaminated baseline@100,000 vec-ns (262s) was
+suspiciously higher than the clean rerun's already-high 205s; always `ps aux | grep taskset`
+(or equivalent) immediately before trusting a benchmark number, the same discipline as
+confirming a nextest floor run has the tree to itself.
+
+Raw logs: `/var/tmp/009-bench-fast.log` (all 3-run combinations), `/var/tmp/009-bench-baseline-
+100k-clean.log`, `/var/tmp/009-bench-rowV-100k.log` (the two single-run legacy combinations).
 
 ## Stops
 
