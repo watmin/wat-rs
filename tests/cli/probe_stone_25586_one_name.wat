@@ -1,9 +1,11 @@
-;; Stone 255.86 amend 3 — pinned values of the one-name replacements.
-;; Each string is label + (:wat::core::str value). Measured by ./target/release/wat
-;; on this shape before the pin; two runs matched.
+;; Stone 255.86 amend 4 — the one-name replacements, pinned as values.
+;; Equatable results are :wat::test::assert-eq against the value written as a value.
+;; PersistentMap is not a member of :wat::core::Equatable (wat/class.wat), so the three
+;; map results are :probe::pm-got against :probe::pm-want, compared by Value equality
+;; in the beside test. HashMap and HashSet of several entries are the collections.
 (:wat::core::defrecord :probe::PinRec [sk <- wat.type/i64])
 
-(:wat::core::defn :probe::pins [] -> (wat.type/Vector :- [wat.type/String])
+(:wat::core::defn :probe::hold [] -> wat.type/nil
   (:wat::core::let
     [hm (wat.type/HashMap :- [wat.type/String wat.type/i64] "a" 1)
      hm0 (wat.type/HashMap :- [wat.type/String wat.type/i64])
@@ -20,74 +22,126 @@
      ls (wat.type/List :- [wat.type/i64] 2)
      ls0 (wat.type/List :- [wat.type/i64])
      rec (:probe::PinRec :sk 1)]
-    (wat.type/Vector :- [wat.type/String]
-      (:wat::string::concat "hm-len" (:wat::core::str (:wat::core::length hm)))
-      (:wat::string::concat "hm-empty0" (:wat::core::str (:wat::core::empty? hm0)))
-      (:wat::string::concat "hm-empty1" (:wat::core::str (:wat::core::empty? hm)))
-      (:wat::string::concat "hm-has-a" (:wat::core::str (:wat::core::contains? hm "a")))
-      (:wat::string::concat "hm-has-z" (:wat::core::str (:wat::core::contains? hm "z")))
-      (:wat::string::concat "hm-get-a" (:wat::core::str (:wat::core::get hm "a")))
-      (:wat::string::concat "hm-get-z" (:wat::core::str (:wat::core::get hm "z")))
-      (:wat::string::concat "hm-assoc-len" (:wat::core::str (:wat::core::length (:wat::core::assoc hm "b" 2))))
-      (:wat::string::concat "hm-assoc-a" (:wat::core::str (:wat::core::get (:wat::core::assoc hm "b" 2) "a")))
-      (:wat::string::concat "hm-assoc-b" (:wat::core::str (:wat::core::get (:wat::core::assoc hm "b" 2) "b")))
-      (:wat::string::concat "hm-dissoc" (:wat::core::str (:wat::core::dissoc hm "a")))
-      (:wat::string::concat "hm-dissoc-miss" (:wat::core::str (:wat::core::dissoc hm "z")))
-      (:wat::string::concat "hm-keys" (:wat::core::str (:wat::core::keys hm)))
-      (:wat::string::concat "hm-values" (:wat::core::str (:wat::core::values hm)))
-      (:wat::string::concat "pm-len" (:wat::core::str (:wat::core::length pm)))
-      (:wat::string::concat "pm-empty0" (:wat::core::str (:wat::core::empty? pm0)))
-      (:wat::string::concat "pm-empty1" (:wat::core::str (:wat::core::empty? pm)))
-      (:wat::string::concat "pm-has-a" (:wat::core::str (:wat::core::contains? pm "a")))
-      (:wat::string::concat "pm-has-z" (:wat::core::str (:wat::core::contains? pm "z")))
-      (:wat::string::concat "pm-get-a" (:wat::core::str (:wat::core::get pm "a")))
-      (:wat::string::concat "pm-get-z" (:wat::core::str (:wat::core::get pm "z")))
-      (:wat::string::concat "pm-assoc" (:wat::core::str (:wat::core::assoc pm "b" 2)))
-      (:wat::string::concat "pm-dissoc" (:wat::core::str (:wat::core::dissoc pm "a")))
-      (:wat::string::concat "pm-dissoc-miss" (:wat::core::str (:wat::core::dissoc pm "z")))
-      (:wat::string::concat "pm-keys" (:wat::core::str (:wat::core::keys pm)))
-      (:wat::string::concat "pm-values" (:wat::core::str (:wat::core::values pm)))
-      (:wat::string::concat "v-len" (:wat::core::str (:wat::core::length v)))
-      (:wat::string::concat "v-empty0" (:wat::core::str (:wat::core::empty? v0)))
-      (:wat::string::concat "v-empty1" (:wat::core::str (:wat::core::empty? v)))
-      (:wat::string::concat "v-has-1" (:wat::core::str (:wat::core::contains? v 1)))
-      (:wat::string::concat "v-has-9" (:wat::core::str (:wat::core::contains? v 9)))
-      (:wat::string::concat "v-get-0" (:wat::core::str (:wat::core::get v 0)))
-      (:wat::string::concat "v-conj" (:wat::core::str (:wat::core::conj v 3)))
-      (:wat::string::concat "v-concat" (:wat::core::str (:wat::core::concat v1 (wat.type/Vector :- [wat.type/i64] 2))))
-      (:wat::string::concat "v-into-v" (:wat::core::str (:wat::core::into v1 (wat.type/Vector :- [wat.type/i64] 2))))
-      (:wat::string::concat "v-into-pv" (:wat::core::str (:wat::core::into v1 (wat.type/PersistentVector :- [wat.type/i64] 2))))
-      (:wat::string::concat "pv-len" (:wat::core::str (:wat::core::length pv)))
-      (:wat::string::concat "pv-empty0" (:wat::core::str (:wat::core::empty? pv0)))
-      (:wat::string::concat "pv-empty1" (:wat::core::str (:wat::core::empty? pv)))
-      (:wat::string::concat "pv-has-1" (:wat::core::str (:wat::core::contains? pv 1)))
-      (:wat::string::concat "pv-has-9" (:wat::core::str (:wat::core::contains? pv 9)))
-      (:wat::string::concat "pv-get-0" (:wat::core::str (:wat::core::get pv 0)))
-      (:wat::string::concat "pv-conj" (:wat::core::str (:wat::core::conj pv 3)))
-      (:wat::string::concat "pv-into-v" (:wat::core::str (:wat::core::into pv1 (wat.type/Vector :- [wat.type/i64] 2))))
-      (:wat::string::concat "pv-into-pv" (:wat::core::str (:wat::core::into pv1 (wat.type/PersistentVector :- [wat.type/i64] 2))))
-      (:wat::string::concat "hs-len" (:wat::core::str (:wat::core::length hs)))
-      (:wat::string::concat "hs-empty0" (:wat::core::str (:wat::core::empty? hs0)))
-      (:wat::string::concat "hs-empty1" (:wat::core::str (:wat::core::empty? hs)))
-      (:wat::string::concat "hs-has-1" (:wat::core::str (:wat::core::contains? hs 1)))
-      (:wat::string::concat "hs-has-9" (:wat::core::str (:wat::core::contains? hs 9)))
-      (:wat::string::concat "hs-conj-len" (:wat::core::str (:wat::core::length (:wat::core::conj hs 2))))
-      (:wat::string::concat "hs-conj-1" (:wat::core::str (:wat::core::contains? (:wat::core::conj hs 2) 1)))
-      (:wat::string::concat "hs-conj-2" (:wat::core::str (:wat::core::contains? (:wat::core::conj hs 2) 2)))
-      (:wat::string::concat "ls-len" (:wat::core::str (:wat::core::length ls)))
-      (:wat::string::concat "ls-empty0" (:wat::core::str (:wat::core::empty? ls0)))
-      (:wat::string::concat "ls-empty1" (:wat::core::str (:wat::core::empty? ls)))
-      (:wat::string::concat "ls-has-2" (:wat::core::str (:wat::core::contains? ls 2)))
-      (:wat::string::concat "ls-has-9" (:wat::core::str (:wat::core::contains? ls 9)))
-      (:wat::string::concat "ls-get-0" (:wat::core::str (:wat::core::get ls 0)))
-      (:wat::string::concat "ls-conj" (:wat::core::str (:wat::core::conj ls 1)))
-      (:wat::string::concat "list-ctor" (:wat::core::str (wat.type/List :- [wat.type/i64] 1 2)))
-      (:wat::string::concat "char-ctor" (:wat::core::str (wat.type/char "a")))
-      (:wat::string::concat "to-hex" (:wat::bytes::to-hex (wat.type/Vector :- [wat.type/u8] (wat.type/u8 255) (wat.type/u8 0) (wat.type/u8 16))))
-      (:wat::string::concat "from-hex" (:wat::core::str (:wat::bytes::from-hex "ff0010")))
-      (:wat::string::concat "field-at" (:wat::core::str (:wat::record::field-at (:probe::PinRec :sk 9) 0)))
-      (:wat::string::concat "same-yes" (:wat::core::str (:wat::record::same-data? (:probe::PinRec :sk 9) (:probe::PinRec :sk 9))))
-      (:wat::string::concat "same-no" (:wat::core::str (:wat::record::same-data? (:probe::PinRec :sk 9) (:probe::PinRec :sk 8))))
-      (:wat::string::concat "rec-assoc" (:wat::core::str (:wat::core::assoc rec :sk 9)))
-    )))
+    (:wat::core::do
+      (:wat::test::assert-eq (:wat::core::length hm) 1)
+      (:wat::test::assert-eq (:wat::core::empty? hm0) true)
+      (:wat::test::assert-eq (:wat::core::empty? hm) false)
+      (:wat::test::assert-eq (:wat::core::contains? hm "a") true)
+      (:wat::test::assert-eq (:wat::core::contains? hm "z") false)
+      (:wat::test::assert-eq (:wat::core::get hm "a") (:wat::core::Option.Some {:value 1}))
+      (:wat::test::assert-eq (:wat::core::get hm "z") (:wat::core::Option.None {}))
+      (:wat::test::assert-eq
+        (:wat::core::assoc hm "b" 2)
+        (wat.type/HashMap :- [wat.type/String wat.type/i64] "a" 1 "b" 2))
+      (:wat::test::assert-eq
+        (:wat::core::dissoc hm "a")
+        (wat.type/HashMap :- [wat.type/String wat.type/i64]))
+      (:wat::test::assert-eq
+        (:wat::core::dissoc hm "z")
+        (wat.type/HashMap :- [wat.type/String wat.type/i64] "a" 1))
+      (:wat::test::assert-eq
+        (:wat::core::keys hm)
+        (wat.type/Vector :- [wat.type/String] "a"))
+      (:wat::test::assert-eq
+        (:wat::core::values hm)
+        (wat.type/Vector :- [wat.type/i64] 1))
+      (:wat::test::assert-eq (:wat::core::length pm) 1)
+      (:wat::test::assert-eq (:wat::core::empty? pm0) true)
+      (:wat::test::assert-eq (:wat::core::empty? pm) false)
+      (:wat::test::assert-eq (:wat::core::contains? pm "a") true)
+      (:wat::test::assert-eq (:wat::core::contains? pm "z") false)
+      (:wat::test::assert-eq (:wat::core::get pm "a") (:wat::core::Option.Some {:value 1}))
+      (:wat::test::assert-eq (:wat::core::get pm "z") (:wat::core::Option.None {}))
+      (:wat::test::assert-eq
+        (:wat::core::keys pm)
+        (wat.type/Vector :- [wat.type/String] "a"))
+      (:wat::test::assert-eq
+        (:wat::core::values pm)
+        (wat.type/Vector :- [wat.type/i64] 1))
+      (:wat::test::assert-eq (:wat::core::length v) 2)
+      (:wat::test::assert-eq (:wat::core::empty? v0) true)
+      (:wat::test::assert-eq (:wat::core::empty? v) false)
+      (:wat::test::assert-eq (:wat::core::contains? v 1) true)
+      (:wat::test::assert-eq (:wat::core::contains? v 9) false)
+      (:wat::test::assert-eq (:wat::core::get v 0) (:wat::core::Option.Some {:value 1}))
+      (:wat::test::assert-eq
+        (:wat::core::conj v 3)
+        (wat.type/Vector :- [wat.type/i64] 1 2 3))
+      (:wat::test::assert-eq
+        (:wat::core::concat v1 (wat.type/Vector :- [wat.type/i64] 2))
+        (wat.type/Vector :- [wat.type/i64] 1 2))
+      (:wat::test::assert-eq
+        (:wat::core::into v1 (wat.type/Vector :- [wat.type/i64] 2))
+        (wat.type/Vector :- [wat.type/i64] 1 2))
+      (:wat::test::assert-eq
+        (:wat::core::into v1 (wat.type/PersistentVector :- [wat.type/i64] 2))
+        (wat.type/Vector :- [wat.type/i64] 1 2))
+      (:wat::test::assert-eq (:wat::core::length pv) 2)
+      (:wat::test::assert-eq (:wat::core::empty? pv0) true)
+      (:wat::test::assert-eq (:wat::core::empty? pv) false)
+      (:wat::test::assert-eq (:wat::core::contains? pv 1) true)
+      (:wat::test::assert-eq (:wat::core::contains? pv 9) false)
+      (:wat::test::assert-eq (:wat::core::get pv 0) (:wat::core::Option.Some {:value 1}))
+      (:wat::test::assert-eq
+        (:wat::core::conj pv 3)
+        (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))
+      (:wat::test::assert-eq
+        (:wat::core::into pv1 (wat.type/Vector :- [wat.type/i64] 2))
+        (wat.type/PersistentVector :- [wat.type/i64] 1 2))
+      (:wat::test::assert-eq
+        (:wat::core::into pv1 (wat.type/PersistentVector :- [wat.type/i64] 2))
+        (wat.type/PersistentVector :- [wat.type/i64] 1 2))
+      (:wat::test::assert-eq (:wat::core::length hs) 1)
+      (:wat::test::assert-eq (:wat::core::empty? hs0) true)
+      (:wat::test::assert-eq (:wat::core::empty? hs) false)
+      (:wat::test::assert-eq (:wat::core::contains? hs 1) true)
+      (:wat::test::assert-eq (:wat::core::contains? hs 9) false)
+      (:wat::test::assert-eq
+        (:wat::core::conj hs 2)
+        (wat.type/HashSet :- [wat.type/i64] 1 2))
+      (:wat::test::assert-eq (:wat::core::length ls) 1)
+      (:wat::test::assert-eq (:wat::core::empty? ls0) true)
+      (:wat::test::assert-eq (:wat::core::empty? ls) false)
+      (:wat::test::assert-eq (:wat::core::contains? ls 2) true)
+      (:wat::test::assert-eq (:wat::core::contains? ls 9) false)
+      (:wat::test::assert-eq (:wat::core::get ls 0) (:wat::core::Option.Some {:value 2}))
+      (:wat::test::assert-eq
+        (:wat::core::conj ls 1)
+        (wat.type/List :- [wat.type/i64] 1 2))
+      (:wat::test::assert-eq
+        (wat.type/List :- [wat.type/i64] 1 2)
+        (:wat::core::conj ls 1))
+      (:wat::test::assert-eq (wat.type/char "a") \a)
+      (:wat::test::assert-eq
+        (:wat::bytes::to-hex (wat.type/Vector :- [wat.type/u8] (wat.type/u8 255) (wat.type/u8 0) (wat.type/u8 16)))
+        "ff0010")
+      (:wat::test::assert-eq
+        (:wat::bytes::from-hex "ff0010")
+        (:wat::core::Option.Some {:value (wat.type/Vector :- [wat.type/u8] (wat.type/u8 255) (wat.type/u8 0) (wat.type/u8 16))}))
+      (:wat::test::assert-eq (:wat::record::field-at (:probe::PinRec :sk 9) 0) 9)
+      (:wat::test::assert-eq
+        (:wat::record::same-data? (:probe::PinRec :sk 9) (:probe::PinRec :sk 9))
+        true)
+      (:wat::test::assert-eq
+        (:wat::record::same-data? (:probe::PinRec :sk 9) (:probe::PinRec :sk 8))
+        false)
+      (:wat::test::assert-eq
+        (:wat::core::assoc rec :sk 9)
+        (:probe::PinRec :sk 9)))))
 
+(:wat::core::defn :user::main [] -> wat.type/nil
+  (:probe::hold))
+
+(:wat::core::defn :probe::pm-got [] -> (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])])
+  (:wat::core::let
+    [pm (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1)]
+    (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])]
+      (:wat::core::assoc pm "b" 2)
+      (:wat::core::dissoc pm "a")
+      (:wat::core::dissoc pm "z"))))
+
+(:wat::core::defn :probe::pm-want [] -> (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])])
+  (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])]
+    (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1 "b" 2)
+    (wat.type/PersistentMap :- [wat.type/String wat.type/i64])
+    (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1)))

@@ -1,11 +1,12 @@
-//! Stone 255.86 — every row this stone added is refused by name, and the
+//! Stone 255.86 — every row this stone added is refused by the checker, and the
 //! refusal quotes the replacement the table records.
 //!
-//! The row set is derived from `retirement_table_pairs_for_gate`, not copied.
-//! A new row under one of these retired prefixes is covered with no edit here.
+//! One `startup_bare` (the stdlib world), then each row is its own program through
+//! `check_program`. A single program that calls every retired name reports one
+//! type-check error and stops; separate programs do not. The row set is
+//! `retirement_table_pairs_for_gate`, not a copy.
 
-use std::io::Write;
-use std::process::Command;
+use wat::check::CheckErrorKind;
 
 fn stone_row(retired: &str) -> bool {
     const PREFIXES: &[&str] = &[
@@ -23,39 +24,36 @@ fn stone_row(retired: &str) -> bool {
     PREFIXES.iter().any(|p| retired.starts_with(p))
 }
 
-// rune:lint(no-inlined-wat) — the program is built from the table row at runtime,
-// the same scaffold as `retirement_table_reachable`. The only variable is the row's name.
-fn probe(retired_name: &str) -> String {
-    let program = format!(
-        "(:wat::core::defn :user::main [] -> wat.type/nil\n  (:wat::kernel::println ({retired_name})))\n"
-    );
-    let tag: String = retired_name
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect();
-    let path = std::env::temp_dir().join(format!(
-        "wat-25586-retire-{}-{}-{}.wat",
-        std::process::id(),
-        tag,
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let mut f = std::fs::File::create(&path).expect("create temp");
-    f.write_all(program.as_bytes()).expect("write");
-    let output = Command::new(env!("CARGO_BIN_EXE_wat"))
-        .arg(&path)
-        .output()
-        .expect("spawn wat");
-    let _ = std::fs::remove_file(&path);
-    let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
-    combined.push_str(&String::from_utf8_lossy(&output.stderr));
-    combined
+// rune:lint(no-inlined-wat) — the program is built from the table row. The scaffold is the
+// expanded `def`/`fn` shape so the checker sees the call with no macro step. The only
+// variable is the row's name.
+fn program(retired_name: &str) -> String {
+    format!("(:wat::core::def :probe::row (:wat::core::fn [] -> wat.type/nil ({retired_name})))\n")
+}
+
+fn refusal(types: &wat::TypeEnv, retired: &str) -> Result<Vec<wat::CheckError>, String> {
+    let forms = wat::parse_all_with_file(&program(retired), "<row>")
+        .map_err(|e| format!("parse {retired}: {e:?}"))?;
+    let mut sym = wat::SymbolTable::new();
+    let rest =
+        wat::register_defines(forms, &mut sym).map_err(|e| format!("register {retired}: {e:?}"))?;
+    match wat::check_program(&rest, &sym, types) {
+        Ok(()) => Ok(Vec::new()),
+        Err(wat::CheckErrors(errs)) => Ok(errs),
+    }
+}
+
+fn names_the_replacement(errs: &[wat::CheckError], retired: &str, replacement: &str) -> bool {
+    let want = format!("'{retired}' is retired; use '{replacement}' instead");
+    errs.iter().any(|e| match &e.kind {
+        CheckErrorKind::MalformedForm { head, reason, .. } => head == retired && reason == &want,
+        _ => false,
+    })
 }
 
 #[test]
 fn stone_rows_are_refused_naming_their_replacement() {
+    let world = wat::freeze::startup_bare().expect("stdlib");
     let rows: Vec<_> = wat::retirement_table_pairs_for_gate()
         .into_iter()
         .filter(|(retired, _)| stone_row(retired))
@@ -67,10 +65,10 @@ fn stone_rows_are_refused_naming_their_replacement() {
     );
     let mut missed: Vec<String> = Vec::new();
     for (retired, replacement) in &rows {
-        let output = probe(retired);
-        let names_it = output.contains("is retired") && output.contains(replacement);
-        if !names_it {
-            missed.push(format!("{retired} -> {replacement}\n{output}"));
+        match refusal(world.types(), retired) {
+            Err(setup) => missed.push(setup),
+            Ok(errs) if names_the_replacement(&errs, retired, replacement) => {}
+            Ok(errs) => missed.push(format!("{retired} -> {replacement}\n{errs:?}")),
         }
     }
     assert!(

@@ -119,18 +119,6 @@ filter = 'test(retirement_table_is_fully_reachable)'
 slow-timeout = { period = "120s", terminate-after = 2 }
 priority = 97                                             # startup-heavy: start it early
 
-# ⏱ stone_rows_are_refused_naming_their_replacement — same startup cost, 43 rows.
-#
-# Isolated 2026-10-03: `finished in 16.28s` (`/tmp/g1-retire-iso.log`). The floor
-# `.floor/2026-10-03T04-30-42Z` killed it at 30.024s, the default 15s/30s envelope,
-# under end-of-run contention. A TIMEOUT, not a hang. Batching the rows into one
-# program is the same short-circuit the block above measured, so the questions stay
-# one process each. Warn 60s / kill 120s.
-[[profile.default.overrides]]
-filter = 'test(stone_rows_are_refused_naming_their_replacement)'
-slow-timeout = { period = "60s", terminate-after = 2 }
-priority = 97
-
 # ⏱ every_recorded_migration_replays — each shard forks `wat` twice per fixture.
 #
 # MEASURED 2026-09-12 on stone 0b batch 1: shard_3 TIMED OUT at 30.004s against the
@@ -384,11 +372,6 @@ slow-timeout = { period = "120s", terminate-after = 2 }
 [[profile.ci.overrides]]
 filter = 'test(retirement_table_is_fully_reachable)'
 slow-timeout = { period = "180s", terminate-after = 2 }
-priority = 97
-
-[[profile.ci.overrides]]
-filter = 'test(stone_rows_are_refused_naming_their_replacement)'
-slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 97
 
 [[profile.ci.overrides]]
