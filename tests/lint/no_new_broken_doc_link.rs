@@ -193,6 +193,16 @@ const KNOWN_BROKEN_DOC_LINKS: &[(&str, &str, usize)] = &[
 ///    two cargos on this target dir) at the price of a full cold dependency compile on every fresh
 ///    clone. That trade is not worth it here.
 ///
+/// Amend 5 (stone 255.87) names a different coupling than the lock. The same test was killed by
+/// nextest at 30.004s (stdout was only `(test timed out)`; this 300s bound never ran), finished in
+/// 10.791s isolated, and finished in 0.519s once `target/release`'s rustdoc cache was warm. The
+/// verdict did not move. The cost followed the shared target. The spawn below sets
+/// `CARGO_TARGET_DIR` to `target/doc-link-ledger`, which is not the floor's target, so the floor's
+/// `.cargo-lock` and a neighbor's `target/doc` are not this build's cache. Reason 3 still holds for
+/// a *cold* private directory: a fresh workspace doc build exceeds nextest's 30s kill. The directory
+/// is persistent and is warmed with `cargo doc` before a floor. This bound stays 300. A held lock on
+/// *this* directory is still a red, for reason 1.
+///
 /// **If this ever reds for a reason other than a held lock, that is a real finding** — the message
 /// below tells the reader how to tell the two apart, and neither is a licence to dismiss it.
 const DOC_BUILD_TIMEOUT_SECS: u32 = 300;
@@ -328,9 +338,20 @@ fn no_broken_intra_doc_link_outside_the_frozen_ledger() {
     // `timeout` wraps cargo; see this file's header for why an unbounded spawn is not an option.
     // GNU timeout puts the child in its own process group, so the KILL after `--kill-after` reaps
     // the rustdoc children too rather than orphaning them onto the floor.
+    // The doc build has its own target directory. On `.floor/2026-10-03T10-21-23Z`
+    // nextest killed this test at 30.004s and the captured stdout was only
+    // `(test timed out)` — the 300s bound below never ran. Isolated, the same
+    // build finished in 10.791s. On `.floor/2026-10-03T10-31-41Z`, after that
+    // isolated run had warmed `target/release`'s rustdoc cache, it finished in
+    // 0.519s. The cost was following whatever had last written the shared
+    // target. This directory is not the floor's, so the floor's cargo lock is
+    // not this build's lock, and a neighbor warming `target/release/doc` does
+    // not change what this run replays.
+    let doc_target = root.join("target/doc-link-ledger");
     let out = std::process::Command::new(TIMEOUT_BIN)
         .current_dir(root)
         .env("RUSTDOCFLAGS", "-W rustdoc::broken_intra_doc_links")
+        .env("CARGO_TARGET_DIR", &doc_target)
         .arg("--kill-after=15s")
         .arg(format!("{DOC_BUILD_TIMEOUT_SECS}s"))
         .arg(env!("CARGO"))

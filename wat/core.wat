@@ -605,12 +605,14 @@
                          (wat.core/get kvflat (wat.i64/* ki 2))
                          "kwargs-lower: kv-key index OOB")
                        ks
-                       (wat.core/ast-name kn)
-                       ;; Strip leading ":" from ":foo-bar" → "foo-bar"
-                       ;; (string::strip-leading-colon is a defn, not in is_pure_total;
-                       ;;  callers always provide keywords so the colon is always present)
+                       (wat.core/canonical-identity (wat.core/ast-name kn))
+                       ;; The sigil comes off the canonical form. A keyword `:foo-bar`
+                       ;; and a symbol of the same name both compare as `foo-bar`.
+                       ;; `string::strip-leading-colon` is a defn, not in is_pure_total.
                        kkb
-                       (wat.string/subs ks 1 (wat.string/length ks))
+                       (wat.core/if (wat.core/= (wat.string/subs ks 0 1) ":")
+                         (wat.string/subs ks 1 (wat.string/length ks))
+                         ks)
                        vn
                        (wat.core.Option/expect
                          (wat.core/get kvflat (wat.i64/+ (wat.i64/* ki 2) 1))
@@ -1050,9 +1052,10 @@
          ;; List's own head).
          kwargs-type-slot-name
            (wat.core/fn [node :- wat.type/AST] :- wat.type/String
-             (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
-               (wat.core/ast-name (wat.core/first (wat.core/ast->children node)))
-               (wat.core/ast-name node)))
+             (wat.core/canonical-identity
+               (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+                 (wat.core/ast-name (wat.core/first (wat.core/ast->children node)))
+                 (wat.core/ast-name node))))
          ;; Stone 255.21 (C-b1b) — kwargs-type-slot-rehead: rebuild a `(Peer :- [S R])` slot as
          ;; `(<head> :- [S R ~@extra])`, STRUCTURALLY: the new head keyword replaces child 0, and
          ;; `extra` is appended to the slot's OWN `[S R]` vector node (`with-children` on both the

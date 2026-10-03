@@ -35,7 +35,7 @@
   :- (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.rete/Token])])
   (wat.core/let [acc-ch (wat.core/ast->children acc-form)
                     acc-hd (wat.core/first acc-ch)
-                    acc-nm (wat.core/ast-name acc-hd)
+                    acc-nm (wat.core/canonical-identity (wat.core/ast-name acc-hd))
                     ;; helper: extend tok's bindings with result-var → v, append to bm at node-id
                     ;; (inlined below per case to keep each branch's v-type concrete)
                     tok-binds (wat.rete.Token/bindings tok)
@@ -146,7 +146,9 @@
                          ;; `ast-name` + colon-strip + `keyword::from-string` idiom `wat/bracket.wat`
                          ;; and this file's own `var` extraction already use.
                          acc-kw     (wat.keyword/from-string
-                                      (wat.string/subs acc-nm 1 (wat.string/length acc-nm)))
+                                      (wat.core/if (wat.core/= (wat.string/subs acc-nm 0 1) ":")
+                                        (wat.string/subs acc-nm 1 (wat.string/length acc-nm))
+                                        acc-nm))
                          acc-sig    (wat.core.Option/expect
                                       (wat.runtime/signature-of-defn acc-kw)
                                       "accumulate-pass-for-token: custom fold has no signature")

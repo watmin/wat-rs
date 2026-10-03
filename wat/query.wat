@@ -144,7 +144,7 @@
 
      ;; strip-leading-colon inline (defrule's own idiom — can't call a user-defn from a
      ;; program-body macro).
-     raw-name   (wat.core/ast-name name-node)
+     raw-name   (wat.core/canonical-identity (wat.core/ast-name name-node))
      name-str   (wat.core/if (wat.core/= (wat.string/subs raw-name 0 1) ":")
                   (wat.string/subs raw-name 1 (wat.string/length raw-name))
                   raw-name)
@@ -192,7 +192,7 @@
            (wat.core/let
              [rch        (wat.core/ast->children rf)
               rname      (wat.core.Option/expect (wat.core/get rch 1) "sift-rules-defsvc: rule missing name")
-              raw-rname  (wat.core/ast-name rname)
+              raw-rname  (wat.core/canonical-identity (wat.core/ast-name rname))
               rname-str  (wat.core/if (wat.core/= (wat.string/subs raw-rname 0 1) ":")
                            (wat.string/subs raw-rname 1 (wat.string/length raw-rname))
                            raw-rname)
@@ -223,7 +223,7 @@
                    [cch  (wat.core/ast->children tf)
                     tkw  (wat.core.Option/expect (wat.core/get cch 0)
                            "sift-rules-defsvc: :then fact-form missing a type")
-                    traw (wat.core/ast-name tkw)
+                    traw (wat.core/canonical-identity (wat.core/ast-name tkw))
                     tstr (wat.core/if (wat.core/= (wat.string/subs traw 0 1) ":")
                            (wat.string/subs traw 1 (wat.string/length traw))
                            traw)]
@@ -253,7 +253,7 @@
                    [cch  (wat.core/ast->children cf)
                     ckw  (wat.core.Option/expect (wat.core/get cch 0)
                            "sift-rules-defsvc: :when condition missing a type")
-                    craw (wat.core/ast-name ckw)
+                    craw (wat.core/canonical-identity (wat.core/ast-name ckw))
                     cstr (wat.core/if (wat.core/= (wat.string/subs craw 0 1) ":")
                            (wat.string/subs craw 1 (wat.string/length craw))
                            craw)]
@@ -338,7 +338,7 @@
            (wat.core/let
              [dch  (wat.core/ast->children df)
               dn   (wat.core.Option/expect (wat.core/get dch 1) "sift-rules-defsvc: def missing a name")
-              draw (wat.core/ast-name dn)
+              draw (wat.core/canonical-identity (wat.core/ast-name dn))
               dstr (wat.core/if (wat.core/= (wat.string/subs draw 0 1) ":")
                      (wat.string/subs draw 1 (wat.string/length draw))
                      draw)]

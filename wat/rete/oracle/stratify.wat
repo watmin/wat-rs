@@ -90,7 +90,7 @@
   (wat.core/let [ch (wat.core/ast->children form)]
     (wat.core/if (wat.core/empty? ch)
       wat.core/Option.None
-      (wat.core/let [raw (wat.core/ast-name (wat.core/first ch))
+      (wat.core/let [raw (wat.core/canonical-identity (wat.core/ast-name (wat.core/first ch)))
                         n   (wat.string/length raw)
                         q?  (wat.core/if (wat.i64/>= n 1)
                               (wat.core/= (wat.string/subs raw 0 1) "?")

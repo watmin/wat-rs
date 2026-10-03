@@ -873,34 +873,41 @@
          (wat.core/fn [~g2-sym :- wat.type/nil ~pid2-sym :- wat.type/i64] :- wat.type/nil nil)
          (wat.type/Vector :- [wat.type/nil])))
     (wat.core/let
-      [work-fn-name  (wat.core/ast-name work-fn)
-       base-str      (wat.string/subs work-fn-name 1 (wat.string/length work-fn-name))
-       checker-kw    (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::kwargs-check")))
-       grant-fn-kw   (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::grant-worker")))
-       revoke-fn-kw  (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::revoke-worker")))
-       coords-ty-kw  (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::Coords")))
+      [;; Companion names are the canonical identity plus a suffix. `subs` from
+       ;; index 1 stripped a keyword's colon and a symbol's first letter
+       ;; (`probe/work` → `:robe/work::kwargs-check`). `compose-variant` names
+       ;; an enum variant, not this suffix, so the door is `canonical-identity`.
+       work-fn-id    (wat.core/canonical-identity (wat.core/ast-name work-fn))
+       checker-kw    (wat.core/keyword-node (wat.string/concat work-fn-id "::kwargs-check"))
+       grant-fn-kw   (wat.core/keyword-node (wat.string/concat work-fn-id "::grant-worker"))
+       revoke-fn-kw  (wat.core/keyword-node (wat.string/concat work-fn-id "::revoke-worker"))
+       coords-ty-kw  (wat.core/keyword-node (wat.string/concat work-fn-id "::Coords"))
        ;; 293.W.2f — process runner door. A ProcessOpts constructor locus (or
        ;; with-label wrapping one) must not receive a Shared-memory handle.
-       locus-head    (wat.core/if (wat.core/= (wat.core/ast-kind locus) "list")
+       ;; The head is compared as an identity. A keyword `:wat::spawn::Locus/with-label`
+       ;; stays the `/` join; a symbol `wat.spawn.Locus/with-label` becomes the
+       ;; `::` join. Both are the same door.
+       locus-raw     (wat.core/if (wat.core/= (wat.core/ast-kind locus) "list")
                         (wat.core/let [lch (wat.core/ast->children locus)]
                           (wat.core/if (wat.core/empty? lch) "" (wat.core/ast-name (wat.core/first lch))))
                         "")
-       locus-inner   (wat.core/if (wat.core/= locus-head ":wat::spawn::Locus/with-label")
+       locus-head    (wat.core/canonical-identity locus-raw)
+       with-label?   (wat.core/if (wat.core/= locus-head ":wat::spawn::Locus/with-label")
+                        true
+                        (wat.core/= locus-head ":wat::spawn::Locus::with-label"))
+       locus-inner   (wat.core/if with-label?
                         (wat.core/let [lch (wat.core/ast->children locus)]
                           (wat.core/if (wat.core/empty? (wat.core/rest lch))
                             ""
                             (wat.core/let [inner (wat.core/first (wat.core/rest lch))]
                               (wat.core/if (wat.core/= (wat.core/ast-kind inner) "list")
                                 (wat.core/let [ich (wat.core/ast->children inner)]
-                                  (wat.core/if (wat.core/empty? ich) "" (wat.core/ast-name (wat.core/first ich))))
+                                  (wat.core/if (wat.core/empty? ich) ""
+                                    (wat.core/canonical-identity (wat.core/ast-name (wat.core/first ich)))))
                                 ""))))
                         locus-head)
        process-door? (wat.string/starts-with?
-                       (wat.core/if (wat.core/= locus-head ":wat::spawn::Locus/with-label") locus-inner locus-head)
+                       (wat.core/if with-label? locus-inner locus-head)
                        ":wat::spawn::process")
        wire-pairs    (wat.core/if process-door?
                         (wat.core/foldl
@@ -957,33 +964,34 @@
          (wat.core/fn [~g2-sym :- wat.type/nil ~pid2-sym :- wat.type/i64] :- wat.type/nil nil)
          (wat.type/Vector :- [wat.type/nil])))
     (wat.core/let
-      [work-fn-name  (wat.core/ast-name work-fn)
-       base-str      (wat.string/subs work-fn-name 1 (wat.string/length work-fn-name))
-       checker-kw    (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::kwargs-check")))
-       grant-fn-kw   (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::grant-worker")))
-       revoke-fn-kw  (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::revoke-worker")))
-       coords-ty-kw  (wat.core/keyword-node
-                        (wat.string/concat ":" (wat.string/concat base-str "::Coords")))
+      [;; Same door as `map`: canonical identity plus the suffix. See that binding.
+       work-fn-id    (wat.core/canonical-identity (wat.core/ast-name work-fn))
+       checker-kw    (wat.core/keyword-node (wat.string/concat work-fn-id "::kwargs-check"))
+       grant-fn-kw   (wat.core/keyword-node (wat.string/concat work-fn-id "::grant-worker"))
+       revoke-fn-kw  (wat.core/keyword-node (wat.string/concat work-fn-id "::revoke-worker"))
+       coords-ty-kw  (wat.core/keyword-node (wat.string/concat work-fn-id "::Coords"))
        ;; 293.W.2f — process runner door (twin of map).
-       locus-head    (wat.core/if (wat.core/= (wat.core/ast-kind locus) "list")
+       locus-raw     (wat.core/if (wat.core/= (wat.core/ast-kind locus) "list")
                         (wat.core/let [lch (wat.core/ast->children locus)]
                           (wat.core/if (wat.core/empty? lch) "" (wat.core/ast-name (wat.core/first lch))))
                         "")
-       locus-inner   (wat.core/if (wat.core/= locus-head ":wat::spawn::Locus/with-label")
+       locus-head    (wat.core/canonical-identity locus-raw)
+       with-label?   (wat.core/if (wat.core/= locus-head ":wat::spawn::Locus/with-label")
+                        true
+                        (wat.core/= locus-head ":wat::spawn::Locus::with-label"))
+       locus-inner   (wat.core/if with-label?
                         (wat.core/let [lch (wat.core/ast->children locus)]
                           (wat.core/if (wat.core/empty? (wat.core/rest lch))
                             ""
                             (wat.core/let [inner (wat.core/first (wat.core/rest lch))]
                               (wat.core/if (wat.core/= (wat.core/ast-kind inner) "list")
                                 (wat.core/let [ich (wat.core/ast->children inner)]
-                                  (wat.core/if (wat.core/empty? ich) "" (wat.core/ast-name (wat.core/first ich))))
+                                  (wat.core/if (wat.core/empty? ich) ""
+                                    (wat.core/canonical-identity (wat.core/ast-name (wat.core/first ich)))))
                                 ""))))
                         locus-head)
        process-door? (wat.string/starts-with?
-                       (wat.core/if (wat.core/= locus-head ":wat::spawn::Locus/with-label") locus-inner locus-head)
+                       (wat.core/if with-label? locus-inner locus-head)
                        ":wat::spawn::process")
        wire-pairs    (wat.core/if process-door?
                         (wat.core/foldl

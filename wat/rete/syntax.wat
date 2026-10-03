@@ -67,7 +67,7 @@
       (wat.core/macro-error "query: param kwargs must come in key/value pairs")
       (wat.core/let [k (wat.core/first items)
                         v (wat.core/first (wat.core/rest items))
-                        knm (wat.core/ast-name k)
+                        knm (wat.core/canonical-identity (wat.core/ast-name k))
                         kstr (wat.core/if
                                (wat.core/= (wat.string/subs knm 0 1) ":")
                                (wat.string/subs knm 1
@@ -205,8 +205,9 @@
   :- wat.type/AST
   (wat.core/let [;; name-str: ast-name returns the raw keyword text WITH leading colon;
                     ;; strip it to get the bare FQDN matching (:wat::core::type fact).
-                    raw-name  (wat.core/ast-name name)
-                    ;; strip-leading-colon inline (can't call user-defn from program-body macro)
+                    raw-name  (wat.core/canonical-identity (wat.core/ast-name name))
+                    ;; The sigil comes off the canonical form. A symbol `weather/cold`
+                    ;; and a keyword `:weather::cold` are one bare name.
                     name-str  (wat.core/if (wat.core/= (wat.string/subs raw-name 0 1) ":")
                                  (wat.string/subs raw-name 1 (wat.string/length raw-name))
                                  raw-name)
@@ -252,7 +253,7 @@
   [name :- wat.type/AST
    & rest :- (wat.type/Vector :- [wat.type/AST])]
   :- wat.type/AST
-  (wat.core/let [raw-name  (wat.core/ast-name name)
+  (wat.core/let [raw-name  (wat.core/canonical-identity (wat.core/ast-name name))
                     name-str  (wat.core/if (wat.core/= (wat.string/subs raw-name 0 1) ":")
                                  (wat.string/subs raw-name 1 (wat.string/length raw-name))
                                  raw-name)
