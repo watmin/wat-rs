@@ -9,12 +9,22 @@
 //!
 //! ## Mapping
 //!
-//! Given `a.b/c` — split on the LAST `/` → ns=`a.b`, name=`c` — the **call-head**
-//! keyword is `reconstruct_call_path`: last namespace segment a
-//! known type → join with `/` (`wat.core.Option/expect` → `:wat::core::Option/expect`);
-//! otherwise `ns_to_wat_path` (`wat.core/+` → `:wat::core::+`). Identity of a type
-//! *name* stays `::` always — that door cannot see call vs name position. See the
-//! NOTE in `resolve_namespaced_symbol`.
+//! Given `a.b/c` — split on the FIRST `/` → ns=`a.b`, name=`c` — the **call-head**
+//! keyword is `reconstruct_call_path`: the namespace names a known type and the
+//! local name itself contains no `/` → join with `/`
+//! (`wat.core.Option/expect` → `:wat::core::Option/expect`); otherwise
+//! `ns_to_wat_path` (`wat.core/+` → `:wat::core::+`, `u/a/b` → `:u::a/b`).
+//! A `/` after the first is a name character. The 255.86 member join still
+//! decides `::` versus `/` only for a local name that does not itself contain
+//! `/`. Identity of a type *name* stays `::` always — that door cannot see
+//! call vs name position. See the NOTE in `resolve_namespaced_symbol`.
+//!
+//! A symbol in a binder position (`let`, `fn` / `lambda` parameters, a
+//! two-element `match` binder, a hash-destructure binder) is
+//! `{$bound, <whole spelling>}` via `Identifier::into_bound`. A body
+//! reference whose `env_key` is in that scope is bound the same way and is
+//! not rewritten to a keyword. An unbound reference still is. A variant
+//! head is not a binder.
 //!
 //! ## Special-form boundary discipline
 //!
@@ -33,14 +43,98 @@
 //! pass only rewrites `WatAST::Symbol` nodes. Dual-read holds until the hard-cut
 //! at arc 251.5.
 
+use std::cell::RefCell;
+use std::collections::HashSet;
+
 use crate::ast::WatAST;
 use crate::edn::render::ns_to_wat_path;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
+use crate::scope::Identifier;
 use crate::value::FunctionBody;
 use super::boundary::{is_unquote_escape, is_where_form, quote_boundary, Boundary};
 use super::error::{ResolveError, UnresolvedReference};
 use super::walk::is_resolvable_call_head;
+
+#[derive(Clone, Copy)]
+enum ScopedHead {
+    Let,
+    Fn,
+}
+
+thread_local! {
+    /// Frames of `env_key`s. The outermost entry ([`ScopeEnter`]) starts
+    /// empty; each `let` / `fn` / `match` arm pushes one frame. A contains
+    /// walks every frame, so an inner binder shadows by being found first
+    /// without cloning the outer set.
+    static SCOPE: RefCell<Vec<HashSet<String>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Saves the scope stack and starts empty. Drop restores it, so a nested
+/// normalize on the same thread cannot see the caller's binders.
+struct ScopeEnter {
+    prev: Vec<HashSet<String>>,
+}
+
+impl ScopeEnter {
+    fn fresh() -> Self {
+        let prev = SCOPE.with(|c| std::mem::take(&mut *c.borrow_mut()));
+        ScopeEnter { prev }
+    }
+}
+
+impl Drop for ScopeEnter {
+    fn drop(&mut self) {
+        let prev = std::mem::take(&mut self.prev);
+        SCOPE.with(|c| *c.borrow_mut() = prev);
+    }
+}
+
+/// One frame. Drop pops it. Declare this inside [`ScopeEnter`], never the
+/// other way around: dropping the enter first would pop a frame off the
+/// restored stack.
+struct FrameGuard;
+
+impl FrameGuard {
+    fn push() -> Self {
+        Self::push_with(std::iter::empty())
+    }
+
+    fn push_with(keys: impl IntoIterator<Item = String>) -> Self {
+        let mut frame = HashSet::new();
+        for k in keys {
+            if k != "_" {
+                frame.insert(k);
+            }
+        }
+        SCOPE.with(|c| c.borrow_mut().push(frame));
+        FrameGuard
+    }
+}
+
+impl Drop for FrameGuard {
+    fn drop(&mut self) {
+        SCOPE.with(|c| {
+            c.borrow_mut().pop();
+        });
+    }
+}
+
+fn scope_contains(key: &str) -> bool {
+    SCOPE.with(|c| c.borrow().iter().rev().any(|f| f.contains(key)))
+}
+
+fn scope_insert_ident(id: &Identifier) {
+    if id.as_str() == "_" {
+        return;
+    }
+    let key = crate::scope::env_key(id).into_owned();
+    SCOPE.with(|c| {
+        if let Some(top) = c.borrow_mut().last_mut() {
+            top.insert(key);
+        }
+    });
+}
 
 /// Normalize all namespaced symbol refs in `forms`.
 ///
@@ -57,6 +151,7 @@ pub fn normalize_symbol_refs(
     sym: &SymbolTable,
     macros: &MacroRegistry,
 ) -> Result<Vec<WatAST>, ResolveError> {
+    let _enter = ScopeEnter::fresh();
     let mut errors: Vec<UnresolvedReference> = Vec::new();
     let out = forms
         .into_iter()
@@ -82,6 +177,7 @@ pub fn normalize_stored_function_bodies(
     symbols: &mut SymbolTable,
     macros: &MacroRegistry,
 ) -> Result<(), ResolveError> {
+    let _enter = ScopeEnter::fresh();
     let mut errors: Vec<UnresolvedReference> = Vec::new();
     let paths: Vec<String> = symbols
         .functions_iter()
@@ -96,7 +192,23 @@ pub fn normalize_stored_function_bodies(
             },
             None => continue,
         };
+        let mut keys = Vec::new();
+        if let Some(f) = symbols.get(&path) {
+            for p in &f.params {
+                let k = crate::scope::env_key(p);
+                if k.as_ref() != "_" {
+                    keys.push(k.into_owned());
+                }
+            }
+            if let Some(r) = &f.rest_param {
+                if r != "_" {
+                    keys.push(r.clone());
+                }
+            }
+        }
+        let _frame = FrameGuard::push_with(keys);
         let new = normalize_form(body, symbols, macros, &mut errors);
+        drop(_frame);
         symbols.replace_wat_body(&path, new);
     }
     if errors.is_empty() {
@@ -114,6 +226,14 @@ fn normalize_form(
     errors: &mut Vec<UnresolvedReference>,
 ) -> WatAST {
     match form {
+        // A body reference that is in scope is a binder, not a keyword.
+        // This runs before the reference rewrite so a slashed local used
+        // as a call head stays a symbol (`is_reference` false) and eval
+        // looks it up locally.
+        WatAST::Symbol(ident, span) if scope_contains(crate::scope::env_key(&ident).as_ref()) => {
+            WatAST::Symbol(ident.into_bound(), span)
+        }
+
         // Namespaced symbol: the only node type this pass rewrites.
         WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
             match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, false) {
@@ -134,10 +254,19 @@ fn normalize_form(
         // handled, so walk and normalize cannot drift on the boundary-head set.
         WatAST::List(items, span) => {
             // Symbol `(wat.core/match …)` is the same boundary as the keyword.
-            let head_id = items.first().and_then(crate::declare::parse::head_fqdn);
-            let boundary = match head_id.as_deref() {
-                Some(h) => quote_boundary(h),
-                None => Boundary::Ordinary,
+            // `head_fqdn` borrows the head node. Resolve it before the arms move `items`.
+            let (boundary, scoped) = {
+                let head = items.first().and_then(crate::declare::parse::head_fqdn);
+                let boundary = match head.as_deref() {
+                    Some(h) => quote_boundary(h),
+                    None => Boundary::Ordinary,
+                };
+                let scoped = match head.as_deref() {
+                    Some(":wat::core::let") => Some(ScopedHead::Let),
+                    Some(":wat::core::fn") | Some(":wat::core::lambda") => Some(ScopedHead::Fn),
+                    _ => None,
+                };
+                (boundary, scoped)
             };
             // `head_fqdn` classifies a symbol head (`wat.core/match`) as the
             // boundary, but the checker matches the keyword node. Leaving the
@@ -160,6 +289,26 @@ fn normalize_form(
             // resolve a symbol inside QUOTED data, where clean main never looks. No corpus
             // form pairs a boundary head with a binder today, so this costs nothing and
             // keeps the invariant structural rather than incidental.
+            // Stone 255.88 — binder positions, before the generic rewrite
+            // turns a slashed binder into a keyword. Quote and quasiquote
+            // are not Ordinary, so a template `let` stays data.
+            if matches!(boundary, Boundary::Ordinary) {
+                match scoped {
+                    Some(ScopedHead::Let) => {
+                        return WatAST::List(
+                            normalize_scoped_let(items, sym, macros, errors),
+                            span,
+                        );
+                    }
+                    Some(ScopedHead::Fn) => {
+                        return WatAST::List(
+                            normalize_scoped_fn(items, sym, macros, errors),
+                            span,
+                        );
+                    }
+                    None => {}
+                }
+            }
             if matches!(boundary, Boundary::Ordinary)
                 && items.len() >= 3
                 && crate::types::peel_param_spec(&items[1..]).0.is_some()
@@ -320,6 +469,9 @@ fn normalize_value_position(
     errors: &mut Vec<UnresolvedReference>,
 ) -> WatAST {
     match node {
+        WatAST::Symbol(ident, span) if scope_contains(crate::scope::env_key(&ident).as_ref()) => {
+            WatAST::Symbol(ident.into_bound(), span)
+        }
         WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
             match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, false) {
                 Ok(kw) => kw,
@@ -459,19 +611,39 @@ fn normalize_match(
                 let mut new_arm = Vec::with_capacity(arm_items.len());
                 match arm_items.len() {
                     2 => {
-                        // `[_ body]` / `[binder body]` / hash-destructure: last is code.
+                        // `[_ body]` / `[binder body]` / hash-destructure.
+                        // The pattern stays data (no keyword rewrite). A
+                        // binder symbol becomes `{$bound, spelling}` so the
+                        // body resolves locally. A variant head is the
+                        // 3-element arm, not this one.
                         let mut ai = arm_items.into_iter();
-                        new_arm.extend(ai.next()); // pattern: data
-                        if let Some(body) = ai.next() {
+                        let pat = ai.next();
+                        let body = ai.next();
+                        let _frame = FrameGuard::push();
+                        if let Some(pat) = pat {
+                            new_arm.push(rebind_two_element_pattern(pat));
+                        }
+                        if let Some(body) = body {
                             new_arm.push(normalize_form(body, sym, macros, errors));
                         }
                     }
                     3 => {
-                        // `[Variant map body]`: first two data, last code.
+                        // `[Variant map body]`. The head stays a reference
+                        // so `parse_match_arm` still sees a variant. Field
+                        // patterns bind; a reference-symbol vector head
+                        // inside a field stays a constructor.
                         let mut ai = arm_items.into_iter();
-                        new_arm.extend(ai.next());
-                        new_arm.extend(ai.next());
-                        if let Some(body) = ai.next() {
+                        let head = ai.next();
+                        let fields = ai.next();
+                        let body = ai.next();
+                        let _frame = FrameGuard::push();
+                        if let Some(head) = head {
+                            new_arm.push(head);
+                        }
+                        if let Some(fields) = fields {
+                            new_arm.push(rebind_variant_fields(fields));
+                        }
+                        if let Some(body) = body {
                             new_arm.push(normalize_form(body, sym, macros, errors));
                         }
                     }
@@ -743,11 +915,20 @@ fn resolve_namespaced_symbol(
     let namespace = wat_reader::identifier::receiver(symbol_text);
     let local_name = wat_reader::identifier::method(symbol_text);
 
-    // 255.3 — the registry decides the join. `wat.core/map` → `::`;
-    // `wat.core.Option/expect` → `/` because `Option` is a type.
-    let primary = match sym.types() {
-        Some(env) => crate::types::reconstruct_call_path(namespace, local_name, env),
-        None => ns_to_wat_path(namespace, local_name),
+    // 255.88 — a `/` in the local name is a name character. `u/a/b` resolves
+    // as `:u::a/b` (`ns_to_wat_path`), and `other_join` must not read that
+    // `/` as a type-member join (`:u::a::b`). The 255.86 wall still runs
+    // when the local name has no `/`: `wat.core.Option/expect` reconstructs
+    // to `:wat::core::Option/expect` because `Option` is a type. Keyword
+    // spellings never enter this function.
+    let name_holds_a_slash = local_name.contains('/');
+    let primary = if name_holds_a_slash {
+        ns_to_wat_path(namespace, local_name)
+    } else {
+        match sym.types() {
+            Some(env) => crate::types::reconstruct_call_path(namespace, local_name, env),
+            None => ns_to_wat_path(namespace, local_name),
+        }
     };
 
     // The other join allocates. A held, resolvable primary is the call, so
@@ -755,7 +936,7 @@ fn resolve_namespaced_symbol(
     // no binding; an alt that DOES have a binding still wins, which is why
     // that comparison stays in front of `is_resolvable_call_head`.
     let primary_bound = name_has_binding(&primary, sym, macros);
-    if !primary_bound {
+    if !primary_bound && !name_holds_a_slash {
         if let Some(alt) = crate::types::other_join_spelling(&primary) {
             if name_has_binding(&alt, sym, macros) {
                 return Ok(WatAST::Keyword(alt, span.clone()));
@@ -770,7 +951,7 @@ fn resolve_namespaced_symbol(
     if is_resolvable_call_head(&primary, sym, macros) {
         return Ok(WatAST::Keyword(primary, span.clone()));
     }
-    if primary_bound {
+    if primary_bound && !name_holds_a_slash {
         if let Some(alt) = crate::types::other_join_spelling(&primary) {
             if name_is_registered(&alt, sym, macros) {
                 return Ok(WatAST::Keyword(alt, span.clone()));
@@ -910,6 +1091,287 @@ fn normalize_type_vector(node: WatAST) -> WatAST {
             items.into_iter().map(normalize_type_vector).collect(),
             span,
         ),
+        other => other,
+    }
+}
+
+/// `let` binders. Each RHS is normalized with the binders so far, then the
+/// pattern is bound. An odd-length or non-vector binding vector falls
+/// through to the ordinary rewrite so the existing diagnostic still fires.
+fn normalize_scoped_let(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut iter = items.into_iter();
+    let Some(head) = iter.next() else {
+        return Vec::new();
+    };
+    let head = normalize_form(head, sym, macros, errors);
+    let Some(bindings) = iter.next() else {
+        return vec![head];
+    };
+    let WatAST::Vector(pairs, bspan) = bindings else {
+        let mut out = vec![head, normalize_form(bindings, sym, macros, errors)];
+        out.extend(iter.map(|c| normalize_form(c, sym, macros, errors)));
+        return out;
+    };
+    if pairs.len() % 2 != 0 {
+        let pairs = pairs
+            .into_iter()
+            .map(|c| normalize_form(c, sym, macros, errors))
+            .collect();
+        let mut out = vec![head, WatAST::Vector(pairs, bspan)];
+        out.extend(iter.map(|c| normalize_form(c, sym, macros, errors)));
+        return out;
+    }
+    let _frame = FrameGuard::push();
+    let mut new_pairs = Vec::with_capacity(pairs.len());
+    let mut pit = pairs.into_iter();
+    while let (Some(pat), Some(rhs)) = (pit.next(), pit.next()) {
+        let rhs = normalize_form(rhs, sym, macros, errors);
+        new_pairs.push(rebind_let_pattern(pat));
+        new_pairs.push(rhs);
+    }
+    let mut out = vec![head, WatAST::Vector(new_pairs, bspan)];
+    out.extend(iter.map(|c| normalize_form(c, sym, macros, errors)));
+    out
+}
+
+/// `fn` / `lambda`. Parameter names are binders. Types and the return
+/// slot are normalized on the outer scope, then the body sees the params.
+fn normalize_scoped_fn(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut iter = items.into_iter();
+    let Some(head) = iter.next() else {
+        return Vec::new();
+    };
+    let head = normalize_form(head, sym, macros, errors);
+    let mut args: Vec<WatAST> = iter.collect();
+    let meta = if args.first().is_some_and(|n| n.is_metadata_map()) {
+        Some(normalize_form(args.remove(0), sym, macros, errors))
+    } else {
+        None
+    };
+    let binder = if args.len() >= 2
+        && crate::types::is_param_annotation_arrow(&args[0])
+        && matches!(args.get(1), Some(WatAST::Vector(_, _)))
+    {
+        let marker = args.remove(0);
+        let tv = normalize_type_slot(args.remove(0), sym, macros, errors);
+        Some((marker, tv))
+    } else {
+        None
+    };
+    if args.is_empty() {
+        let mut out = vec![head];
+        if let Some(m) = meta {
+            out.push(m);
+        }
+        if let Some((marker, tv)) = binder {
+            out.push(marker);
+            out.push(tv);
+        }
+        return out;
+    }
+    let params_node = args.remove(0);
+    let (params_node, keys) = rewrite_param_vector(params_node, sym, macros, errors);
+    let _frame = FrameGuard::push_with(keys);
+    let mut out = Vec::with_capacity(4 + args.len());
+    out.push(head);
+    if let Some(m) = meta {
+        out.push(m);
+    }
+    if let Some((marker, tv)) = binder {
+        out.push(marker);
+        out.push(tv);
+    }
+    out.push(params_node);
+    let mut prev_return = false;
+    for c in args {
+        let this_return = crate::types::is_return_arrow(&c);
+        let new = if prev_return {
+            normalize_type_slot(c, sym, macros, errors)
+        } else {
+            normalize_form(c, sym, macros, errors)
+        };
+        out.push(new);
+        prev_return = this_return;
+    }
+    out
+}
+
+fn rewrite_param_vector(
+    node: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> (WatAST, Vec<String>) {
+    let WatAST::Vector(items, span) = node else {
+        return (normalize_form(node, sym, macros, errors), Vec::new());
+    };
+    let mut keys = Vec::new();
+    let mut out = Vec::with_capacity(items.len());
+    let mut items = items.into_iter().peekable();
+    while let Some(item) = items.next() {
+        let WatAST::Symbol(id, span) = item else {
+            out.push(normalize_form(item, sym, macros, errors));
+            continue;
+        };
+        if id.as_str() == "&" {
+            out.push(WatAST::Symbol(id, span));
+            let Some(name_node) = items.next() else {
+                break;
+            };
+            if let WatAST::Symbol(nid, nspan) = name_node {
+                if nid.as_str() != "_" {
+                    keys.push(crate::scope::env_key(&nid).into_owned());
+                }
+                out.push(WatAST::Symbol(nid.into_bound(), nspan));
+            } else {
+                out.push(normalize_form(name_node, sym, macros, errors));
+            }
+            if items.peek().is_some_and(crate::types::is_param_annotation_arrow) {
+                out.push(items.next().expect("peeked"));
+                if let Some(ty) = items.next() {
+                    out.push(normalize_type_slot(ty, sym, macros, errors));
+                }
+            }
+            continue;
+        }
+        if matches!(id.as_str(), ":-" | "<-" | "->") {
+            out.push(WatAST::Symbol(id, span));
+            continue;
+        }
+        if id.as_str() != "_" {
+            keys.push(crate::scope::env_key(&id).into_owned());
+        }
+        out.push(WatAST::Symbol(id.into_bound(), span));
+        if items.peek().is_some_and(crate::types::is_param_annotation_arrow) {
+            out.push(items.next().expect("peeked"));
+            if let Some(ty) = items.next() {
+                out.push(normalize_type_slot(ty, sym, macros, errors));
+            }
+        }
+    }
+    (WatAST::Vector(out, span), keys)
+}
+
+fn rebind_let_pattern(node: WatAST) -> WatAST {
+    match node {
+        WatAST::Symbol(id, span) => {
+            scope_insert_ident(&id);
+            WatAST::Symbol(id.into_bound(), span)
+        }
+        WatAST::Vector(items, span) => {
+            WatAST::Vector(items.into_iter().map(rebind_let_pattern).collect(), span)
+        }
+        WatAST::Map(pairs, span) => rebind_let_map(pairs, span),
+        other => other,
+    }
+}
+
+fn rebind_let_map(pairs: Vec<(WatAST, WatAST)>, span: crate::span::Span) -> WatAST {
+    let is_keys = pairs.len() == 1
+        && matches!(
+            &pairs[0],
+            (WatAST::Keyword(k, _), WatAST::Vector(_, _)) if k == ":keys"
+        );
+    if is_keys {
+        let (k, v) = pairs.into_iter().next().expect("len 1");
+        return WatAST::Map(vec![(k, rebind_let_pattern(v))], span);
+    }
+    let is_hash = !pairs.is_empty()
+        && pairs.iter().all(|(k, v)| {
+            matches!(k, WatAST::Symbol(_, _)) && matches!(v, WatAST::Keyword(_, _))
+        });
+    if is_hash {
+        let pairs = pairs
+            .into_iter()
+            .map(|(k, v)| (rebind_let_pattern(k), v))
+            .collect();
+        return WatAST::Map(pairs, span);
+    }
+    WatAST::Map(pairs, span)
+}
+
+fn rebind_two_element_pattern(node: WatAST) -> WatAST {
+    match node {
+        WatAST::Symbol(id, span) => {
+            scope_insert_ident(&id);
+            WatAST::Symbol(id.into_bound(), span)
+        }
+        WatAST::Map(pairs, span) => rebind_let_map(pairs, span),
+        other => other,
+    }
+}
+
+/// Variant field patterns. Keys stay. A reference-symbol vector or list
+/// head is a constructor and is not rebound.
+fn rebind_variant_fields(node: WatAST) -> WatAST {
+    match node {
+        WatAST::Map(pairs, span) => {
+            let pairs = pairs
+                .into_iter()
+                .map(|(k, v)| (k, rebind_match_subpattern(v)))
+                .collect();
+            WatAST::Map(pairs, span)
+        }
+        other => other,
+    }
+}
+
+fn rebind_match_subpattern(node: WatAST) -> WatAST {
+    match node {
+        WatAST::Symbol(id, span) => {
+            scope_insert_ident(&id);
+            WatAST::Symbol(id.into_bound(), span)
+        }
+        WatAST::Vector(items, span) => {
+            let skip = match items.first() {
+                Some(WatAST::Keyword(_, _)) => 1,
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => 1,
+                _ => 0,
+            };
+            let items = items
+                .into_iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    if i < skip {
+                        item
+                    } else {
+                        rebind_match_subpattern(item)
+                    }
+                })
+                .collect();
+            WatAST::Vector(items, span)
+        }
+        WatAST::List(items, span) => {
+            let items = items
+                .into_iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    if i == 0 {
+                        item
+                    } else {
+                        rebind_match_subpattern(item)
+                    }
+                })
+                .collect();
+            WatAST::List(items, span)
+        }
+        WatAST::Map(pairs, span) => {
+            let pairs = pairs
+                .into_iter()
+                .map(|(k, v)| (k, rebind_match_subpattern(v)))
+                .collect();
+            WatAST::Map(pairs, span)
+        }
         other => other,
     }
 }

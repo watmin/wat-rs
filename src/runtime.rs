@@ -1795,6 +1795,13 @@ pub(crate) fn eval_inner(
             // `wat.spawn.Locus/launch`; the macro stores that keyword, it does
             // not look the symbol up. Same join as a call head.
             if ident.is_reference() {
+                // Stone 255.88 — a `/` in the local name is a name character.
+                // `u/a/b` is `:u::a/b`. `wat.core.Option/expect` (method
+                // `expect`) still takes the member join below.
+                if ident.method().contains('/') {
+                    let kw = crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
+                    return eval_inner(&WatAST::Keyword(kw, span.clone()), env, sym);
+                }
                 let primary = match sym.types() {
                     Some(types) => {
                         crate::types::reconstruct_call_path(ident.receiver(), ident.method(), types)
@@ -1943,7 +1950,13 @@ fn eval_list(
             // Call head, not a local. Macro bodies are evaluated during expand,
             // before normalize, so a converted `(wat.core/let …)` arrives here
             // as a symbol. Same join as `resolve_namespaced_symbol`: registry
-            // when we have one, else identity (`ns_to_wat_path`).
+            // when we have one, else identity (`ns_to_wat_path`). A local name
+            // that itself contains `/` is not a member join.
+            if ident.method().contains('/') {
+                let primary =
+                    crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
+                return dispatch_keyword_head(&primary, rest, list_span, env, sym);
+            }
             let primary: std::sync::Arc<str> = match sym.types() {
                 Some(types) => crate::types::reconstruct_call_path_shared(
                     ident.receiver(),

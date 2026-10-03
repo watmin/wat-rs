@@ -155,8 +155,8 @@ strip_ansi < "$RAW" > "$CLEAN"
 # already ruled against a second target directory. The check runs here, on this
 # floor's own target, after nextest has dropped the lock. `timeout 300` is the
 # hang bound the test already carried. It is not raised, and it is not a nextest
-# limit. The ledger stays in tests/lint/no_new_broken_doc_link.rs. The ignored
-# test reads the log; it does not spawn cargo.
+# limit. The ledger is `src/doc_link.rs`. The judge is `doc_link_ledger`, not a
+# nextest test. It reads the log; it does not spawn cargo.
 echo "[floor] cargo doc --release --no-deps --workspace (intra-doc links)"
 DOC_LINK="$OUT/doc-link.log"
 DOC_LINK_JUDGE="$OUT/doc-link-judge.log"
@@ -168,9 +168,7 @@ doc_build_status=$?
 doc_status=$doc_build_status
 if [ "$doc_build_status" -eq 0 ]; then
   WAT_DOC_LINK_LOG="$DOC_LINK" \
-    cargo test --release --test lint -- \
-    no_new_broken_doc_link::doc_link_ledger_matches_the_captured_log \
-    --ignored --exact \
+    cargo run --release --bin doc_link_ledger --quiet \
     >"$DOC_LINK_JUDGE" 2>&1
   doc_status=$?
 fi

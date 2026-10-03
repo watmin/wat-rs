@@ -103,104 +103,21 @@
 
 use std::collections::BTreeMap;
 
-/// ★ THE LEDGER — every intra-doc link in this workspace that does not resolve, BY NAME.
-///
-/// `(file, link-target, sites-in-that-file)`. Seeded 2026-09-01 (arc 278 stone E3) from the
-/// command in this file's header: 41 sites over 34 named keys, after that stone fixed
-/// `src/value/signal.rs`'s nine — two of which stone E4 had broken one commit earlier.
-///
-/// ⚠ **RE-SEEDED AT LANDING (REPLAY #270), 41/34 → 31/26.** grok's tree and this one have already
-/// diverged in FILE LAYOUT by module splits unrelated to this replay (`edn_shim.rs` →
-/// `edn/render.rs`, `load.rs` → `load/loader.rs`, `test_runner.rs` → `host/test_runner.rs`,
-/// `register_defines`/`register_defclause` moved into `declare/register.rs`). Eight of grok's 34
-/// keys named a file that no longer exists at that path, so their citations do not appear at all
-/// under this tree's rustdoc run — not because the debt was paid, but because the OLD location
-/// is gone. The identical broken citation reappears at each item's NEW location (ten sites: eight
-/// of the eight moves plus two mis-citations this same command surfaced — `RuntimeError`/
-/// `EdnReadError`/`LoadError` naming the struct where the enum is meant, `value_to_edn` naming a
-/// retired free function, `crate::test_suite!` naming a macro renamed to `test!` at arc 018,
-/// `[`stdlib`]` naming nothing where `crate::load::stdlib` is meant) — corrected in the doc
-/// comments themselves rather than re-ledgered, per this gate's own instruction. Re-running the
-/// instrument after those ten fixes found all ten now resolve; the eight moved-away entries were
-/// deleted. Net: this tree's OWN baseline is 31 sites over 26 keys, measured on THIS tree, not
-/// copied from grok's.
-///
-/// **`src/value/signal.rs` is deliberately absent.** It is the file this gate was built out of,
-/// and it is at zero. Anything reappearing under it is a regression of the strike itself.
-///
-/// This list may only SHRINK. See the header for why a line is never added to quiet a red.
-const KNOWN_BROKEN_DOC_LINKS: &[(&str, &str, usize)] = &[
-    ("crates/wat-reader/src/parser.rs", "parse_all", 2),
-    ("crates/wat-reader/src/parser.rs", "parse_one", 2),
-    ("src/bin/cargo-wat.rs", "1", 2),
-    ("src/channel/mod.rs", "crate::io::PipeWriter::write_all", 1),
-    ("src/check.rs", "CheckError::BareLegacyPrimitive", 1),
-    ("src/check/env.rs", "register", 1),
-    ("src/check/env.rs", "register_overlay", 1),
-    ("src/check/error_edn.rs", "CheckErrorKind", 1),
-    ("src/config.rs", "DEFAULT_DIMS", 2),
-    ("src/freeze.rs", "RuntimeError::EvalVerificationFailed", 2),
-    ("src/kernel/address.rs", "feedback_dont_build_the_forcing_function", 1),
-    ("src/kernel/address.rs", "feedback_vended_primitives_never_deadlock", 2),
-    ("src/kernel/listener.rs", "feedback_vended_primitives_never_deadlock", 1),
-    ("src/macros/expand.rs", "expand::expand_form", 1),
-    ("src/macros/mod.rs", "ScopeId", 1),
-    ("src/resolve/mod.rs", "RESERVED_PREFIXES", 1),
-    ("src/resolve/mod.rs", "SymbolTable", 1),
-    ("src/resolve/mod.rs", "check_form", 1),
-    ("src/runtime.rs", "RuntimeError::ArityMismatch", 1),
-    ("src/services/client.rs", "docs/ZERO-MUTEX.md", 1),
-    ("src/types.rs", "crate::macros::MacroRegistry::register_stdlib", 1),
-    ("src/types.rs", "crate::resolve::RESERVED_PREFIXES", 1),
-    ("src/value/environment.rs", "SymbolTable", 1),
-    ("src/value/mod.rs", "must_use", 1),
-    ("src/value/symbol_table.rs", "2", 1),
-    ("src/value/symbol_table.rs", "RuntimeError::NoEncodingCtx", 1),
-];
+use wat::doc_link::{unresolved_links, KNOWN_BROKEN_DOC_LINKS};
 
-/// The `cargo doc` run is `scripts/floor.sh`, after nextest, on the floor's own target.
-/// A cold workspace doc build measured 34.75s, past nextest's 30s kill, so this file does not
-/// spawn it. Arc 278 E3 ruled against a private `CARGO_TARGET_DIR` (a clean clone would compile
-/// the world into that directory). Amend 5's `target/doc-link-ledger` is withdrawn. The 300s
-/// hang bound is `timeout` in `floor.sh`. It was not raised, and it is not a nextest limit.
-///
-/// Extract `(file, link-target) -> sites` from a cargo/rustdoc run's combined output.
-///
-/// rustdoc's shape, verbatim:
-///
-/// ```text
-/// warning: unresolved link to `parse_one`
-///   --> crates/wat-reader/src/parser.rs:10:9
-/// ```
-///
-/// The path is taken from the `-->` line and kept exactly as rustdoc prints it — workspace-root
-/// relative, because the gate runs cargo from `CARGO_MANIFEST_DIR`. Line and column are
-/// DISCARDED on purpose: they move whenever anything above them is edited, and a ledger that
-/// churns on unrelated edits is one people regenerate by reflex instead of reading.
-fn unresolved_links(output: &str) -> BTreeMap<(String, String), usize> {
-    const HEAD: &str = "warning: unresolved link to `";
-    let mut found: BTreeMap<(String, String), usize> = BTreeMap::new();
-    let mut lines = output.lines();
-    while let Some(line) = lines.next() {
-        let Some(rest) = line.strip_prefix(HEAD) else {
-            continue;
-        };
-        let Some(target) = rest.strip_suffix('`') else {
-            continue;
-        };
-        let Some(loc) = lines.next() else {
-            break;
-        };
-        let Some(loc) = loc.trim_start().strip_prefix("--> ") else {
-            continue;
-        };
-        let file = loc.split(':').next().unwrap_or(loc);
-        *found
-            .entry((file.to_string(), target.to_string()))
-            .or_insert(0) += 1;
-    }
-    found
-}
+// The ledger, the extractor, and the judge live in `src/doc_link.rs`.
+// `scripts/floor.sh` runs `doc_link_ledger` against the captured cargo doc log.
+// These two tests stay in nextest. The judge is not a test, so it is not an ignore.
+
+// rune:lint(vacuity-guard) — the population here is rustdoc's diagnostic stream, not a file
+// set, and this ledger is MEANT to reach zero — a "found at least N" floor would make an empty,
+// correct tree RED, which is the opposite of the property. What this gate does instead:
+// `the_unresolved_link_extractor_still_matches_rustdocs_format` proves the parser against a
+// fixed sample of rustdoc's wording. If a toolchain bump rewords the diagnostic, THAT test reds
+// FIRST and names the format change, instead of the gate silently parsing nothing out of a full
+// build and reporting the whole ledger as resolved. A doc build that timed out or failed is a red
+// of `scripts/floor.sh` itself: the judge reads a log that build already wrote.
+
 
 /// **The extractor must be proven against rustdoc's format, not against the population.**
 ///
@@ -265,86 +182,3 @@ fn the_broken_doc_link_ledger_has_no_duplicate_keys() {
     );
 }
 
-// rune:lint(vacuity-guard) — the population here is rustdoc's diagnostic stream, not a file
-// set, and this ledger is MEANT to reach zero — a "found at least N" floor would make an empty,
-// correct tree RED, which is the opposite of the property. What this gate does instead:
-// `the_unresolved_link_extractor_still_matches_rustdocs_format` above proves the parser against a
-// fixed sample of rustdoc's wording. If a toolchain bump rewords the diagnostic, THAT test reds
-// FIRST and names the format change, instead of the gate silently parsing nothing out of a full
-// build and reporting the whole ledger as resolved. A doc build that timed out or failed is a red
-// of `scripts/floor.sh` itself: this test only reads a log that build already wrote.
-#[test]
-#[ignore = "scripts/floor.sh runs this against the captured cargo doc log; it is not a nextest slot"]
-fn doc_link_ledger_matches_the_captured_log() {
-    let path = std::env::var("WAT_DOC_LINK_LOG").unwrap_or_else(|_| {
-        panic!(
-            "WAT_DOC_LINK_LOG is unset. scripts/floor.sh sets it to the cargo doc log. \
-             This test does not spawn cargo."
-        );
-    });
-    let combined = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("could not read WAT_DOC_LINK_LOG {path}: {e}"));
-    let found = unresolved_links(&combined);
-    let known: BTreeMap<(String, String), usize> = KNOWN_BROKEN_DOC_LINKS
-        .iter()
-        .map(|(f, t, n)| (((*f).to_string(), (*t).to_string()), *n))
-        .collect();
-
-    let mut arrivals: Vec<String> = Vec::new();
-    let mut departures: Vec<String> = Vec::new();
-    let mut moved: Vec<String> = Vec::new();
-
-    for (key, sites) in &found {
-        match known.get(key) {
-            None => arrivals.push(format!("{}: [`{}`] × {sites}", key.0, key.1)),
-            Some(n) if n != sites => moved.push(format!(
-                "{}: [`{}`] — ledger says {n} site(s), rustdoc found {sites}",
-                key.0, key.1
-            )),
-            Some(_) => {}
-        }
-    }
-    for key in known.keys() {
-        if !found.contains_key(key) {
-            departures.push(format!("{}: [`{}`]", key.0, key.1));
-        }
-    }
-
-    let mut report = String::new();
-    if !arrivals.is_empty() {
-        report.push_str(&format!(
-            "\n{} NEW broken intra-doc link(s) — not in KNOWN_BROKEN_DOC_LINKS:\n  {}\n\
-             \n  FIX THE LINK. Do NOT add a line to this ledger: it is a shrink-only ratchet, and \
-             adding to it is the laundering the gate exists to refuse.\n",
-            arrivals.len(),
-            arrivals.join("\n  ")
-        ));
-    }
-    if !moved.is_empty() {
-        report.push_str(&format!(
-            "\n{} listed link(s) changed site count:\n  {}\n\
-             \n  MORE sites than listed means a new broken citation of an already-broken target — \
-             fix it. FEWER means you fixed one of several — update that line's count, or delete \
-             the line if it reached zero.\n",
-            moved.len(),
-            moved.join("\n  ")
-        ));
-    }
-    if !departures.is_empty() {
-        report.push_str(&format!(
-            "\n{} listed link(s) now RESOLVE — the ledger is stale:\n  {}\n\
-             \n  Delete these lines from KNOWN_BROKEN_DOC_LINKS. A ledger that keeps names of \
-             debt already paid stops describing anything, and the next reader cannot tell which \
-             entries are real.\n",
-            departures.len(),
-            departures.join("\n  ")
-        ));
-    }
-
-    assert!(
-        report.is_empty(),
-        "broken intra-doc links moved away from the frozen ledger:\n{report}\n\
-         Instrument (run from the repo root):\n  \
-         RUSTDOCFLAGS=\"-W rustdoc::broken_intra_doc_links\" cargo doc --release --no-deps --workspace\n"
-    );
-}

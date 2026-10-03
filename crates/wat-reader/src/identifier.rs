@@ -110,11 +110,12 @@ pub fn fresh_scope() -> ScopeId {
 #[derive(Clone)]
 pub struct Identifier {
     /// The namespace half of the tuple. [`BOUND_NAMESPACE`] (`$bound`) for a
-    /// binder; the spelling before the last `/` for a reference.
+    /// binder; the spelling before the first `/` for a reference.
     /// `Arc` so a macro template clone shares the bytes instead of copying them.
     ns: std::sync::Arc<str>,
     /// The name half of the tuple. The whole spelling for a binder; the
-    /// spelling after the last `/` for a reference.
+    /// spelling after the first `/` for a reference. A later `/` stays in
+    /// the name.
     name: std::sync::Arc<str>,
     /// The original spelling, so [`as_str`](Self::as_str) / [`leaf`](Self::leaf)
     /// / [`path`](Self::path) keep returning `&str`. Derived once in [`bare`](Self::bare).
@@ -198,6 +199,26 @@ impl Identifier {
         }
     }
 
+    /// Binder position. The whole spelling is the name, whatever `/` it
+    /// holds; the namespace is [`BOUND_NAMESPACE`]. `flat` and `scopes` are
+    /// unchanged, so equality and `env_key` still match a body
+    /// reference that spells the same name in the same scopes.
+    ///
+    /// Idempotent: a symbol that is already a binder is returned as-is.
+    /// The reader does not call this. Normalize and argspec parsing do,
+    /// once they know the symbol is sitting in a binder position.
+    pub fn into_bound(self) -> Self {
+        if !self.is_reference() {
+            return self;
+        }
+        Identifier {
+            ns: std::sync::Arc::from(BOUND_NAMESPACE),
+            name: std::sync::Arc::clone(&self.flat),
+            flat: self.flat,
+            scopes: self.scopes,
+        }
+    }
+
     /// A new `Identifier` equal to `self` but with `scope` added to its
     /// scope set. Original unmodified — the name bytes are shared (`Arc`);
     /// the scope set is a new `BTreeSet`.
@@ -248,8 +269,10 @@ impl Identifier {
 
     /// Everything before the `/` of a surface-method call head. See [`receiver`].
     ///
-    /// The prefix *is* the stored namespace whenever the spelling had a `/`;
-    /// a binder (no `/`) has receiver `""`, not `$bound`.
+    /// The prefix *is* the stored namespace whenever the spelling had a `/`.
+    /// A slash-less binder has receiver `""`, not `$bound`. A binder that
+    /// was forced with [`into_bound`](Self::into_bound) keeps its `/` in
+    /// `flat`, so its receiver is the stored namespace (`$bound`).
     pub fn receiver(&self) -> &str {
         if self.flat.contains('/') {
             &self.ns
@@ -591,6 +614,23 @@ mod tests {
         assert_eq!(id.method(), "whatever/name/here/");
         assert_eq!(id.as_str(), "user/whatever/name/here/");
         assert!(id.is_reference());
+    }
+
+    /// A binder position keeps the whole spelling, including every `/`.
+    #[test]
+    fn into_bound_keeps_the_whole_spelling_as_the_name() {
+        let id = Identifier::bare("foo/bar").into_bound();
+        assert_eq!(id.namespace(), "$bound");
+        assert_eq!(&*id.name, "foo/bar");
+        assert_eq!(id.as_str(), "foo/bar");
+        assert!(!id.is_reference());
+        assert_eq!(id.receiver(), "$bound");
+        assert_eq!(id.method(), "foo/bar");
+        let again = id.clone().into_bound();
+        assert_eq!(again, id);
+
+        let slashless = Identifier::bare("acc");
+        assert_eq!(slashless.clone().into_bound(), slashless);
     }
 
     /// ⛔ NON-VACUITY CONTROL for the ruling. Single-slash spellings are

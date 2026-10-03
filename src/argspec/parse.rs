@@ -156,7 +156,10 @@ fn parse_triple(
     head: &str,
 ) -> Result<(Identifier, TypeExpr), ArgSpecError> {
     let name = match &triple[0] {
-        WatAST::Symbol(ident, _) => ident.clone(),
+        // Stone 255.88 — a param is a binder. `foo/bar` stays
+        // `{$bound, foo/bar}` rather than a reference `{foo, bar}`.
+        // Idempotent for a slash-less name. `env_key` is unchanged.
+        WatAST::Symbol(ident, _) => ident.clone().into_bound(),
         other => return Err(ArgSpecError {
             span: other.span().clone(),
             head: head.to_string(),

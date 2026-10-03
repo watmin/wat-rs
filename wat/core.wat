@@ -691,19 +691,18 @@
          [name-raw (wat.core/ast-name name)
           name-fqdn
           (wat.core/if (wat.string/contains? name-raw "/")
-            
-            (wat.core/let
-              [slash-parts (wat.string/split name-raw "/")
-               ;; `first` returns the element directly (raises if empty);
-               ;; `last` returns an Option (arc-278 accessor asymmetry).
-               ns-part  (wat.core/first slash-parts)
-               nm-part  (wat.core.Option/expect (wat.core/last slash-parts)
-                          "defn faithful name: missing name")
-               ns-path  (wat.string/join "::" (wat.string/split ns-part "."))]
-              (wat.string/concat ":"
-                (wat.string/concat ns-path
-                  (wat.string/concat "::" nm-part))))
-            (wat.string/interpolate ":{name-raw}" :name-raw name-raw))]
+            ;; Stone 255.88. The first `/` partitions. Later `/` stays a name
+            ;; character. canonical-identity is that door (`u/a/b` → `:u::a/b`).
+            (wat.core/canonical-identity name-raw)
+            ;; Slash-less: canonical-identity returns the spelling unchanged.
+            (wat.string/interpolate ":{name-raw}" :name-raw name-raw))
+          ;; Span hold. The first/last split this replaced occupied the rest
+          ;; of this binding, and goldens pin later lines of this file.
+          ;;
+          ;;
+          ;;
+          ;;
+          ]
          (wat.core/keyword-node name-fqdn))
        name)
      ;; Arc 109 gamma-i row 6 — a `:- [T U ...]` binder MAY ride at the front of

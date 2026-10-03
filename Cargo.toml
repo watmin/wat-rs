@@ -105,6 +105,12 @@ path = "src/bin/cargo-wat.rs"
 name = "wat-fix-rust"
 path = "src/bin/wat-fix-rust.rs"
 
+# Stone 255.88 — the doc-link judge is not a nextest test. `scripts/floor.sh`
+# runs it against the cargo doc log. It does not spawn cargo.
+[[bin]]
+name = "doc_link_ledger"
+path = "src/bin/doc_link_ledger.rs"
+
 [dependencies]
 # `simd` is NOT holon's default (its `default = []`), so wat ran the scalar
 # `dot_raw` loop for the whole of the substrate's life. Turned on 2026-08-02 —

@@ -88,6 +88,7 @@ pub mod comms;
 pub mod kernel;
 pub mod config;
 pub mod distribution;
+pub mod doc_link;
 pub mod edn;
 pub mod error_ns;
 pub mod process;
