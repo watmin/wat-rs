@@ -435,3 +435,50 @@ Exit 100. Doctests exited 0. The failure is the fuzz test at 90.029s, same limit
 ## STOP (amend 2)
 
 Group B and the three unmasked arms are cured. The time-limit rows remain, and they are the cost stone. No performance cure, no timeout change. The floor log is `.floor/2026-10-03T09-00-08Z/`.
+
+## Amend 3 — the cost of the conversion
+
+Same rust both columns. Unconverted `wat/` is `e08fe7349`, checked out for that run and restored. The clock is one nextest Summary of `reachability_shard_2_of_6`, not a six-run mean. `keyed_gather_visits_match_the_keyed_prediction` was not run. No time limit was raised. The phase probe was in the measured binaries and is not in the tree.
+
+The span amendment 1 left between `4-register-defmacros` and `4-expand-all` is stdlib `expand_all_with`. Before the cure, probe on:
+
+| | unconverted | converted |
+|---|---:|---:|
+| Summary | 9.893s | 14.695s |
+| `4f-expand-stdlib` | 3593066497 ns | 7026309758 ns |
+| `7-normalize-stored-function-bodies` | 386383670 ns | 1273225796 ns |
+| `8-check-program` | 3287712899 ns | 3363393619 ns |
+| `reconstruct` calls | 253360 | 3643738 |
+| `ns_subtype_parent` | 243407022 ns | 2078176478 ns |
+| `classify` calls | 428566 | 3819438 |
+| `expand_kw_head` / `expand_sym_head` | 543426 / 62002 | 67262 / 538218 |
+
+Both RC=0. Logs `/tmp/g1-a3-shard2-unconv.log`, `/tmp/g1-a3-shard2-conv2.log`. `8-check-program` did not grow. The converted stdlib is symbol-headed, so expand and the first normalize of stored bodies did.
+
+`is_known_type` on a miss called `classify`, and `is_subtype_parent` walked every `subtype_edges` value. That walk is the 2.078s. A `subtype_parents` set, filled in `register_subtype` and dropped in `unindex_subtype_child`, makes `is_subtype_parent` a membership test. An already-canonical `:ns::name` with no `/` asks `is_builtin_primitive` and does not allocate. After that, converted only, probe still on: Summary 12.090s, `4f-expand-stdlib` 5340755714 ns, `ns_subtype_parent` 0, `classify` 0, `reconstruct` still 3643738. Log `/tmp/g1-a3-cured-conv.log`. RC=0.
+
+The remaining reconstructs are non-macro call heads. A clojure spelling is stored beside the keyword key at registration (`symbol_alias` points at the one `MacroDef`; both joins registered drop the alias and record the spelling as ambiguous). Expand reconstructs only an ambiguous spelling, or a symbol that is not `ns/name`. `eval_list` borrows the cached `Arc<str>` from `reconstruct_call_path_shared` unless the receiver's last segment is PascalCase, in which case it still asks `join_the_registry_holds`. `boundary_of_node` answers the six stored heads for a symbol without `canonical_identity`. Normalize builds the other join only when the primary is not a held, resolvable name; a retired primary (resolvable, no binding) still loses to an alt that has a binding. `Identifier`'s three spellings are `Arc<str>`, so a template clone shares the bytes.
+
+Same rust, probe on, after those doors. One run each.
+
+| | unconverted `e08fe7349` | converted |
+|---|---:|---:|
+| Summary | 8.493s | 9.379s |
+| `4f-expand-stdlib` | 2753880835 ns | 3224000542 ns |
+| `7-normalize-stored-function-bodies` | 255281416 ns | 425603939 ns |
+| `8-check-program` | 3204403683 ns | 3276822621 ns |
+| `ident_clones` | 13218751 | 19396028 |
+
+Both RC=0. Logs `/tmp/g1-a3-cured7-unconv.log`, `/tmp/g1-a3-cured7-conv.log`. Converted is 0.886s slower. Expand is 0.470s of that. The first normalize of stored bodies is 0.170s. Check is 0.072s.
+
+Sharing one scope-set allocation across an expansion was measured on the converted tree (Summary 9.441s, `4f-expand-stdlib` 3215025137 ns, `/tmp/g1-a3-cured8-conv.log`, RC=0) and is not in the tree.
+
+`cargo clippy --release --all-targets -- -D warnings` returned RC=0. The floor, census, and delta did not run.
+
+## STOP (amend 3)
+
+STOP-2. The converted startup does not reach the unconverted one on this rust. The gap that is left is the shape of the tree, not a lookup that still misses.
+
+A namespaced call head in the converted stdlib is a symbol. `walk_template` adds a hygiene scope to every template identifier, and normalize then rebuilds each surviving symbol into a keyword. The unconverted call head is already that keyword: the copy is one string, and it has no scope set. `binder_and_reference_carry_identical_scope_sets` requires the scope on a bare binder and on the bare body reference (`tmp`). Putting the same set on a namespaced head, and then rewriting that head into a keyword after expansion, is the work the 0.886s is. Two designs would remove it, and neither is in this commit. One: a namespaced head becomes its keyword once, at the door, before the template is copied, and a bare binder keeps `add_scope`. That changes `env_key` of a namespaced binder, which the keyword tree never had. Two: one frozen stdlib is shared across worlds, so this startup is not repeated per process. That is the builder's call.
+
+No time limit was raised. 5c-iii, 5c-iv, and 5d were not started.
