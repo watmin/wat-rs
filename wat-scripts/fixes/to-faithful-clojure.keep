@@ -1,5 +1,6 @@
 tests/function/fn_rename_bare_fn_type.wat ;; negative proof of the retired keyword form :fn(wat::core::i64)->wat::core::i64
 tests/function/fn_rename_mixed_legacy.wat ;; negative proof of the retired keyword form :fn(wat::core::i64)->wat::core::i64
+tests/types/probe_arc296_p1_annotation_names_a_type__bare_legacy_primitive.wat ;; negative proof of the retired keyword form :i64; bytes restored from 9d85da5a5
 wat-scripts/fixes/rename-core-bigint-rational-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
 wat-scripts/fixes/rename-core-maps-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
 wat-scripts/fixes/rename-core-numerics-to-their-homes.wat ;; recorded codemod: after conversion the replay dies, alpha 6 of :wat::rete::fire-rules did not compile
