@@ -128,3 +128,9 @@ spec (:t::svc::plain) :: :t::svc/plain -> :t::svc::plain
 spec-before (:t::svc/plain) :: :t::svc/plain -> :t::svc::plain
 spec (:t::worker::start) :: :t::worker/start -> :t::worker::start
 spec-before (:t::worker/start) :: :t::worker/start -> :t::worker::start
+spec (:myapp::Formattable::format) :: :myapp::Formattable/format -> :myapp::Formattable::format
+spec-before (:myapp::Formattable/format) :: :myapp::Formattable/format -> :myapp::Formattable::format
+spec (:wat-tests::holon::Reject::bundle-or-fail) :: :wat-tests::holon::Reject/bundle-or-fail -> :wat-tests::holon::Reject::bundle-or-fail
+spec-before (:wat-tests::holon::Reject/bundle-or-fail) :: :wat-tests::holon::Reject/bundle-or-fail -> :wat-tests::holon::Reject::bundle-or-fail
+spec (:wat-tests::holon::Reject::project-bundle-or-fail) :: :wat-tests::holon::Reject/project-bundle-or-fail -> :wat-tests::holon::Reject::project-bundle-or-fail
+spec-before (:wat-tests::holon::Reject/project-bundle-or-fail) :: :wat-tests::holon::Reject/project-bundle-or-fail -> :wat-tests::holon::Reject::project-bundle-or-fail

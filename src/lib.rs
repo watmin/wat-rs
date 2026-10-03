@@ -591,6 +591,13 @@ pub fn retirement_table_names_for_gate() -> Vec<&'static str> {
     remedy::retirement_table_names()
 }
 
+/// Retired form and the replacement `RETIREMENT_TABLE` records, in table order.
+/// The 255.86 gate walks this instead of a hand list of the stone's rows.
+#[doc(hidden)]
+pub fn retirement_table_pairs_for_gate() -> Vec<(&'static str, &'static str)> {
+    remedy::retirement_table_pairs()
+}
+
 #[cfg(test)]
 mod blank_rust_source_lines_tests {
     //! ⛔ THE CURE NEEDS ITS OWN GATE, and one direction is not enough.

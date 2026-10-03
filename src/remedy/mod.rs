@@ -55,6 +55,12 @@ pub(crate) fn retirement_table_names() -> Vec<&'static str> {
     retirement::retirement_table_names()
 }
 
+/// Retired form paired with the replacement the table records. Bridged for the
+/// 255.86 gate that asserts the refusal names that replacement.
+pub(crate) fn retirement_table_pairs() -> Vec<(&'static str, &'static str)> {
+    retirement::retirement_table_pairs()
+}
+
 /// Exact table hit? Used by resolve so a retired call head reaches check
 /// (door 1) instead of dying as `UnresolvedReference` with no teaching.
 pub(crate) fn is_retired(needle: &str) -> bool {

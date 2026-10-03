@@ -511,6 +511,15 @@ pub(super) fn retirement_table_names() -> Vec<&'static str> {
     RETIREMENT_TABLE.iter().map(|e| e.retired).collect()
 }
 
+/// Retired form and its replacement, in table order. Same bridge contract as
+/// [`retirement_table_names`]: the gate walks the table, it does not copy it.
+pub(super) fn retirement_table_pairs() -> Vec<(&'static str, &'static str)> {
+    RETIREMENT_TABLE
+        .iter()
+        .map(|e| (e.retired, e.replacement))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,13 +1,13 @@
-//! 255.4 — a member join is `/`, always. This wall keeps colon-joined
-//! Type::member from growing back.
+//! 255.4 — a member join is `/` when the parent is a registered type.
 //!
-//! Two faces, both derived (not a hand-list of names):
-//! - the live registries (`wat_intrinsic` + `wat_dispatch` rust_deps) live in
-//!   `types::stone_255_4_no_colon_joined_type_member_in_the_registry`
-//! - tracked `.wat` keyword text matching `:ns::Type::method` (Pascal type,
-//!   lowercase member). Nested type names (`Cache::GetRequest`) are Pascal
-//!   in the last segment and do not match. Retired `Record::def` is exempt
-//!   because its replacement is `defrecord`, not a slash unify.
+//! Stone 255.86 amend 3: the Pascal segment is only the candidate shape.
+//! The decision is `TypeEnv::contains` on the parent, from `startup_from_file`
+//! of the file that holds the call. A Pascal segment that is not a registered
+//! type keeps `::` (R-a). Retired `Record::def` stays exempt because its
+//! replacement is `defrecord`, not a slash unify.
+//!
+//! The other face, the live registries (`wat_intrinsic` + `wat_dispatch`
+//! rust_deps), lives in `types::stone_255_4_no_colon_joined_type_member_in_the_registry`.
 
 use std::process::Command;
 
@@ -61,8 +61,43 @@ const RECORD_DEF_EXEMPT: &[&str] = &[
     ":wat::Record::def",
 ];
 
+fn member_parent(name: &str) -> &str {
+    name.rsplit_once("::").map(|(parent, _)| parent).unwrap_or(name)
+}
+
+/// A colon join is a type member only when the parent is in the registry of
+/// the program that contains the call. The string shape is the candidate
+/// filter; `TypeEnv::contains` is the decision.
+fn colon_join_names_a_registered_type(name: &str, types: &wat::types::TypeEnv) -> bool {
+    is_colon_joined_type_member(name)
+        && !RECORD_DEF_EXEMPT.contains(&name)
+        && types.contains(member_parent(name))
+}
+
 #[test]
 fn no_colon_joined_type_member_in_tracked_wat() {
+    let bare = wat::freeze::startup_bare().expect("stdlib registry");
+    assert!(
+        colon_join_names_a_registered_type(":wat::core::Option::expect", bare.types()),
+        "Option is a registered type, so Option::expect is a member join"
+    );
+    let form = wat::freeze::startup_from_file(
+        "tests/types/probe_diagnostic_defprotocol_dispatch_p1.wat",
+    )
+    .expect("p1 registry");
+    assert!(
+        !form.types().contains(":myapp::Formattable"),
+        ":myapp::Formattable is not a registered type in the file that names it"
+    );
+    assert!(
+        !colon_join_names_a_registered_type(":myapp::Formattable::format", form.types()),
+        "a non-type parent keeps ::"
+    );
+    let reject = wat::freeze::startup_from_file("wat-tests/holon/Reject.wat").expect("Reject registry");
+    assert!(
+        !reject.types().contains(":wat-tests::holon::Reject"),
+        ":wat-tests::holon::Reject is not a registered type"
+    );
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let files = tracked_wat();
     // NON-VACUITY: git ls-files of tests/wat/wat-scripts/wat-tests. Driven
@@ -74,7 +109,7 @@ fn no_colon_joined_type_member_in_tracked_wat() {
          reaching the corpus it claims to guard, so its green means nothing",
         files.len()
     );
-    let mut hits: Vec<String> = Vec::new();
+    let mut candidates: Vec<(String, usize, String)> = Vec::new();
     for rel in files {
         let text = std::fs::read_to_string(root.join(&rel)).unwrap_or_default();
         for (i, line) in text.lines().enumerate() {
@@ -103,7 +138,7 @@ fn no_colon_joined_type_member_in_tracked_wat() {
                         if !RECORD_DEF_EXEMPT.contains(&name.as_str())
                             && is_colon_joined_type_member(&name)
                         {
-                            hits.push(format!("{rel}:{}: {name}", i + 1));
+                            candidates.push((rel.clone(), i + 1, name));
                         }
                     }
                 } else {
@@ -112,9 +147,22 @@ fn no_colon_joined_type_member_in_tracked_wat() {
             }
         }
     }
+    let mut worlds: std::collections::HashMap<String, wat::freeze::FrozenWorld> =
+        std::collections::HashMap::new();
+    let mut hits: Vec<String> = Vec::new();
+    for (rel, line, name) in candidates {
+        let world = worlds.entry(rel.clone()).or_insert_with(|| {
+            wat::freeze::startup_from_file(&rel).unwrap_or_else(|e| {
+                panic!("cannot ask the type registry of {rel}: {e:?}")
+            })
+        });
+        if colon_join_names_a_registered_type(&name, world.types()) {
+            hits.push(format!("{rel}:{line}: {name}"));
+        }
+    }
     assert!(
         hits.is_empty(),
-        "colon-joined Type::member still in tracked .wat ({}):\n{}",
+        "colon-joined member of a registered type still in tracked .wat ({}):\n{}",
         hits.len(),
         hits.join("\n")
     );
