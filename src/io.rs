@@ -866,7 +866,7 @@ fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, Runt
 }
 
 fn bytes_to_vec_u8_value(bytes: Vec<u8>) -> Value {
-    Value::Vec(Arc::new(bytes.into_iter().map(Value::u8).collect()))
+    Value::Vec(crate::value::pvec::PVec::from_vec(bytes.into_iter().map(Value::u8).collect()))
 }
 
 // ─── IOReader construction ──────────────────────────────────────────────
@@ -1829,7 +1829,7 @@ pub fn eval_io_list_dir(
         let full_path = entry.path().to_string_lossy().into_owned();
         entries.push(Value::String(Arc::new(full_path)));
     }
-    Ok(Value::Vec(Arc::new(entries)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(entries)))
 }
 
 /// `(:wat::stdlib::sources)` → `(:wat::core::Vector :- [(Vector :- [String])])`
@@ -1850,13 +1850,13 @@ pub fn eval_stdlib_sources(
     let pairs: Vec<Value> = crate::load::stdlib::stdlib_files()
         .iter()
         .map(|ws| {
-            Value::Vec(Arc::new(vec![
+            Value::Vec(crate::value::pvec::PVec::from_vec(vec![
                 Value::String(Arc::new(ws.path.to_string())),
                 Value::String(Arc::new(ws.source.to_string())),
             ]))
         })
         .collect();
-    Ok(Value::Vec(Arc::new(pairs)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(pairs)))
 }
 
 // ─── Unit tests for pipe-backed IO (arc 012 slice 1) ─────────────────────

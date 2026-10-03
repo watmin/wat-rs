@@ -345,7 +345,7 @@ pub(crate) fn select_defclause_clause(
         // Collect trailing vals into a wat::core::Vector and bind to rest_param.name.
         if let Some((rest_name_ident, _rest_ty)) = &clause.args.rest_param {
             let rest_vals: Vec<Value> = vals[fixed_arity..].to_vec();
-            let rest_vec = Value::Vec(Arc::new(rest_vals));
+            let rest_vec = Value::Vec(crate::value::pvec::PVec::from_vec(rest_vals));
             scope = scope
                 .child()
                 .bind(

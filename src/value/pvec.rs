@@ -123,6 +123,49 @@ impl PVec {
     pub fn is_tree(&self) -> bool {
         matches!(self, PVec::Tree(..))
     }
+
+    pub fn last(&self) -> Option<&Value> {
+        self.len().checked_sub(1).and_then(|i| self.get(i))
+    }
+
+    /// Materialize as an owned contiguous `Vec<Value>` — O(1) clone of the `Arc`'s
+    /// buffer deref for Array (still an allocation on write, same as before), O(n)
+    /// collect for Tree. For call sites that need a genuine `&[Value]` (slice
+    /// patterns, binary search, `.windows`/`.chunks`, passing to a `&[Value]`
+    /// parameter) rather than element access or iteration.
+    pub fn to_vec(&self) -> Vec<Value> {
+        match self {
+            PVec::Array(v) => (**v).clone(),
+            PVec::Tree(t) => t.iter().cloned().collect(),
+        }
+    }
+
+    /// Borrow a contiguous slice when cheap (Array), else materialize one (Tree).
+    /// Use this instead of `to_vec()` when the call site only needs to read the
+    /// slice, to skip the allocation on the common Array arm.
+    pub fn as_cow_slice(&self) -> std::borrow::Cow<'_, [Value]> {
+        match self {
+            PVec::Array(v) => std::borrow::Cow::Borrowed(v.as_slice()),
+            PVec::Tree(t) => std::borrow::Cow::Owned(t.iter().cloned().collect()),
+        }
+    }
+
+    /// Consume into an owned `Vec<Value>` — reuses the buffer in place when this
+    /// is the sole owner of an Array; clones otherwise.
+    pub fn into_values(self) -> Vec<Value> {
+        match self {
+            PVec::Array(v) => Arc::try_unwrap(v).unwrap_or_else(|v| (*v).clone()),
+            PVec::Tree(t) => t.iter().cloned().collect(),
+        }
+    }
+}
+
+impl std::ops::Index<usize> for PVec {
+    type Output = Value;
+    fn index(&self, i: usize) -> &Value {
+        self.get(i)
+            .unwrap_or_else(|| panic!("PVec index out of bounds: {i} (len {})", self.len()))
+    }
 }
 
 fn tree_from_slice(items: &[Value]) -> rpds::VectorSync<Value> {

@@ -282,7 +282,7 @@ fn tagged_read_outcome_malformed(
                     std::sync::Arc::new(vec![
                         Value::String(std::sync::Arc::new(message.to_string())),
                         crate::runtime::value_from_span(list_span.clone()),
-                        Value::Vec(std::sync::Arc::new(Vec::new())),
+                        Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())),
                     ]),
                 ),
             ))
@@ -542,7 +542,7 @@ pub fn eval_foreign_variant_fields(
     const OP: &str = ":wat::edn::ForeignVariant/fields";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
-        Value::ForeignVariant(fv) => Ok(Value::Vec(Arc::new(fv.fields.clone()))),
+        Value::ForeignVariant(fv) => Ok(Value::Vec(crate::value::pvec::PVec::from_vec(fv.fields.clone()))),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::edn::ForeignVariant",
@@ -619,7 +619,7 @@ fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> V
                     std::sync::Arc::new(vec![
                         Value::String(std::sync::Arc::new(e.message())),
                         crate::runtime::value_from_span(e.span.clone()),
-                        Value::Vec(std::sync::Arc::new(Vec::new())),
+                        Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())),
                     ]),
                 ),
             ))
@@ -1179,7 +1179,7 @@ pub fn eval_ast_children(
         _ => Vec::new(),
     };
     Ok(crate::value::TrackedValue::new(
-        Value::Vec(std::sync::Arc::new(children)),
+        Value::Vec(crate::value::pvec::PVec::from_vec(children)),
         crate::value::Provenance::RuntimeBuilt {
             producer: OP,
             call_span: list_span.clone(),
@@ -1219,8 +1219,8 @@ pub fn eval_with_children(
         })),
     };
     // children must be a Vec of forms-values; unwrap each to WatAST
-    let child_vals: &Vec<Value> = match &children_v {
-        Value::Vec(v) => v.as_ref(),
+    let child_vals: Vec<Value> = match &children_v {
+        Value::Vec(v) => v.to_vec(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(), expected: "(:wat::core::Vector :- [:wat::WatAST])",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
@@ -2333,7 +2333,7 @@ fn edn_to_value_caps(
                 .iter()
                 .map(|x| edn_to_value_caps(x, types, allow_caps, foreign, ctx))
                 .collect::<Result<_, _>>()?;
-            Ok(Value::Vec(Arc::new(walked)))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(walked)))
         }
         Edn::Map(entries) => {
             // Generic HashMap — the no-tag map case. Walk keys + values.
@@ -2710,7 +2710,7 @@ fn edn_to_typed_value_inner(
                                 .map_err(|e| e.at(&format!(".[{}]", i)))?;
                             walked.push(v);
                         }
-                        Ok(Value::Vec(Arc::new(walked)))
+                        Ok(Value::Vec(crate::value::pvec::PVec::from_vec(walked)))
                     }
                     other => Err(mismatch(target, other)),
                 }

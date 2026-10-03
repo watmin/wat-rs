@@ -1052,7 +1052,7 @@ mod arc116_diagnostic_tests {
             AggregateValue::record("wat::core::Fault".into(), crate::runtime::fault_names(), Arc::new(vec![
                 Value::String(Arc::new(message.to_string())),
                 location_value,
-                Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
+                Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())), // causes: empty Vector<Error>
             ])),
         ));
         let actual_field = match actual {
@@ -1067,7 +1067,7 @@ mod arc116_diagnostic_tests {
         // Arc 278 — fields [error, frames, actual, expected].
         Value::Aggregate(Arc::new(AggregateValue::record("wat::kernel::Failure".into(), crate::runtime::failure_names(), Arc::new(vec![
             error_field,
-            Value::Vec(Arc::new(Vec::new())), // no frames
+            Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())), // no frames
             actual_field,
             expected_field,
         ]))))

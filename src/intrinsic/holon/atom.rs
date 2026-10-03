@@ -360,7 +360,7 @@ pub(crate) fn eval_holon_from_holon(
                         }
                         pairs.sort_by_key(|(k, _)| *k);
                         let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(TrackedValue::new(Value::Vec(Arc::new(elems)), prov()))
+                        Ok(TrackedValue::new(Value::Vec(crate::value::pvec::PVec::from_vec(elems)), prov()))
                     }
                     "List" => {
                         // List: inner Bundle contains sequential bare items → wat::core::List.
@@ -1495,7 +1495,7 @@ pub(crate) fn eval_bundle_children(
         .iter()
         .map(|child| Value::holon__HolonAST(Arc::new(child.clone())))
         .collect();
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
 }
 
 
@@ -1945,7 +1945,7 @@ pub(crate) fn eval_term_slots(
         }
     };
     let items: Vec<Value> = h.slots().into_iter().map(Value::f64).collect();
-    Ok(Value::Vec(Arc::new(items)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(items)))
 }
 
 
@@ -1990,7 +1990,7 @@ pub(crate) fn eval_term_ranges(
         .into_iter()
         .map(|(lo, hi)| Value::Tuple(Arc::new(vec![Value::f64(lo), Value::f64(hi)])))
         .collect();
-    Ok(Value::Vec(Arc::new(items)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(items)))
 }
 
 
@@ -2816,7 +2816,7 @@ pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBr
             },
         ),
     })?;
-    Ok(Value::Vec(Arc::new(
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(
         bytes.into_iter().map(Value::u8).collect(),
     )))
 }

@@ -88,7 +88,7 @@ pub struct Function {
     /// Arc 150 — optional rest-parameter name. When present, the
     /// function accepts `args.len() >= params.len()` at apply time;
     /// the first N args bind positionally to `params`, and the
-    /// REMAINING args are wrapped in a `Value::Vec(Arc::new(rest))`
+    /// REMAINING args are wrapped in a `Value::Vec(crate::value::pvec::PVec::from_vec(rest))`
     /// and bound to this name. Mirrors `MacroDef.rest_param`. Syntax
     /// at declaration (Stone 241.16 — defn form):
     /// `(:wat::core::defn :name [p1 <- :T1 ... & xs <- :Vector<R>] -> :Ret body)`.

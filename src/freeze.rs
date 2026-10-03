@@ -179,7 +179,7 @@ impl ProcessRuntime {
         let stop_accepted = Value::Aggregate(Arc::new(crate::runtime::AggregateValue::record(
             "wat::kernel::StopAccepted".to_string(),
             stop_accepted_names(),
-            Arc::new(vec![Value::Vec(Arc::new(service_names))]),
+            Arc::new(vec![Value::Vec(crate::value::pvec::PVec::from_vec(service_names))]),
         )));
         let edn = crate::edn::render::value_to_edn_with(
             &stop_accepted,

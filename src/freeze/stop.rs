@@ -72,7 +72,7 @@ pub(crate) fn stop_failed_value(failures: Vec<Value>) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::StopFailed".to_string(),
         stop_failed_names(),
-        Arc::new(vec![Value::Vec(Arc::new(failures))]),
+        Arc::new(vec![Value::Vec(crate::value::pvec::PVec::from_vec(failures))]),
     )))
 }
 

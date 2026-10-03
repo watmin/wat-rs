@@ -854,7 +854,7 @@ pub(crate) fn eval_string_split(
     }
     let pieces: Vec<Value> =
         hay.split(sep_val.as_str()).map(|s| Value::String(Arc::new(s.to_string()))).collect();
-    Ok(Value::Vec(Arc::new(pieces)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(pieces)))
 }
 
 /// `(:wat::string::join sep pieces)` → every element of `pieces`, rendered

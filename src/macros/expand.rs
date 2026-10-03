@@ -1221,7 +1221,7 @@ fn expand_program_body(
 
     // Build a body env with params bound as quoted form-values.
     //   - fixed param   → Value::wat__WatAST(Arc::new(arg_form))
-    //   - rest param    → Value::Vec(Arc::new([wat__WatAST(arg0), ...]))
+    //   - rest param    → Value::Vec(crate::value::pvec::PVec::from_vec([wat__WatAST(arg0), ...]))
     // This is what lets `(foldl … nums)` fold over the arg-forms: each `n` is a
     // `wat__WatAST` value, and `` `(:wat::i64::+ ~acc ~n) `` → eval_quasiquote
     // evaluates `~n` → value_to_watast → the arg-form spliced in.
@@ -1242,7 +1242,7 @@ fn expand_program_body(
                 .collect();
             builder = builder.bind_unknown_span(
                 name.clone(),
-                TrackedValue::from(Value::Vec(Arc::new(vals))),
+                TrackedValue::from(Value::Vec(crate::value::pvec::PVec::from_vec(vals))),
             );
         } else {
             // Fixed param: bind as a quoted form-value (Value::wat__WatAST).

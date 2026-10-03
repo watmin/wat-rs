@@ -462,7 +462,7 @@ fn t11_captures_with_recursive_struct() {
     assert_eq!(count_tree, 1, "Tree must appear exactly once; got {:?}", type_decls);
     let fresh = re_freeze(package.prologue);
     let new_func = fresh.symbols().get(":my::Tree'").expect("Tree ctor (positional prime)").clone();
-    let empty_children = Value::Vec(Arc::new(Vec::new()));
+    let empty_children = Value::Vec(wat::value::pvec::PVec::from_vec(Vec::new()));
     let tree = apply_function(
         new_func,
         vec![Value::i64(99), empty_children],

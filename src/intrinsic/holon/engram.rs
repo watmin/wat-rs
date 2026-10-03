@@ -249,7 +249,7 @@ pub(crate) fn library_match_vec(
             ]))
         })
         .collect();
-    Ok(Value::Vec(Arc::new(elems)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(elems)))
 }
 
 
@@ -322,6 +322,6 @@ pub(crate) fn library_names(lib: &Value, span: &Span) -> Result<Value, EvalBreak
         .into_iter()
         .map(|s| Value::String(Arc::new(s)))
         .collect();
-    Ok(Value::Vec(Arc::new(elems)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(elems)))
 }
 

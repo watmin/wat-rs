@@ -39,7 +39,7 @@ pub(crate) fn conj_died_chain(fresh: Value, upstream: Option<Vec<Value>>) -> Val
     if let Some(tail) = upstream {
         chain.extend(tail);
     }
-    Value::Vec(Arc::new(chain))
+    Value::Vec(crate::value::pvec::PVec::from_vec(chain))
 }
 
 /// Cross-module sibling of [`conj_died_chain`] for `src/process/verbs.rs`'s

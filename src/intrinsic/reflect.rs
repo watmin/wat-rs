@@ -155,7 +155,7 @@ pub(crate) fn eval_intrinsic_examples(
         }
     }
 
-    Ok(Value::Vec(Arc::new(tuples)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(tuples)))
 }
 
 // ─── Arc 255 STONE the-registry-can-be-enumerated: `:wat::intrinsic::rows` ──
@@ -245,7 +245,7 @@ pub(crate) fn eval_intrinsic_rows(
         rows.push(record);
     }
 
-    Ok(Value::Vec(Arc::new(rows)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(rows)))
 }
 
 // ─── Arc 255.1b-v: @see registry cross-check ─────────────────────────────────
@@ -842,8 +842,8 @@ pub(crate) fn eval_type_params_used_in(
     let _ = span;
 
     let params_v = crate::runtime::eval_inner(params, env, sym)?.value_owned();
-    let param_vals: &Vec<Value> = match &params_v {
-        Value::Vec(v) => v.as_ref(),
+    let param_vals: Vec<Value> = match &params_v {
+        Value::Vec(v) => v.to_vec(),
         other => {
             return Err(RuntimeError::new(params.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
@@ -886,7 +886,7 @@ pub(crate) fn eval_type_params_used_in(
         }
     }
 
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
 }
 
 /// Do `a` and `b` denote the SAME type, whatever spelling each wears?

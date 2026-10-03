@@ -222,7 +222,7 @@ fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, Runtime
 /// behavior change.
 pub(crate) fn extract_panics(err: &Value) -> Option<Vec<Value>> {
     match err {
-        Value::Vec(items) => Some((**items).clone()),
+        Value::Vec(items) => Some(items.to_vec()),
         _ => None,
     }
 }

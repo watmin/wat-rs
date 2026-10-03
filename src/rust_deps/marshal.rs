@@ -261,7 +261,7 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
 
 impl<T: ToWat> ToWat for Vec<T> {
     fn to_wat(self) -> Value {
-        Value::Vec(Arc::new(self.into_iter().map(T::to_wat).collect()))
+        Value::Vec(crate::value::pvec::PVec::from_vec(self.into_iter().map(T::to_wat).collect()))
     }
 }
 

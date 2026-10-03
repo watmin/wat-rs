@@ -84,7 +84,7 @@ fn kw(name: &str) -> Value {
 }
 
 fn pv(items: impl IntoIterator<Item = Value>) -> Value {
-    Value::Vec(Arc::new(items.into_iter().collect()))
+    Value::Vec(crate::value::pvec::PVec::from_vec(items.into_iter().collect()))
 }
 
 fn empty_pv() -> Value {
@@ -322,7 +322,7 @@ fn expect_str<'a>(v: &'a Value, op: &str, span: &Span) -> Result<&'a str, EvalBr
 
 fn expect_seq(v: &Value, op: &str, span: &Span) -> Result<Vec<Value>, EvalBreak> {
     match v {
-        Value::Vec(xs) => Ok((**xs).clone()),
+        Value::Vec(xs) => Ok(xs.to_vec()),
         Value::wat__core__PersistentVector(pv) => Ok(pv.iter().cloned().collect()),
         other => Err(RuntimeError::new(
             span.clone(),

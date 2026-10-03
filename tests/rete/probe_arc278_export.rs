@@ -295,7 +295,7 @@ fn poke_named(exp: Value, field: &str, v: Value) -> Value {
 
 fn seq_values(v: &Value) -> Vec<Value> {
     match v {
-        Value::Vec(xs) => xs.as_ref().clone(),
+        Value::Vec(xs) => xs.to_vec(),
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         other => panic!("expected seq, got {other:?}"),
     }
@@ -312,7 +312,7 @@ fn seq_strings(v: &Value) -> Vec<String> {
 }
 
 fn strings_value(ss: &[String]) -> Value {
-    Value::Vec(Arc::new(
+    Value::Vec(wat::value::pvec::PVec::from_vec(
         ss.iter()
             .map(|s| Value::String(Arc::new(s.clone())))
             .collect(),
@@ -320,7 +320,7 @@ fn strings_value(ss: &[String]) -> Value {
 }
 
 fn rows_value(rows: &[Vec<String>]) -> Value {
-    Value::Vec(Arc::new(rows.iter().map(|r| strings_value(r)).collect()))
+    Value::Vec(wat::value::pvec::PVec::from_vec(rows.iter().map(|r| strings_value(r)).collect()))
 }
 
 fn fnv1a(s: &str) -> u64 {
@@ -368,17 +368,17 @@ fn rete_ops_names() -> Vec<&'static str> {
 fn poke_first_call_op(v: &mut Value, op: i64) -> bool {
     match v {
         Value::Vec(items) => {
-            let mut xs = items.as_ref().clone();
+            let mut xs = items.to_vec();
             if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":call")
                 && xs.len() >= 2
             {
                 xs[1] = Value::i64(op);
-                *v = Value::Vec(Arc::new(xs));
+                *v = Value::Vec(wat::value::pvec::PVec::from_vec(xs));
                 return true;
             }
             for x in &mut xs {
                 if poke_first_call_op(x, op) {
-                    *v = Value::Vec(Arc::new(xs));
+                    *v = Value::Vec(wat::value::pvec::PVec::from_vec(xs));
                     return true;
                 }
             }
@@ -403,9 +403,9 @@ fn import_refuses_classes_fields_len_mismatch() {
                 .expect("classes");
             let extra = match &fields[i] {
                 Value::Vec(xs) => {
-                    let mut v = xs.as_ref().clone();
+                    let mut v = xs.to_vec();
                     v.push(Value::String(Arc::new("bogus::Class".into())));
-                    Value::Vec(Arc::new(v))
+                    Value::Vec(wat::value::pvec::PVec::from_vec(v))
                 }
                 other => panic!("expected packed classes Vec, got {other:?}"),
             };

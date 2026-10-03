@@ -98,7 +98,7 @@ pub(crate) fn require_subspace(
 
 /// Arc 053 — wrap a `Vec<f64>` into a wat-tier `(:wat::core::Vector :- [f64])` Value.
 pub(crate) fn vec_f64_to_value(xs: Vec<f64>) -> Value {
-    Value::Vec(Arc::new(xs.into_iter().map(Value::f64).collect()))
+    Value::Vec(crate::value::pvec::PVec::from_vec(xs.into_iter().map(Value::f64).collect()))
 }
 
 

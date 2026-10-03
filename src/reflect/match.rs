@@ -382,5 +382,5 @@ pub(crate) fn eval_forms(
         .iter()
         .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
         .collect();
-    Ok(Value::Vec(Arc::new(items)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(items)))
 }

@@ -613,7 +613,7 @@ pub fn eval_kernel_fn_forms(
         .into_iter()
         .map(|f| Value::wat__WatAST(Arc::new(f)))
         .collect();
-    Ok(Value::Vec(Arc::new(items)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(items)))
 }
 
 // ─── Capture-binding name minting ───────────────────────────────────────

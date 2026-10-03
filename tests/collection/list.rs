@@ -162,7 +162,7 @@ fn cross_type_eq_list_equals_vector_same_contents() {
         ll.push_back(Value::i64(3));
         ll
     }));
-    let vec = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2), Value::i64(3)]));
+    let vec = Value::Vec(wat::value::pvec::PVec::from_vec(vec![Value::i64(1), Value::i64(2), Value::i64(3)]));
     assert_eq!(list, vec, "List([1,2,3]) should equal Vector([1,2,3]) per EDN spec §282-289");
     assert_eq!(vec, list, "Vector([1,2,3]) should equal List([1,2,3]) per EDN spec §282-289");
 }
@@ -175,14 +175,14 @@ fn cross_type_eq_list_ne_vector_different_contents() {
         ll.push_back(Value::i64(2));
         ll
     }));
-    let vec = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2), Value::i64(3)]));
+    let vec = Value::Vec(wat::value::pvec::PVec::from_vec(vec![Value::i64(1), Value::i64(2), Value::i64(3)]));
     assert_ne!(list, vec, "List([1,2]) should not equal Vector([1,2,3])");
 }
 
 #[test]
 fn cross_type_eq_empty_list_equals_empty_vector() {
     let list = Value::wat__core__List(Arc::new(LinkedList::new()));
-    let vec = Value::Vec(Arc::new(vec![]));
+    let vec = Value::Vec(wat::value::pvec::PVec::from_vec(vec![]));
     assert_eq!(list, vec, "empty List should equal empty Vector per EDN spec");
 }
 
@@ -194,7 +194,7 @@ fn cross_type_hash_list_vector_same_contents_same_hash() {
     // Build a HashMap with a Vec key, then look it up with a List key.
     // If Hash invariant holds (List(1,2) and Vec(1,2) hash equal AND eq),
     // the HashMap lookup succeeds.
-    let vec_key = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2)]));
+    let vec_key = Value::Vec(wat::value::pvec::PVec::from_vec(vec![Value::i64(1), Value::i64(2)]));
     let list_key = Value::wat__core__List(Arc::new({
         let mut ll = LinkedList::new();
         ll.push_back(Value::i64(1));

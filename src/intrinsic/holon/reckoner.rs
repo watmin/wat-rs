@@ -266,7 +266,7 @@ pub(crate) fn reckoner_predict(r: &Value, v: &Value, span: &Span) -> Result<Valu
             ]))
         })
         .collect();
-    let scores_value = Value::Vec(Arc::new(scores));
+    let scores_value = Value::Vec(crate::value::pvec::PVec::from_vec(scores));
     let direction = match pred.direction {
         Some(label) => Value::Option(Arc::new(Some(Value::i64(label.index() as i64)))),
         None => Value::Option(Arc::new(None)),
@@ -388,7 +388,7 @@ pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak
         .into_iter()
         .map(|l| Value::i64(l.index() as i64))
         .collect();
-    Ok(Value::Vec(Arc::new(xs)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(xs)))
 }
 
 

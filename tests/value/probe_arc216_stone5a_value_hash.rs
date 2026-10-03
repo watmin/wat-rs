@@ -85,7 +85,7 @@ fn probe_1_self_equality_uuid() {
 
 #[test]
 fn probe_1_self_equality_vec() {
-    let v = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2)]));
+    let v = Value::Vec(wat::value::pvec::PVec::from_vec(vec![Value::i64(1), Value::i64(2)]));
     assert_eq!(hash_value(&v), hash_value(&v), "Vec hash must be stable");
     assert_eq!(v, v, "Vec PartialEq reflexive");
 }
@@ -208,8 +208,8 @@ fn probe_5_holon_ast_nesting() {
 
 #[test]
 fn probe_6_vec_order_preserved() {
-    let v_ab = Value::Vec(Arc::new(vec![Value::i64(1), Value::i64(2)]));
-    let v_ba = Value::Vec(Arc::new(vec![Value::i64(2), Value::i64(1)]));
+    let v_ab = Value::Vec(wat::value::pvec::PVec::from_vec(vec![Value::i64(1), Value::i64(2)]));
+    let v_ba = Value::Vec(wat::value::pvec::PVec::from_vec(vec![Value::i64(2), Value::i64(1)]));
     assert_ne!(v_ab, v_ba, "Vec order matters for equality");
     assert_ne!(
         hash_value(&v_ab),
@@ -307,7 +307,7 @@ fn probe_9_deep_nesting() {
         Value::i64(1),
     );
     let hmap_val = Value::wat__std__HashMap(Arc::new(inner_map));
-    let nested = Value::Vec(Arc::new(vec![hmap_val]));
+    let nested = Value::Vec(wat::value::pvec::PVec::from_vec(vec![hmap_val]));
 
     // Must hash consistently (same value → same hash)
     let h1 = hash_value(&nested);

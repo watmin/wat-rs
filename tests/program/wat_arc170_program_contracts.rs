@@ -350,7 +350,7 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
     // echo-doubled returns the drained outputs directly: Vector<i64> == [42].
     // Each element was received over the peer wire as a recv' RecvOutcome::Message.
     let outputs = match &result {
-        wat::runtime::Value::Vec(v) => v.as_ref(),
+        wat::runtime::Value::Vec(v) => v,
         other => panic!("expected Vec outputs; got {:?}", other),
     };
     assert_eq!(
@@ -395,7 +395,7 @@ fn t18c_recv_all_drains_all_outputs() {
 
     // recv-all' returns Ok[outputs]; echo-multi unwraps to the Vector<i64> == [7 14 21].
     let outputs = match &result {
-        wat::runtime::Value::Vec(v) => v.as_ref(),
+        wat::runtime::Value::Vec(v) => v,
         other => panic!("expected Vec outputs; got {:?}", other),
     };
     let got: Vec<i64> = outputs

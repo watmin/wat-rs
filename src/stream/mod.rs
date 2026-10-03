@@ -221,7 +221,10 @@ pub(crate) fn eager_container_to_stream(v: &Value) -> Option<Arc<Stream>> {
         tail
     }
     match v {
-        Value::Vec(xs) => Some(chain_from_slice(xs.iter())),
+        Value::Vec(xs) => {
+            let snapshot: Vec<Value> = xs.to_vec();
+            Some(chain_from_slice(snapshot.iter()))
+        }
         Value::wat__core__List(xs) => {
             let snapshot: Vec<Value> = xs.iter().cloned().collect();
             Some(chain_from_slice(snapshot.iter()))

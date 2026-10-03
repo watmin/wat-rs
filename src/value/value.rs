@@ -52,8 +52,11 @@ pub enum Value {
     u8(u8),
     f64(f64),
     String(Arc<String>),
-    /// A `Vec<Value>` — constructed by `:wat::core::vec`.
-    Vec(Arc<Vec<Value>>),
+    /// A `Vec<Value>` — constructed by `:wat::core::vec`. Persistent (`PVec`):
+    /// array from a bulk build, RRB tree after persistent `conj` past the
+    /// threshold (arc 2026-10 persistent-vector-and-list). Representation is
+    /// unobservable — equality/hash/printing are by sequence either way.
+    Vec(crate::value::pvec::PVec),
     /// The empty tuple / Rust unit `()`. Named `Unit` since `()` isn't
     /// a legal identifier.
     Unit,

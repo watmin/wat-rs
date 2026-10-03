@@ -881,7 +881,7 @@ pub(crate) fn eval_extract_arg_names(
         // Any other shape: skip.
     }
 
-    Ok(Value::Vec(Arc::new(names)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(names)))
 }
 
 /// `(:wat::runtime::extract-arg-types head) -> (:wat::core::Vector :- [:wat::WatAST])`. Direct
@@ -976,7 +976,7 @@ pub(crate) fn eval_extract_arg_types(
         // Any other shape: skip.
     }
 
-    Ok(Value::Vec(Arc::new(types)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(types)))
 }
 
 /// `(:wat::runtime::field-names-of type-kw) -> (:wat::core::Vector :- [:wat::core::keyword])`
@@ -1050,7 +1050,7 @@ pub(crate) fn eval_field_names_of(
         .iter()
         .map(|(name, _)| Value::wat__core__keyword(Arc::new(format!(":{}", name))))
         .collect();
-    Ok(Value::Vec(Arc::new(names)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(names)))
 }
 
 /// `(:wat::runtime::field-types-of type-kw) -> (:wat::core::Vector :- [:wat::WatAST])`
@@ -1117,7 +1117,7 @@ pub(crate) fn eval_field_types_of(
         })?;
         types.push(Value::wat__WatAST(Arc::new(node)));
     }
-    Ok(Value::Vec(Arc::new(types)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(types)))
 }
 
 /// Shared arg-resolution step for `field-names-of` / `field-types-of`:
@@ -1318,7 +1318,7 @@ fn type_fields_vec(
     for (name, ty) in fields {
         out.push(type_field_value(name, ty, span, op)?);
     }
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
 }
 
 fn nature_value(n: Nature) -> Value {
@@ -1344,7 +1344,7 @@ fn purity_value(p: Purity) -> Value {
 }
 
 fn type_params_vec(params: &[String]) -> Value {
-    Value::Vec(Arc::new(
+    Value::Vec(crate::value::pvec::PVec::from_vec(
         params
             .iter()
             .map(|p| Value::String(Arc::new(p.clone())))
@@ -1375,7 +1375,7 @@ fn type_body_value(def: &TypeDef, span: &Span, op: &str) -> Result<Value, EvalBr
             Ok(tagged_variant(
                 TYPE_BODY,
                 "Enum",
-                vec![purity_value(e.purity), Value::Vec(Arc::new(variants))],
+                vec![purity_value(e.purity), Value::Vec(crate::value::pvec::PVec::from_vec(variants))],
             ))
         }
         TypeDef::Newtype(n) => Ok(tagged_variant(
@@ -1396,7 +1396,7 @@ fn type_body_value(def: &TypeDef, span: &Span, op: &str) -> Result<Value, EvalBr
             Ok(tagged_variant(
                 TYPE_BODY,
                 "Union",
-                vec![Value::Vec(Arc::new(members))],
+                vec![Value::Vec(crate::value::pvec::PVec::from_vec(members))],
             ))
         }
         TypeDef::Surface(s) => {
@@ -1423,7 +1423,7 @@ fn type_body_value(def: &TypeDef, span: &Span, op: &str) -> Result<Value, EvalBr
                             "Method",
                             vec![
                                 kw(name),
-                                Value::Vec(Arc::new(params)),
+                                Value::Vec(crate::value::pvec::PVec::from_vec(params)),
                                 type_form_value(ret, span, op)?,
                             ],
                         )
@@ -1433,7 +1433,7 @@ fn type_body_value(def: &TypeDef, span: &Span, op: &str) -> Result<Value, EvalBr
             Ok(tagged_variant(
                 TYPE_BODY,
                 "Surface",
-                vec![nature, Value::Vec(Arc::new(members))],
+                vec![nature, Value::Vec(crate::value::pvec::PVec::from_vec(members))],
             ))
         }
     }

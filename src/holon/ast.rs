@@ -143,7 +143,7 @@ pub(crate) fn from_holon_item(
                     }
                     pairs.sort_by_key(|(k, _)| *k);
                     let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                    Ok(Value::Vec(Arc::new(elems)))
+                    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(elems)))
                 }
                 "List" => {
                     let mut list = std::collections::LinkedList::new();

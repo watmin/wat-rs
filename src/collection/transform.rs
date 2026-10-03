@@ -63,9 +63,9 @@ pub(crate) fn eval_vec_reverse(
                 let Value::Vec(items) = v else {
                     unreachable!("of_value⇒Vector")
                 };
-                let mut out = (*items).clone();
+                let mut out = items.to_vec();
                 out.reverse();
-                Ok(Value::Vec(Arc::new(out)))
+                Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
             }
             StreamContainer::PersistentVector => {
                 let Value::wat__core__PersistentVector(pv) = v else {
@@ -117,7 +117,7 @@ pub(crate) fn eval_vec_range(
     } else {
         Vec::new()
     };
-    Ok(Value::Vec(Arc::new(items)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(items)))
 }
 
 /// `(:wat::core::take xs n)` → `Stream<T>`. Lazily yields at most the first `n` elements of
@@ -349,7 +349,7 @@ pub(crate) fn eval_vec_sort_by(
             .into());
         }
     }
-    let mut sorted: Vec<Value> = (*xs).clone();
+    let mut sorted: Vec<Value> = xs.to_vec();
     let mut sort_err: Option<EvalBreak> = None;
     sorted.sort_by(|a, b| {
         use std::cmp::Ordering;
@@ -403,7 +403,7 @@ pub(crate) fn eval_vec_sort_by(
     if let Some(e) = sort_err {
         return Err(e);
     }
-    Ok(Value::Vec(Arc::new(sorted)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(sorted)))
 }
 
 /// `(:wat::core::map f xs)` → `Stream<U>`. Lazily calls `f` on each element as the result is
@@ -637,21 +637,21 @@ pub(crate) fn eval_mapv(
             for x in v.iter() {
                 out.push(apply_one(x)?);
             }
-            Ok(Value::Vec(Arc::new(out)))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
         }
         Value::wat__core__PersistentVector(v) => {
             let mut out = Vec::with_capacity(v.len());
             for x in v.iter() {
                 out.push(apply_one(x)?);
             }
-            Ok(Value::Vec(Arc::new(out)))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
         }
         Value::wat__core__List(v) => {
             let mut out = Vec::with_capacity(v.len());
             for x in v.iter() {
                 out.push(apply_one(x)?);
             }
-            Ok(Value::Vec(Arc::new(out)))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
         }
         Value::wat__stream__Stream(_) => {
             let source = crate::stream::value_as_stream(&coll).expect("Stream value");
@@ -661,7 +661,7 @@ pub(crate) fn eval_mapv(
             loop {
                 let realized = crate::stream::realize(&cur, sym, call_span)?;
                 match realized.as_ref() {
-                    crate::stream::Stream::Empty => return Ok(Value::Vec(Arc::new(out))),
+                    crate::stream::Stream::Empty => return Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out))),
                     crate::stream::Stream::Cons { head, tail } => {
                         out.push(head.clone());
                         cur = Arc::clone(tail);
@@ -1011,14 +1011,11 @@ pub(crate) fn eval_stream_to_vec(
         )
         .into());
     };
-    let mut out: Vec<Value> = match Arc::try_unwrap(acc) {
-        Ok(v) => v,
-        Err(shared) => (*shared).clone(),
-    };
+    let mut out: Vec<Value> = acc.into_values();
     loop {
         let realized = crate::stream::realize(&cur, sym, call_span)?;
         match realized.as_ref() {
-            crate::stream::Stream::Empty => return Ok(Value::Vec(Arc::new(out))),
+            crate::stream::Stream::Empty => return Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out))),
             crate::stream::Stream::Cons { head, tail } => {
                 out.push(head.clone());
                 cur = Arc::clone(tail);
@@ -1193,7 +1190,7 @@ pub(crate) fn eval_seq_zip(
     for (x, y) in xs.iter().zip(ys.iter()).take(n) {
         out.push(Value::Tuple(Arc::new(vec![x.clone(), y.clone()])));
     }
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
 }
 
 /// `(window xs n)` → `Vec<Vec<T>>`. Sliding window of size `n`; maps to Rust's
@@ -1229,14 +1226,14 @@ pub(crate) fn eval_seq_window(
     )?;
     let n = require_i64(op, eval_inner(&args[1], env, sym)?.value_owned())?;
     if n <= 0 {
-        return Ok(Value::Vec(Arc::new(Vec::new())));
+        return Ok(Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())));
     }
     let n = n as usize;
     let out: Vec<Value> = xs
         .windows(n)
-        .map(|w| Value::Vec(Arc::new(w.to_vec())))
+        .map(|w| Value::Vec(crate::value::pvec::PVec::from_vec(w.to_vec())))
         .collect();
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
 }
 
 /// `(remove-at xs i)` → `Vec<T>`. New Vec with the element at `i` removed. Out-of-range index
@@ -1274,7 +1271,7 @@ pub(crate) fn eval_seq_remove_at(
     )?;
     let i = require_i64(op, eval_inner(&args[1], env, sym)?.value_owned())?;
     if i < 0 || (i as usize) >= xs.len() {
-        return Ok(Value::Vec(Arc::new(xs)));
+        return Ok(Value::Vec(crate::value::pvec::PVec::from_vec(xs)));
     }
     let target = i as usize;
     let mut out = Vec::with_capacity(xs.len() - 1);
@@ -1283,7 +1280,7 @@ pub(crate) fn eval_seq_remove_at(
             out.push(v.clone());
         }
     }
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
 }
 
 // Arc 255 Stone layer-1 — `:wat::core::last` impl, back where it lived before Stone
@@ -1501,7 +1498,7 @@ pub(crate) fn seqable_value_to_stream(
             }
             StreamContainer::Vector => {
                 let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
-                Ok(indexed_vec_stream(xs, 0))
+                Ok(indexed_pv_stream(xs, 0))
             }
             StreamContainer::PersistentVector => {
                 let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };

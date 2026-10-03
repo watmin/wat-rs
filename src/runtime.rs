@@ -600,7 +600,7 @@ pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
         Arc::new(vec![
             Value::String(Arc::new(err.message())),
             value_from_span(err.span().clone()),
-            Value::Vec(Arc::new(Vec::new())),
+            Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())),
         ]),
     )))
 }
@@ -632,7 +632,7 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
             Arc::new(vec![
                 Value::String(Arc::new(p.message.clone())),
                 value_from_span(span),
-                Value::Vec(Arc::new(Vec::new())),
+                Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())),
             ]),
         )))
     } else {
@@ -649,7 +649,7 @@ pub(crate) fn fault_from_panic_payload(payload: &(dyn std::any::Any + Send)) -> 
             Arc::new(vec![
                 Value::String(Arc::new(message)),
                 value_from_span(crate::rust_caller_span!()),
-                Value::Vec(Arc::new(Vec::new())),
+                Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())),
             ]),
         )))
     }
@@ -1623,7 +1623,7 @@ pub(crate) fn eval_inner(
                 .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(TrackedValue::new(
-                Value::Vec(Arc::new(elems)),
+                Value::Vec(crate::value::pvec::PVec::from_vec(elems)),
                 Provenance::Literal { span: span.clone() },
             ))
         }
@@ -5188,7 +5188,7 @@ fn eval_apply(
             .into());
         }
     };
-    combined.extend((*spread_vec).iter().cloned());
+    combined.extend(spread_vec.iter().cloned());
 
     // Step 5 — fast path: fn-valued head (Arc 009 lift OR let-bound fn).
     if let Value::wat__core__fn(func) = &head_val {
@@ -6492,7 +6492,7 @@ fn eval_tuple_ctor(
 
 /// Require a `Vec` argument. Used by list primitives that take one
 /// Vec as their sole / first arg.
-pub(crate) fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, EvalBreak> {
+pub(crate) fn require_vec(op: &'static str, v: Value) -> Result<crate::value::pvec::PVec, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(xs),
         // arc 138: no span — require_vec is a value-level helper without
@@ -7610,7 +7610,7 @@ fn metadata_type_token_value(ty: &str, span: &Span) -> Result<Value, EvalBreak> 
 }
 
 fn metadata_vec(items: Vec<Value>) -> Value {
-    Value::Vec(Arc::new(items))
+    Value::Vec(crate::value::pvec::PVec::from_vec(items))
 }
 
 fn emit_doc_contract(
@@ -10103,7 +10103,7 @@ pub(crate) fn eval_edn_validate(
                 variant_name: "Invalid".into(),
                 names: builtin_enum_variant_names(":wat::edn::Validation", "Invalid"),
                 fields: vec![
-                    Value::Vec(Arc::new(edn_coerce_path_segments(&e.path))),
+                    Value::Vec(crate::value::pvec::PVec::from_vec(edn_coerce_path_segments(&e.path))),
                     Value::String(Arc::new(e.expected)),
                     Value::String(Arc::new(e.got)),
                 ],
@@ -11246,7 +11246,7 @@ pub fn apply_function(
             let rest: Vec<Value> = drained.collect();
             builder = builder.bind_unknown_span(
                 rest_name.clone(),
-                TrackedValue::from(Value::Vec(Arc::new(rest))),
+                TrackedValue::from(Value::Vec(crate::value::pvec::PVec::from_vec(rest))),
             );
         } else {
             // Drop the iterator so cur_args is fully drained even on
@@ -11507,7 +11507,7 @@ fn eval_runtime_argv() -> Result<Value, EvalBreak> {
         .iter()
         .map(|s| Value::String(Arc::new(s.clone())))
         .collect();
-    Ok(Value::Vec(Arc::new(values)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(values)))
 }
 
 /// `(:wat::runtime::current-thread)` — nullary; returns the calling thread's id as
@@ -11925,7 +11925,7 @@ pub(crate) fn failure_value_from_assertion_payload(p: crate::assertion::Assertio
         Some(e) => e,
         None => fault_value(message, location),
     };
-    let frames_field = Value::Vec(Arc::new(
+    let frames_field = Value::Vec(crate::value::pvec::PVec::from_vec(
         frames
             .into_iter()
             .map(value_from_frame_info)
@@ -11985,7 +11985,7 @@ fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
         Arc::new(vec![
             Value::String(Arc::new(message)),
             location_value,
-            Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
+            Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())), // causes: empty Vector<Error>
         ]),
     )))
 }
@@ -12164,7 +12164,7 @@ pub(crate) fn message_only_failure(message: String) -> Value {
         failure_names(),
         Arc::new(vec![
             fault_value(message, None),       // error (synthesized Fault)
-            Value::Vec(Arc::new(Vec::new())), // frames
+            Value::Vec(crate::value::pvec::PVec::from_vec(Vec::new())), // frames
             Value::Option(Arc::new(None)),    // actual
             Value::Option(Arc::new(None)),    // expected
         ]),
@@ -12575,7 +12575,7 @@ pub(crate) fn fault_with_cause(
         Arc::new(vec![
             Value::String(Arc::new(message)),
             value_from_span(location),
-            Value::Vec(Arc::new(vec![cause])),
+            Value::Vec(crate::value::pvec::PVec::from_vec(vec![cause])),
         ]),
     )))
 }
@@ -22019,7 +22019,7 @@ mod tests {
 
         let vec_form = value_to_watast(
             ":wat::eval-step!",
-            Value::Vec(Arc::new(vec![Value::i64(10), Value::i64(20)])),
+            Value::Vec(crate::value::pvec::PVec::from_vec(vec![Value::i64(10), Value::i64(20)])),
             crate::rust_caller_span!(),
         )
         .unwrap();

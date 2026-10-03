@@ -279,11 +279,7 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
 
 pub(crate) fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
     match container {
-        Value::Vec(xs) => {
-            let mut out = (**xs).clone();
-            out.push(item.clone());
-            Ok(Value::Vec(Arc::new(out)))
-        }
+        Value::Vec(xs) => Ok(Value::Vec(xs.push_back(item.clone()))),
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: "(Vector :- [T])",
@@ -411,7 +407,7 @@ pub(crate) fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> 
             // (from the (canonical_key, (original_k, v)) tuple), which was correct by accident.
             // Now: m.keys().cloned() — K is the direct HashMap key; no tuple indirection.
             let ks: Vec<Value> = m.keys().cloned().collect();
-            Ok(Value::Vec(Arc::new(ks)))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(ks)))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -427,7 +423,7 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
         Value::wat__std__HashMap(m) => {
             // Stone 216.5c — native HashMap<Value, Value>; V is the direct map value.
             let vs: Vec<Value> = m.values().cloned().collect();
-            Ok(Value::Vec(Arc::new(vs)))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(vs)))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -457,7 +453,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
                             out.extend((*l).iter().cloned());
                             out.extend((*r).iter().cloned());
-                            Ok(Value::Vec(Arc::new(out)))
+                            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
                         }
                         StreamContainer::PersistentVector => {
                             let Value::wat__core__PersistentVector(l) = left else { unreachable!("of_value⇒PersistentVector") };
@@ -626,7 +622,7 @@ pub(crate) fn persistentmap_keys_inner(container: &Value) -> Result<Value, EvalB
     const OP: &str = ":wat::core::PersistentMap/keys";
     match container {
         Value::wat__core__PersistentMap(m) => {
-            Ok(Value::Vec(Arc::new(m.keys())))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(m.keys())))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -640,7 +636,7 @@ pub(crate) fn persistentmap_values_inner(container: &Value) -> Result<Value, Eva
     const OP: &str = ":wat::core::PersistentMap/values";
     match container {
         Value::wat__core__PersistentMap(m) => {
-            Ok(Value::Vec(Arc::new(m.values())))
+            Ok(Value::Vec(crate::value::pvec::PVec::from_vec(m.values())))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -952,7 +948,7 @@ pub(crate) fn vector_extend_inner(to: &Value, from: &Value) -> Result<Value, Eva
         Value::wat__core__PersistentVector(r) => out.extend(r.iter().cloned()),
         _ => unreachable!("the arity/kind check above already rejected every other shape"),
     }
-    Ok(Value::Vec(Arc::new(out)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
 }
 
 /// `(:wat::core::PersistentVector/concat to from)` — DESIGN-STONE-into-pv-from-vector.md.
@@ -1353,7 +1349,7 @@ pub(crate) fn eval_rest(
                         }).into());
                     }
                     let out: Vec<Value> = items.iter().skip(1).cloned().collect();
-                    Ok(Value::Vec(Arc::new(out)))
+                    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(out)))
                 }
                 // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
                 // Maintains type identity: List/rest → List (not Vec).
@@ -1501,7 +1497,7 @@ pub(crate) fn eval_vector_ctor(
         .iter()
         .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Value::Vec(Arc::new(items)))
+    Ok(Value::Vec(crate::value::pvec::PVec::from_vec(items)))
 }
 
 pub(crate) fn eval_hashmap_ctor(
@@ -1872,7 +1868,7 @@ mod arc109_two_iii_ctor_guard_widening {
         let args = vec![kw(":wat::core::i64"), i64_lit(1), i64_lit(2), i64_lit(3)];
         let v = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
             .unwrap_or_else(|e| panic!("keyword-typed Vector ctor must still eval: {e:?}"));
-        assert_eq!(v, Value::Vec(std::sync::Arc::new(vec![Value::i64(1), Value::i64(2), Value::i64(3)])));
+        assert_eq!(v, Value::Vec(crate::value::pvec::PVec::from_vec(vec![Value::i64(1), Value::i64(2), Value::i64(3)])));
     }
 
     #[test]

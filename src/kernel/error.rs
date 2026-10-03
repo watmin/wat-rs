@@ -230,7 +230,7 @@ pub(crate) fn failure_error_field(
 /// `(:wat::core::first chain)` to recover the head when they don't
 /// care about the trail.
 pub(crate) fn single_died_chain(died: Value) -> Value {
-    Value::Vec(Arc::new(vec![died]))
+    Value::Vec(crate::value::pvec::PVec::from_vec(vec![died]))
 }
 
 /// Arc 278 no-hidden-failures — render a THREAD-peer PANIC death as the SAME

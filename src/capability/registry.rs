@@ -118,7 +118,7 @@ const SOCKET_ADDRESS_WIRE_CLASS: &str = "wat::kernel::SocketAddressWire";
 /// struct_form = [i64(minter_pid), Value::Vec of i64 name bytes].
 /// Called by the encode closure so the class FQDN + field order live once, not twice.
 fn socket_address_wire_to_record(minter_pid: i32, name_bytes: Vec<u8>) -> Value {
-    let name_vec = Value::Vec(std::sync::Arc::new(
+    let name_vec = Value::Vec(crate::value::pvec::PVec::from_vec(
         name_bytes.into_iter().map(|b| Value::i64(b as i64)).collect(),
     ));
     Value::Aggregate(std::sync::Arc::new(AggregateValue::record(
@@ -395,7 +395,7 @@ mod waist_proof {
     fn address_decode_rejects_overlong_name() {
         // A name longer than the abstract-UDS limit (107 bytes) is refused at decode.
         let types = make_types_with_wire();
-        let name_vec = Value::Vec(std::sync::Arc::new(
+        let name_vec = Value::Vec(crate::value::pvec::PVec::from_vec(
             (0..200).map(|_| Value::i64(b'a' as i64)).collect(),
         ));
         let body = make_address_body(1, name_vec, &types);
@@ -423,7 +423,7 @@ mod waist_proof {
     fn address_decode_rejects_empty_name() {
         // An empty byte vector is rejected at decode — symmetric with the over-long rejection.
         let types = make_types_with_wire();
-        let name_vec = Value::Vec(std::sync::Arc::new(vec![]));
+        let name_vec = Value::Vec(crate::value::pvec::PVec::from_vec(vec![]));
         let body = make_address_body(1, name_vec, &types);
         let err = decode_in(&[address_codec()], crate::kernel::spawn::ADDRESS_TYPE_PATH, &body, &types)
             .expect_err("an empty address name must be refused at decode");

@@ -46,8 +46,8 @@ fn as_string(v: Value) -> String {
 /// A `:wat::core::Vector<wat::core::String>` result.
 fn as_vec_string(v: Value) -> Vec<String> {
     match v {
-        Value::Vec(items) => (*items)
-            .clone()
+        Value::Vec(items) => items
+            .into_values()
             .into_iter()
             .map(|item| match item {
                 Value::String(s) => (*s).clone(),

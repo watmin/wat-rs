@@ -148,7 +148,7 @@ pub(crate) fn eval_bytes_from_hex(
         out.push(Value::u8((hi << 4) | lo));
         i += 2;
     }
-    Ok(Value::Option(Arc::new(Some(Value::Vec(Arc::new(out))))))
+    Ok(Value::Option(Arc::new(Some(Value::Vec(crate::value::pvec::PVec::from_vec(out))))))
 }
 
 /// Decode an ASCII byte to a hex nibble. Accepts `0-9`, `a-f`,
