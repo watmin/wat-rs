@@ -43,39 +43,73 @@ pub(crate) fn check_operand_field_ref(
     // parameters on 2026-08-28 and clippy's arity ceiling caught it at 8, which is the ceiling
     // doing its job. Bundling is the fix; an `#[allow]` would have been the patch.
     let ClauseCtx { rule_name, fact_type, field_names, types, .. } = *ctx;
-    if let WatAST::Keyword(k, _) = operand {
-        let field = k.trim_start_matches(':');
-        if field_names.iter().any(|f| f == field) {
-            return; // a declared field — the field reference wins, exactly as before.
+    // A keyword field reference (`:grade`) is still a field. A reference symbol is never a
+    // field name — `:grade` has no `::`, so conversion left it a keyword. A symbol here is a
+    // constant (`evt.G/Hii`, `evt/G.Hi`), judged by the same classifier as the keyword.
+    let spelling: String = match operand {
+        WatAST::Keyword(k, _) => {
+            let field = k.trim_start_matches(':');
+            if field_names.iter().any(|f| f == field) {
+                return; // a declared field — the field reference wins, exactly as before.
+            }
+            k.clone()
         }
-        // ★ THE THIRD STATE, ahead of the comparator question and deliberately so. A `::` name
-        // whose prefix is a known enum and whose variant does not exist is a MISTAKE at every
-        // comparator — including `keyword::=`, where the old routing let it through as a
-        // legitimate keyword constant — so the refusal cannot be conditioned on `op_type`.
-        // It names the enum, the variant as written, and the variants that exist; it does NOT
-        // fall through to `check_field_kw`, whose remedy (the record's field names) is the
-        // confidently-wrong one this kind exists to delete.
-        let constant = classify_keyword_constant(k, types);
-        if let KeywordConstant::UnknownVariant { enum_path, variant, available } = constant {
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::canonical_identity(id.as_str())
+        }
+        _ => return,
+    };
+    // ★ THE THIRD STATE, ahead of the comparator question and deliberately so. A `::` name
+    // whose prefix is a known enum and whose variant does not exist is a MISTAKE at every
+    // comparator — including `keyword::=`, where the old routing let it through as a
+    // legitimate keyword constant — so the refusal cannot be conditioned on `op_type`.
+    // It names the enum, the variant as written, and the variants that exist; it does NOT
+    // fall through to `check_field_kw`, whose remedy (the record's field names) is the
+    // confidently-wrong one this kind exists to delete.
+    //
+    // The symbol spelling of that same mistake is `evt.G/Hii`. Its identity is
+    // `:evt::G::Hii`, which is the string this classifier already refuses. Passing the
+    // identity keeps the keyword arm byte-for-byte on a keyword operand.
+    let constant = classify_keyword_constant(&spelling, types);
+    if let KeywordConstant::UnknownVariant { enum_path, variant, available } = constant {
+        errors.push(ReteCheckError {
+            span: clause.span().clone(),
+            kind: ReteCheckErrorKind::UnknownEnumVariant {
+                rule: rule_name.to_string(),
+                fact_type: fact_type.to_string(),
+                enum_path: enum_path.trim_start_matches(':').to_string(),
+                variant: variant.to_string(),
+                available_variants: available,
+            },
+        });
+        return;
+    }
+    // A usable constant AT THIS COMPARATOR is legitimate; say nothing.
+    if op_type == Some(constant.segment()) {
+        return;
+    }
+    match operand {
+        WatAST::Keyword(_, _) => {
+            // The OPERAND NODE, not `clause.span()`: the keyword IS the field reference, so its own
+            // span is the only one this producer can be handed (see `check_field_kw`).
+            check_field_kw(operand, rule_name, fact_type, field_names, errors);
+        }
+        WatAST::Symbol(id, span) => {
+            // A bare tagged variant (`tg/P.Hi`) classifies as a keyword constant — the variant
+            // EXISTS, it just has no bare value — and then fails the comparator. The keyword
+            // spelling of that arm is `UnknownField`. A symbol used to miss this function
+            // entirely (`if let Keyword`), so the rule compiled and matched nothing.
             errors.push(ReteCheckError {
-                span: clause.span().clone(),
-                kind: ReteCheckErrorKind::UnknownEnumVariant {
+                span: span.clone(),
+                kind: ReteCheckErrorKind::UnknownField {
                     rule: rule_name.to_string(),
                     fact_type: fact_type.to_string(),
-                    enum_path: enum_path.trim_start_matches(':').to_string(),
-                    variant: variant.to_string(),
-                    available_variants: available,
+                    field: id.as_str().to_string(),
+                    available_fields: field_names.to_vec(),
                 },
             });
-            return;
         }
-        // A usable constant AT THIS COMPARATOR is legitimate; say nothing.
-        if op_type == Some(constant.segment()) {
-            return;
-        }
-        // The OPERAND NODE, not `clause.span()`: the keyword IS the field reference, so its own
-        // span is the only one this producer can be handed (see `check_field_kw`).
-        check_field_kw(operand, rule_name, fact_type, field_names, errors);
+        _ => {}
     }
 }
 
