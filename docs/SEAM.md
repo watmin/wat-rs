@@ -36,8 +36,9 @@ Stone 5 ruled H2 (gates first): 5a = 255.82 (a slash-less call head that names n
 **6374**/6374 at `581478c9c`, ledger **146**). 5b = 255.83 (no head decided by its keyword spelling: ledger A/B → 0,
 146 → 64 (shape E left); the whole-body template purity hole closed; wat door verb `:wat::core::canonical-identity`;
 floor **6389**/6389 at `af6577c3e`). 5c-i = 255.85 (conversion tooling) + 255.86 (G1 one name per operation, R-a), floor
-**6397**/6397 at `fd5321bd4`. Next: 5c-ii the stdlib conversion, 5c-iii corpus, 5c-iv embedded (18 `format!` keyword
-placeholders to answer), then 5d the wall. Open: the reader's lexer panics on `∅`/`≠`.
+**6397**/6397 at `fd5321bd4`. 5c-ii = 255.87 (the stdlib speaks faithful Clojure; residual cost 1.107×, P1; the doc-link
+check is a `floor.sh` step), floor **6410**/6410 at `d131e2833`, ignores **19** (owed back to 18 in 255.88). Next: 255.88
+(the slash rule), 5c-iii corpus, 5c-iv embedded (18 `format!` keyword placeholders to answer), then 5d the wall. Open: the reader's lexer panics on `∅`/`≠`.
 ⚠ The **debug** build still has arms A–C (255.26). The release floor cannot see debug-only failures.
 ⚠ A one-commit docs-only gap is normal: the commit that writes this stamp lands after it.
 

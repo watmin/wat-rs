@@ -64,6 +64,11 @@ declaration keyed `:u::a/b` may be read or re-keyed as "type `a`, member `b`" (R
    receivers). **Measure, do not remove:** count `Identifier` callers of those three, and estimate the allocation cost of
    reconstructing on demand (a counter on one heavy workload). Report; removal is a later, separate decision.
 
+6. **Owed by 255.87: the ignore ledger 19 → 18.** The doc-link judge (`tests/lint/no_new_broken_doc_link.rs:277`) is an
+   `#[ignore]` test that `scripts/floor.sh` runs against the captured `cargo doc` log. The builder's ruling is one ignore
+   at the end, so the judge becomes a non-test entry (a small `src/bin` or the script itself reading the log against
+   `KNOWN_BROKEN_DOC_LINKS`), keeping its two-way ratchet and its planted-break proof.
+
 ## Gates
 
 | what | how | expected |
