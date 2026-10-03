@@ -11963,22 +11963,21 @@ fn failure_record(
 }
 
 /// Arc 278 — build a `:wat::core::Fault` `Value::Aggregate(Record)` from a
-/// human message + an optional source location. Field order matches the
+/// human message + a source location. Field order matches the
 /// `:wat::core::Fault` registration (core.wat): `(message, location)`.
-/// `location` is a MANDATORY `:wat::core::Span` (not `Option`); when the
-/// panic carried no span (transport/synthetic failures — disconnected, shutdown,
-/// service crash), a synthetic `<runtime>` location marks it honestly. This is
-/// the canonical synthesizer for every death that is a bare message rather
-/// than a structured `raise!`.
-pub(crate) fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
-    let location_value = match location {
-        Some(span) => value_from_span(span),
-        None => value_from_span(crate::span::Span::new(
-            Arc::new("<runtime>".to_string()),
-            0,
-            0,
-        )),
-    };
+///
+/// Excursus 003 strike B3 item 3: `location` is now a MANDATORY, real
+/// `crate::span::Span` — the `Option` is gone, and with it the one caller
+/// ([`message_only_failure`]) that passed `None` and got back a fabricated
+/// `<runtime>:0:0` location. That caller now supplies the Rust raise site via
+/// `#[track_caller]` (same pattern [`flat_message_failure`] already used), so
+/// there is no longer a code path that CAN write a synthetic location — the
+/// compiler refuses a call site with no `Span` in hand, not a runtime
+/// convention callers were trusted to honor. This is the canonical
+/// synthesizer for every death that is a bare message rather than a
+/// structured `raise!`.
+pub(crate) fn fault_value(message: String, location: crate::span::Span) -> Value {
+    let location_value = value_from_span(location);
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::core::Fault".into(),
         fault_names(),
@@ -12184,16 +12183,33 @@ fn frame_names() -> Arc<Vec<String>> {
 // `src/kernel/error.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
 /// Build a `:wat::kernel::Failure` `Value::Aggregate(Record)` carrying a
-/// SYNTHESIZED `:wat::core::Fault` (from `message`, `<runtime>` location, empty
-/// causes) as its mandatory `error` field; actual / expected are `:wat::core::None`,
-/// frames is empty `Vec<Frame>`.
+/// SYNTHESIZED `:wat::core::Fault` (from `message`, the Rust raise site's own
+/// location, empty causes) as its mandatory `error` field; actual / expected
+/// are `:wat::core::None`, frames is empty `Vec<Frame>`.
 /// Arc 293.W.2b — Failure is now Nature::Record (pure EDN data).
 /// Arc 278 the string-wrap annihilation — the death carries its cause STRUCTURALLY
 /// (a Fault), not a bare String; `(:wat::kernel::Failure/message f)` derives back
-/// to `fault.message`. Mirrors the wat-side `:wat::kernel::message-only-failure`.
+/// to `fault.message`. Mirrors the wat-side `:wat::kernel::message-only-failure`
+/// (`:wat::core::Fault/of`, which captures ITS OWN call site the same way, in wat).
+///
+/// Excursus 003 strike B3 item 3: this used to pass `fault_value(message, None)`,
+/// the ONE caller that synthesized a fabricated `<runtime>:0:0` location —
+/// `fault_value`'s `location` is now a mandatory `Span`, so this fn supplies the
+/// REAL Rust raise site instead, via `#[track_caller]` (the same pattern
+/// [`flat_message_failure`] already used): every one of this fn's 13 call sites
+/// (transport/synthetic failures with no wat frame of their own — disconnected,
+/// process stopped, request too large, …) gets its OWN file:line:col, not a
+/// shared, meaningless placeholder.
+#[track_caller]
 pub(crate) fn message_only_failure(message: String) -> Value {
+    let loc = std::panic::Location::caller();
+    let span = crate::span::Span::new(
+        Arc::new(loc.file().to_string()),
+        loc.line() as i64,
+        loc.column() as i64,
+    );
     failure_record(
-        fault_value(message, None),           // error (synthesized Fault)
+        fault_value(message, span),            // error (synthesized Fault)
         Value::Vec(Arc::new(Vec::new())),      // frames
         0,                                     // frames-elided: no frames captured at all
     )
@@ -12241,7 +12257,7 @@ pub(crate) fn flat_message_failure(message: String) -> Value {
         loc.line() as i64,
         loc.column() as i64,
     );
-    let error_field = fault_value(message, Some(span));
+    let error_field = fault_value(message, span);
     let (wat_frames, frames_elided) = crate::value::frame::capped_wat_frames();
     let rust_frame = crate::value::frame::Frame::rust_site(loc);
     let mut frames: Vec<Value> = wat_frames.iter().map(value_from_frame).collect();
@@ -12625,7 +12641,7 @@ fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Val
                 "{} — the diagnostic did not decode as a typed :wat::core::Error",
                 e.message()
             ),
-            Some(e.location()),
+            e.location(),
         ),
     }
 }
